@@ -26,6 +26,11 @@ import {
   type SickReportStaff,
 } from "~/components/staff/sick-report-modal";
 import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
+import { CustomAllowanceAbsenceModal } from "~/components/staff/custom-allowance-modals";
+import {
+  AllowanceValue,
+  EditCustomAllowanceModal,
+} from "~/components/staff/custom-allowance-editor";
 import {
   ABSENCE_TYPE_HEX,
   ABSENCE_TYPE_LABEL,
@@ -40,6 +45,7 @@ import {
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
@@ -72,6 +78,11 @@ import {
   VERTRETUNG_GAPS_KEY_PREFIX,
   VERTRETUNG_WEEK_KEY_PREFIX,
 } from "~/lib/timetable-helpers";
+import {
+  absenceTypeService,
+  type AbsenceType,
+  type AbsenceTypeAllowanceSummary,
+} from "~/lib/absence-type-api";
 
 const logger = createLogger({ component: "AbwesenheitenTab" });
 
@@ -190,7 +201,19 @@ export function AbwesenheitenTab({
 }) {
   const toast = useToast();
   const year = Number.parseInt(berlinTodayISO().slice(0, 4), 10);
+  const [allowanceYear, setAllowanceYear] = useState(year);
   const [quota, setQuota] = useState<StaffVacationQuotaSummary | null>(null);
+  const [customAllowances, setCustomAllowances] = useState<
+    { type: AbsenceType; summary: AbsenceTypeAllowanceSummary }[]
+  >([]);
+  const [bookingAllowances, setBookingAllowances] = useState<
+    { type: AbsenceType; summary: AbsenceTypeAllowanceSummary }[]
+  >([]);
+  const [allowanceModal, setAllowanceModal] = useState<{
+    type: AbsenceType;
+    summary: AbsenceTypeAllowanceSummary;
+  } | null>(null);
+  const [customAbsenceModal, setCustomAbsenceModal] = useState(false);
   const [absences, setAbsences] = useState<StaffAbsenceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingActionId, setPendingActionId] = useState<number | null>(null);
@@ -238,16 +261,45 @@ export function AbwesenheitenTab({
         setLoading(true);
       }
       try {
-        const [q, abs] = await Promise.all([
+        const [q, abs, absenceTypes] = await Promise.all([
           staffAbsenceService.getVacationQuota(staffId, year),
           staffAbsenceService.getAbsences(
             staffId,
             `${year}-01-01`,
             `${year}-12-31`,
           ),
+          staff ? absenceTypeService.getAbsenceTypes() : Promise.resolve([]),
         ]);
+        const allowanceTypes = absenceTypes.filter(
+          (type) => type.allowanceEnabled,
+        );
+        const allowanceSummaries = await Promise.all(
+          allowanceTypes.map((type) =>
+            absenceTypeService.getAllowance(type.id, staffId, allowanceYear),
+          ),
+        );
+        const bookingSummaries =
+          allowanceYear === year
+            ? allowanceSummaries
+            : await Promise.all(
+                allowanceTypes.map((type) =>
+                  absenceTypeService.getAllowance(type.id, staffId, year),
+                ),
+              );
         setQuota(q);
         setAbsences(abs);
+        setCustomAllowances(
+          allowanceTypes.map((type, index) => ({
+            type,
+            summary: allowanceSummaries[index]!,
+          })),
+        );
+        setBookingAllowances(
+          allowanceTypes.map((type, index) => ({
+            type,
+            summary: bookingSummaries[index]!,
+          })),
+        );
         // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
         // outside this component and otherwise stays stale after approvals,
         // denials and stornos. useSWRAuth prefixes every key with the tenant
@@ -269,7 +321,7 @@ export function AbwesenheitenTab({
         setLoading(false);
       }
     },
-    [staffId, year, swrMutate, toast],
+    [allowanceYear, staff, staffId, year, swrMutate, toast],
   );
 
   useEffect(() => {
@@ -350,6 +402,19 @@ export function AbwesenheitenTab({
                   </Button>
                 </>
               )}
+              {canManageSickReports &&
+              staff &&
+              bookingAllowances.some((entry) => entry.type.isActive) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => setCustomAbsenceModal(true)}
+                >
+                  <CalendarClock className="mr-1.5 h-4 w-4" aria-hidden />
+                  Weitere Abwesenheit
+                </Button>
+              ) : null}
               {canManageSickReports && (
                 <Button
                   type="button"
@@ -404,6 +469,79 @@ export function AbwesenheitenTab({
 
         {quota?.opening && <VacationOpeningSummary opening={quota.opening} />}
       </SectionCard>
+
+      {customAllowances.length > 0 ? (
+        <SectionCard title="Weitere Kontingente" headingLevel={3}>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <p className="text-sm text-gray-500">
+              Diese Tage gelten nur für die jeweilige Abwesenheitsart.
+            </p>
+            <div className="w-36">
+              <label
+                htmlFor="allowance-year"
+                className="mb-1 block text-xs font-medium text-gray-600"
+              >
+                Kalenderjahr
+              </label>
+              <CustomSelect
+                id="allowance-year"
+                value={String(allowanceYear)}
+                onChange={(value) => setAllowanceYear(Number(value))}
+                options={Array.from(
+                  { length: 101 },
+                  (_, index) => 2100 - index,
+                ).map((value) => ({
+                  value: String(value),
+                  label: String(value),
+                }))}
+              />
+            </div>
+          </div>
+          <div className="space-y-3">
+            {customAllowances.map((entry) => (
+              <div
+                key={entry.type.id}
+                className="rounded-xl border border-gray-200 bg-white p-3"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-gray-900">
+                    {entry.type.name}
+                  </h4>
+                  {canManageSickReports ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="compact"
+                      onClick={() => setAllowanceModal(entry)}
+                    >
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                      Anspruch ändern
+                    </Button>
+                  ) : null}
+                </div>
+                <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                  <AllowanceValue
+                    label="Anspruch"
+                    value={entry.summary.entitledDays}
+                  />
+                  <AllowanceValue
+                    label="Vorgemerkt"
+                    value={entry.summary.reservedDays}
+                  />
+                  <AllowanceValue
+                    label="Genommen"
+                    value={entry.summary.takenDays}
+                  />
+                  <AllowanceValue
+                    label="Verbleibend"
+                    value={entry.summary.remainingDays}
+                  />
+                </dl>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
 
       <PendingAbsences
         rows={pending}
@@ -564,6 +702,31 @@ export function AbwesenheitenTab({
           }}
         />
       )}
+      {allowanceModal ? (
+        <EditCustomAllowanceModal
+          staffId={staffId}
+          year={allowanceYear}
+          entry={allowanceModal}
+          onClose={() => setAllowanceModal(null)}
+          onSaved={async () => {
+            setAllowanceModal(null);
+            await reload();
+          }}
+        />
+      ) : null}
+      {customAbsenceModal && staff ? (
+        <CustomAllowanceAbsenceModal
+          staff={staff}
+          year={year}
+          entries={bookingAllowances.filter((entry) => entry.type.isActive)}
+          absences={absences}
+          onClose={() => setCustomAbsenceModal(false)}
+          onSaved={async () => {
+            setCustomAbsenceModal(false);
+            await reload();
+          }}
+        />
+      ) : null}
     </div>
   );
 

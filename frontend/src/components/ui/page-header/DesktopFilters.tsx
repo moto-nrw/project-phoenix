@@ -171,7 +171,7 @@ function DropdownFilter({
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all ${isFiltered ? "ring-2 ring-blue-500 ring-offset-1" : ""} ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"} `}
+        className={`flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all ${isFiltered ? "ring-moto-blue ring-2 ring-offset-1" : ""} ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"} `}
       >
         {showIcons && selectedOption?.icon && (
           <svg

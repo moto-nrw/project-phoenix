@@ -30,7 +30,7 @@ func testSchoolID(tb testing.TB) int64 { return testpkg.Tenant(tb) }
 func buildProvisioningService(t *testing.T, db *bun.DB) platformSvc.OperatorProvisioningService {
 	t.Helper()
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return serviceFactory.OperatorProvisioning
@@ -149,8 +149,9 @@ func TestIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
 
 	// Use a school ID that exists but has no persons
 	// Create a second school for this test
-	testpkg.EnsureTestTenant(t, db, int64(999))
-	result, err := service.ListSchoolPersons(ctx, int64(999))
+	emptySchoolID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, emptySchoolID)
+	result, err := service.ListSchoolPersons(ctx, emptySchoolID)
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }

@@ -19,6 +19,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -111,7 +112,7 @@ func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID, de
 		// Direct service calls commit in RunInTx above, while HTTP calls reuse
 		// the surrounding WithTenantTx and register this on its hook holder.
 		// Both paths therefore publish only after their owning transaction.
-		realtime.QueueGroupAccessChanged(ctx, s.broadcaster, s.getLogger(), "staff_offboarding")
+		realtimeevents.QueueGroupAccessChanged(ctx, s.broadcaster, s.getLogger(), "staff_offboarding")
 	}
 	return nil
 }

@@ -190,7 +190,6 @@ func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Contex
 		ColumnExpr(`"sch".slug AS school_slug`).
 		ColumnExpr(`"sch".active AS school_active`).
 		ColumnExpr(`"sch".organization_id`).
-		ColumnExpr(`"org".name AS organization_name`).
 		ColumnExpr(`"at".status`).
 		ColumnExpr(`"at".activated_at`).
 		ColumnExpr(`"at".deactivated_at`).
@@ -198,12 +197,11 @@ func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Contex
 		ColumnExpr(`("s".id IS NOT NULL) AS has_staff`).
 		TableExpr(`auth.account_tenants AS "at"`).
 		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "at".tenant_id`).
-		Join(`INNER JOIN platform.organizations AS "org" ON "org".id = "sch".organization_id`).
 		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id AND "p".deleted_at IS NULL`).
 		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id AND "s".deleted_at IS NULL`).
 		Where(`"at".account_id = ?`, accountID).
 		Where(`"sch".deleted_at IS NULL`).
-		OrderExpr(`"org".name ASC, "sch".name ASC`).
+		OrderExpr(`"sch".name ASC`).
 		Scan(ctx, &rows)
 	if err != nil {
 		return nil, err

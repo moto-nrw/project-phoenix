@@ -786,7 +786,11 @@ export function PhasesEditor() {
           onClick={startCreate}
           className="inline-flex shrink-0 items-center justify-center gap-2"
         >
-          <MotoConceptIcon concept="calendarPeriods" size={16} />
+          <MotoConceptIcon
+            concept="calendarPeriods"
+            colorMode="inherit"
+            size={16}
+          />
           Neue Anmeldephase
         </Button>
       }
@@ -812,7 +816,11 @@ export function PhasesEditor() {
                   onClick={startCreate}
                   className="inline-flex items-center justify-center gap-2"
                 >
-                  <MotoConceptIcon concept="calendarPeriods" size={16} />
+                  <MotoConceptIcon
+                    concept="calendarPeriods"
+                    colorMode="inherit"
+                    size={16}
+                  />
                   Erste Anmeldephase anlegen
                 </Button>
               ),
@@ -949,7 +957,13 @@ export function PhasesEditor() {
         {error ? <Alert type="error" message={error} /> : null}
         <div className="grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="calendarPeriods" size={16} />}
+            leading={
+              <MotoConceptIcon
+                concept="calendarPeriods"
+                colorMode="inherit"
+                size={16}
+              />
+            }
             label="Anmeldephasen"
             value={phases.length}
           />
@@ -1128,7 +1142,13 @@ function PhaseActions({
     },
     {
       label: "Anschlussphase erstellen",
-      icon: <MotoConceptIcon concept="calendarPeriods" size={16} />,
+      icon: (
+        <MotoConceptIcon
+          concept="calendarPeriods"
+          colorMode="inherit"
+          size={16}
+        />
+      ),
       disabled: saving || rolloverActive,
       onClick: onRollover,
     },

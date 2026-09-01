@@ -12,7 +12,6 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -119,8 +118,18 @@ func (s *cleanupLateInvitesStub) DeleteByUsedRequestID(_ context.Context, reques
 	return s.counts[requestID], nil
 }
 
-func (s *cleanupOutboxStub) DeleteByRelatedEntity(_ context.Context, relatedType string, id int64) (int64, error) {
-	if relatedType != platformModels.EmailRelatedTypeEnrollmentRequest {
+func (s *cleanupOutboxStub) CountRelatedEmails(_ context.Context, relatedType string, id int64) (int, error) {
+	if relatedType != enrollmentRequestDeliveryType {
+		return 0, errors.New("unexpected related type")
+	}
+	if err := s.errFor[id]; err != nil {
+		return 0, err
+	}
+	return int(s.counts[id]), nil
+}
+
+func (s *cleanupOutboxStub) CancelRelatedEmails(_ context.Context, relatedType string, id int64, _ string) (int64, error) {
+	if relatedType != enrollmentRequestDeliveryType {
 		return 0, errors.New("unexpected related type")
 	}
 	if err := s.errFor[id]; err != nil {
@@ -139,7 +148,7 @@ func cleanupServiceForTest(requests *cleanupRequestStub, children *cleanupChildr
 		requests:    requests,
 		children:    children,
 		lateInvites: lateInvites,
-		outbox:      outbox,
+		delivery:    outbox,
 		settings:    settings,
 		logger:      slog.New(slog.DiscardHandler),
 		runInTx: func(ctx context.Context, fn func(context.Context) error) error {

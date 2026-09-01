@@ -661,7 +661,7 @@ function DesktopSearchSection({
             activeFilterCountForBadge !== undefined &&
             activeFilterCountForBadge > 0 ? (
               <span
-                className="inline-flex h-6 items-center gap-1.5 rounded-full bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 ring-inset"
+                className="bg-moto-blue-soft text-moto-blue-strong ring-moto-blue/20 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ring-1 ring-inset"
                 aria-label={`${activeFilterCountForBadge} Filter aktiv`}
               >
                 <span className="tabular-nums">
@@ -726,7 +726,7 @@ function DesktopSearchSection({
           activeFilterCountForBadge !== undefined &&
           activeFilterCountForBadge > 0 ? (
             <span
-              className="inline-flex h-6 items-center gap-1.5 rounded-full bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 ring-inset"
+              className="bg-moto-blue-soft text-moto-blue-strong ring-moto-blue/20 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ring-1 ring-inset"
               aria-label={`${activeFilterCountForBadge} Filter aktiv`}
             >
               <span className="tabular-nums">{activeFilterCountForBadge}</span>

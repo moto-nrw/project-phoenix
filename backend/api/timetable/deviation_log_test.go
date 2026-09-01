@@ -75,7 +75,7 @@ func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 	assert.Equal(t, s.staffX, *absence.SubjectStaffID)
 	require.NotNil(t, absence.Reason)
 	assert.Equal(t, "krank", *absence.Reason)
-	assert.Equal(t, date, absence.OccurrenceDate)
+	assert.Equal(t, auditModels.Date(date), absence.OccurrenceDate)
 
 	require.NotNil(t, substitution.SubjectStaffID)
 	assert.Equal(t, s.staffA, *substitution.SubjectStaffID)

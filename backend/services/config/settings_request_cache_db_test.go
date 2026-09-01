@@ -15,10 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupRequestCacheDBTest(t *testing.T) (*testpkg.DB, int64, SettingsService) {
+func setupRequestCacheDBTest(t *testing.T) (*testpkg.DB, int64, SettingsService, *config.Registry) {
 	t.Helper()
-	config.ResetRegistry()
-	t.Cleanup(config.ResetRegistry)
+	registry := config.NewRegistry()
 
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -31,9 +30,9 @@ func setupRequestCacheDBTest(t *testing.T) (*testpkg.DB, int64, SettingsService)
 
 	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	auditRepository := configRepository.NewSettingAuditRepository(testpkg.ConfigRuntime(db))
-	service := NewSettingsService(repository, auditRepository, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	service := NewSettingsService(repository, auditRepository, nil, testpkg.SettingsRuntime(t, db), slog.Default(), registry)
 	testpkg.SetTenantRuntime(t, service, db)
-	return db, tenantID, service
+	return db, tenantID, service, registry
 }
 
 // TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache is the #1565
@@ -43,9 +42,10 @@ func setupRequestCacheDBTest(t *testing.T) (*testpkg.DB, int64, SettingsService)
 // before the concurrent writer committed must still reject the now-inverted
 // pair — a stale cache serving the pre-lock value would accept it.
 func TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache(t *testing.T) {
-	db, tenantID, service := setupRequestCacheDBTest(t)
-	registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "15:00")
-	registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
+	t.Parallel()
+	db, tenantID, service, registry := setupRequestCacheDBTest(t)
+	registerTestSetting(registry, config.KeySlotListShortDayCutoff, config.FieldTime, "15:00")
+	registerTestSetting(registry, config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
 
 	requestCtx := WithSettingsRequestCache(
 		testpkg.ContextForTenant(context.Background(), tenantID),
@@ -85,8 +85,9 @@ func TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache(t *testing.T
 // that key at the login gate — so a cached re-read would hand the guard back
 // exactly the stale verdict it exists to replace.
 func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
-	db, tenantID, service := setupRequestCacheDBTest(t)
-	registerTestSetting(config.KeyMFAMode, config.FieldText, config.MFAModeOff)
+	t.Parallel()
+	db, tenantID, service, registry := setupRequestCacheDBTest(t)
+	registerTestSetting(registry, config.KeyMFAMode, config.FieldText, config.MFAModeOff)
 
 	// The login gate reads the mode and memoizes "off" for this request.
 	requestCtx := WithSettingsRequestCache(context.Background())
@@ -129,8 +130,9 @@ func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
 // be told the school has no override at all. That must be an error, not a
 // wrong answer.
 func TestResolveStringForTenantInTxRequiresTransaction(t *testing.T) {
-	_, tenantID, service := setupRequestCacheDBTest(t)
-	registerTestSetting(config.KeyMFAMode, config.FieldText, config.MFAModeOff)
+	t.Parallel()
+	_, tenantID, service, registry := setupRequestCacheDBTest(t)
+	registerTestSetting(registry, config.KeyMFAMode, config.FieldText, config.MFAModeOff)
 
 	_, err := service.ResolveStringForTenantInTx(context.Background(), tenantID, config.KeyMFAMode)
 	require.Error(t, err)
@@ -143,8 +145,10 @@ func TestResolveStringForTenantInTxRequiresTransaction(t *testing.T) {
 // per-key eviction list would miss it; the tenant-wide flush must force the
 // post-lock read back to the database.
 func TestLockClassCollectionPairFlushesGradeLevelMax(t *testing.T) {
-	db, tenantID, service := setupRequestCacheDBTest(t)
-	registerTestSetting(config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db, tenantID, service, registry := setupRequestCacheDBTest(t)
+	registerTestSetting(registry, config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
 
 	selectCount := testpkg.CaptureSettingValueSelects(db)
 
@@ -183,8 +187,9 @@ func TestLockClassCollectionPairFlushesGradeLevelMax(t *testing.T) {
 // while the write is uncommitted the mint cannot take its side of it, and once
 // the write commits the mint proceeds and re-reads the new mode.
 func TestMFAModeWriteAndMintLockAreMutuallyExclusive(t *testing.T) {
-	db, tenantID, service := setupRequestCacheDBTest(t)
-	registerTestSetting(config.KeyMFAMode, config.FieldText, config.MFAModeOff)
+	t.Parallel()
+	db, tenantID, service, registry := setupRequestCacheDBTest(t)
+	registerTestSetting(registry, config.KeyMFAMode, config.FieldText, config.MFAModeOff)
 
 	mintLock := make(chan error, 1)
 	writerCtx := testpkg.ContextForTenant(context.Background(), tenantID)
@@ -223,8 +228,9 @@ func TestMFAModeWriteAndMintLockAreMutuallyExclusive(t *testing.T) {
 // for every setting write would stall every login in the school behind an
 // unrelated admin edit.
 func TestNonMFASettingWriteDoesNotBlockTheMintLock(t *testing.T) {
-	db, tenantID, service := setupRequestCacheDBTest(t)
-	registerTestSetting("test.unrelated", config.FieldNumber, 30)
+	t.Parallel()
+	db, tenantID, service, registry := setupRequestCacheDBTest(t)
+	registerTestSetting(registry, "test.unrelated", config.FieldNumber, 30)
 
 	mintLock := make(chan error, 1)
 	writerCtx := testpkg.ContextForTenant(context.Background(), tenantID)

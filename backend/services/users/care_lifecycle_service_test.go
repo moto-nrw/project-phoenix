@@ -658,7 +658,8 @@ func TestStudentDeletion_RetentionReasonOnlyForEndedCare(t *testing.T) {
 		repos.Student, repos.PrivacyConsent, repos.StudentCompanion, nil)
 	deletion := userService.NewStudentDeletionService(
 		studentService, repos.Student, repos.Person, repos.StudentDeletion,
-		repos.GradeTransition, repos.DataDeletion, repos.StudentDeletionAudit, db)
+		repos.GradeTransition, repos.DataDeletion, repos.StudentDeletionAudit,
+		&testpkg.FeedbackEntryCounterMock{}, db)
 
 	student := testpkg.CreateTestStudent(t, db, "Nora", "Winter", "4a")
 	preview, err := deletion.Preview(ctx, student.ID)

@@ -74,18 +74,16 @@ func authToken(t *testing.T, perms ...string) string {
 
 // deleteStaffAuthToken creates the real account-to-staff chain required by
 // deleteStaff to identify the actor for audit tombstones.
-func deleteStaffAuthToken(t *testing.T, db *bun.DB) (string, func()) {
+func deleteStaffAuthToken(t *testing.T, db *bun.DB) string {
 	t.Helper()
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Delete", "Actor")
-	cleanup := func() {
-	}
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)
 	claims.Username = account.Email
 	claims.Permissions = []string{"users:delete"}
-	return testutil.MintTestJWT(t, claims), cleanup
+	return testutil.MintTestJWT(t, claims)
 }
 
 // pinToken mints a bearer token for a PIN-endpoint test. The /pin routes carry
@@ -132,7 +130,9 @@ func assignSystemRoleToAccount(
 			ModelTableExpr(`auth.roles`).
 			Scan(testpkg.TenantContext(tenantID))
 		require.NoError(t, err)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
+		t.Cleanup(func() {
+			require.NoError(t, repositories.NewFactory(db).Role.Delete(context.Background(), role.ID))
+		})
 	} else {
 		require.NoError(t, err)
 	}
@@ -528,10 +528,9 @@ func createStaffForAccountPerson(t *testing.T, ctx *testContext, personID, accou
 // A Lehrkraft (#1772) holds class_day:read and nothing else. Granting the staff
 // default groups:read would open the tenant-wide group list and every group's
 // student names, far beyond the classes assigned to that Lehrkraft.
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -547,10 +546,9 @@ func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
 
 // The mirror image: a staff account without the Lehrkraft role keeps the
 // existing default, so the guard above cannot quietly disable the grant.
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -599,10 +597,9 @@ func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
 // A Lehrkraft account (#1772) is provisioned without a caregiver profile on
 // purpose. The role-assignment paths refuse the combination from the other
 // direction; staff creation must not be the way around it (#2222 review).
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -745,8 +742,7 @@ func TestDeleteStaff_Success(t *testing.T) {
 		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	})
 
-	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
-	defer cleanupActor()
+	token := deleteStaffAuthToken(t, ctx.db)
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithJWTBearer(token))
 
@@ -770,8 +766,7 @@ func TestDeleteStaff_NotFound(t *testing.T) {
 
 	ctx := setupStaffRoute(t)
 
-	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
-	defer cleanupActor()
+	token := deleteStaffAuthToken(t, ctx.db)
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/staff/999999", nil,
 		testutil.WithJWTBearer(token))
 
@@ -879,10 +874,9 @@ func TestGetStaffByRole_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "RoleTeacher")
@@ -912,10 +906,9 @@ func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) 
 	assert.True(t, found, "expected role=teacher response to include legacy teacher staff ID %d", teacher.Staff.ID)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Caregiver")
@@ -1343,8 +1336,7 @@ func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "DeleteTeacher", "Test")
 	// Note: No defer cleanup as we're deleting
 
-	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
-	defer cleanupActor()
+	token := deleteStaffAuthToken(t, ctx.db)
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", teacher.StaffID), nil,
 		testutil.WithJWTBearer(token))
 
@@ -1366,8 +1358,7 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
 	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
 
-	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
-	defer cleanupActor()
+	token := deleteStaffAuthToken(t, ctx.db)
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithJWTBearer(token))
 

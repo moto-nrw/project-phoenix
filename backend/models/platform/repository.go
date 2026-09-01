@@ -38,20 +38,6 @@ type OperatorMFAAttemptResult struct {
 	LockedUntil *time.Time
 }
 
-// OrganizationRepository defines operations for managing organizations.
-type OrganizationRepository interface {
-	Create(ctx context.Context, organization *Organization) error
-	FindByID(ctx context.Context, id int64) (*Organization, error)
-	FindByIDForShare(ctx context.Context, id int64) (*Organization, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*Organization, error)
-	FindBySlug(ctx context.Context, slug string) (*Organization, error)
-	List(ctx context.Context) ([]*Organization, error)
-	Update(ctx context.Context, organization *Organization) error
-	CountByIDs(ctx context.Context, ids []int64) (int, error)
-	SoftDelete(ctx context.Context, id int64) error
-	Restore(ctx context.Context, id int64) error
-}
-
 // AnnouncementRepository defines operations for managing announcements
 type AnnouncementRepository interface {
 	// Core CRUD operations
@@ -107,7 +93,6 @@ type SchoolRepository interface {
 	SoftDelete(ctx context.Context, id int64) error
 	Restore(ctx context.Context, id int64) error
 	CountByIDs(ctx context.Context, ids []int64) (int, error)
-	CountNonDeletedByOrganizationID(ctx context.Context, organizationID int64) (int, error)
 }
 
 // OperatorEmailChangeTokenRepository defines operations for email change verification tokens
@@ -175,6 +160,7 @@ type OperatorMFAEmailChallengeRepository interface {
 	Create(ctx context.Context, challenge *OperatorMFAEmailChallenge) error
 	FindByID(ctx context.Context, id interface{}) (*OperatorMFAEmailChallenge, error)
 	FindActiveByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFAEmailChallenge, error)
+	MarkActive(ctx context.Context, id int64) error
 	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
 	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
 	DeleteExpired(ctx context.Context) (int, error)

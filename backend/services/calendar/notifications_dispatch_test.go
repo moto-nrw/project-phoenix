@@ -8,7 +8,7 @@ import (
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -23,9 +23,9 @@ func TestSessionStartLocker_AcquiresTransactionLock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// Deliberately NOT parallel: this test holds a transaction lock while a
-// competing transaction waits for it, which can deadlock alongside other lock tests.
 func TestSessionStartLocker_ReleasesLockOnRollback(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	locker := repoActive.NewSessionStartLocker(db)
 	activity := testpkg.CreateTestActivityGroup(t, db, "session-start-lock-rollback")

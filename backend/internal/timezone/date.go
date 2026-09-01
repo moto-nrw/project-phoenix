@@ -113,6 +113,11 @@ func (d Date) Weekday() time.Weekday {
 	return d.UTCMidnight().Weekday()
 }
 
+// StartOfISOWeek returns the Monday of the ISO week containing d.
+func (d Date) StartOfISOWeek() Date {
+	return d.AddDays(-((int(d.Weekday()) + 6) % 7))
+}
+
 // BerlinMidnight returns 00:00:00 Berlin on this date. Use it when a
 // TIMESTAMPTZ comparison needs the start-of-day instant.
 func (d Date) BerlinMidnight() time.Time {

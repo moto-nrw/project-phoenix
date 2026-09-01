@@ -173,7 +173,7 @@ export const devicesConfig = defineEntityConfig<Device>({
             value: (device) => (
               <span className="inline-flex items-center gap-1.5">
                 <span
-                  className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-green-500" : "bg-gray-400"}`}
+                  className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-moto-green" : "bg-gray-400"}`}
                 />
                 <span className="font-medium">
                   {device.is_online ? "Online" : "Offline"}

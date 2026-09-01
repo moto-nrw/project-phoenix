@@ -200,7 +200,7 @@ export function FilterPanel({
   // hell abgehoben. Vorher war es hier schwarz gefüllt und dort weiß — zwei
   // Fassungen desselben Bedienelements, die sich beim Blättern widersprechen.
   const selectedOptionClass = isQuiet
-    ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200 ring-inset"
+    ? "bg-moto-blue-soft text-moto-blue-strong ring-1 ring-moto-blue/20 ring-inset"
     : "bg-white text-gray-900 shadow-sm";
 
   // One pill button, shared by the buttons/grid/dropdown-multi layouts. The

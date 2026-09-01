@@ -1,6 +1,8 @@
 "use client";
 
 import { PortalShell } from "~/components/ui/portal-shell";
+import { StaffPreviewBanner } from "~/components/staff-preview/staff-preview-banner";
+import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
@@ -22,24 +24,40 @@ interface AppShellProps {
  * über der Kopfkarte, die den Seitennamen ohnehin trägt. Statt ihrer bleibt
  * nur ein transparenter Safe-Area-Streifen; Profil und Abmelden wohnen im
  * „Mehr"-Menü der unteren Leiste.
+ *
+ * Mitarbeiter-Vorschau (#2893): während einer aktiven Vorschau liegt ein
+ * fester Hinweisstreifen (h-12) über allem. Die gesamte Shell rückt um
+ * dieselbe Höhe nach unten, damit der Streifen auf jeder Seite sichtbar
+ * bleibt und nichts verdeckt.
  */
 export function AppShell({ children }: AppShellProps) {
+  const previewActive = useShellAuthSafe()?.isPreview === true;
+
   return (
-    <PortalShell
-      header={<Header />}
-      headerClassName="sticky top-0 z-40 hidden lg:block"
-      backgroundClassName="moto-dotted-background--full"
-      topLayer={
-        <div
-          data-staff-safe-area-top
-          className="relative z-10 h-[env(safe-area-inset-top)] min-h-8 bg-transparent lg:hidden"
-          aria-hidden="true"
-        />
-      }
-      sidebar={<Sidebar className="hidden lg:block" />}
-      bottomNav={<MobileBottomNav />}
-    >
-      {children}
-    </PortalShell>
+    <div className={previewActive ? "pt-12" : undefined}>
+      <PortalShell
+        header={<Header />}
+        headerClassName={
+          previewActive
+            ? "sticky top-12 z-40 hidden lg:block"
+            : "sticky top-0 z-40 hidden lg:block"
+        }
+        backgroundClassName="moto-dotted-background--full"
+        topLayer={
+          <>
+            <StaffPreviewBanner />
+            <div
+              data-staff-safe-area-top
+              className="relative z-10 h-[env(safe-area-inset-top)] min-h-8 bg-transparent lg:hidden"
+              aria-hidden="true"
+            />
+          </>
+        }
+        sidebar={<Sidebar className="hidden lg:block" />}
+        bottomNav={<MobileBottomNav />}
+      >
+        {children}
+      </PortalShell>
+    </div>
   );
 }

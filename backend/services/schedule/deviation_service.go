@@ -349,7 +349,7 @@ type deviationEventInput struct {
 func (s *instanceService) logDeviationEvent(ctx context.Context, in deviationEventInput) error {
 	event := &auditModel.DeviationEvent{
 		ActivityGroupID: in.instance.ActivityGroupID,
-		OccurrenceDate:  in.instance.Date,
+		OccurrenceDate:  auditModel.Date(in.instance.Date),
 		StartTime:       timezone.NormalizeWallClock(in.instance.StartTime),
 		InstanceID:      &in.instance.ID,
 		SubjectStaffID:  in.subjectStaffID,
@@ -423,7 +423,7 @@ func (s *instanceService) logSnapshotDropped(
 
 	event := &auditModel.DeviationEvent{
 		ActivityGroupID: &activityGroupID,
-		OccurrenceDate:  snap.date,
+		OccurrenceDate:  auditModel.Date(snap.date),
 		StartTime:       timezone.NormalizeWallClock(startTime),
 		EventType:       auditModel.DeviationEventDroppedByReplan,
 		ActorAccountID:  normalizeActor(actorAccountID),

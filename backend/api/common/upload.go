@@ -313,10 +313,14 @@ func ResolveStoredPath(publicDir, urlPath, requiredPrefix string) (string, error
 		return "", errors.New("invalid path")
 	}
 
-	// Use the discovered public dir if available, fall back to the provided publicDir
+	// Resolve relative production paths, but preserve an explicit absolute root.
+	// Tests and callers with isolated storage must not be redirected to the
+	// process-wide discovered public directory.
 	baseDir := publicDir
-	if resolved, err := ResolvePublicDir(); err == nil {
-		baseDir = resolved
+	if !filepath.IsAbs(baseDir) {
+		if resolved, err := ResolvePublicDir(); err == nil {
+			baseDir = resolved
+		}
 	}
 
 	absBase, err := filepath.Abs(baseDir)

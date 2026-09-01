@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 
 const mockRouterPush = vi.fn();
 
@@ -69,6 +75,10 @@ vi.mock("~/lib/hooks/use-change-requests-pending", () => ({
   })),
 }));
 
+vi.mock("~/lib/hooks/use-change-request-access", () => ({
+  useChangeRequestAccess: vi.fn(),
+}));
+
 // Tagesinformationen-Badge (#2180): der echte Hook würde /api/staff-notices/today
 // laden; hier zählt nur, dass die Seitenleiste ihn einbindet.
 vi.mock("~/lib/hooks/use-staff-notices-pending", () => ({
@@ -117,6 +127,7 @@ import {
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import {
   useNFCEnabled,
@@ -143,6 +154,7 @@ const restoreDefaultHasPermission = () =>
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseStaffAbsencesPending = vi.mocked(useStaffAbsencesPending);
 const mockUseChangeRequestsPending = vi.mocked(useChangeRequestsPending);
+const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 const mockUseCareWithdrawalsPending = vi.mocked(useCareWithdrawalsPending);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
@@ -246,6 +258,9 @@ describe("Sidebar", () => {
       isLoading: false,
       refresh: vi.fn(),
     });
+    mockUseChangeRequestAccess.mockReturnValue({
+      canOpenRequestsPage: false,
+    } as ReturnType<typeof useChangeRequestAccess>);
     mockUseCareWithdrawalsPending.mockReturnValue({
       unreadCount: 0,
       isLoading: false,
@@ -413,6 +428,9 @@ describe("Sidebar", () => {
         isLoading: false,
         refresh: vi.fn(),
       });
+      mockUseChangeRequestAccess.mockReturnValue({
+        canOpenRequestsPage: true,
+      } as ReturnType<typeof useChangeRequestAccess>);
 
       render(<Sidebar />);
 
@@ -421,6 +439,24 @@ describe("Sidebar", () => {
         "/test-tenant/anfragen",
       );
       expect(screen.getByLabelText("9 offene Anfragen")).toBeInTheDocument();
+    });
+
+    it("hides Anfragen without a current effective review scope", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "users:update",
+      );
+      mockUseChangeRequestsPending.mockReturnValue({
+        unreadCount: 2,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Anfragen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("2 offene Anfragen"),
+      ).not.toBeInTheDocument();
     });
 
     it("prefixes the Team-Chat link in path-routing mode", () => {
@@ -2136,6 +2172,78 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+    });
+  });
+
+  describe("collapsible sidebar (#2825)", () => {
+    // Umgeschaltet wird über den Toggle-Button in der Kopfzeile
+    // (header.test.tsx); die Seitenleiste selbst folgt nur dem geteilten
+    // useSidebarCollapsed-Store.
+    it("renders expanded by default on wide viewports", () => {
+      const { container } = render(<Sidebar />);
+
+      expect(container.querySelector("aside")).toHaveClass("w-64");
+      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
+    });
+
+    it("renders the icon rail when the stored state is collapsed", () => {
+      localStorage.setItem("sidebar-collapsed", "true");
+
+      const { container } = render(<Sidebar />);
+
+      expect(container.querySelector("aside")).toHaveClass("w-16");
+      // Labels verschwinden; die Ziele bleiben als beschriftete Icons da.
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Aktivitäten")).toBeInTheDocument();
+      expect(screen.getByLabelText("Räume")).toBeInTheDocument();
+    });
+
+    it("follows the header toggle via the shared store while mounted", () => {
+      const { container } = render(<Sidebar />);
+      expect(container.querySelector("aside")).toHaveClass("w-64");
+
+      // Simuliert den Klick auf den Kopfzeilen-Toggle: derselbe Schreibpfad
+      // (localStorage + Custom-Event), den useSidebarCollapsed nutzt.
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "true");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+
+      expect(container.querySelector("aside")).toHaveClass("w-16");
+    });
+
+    it("expands the sidebar and opens the section when a rail accordion icon is clicked", () => {
+      localStorage.setItem("sidebar-collapsed", "true");
+      const { container } = render(<Sidebar />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Eltern" }));
+
+      // Aufklappen + Navigate-on-expand wie im ausgeklappten Zustand
+      // (Path-Routing-Modus prefixt den Tenant-Slug).
+      expect(container.querySelector("aside")).toHaveClass("w-64");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/eltern");
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("false");
+    });
+
+    it("keeps the bottom-pinned items reachable as icons in the rail", () => {
+      localStorage.setItem("sidebar-collapsed", "true");
+      render(<Sidebar />);
+
+      expect(screen.getByLabelText("Notfall")).toBeInTheDocument();
+      expect(screen.getByLabelText("Hilfe")).toBeInTheDocument();
+    });
+
+    it("keeps Tagesplan reachable as an icon in the rail (#2383)", () => {
+      // Betreuungskraft mit schedules:read: ausgeklappt steht Tagesplan ganz
+      // oben — der Streifen darf den Einstieg nicht verlieren.
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "schedules:read",
+      );
+      localStorage.setItem("sidebar-collapsed", "true");
+
+      render(<Sidebar />);
+
+      expect(screen.getByLabelText("Tagesplan")).toBeInTheDocument();
     });
   });
 });

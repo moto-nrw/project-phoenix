@@ -20,10 +20,9 @@ import (
 // the admin swaps in a substitute across all affected instances, a follow-up
 // conflict attempt is rejected atomically (no partial writes), and /gaps
 // surfaces an unrelated instance with zero non-absent staff.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestFlowC_GapsAndSubstitute(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	s := setupTimetableScenarioModule(t)
 
 	// Pick a Tuesday ≥ 7 days out (must be today-or-future for /gaps and /substitute).

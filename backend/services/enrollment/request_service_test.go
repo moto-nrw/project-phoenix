@@ -722,6 +722,57 @@ func TestRequestService_Submit_AGBRequiredWhenTermsBlockConfigured(t *testing.T)
 	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
 }
 
+func TestRequestService_Submit_StoresLegalBlocksSnapshotAndEditAppends(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+
+	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
+	env.settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "Ganztag Info-Brief"
+	env.settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = true
+	env.settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Foto-Einwilligungstext"
+
+	req := validSubmission(t, env.phaseID)
+	req.ConsentFlags = map[string]any{"agb": true, "photo": false}
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, result.Request)
+
+	// Settings-sourced blocks have no other versioning, so the submit
+	// must freeze the rendered wording into the evidence snapshot.
+	require.Len(t, result.Request.LegalBlocksSnapshot, 1)
+	entry := result.Request.LegalBlocksSnapshot[0]
+	assert.False(t, entry.SnapshotAt.IsZero())
+	require.Len(t, entry.Blocks, 2)
+	assert.Equal(t, "agb", entry.Blocks[0].Key)
+	assert.Equal(t, "terms", entry.Blocks[0].Kind)
+	assert.Equal(t, "Ganztag Info-Brief", entry.Blocks[0].Text)
+	assert.True(t, entry.Blocks[0].Required)
+	assert.Equal(t, "photo", entry.Blocks[1].Key)
+	assert.Equal(t, "consent", entry.Blocks[1].Kind)
+	assert.False(t, entry.Blocks[1].Required)
+	// The entry also freezes the guardian's answers at submit time.
+	assert.Equal(t, map[string]any{"agb": true, "photo": false}, entry.ConsentFlags)
+
+	// A guardian edit appends a second entry instead of rewriting the
+	// first; the pre-edit photo answer stays provable in entry 0 even
+	// though Request.ConsentFlags now holds the edited values.
+	replace := validSubmission(t, env.phaseID)
+	replace.ConsentFlags = map[string]any{"agb": true, "photo": true}
+	_, err = env.svc.ReplaceEditable(ctx, result.Request.StatusToken, replace)
+	require.NoError(t, err)
+
+	stored, err := env.config.RequestRepo.FindByStatusToken(ctx, result.Request.StatusToken)
+	require.NoError(t, err)
+	require.Len(t, stored.LegalBlocksSnapshot, 2)
+	assert.Equal(t, entry.Blocks, stored.LegalBlocksSnapshot[0].Blocks)
+	assert.Equal(t, entry.Blocks, stored.LegalBlocksSnapshot[1].Blocks)
+	assert.Equal(t, map[string]any{"agb": true, "photo": false}, stored.LegalBlocksSnapshot[0].ConsentFlags)
+	assert.Equal(t, map[string]any{"agb": true, "photo": true}, stored.LegalBlocksSnapshot[1].ConsentFlags)
+}
+
 func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {
 	t.Parallel()
 
@@ -3243,4 +3294,19 @@ func TestRequestService_GetEditDraft_TrustedSourceKeepsFullClassList(t *testing.
 		"an eligibility-exempt draft must keep every offered class")
 	assert.Empty(t, draft.Phase.EligibleGradeLevels,
 		"an eligibility-exempt draft must not narrow the grade select")
+}
+
+func TestRequestService_SubmitRollsBackWhenEmailEnqueueFails(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	env.outbox.err = errors.New("outbox unavailable")
+
+	_, err := env.svc.Submit(testpkg.Ctx(t), validSubmission(t, env.phaseID))
+	require.ErrorContains(t, err, "enqueue submission emails")
+
+	var count int
+	require.NoError(t, env.db.NewRaw(`SELECT COUNT(*) FROM enrollment.requests WHERE phase_id = ?`, env.phaseID).Scan(testpkg.Ctx(t), &count))
+	assert.Zero(t, count)
 }

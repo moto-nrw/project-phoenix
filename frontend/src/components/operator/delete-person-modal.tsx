@@ -12,7 +12,7 @@ const logger = createLogger({ component: "DeletePersonModal" });
 interface DeletePersonModalProps {
   person: OperatorPerson | null;
   onClose: () => void;
-  onDeleted: () => Promise<void> | void;
+  onDeleted: (person: OperatorPerson) => Promise<void> | void;
 }
 
 export function DeletePersonModal({
@@ -34,7 +34,7 @@ export function DeletePersonModal({
     setError("");
     try {
       await operatorProvisioningService.softDeletePerson(person.id);
-      await onDeleted();
+      await onDeleted(person);
       onClose();
     } catch (err) {
       logger.error("person_soft_delete_failed", {

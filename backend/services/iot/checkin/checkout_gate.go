@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -25,15 +24,14 @@ import (
 // This is the single source of truth for the fallback chain — both the checkin flow
 // (which needs a parsed time.Time) and the IoT config endpoint (which needs the raw string
 // for PyrePortal) must use this helper instead of reimplementing the chain.
-func ResolveRawDailyCheckoutTime(ctx context.Context, settingsService configSvc.SettingsService) string {
-	fallback := os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
-	return configSvc.ResolveStringOrDefault(ctx, settingsService, configModel.KeyStudentDailyCheckoutTime, fallback, slog.Default())
+func ResolveRawDailyCheckoutTime(ctx context.Context, settingsService configSvc.SettingsService, fallback string, logger *slog.Logger) string {
+	return configSvc.ResolveStringOrDefault(ctx, settingsService, configModel.KeyStudentDailyCheckoutTime, fallback, logger)
 }
 
 // studentDailyCheckoutTime resolves the daily checkout time as a parsed *time.Time.
 // Returns nil when no time is configured, meaning daily checkout is always available.
 func (s *CheckinService) studentDailyCheckoutTime(ctx context.Context) (*time.Time, error) {
-	checkoutTimeStr := ResolveRawDailyCheckoutTime(ctx, s.settings)
+	checkoutTimeStr := ResolveRawDailyCheckoutTime(ctx, s.settings, s.dailyCheckoutFallback, s.getLogger())
 
 	// No time configured — daily checkout is always available
 	if checkoutTimeStr == "" {

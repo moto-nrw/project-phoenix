@@ -98,10 +98,19 @@ func resolveRandomSecret() (string, error) {
 
 // NewTokenAuthWithSecret creates a TokenAuth with a specific secret
 func NewTokenAuthWithSecret(secret string) (*TokenAuth, error) {
+	return NewTokenAuthWithDurations(
+		secret,
+		viper.GetDuration("auth_jwt_expiry"),
+		viper.GetDuration("auth_jwt_refresh_expiry"),
+	)
+}
+
+// NewTokenAuthWithDurations creates an instance from explicit configuration.
+func NewTokenAuthWithDurations(secret string, expiry, refreshExpiry time.Duration) (*TokenAuth, error) {
 	a := &TokenAuth{
 		JwtAuth:          jwtauth.New("HS256", []byte(secret), nil),
-		JwtExpiry:        viper.GetDuration("auth_jwt_expiry"),
-		JwtRefreshExpiry: viper.GetDuration("auth_jwt_refresh_expiry"),
+		JwtExpiry:        expiry,
+		JwtRefreshExpiry: refreshExpiry,
 	}
 
 	return a, nil
@@ -175,6 +184,17 @@ func ParseStructToMap(c any) (map[string]any, error) {
 		if appClaims.FamilyID != "" {
 			claims["family_id"] = appClaims.FamilyID
 		}
+		// Admin staff-view preview claims (#2893) — explicit like the fields
+		// above so the allowlist stays the single source of truth.
+		if appClaims.ReadOnly {
+			claims["read_only"] = true
+		}
+		if appClaims.ActingAdminID != 0 {
+			claims["acting_admin_id"] = appClaims.ActingAdminID
+		}
+		if appClaims.PreviewID != "" {
+			claims["preview_id"] = appClaims.PreviewID
+		}
 
 		// Set common claims manually to ensure they're included
 		claims["exp"] = appClaims.ExpiresAt
@@ -198,6 +218,50 @@ func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
 
 	_, tokenString, err := a.JwtAuth.Encode(claims)
 	return tokenString, err
+}
+
+// ParseAccessJWT verifies an access token's signature, decodes it into
+// AppClaims, and rejects expired tokens. Mirrors ParseMFAChallengeJWT for the
+// access-token shape: callers that receive a token in a request BODY (rather
+// than through the Verifier middleware) need the same guarantees the
+// middleware gives — the staff-view preview end call (#2893) proves with it
+// which preview token the admin actually held.
+func (a *TokenAuth) ParseAccessJWT(tokenString string) (*AppClaims, error) {
+	return a.parseAccessJWT(tokenString, false)
+}
+
+// ParseExpiredAccessJWT is ParseAccessJWT without the expiry check: the
+// signature still has to verify, so the claims are as trustworthy as ever —
+// only their freshness is not. Use it ONLY where an expired token is
+// evidence, never where it grants access. The staff-view preview (#2893)
+// ends this way: an admin who lets the preview run past the 15-minute access
+// expiry and then clicks "Vorschau beenden" must still produce a
+// staff_preview_ended row, otherwise the audit trail loses the pair.
+func (a *TokenAuth) ParseExpiredAccessJWT(tokenString string) (*AppClaims, error) {
+	return a.parseAccessJWT(tokenString, true)
+}
+
+func (a *TokenAuth) parseAccessJWT(tokenString string, allowExpired bool) (*AppClaims, error) {
+	jwtToken, err := a.JwtAuth.Decode(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	raw := make(map[string]any)
+	for _, key := range jwtToken.Keys() {
+		var value any
+		if jwtToken.Get(key, &value) == nil {
+			raw[key] = value
+		}
+	}
+	var claims AppClaims
+	if err := claims.ParseClaims(raw); err != nil {
+		return nil, err
+	}
+	claims.ExpiresAt = expiryFromClaims(raw)
+	if !allowExpired && claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
+		return nil, errors.New("access token expired")
+	}
+	return &claims, nil
 }
 
 // GetRefreshExpiry returns the refresh token expiration duration

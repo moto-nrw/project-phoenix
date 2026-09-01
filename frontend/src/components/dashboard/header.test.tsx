@@ -63,8 +63,22 @@ vi.mock("./header/session-warning", () => ({
 }));
 
 vi.mock("./header/profile-dropdown", () => ({
-  ProfileTrigger: ({ onClick }: { onClick: () => void }) => (
-    <button type="button" data-testid="profile-trigger" onClick={onClick}>
+  ProfileTrigger: ({
+    onClick,
+    ref,
+    ariaLabel,
+  }: {
+    onClick: () => void;
+    ref?: React.Ref<HTMLButtonElement>;
+    ariaLabel: string;
+  }) => (
+    <button
+      ref={ref}
+      type="button"
+      data-testid="profile-trigger"
+      aria-label={ariaLabel}
+      onClick={onClick}
+    >
       Profile
     </button>
   ),
@@ -209,6 +223,10 @@ describe("Header", () => {
   it("toggles profile menu on click", () => {
     render(<Header />);
 
+    expect(screen.getByTestId("profile-trigger")).toHaveAccessibleName(
+      "Profilmenü von Test User",
+    );
+
     // Menu should be closed initially
     expect(screen.queryByTestId("profile-dropdown")).not.toBeInTheDocument();
 
@@ -219,6 +237,25 @@ describe("Header", () => {
     // Click to close
     fireEvent.click(screen.getByTestId("close-dropdown"));
     expect(screen.queryByTestId("profile-dropdown")).not.toBeInTheDocument();
+  });
+
+  it("closes the profile menu on outside click", () => {
+    render(<Header />);
+    fireEvent.click(screen.getByTestId("profile-trigger"));
+
+    fireEvent.mouseDown(document.body);
+
+    expect(screen.queryByTestId("profile-dropdown")).not.toBeInTheDocument();
+  });
+
+  it("closes the profile menu on Escape", () => {
+    render(<Header />);
+    fireEvent.click(screen.getByTestId("profile-trigger"));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByTestId("profile-dropdown")).not.toBeInTheDocument();
+    expect(screen.getByTestId("profile-trigger")).toHaveFocus();
   });
 
   it("opens logout modal when logout is clicked", () => {
@@ -406,5 +443,88 @@ describe("Header", () => {
       "scroll",
       expect.any(Function),
     );
+  });
+
+  describe("sidebar toggle (#2825)", () => {
+    // Die Testumgebung simuliert einen Desktop-Viewport (vitest.config.ts),
+    // daher ist der Default ohne gespeicherte Wahl "ausgeklappt".
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it("collapses the sidebar and persists the choice", () => {
+      render(<Header />);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Seitenleiste einklappen" }),
+      );
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
+      expect(
+        screen.getByRole("button", { name: "Seitenleiste ausklappen" }),
+      ).toBeInTheDocument();
+    });
+
+    it("expands again from a stored collapsed state", () => {
+      localStorage.setItem("sidebar-collapsed", "true");
+
+      render(<Header />);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Seitenleiste ausklappen" }),
+      );
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("false");
+      expect(
+        screen.getByRole("button", { name: "Seitenleiste einklappen" }),
+      ).toBeInTheDocument();
+    });
+
+    it("is hidden below lg where the sidebar does not exist", () => {
+      render(<Header />);
+
+      expect(
+        screen.getByRole("button", { name: "Seitenleiste einklappen" }),
+      ).toHaveClass("hidden", "lg:inline-flex");
+    });
+
+    it("toggles via Ctrl+B / Cmd+B", () => {
+      render(<Header />);
+
+      fireEvent.keyDown(globalThis.window, { key: "b", ctrlKey: true });
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
+
+      fireEvent.keyDown(globalThis.window, { key: "b", metaKey: true });
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("false");
+    });
+
+    it("leaves Ctrl+B alone while typing in an editable field", () => {
+      render(
+        <div>
+          <Header />
+          <input aria-label="Testfeld" />
+        </div>,
+      );
+
+      // In Eingabefeldern und Editoren bedeutet die Kombination „fett".
+      fireEvent.keyDown(screen.getByLabelText("Testfeld"), {
+        key: "b",
+        ctrlKey: true,
+      });
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
+    });
+
+    it("ignores Ctrl+B with additional modifiers", () => {
+      render(<Header />);
+
+      fireEvent.keyDown(globalThis.window, {
+        key: "b",
+        ctrlKey: true,
+        shiftKey: true,
+      });
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
+    });
   });
 });

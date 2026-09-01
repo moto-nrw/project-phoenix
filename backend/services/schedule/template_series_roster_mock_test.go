@@ -177,6 +177,7 @@ func seriesMockChain(
 		}},
 		StudentEnrollmentRepo:  enrollments,
 		ActivitySupervisorRepo: supervisors,
+		Today:                  seriesMockAnchor,
 	})
 }
 

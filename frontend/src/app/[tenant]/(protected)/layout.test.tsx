@@ -31,6 +31,10 @@ vi.mock("~/components/platform/announcement-modal", () => ({
   AnnouncementModal: () => <div data-testid="announcement-modal" />,
 }));
 
+vi.mock("~/lib/hooks/use-settings-cache-bridge", () => ({
+  useSettingsCacheBridge: vi.fn(),
+}));
+
 describe("ProtectedLayout", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

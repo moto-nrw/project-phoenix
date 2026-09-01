@@ -21,11 +21,11 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -33,9 +33,9 @@ import (
 )
 
 type mockProvisioningService struct {
-	createOrganizationFn      func(context.Context, *platformModels.Organization, int64, net.IP) (*platformModels.Organization, error)
-	listOrganizationsFn       func(context.Context) ([]*platformModels.Organization, error)
-	updateOrganizationFn      func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error)
+	createOrganizationFn      func(context.Context, *organizationtenancy.CreateOrganization, int64, net.IP) (*organizationtenancy.Organization, error)
+	listOrganizationsFn       func(context.Context) ([]organizationtenancy.Organization, error)
+	updateOrganizationFn      func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*organizationtenancy.Organization, error)
 	createSchoolFn            func(context.Context, *platformModels.School, int64, net.IP) (*platformModels.School, error)
 	listSchoolsFn             func(context.Context) ([]*platformModels.School, error)
 	updateSchoolFn            func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error)
@@ -107,13 +107,13 @@ func (m *mockProvisioningService) RevokeAccountTenantAccess(ctx context.Context,
 	return nil, nil
 }
 
-func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
+func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *organizationtenancy.CreateOrganization, operatorID int64, clientIP net.IP) (*organizationtenancy.Organization, error) {
 	return m.createOrganizationFn(ctx, org, operatorID, clientIP)
 }
-func (m *mockProvisioningService) ListOrganizations(ctx context.Context) ([]*platformModels.Organization, error) {
+func (m *mockProvisioningService) ListOrganizations(ctx context.Context) ([]organizationtenancy.Organization, error) {
 	return m.listOrganizationsFn(ctx)
 }
-func (m *mockProvisioningService) UpdateOrganization(ctx context.Context, id int64, req platformSvc.UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
+func (m *mockProvisioningService) UpdateOrganization(ctx context.Context, id int64, req platformSvc.UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*organizationtenancy.Organization, error) {
 	if m.updateOrganizationFn != nil {
 		return m.updateOrganizationFn(ctx, id, req, operatorID, clientIP)
 	}
@@ -359,13 +359,12 @@ func TestProvisioningResource_CreateOrganization(t *testing.T) {
 	t.Parallel()
 
 	resource := NewProvisioningResource(&mockProvisioningService{
-		createOrganizationFn: func(_ context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
+		createOrganizationFn: func(_ context.Context, org *organizationtenancy.CreateOrganization, operatorID int64, clientIP net.IP) (*organizationtenancy.Organization, error) {
 			assert.Equal(t, int64(42), operatorID)
 			assert.Equal(t, "Stadt Koeln", org.Name)
 			assert.Equal(t, "stadt-koeln", org.Slug)
 			assert.Equal(t, "203.0.113.10", clientIP.String())
-			org.ID = 55
-			return org, nil
+			return &organizationtenancy.Organization{ID: 55, Name: org.Name, Slug: org.Slug, Active: org.Active}, nil
 		},
 	})
 
@@ -400,8 +399,8 @@ func TestProvisioningResource_ListOrganizations(t *testing.T) {
 	t.Parallel()
 
 	resource := NewProvisioningResource(&mockProvisioningService{
-		listOrganizationsFn: func(context.Context) ([]*platformModels.Organization, error) {
-			return []*platformModels.Organization{{Name: "Org", Slug: "org"}}, nil
+		listOrganizationsFn: func(context.Context) ([]organizationtenancy.Organization, error) {
+			return []organizationtenancy.Organization{{Name: "Org", Slug: "org"}}, nil
 		},
 	})
 	req := httptest.NewRequest(http.MethodGet, "/operator/organizations", nil)
@@ -415,7 +414,7 @@ func TestProvisioningResource_ListOrganizations_Error(t *testing.T) {
 	t.Parallel()
 
 	resource := NewProvisioningResource(&mockProvisioningService{
-		listOrganizationsFn: func(context.Context) ([]*platformModels.Organization, error) {
+		listOrganizationsFn: func(context.Context) ([]organizationtenancy.Organization, error) {
 			return nil, errors.New("db fail")
 		},
 	})
@@ -496,8 +495,8 @@ func TestProvisioningResource_ListSchools_Error(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
+	t.Parallel()
 	expiresAt := time.Now().Add(time.Hour).UTC()
 	first := "Ada"
 	last := "Lovelace"
@@ -533,10 +532,7 @@ func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
 			}, nil
 		},
 	})
-
-	prevEnv := viper.GetString("app_env")
-	viper.Set("app_env", "development")
-	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
+	resource.appEnv = "development"
 
 	req := httptest.NewRequest(http.MethodPost, "http://localhost/operator/schools/12/invite-admin", bytes.NewBufferString(`{"email":" PRINCIPAL@example.com ","first_name":" Ada ","last_name":" Lovelace ","position":" Principal ","caregiver_enabled":true}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -595,12 +591,10 @@ func TestProvisioningResource_InviteSchoolAdmin_ServiceValidationError(t *testin
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestProvisioningHelpers(t *testing.T) {
+	t.Parallel()
 	errText := "boom"
 	now := time.Now()
-	prevEnv := viper.GetString("app_env")
-	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
 
 	assert.Equal(t, int64(0), operatorInvitationCreatedByValue(nil))
 	assert.Equal(t, int64(9), operatorInvitationCreatedByValue(ptrInt64(9)))
@@ -608,22 +602,17 @@ func TestProvisioningHelpers(t *testing.T) {
 	assert.Equal(t, "failed", operatorInvitationDeliveryStatus(nil, &errText))
 	assert.Equal(t, "sent", operatorInvitationDeliveryStatus(&now, &errText))
 
-	viper.Set("app_env", "development")
 	req := httptest.NewRequest(http.MethodPost, "http://localhost/", nil)
-	assert.False(t, shouldExposeSeedInvitationToken(req))
+	assert.False(t, shouldExposeSeedInvitationToken(req, "development"))
 	req.Header.Set(seedtoken.Header, "true")
-	assert.True(t, shouldExposeSeedInvitationToken(req))
-	viper.Set("app_env", "production")
-	assert.False(t, shouldExposeSeedInvitationToken(req))
-	viper.Set("app_env", "staging")
-	assert.False(t, shouldExposeSeedInvitationToken(req))
-	viper.Set("app_env", "developement")
-	assert.False(t, shouldExposeSeedInvitationToken(req))
+	assert.True(t, shouldExposeSeedInvitationToken(req, "development"))
+	assert.False(t, shouldExposeSeedInvitationToken(req, "production"))
+	assert.False(t, shouldExposeSeedInvitationToken(req, "staging"))
+	assert.False(t, shouldExposeSeedInvitationToken(req, "developement"))
 
-	viper.Set("app_env", "development")
 	publicReq := httptest.NewRequest(http.MethodPost, "https://api-staging.moto-app.de/", nil)
 	publicReq.Header.Set(seedtoken.Header, "true")
-	assert.False(t, shouldExposeSeedInvitationToken(publicReq))
+	assert.False(t, shouldExposeSeedInvitationToken(publicReq, "development"))
 }
 
 func TestProvisioningErrorRenderer_NotFoundAndFallbacks(t *testing.T) {
@@ -651,14 +640,14 @@ func TestProvisioningResource_UpdateOrganization(t *testing.T) {
 	t.Parallel()
 
 	resource := NewProvisioningResource(&mockProvisioningService{
-		updateOrganizationFn: func(_ context.Context, id int64, req platformSvc.UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
+		updateOrganizationFn: func(_ context.Context, id int64, req platformSvc.UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*organizationtenancy.Organization, error) {
 			assert.Equal(t, int64(5), id)
 			assert.Equal(t, int64(42), operatorID)
 			assert.Equal(t, "Updated Org", req.Name)
 			assert.Equal(t, "updated-org", req.Slug)
 			assert.True(t, req.Active)
 			assert.Equal(t, "203.0.113.10", clientIP.String())
-			return &platformModels.Organization{Model: modelBase.Model{ID: 5}, Name: "Updated Org", Slug: "updated-org", Active: true}, nil
+			return &organizationtenancy.Organization{ID: 5, Name: "Updated Org", Slug: "updated-org", Active: true}, nil
 		},
 	})
 
@@ -716,7 +705,7 @@ func TestProvisioningResource_UpdateOrganization_NotFound(t *testing.T) {
 	t.Parallel()
 
 	resource := NewProvisioningResource(&mockProvisioningService{
-		updateOrganizationFn: func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error) {
+		updateOrganizationFn: func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*organizationtenancy.Organization, error) {
 			return nil, &platformSvc.OrganizationNotFoundError{OrganizationID: 5}
 		},
 	})
@@ -738,7 +727,7 @@ func TestProvisioningResource_UpdateOrganization_Conflict(t *testing.T) {
 	t.Parallel()
 
 	resource := NewProvisioningResource(&mockProvisioningService{
-		updateOrganizationFn: func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error) {
+		updateOrganizationFn: func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*organizationtenancy.Organization, error) {
 			return nil, &platformSvc.ConflictError{Err: errors.New("slug taken")}
 		},
 	})

@@ -2,6 +2,7 @@ package platform_test
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -25,12 +27,18 @@ func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repo
 	repos := repositories.NewFactory(db)
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
 	require.NoError(t, err)
+	mailer := testpkg.NewCapturingMailer()
+	dispatcher := email.NewDispatcher(mailer, slog.Default())
+	dispatcher.SetDefaults(1, []time.Duration{time.Millisecond})
 
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
-		Repos:     repos,
-		TokenAuth: tokenAuth,
-		JWTSecret: operatorMFATestJWTSecret,
-		DB:        db,
+		Repos:       repos,
+		TokenAuth:   tokenAuth,
+		Dispatcher:  dispatcher,
+		DefaultFrom: email.NewEmail("Operator Tests", "ops-tests@example.test"),
+		FrontendURL: "https://moto.test/",
+		JWTSecret:   operatorMFATestJWTSecret,
+		DB:          db,
 	})
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, svc, db)

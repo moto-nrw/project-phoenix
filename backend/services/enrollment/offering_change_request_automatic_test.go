@@ -110,11 +110,9 @@ func TestOfferingChangeRequestService_GetForStudent_MarksAutomaticDiffEntries(t 
 	assert.Empty(t, manualEntry.AutoTriggerNames)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)

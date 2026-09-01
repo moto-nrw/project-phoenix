@@ -491,6 +491,47 @@ describe("PersonalInfoFormModal", () => {
       });
     });
 
+    it("changes only Monday from pickup to walking and closes after saving", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent({
+            allowed_departure_modes: {
+              mon: ["pickup"],
+              tue: ["pickup"],
+              wed: ["pickup"],
+              thu: ["pickup"],
+              fri: ["pickup"],
+            },
+          })}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Montag: Zu Fuß" }));
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: "Montag: Abgeholt" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            allowed_departure_modes: {
+              mon: ["alone"],
+              tue: ["pickup"],
+              wed: ["pickup"],
+              thu: ["pickup"],
+              fri: ["pickup"],
+            },
+          }),
+        );
+        expect(mockOnClose).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it("sends derived departure_days when only legacy day maps exist", async () => {
       mockOnSave.mockResolvedValue(undefined);
       render(

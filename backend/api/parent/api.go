@@ -26,13 +26,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	pwaService "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
-	pwaService "github.com/moto-nrw/project-phoenix/services/pwa"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -131,6 +131,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(jwt.ParentMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 

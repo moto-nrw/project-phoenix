@@ -191,7 +191,7 @@ export function PasswordChangeModal({
           <div>
             <label
               htmlFor="current-password"
-              className={`mb-1 block text-sm font-medium ${errorFieldName === "current-password" ? "text-red-600" : "text-gray-700"}`}
+              className={`mb-1 block text-sm font-medium ${errorFieldName === "current-password" ? "text-moto-red" : "text-gray-700"}`}
             >
               Aktuelles Passwort
             </label>
@@ -203,7 +203,7 @@ export function PasswordChangeModal({
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className={`block w-full rounded-lg border ${errorFieldName === "current-password" ? "border-red-400" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
+                className={`block w-full rounded-lg border ${errorFieldName === "current-password" ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
               />
               <PasswordToggle
                 show={showCurrentPassword}
@@ -216,7 +216,7 @@ export function PasswordChangeModal({
           <div>
             <label
               htmlFor="new-password"
-              className={`mb-1 block text-sm font-medium ${errorFieldName === "new-password" ? "text-red-600" : "text-gray-700"}`}
+              className={`mb-1 block text-sm font-medium ${errorFieldName === "new-password" ? "text-moto-red" : "text-gray-700"}`}
             >
               Neues Passwort
             </label>
@@ -228,7 +228,7 @@ export function PasswordChangeModal({
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className={`block w-full rounded-lg border ${errorFieldName === "new-password" ? "border-red-400" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
+                className={`block w-full rounded-lg border ${errorFieldName === "new-password" ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
               />
               <PasswordToggle
                 show={showNewPassword}
@@ -241,7 +241,7 @@ export function PasswordChangeModal({
           <div>
             <label
               htmlFor="confirm-password"
-              className={`mb-1 block text-sm font-medium ${errorFieldName === "confirm-password" ? "text-red-600" : "text-gray-700"}`}
+              className={`mb-1 block text-sm font-medium ${errorFieldName === "confirm-password" ? "text-moto-red" : "text-gray-700"}`}
             >
               Neues Passwort bestätigen
             </label>
@@ -253,7 +253,7 @@ export function PasswordChangeModal({
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className={`block w-full rounded-lg border ${errorFieldName === "confirm-password" ? "border-red-400" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
+                className={`block w-full rounded-lg border ${errorFieldName === "confirm-password" ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
               />
               <PasswordToggle
                 show={showConfirmPassword}
@@ -263,7 +263,7 @@ export function PasswordChangeModal({
           </div>
 
           {/* Simple Password Requirements */}
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+          <div className="border-moto-blue/20 bg-moto-blue-soft rounded-lg border p-3">
             <h5 className="mb-2 text-sm font-medium text-gray-900">
               Passwort-Anforderungen
             </h5>

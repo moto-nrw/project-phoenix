@@ -19,7 +19,7 @@ func TestUnregisteredTagScanMetadataMethods(t *testing.T) {
 	scan.CreatedAt = createdAt
 	scan.UpdatedAt = updatedAt
 
-	require.Equal(t, int64(42), scan.GetID())
-	require.Equal(t, createdAt, scan.GetCreatedAt())
-	require.Equal(t, updatedAt, scan.GetUpdatedAt())
+	require.Equal(t, int64(42), scan.ID)
+	require.Equal(t, createdAt, scan.CreatedAt)
+	require.Equal(t, updatedAt, scan.UpdatedAt)
 }

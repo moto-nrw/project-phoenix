@@ -104,9 +104,11 @@ func (s *masterDataReviewService) Correct(
 		slog.Bool("approved", approve),
 		slog.Int64("reviewed_by", reviewedBy),
 	)
-	s.deferDecisionPill(ctx, req, MasterDataReviewDecideInput{
+	if err := s.deferDecisionPill(ctx, req, MasterDataReviewDecideInput{
 		RequestID: req.ID, Approve: approve, Reason: trimmed, ReviewedBy: reviewedBy,
-	}, approve)
+	}, approve); err != nil {
+		return err
+	}
 	s.deferStudentUpdated(ctx, req.StudentID)
 	return nil
 }

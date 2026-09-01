@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"context"
+
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
@@ -13,26 +15,46 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/uptrace/bun"
 )
+
+func auditRootRuntime(db *bun.DB) auditRepo.Runtime {
+	return func(ctx context.Context) (bun.IDB, int64) {
+		tenantID := auditModels.TenantIDFromContext(ctx)
+		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
+			switch tx := raw.(type) {
+			case bun.Tx:
+				return tx, tenantID
+			case *bun.Tx:
+				if tx != nil {
+					return tx, tenantID
+				}
+			}
+		}
+		return db, tenantID
+	}
+}
 
 type AuthCleanupRepositories struct {
 	Account                authModels.AccountRepository
 	Token                  authModels.TokenRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	AuthEvent              auditModels.AuthEventRepository
-	PushSubscription       iotModels.PushSubscriptionRepository
+	PushSubscription       deliveryModels.PushSubscriptionRepository
 }
 
-func NewAuthCleanupRepositories(db *bun.DB) AuthCleanupRepositories {
+func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
+	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
 		Account: authRepo.NewAccountRepository(db), Token: authRepo.NewTokenRepository(db),
 		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
-		AuthEvent:              auditRepo.NewAuthEventRepository(db), PushSubscription: iotRepo.NewPushSubscriptionRepository(db),
+		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
 }
 
@@ -64,11 +86,12 @@ type RetentionCleanupRepositories struct {
 	Deletion   auditModels.DataDeletionRepository
 }
 
-func NewRetentionCleanupRepositories(db *bun.DB) RetentionCleanupRepositories {
+func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) RetentionCleanupRepositories {
+	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return RetentionCleanupRepositories{
 		Visit: activeRepo.NewVisitRepository(db), Attendance: activeRepo.NewAttendanceRepository(db),
 		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Consent: usersRepo.NewPrivacyConsentRepository(db),
-		Deletion: auditRepo.NewDataDeletionRepository(db),
+		Deletion: RouteDataDeletionWrites(deletions, command),
 	}
 }
 
@@ -80,11 +103,12 @@ type TimetableCleanupRepositories struct {
 	Deviation auditModels.DeviationEventRepository
 }
 
-func NewTimetableCleanupRepositories(db *bun.DB) TimetableCleanupRepositories {
+func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command) TimetableCleanupRepositories {
+	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return TimetableCleanupRepositories{
 		Instance: scheduleRepo.NewActivityInstanceRepository(db), Exception: scheduleRepo.NewActivityExceptionRepository(db),
-		Student: scheduleRepo.NewInstanceStudentRepository(db), Deletion: auditRepo.NewDataDeletionRepository(db),
-		Deviation: auditRepo.NewDeviationEventRepository(db),
+		Student: scheduleRepo.NewInstanceStudentRepository(db), Deletion: RouteDataDeletionWrites(deletions, command),
+		Deviation: auditRepo.NewDeviationEventRepository(auditRootRuntime(db)),
 	}
 }
 
@@ -94,10 +118,11 @@ type TimeTrackingCleanupRepositories struct {
 	Deletion auditModels.DataDeletionRepository
 }
 
-func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositories {
+func NewTimeTrackingCleanupRepositories(db *bun.DB, command auditModels.Command) TimeTrackingCleanupRepositories {
+	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return TimeTrackingCleanupRepositories{
 		Session: activeRepo.NewWorkSessionRepository(db), Absence: activeRepo.NewStaffAbsenceRepository(db),
-		Deletion: auditRepo.NewDataDeletionRepository(db),
+		Deletion: RouteDataDeletionWrites(deletions, command),
 	}
 }
 

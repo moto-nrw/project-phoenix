@@ -27,17 +27,22 @@ func setupAnnouncementService(t *testing.T) (platformSvc.AnnouncementService, *b
 	announcementRepo := reposPlatform.NewAnnouncementRepository(db)
 	viewRepo := reposPlatform.NewAnnouncementViewRepository(db)
 	auditLogRepo := reposPlatform.NewOperatorAuditLogRepository(db)
-	orgRepo := reposPlatform.NewOrganizationRepository(db)
 	schoolRepo := reposPlatform.NewSchoolRepository(db)
 
 	svc := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
 		AnnouncementRepo:     announcementRepo,
 		AnnouncementViewRepo: viewRepo,
 		AuditLogRepo:         auditLogRepo,
-		OrgRepo:              orgRepo,
-		SchoolRepo:           schoolRepo,
-		DB:                   db,
-		Logger:               slog.Default(),
+		Organizations: &mockOrgRepoShared{countByIDsFn: func(ctx context.Context, ids []int64) (int, error) {
+			return db.NewSelect().Model((*platform.Organization)(nil)).
+				ModelTableExpr(`platform.organizations AS "organization"`).
+				Where(`"organization".id IN (?)`, bun.List(ids)).
+				Where(`"organization".deleted_at IS NULL`).
+				Count(ctx)
+		}},
+		SchoolRepo: schoolRepo,
+		DB:         db,
+		Logger:     slog.Default(),
 	})
 
 	return svc, db
@@ -171,11 +176,9 @@ func cleanupIntegrationAccountTenant(t *testing.T, db *bun.DB, accountID, tenant
 
 // --- Integration Tests: CreateAnnouncement ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_CreateAnnouncement(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-create@test.com")
@@ -330,11 +333,9 @@ func TestAnnouncementServiceIntegration_CreateAnnouncement(t *testing.T) {
 
 // --- Integration Tests: GetAnnouncement ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_GetAnnouncement(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-get@test.com")
@@ -368,11 +369,9 @@ func TestAnnouncementServiceIntegration_GetAnnouncement(t *testing.T) {
 
 // --- Integration Tests: UpdateAnnouncement ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_UpdateAnnouncement(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-update@test.com")
@@ -502,11 +501,9 @@ func TestAnnouncementServiceIntegration_UpdateAnnouncement(t *testing.T) {
 
 // --- Integration Tests: DeleteAnnouncement ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_DeleteAnnouncement(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-delete@test.com")
@@ -540,11 +537,9 @@ func TestAnnouncementServiceIntegration_DeleteAnnouncement(t *testing.T) {
 
 // --- Integration Tests: Publish/Unpublish ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_PublishUnpublish(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-publish@test.com")
@@ -607,11 +602,9 @@ func TestAnnouncementServiceIntegration_PublishUnpublish(t *testing.T) {
 
 // --- Integration Tests: ListAnnouncements ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_ListAnnouncements(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-list@test.com")
@@ -682,11 +675,9 @@ func TestAnnouncementServiceIntegration_ListAnnouncements(t *testing.T) {
 
 // --- Integration Tests: GetUnreadForUser / CountUnread (service pass-through) ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_UnreadAndCount(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-unread@test.com")
@@ -750,11 +741,9 @@ func TestAnnouncementServiceIntegration_UnreadAndCount(t *testing.T) {
 
 // --- Integration Tests: GetStats (service level with existence check) ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_GetStats(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-stats@test.com")
@@ -800,11 +789,9 @@ func TestAnnouncementServiceIntegration_GetStats(t *testing.T) {
 
 // --- Integration Tests: GetViewDetails (service level with existence check) ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_GetViewDetails(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-viewdetails@test.com")
@@ -843,11 +830,9 @@ func TestAnnouncementServiceIntegration_GetViewDetails(t *testing.T) {
 
 // --- Integration Tests: MarkDismissed ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_MarkDismissed(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-dismiss@test.com")
@@ -878,11 +863,9 @@ func TestAnnouncementServiceIntegration_MarkDismissed(t *testing.T) {
 
 // --- Integration Tests: Audit Log Verification ---
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestAnnouncementServiceIntegration_AuditLogging(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	svc, db := setupAnnouncementService(t)
 
 	operatorID := createIntegrationOperator(t, db, "svc-audit@test.com")

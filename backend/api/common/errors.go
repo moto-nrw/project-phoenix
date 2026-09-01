@@ -207,6 +207,14 @@ func ErrorInternalServerWrap(clientMsg string, cause error) render.Renderer {
 	}
 }
 
+// ErrorInternalServerRenderer binds stable client text for declarative error
+// rules while preserving each matched error as the logged cause.
+func ErrorInternalServerRenderer(clientMsg string) func(error) render.Renderer {
+	return func(err error) render.Renderer {
+		return ErrorInternalServerWrap(clientMsg, err)
+	}
+}
+
 // ErrorConflict returns a 409 Conflict error response
 func ErrorConflict(err error) render.Renderer {
 	return newErrResponse(http.StatusConflict, err)

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -34,7 +33,7 @@ import {
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -1193,12 +1192,14 @@ function NoPhaseState() {
         title="Erst eine Anmeldephase anlegen"
         description="Betreuungsangebote gehören immer zu einer Anmeldephase. Legen Sie zuerst den Zeitraum an, danach können Sie die passenden Angebote ergänzen."
         action={
-          <Link href="/enrollment-phases">
-            <Button type="button" variant="primary" size="md" className="gap-2">
-              <MotoConceptIcon concept="calendarPeriods" size={18} />
-              Anmeldephase anlegen
-            </Button>
-          </Link>
+          <ButtonLink href="/enrollment-phases" size="md" className="gap-2">
+            <MotoConceptIcon
+              concept="calendarPeriods"
+              colorMode="inherit"
+              size={18}
+            />
+            Anmeldephase anlegen
+          </ButtonLink>
         }
       />
     </section>

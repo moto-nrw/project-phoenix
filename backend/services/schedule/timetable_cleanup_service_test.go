@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	auditRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -133,12 +133,13 @@ func setupFixture(t *testing.T) (*instFixture, int64) {
 // literal default). Tests that need to override retention build their own
 // service with a stubSettingsService.
 func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
+	repos := repositories.NewFactory(db)
 	return scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(db),
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
 		scheduleRepoPkg.NewInstanceStudentRepository(db),
-		auditRepoPkg.NewDataDeletionRepository(db),
-		auditRepoPkg.NewDeviationEventRepository(db),
+		repos.DataDeletion,
+		repos.DeviationEvent,
 		nil, // no settings — retention falls through to the 365-day default
 		slog.Default(),
 	)
@@ -272,12 +273,13 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 	// = true and ResolveInt = 30 — the same contract the real settings
 	// service provides when a school admin sets the value in the UI.
 	f, roomID := setupFixture(t)
+	repos := repositories.NewFactory(f.db)
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
 		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
-		auditRepoPkg.NewDataDeletionRepository(f.db),
-		auditRepoPkg.NewDeviationEventRepository(f.db),
+		repos.DataDeletion,
+		repos.DeviationEvent,
 		newStubSettingsService(true, nil, 30, nil),
 		slog.Default(),
 	)

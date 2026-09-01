@@ -140,6 +140,19 @@ type AuthService interface {
 	// is empty.
 	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 
+	// Admin staff-view preview (#2893): a read-only, access-only token that
+	// sees the tenant portal exactly as the target staff member. Start mints
+	// (and re-mints) the token, End records the audit trail, the candidate
+	// list feeds the picker. The route layer restricts all three to
+	// effective admins. End is given the preview token it closes and reads
+	// the previewed account from it, so the audit trail cannot be stamped
+	// with a preview that never happened. Start takes the token the client
+	// currently holds so a re-mint continues the running preview instead of
+	// opening a second one in the audit trail.
+	StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*StaffPreviewSession, error)
+	EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error)
+	ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]StaffPreviewCandidate, error)
+
 	// Multi-Tenant Account Linking
 	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error)
 	// LinkSchoolAccount is LinkAccountToTenant plus the school identity the

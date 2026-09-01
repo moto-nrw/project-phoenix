@@ -305,11 +305,9 @@ func inCareTenantTx(t *testing.T, db *bun.DB, fn func(ctx context.Context) error
 	return inner
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	period := createCareOfferingTestPeriod(t, db, "resource-change",
@@ -349,11 +347,9 @@ func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(
 		"materialization deliberately accepts inactive timeframes with complete clock times")
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestCareOfferingMaterializability_RejectsCompleteReplacementWhenPartialExceptionBecomesInvalid(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	monday := timezone.NewDate(2026, time.September, 7)

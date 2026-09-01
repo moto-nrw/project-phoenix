@@ -312,8 +312,8 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
             {copied ? "Kopiert!" : "Kopieren"}
           </button>
         </div>
-        <div className="rounded-md border border-yellow-200 bg-yellow-50 p-2">
-          <div className="text-xs text-yellow-800">
+        <div className="border-moto-amber/20 bg-moto-amber-soft rounded-md border p-2">
+          <div className="text-moto-amber-strong text-xs">
             Sicherheit: Bewahren Sie diesen Schlüssel sicher auf. Er ist nur bei
             der Erstellung sichtbar.
           </div>

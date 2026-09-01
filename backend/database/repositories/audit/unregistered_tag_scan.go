@@ -4,27 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type unregisteredTagScanRepository struct {
-	*base.Repository[*auditModels.UnregisteredTagScan]
-	db *bun.DB
+	runtime Runtime
 }
 
-func NewUnregisteredTagScanRepository(db *bun.DB) auditModels.UnregisteredTagScanRepository {
-	repo := base.NewRepository[*auditModels.UnregisteredTagScan](db, "audit.unregistered_tag_scans", "UnregisteredTagScan")
-	repo.TenantScoped = true
-	return &unregisteredTagScanRepository{
-		Repository: repo,
-		db:         db,
-	}
+func NewUnregisteredTagScanRepository(runtime Runtime) auditModels.UnregisteredTagScanRepository {
+	return &unregisteredTagScanRepository{runtime: requireRuntime(runtime)}
+}
+
+func (r *unregisteredTagScanRepository) Create(ctx context.Context, scan *auditModels.UnregisteredTagScan) error {
+	return NewAppender(r.runtime).Append(ctx, scan)
 }
 
 func (r *unregisteredTagScanRepository) FindByID(ctx context.Context, id int64) (*auditModels.UnregisteredTagScan, error) {
@@ -36,7 +32,7 @@ func (r *unregisteredTagScanRepository) FindByID(ctx context.Context, id int64) 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find unregistered tag scan", Err: base.TranslateNotFound(err)}
+		return nil, wrapDatabase("find unregistered tag scan", err)
 	}
 	return &scan, nil
 }
@@ -48,7 +44,7 @@ func (r *unregisteredTagScanRepository) ListForOperator(ctx context.Context, fil
 	query = query.OrderExpr(`"scan".scanned_at DESC`).Limit(500)
 
 	if err := query.Scan(ctx, &scans); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list unregistered tag scans", Err: base.TranslateNotFound(err)}
+		return nil, wrapDatabase("list unregistered tag scans", err)
 	}
 	if scans == nil {
 		scans = []*auditModels.UnregisteredTagScan{}
@@ -58,7 +54,7 @@ func (r *unregisteredTagScanRepository) ListForOperator(ctx context.Context, fil
 
 func (r *unregisteredTagScanRepository) Resolve(ctx context.Context, id, operatorID int64, note *string) (*auditModels.UnregisteredTagScan, error) {
 	now := time.Now()
-	result, err := base.GetDB(ctx, r.db).NewUpdate().
+	result, err := runtimeDB(ctx, r.runtime).NewUpdate().
 		Model((*auditModels.UnregisteredTagScan)(nil)).
 		ModelTableExpr(`audit.unregistered_tag_scans AS "scan"`).
 		Set("resolved_at = ?", now).
@@ -69,42 +65,44 @@ func (r *unregisteredTagScanRepository) Resolve(ctx context.Context, id, operato
 		Where(`"scan".resolved_at IS NULL`).
 		Exec(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve unregistered tag scan", Err: base.TranslateNotFound(err)}
+		return nil, wrapDatabase("resolve unregistered tag scan", err)
 	}
-	if err := base.AssertRowsAffected(result, 1, "resolve unregistered tag scan"); err != nil {
-		return nil, err
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, wrapDatabase("resolve unregistered tag scan", err)
+	}
+	if affected != 1 {
+		return nil, wrapDatabase("resolve unregistered tag scan", fmt.Errorf("expected 1 affected row, got %d", affected))
 	}
 	return r.FindByID(ctx, id)
 }
 
 func (r *unregisteredTagScanRepository) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
-	tenantID := tenant.FromContext(ctx)
+	tenantID := runtimeTenantID(ctx, r.runtime)
 	if tenantID <= 0 {
-		return 0, &modelBase.DatabaseError{Op: "delete old unregistered tag scans", Err: errors.New("tenant context is required")}
+		return 0, wrapDatabase("delete old unregistered tag scans", errors.New("tenant context is required"))
 	}
 	var deleted int64
-	err := base.GetDB(ctx, r.db).NewRaw(
+	err := runtimeDB(ctx, r.runtime).NewRaw(
 		`SELECT audit.delete_expired_unregistered_tag_scans(?, ?)`, tenantID, cutoff,
 	).Scan(ctx, &deleted)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete old unregistered tag scans", Err: err}
+		return 0, wrapDatabase("delete old unregistered tag scans", err)
 	}
 	return int(deleted), err
 }
 
 func (r *unregisteredTagScanRepository) operatorBaseQuery(ctx context.Context) *bun.SelectQuery {
-	return base.GetDB(ctx, r.db).NewSelect().
+	return runtimeDB(ctx, r.runtime).NewSelect().
 		Model((*auditModels.UnregisteredTagScan)(nil)).
 		ModelTableExpr(`audit.unregistered_tag_scans AS "scan"`).
 		ColumnExpr(`"scan".*`).
 		ColumnExpr(`"school".id AS school_id`).
 		ColumnExpr(`"school".name AS school_name`).
-		ColumnExpr(`"org".id AS organization_id`).
-		ColumnExpr(`"org".name AS organization_name`).
+		ColumnExpr(`"school".organization_id AS organization_id`).
 		ColumnExpr(`"device".device_id AS device_identifier`).
 		ColumnExpr(`"device".name AS device_name`).
 		Join(`INNER JOIN platform.schools AS "school" ON "school".id = "scan".tenant_id`).
-		Join(`INNER JOIN platform.organizations AS "org" ON "org".id = "school".organization_id`).
 		Join(`LEFT JOIN iot.devices AS "device" ON "device".id = "scan".device_id`)
 }
 

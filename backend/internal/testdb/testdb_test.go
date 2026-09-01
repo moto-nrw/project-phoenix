@@ -19,7 +19,49 @@ import (
 // Unit tests (no database)
 // ---------------------------------------------------------------------------
 
+func TestSharedRowPredicateFollowsAccountOwnership(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t,
+		fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.id AND m.tenant_id >= %d)", TenantIDBase),
+		sharedRowPredicate("auth.accounts", false),
+	)
+	for _, table := range []string{
+		"audit.auth_events",
+		"auth.mfa_credentials",
+		"auth.mfa_email_challenges",
+		"auth.mfa_overrides",
+		"auth.passkey_credentials",
+		"auth.password_reset_tokens",
+		"auth.tokens",
+	} {
+		assert.Equal(t,
+			fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.account_id AND m.tenant_id >= %d)", TenantIDBase),
+			sharedRowPredicate(table, false),
+			table,
+		)
+	}
+	assert.Equal(t,
+		fmt.Sprintf("t.tenant_id IS NULL OR t.tenant_id < %d", TenantIDBase),
+		sharedRowPredicate("auth.account_tenants", true),
+		"each account mapping is owned by its own tenant",
+	)
+
+	assert.Empty(t, sharedRowPredicate("auth.password_reset_rate_limits", false),
+		"email-only rows cannot safely inherit ownership from an account")
+	assert.Equal(t,
+		fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.roles m WHERE m.id = t.role_id AND m.tenant_id >= %d)", TenantIDBase),
+		sharedRowPredicate("auth.role_permissions", false),
+	)
+	assert.Equal(t,
+		fmt.Sprintf("(NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.account_id AND m.tenant_id >= %d)) AND (t.tenant_id IS NULL OR t.tenant_id < %d)", TenantIDBase, TenantIDBase),
+		sharedRowPredicate("auth.mfa_email_challenges", true),
+		"either the challenge tenant or its account mapping can establish test ownership",
+	)
+}
+
 func TestParsePostgresDSNRejectsInvalidInput(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		dsn  string
@@ -36,6 +78,7 @@ func TestParsePostgresDSNRejectsInvalidInput(t *testing.T) {
 }
 
 func TestConfigDerivesDSNs(t *testing.T) {
+	t.Parallel()
 	cfg, err := NewConfig("postgres://user:pass@localhost:5433/phoenix_test?sslmode=disable&application_name=tests")
 	require.NoError(t, err)
 
@@ -49,11 +92,13 @@ func TestConfigDerivesDSNs(t *testing.T) {
 }
 
 func TestQuoteIdentifierEscapesDoubleQuotes(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, `"plain"`, quoteIdentifier("plain"))
 	assert.Equal(t, `"has""quote"`, quoteIdentifier(`has"quote`))
 }
 
 func TestSanitizeRunID(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "abc123", SanitizeRunID("abc123"))
 
 	hashed := SanitizeRunID("Not/A valid-ID that is way too long")
@@ -65,6 +110,7 @@ func TestSanitizeRunID(t *testing.T) {
 }
 
 func TestCloneNameIsValidPostgresIdentifier(t *testing.T) {
+	t.Parallel()
 	name := CloneName("run1", "/some/pkg/dir")
 	assert.True(t, strings.HasPrefix(name, ClonePrefix+"run1_"))
 	assert.LessOrEqual(t, len(name), 63)
@@ -76,6 +122,7 @@ func TestCloneNameIsValidPostgresIdentifier(t *testing.T) {
 }
 
 func TestMigrationFilePatternMatchesOnlyRealMigrations(t *testing.T) {
+	t.Parallel()
 	// Regression guard: 00_migrations.go (registry infrastructure) must NOT
 	// count as a wanted migration — its "00" is never a bun_migrations name,
 	// so matching it would make migrationsComplete permanently false and turn
@@ -92,6 +139,7 @@ func TestMigrationFilePatternMatchesOnlyRealMigrations(t *testing.T) {
 }
 
 func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
+	t.Parallel()
 	h1, err := MigrationsHash()
 	require.NoError(t, err)
 	h2, err := MigrationsHash()
@@ -101,6 +149,7 @@ func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
 }
 
 func TestMigrationSetsMatchRequiresExactSet(t *testing.T) {
+	t.Parallel()
 	wanted := []string{"0.0.0", "1.15.301"}
 	assert.True(t, migrationSetsMatch(wanted, map[string]struct{}{
 		"0.0.0":    {},
@@ -189,6 +238,7 @@ func fakeBuild(counter *int) func(ctx context.Context, dsn string) error {
 }
 
 func TestEnsureTemplateBuildsOnlyOnHashChange(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -210,6 +260,7 @@ func TestEnsureTemplateBuildsOnlyOnHashChange(t *testing.T) {
 }
 
 func TestEnsureTemplateAdoptsUnstampedCompleteDatabase(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -249,6 +300,7 @@ func TestEnsureTemplateAdoptsUnstampedCompleteDatabase(t *testing.T) {
 }
 
 func TestEnsureTemplateRebuildsUnstampedIncompleteDatabase(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -273,6 +325,7 @@ func TestEnsureTemplateRebuildsUnstampedIncompleteDatabase(t *testing.T) {
 // convention, this fails loudly instead of CI silently rebuilding the
 // template on every run.
 func TestMigrationsCompleteAgainstRealTemplate(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping DB integration test in -short mode")
 	}
@@ -307,6 +360,7 @@ func TestMigrationsCompleteAgainstRealTemplate(t *testing.T) {
 }
 
 func TestCreateCloneAndSweepLifecycle(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -350,6 +404,7 @@ func TestCreateCloneAndSweepLifecycle(t *testing.T) {
 }
 
 func TestLeftoversReportsSharedRows(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -385,6 +440,7 @@ func TestLeftoversReportsSharedRows(t *testing.T) {
 }
 
 func TestLeftoversReportsSharedRowReplacement(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -428,6 +484,7 @@ func TestLeftoversReportsSharedRowReplacement(t *testing.T) {
 // to every other test and dies with the clone. Only rows outside the
 // test-tenant band count (#2419 goal 2).
 func TestLeftoversIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -463,9 +520,58 @@ func TestLeftoversIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	assert.Empty(t, deltas, "a row in the test's own tenant is not a leftover")
 }
 
+func TestLeftoversFollowsAccountOwnershipToTenantlessRows(t *testing.T) {
+	t.Parallel()
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	build := func(ctx context.Context, dsn string) error {
+		db := openSQL(dsn)
+		defer func() { _ = db.Close() }()
+		_, err := db.ExecContext(ctx, `
+			CREATE SCHEMA auth;
+			CREATE TABLE auth.accounts (id bigint PRIMARY KEY);
+			CREATE TABLE auth.account_tenants (account_id bigint, tenant_id bigint);
+			CREATE TABLE auth.password_reset_tokens (id bigint PRIMARY KEY, account_id bigint)
+		`)
+		return err
+	}
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(build), WithMigrationsHash("accountownershiphash"))
+	require.NoError(t, err)
+
+	handle, err := CreateClone(ctx, templateCfg, SanitizeRunID(""))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
+	require.NoError(t, SnapshotSharedBaseline(ctx, handle.DSN))
+
+	clone := openSQL(handle.DSN)
+	_, err = clone.ExecContext(ctx, `
+		INSERT INTO auth.accounts (id) VALUES (1), (2);
+		INSERT INTO auth.account_tenants (account_id, tenant_id) VALUES (1, $1);
+		INSERT INTO auth.password_reset_tokens (id, account_id) VALUES (11, 1), (22, 2)
+	`, TenantIDBase+7)
+	require.NoError(t, err)
+	require.NoError(t, clone.Close())
+
+	deltas, err := Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	require.Len(t, deltas, 2)
+	for _, delta := range deltas {
+		assert.Contains(t, []string{"auth.accounts", "auth.password_reset_tokens"}, delta.Table)
+		assert.EqualValues(t, 0, delta.BaselineRows)
+		assert.EqualValues(t, 1, delta.CloneRows,
+			"only the account without a test-tenant mapping is shared")
+	}
+}
+
 // The next run must collect a killed process's clone immediately: no
 // connection means no test can still use it.
 func TestNextRunCollectsKilledCloneImmediately(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -516,6 +622,7 @@ func createBareClone(t *testing.T, ctx context.Context, cfg *Config, name string
 // still wait for an exclusive holder — the template rebuild that drops the
 // database being copied, and the GC that drops clones.
 func TestCreateCloneSharesTheLifecycleLock(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -560,6 +667,7 @@ func TestCreateCloneSharesTheLifecycleLock(t *testing.T) {
 // phoenix_auth password on the lock-free fast path, and two sessions running
 // ALTER ROLE at the same moment fail with "tuple concurrently updated".
 func TestPinAuthRolePasswordSurvivesConcurrentCallers(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -585,6 +693,7 @@ func TestPinAuthRolePasswordSurvivesConcurrentCallers(t *testing.T) {
 }
 
 func TestEnsureAuthRolePasswordUsesAuthRoleLock(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -638,6 +747,7 @@ func databaseExists(t *testing.T, ctx context.Context, cfg *Config, name string)
 }
 
 func TestTemplateNameForHashDerivesOneNamePerMigrationHand(t *testing.T) {
+	t.Parallel()
 	hashA := strings.Repeat("a", 64)
 	hashB := strings.Repeat("b", 64)
 
@@ -662,6 +772,7 @@ func TestTemplateNameForHashDerivesOneNamePerMigrationHand(t *testing.T) {
 }
 
 func TestConfigForMigrationsScopesTemplateOnly(t *testing.T) {
+	t.Parallel()
 	base, err := NewConfig("postgres://user:pass@localhost:5433/phoenix_test?sslmode=disable")
 	require.NoError(t, err)
 
@@ -675,6 +786,7 @@ func TestConfigForMigrationsScopesTemplateOnly(t *testing.T) {
 }
 
 func TestTouchedAtParsesTemplateStamp(t *testing.T) {
+	t.Parallel()
 	stamp, ok := touchedAt(hashCommentPrefix + "abc" + touchedCommentKey + "1700000000")
 	require.True(t, ok)
 	assert.Equal(t, int64(1700000000), stamp.Unix())
@@ -691,6 +803,7 @@ func TestTouchedAtParsesTemplateStamp(t *testing.T) {
 // multi-worktree guarantee: a run on migration hand X must not drop, rebuild,
 // or reuse the template of migration hand Y.
 func TestEnsureTemplateLeavesForeignMigrationHandUntouched(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -729,6 +842,7 @@ func TestEnsureTemplateLeavesForeignMigrationHandUntouched(t *testing.T) {
 }
 
 func TestSweepDropsStaleTemplatesButKeepsTheCurrentOne(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -766,6 +880,7 @@ func TestSweepDropsStaleTemplatesButKeepsTheCurrentOne(t *testing.T) {
 // database stamped by another migration hand must not be copied — its
 // content may differ even when every version is present.
 func TestEnsureTemplateIgnoresForeignStampedBase(t *testing.T) {
+	t.Parallel()
 	cfg := integrationConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

@@ -13,8 +13,8 @@ import (
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/emailbranding"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -30,6 +30,12 @@ const parentCalendarDeepLink = "/calendar"
 // Nil (unwired) disables e-mail notification; the in-app calendar still works.
 type OutboxEnqueuer interface {
 	Enqueue(ctx context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error)
+	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
+}
+
+// PushOutboxCanceller removes pending durable pushes when an appointment
+// lifecycle change makes their snapshot stale.
+type PushOutboxCanceller interface {
 	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
 }
 
@@ -483,7 +489,9 @@ func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, a
 	}
 
 	err = s.cfg.Notifier.Notify(ctx, notifications.Event{
-		Type:     notificationType,
+		Type:           notificationType,
+		IdempotencyKey: fmt.Sprintf("appointment:%d:%d:%s", appointment.ID, appointment.Revision, kind),
+		RelatedType:    "appointment", RelatedID: appointment.ID,
 		Title:    title,
 		Body:     body,
 		DeepLink: parentCalendarDeepLink,
@@ -526,15 +534,19 @@ func (s *service) logger() *slog.Logger {
 	return s.cfg.Logger
 }
 
-// cancelPendingNotifications marks every not-yet-sent appointment e-mail
-// (published notice and queued reminders) for this appointment as failed so the
-// worker never sends them — used on cancel and delete.
+// cancelPendingNotifications removes every not-yet-sent appointment delivery
+// whose snapshot has become stale after an appointment lifecycle change.
 func (s *service) cancelPendingNotifications(ctx context.Context, appointmentID int64, reason string) error {
-	if s.cfg.Outbox == nil {
-		return nil
+	if s.cfg.Outbox != nil {
+		if _, err := s.cfg.Outbox.CancelPendingByRelatedEntity(ctx, platformModels.EmailRelatedTypeAppointment, appointmentID, reason); err != nil {
+			return err
+		}
 	}
-	_, err := s.cfg.Outbox.CancelPendingByRelatedEntity(ctx, platformModels.EmailRelatedTypeAppointment, appointmentID, reason)
-	return err
+	if s.cfg.PushOutbox != nil {
+		_, err := s.cfg.PushOutbox.CancelPendingByRelatedEntity(ctx, "appointment", appointmentID, reason)
+		return err
+	}
+	return nil
 }
 
 func (s *service) resolveSchoolName(ctx context.Context, tenantID int64) string {

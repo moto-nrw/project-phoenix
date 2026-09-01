@@ -14,9 +14,9 @@ import (
 	"strings"
 )
 
-var createTableDataObjectPattern = regexp.MustCompile(`(?i)\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z][a-z0-9_]*)"?\s*\.\s*"?([a-z][a-z0-9_]*)"?`)
+var createDataObjectPattern = regexp.MustCompile(`(?i)\bCREATE\s+(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z][a-z0-9_]*)"?\s*\.\s*"?([a-z][a-z0-9_]*)"?`)
 
-// candidateMigrationDataObjects returns schema-qualified tables created by Go
+// candidateMigrationDataObjects returns schema-qualified tables and views created by Go
 // migration files that are new relative to the immutable PR base. Modified
 // historical migrations are deliberately excluded: they cannot be used to
 // backfill ownership for an already-existing table.
@@ -48,7 +48,11 @@ func candidateMigrationDataObjects(project, ref string) (map[string]struct{}, er
 	if err != nil {
 		return nil, fmt.Errorf("list candidate migrations: %w", err)
 	}
-	for _, relativeFile := range strings.Split(changed, "\x00") {
+	untracked, err := gitOutput(root, "ls-files", "--others", "--exclude-standard", "-z", "--", filepath.ToSlash(relativeMigrationDir))
+	if err != nil {
+		return nil, fmt.Errorf("list untracked candidate migrations: %w", err)
+	}
+	for _, relativeFile := range strings.Split(changed+untracked, "\x00") {
 		if relativeFile == "" || filepath.Ext(relativeFile) != ".go" {
 			continue
 		}
@@ -99,7 +103,7 @@ func newRawCreateTableDataObjects(filename string, contents []byte) (map[string]
 		if unquoteErr != nil {
 			return true
 		}
-		for _, match := range createTableDataObjectPattern.FindAllStringSubmatch(sql, -1) {
+		for _, match := range createDataObjectPattern.FindAllStringSubmatch(sql, -1) {
 			result[strings.ToLower(match[1]+"."+match[2])] = struct{}{}
 		}
 		return true

@@ -228,10 +228,9 @@ func TestGetStudentsDayLog_RejectsHistoricalRosterWithoutGroupAssignments(t *tes
 	assert.Contains(t, rr.Body.String(), "dated group assignments")
 }
 
-// Deliberately NOT parallel: the test wipes every attendance_day_log audit row
-// in the clone to get an exact count, so it and any test running beside it
-// would delete each other's evidence.
 func TestGetStudentsDayLog_WritesAuditLog(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 

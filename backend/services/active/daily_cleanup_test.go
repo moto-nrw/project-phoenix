@@ -15,7 +15,6 @@
 //	ARRANGE: Create test fixtures (real database records)
 //	  activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 //	  student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-//	  defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, student.ID)
 //
 //	ACT: Perform the operation under test
 //	  result, err := service.EndDailySessions(ctx)
@@ -31,7 +30,6 @@
 //	testpkg.CreateTestRoom(t, db, "room-name") *facilities.Room
 //	testpkg.CreateTestStaff(t, db, "first", "last") *users.Staff
 //	testpkg.CreateTestStudent(t, db, "first", "last", "class") *users.Student
-//	testpkg.CleanupActivityFixtures(t, db, ids...) - cleans up any combination
 package active_test
 
 import (

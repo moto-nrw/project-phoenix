@@ -21,7 +21,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -115,6 +115,7 @@ type Config struct {
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
 	// calendar is unaffected).
 	Outbox                 OutboxEnqueuer
+	PushOutbox             PushOutboxCanceller
 	SchoolRepo             platformModels.SchoolRepository
 	Settings               LogoResolver
 	AccountRepo            FeedAccountRepo
@@ -2445,9 +2446,7 @@ func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recur
 // anchor weekly-recurrence intervals to calendar weeks rather than to 7-day
 // blocks measured from the appointment's start weekday.
 func weekStartMonday(d timezone.Date) timezone.Date {
-	// time.Weekday: Sunday=0 … Saturday=6; days since Monday = (weekday+6)%7.
-	offset := (int(d.Weekday()) + 6) % 7
-	return d.AddDays(-offset)
+	return d.StartOfISOWeek()
 }
 
 func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule) bool {

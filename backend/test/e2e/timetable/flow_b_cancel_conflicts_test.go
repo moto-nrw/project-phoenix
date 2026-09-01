@@ -25,10 +25,9 @@ import (
 //
 // Tenant-isolation: the neighbor tenant sees an empty conflict list.
 // Query-budget: ≤ 22 queries per B13.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	s := setupTimetableScenarioModule(t)
 
 	// --- Setup: target Monday at 13:00–14:00 -------------------------------

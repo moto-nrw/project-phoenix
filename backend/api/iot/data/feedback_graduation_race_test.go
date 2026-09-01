@@ -52,7 +52,7 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 		GetStudentByIDForUpdateFn: realUsers.GetStudentByIDForUpdate,
 	}
 
-	resource := dataAPI.NewFeedbackResource(ctx.resource.IoTService, racingUsers, ctx.resource.FeedbackService, nil)
+	resource := dataAPI.NewFeedbackResource(racingUsers, ctx.resource.FeedbackService, ctx.resource.ObserveResponse, nil)
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -100,7 +100,7 @@ func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
 		},
 	}
 
-	resource := dataAPI.NewFeedbackResource(ctx.resource.IoTService, stubbedUsers, ctx.resource.FeedbackService, nil)
+	resource := dataAPI.NewFeedbackResource(stubbedUsers, ctx.resource.FeedbackService, ctx.resource.ObserveResponse, nil)
 
 	body := map[string]interface{}{
 		"student_id": student.ID,

@@ -87,6 +87,13 @@ type GuardianService struct {
 	txHandler *tenant.TransactionRunner
 }
 
+// GuardianDisplay is the People Directory projection used outside this domain.
+type GuardianDisplay struct {
+	GuardianProfileID int64
+	FirstName         string
+	LastName          string
+}
+
 // NewGuardianService creates a new GuardianService instance
 func NewGuardianService(deps GuardianServiceDependencies) *GuardianService {
 	deps.FrontendURL = strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
@@ -199,6 +206,27 @@ func (s *GuardianService) GetGuardianByID(ctx context.Context, id int64) (*users
 	return profile, nil
 }
 
+// GuardianDisplays resolves names without exposing People Directory models or
+// persistence to consumers.
+func (s *GuardianService) GuardianDisplays(ctx context.Context, ids []int64) ([]GuardianDisplay, error) {
+	if len(ids) == 0 {
+		return []GuardianDisplay{}, nil
+	}
+	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve guardian displays: %w", err)
+	}
+	displays := make([]GuardianDisplay, 0, len(profiles))
+	for _, profile := range profiles {
+		displays = append(displays, GuardianDisplay{
+			GuardianProfileID: profile.ID,
+			FirstName:         profile.FirstName,
+			LastName:          profile.LastName,
+		})
+	}
+	return displays, nil
+}
+
 // UpdateGuardian updates a guardian profile
 func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req GuardianCreateRequest) error {
 	// Serialize all guardian contact writers on the profile row. The
@@ -263,6 +291,12 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 // Use this only for guardians with no remaining links; for the deliberate
 // full delete use DeleteGuardianWithLinks.
 func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.deleteGuardian(txCtx, id, changedByAccountID)
+	})
+}
+
+func (s *GuardianService) deleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
@@ -281,8 +315,15 @@ func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccou
 //
 // This is the "Komplett löschen" path from #819 and is gated to admins at the
 // handler, because it reaches across every linked student — including siblings
-// in groups the caller may not supervise.
+// in groups the caller may not supervise. The service owns the transaction;
+// an ambient handler transaction is joined rather than nested.
 func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.deleteGuardianWithLinks(txCtx, id, expectedLinkIDs, changedByAccountID)
+	})
+}
+
+func (s *GuardianService) deleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
@@ -1048,6 +1089,12 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 // relationship stays intact. The check runs under the student lock so a payer
 // assigned concurrently cannot slip past it.
 func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.removeGuardianFromStudent(txCtx, studentID, guardianProfileID, changedByAccountID, mayClearPayer)
+	})
+}
+
+func (s *GuardianService) removeGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
 	// The student row serializes this deletion with SetStudentPayer, which
 	// takes the same lock before it reads a relationship's is_payer state.
 	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {

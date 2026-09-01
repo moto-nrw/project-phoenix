@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -44,6 +45,20 @@ type templateSetup struct {
 	studentA  int64
 	studentB  int64
 	cleanupFn func()
+}
+
+func listTimeframesByDescription(
+	t *testing.T,
+	repo scheduleModel.TimeframeRepository,
+	ctx context.Context,
+	description string,
+) []*scheduleModel.Timeframe {
+	t.Helper()
+	options := modelBase.NewQueryOptions()
+	options.Filter.ILike("description", "%"+description+"%")
+	timeframes, err := repo.List(ctx, options)
+	require.NoError(t, err)
+	return timeframes
 }
 
 type mockMaterializationService struct {
@@ -154,6 +169,10 @@ func firstTemplateClock(clocks []func() time.Time) func() time.Time {
 		return nil
 	}
 	return clocks[0]
+}
+
+func fixedTemplateClock() time.Time {
+	return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 }
 
 func templateGradeSettings(value int, resolveErr error) *configtest.Mock {
@@ -725,8 +744,7 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 			Count(s.ctx)
 		require.NoError(t, err)
 		assert.Zero(t, count)
-		timeframes, err := scheduleRepo.NewTimeframeRepository(s.db).FindByDescription(s.ctx, name)
-		require.NoError(t, err)
+		timeframes := listTimeframesByDescription(t, scheduleRepo.NewTimeframeRepository(s.db), s.ctx, name)
 		assert.Empty(t, timeframes, "grade validation must run before timeframe creation")
 	})
 
@@ -748,8 +766,7 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 			Count(s.ctx)
 		require.NoError(t, err)
 		assert.Zero(t, count)
-		timeframes, err := scheduleRepo.NewTimeframeRepository(s.db).FindByDescription(s.ctx, name)
-		require.NoError(t, err)
+		timeframes := listTimeframesByDescription(t, scheduleRepo.NewTimeframeRepository(s.db), s.ctx, name)
 		assert.Empty(t, timeframes)
 	})
 }

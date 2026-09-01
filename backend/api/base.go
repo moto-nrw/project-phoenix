@@ -35,19 +35,15 @@ import (
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
-	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	schoolAPI "github.com/moto-nrw/project-phoenix/api/school"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
-	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/api/statistics"
@@ -58,6 +54,8 @@ import (
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
+	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
+	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
 	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
@@ -73,6 +71,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
+	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
+	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
+	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
+	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -111,6 +117,115 @@ func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, e
 	}
 }
 
+func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (*services.Factory, *mealplanModule.Module, *feedbackModule.Module, error) {
+	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
+		DB: db,
+		Observe: func(observation organizationCompose.Observation) {
+			observability.ObserveOrganizationTenancyOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, organizationModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	mealPlanSettings := mealplanCompose.NewSettings()
+	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
+		DB:       db,
+		Settings: mealPlanSettings,
+		Observe: func(observation mealplanCompose.Observation) {
+			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	feedbackSettings := feedbackCompose.NewSettings()
+	feedbackCapability, err := feedbackCompose.New(feedbackCompose.Dependencies{
+		DB:       db,
+		Settings: feedbackSettings,
+		Today:    feedbackModule.Today,
+		Observe: func(observation feedbackCompose.Observation) {
+			observability.ObserveFeedbackOperation(
+				observation.Operation,
+				observation.Duration,
+				observation.Stats.Queries,
+				observation.Stats.Rows,
+				observation.Stats.StatementDuration,
+				feedbackModule.ErrorCode(observation.Err),
+				observation.Err,
+			)
+		},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	factory, err := services.NewFactoryWithModules(
+		repoFactory, db, logger,
+		organizations,
+		mealPlan, mealPlanSettings.Bind,
+		feedbackCapability, feedbackSettings.Bind,
+		observability.ObserveAuditAppend,
+		observability.ObserveSynchronousDelivery,
+		observability.ObserveDurableDelivery,
+	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return factory, mealPlan, feedbackCapability, nil
+}
+
+var mealPlanErrorRules = []apiCommon.ErrorRule{
+	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("feature_disabled"))},
+	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
+	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
+}
+
+func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
+	renderer := apiCommon.RulesRenderer(mealPlanErrorRules, apiCommon.ErrorInternalServerRenderer(internalMessage))
+	apiCommon.RenderError(w, r, renderer(err))
+}
+
+func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI.Resource {
+	return mealplanAPI.NewResource(module, mealplanAPI.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router, mealplanAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(router, db, register)
+		},
+		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
+			if access == mealplanAPI.AccessRead {
+				return apiCommon.RequireConfigRead()
+			}
+			return apiCommon.RequireConfigUpdate()
+		},
+		Success: apiCommon.Respond,
+		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
+			apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+		},
+		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
+			renderMealPlanFailure(w, r, err, internalMessage)
+		},
+	})
+}
+
+func newFeedbackResource(module *feedbackModule.Module, db *bun.DB) *feedbackAPI.Resource {
+	return feedbackAPI.NewResource(module, feedbackAPI.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router, feedbackAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(router, db, register)
+		},
+		Permission: func(permission string) feedbackAPI.Middleware {
+			return apiCommon.RequiresPermission(permission)
+		},
+		Success: apiCommon.Respond,
+		Failure: func(w http.ResponseWriter, r *http.Request, failure feedbackAPI.Failure) {
+			apiCommon.RenderError(w, r, &apiCommon.ErrResponse{
+				Err: failure.Err, HTTPStatusCode: failure.Status,
+				Status: failure.Classification, ErrorText: failure.Err.Error(),
+			})
+		},
+		ObserveResponse: func(status int, code string) {
+			observability.ObserveFeedbackHTTPResponse("staff", status, code)
+		},
+	})
+}
+
 // API represents the API structure
 type API struct {
 	Services           *services.Factory
@@ -122,6 +237,10 @@ type API struct {
 	tracer             *observability.Tracer
 	metricsBearerToken string
 	databaseLogger     *slog.Logger
+	feedback           *feedbackModule.Module
+	securityLogging    bool
+	rateLimiting       bool
+	authRateLimit      string
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -235,8 +354,8 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	// Initialize repository factory with DB connection
 	repoFactory := repositories.NewFactory(db)
 
-	// Initialize service factory with repository factory
-	serviceFactory, err := services.NewFactory(repoFactory, db, logger)
+	// Compose one authoritative instance of each migrated module.
+	serviceFactory, mealPlanCapability, feedbackCapability, err := initializeModuleServices(repoFactory, db, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -291,6 +410,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		tracer:             tracer,
 		metricsBearerToken: metricsBearerToken,
 		databaseLogger:     logger.With("handler", "database"),
+		feedback:           feedbackCapability,
 	}
 
 	// Setup router middleware
@@ -324,8 +444,13 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
+	api.MealPlan = newMealPlanResource(mealPlanCapability, db)
+	api.Feedback = newFeedbackResource(feedbackCapability, db)
 
 	// Register routes with rate limiting
+	api.securityLogging = os.Getenv("SECURITY_LOGGING_ENABLED") == "true"
+	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
+	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
 	api.registerRoutesWithRateLimiting()
 
 	buildResources.released = true
@@ -399,7 +524,7 @@ func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
 // setupCORS configures CORS middleware with allowed origins from environment.
 // Supports wildcard subdomain patterns like "*.example.com" via AllowOriginFunc.
 func setupCORS(router chi.Router) {
-	exactOrigins, wildcardSuffixes := parseAllowedOrigins()
+	exactOrigins, wildcardSuffixes := parseAllowedOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
 
 	opts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -454,8 +579,7 @@ func matchesWildcardSuffix(origin string, wildcardSuffixes []string) bool {
 // parseAllowedOrigins parses CORS_ALLOWED_ORIGINS and splits entries into
 // exact-match origins and wildcard subdomain suffixes (e.g. "*.example.com"
 // becomes suffix ".example.com").
-func parseAllowedOrigins() (exact []string, wildcardSuffixes []string) {
-	originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS")
+func parseAllowedOrigins(originsEnv string) (exact []string, wildcardSuffixes []string) {
 	if originsEnv == "" {
 		return []string{"*"}, nil
 	}
@@ -496,8 +620,8 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		return
 	}
 
-	generalLimit := parsePositiveInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60)
-	generalBurst := parsePositiveInt("RATE_LIMIT_BURST", 10)
+	generalLimit := parsePositiveInt(os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"), 60)
+	generalBurst := parsePositiveInt(os.Getenv("RATE_LIMIT_BURST"), 10)
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
 	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
@@ -579,8 +703,7 @@ func extractBearerToken(authHeader string) string {
 }
 
 // parsePositiveInt parses a positive integer from environment variable with a default value
-func parsePositiveInt(envVar string, defaultValue int) int {
-	valueStr := os.Getenv(envVar)
+func parsePositiveInt(valueStr string, defaultValue int) int {
 	if valueStr == "" {
 		return defaultValue
 	}
@@ -594,6 +717,7 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 
 // initializeAPIResources initializes all API resource instances
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
+	deviceLastSeenDebouncer := iotAPI.NewDeviceLastSeenDebouncer()
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
@@ -612,7 +736,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Rooms.EducationService = api.Services.Education
 	api.Rooms.ListExportService = api.Services.ListExport
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
-		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker")),
+		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
 		StudentRepo: repoFactory.Student,
 		DB:          db,
 		Logger:      logger.With("service", "student-photo"),
@@ -636,6 +760,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ActiveService:                api.Services.Active,
 		IoTService:                   api.Services.IoT,
 		StaffPINAuthenticator:        api.Services.StaffPINAuth,
+		DevicePINFallback:            os.Getenv("OGS_DEVICE_PIN"),
+		DeviceLastSeenDebouncer:      deviceLastSeenDebouncer,
 		PickupScheduleService:        api.Services.PickupSchedule,
 		PartialAbsenceService:        api.Services.PartialAbsence,
 		ArrivalScheduleService:       api.Services.ArrivalSchedule,
@@ -680,7 +806,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffNotices = staffAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db, viper.GetString("app_env"))
 	api.Guardians.ListExportService = api.Services.ListExport
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
@@ -690,8 +816,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.AbsenceTypes = absencetypesAPI.NewResource(api.Services.StaffAbsenceType, db, logger.With("handler", "absence-types"))
-	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
-	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
+	api.AbsenceTypes.SetActorResolver(api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -793,15 +918,21 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:       api.Services.Settings,
 		FacilityService:       api.Services.Facilities,
 		EducationService:      api.Services.Education,
-		FeedbackService:       api.Services.Feedback,
-		PickupScheduleService: api.Services.PickupSchedule,
-		SchoolService:         api.Services.Schools,
-		TimetableDataService:  api.Services.TimetableData,
-		TimetableBridge:       api.Services.TimetableBridge,
-		UnregisteredTagScans:  api.Services.UnregisteredTagScans,
-		Broadcaster:           api.Services.RealtimeHub,
-		Logger:                logger.With("handler", "iot"),
-		DB:                    db,
+		FeedbackService:       api.feedback,
+		FeedbackResponseObserver: func(status int, code string) {
+			observability.ObserveFeedbackHTTPResponse("iot", status, code)
+		},
+		PickupScheduleService:   api.Services.PickupSchedule,
+		SchoolService:           api.Services.Schools,
+		TimetableDataService:    api.Services.TimetableData,
+		TimetableBridge:         api.Services.TimetableBridge,
+		UnregisteredTagScans:    api.Services.UnregisteredTagScans,
+		Broadcaster:             api.Services.RealtimeHub,
+		Logger:                  logger.With("handler", "iot"),
+		DailyCheckoutFallback:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
+		DevicePINFallback:       os.Getenv("OGS_DEVICE_PIN"),
+		DB:                      db,
+		DeviceLastSeenDebouncer: deviceLastSeenDebouncer,
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.SSE.SetSchoolAccess(api.Services.Auth)
@@ -846,6 +977,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
+		AppEnv:                     viper.GetString("app_env"),
 		AuthService:                api.Services.OperatorAuth,
 		PasskeyService:             api.Services.OperatorPasskey,
 		MFAService:                 api.Services.OperatorMFA,
@@ -885,6 +1017,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 }
 
+func (a *API) currentStaffID(ctx context.Context) (int64, error) {
+	staff, err := a.Services.UserContext.GetCurrentStaff(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if staff == nil {
+		return 0, errors.New("current staff member not found")
+	}
+	return staff.ID, nil
+}
+
 // ServeHTTP implements the http.Handler interface for the API
 func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Router.ServeHTTP(w, r)
@@ -903,9 +1046,9 @@ type authRateLimiters struct {
 // buildAuthRateLimiters constructs the stricter auth-endpoint rate limiters
 // from RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE (default 5), wiring the security
 // logger when present.
-func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger) authRateLimiters {
+func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, configuredLimit string) authRateLimiters {
 	authLimit := 5 // default: 5 requests per minute for auth
-	if limit := os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"); limit != "" {
+	if limit := configuredLimit; limit != "" {
 		if parsed, err := strconv.Atoi(limit); err == nil && parsed > 0 {
 			authLimit = parsed
 		}
@@ -927,15 +1070,15 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger) auth
 func (a *API) registerRoutesWithRateLimiting() {
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
-	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
+	if a.securityLogging {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
 
 	// Configure auth-specific rate limiting if enabled. When disabled, the
 	// zero-value limiters carry nil fields and the setters below are skipped.
 	var limiters authRateLimiters
-	if os.Getenv("RATE_LIMIT_ENABLED") == "true" {
-		limiters = buildAuthRateLimiters(securityLogger)
+	if a.rateLimiting {
+		limiters = buildAuthRateLimiters(securityLogger, a.authRateLimit)
 	}
 
 	a.registerPublicRoutes()
@@ -1030,6 +1173,12 @@ func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 	// children.
 	a.Router.Mount("/parent-sse", a.SSE.ParentRouter())
 
+	// Anhänge, die Eltern zu einer Mitteilung herunterladen (#2890). Root
+	// gemountet wie /parent-sse, weil /parent ein Catch-all-Mount ist, und mit
+	// ParentMiddleware authentifiziert. Der Empfängerkreis der Mitteilung
+	// entscheidet; wer nicht dazugehört, bekommt 404.
+	a.Router.Mount("/parent-news-attachments", a.FileStore.ParentAnnouncementAttachmentRouter())
+
 	// School-portal SSE stream (#2208): account-addressed triggers only
 	// (Team-Chat), authenticated with SchoolMiddleware. Root-mounted for the
 	// same reason as /parent-sse.
@@ -1054,6 +1203,11 @@ func (a *API) registerTenantRoutes() {
 		// Tagesinformationen (#2180): lesen alle Mitarbeitenden, schreiben Admins.
 		r.Mount("/staff-notices", a.StaffNotices.Router())
 		r.Mount("/files", a.FileStore.Router())
+
+		// Anhänge an Elternmitteilungen (#2890). Eigener Pfad statt einer
+		// Route unter /parent-announcements: die Bytes gehören der
+		// Dateiablage, die Mitteilung steuert nur den Empfängerkreis bei.
+		r.Mount("/announcement-attachments", a.FileStore.AnnouncementAttachmentRouter())
 
 		// Mount guardian resources
 		r.Mount("/guardians", a.Guardians.Router())

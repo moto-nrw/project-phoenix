@@ -17,7 +17,6 @@
 //	  activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 //	  device := testpkg.CreateTestDevice(t, db, "device-id")
 //	  room := testpkg.CreateTestRoom(t, db, "Room Name")
-//	  defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
 //	ACT: Perform the operation under test
 //	  session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{1}, &room.ID)
@@ -39,7 +38,6 @@
 //   - Each helper returns the created entity with its real database ID
 //
 //     2. Automatic Cleanup: Always defer cleanup immediately after fixture creation:
-//     defer testpkg.CleanupActivityFixtures(t, db, fixture1.ID, fixture2.ID, ...)
 //     This ensures cleanup happens even if the test panics
 //
 // 3. Foreign Key Relationships: Fixtures handle relationships automatically:
@@ -58,7 +56,6 @@
 //	    activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
 //	    device := testpkg.CreateTestDevice(t, db, "test-device-001")
 //	    room := testpkg.CreateTestRoom(t, db, "Test Room")
-//	    defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
 //	    // ACT: Call the code under test
 //	    session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{1}, &room.ID)
@@ -76,7 +73,6 @@
 //	testpkg.CreateTestActivityGroup(t, db, "name") *activities.Group
 //	testpkg.CreateTestDevice(t, db, "device-id") *iot.Device
 //	testpkg.CreateTestRoom(t, db, "room-name") *facilities.Room
-//	testpkg.CleanupActivityFixtures(t, db, ids...) - cleans up any combination of fixtures
 //
 // # EXTENDING FIXTURES
 //
@@ -84,7 +80,7 @@
 // 1. Create a public function that creates a real database record
 // 2. Use require.NoError() to assert creation succeeded
 // 3. Return the created entity with its real database ID
-// 4. Add cleanup logic to CleanupActivityFixtures()
+// 4. Keep fixture rows tenant-owned so clone disposal removes them
 package active_test
 
 import (
@@ -109,7 +105,7 @@ import (
 // setupActiveService creates an active service with real database connection
 func setupActiveService(t *testing.T, db *bun.DB, clocks ...func() time.Time) activeSvc.Service {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), clocks...) // Pass db as second parameter
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...) // Pass db as second parameter
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }

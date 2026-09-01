@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -19,7 +19,8 @@ type CleanupDependencies struct {
 	Token                  authModels.TokenRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	AuthEvent              auditModels.AuthEventRepository
-	PushSubscription       iotModels.PushSubscriptionRepository
+	Audit                  auditModels.Command
+	PushSubscription       deliveryModels.PushSubscriptionRepository
 	DB                     *bun.DB
 	Logger                 *slog.Logger
 	TenantRuntime          tenant.UnitOfWork
@@ -36,6 +37,7 @@ func NewCleanupService(deps CleanupDependencies) *Service {
 		},
 		db:     deps.DB,
 		logger: deps.Logger,
+		audit:  deps.Audit,
 	}
 	service.SetTenantRuntime(deps.TenantRuntime)
 	return service

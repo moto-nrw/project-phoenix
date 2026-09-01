@@ -2,9 +2,9 @@
 
 import { useSession } from "next-auth/react";
 import { fetchPendingChangeRequestCount } from "~/lib/change-requests-api";
-import { canReviewChangeRequests } from "~/lib/change-request-access";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useChangeRequestAccess } from "./use-change-request-access";
 import { useUnreadCount } from "./use-unread-count";
 
 /**
@@ -27,7 +27,7 @@ import { useUnreadCount } from "./use-unread-count";
 export function useChangeRequestsPending() {
   const { data: session, status } = useSession();
   const { mode } = useShellAuth();
-  const canReviewRequests = canReviewChangeRequests(session);
+  const { canReviewParentRequests } = useChangeRequestAccess();
   // Do NOT gate the badge on parent messaging (operations.parent_notes_enabled).
   // Master-data requests (Track B) are gated on their OWN flag
   // (operations.parent_master_data_request_enabled) and are still created — and
@@ -41,7 +41,9 @@ export function useChangeRequestsPending() {
   const accountId = session?.user?.id ?? "";
   return useUnreadCount({
     enabled:
-      status === "authenticated" && mode === "teacher" && canReviewRequests,
+      status === "authenticated" &&
+      mode === "teacher" &&
+      canReviewParentRequests,
     fetcher: fetchPendingChangeRequestCount,
     cacheKey: `change_requests_pending_count:${tenantSlug ?? ""}:${accountId}`,
     eventNames: ["messages-unread-refresh", "change-requests-refresh"],

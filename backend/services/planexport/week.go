@@ -52,8 +52,7 @@ func (w week) label() string {
 
 // mondayOf is the Monday of the calendar week containing d.
 func mondayOf(d timezone.Date) timezone.Date {
-	offset := (int(d.Weekday()) + 6) % 7 // Monday = 0 … Sunday = 6
-	return d.AddDays(-offset)
+	return d.StartOfISOWeek()
 }
 
 // expandWeeks widens [from, to] to whole Monday–Sunday weeks and returns

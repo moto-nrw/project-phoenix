@@ -10,10 +10,10 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	pwaSvc "github.com/moto-nrw/project-phoenix/services/pwa"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	staffMessagingSvc "github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -25,6 +25,7 @@ import (
 // Construction replaces the former post-construction Set* graph.
 type WorkerDependencies struct {
 	Logger                    *slog.Logger
+	Getenv                    func(string) string
 	DB                        *bun.DB
 	SchoolRepo                platform.SchoolRepository
 	TenantRuntime             *tenant.UnitOfWork
@@ -102,6 +103,7 @@ func validateWorkerDependencies(deps WorkerDependencies) error {
 		{name: "invitation cleanup", value: deps.InvitationCleanup},
 		{name: "email change cleanup", value: deps.EmailChangeCleanup},
 		{name: "operator invitation cleanup", value: deps.OperatorInvitationCleanup},
+		{name: "feedback cleanup", value: deps.FeedbackCleaner},
 	}
 	for _, dependency := range required {
 		if isNilDependency(dependency.value) {

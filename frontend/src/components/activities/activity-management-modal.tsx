@@ -88,7 +88,7 @@ function NormalFooter({
             variant="ghost"
             size="icon"
             onClick={onShowDeleteConfirm}
-            className="text-gray-400 hover:text-red-600"
+            className="hover:text-moto-red text-gray-400"
             disabled={isSubmitting || isDeleting}
             aria-label="Aktivität löschen"
           >

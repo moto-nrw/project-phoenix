@@ -6,17 +6,7 @@
 // rendered as-is. Follows the calm Anmeldungen/Planung surface language: one
 // content section, gray-50 stat blocks, no colored chips.
 
-import {
-  FileImage,
-  FileSpreadsheet,
-  FileText,
-  File as FileIcon,
-  FolderOpen,
-  Lock,
-  Presentation,
-  Upload,
-  Users,
-} from "lucide-react";
+import { FileText, FolderOpen, Lock, Upload, Users } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
@@ -28,6 +18,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { InfoItem } from "~/components/ui/info-card";
 import {
   OverflowMenu,
@@ -63,23 +54,6 @@ function filesStatusLine(folders: readonly FileFolder[]): string {
 
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
-
-function fileIcon(contentType: string) {
-  const className = "h-4 w-4 text-gray-400";
-  if (contentType.startsWith("image/")) {
-    return <FileImage className={className} aria-hidden="true" />;
-  }
-  if (contentType === "application/pdf") {
-    return <FileText className={className} aria-hidden="true" />;
-  }
-  if (contentType.includes("spreadsheetml")) {
-    return <FileSpreadsheet className={className} aria-hidden="true" />;
-  }
-  if (contentType.includes("presentationml")) {
-    return <Presentation className={className} aria-hidden="true" />;
-  }
-  return <FileIcon className={className} aria-hidden="true" />;
-}
 
 function visibilityIcon(visibility: FileFolder["visibility"]) {
   const className = "h-3.5 w-3.5 text-gray-400";
@@ -452,7 +426,7 @@ function FolderFilesPanel({
       header: "Datei",
       render: (file) => (
         <span className="flex min-w-0 items-center gap-2">
-          {fileIcon(file.contentType)}
+          <FileTypeIcon contentType={file.contentType} />
           {isViewableInBrowser(file.contentType) ? (
             <a
               href={filesService.viewUrl(folder.id, file.id)}

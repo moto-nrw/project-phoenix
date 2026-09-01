@@ -11,20 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStaffRepository_LocksCaregiverBindings(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	repo := repoUsers.NewCaregiverBindingLocker(db)
-
-	err := testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context) error {
-		return repo.LockCaregiverCapabilityBindings(ctx)
-	})
-	require.NoError(t, err)
-}
-
-// Deliberately NOT parallel: this test holds a table lock while a competing
-// transaction waits for it, which can deadlock alongside other lock tests.
 func TestStaffRepository_ReleasesCaregiverBindingLocksOnRollback(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	holderRepo := repoUsers.NewCaregiverBindingLocker(db)
 

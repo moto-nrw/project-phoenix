@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -27,7 +28,7 @@ type SSEStats struct {
 }
 
 type SSEStatsProvider interface {
-	SnapshotStats() SSEStats
+	SnapshotSSEClientsByTenant() map[int64]int
 }
 
 // PWAUsageStat is one (tenant, portal) bucket of PWA standalone-usage
@@ -164,6 +165,136 @@ var (
 		},
 		[]string{"key"},
 	)
+	mealPlanOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_meal_plan_operations_total", Help: "Meal Plan operations by operation and outcome."},
+		[]string{"operation", "outcome"},
+	)
+	mealPlanDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_meal_plan_operation_duration_seconds", Help: "Meal Plan read and write duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	mealPlanQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_meal_plan_queries_total", Help: "Persistence queries issued by Meal Plan operations."},
+		[]string{"operation"},
+	)
+	mealPlanRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_meal_plan_rows_changed_total", Help: "Rows changed by Meal Plan commands."},
+		[]string{"operation"},
+	)
+	mealPlanStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_meal_plan_statement_duration_seconds",
+			Help:    "Cumulative Meal Plan write-statement duration by operation.",
+			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"operation"},
+	)
+	organizationTenancyOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_operations_total", Help: "Organization and Tenancy operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	organizationTenancyDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_operation_duration_seconds", Help: "Organization and Tenancy operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	organizationTenancyQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_queries_total", Help: "Persistence queries issued by Organization and Tenancy operations."},
+		[]string{"operation"},
+	)
+	organizationTenancyRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_rows_changed_total", Help: "Rows changed by Organization and Tenancy commands."},
+		[]string{"operation"},
+	)
+	organizationTenancyStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_statement_duration_seconds", Help: "Cumulative Organization and Tenancy database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	feedbackOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_operations_total", Help: "Feedback operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	feedbackHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_http_responses_total", Help: "Feedback HTTP responses by surface, actual status class, and stable code."},
+		[]string{"surface", "status_class", "code"},
+	)
+	feedbackDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_feedback_operation_duration_seconds", Help: "Feedback operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	feedbackQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_queries_total", Help: "Persistence queries issued by Feedback operations."},
+		[]string{"operation"},
+	)
+	feedbackRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_rows_changed_total", Help: "Rows changed by Feedback operations, including retention."},
+		[]string{"operation"},
+	)
+	feedbackStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_feedback_statement_duration_seconds",
+			Help:    "Cumulative Feedback write-statement duration by operation, used as a lock-wait upper bound.",
+			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"operation"},
+	)
+	auditAppends = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_appends_total",
+			Help: "Audit append attempts by stable event type and outcome.",
+		},
+		[]string{"event_type", "outcome"},
+	)
+	auditAppendDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_audit_append_duration_seconds",
+			Help:    "Audit append duration by stable event type.",
+			Buckets: []float64{0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"event_type"},
+	)
+	auditRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_rows_total",
+			Help: "Rows appended to Audit ledgers by stable event type.",
+		},
+		[]string{"event_type"},
+	)
+	synchronousDeliveries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_synchronous_deliveries_total",
+			Help: "Fail-closed delivery calls by transport, template, caller, and outcome.",
+		},
+		[]string{"transport", "template", "caller", "outcome"},
+	)
+	synchronousDeliveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_synchronous_delivery_duration_seconds",
+			Help:    "Fail-closed delivery duration by transport, template, and caller.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 45, 60},
+		},
+		[]string{"transport", "template", "caller"},
+	)
+	durableDeliveryOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_delivery_operations_total",
+			Help: "Durable Delivery intents processed by transport, template, operation, and outcome.",
+		},
+		[]string{"transport", "template", "operation", "outcome"},
+	)
+	durableDeliveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_delivery_operation_duration_seconds",
+			Help:    "Durable Delivery operation duration, including provider and status-query latency.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 45, 60},
+		},
+		[]string{"transport", "template", "operation"},
+	)
+	durableDeliveryOldestPendingAge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "phoenix_delivery_oldest_pending_age_seconds",
+			Help: "Age in seconds of the oldest pending or claimed Delivery intent.",
+		},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
@@ -283,6 +414,30 @@ func init() {
 		settingsLookups,
 		settingsLookupDuration,
 		settingsSideEffectFailures,
+		mealPlanOperations,
+		mealPlanDuration,
+		mealPlanQueries,
+		mealPlanRowsChanged,
+		mealPlanStatementDuration,
+		organizationTenancyOperations,
+		organizationTenancyDuration,
+		organizationTenancyQueries,
+		organizationTenancyRowsChanged,
+		organizationTenancyStatementDuration,
+		feedbackOperations,
+		feedbackHTTPResponses,
+		feedbackDuration,
+		feedbackQueries,
+		feedbackRowsChanged,
+		feedbackStatementDuration,
+		auditAppends,
+		auditAppendDuration,
+		auditRows,
+		synchronousDeliveries,
+		synchronousDeliveryDuration,
+		durableDeliveryOperations,
+		durableDeliveryDuration,
+		durableDeliveryOldestPendingAge,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -346,6 +501,130 @@ func ObserveHTTPRequest(method, route string, status int, duration time.Duration
 	statusClass := StatusClass(status)
 	appHTTPRequests.WithLabelValues(method, route, statusClass).Inc()
 	appHTTPDuration.WithLabelValues(method, route).Observe(duration.Seconds())
+}
+
+func ObserveMealPlanOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, err error) {
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	mealPlanOperations.WithLabelValues(operation, outcome).Inc()
+	mealPlanDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		mealPlanQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		mealPlanRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		mealPlanStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveFeedbackOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	feedbackOperations.WithLabelValues(sanitizeLabel(operation), outcome, sanitizeLabel(code)).Inc()
+	feedbackDuration.WithLabelValues(sanitizeLabel(operation)).Observe(duration.Seconds())
+	if queries > 0 {
+		feedbackQueries.WithLabelValues(sanitizeLabel(operation)).Add(float64(queries))
+	}
+	if rows > 0 {
+		feedbackRowsChanged.WithLabelValues(sanitizeLabel(operation)).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		feedbackStatementDuration.WithLabelValues(sanitizeLabel(operation)).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveOrganizationTenancyOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	organizationTenancyOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	organizationTenancyDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		organizationTenancyQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		organizationTenancyRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		organizationTenancyStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveFeedbackHTTPResponse(surface string, status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	feedbackHTTPResponses.WithLabelValues(sanitizeLabel(surface), statusClass, sanitizeLabel(code)).Inc()
+}
+
+func ObserveAuditAppend(eventType string, duration time.Duration, rows int, err error) {
+	eventType = sanitizeLabel(eventType)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	auditAppends.WithLabelValues(eventType, outcome).Inc()
+	auditAppendDuration.WithLabelValues(eventType).Observe(duration.Seconds())
+	if rows > 0 {
+		auditRows.WithLabelValues(eventType).Add(float64(rows))
+	}
+}
+
+// ObserveSynchronousDelivery records fail-closed sends without recipient or
+// payload labels. The outcome separates timeouts/cancellation from transport
+// failures so operators can alert on each class independently.
+func ObserveSynchronousDelivery(transport, template, caller string, duration time.Duration, err error) {
+	outcome := "success"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome = "timeout"
+	case errors.Is(err, context.Canceled):
+		outcome = "canceled"
+	case err != nil:
+		outcome = "failure"
+	}
+	transport = sanitizeLabel(transport)
+	template = sanitizeLabel(template)
+	caller = sanitizeLabel(caller)
+	synchronousDeliveries.WithLabelValues(transport, template, caller, outcome).Inc()
+	synchronousDeliveryDuration.WithLabelValues(transport, template, caller).Observe(duration.Seconds())
+}
+
+func ObserveDurableDelivery(transport, template, operation string, duration time.Duration, count int, err error) {
+	if operation == "oldest_pending_age" {
+		if err == nil {
+			durableDeliveryOldestPendingAge.Set(duration.Seconds())
+		}
+		return
+	}
+	outcome := "success"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome = "timeout"
+	case errors.Is(err, context.Canceled):
+		outcome = "canceled"
+	case err != nil:
+		outcome = "failure"
+	}
+	transport = sanitizeLabel(transport)
+	template = sanitizeLabel(template)
+	operation = sanitizeLabel(operation)
+	amount := count
+	if amount <= 0 {
+		amount = 1
+	}
+	durableDeliveryOperations.WithLabelValues(transport, template, operation, outcome).Add(float64(amount))
+	durableDeliveryDuration.WithLabelValues(transport, template, operation).Observe(duration.Seconds())
 }
 
 func ObserveTenantRequest(tenantID int64, scope, method, route string, status int, duration time.Duration, txOutcome string) {
@@ -521,7 +800,7 @@ func refreshSSEGauges() {
 	if provider == nil {
 		return
 	}
-	stats := provider.SnapshotStats()
+	stats := SSEStats{ClientsByTenant: provider.SnapshotSSEClientsByTenant()}
 	currentTenants := make(map[string]struct{}, len(stats.ClientsByTenant))
 	sseGaugeMu.Lock()
 	defer sseGaugeMu.Unlock()

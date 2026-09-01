@@ -22,8 +22,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,8 +36,9 @@ type recordingAbsenceNotifier struct {
 	reports []notificationsService.AbsenceReport
 }
 
-func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsService.AbsenceReport) {
+func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsService.AbsenceReport) error {
 	n.reports = append(n.reports, report)
+	return nil
 }
 
 func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
@@ -60,7 +61,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 			active.StudentStatusDaySick,
 			[]timezone.Date{today},
 		)
-		writeContext.AfterCreateCommit([]int64{41, 42})
+		require.NoError(t, writeContext.AfterCreate(ctx, []int64{41, 42}))
 
 		require.Len(t, notifier.reports, 1)
 		report := notifier.reports[0]
@@ -72,7 +73,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 		assert.Equal(t, int64(actorID), report.ActorAccountID)
 	})
 
-	t.Run("manual status change notifies only after commit", func(t *testing.T) {
+	t.Run("manual status change enqueues before commit", func(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
 		resource := &Resource{ResourceConfig: ResourceConfig{AbsenceNotifier: notifier}}
 		baseCtx := tenant.WithTenantID(context.Background(), tenantID)
@@ -80,7 +81,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 		ctx, commit := tenant.WithAfterCommitHooksForTest(baseCtx)
 		excused := true
 
-		resource.scheduleStudentUpdateWakes(
+		require.NoError(t, resource.scheduleStudentUpdateWakes(
 			ctx,
 			tenantID,
 			41,
@@ -88,8 +89,8 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 			false,
 			active.StudentStatusDayExcused,
 			today,
-		)
-		assert.Empty(t, notifier.reports)
+		))
+		require.Len(t, notifier.reports, 1)
 		commit()
 
 		require.Len(t, notifier.reports, 1)

@@ -43,7 +43,6 @@ func TestClosingDayRepository_CRUD(t *testing.T) {
 	t.Run("creates and reads a range", func(t *testing.T) {
 		day := createTestClosingDay(t, repo,
 			timezone.NewDate(2026, 12, 24), timezone.NewDate(2026, 12, 31), "Weihnachtswoche")
-		defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
 
 		found, err := repo.FindByID(ctx, day.ID)
 		require.NoError(t, err)
@@ -55,7 +54,6 @@ func TestClosingDayRepository_CRUD(t *testing.T) {
 	t.Run("creates a single-day closing (start = end)", func(t *testing.T) {
 		day := createTestClosingDay(t, repo,
 			timezone.NewDate(2027, 2, 8), timezone.NewDate(2027, 2, 8), "Rosenmontag")
-		defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
 
 		found, err := repo.FindByID(ctx, day.ID)
 		require.NoError(t, err)
@@ -77,7 +75,6 @@ func TestClosingDayRepository_CRUD(t *testing.T) {
 	t.Run("updates and deletes", func(t *testing.T) {
 		day := createTestClosingDay(t, repo,
 			timezone.NewDate(2026, 10, 12), timezone.NewDate(2026, 10, 16), "Herbstschließung")
-		defer testpkg.CleanupTableRecords(t, db, "schedule.closing_days", day.ID)
 
 		day.EndDate = timezone.NewDate(2026, 10, 23)
 		day.Reason = "Herbstschließung verlängert"

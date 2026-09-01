@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -294,7 +295,7 @@ func (s *substitutionModule) Assign(ctx context.Context, caller SubstitutionCall
 	if err != nil {
 		return nil, err
 	}
-	realtime.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_assign")
+	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_assign")
 	return &result, nil
 }
 
@@ -398,7 +399,7 @@ func (s *substitutionModule) End(ctx context.Context, caller SubstitutionCaller,
 	if err != nil {
 		return err
 	}
-	realtime.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_end")
+	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_end")
 	return nil
 }
 
@@ -667,10 +668,10 @@ func projectAssignment(row *educationModels.GroupSubstitution, group *educationM
 }
 
 func auditChange(row *educationModels.GroupSubstitution, actorID int64, action string) *auditModels.SubstitutionChange {
-	endDate := row.EndDate
+	endDate := auditModels.Date(row.EndDate)
 	return &auditModels.SubstitutionChange{SubstitutionID: row.ID, TargetType: string(TargetGroupHandover), Action: action,
 		GroupID: row.GroupID, TargetStaffID: row.SubstituteStaffID, ActorAccountID: actorID,
-		StartDate: row.StartDate, EndDate: &endDate}
+		StartDate: auditModels.Date(row.StartDate), EndDate: &endDate}
 }
 
 func contains(ids []int64, id int64) bool {

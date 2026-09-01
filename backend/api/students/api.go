@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -22,7 +23,6 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	ogsGroupLiveService "github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -119,11 +119,13 @@ type ResourceConfig struct {
 	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
 	// StudentDocumentService backs the child's Dokumente tab (#777).
-	StudentDocumentService userService.StudentDocumentService
-	ListExportService      *listexport.RendererService
-	Logger                 *slog.Logger
-	Now                    func() time.Time
-	DB                     *bun.DB
+	StudentDocumentService  userService.StudentDocumentService
+	ListExportService       *listexport.RendererService
+	Logger                  *slog.Logger
+	Now                     func() time.Time
+	DB                      *bun.DB
+	DevicePINFallback       string
+	DeviceLastSeenDebouncer *device.LastSeenDebouncer
 }
 
 // NewResource creates a new students resource from the provided configuration.
@@ -231,6 +233,12 @@ func (rs *Resource) Router() chi.Router {
 		// the excused queue's users:absence path — a caller who only holds that
 		// permission counts excused requests and nothing else.
 		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
+
+		// Effective parent-request capability for shared navigation. This route
+		// is authenticated-only because callers with config:manage, users:delete
+		// or vacation:approve may open another part of the Anfragen module without
+		// holding the two permissions required by the aggregated parent queue.
+		r.With(withTx).Get("/change-requests/access", rs.changeRequestAccess)
 
 		// Aggregated Eltern request list (#2432): all four queues as ONE list
 		// (open or history) with search, filters and keyset pagination. Same
@@ -395,7 +403,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil))
+		r.Use(device.DeviceAuthenticatorWithDebouncer(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil, rs.DevicePINFallback, rs.DeviceLastSeenDebouncer))
 		r.Use(common.TenantTxMiddleware)
 
 		// RFID tag assignment endpoint

@@ -473,20 +473,16 @@ func TestFullDemoWorkflowSeedsParentLetterAfterParentAccounts(t *testing.T) {
 	require.Greater(t, parentLetter, parentAccounts, "parent letter must follow parent accounts")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestSeeder_Seed_FullWorkflow(t *testing.T) {
+	t.Parallel()
 	trace := &fullSeedAPITrace{}
 	srv := fullSeedAPIMock(t, trace)
 	defer srv.Close()
 
-	// Change to temp dir so output files are written there
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
 	tmpDir := t.TempDir()
-	require.NoError(t, os.Chdir(tmpDir))
-	defer func() { _ = os.Chdir(origDir) }()
+	statePath := filepath.Join(tmpDir, DefaultSeedStatePath)
 
-	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{})
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{StatePath: statePath})
 	result, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -496,7 +492,6 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.Greater(t, result.Fixed.StudentCount, 0)
 
 	// Verify state file was written
-	statePath := filepath.Join(tmpDir, DefaultSeedStatePath)
 	_, err = os.Stat(statePath)
 	assert.NoError(t, err)
 	state, err := LoadSeedState(statePath)

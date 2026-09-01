@@ -7,7 +7,12 @@ import { AnchoredPopover } from "./anchored-popover";
 function TestPopover({
   scoped = false,
   preferredWidth,
-}: Readonly<{ scoped?: boolean; preferredWidth?: number }>) {
+  align,
+}: Readonly<{
+  scoped?: boolean;
+  preferredWidth?: number;
+  align?: "start" | "end";
+}>) {
   const [open, setOpen] = useState(false);
   const popover = (
     <AnchoredPopover
@@ -15,6 +20,7 @@ function TestPopover({
       onOpenChange={setOpen}
       ariaLabel="Testauswahl"
       preferredWidth={preferredWidth}
+      align={align}
       renderTrigger={({ ref, toggle }) => (
         <button ref={ref} type="button" onClick={toggle}>
           Öffnen
@@ -73,6 +79,31 @@ describe("AnchoredPopover", () => {
 
     expect(screen.getByRole("dialog", { name: "Testauswahl" })).toHaveStyle({
       width: "380px",
+    });
+  });
+
+  it("right-aligns an end-aligned panel with its trigger", () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1920,
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      left: 1800,
+      right: 1840,
+      top: 100,
+      bottom: 140,
+      width: 40,
+      height: 40,
+      x: 1800,
+      y: 100,
+      toJSON: () => undefined,
+    });
+
+    render(<TestPopover preferredWidth={288} align="end" />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+
+    expect(screen.getByRole("dialog", { name: "Testauswahl" })).toHaveStyle({
+      left: "1552px",
     });
   });
 });

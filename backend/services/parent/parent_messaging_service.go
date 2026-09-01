@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -330,7 +330,8 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		if err != nil {
 			return err
 		}
-		if err := s.appendGuardianMessage(txCtx, thread, accountID, senderName, body); err != nil {
+		message, err := s.appendGuardianMessage(txCtx, thread, accountID, senderName, body)
+		if err != nil {
 			return err
 		}
 		view.ThreadID = thread.ID
@@ -357,16 +358,16 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		}
 		captured := child.tenantID
 		capturedThread := view.ThreadID
+		if s.ParentMessageNotifier != nil {
+			if err := s.ParentMessageNotifier.NotifyStaffParentMessage(txCtx, notificationsSvc.StaffParentMessageReport{
+				TenantID: captured, ThreadID: capturedThread, MessageID: message.ID,
+				StudentID: studentID, ActorAccountID: accountID,
+			}); err != nil {
+				return err
+			}
+		}
 		tenant.RegisterAfterCommit(txCtx, func() {
 			s.broadcastParentMessage(captured, accountID, capturedThread, studentID)
-			if s.ParentMessageNotifier != nil {
-				s.ParentMessageNotifier.NotifyStaffParentMessage(context.Background(), notificationsSvc.StaffParentMessageReport{
-					TenantID:       captured,
-					ThreadID:       capturedThread,
-					StudentID:      studentID,
-					ActorAccountID: accountID,
-				})
-			}
 		})
 		return nil
 	})
@@ -386,7 +387,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 // the sender's read cursor) is shared with the staff side via
 // parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
 // created_at" rule).
-func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, senderName, body string) error {
+func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, senderName, body string) (*usersModels.ParentMessage, error) {
 	msg := &usersModels.ParentMessage{
 		ThreadID:        thread.ID,
 		StudentID:       thread.StudentID,
@@ -397,7 +398,10 @@ func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels
 		Kind:            usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
-	return parentmessaging.AppendMessage(ctx, s.MessageRepo, s.MessageThreadRepo, msg)
+	if err := parentmessaging.AppendMessage(ctx, s.MessageRepo, s.MessageThreadRepo, msg); err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
 
 // resolveGuardianName returns the guardian's display name for the child's

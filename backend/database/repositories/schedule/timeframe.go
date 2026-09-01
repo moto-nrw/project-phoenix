@@ -73,28 +73,6 @@ func (r *TimeframeRepository) FindByTimeRange(ctx context.Context, startTime, en
 	return timeframes, nil
 }
 
-// FindByDescription finds timeframes with matching description
-func (r *TimeframeRepository) FindByDescription(ctx context.Context, description string) ([]*schedule.Timeframe, error) {
-	var timeframes []*schedule.Timeframe
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&timeframes).
-		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
-		Where("LOWER(description) LIKE LOWER(?)", "%"+description+"%")
-
-	query = base.WithTenantFilter(ctx, query, "timeframe")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by description",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return timeframes, nil
-}
-
 // List retrieves timeframes matching the provided query options
 func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Timeframe, error) {
 	return r.ListWithOptions(ctx, options)

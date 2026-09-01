@@ -67,11 +67,10 @@ func TestSchedulerPollingSettingKeysIncludeAutoEndSettings(t *testing.T) {
 	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyTimetableAutoEndGraceMinutes)
 }
 
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
@@ -85,6 +84,8 @@ func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
 		settings:   settings,
 		done:       make(chan struct{}),
 		logger:     slog.Default()})
+	runtime := testpkg.TenantRuntime(t, db)
+	scheduler.tenantRuntime = runtime
 
 	counter := &schedulerSettingQueryCounter{}
 	db.AddQueryHook(counter)

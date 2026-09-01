@@ -1,4 +1,4 @@
-package audit_test
+package audit
 
 import (
 	"context"
@@ -6,12 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestUnregisteredTagScanRepository_FindByID(t *testing.T) {
@@ -19,7 +16,7 @@ func TestUnregisteredTagScanRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).UnregisteredTagScan
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 	device := testpkg.CreateTestDevice(t, db, "unregistered-find")
 
@@ -34,7 +31,7 @@ func TestUnregisteredTagScanRepository_FindByID(t *testing.T) {
 	require.Equal(t, scan.TenantID, found.SchoolID)
 	require.NotEmpty(t, found.SchoolName)
 	require.NotZero(t, found.OrganizationID)
-	require.NotEmpty(t, found.OrganizationName)
+	require.Empty(t, found.OrganizationName, "organization names are resolved by the owner capability in the service")
 	require.NotNil(t, found.DeviceIdentifier)
 	require.Equal(t, device.DeviceID, *found.DeviceIdentifier)
 	require.NotNil(t, found.DeviceName)
@@ -46,7 +43,7 @@ func TestUnregisteredTagScanRepository_FindByIDReturnsNilWhenMissing(t *testing.
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).UnregisteredTagScan
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
 
 	found, err := repo.FindByID(testpkg.Ctx(t), int64(999999))
 
@@ -58,7 +55,7 @@ func TestUnregisteredTagScanRepository_WrapsDatabaseErrors(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupClosableTestDB(t)
-	repo := repositories.NewFactory(db).UnregisteredTagScan
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
 	require.NoError(t, db.Close())
 	ctx := testpkg.Ctx(t)
 
@@ -88,7 +85,7 @@ func TestUnregisteredTagScanRepository_ListForOperatorFiltersAndOrders(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).UnregisteredTagScan
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 	now := time.Now()
 	oldUnresolved := createTestUnregisteredTagScan(t, repo, ctx, "TAG-OLD", nil, now.Add(-2*time.Hour))
@@ -108,7 +105,7 @@ func TestUnregisteredTagScanRepository_ListForOperatorFiltersAndOrders(t *testin
 	require.NoError(t, err)
 
 	schoolID := newUnresolved.TenantID
-	orgID := organizationIDForSchool(t, db, schoolID)
+	orgID := testpkg.OrganizationIDForSchool(t, db, schoolID)
 	scans, err := repo.ListForOperator(ctx, auditModels.UnregisteredTagScanFilter{
 		SchoolID:       &schoolID,
 		OrganizationID: &orgID,
@@ -130,7 +127,7 @@ func TestUnregisteredTagScanRepository_ListForOperatorReturnsEmptySlice(t *testi
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).UnregisteredTagScan
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
 	schoolID := int64(999998)
 
 	scans, err := repo.ListForOperator(testpkg.Ctx(t), auditModels.UnregisteredTagScanFilter{
@@ -147,9 +144,10 @@ func TestUnregisteredTagScanRepository_Resolve(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).UnregisteredTagScan
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
-	operator := createAuditTestOperator(t, db)
+	operator := testpkg.CreateTestOperatorWithEmail(t, db,
+		fmt.Sprintf("audit-scan-%d@example.com", time.Now().UnixNano()), "Audit Scan Operator")
 
 	scan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-RESOLVE", nil, time.Now())
 	note := "Issued replacement card"
@@ -171,9 +169,10 @@ func TestUnregisteredTagScanRepository_ResolveFailsWhenAlreadyResolved(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).UnregisteredTagScan
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
-	operator := createAuditTestOperator(t, db)
+	operator := testpkg.CreateTestOperatorWithEmail(t, db,
+		fmt.Sprintf("audit-scan-%d@example.com", time.Now().UnixNano()), "Audit Scan Operator")
 	scan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-RESOLVE-ONCE", nil, time.Now())
 
 	_, err := repo.Resolve(ctx, scan.ID, operator.ID, nil)
@@ -189,7 +188,7 @@ func TestUnregisteredTagScanRepository_DeleteOlderThan(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).UnregisteredTagScan
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 	now := time.Now()
 	oldScan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-DELETE-OLD", nil, now.Add(-120*24*time.Hour))
@@ -227,26 +226,4 @@ func createTestUnregisteredTagScan(
 	require.NoError(t, repo.Create(ctx, scan))
 	require.NotZero(t, scan.ID)
 	return scan
-}
-
-func createAuditTestOperator(t *testing.T, db *bun.DB) *platformModels.Operator {
-	t.Helper()
-	// platform.operators has no tenant, so the row is shared state the
-	// leftover gate counts: take the fixture that deletes itself again
-	// (#2419) instead of inserting one by hand.
-	return testpkg.CreateTestOperatorWithEmail(t, db,
-		fmt.Sprintf("audit-scan-%d@example.com", time.Now().UnixNano()),
-		"Audit Scan Operator")
-}
-
-func organizationIDForSchool(t *testing.T, db *bun.DB, schoolID int64) int64 {
-	t.Helper()
-
-	var orgID int64
-	require.NoError(t, db.NewRaw(
-		"SELECT organization_id FROM platform.schools WHERE id = ?",
-		schoolID,
-	).Scan(context.Background(), &orgID))
-	require.NotZero(t, orgID)
-	return orgID
 }
