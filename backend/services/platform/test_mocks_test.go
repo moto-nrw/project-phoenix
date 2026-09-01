@@ -6,6 +6,7 @@ import (
 
 	auth "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
 // Shared mock for operator repository
@@ -318,6 +319,44 @@ func (m *mockOrgRepoShared) CountByIDs(ctx context.Context, ids []int64) (int, e
 
 func (m *mockOrgRepoShared) SoftDelete(context.Context, int64) error { return nil }
 func (m *mockOrgRepoShared) Restore(context.Context, int64) error    { return nil }
+
+func (m *mockOrgRepoShared) CreateOrganization(context.Context, organizationtenancy.CreateOrganization) (organizationtenancy.Organization, error) {
+	return organizationtenancy.Organization{}, nil
+}
+func (m *mockOrgRepoShared) UpdateOrganization(context.Context, organizationtenancy.UpdateOrganization) (organizationtenancy.Organization, error) {
+	return organizationtenancy.Organization{}, nil
+}
+func (m *mockOrgRepoShared) SoftDeleteOrganization(context.Context, int64) (organizationtenancy.Organization, error) {
+	return organizationtenancy.Organization{}, nil
+}
+func (m *mockOrgRepoShared) RestoreOrganization(context.Context, int64) (organizationtenancy.Organization, error) {
+	return organizationtenancy.Organization{}, nil
+}
+func (m *mockOrgRepoShared) FindOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := m.FindByID(ctx, id)
+	if err != nil || org == nil {
+		return organizationtenancy.Organization{}, err
+	}
+	return publicOrganization(org), nil
+}
+func (m *mockOrgRepoShared) FindOrganizationForMutation(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	return m.FindOrganization(ctx, id)
+}
+func (m *mockOrgRepoShared) FindOrganizationForSchoolMutation(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	return m.FindOrganization(ctx, id)
+}
+func (m *mockOrgRepoShared) FindOrganizationBySlug(context.Context, string) (organizationtenancy.Organization, error) {
+	return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+}
+func (m *mockOrgRepoShared) ListOrganizations(context.Context) ([]organizationtenancy.Organization, error) {
+	return []organizationtenancy.Organization{}, nil
+}
+func (m *mockOrgRepoShared) ListOrganizationsByID(context.Context, []int64) ([]organizationtenancy.Organization, error) {
+	return []organizationtenancy.Organization{}, nil
+}
+func (m *mockOrgRepoShared) CountOrganizationsByID(ctx context.Context, ids []int64) (int, error) {
+	return m.CountByIDs(ctx, ids)
+}
 
 // Shared mock for announcement repository
 type mockAnnouncementRepoShared struct {

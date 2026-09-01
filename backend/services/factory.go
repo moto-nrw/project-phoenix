@@ -32,6 +32,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -414,6 +415,7 @@ func NewFactoryWithModules(
 	repos *repositories.Factory,
 	db *bun.DB,
 	logger *slog.Logger,
+	organizations organizationtenancy.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -423,10 +425,10 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -434,6 +436,7 @@ func newFactory(
 	db *bun.DB,
 	logger *slog.Logger,
 	cfg FactoryConfig,
+	organizations organizationtenancy.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -1802,6 +1805,7 @@ func newFactory(
 	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
 		repos.UnregisteredTagScan,
 		auditCommand,
+		organizations,
 		auditService.UnregisteredTagScanRuntime{
 			TenantID: tenant.FromContext,
 			WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error {
@@ -1978,7 +1982,7 @@ func newFactory(
 		AnnouncementRepo:     repos.Announcement,
 		AnnouncementViewRepo: repos.AnnouncementView,
 		AuditLogRepo:         repos.OperatorAuditLog,
-		OrgRepo:              repos.Organization,
+		Organizations:        organizations,
 		SchoolRepo:           repos.School,
 		DB:                   db,
 		Logger:               platformLogger,
@@ -2655,7 +2659,7 @@ func newFactory(
 	parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
-		OrganizationRepo:      repos.Organization,
+		Organizations:         organizations,
 		SchoolRepo:            repos.School,
 		SummariesRepo:         repos.OperatorSummaries,
 		CategoryRepo:          repos.ActivityCategory,

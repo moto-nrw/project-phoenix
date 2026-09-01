@@ -7,6 +7,7 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,9 +62,28 @@ func (c fakeAuditCommand) Append(_ context.Context, event any) error {
 	return c.repo.createErr
 }
 
+type fakeOrganizationQuery struct {
+	listByIDsFn func(context.Context, []int64) ([]organizationtenancy.Organization, error)
+}
+
+func (q *fakeOrganizationQuery) ListOrganizationsByID(ctx context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
+	if q.listByIDsFn != nil {
+		return q.listByIDsFn(ctx, ids)
+	}
+	organizations := make([]organizationtenancy.Organization, 0, len(ids))
+	for _, id := range ids {
+		organizations = append(organizations, organizationtenancy.Organization{ID: id})
+	}
+	return organizations, nil
+}
+
 func newUnregisteredTagScanService(t *testing.T, repo *fakeUnregisteredTagScanRepo) UnregisteredTagScanService {
+	return newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{})
+}
+
+func newUnregisteredTagScanServiceWithOrganizations(t *testing.T, repo *fakeUnregisteredTagScanRepo, organizations OrganizationNameQuery) UnregisteredTagScanService {
 	t.Helper()
-	service, err := NewUnregisteredTagScanService(repo, fakeAuditCommand{repo: repo}, UnregisteredTagScanRuntime{
+	service, err := NewUnregisteredTagScanService(repo, fakeAuditCommand{repo: repo}, organizations, UnregisteredTagScanRuntime{
 		TenantID: func(ctx context.Context) int64 {
 			id, _ := ctx.Value(testTenantKey{}).(int64)
 			return id
@@ -140,9 +160,14 @@ func TestUnregisteredTagScanListForOperatorPassesFilter(t *testing.T) {
 
 	schoolID := int64(10)
 	orgID := schoolID / 2
-	want := []*auditModels.UnregisteredTagScan{{TagUID: "ABC123"}}
+	want := []*auditModels.UnregisteredTagScan{{TagUID: "ABC123", OrganizationID: orgID}}
 	repo := &fakeUnregisteredTagScanRepo{listResult: want}
-	service := newUnregisteredTagScanService(t, repo)
+	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
+		listByIDsFn: func(_ context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
+			require.Equal(t, []int64{orgID}, ids)
+			return []organizationtenancy.Organization{{ID: orgID, Name: "Organization"}}, nil
+		},
+	})
 
 	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{
 		SchoolID:       &schoolID,
@@ -152,6 +177,7 @@ func TestUnregisteredTagScanListForOperatorPassesFilter(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, want, got)
+	require.Equal(t, "Organization", got[0].OrganizationName)
 	require.Equal(t, &schoolID, repo.listFilter.SchoolID)
 	require.Equal(t, &orgID, repo.listFilter.OrganizationID)
 	require.True(t, repo.listFilter.UnresolvedOnly)
@@ -163,6 +189,22 @@ func TestUnregisteredTagScanListForOperatorPropagatesRepositoryError(t *testing.
 	wantErr := errors.New("list failed")
 	repo := &fakeUnregisteredTagScanRepo{listErr: wantErr}
 	service := newUnregisteredTagScanService(t, repo)
+
+	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{})
+
+	require.ErrorIs(t, err, wantErr)
+	require.Nil(t, got)
+}
+
+func TestUnregisteredTagScanListForOperatorPropagatesOrganizationQueryError(t *testing.T) {
+	t.Parallel()
+	wantErr := errors.New("organization query failed")
+	repo := &fakeUnregisteredTagScanRepo{listResult: []*auditModels.UnregisteredTagScan{{OrganizationID: 42}}}
+	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
+		listByIDsFn: func(context.Context, []int64) ([]organizationtenancy.Organization, error) {
+			return nil, wantErr
+		},
+	})
 
 	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{})
 

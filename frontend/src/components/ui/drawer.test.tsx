@@ -81,6 +81,18 @@ describe("DrawerContent", () => {
     expect(screen.getByText("Drawer content")).toBeInTheDocument();
   });
 
+  it("keeps the obscured page blurred behind the shared overlay", () => {
+    render(
+      <DrawerContent>
+        <div>Drawer content</div>
+      </DrawerContent>,
+    );
+
+    expect(screen.getByTestId("drawer-overlay")).toHaveClass(
+      "backdrop-blur-sm",
+    );
+  });
+
   it("renders iOS-style drag handle", () => {
     const { container } = render(
       <DrawerContent>

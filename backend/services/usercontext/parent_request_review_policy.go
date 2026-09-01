@@ -41,34 +41,12 @@ func (p *ParentRequestReviewPolicy) StudentFilter(
 	ctx context.Context,
 	permissions []string,
 ) (func(*users.Student) bool, error) {
-	if hasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
+	schoolWide, groupIDs, err := p.resolveScope(ctx, permissions)
+	if err != nil {
+		return nil, err
+	}
+	if schoolWide {
 		return func(student *users.Student) bool { return student != nil }, nil
-	}
-	// users:absence alone never unlocks a read surface (#2232). Refusing here
-	// keeps the queue consistent with the write gate instead of returning an
-	// empty list that looks like "no work".
-	if authorize.AbsenceReadPrerequisiteUnmet(permissions) {
-		return nil, authorize.ErrAbsenceReadRequired
-	}
-	if p == nil || p.settings == nil || p.groups == nil || p.settingKey == "" {
-		return nil, fmt.Errorf("parent request review policy is not configured")
-	}
-	enabled, err := p.settings.ResolveBool(ctx, p.settingKey)
-	if err != nil {
-		return nil, fmt.Errorf("resolve group-leader request review setting: %w", err)
-	}
-	if !enabled {
-		return func(*users.Student) bool { return false }, nil
-	}
-	groups, err := p.groups.GetMyGroups(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("resolve request review groups: %w", err)
-	}
-	groupIDs := make(map[int64]struct{}, len(groups))
-	for _, group := range groups {
-		if group != nil && group.ID > 0 {
-			groupIDs[group.ID] = struct{}{}
-		}
 	}
 	return func(student *users.Student) bool {
 		if student == nil || student.GroupID == nil {
@@ -105,23 +83,58 @@ const (
 // decision StudentFilter makes, without the per-child part, so a client can
 // explain an empty queue instead of only showing it.
 func (p *ParentRequestReviewPolicy) AccessLevel(ctx context.Context, permissions []string) (string, error) {
-	if hasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
+	schoolWide, groupIDs, err := p.resolveScope(ctx, permissions)
+	if err != nil {
+		return "", err
+	}
+	if schoolWide {
 		return ReviewAccessAdmin, nil
 	}
-	if authorize.AbsenceReadPrerequisiteUnmet(permissions) {
-		return "", authorize.ErrAbsenceReadRequired
+	if len(groupIDs) > 0 {
+		return ReviewAccessGroupLeader, nil
 	}
-	if p == nil || p.settings == nil || p.settingKey == "" {
-		return "", fmt.Errorf("parent request review policy is not configured")
+	return ReviewAccessNone, nil
+}
+
+// resolveScope is the single policy evaluation shared by list/decision
+// filtering and the lightweight navigation capability endpoint.
+func (p *ParentRequestReviewPolicy) resolveScope(
+	ctx context.Context,
+	permissions []string,
+) (bool, map[int64]struct{}, error) {
+	if hasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
+		return true, nil, nil
+	}
+	// users:absence alone never unlocks a read surface (#2232). Refusing here
+	// keeps the queue consistent with the write gate instead of returning an
+	// empty list that looks like "no work".
+	if authorize.AbsenceReadPrerequisiteUnmet(permissions) {
+		return false, nil, authorize.ErrAbsenceReadRequired
+	}
+	if !authorize.CanReviewExcusedAbsenceRequests(permissions) {
+		return false, nil, nil
+	}
+	if p == nil || p.settings == nil || p.groups == nil || p.settingKey == "" {
+		return false, nil, fmt.Errorf("parent request review policy is not configured")
 	}
 	enabled, err := p.settings.ResolveBool(ctx, p.settingKey)
 	if err != nil {
-		return "", fmt.Errorf("resolve group-leader request review setting: %w", err)
+		return false, nil, fmt.Errorf("resolve group-leader request review setting: %w", err)
 	}
 	if !enabled {
-		return ReviewAccessNone, nil
+		return false, nil, nil
 	}
-	return ReviewAccessGroupLeader, nil
+	groups, err := p.groups.GetMyGroups(ctx)
+	if err != nil {
+		return false, nil, fmt.Errorf("resolve request review groups: %w", err)
+	}
+	groupIDs := make(map[int64]struct{}, len(groups))
+	for _, group := range groups {
+		if group != nil && group.ID > 0 {
+			groupIDs[group.ID] = struct{}{}
+		}
+	}
+	return false, groupIDs, nil
 }
 
 // hasEffectiveAdminScope reports whether the caller holds the admin role or a

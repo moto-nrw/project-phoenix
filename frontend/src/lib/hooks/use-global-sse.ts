@@ -693,7 +693,8 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("group-handovers") ||
             key.includes("substitution-groups") ||
             key.includes("substitution-teachers") ||
-            key.includes("user-context")),
+            key.includes("user-context") ||
+            key.includes("change-request-access")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),

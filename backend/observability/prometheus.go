@@ -189,6 +189,26 @@ var (
 		},
 		[]string{"operation"},
 	)
+	organizationTenancyOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_operations_total", Help: "Organization and Tenancy operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	organizationTenancyDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_operation_duration_seconds", Help: "Organization and Tenancy operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	organizationTenancyQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_queries_total", Help: "Persistence queries issued by Organization and Tenancy operations."},
+		[]string{"operation"},
+	)
+	organizationTenancyRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_rows_changed_total", Help: "Rows changed by Organization and Tenancy commands."},
+		[]string{"operation"},
+	)
+	organizationTenancyStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_statement_duration_seconds", Help: "Cumulative Organization and Tenancy database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	feedbackOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_feedback_operations_total", Help: "Feedback operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -399,6 +419,11 @@ func init() {
 		mealPlanQueries,
 		mealPlanRowsChanged,
 		mealPlanStatementDuration,
+		organizationTenancyOperations,
+		organizationTenancyDuration,
+		organizationTenancyQueries,
+		organizationTenancyRowsChanged,
+		organizationTenancyStatementDuration,
 		feedbackOperations,
 		feedbackHTTPResponses,
 		feedbackDuration,
@@ -513,6 +538,27 @@ func ObserveFeedbackOperation(operation string, duration time.Duration, queries,
 	}
 	if statementDuration > 0 {
 		feedbackStatementDuration.WithLabelValues(sanitizeLabel(operation)).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveOrganizationTenancyOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	organizationTenancyOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	organizationTenancyDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		organizationTenancyQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		organizationTenancyRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		organizationTenancyStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 

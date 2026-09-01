@@ -75,6 +75,10 @@ vi.mock("~/lib/hooks/use-change-requests-pending", () => ({
   })),
 }));
 
+vi.mock("~/lib/hooks/use-change-request-access", () => ({
+  useChangeRequestAccess: vi.fn(),
+}));
+
 // Tagesinformationen-Badge (#2180): der echte Hook würde /api/staff-notices/today
 // laden; hier zählt nur, dass die Seitenleiste ihn einbindet.
 vi.mock("~/lib/hooks/use-staff-notices-pending", () => ({
@@ -123,6 +127,7 @@ import {
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import {
   useNFCEnabled,
@@ -149,6 +154,7 @@ const restoreDefaultHasPermission = () =>
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseStaffAbsencesPending = vi.mocked(useStaffAbsencesPending);
 const mockUseChangeRequestsPending = vi.mocked(useChangeRequestsPending);
+const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 const mockUseCareWithdrawalsPending = vi.mocked(useCareWithdrawalsPending);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
@@ -252,6 +258,9 @@ describe("Sidebar", () => {
       isLoading: false,
       refresh: vi.fn(),
     });
+    mockUseChangeRequestAccess.mockReturnValue({
+      canOpenRequestsPage: false,
+    } as ReturnType<typeof useChangeRequestAccess>);
     mockUseCareWithdrawalsPending.mockReturnValue({
       unreadCount: 0,
       isLoading: false,
@@ -419,6 +428,9 @@ describe("Sidebar", () => {
         isLoading: false,
         refresh: vi.fn(),
       });
+      mockUseChangeRequestAccess.mockReturnValue({
+        canOpenRequestsPage: true,
+      } as ReturnType<typeof useChangeRequestAccess>);
 
       render(<Sidebar />);
 
@@ -427,6 +439,24 @@ describe("Sidebar", () => {
         "/test-tenant/anfragen",
       );
       expect(screen.getByLabelText("9 offene Anfragen")).toBeInTheDocument();
+    });
+
+    it("hides Anfragen without a current effective review scope", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "users:update",
+      );
+      mockUseChangeRequestsPending.mockReturnValue({
+        unreadCount: 2,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Anfragen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("2 offene Anfragen"),
+      ).not.toBeInTheDocument();
     });
 
     it("prefixes the Team-Chat link in path-routing mode", () => {

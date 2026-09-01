@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -61,7 +60,7 @@ import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-da
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
@@ -1306,12 +1305,6 @@ export function ChildOfferingAdjustment({
     offerings: Array<{ offering_id: string; selected_days?: string[] }>;
   } | null>(null);
   const [withdrawalCreated, setWithdrawalCreated] = useState(false);
-  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    setPortalRoot(document.body);
-  }, []);
-
   useEffect(() => {
     if (!careOfferingsEnabled) setOpen(false);
   }, [careOfferingsEnabled]);
@@ -1612,184 +1605,177 @@ export function ChildOfferingAdjustment({
       {/* Ausgeblendet, solange die Abmelde-Bestätigung offen ist — nie zwei
           eigenständige Dialoge übereinander (#2774). Auswahl und Begründung
           bleiben erhalten, der State liegt in dieser Komponente. */}
-      {careOfferingsEnabled && open && !withdrawalConfirmationOpen && portalRoot
-        ? createPortal(
-            <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-black/40 p-4">
-              <div className="mx-auto my-8 w-full max-w-2xl rounded-xl bg-white shadow-xl">
-                <div className="border-b border-gray-100 p-4">
-                  <h3 className="text-base font-semibold text-gray-900">
-                    Betreuungsangebote bearbeiten
-                  </h3>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Manuelle Auswahl ändern; automatisch verknüpfte Angebote
-                    werden beim Speichern neu berechnet.
-                  </p>
-                </div>
-                <div className="space-y-4 p-4">
-                  {error ? (
-                    <div
-                      role="alert"
-                      className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm"
-                    >
-                      {error}
-                    </div>
-                  ) : null}
-                  {loading ? (
-                    <p className="text-sm text-gray-500">
-                      Angebote werden geladen…
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {catalog.map((offering) => {
-                        const checked = selected.has(offering.id);
-                        const autoDays =
-                          preview.automaticDays[offering.id] ?? [];
-                        return (
-                          <div
-                            key={offering.id}
-                            className="rounded-lg border border-gray-200 p-3"
+      <Modal
+        isOpen={careOfferingsEnabled && open && !withdrawalConfirmationOpen}
+        onClose={() => setOpen(false)}
+        title="Betreuungsangebote bearbeiten"
+        widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+        isDismissDisabled={saving}
+        isBackdropDismissDisabled
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={() => setOpen(false)}
+              disabled={saving}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => void handleSave()}
+              disabled={saving || loading || !catalogLoaded}
+            >
+              {saving ? "Speichert…" : "Speichern"}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">
+          Manuelle Auswahl ändern; automatisch verknüpfte Angebote werden beim
+          Speichern neu berechnet.
+        </p>
+        <div className="mt-4 space-y-4">
+          {error ? (
+            <div
+              role="alert"
+              className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm"
+            >
+              {error}
+            </div>
+          ) : null}
+          {loading ? (
+            <p className="text-sm text-gray-500">Angebote werden geladen…</p>
+          ) : (
+            <div className="space-y-2">
+              {catalog.map((offering) => {
+                const checked = selected.has(offering.id);
+                const autoDays = preview.automaticDays[offering.id] ?? [];
+                return (
+                  <div
+                    key={offering.id}
+                    className="rounded-lg border border-gray-200 p-3"
+                  >
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={offering.is_required}
+                        onChange={() => handleToggle(offering)}
+                        className="text-moto-blue focus:ring-moto-blue mt-1 h-4 w-4 rounded border-gray-300"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {offering.name}
+                          </span>
+                          {!offering.is_active ? (
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                              Inaktiv
+                            </span>
+                          ) : null}
+                          {offering.is_required ? (
+                            <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
+                              Pflichtangebot
+                            </span>
+                          ) : null}
+                          {autoDays.length > 0 ? (
+                            <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
+                              automatisch mitgebucht:{" "}
+                              {formatAdminDays(autoDays)}
+                            </span>
+                          ) : null}
+                        </span>
+                        {offering.description ? (
+                          <span className="mt-1 block text-xs text-gray-500">
+                            {offering.description}
+                          </span>
+                        ) : null}
+                        <OfferingOccupancyLine
+                          stats={bookingStats[offering.id]}
+                        />
+                      </span>
+                    </label>
+
+                    {checked &&
+                    offering.days_of_week_mode === "parent_choice" ? (
+                      <div className="mt-3 flex flex-wrap gap-2 pl-7">
+                        {offering.available_days.map((day) => (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => handleDayToggle(offering, day)}
+                            className={`h-8 rounded-lg border px-3 text-sm font-medium ${
+                              (days[offering.id] ?? []).includes(day)
+                                ? "border-moto-blue bg-moto-blue/10 text-moto-blue-strong"
+                                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                            }`}
                           >
-                            <label className="flex items-start gap-3">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={offering.is_required}
-                                onChange={() => handleToggle(offering)}
-                                className="text-moto-blue focus:ring-moto-blue mt-1 h-4 w-4 rounded border-gray-300"
-                              />
-                              <span className="min-w-0 flex-1">
-                                <span className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-medium text-gray-900">
-                                    {offering.name}
-                                  </span>
-                                  {!offering.is_active ? (
-                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                                      Inaktiv
-                                    </span>
-                                  ) : null}
-                                  {offering.is_required ? (
-                                    <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
-                                      Pflichtangebot
-                                    </span>
-                                  ) : null}
-                                  {autoDays.length > 0 ? (
-                                    <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
-                                      automatisch mitgebucht:{" "}
-                                      {formatAdminDays(autoDays)}
-                                    </span>
-                                  ) : null}
-                                </span>
-                                {offering.description ? (
-                                  <span className="mt-1 block text-xs text-gray-500">
-                                    {offering.description}
-                                  </span>
-                                ) : null}
-                                <OfferingOccupancyLine
-                                  stats={bookingStats[offering.id]}
-                                />
-                              </span>
-                            </label>
-
-                            {checked &&
-                            offering.days_of_week_mode === "parent_choice" ? (
-                              <div className="mt-3 flex flex-wrap gap-2 pl-7">
-                                {offering.available_days.map((day) => (
-                                  <button
-                                    key={day}
-                                    type="button"
-                                    onClick={() =>
-                                      handleDayToggle(offering, day)
-                                    }
-                                    className={`h-8 rounded-lg border px-3 text-sm font-medium ${
-                                      (days[offering.id] ?? []).includes(day)
-                                        ? "border-moto-blue bg-moto-blue/10 text-moto-blue-strong"
-                                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                                    }`}
-                                  >
-                                    {DAY_LABEL_DE[day] ?? day}
-                                  </button>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                      {blockedCatalog.length > 0 ? (
-                        <div className="space-y-2 pt-1">
-                          <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                            Für dieses Kind nicht wählbar
-                          </p>
-                          {blockedCatalog.map((offering) => (
-                            <BlockedOfferingRow
-                              key={offering.id}
-                              offering={offering}
-                              gradeLevel={child.target_grade_level}
-                              gradeLevelMax={gradeLevelMax}
-                              booked={selected.has(offering.id)}
-                              automaticDays={
-                                automaticDaysOnFile[offering.id] ?? []
-                              }
-                              stats={bookingStats[offering.id]}
-                              onRemove={() =>
-                                setSelected((prev) => {
-                                  const next = new Set(prev);
-                                  next.delete(offering.id);
-                                  return next;
-                                })
-                              }
-                            />
-                          ))}
-                        </div>
-                      ) : null}
-                      {hasSelectedCareDays ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={removeAllCareDays}
-                        >
-                          Alle Betreuungstage entfernen
-                        </Button>
-                      ) : null}
-                    </div>
-                  )}
-
-                  <label className="block">
-                    <span className="text-xs font-medium text-gray-700">
-                      Begründung
-                    </span>
-                    <textarea
-                      name="offering-adjustment-reason"
-                      value={reason}
-                      onChange={(event) => setReason(event.target.value)}
-                      rows={3}
-                      autoComplete="off"
-                      placeholder="z. B. Randstunde nach Rücksprache mit der Schule ergänzt"
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                            {DAY_LABEL_DE[day] ?? day}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {blockedCatalog.length > 0 ? (
+                <div className="space-y-2 pt-1">
+                  <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                    Für dieses Kind nicht wählbar
+                  </p>
+                  {blockedCatalog.map((offering) => (
+                    <BlockedOfferingRow
+                      key={offering.id}
+                      offering={offering}
+                      gradeLevel={child.target_grade_level}
+                      gradeLevelMax={gradeLevelMax}
+                      booked={selected.has(offering.id)}
+                      automaticDays={automaticDaysOnFile[offering.id] ?? []}
+                      stats={bookingStats[offering.id]}
+                      onRemove={() =>
+                        setSelected((prev) => {
+                          const next = new Set(prev);
+                          next.delete(offering.id);
+                          return next;
+                        })
+                      }
                     />
-                  </label>
+                  ))}
                 </div>
-                <div className="flex justify-end gap-2 border-t border-gray-100 p-4">
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Abbrechen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSave()}
-                    disabled={saving || loading || !catalogLoaded}
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-900 bg-gray-900 px-3 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {saving ? "Speichert…" : "Speichern"}
-                  </button>
-                </div>
-              </div>
-            </div>,
-            portalRoot,
-          )
-        : null}
+              ) : null}
+              {hasSelectedCareDays ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={removeAllCareDays}
+                >
+                  Alle Betreuungstage entfernen
+                </Button>
+              ) : null}
+            </div>
+          )}
+
+          <label className="block">
+            <span className="text-xs font-medium text-gray-700">
+              Begründung
+            </span>
+            <textarea
+              name="offering-adjustment-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              rows={3}
+              autoComplete="off"
+              placeholder="z. B. Randstunde nach Rücksprache mit der Schule ergänzt"
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            />
+          </label>
+        </div>
+      </Modal>
       <ConfirmationModal
         isOpen={withdrawalConfirmationOpen}
         onClose={() => setWithdrawalConfirmationOpen(false)}
