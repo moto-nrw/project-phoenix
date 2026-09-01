@@ -15,6 +15,7 @@ command -v jq >/dev/null 2>&1 || {
 
 hook_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 hook="$hook_dir/guard-absolute-rules.sh"
+project_root=$(cd "$hook_dir/../.." && pwd)
 
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/guard-test.XXXXXX")
 cleanup() { rm -rf "$fixture"; }
@@ -114,6 +115,7 @@ assert_bash allow "$repo" 'scripts/run-go-toolchain.sh scripts/test-backend.sh'
 assert_bash allow "$repo/backend" '../scripts/test-backend.sh'
 assert_bash allow "$repo" 'PHX_TEST_RUN_ID=abc scripts/test-backend.sh'
 assert_bash allow "$repo" 'source scripts/env-check.sh'
+assert_bash allow "$repo" 'builtin cd backend && ../scripts/test-backend.sh'
 assert_bash allow "$worktree" 'scripts/test-backend.sh'
 assert_bash allow "$worktree" 'cd backend && ../scripts/run-go-toolchain.sh go vet ./...'
 
@@ -130,7 +132,15 @@ assert_bash allow "$repo" '/bin/bash scripts/env-check.sh'
 assert_bash allow "$repo" '/usr/bin/git --version'
 assert_bash allow "$repo" '/usr/bin/env'
 assert_bash allow "$repo" 'if true; then :; fi'
+assert_bash allow "$repo" 'export PHX_GUARD_TEST=1; printf "%s" ok'
 assert_bash allow "$repo" 'cd backend | scripts/test-backend.sh'
+if [[ -x /opt/homebrew/bin/pnpm ]]; then
+    assert_bash allow "$repo" '/opt/homebrew/bin/pnpm --version'
+fi
+if [[ -x "$project_root/.devbox/nix/profile/default/bin/pnpm" ]]; then
+    assert_bash allow "$project_root" "$project_root/.devbox/nix/profile/default/bin/pnpm --version"
+    assert_bash deny "$project_root" "$project_root/.devbox/nix/profile/default/bin/ni --version"
+fi
 (cd "$repo/backend" && go list -deps -json ./cmd/tracked >/dev/null)
 assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
 printf 'package main\n' >"$repo/backend/cmd/tracked/untracked.go"
@@ -180,6 +190,12 @@ assert_bash deny "$repo" 'not-a-command-guard-test'
 assert_bash_path deny "$repo" "$fixture/bin:$PATH" 'evil'
 assert_bash deny "$repo" 'cd backend | ./scripts/new'
 assert_bash deny "$repo" 'case x in x) ./scripts/new.sh;; esac'
+assert_bash deny "$repo" "builtin eval \"\$(cat somefile)\""
+assert_bash deny "$repo" 'builtin source /tmp/some-env-file'
+assert_bash deny "$repo" 'builtin . /tmp/some-env-file'
+assert_bash deny "$repo" 'export PATH=/tmp; /opt/homebrew/bin/pnpm --version'
+assert_bash deny "$repo" 'builtin export PATH=/tmp; /opt/homebrew/bin/pnpm --version'
+assert_bash deny "$repo" 'printf -v PATH /tmp; /opt/homebrew/bin/pnpm --version'
 
 # --- inline payloads and eval: denied, incl. the -lc flag cluster ---
 assert_bash deny "$repo" "bash -c 'echo hi'"

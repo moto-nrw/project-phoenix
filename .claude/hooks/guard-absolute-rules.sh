@@ -122,18 +122,49 @@ case "$tool" in
             [[ -x "$1" && ! -d "$1" ]] && ! is_script_file "$1"
         }
 
+        # pnpm is a Node script installed by Homebrew. Its interpreter must
+        # be a vetted binary too.
+        vet_homebrew_pnpm() {
+            local target=$1 first
+            target=$(resolve_script "$target") || return 1
+            [[ -x "$target" && ! -d "$target" ]] || return 1
+            IFS= read -r first < "$target" || return 1
+            [[ "$target:$first" = /opt/homebrew/Cellar/pnpm/*/libexec/lib/node_modules/pnpm/bin/pnpm.mjs:'#!/usr/bin/env node' ]] || return 1
+            vet_bare_executable node
+        }
+
+        # Devbox pnpm is a declared project dependency. Only its generated
+        # launcher may be a shebang script; direct Nix-store scripts are not
+        # execution targets.
+        vet_devbox_pnpm() {
+            local source=$1 target first interpreter
+            [[ "$source" = "$root/.devbox/nix/profile/default/bin/pnpm" ]] || return 1
+            git -C "$root" ls-files --error-unmatch -- devbox.json >/dev/null 2>&1 || return 1
+            jq -e 'any(.packages[]; startswith("pnpm@"))' "$root/devbox.json" >/dev/null || return 1
+            target=$(resolve_script "$source") || return 1
+            [[ -x "$target" && ! -d "$target" ]] || return 1
+            IFS= read -r first < "$target" || return 1
+            [[ "$target:$first" = /nix/store/*-pnpm-*/libexec/pnpm/bin/pnpm.mjs:'#!'/nix/store/*/bin/node ]] || return 1
+            interpreter=${first#\#!}
+            vet_trusted_binary "$interpreter"
+        }
+
         vet_executable() {
             local target
             case "$1" in
+                /opt/homebrew/bin/pnpm | /opt/homebrew/Cellar/pnpm/*/bin/pnpm)
+                    vet_homebrew_pnpm "$1"
+                    ;;
                 /bin/* | /sbin/* | /usr/bin/* | /usr/sbin/* | /usr/local/bin/* | /opt/homebrew/bin/* | /opt/hostedtoolcache/go/*/bin/go | */node_modules/@openai/codex-*/vendor/*/codex-path/rg)
                     vet_trusted_binary "$1"
                     ;;
                 /nix/store/*)
-                    [[ -x "$1" && ! -d "$1" ]]
+                    vet_trusted_binary "$1"
                     ;;
                 */.devbox/nix/profile/default/bin/*)
                     target=$(resolve_script "$1") || return 1
-                    [[ "$target" = /nix/store/* && -x "$1" && ! -d "$1" ]]
+                    [[ "$target" = /nix/store/* ]] || return 1
+                    vet_devbox_pnpm "$1" || vet_trusted_binary "$target"
                     ;;
                 *) vet_script "$1" ;;
             esac
@@ -280,6 +311,10 @@ EOF
                             esac
                         done
                         ;;
+                    builtin)
+                        shift
+                        [[ ${1:-} != -* ]] || deny "Blocked: builtin options cannot be inspected by the absolute-rule guard. Write the command out directly."
+                        ;;
                     command|time|nohup|setsid)
                         shift
                         while [[ ${1:-} == -* ]]; do shift; done
@@ -378,6 +413,24 @@ EOF
                         curdir=$moved
                     fi
                     return 0
+                    ;;
+                export | readonly | declare | typeset | read)
+                    for next in "$@"; do
+                        case "$(clean_token "$next")" in
+                            PATH|PATH=*|PATH+=*)
+                                deny "Blocked: PATH can change which executable runs. Use the configured toolchain path directly."
+                                ;;
+                        esac
+                    done
+                    ;;
+                printf)
+                    shift
+                    while [[ $# -gt 0 ]]; do
+                        case "$(clean_token "$1")" in
+                            -v) shift; [[ ${1:-} != PATH ]] || deny "Blocked: PATH can change which executable runs. Use the configured toolchain path directly." ;;
+                        esac
+                        shift || break
+                    done
                     ;;
                 eval)
                     deny "Blocked: eval builds its command at runtime and cannot be inspected by the absolute-rule guard. Write the command out directly."
