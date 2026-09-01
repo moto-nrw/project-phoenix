@@ -3,6 +3,7 @@ package email
 import (
 	"bufio"
 	"context"
+	"io"
 	"net"
 	"strings"
 	"testing"
@@ -12,7 +13,7 @@ import (
 	gomail "github.com/wneessen/go-mail"
 )
 
-func TestSMTPMailerSendContextReturnsWhileExchangeIsInFlight(t *testing.T) {
+func TestSMTPMailerSendContextClosesInFlightExchangeOnCancellation(t *testing.T) {
 	t.Parallel()
 
 	clientConn, serverConn := net.Pipe()
@@ -22,7 +23,6 @@ func TestSMTPMailerSendContextReturnsWhileExchangeIsInFlight(t *testing.T) {
 	})
 
 	dataStarted := make(chan struct{})
-	releaseServer := make(chan struct{})
 	serverDone := make(chan struct{})
 	go func() {
 		defer close(serverDone)
@@ -43,9 +43,9 @@ func TestSMTPMailerSendContextReturnsWhileExchangeIsInFlight(t *testing.T) {
 			case strings.HasPrefix(line, "DATA"):
 				close(dataStarted)
 				_, _ = serverConn.Write([]byte("354 send message\r\n"))
-				// Stop reading: the client must remain blocked in DATA until
-				// cancellation closes the connection.
-				<-releaseServer
+				// Stop reading: cancellation must close the client socket and
+				// unblock the writer without waiting for the transport deadline.
+				_, _ = io.Copy(io.Discard, serverConn)
 				return
 			default:
 				_, _ = serverConn.Write([]byte("250 ok\r\n"))
@@ -87,8 +87,11 @@ func TestSMTPMailerSendContextReturnsWhileExchangeIsInFlight(t *testing.T) {
 	case err := <-result:
 		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(time.Second):
-		t.Fatal("SendContext did not report cancellation for the in-flight SMTP exchange")
+		t.Fatal("SendContext did not terminate the in-flight SMTP exchange")
 	}
-	close(releaseServer)
-	<-serverDone
+	select {
+	case <-serverDone:
+	case <-time.After(time.Second):
+		t.Fatal("SMTP socket was not closed after cancellation")
+	}
 }

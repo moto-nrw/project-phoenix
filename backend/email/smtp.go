@@ -126,9 +126,7 @@ func (m *SMTPMailer) Send(email Message) error {
 	return m.SendContext(context.Background(), email)
 }
 
-// SendContext reports caller cancellation immediately. go-mail applies the
-// context while dialing but cannot interrupt DATA after the dial; that bounded
-// exchange drains in the background under the client's socket deadline.
+// SendContext terminates an in-flight SMTP exchange when the caller cancels.
 func (m *SMTPMailer) SendContext(ctx context.Context, email Message) error {
 	if email.From.Address == "" {
 		email.From = m.defaultFrom
@@ -158,14 +156,37 @@ func (m *SMTPMailer) SendContext(ctx context.Context, email Message) error {
 }
 
 func (m *SMTPMailer) sendMessageContext(ctx context.Context, msg *mail.Msg) error {
+	client, err := m.client.DialToSMTPClientWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
 	result := make(chan error, 1)
 	go func() {
-		result <- m.client.DialAndSendWithContext(ctx, msg)
+		err := m.client.SendWithSMTPClient(client, msg)
+		if err == nil {
+			err = m.client.CloseWithSMTPClient(client)
+		} else {
+			_ = client.Close()
+		}
+		result <- err
 	}()
 	select {
 	case err := <-result:
 		return err
 	case <-ctx.Done():
+		// Prefer an already-completed SMTP result when cancellation races with
+		// transport completion. Otherwise force-close the socket: go-mail's
+		// graceful QUIT path can itself block while DATA is in progress.
+		select {
+		case err := <-result:
+			return err
+		default:
+		}
+		_ = client.Text.Close()
+		if err := <-result; err == nil {
+			return nil
+		}
 		return ctx.Err()
 	}
 }
