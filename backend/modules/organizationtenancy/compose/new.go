@@ -36,7 +36,10 @@ func New(dependencies Dependencies) (*organizationtenancy.Module, error) {
 		}
 		return tx, nil
 	})
-	service := application.New(store, transaction{}, dependencies.Observe)
+	service := application.New(store, transaction{}, func(observation Observation) {
+		observation.Err = mapError(observation.Err)
+		dependencies.Observe(observation)
+	})
 	return organizationtenancy.NewModule(engine{service: service}), nil
 }
 

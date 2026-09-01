@@ -63,17 +63,36 @@ func TestModulePersistsOrganizationLifecycleAtPublicSeam(t *testing.T) {
 	assert.Equal(t, "Renamed Organization", updated.Name)
 	assert.False(t, updated.Active)
 
-	_, err = module.SoftDeleteOrganization(ctx, created.ID)
-	require.NoError(t, err)
-	deleted, err := module.FindOrganization(ctx, created.ID)
+	deleted, err := module.SoftDeleteOrganization(ctx, created.ID)
 	require.NoError(t, err)
 	assert.True(t, deleted.IsDeleted())
-
-	_, err = module.RestoreOrganization(ctx, created.ID)
+	persistedDeleted, err := module.FindOrganization(ctx, created.ID)
 	require.NoError(t, err)
-	restored, err := module.FindOrganization(ctx, created.ID)
+	assert.True(t, persistedDeleted.IsDeleted())
+
+	restored, err := module.RestoreOrganization(ctx, created.ID)
 	require.NoError(t, err)
 	assert.False(t, restored.IsDeleted())
+	persistedRestored, err := module.FindOrganization(ctx, created.ID)
+	require.NoError(t, err)
+	assert.False(t, persistedRestored.IsDeleted())
+}
+
+func TestModuleObservationsUsePublicErrors(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	var observed Observation
+	module := buildModule(t, db, func(observation Observation) { observed = observation })
+	ctx := adminContext(t)
+	slug := fmt.Sprintf("observation-organization-%d", time.Now().UnixNano())
+
+	_, err := module.CreateOrganization(ctx, organizationtenancy.CreateOrganization{Name: "Observation", Slug: slug, Active: true})
+	require.NoError(t, err)
+	_, err = module.CreateOrganization(ctx, organizationtenancy.CreateOrganization{Name: "Duplicate", Slug: slug, Active: true})
+
+	require.ErrorIs(t, err, organizationtenancy.ErrOrganizationSlugConflict)
+	assert.ErrorIs(t, observed.Err, organizationtenancy.ErrOrganizationSlugConflict)
+	assert.Equal(t, "slug_conflict", organizationtenancy.ErrorCode(observed.Err))
 }
 
 func TestModuleCommandRollsBackWithOuterUnitOfWork(t *testing.T) {

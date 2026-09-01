@@ -93,7 +93,11 @@ func (s *Service) SoftDelete(ctx context.Context, id int64) (result domain.Organ
 		}
 		deleteStats, err := s.store.SoftDelete(txCtx, id)
 		stats.Add(deleteStats)
-		result = organization
+		if err != nil {
+			return err
+		}
+		result, _, queryStats, err = s.store.FindByID(txCtx, id, "")
+		stats.Add(queryStats)
 		return err
 	})
 	return result, err
@@ -114,7 +118,11 @@ func (s *Service) Restore(ctx context.Context, id int64) (result domain.Organiza
 		}
 		restoreStats, err := s.store.Restore(txCtx, id)
 		stats.Add(restoreStats)
-		result = organization
+		if err != nil {
+			return err
+		}
+		result, _, queryStats, err = s.store.FindByID(txCtx, id, "")
+		stats.Add(queryStats)
 		return err
 	})
 	return result, err
