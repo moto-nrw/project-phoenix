@@ -2,10 +2,18 @@ package authorize
 
 import (
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 )
+
+const (
+	baseRoleAdmin    = "admin"
+	baseRoleUser     = "user"
+	baseRoleGuardian = "guardian"
+	usersManage      = "users:manage"
+)
+
+type roleGrantSource interface {
+	AuthorizationGrantData() (present bool, name string, baseRole *string, system, tenantBound bool, permissions []string)
+}
 
 // Which roles a caller may hand out when they create school access for someone
 // else (staff invitations, account registration, link-to-tenant). The decision
@@ -23,13 +31,17 @@ import (
 // name. Returns "" when the tier cannot be determined; callers must fail
 // closed unless they can prove the target permissions do not exceed the
 // caller's permissions for a legacy tenant role.
-func EffectiveBaseRole(role *auth.Role) string {
+func EffectiveBaseRole(role roleGrantSource) string {
 	if role == nil {
 		return ""
 	}
+	present, name, baseRole, system, _, _ := role.AuthorizationGrantData()
+	if !present {
+		return ""
+	}
 
-	if role.BaseRole != nil {
-		if base := strings.ToLower(strings.TrimSpace(*role.BaseRole)); base != "" {
+	if baseRole != nil {
+		if base := strings.ToLower(strings.TrimSpace(*baseRole)); base != "" {
 			return base
 		}
 	}
@@ -38,10 +50,10 @@ func EffectiveBaseRole(role *auth.Role) string {
 	// were never backfilled, so fall back to the name. Legacy system roles whose
 	// name is not a base role ("guest", "teacher", "staff") stay unknown on
 	// purpose — they are not roles anyone should be handing out today.
-	if role.IsSystem {
-		name := strings.ToLower(strings.TrimSpace(role.Name))
+	if system {
+		name = strings.ToLower(strings.TrimSpace(name))
 		switch name {
-		case auth.BaseRoleAdmin, auth.BaseRoleUser, auth.BaseRoleGuardian:
+		case baseRoleAdmin, baseRoleUser, baseRoleGuardian:
 			return name
 		}
 	}
@@ -61,21 +73,25 @@ func EffectiveBaseRole(role *auth.Role) string {
 // remain fail-closed.
 // Whether a guardian role may be handed out through a staff flow at all is a
 // separate question, answered by ValidateAssignableSchoolRole.
-func CanGrantRole(role *auth.Role, callerPermissions []string) bool {
+func CanGrantRole(role roleGrantSource, callerPermissions []string) bool {
 	if role == nil {
 		return false
 	}
 
-	if HasPermission(permissions.UsersManage, callerPermissions) {
+	present, _, baseRole, _, tenantBound, rolePermissions := role.AuthorizationGrantData()
+	if !present {
+		return false
+	}
+	if HasPermission(usersManage, callerPermissions) {
 		return true
 	}
 
 	switch EffectiveBaseRole(role) {
-	case auth.BaseRoleUser, auth.BaseRoleGuardian:
-		return permissionsAreSubset(role.Permissions, callerPermissions)
+	case baseRoleUser, baseRoleGuardian:
+		return permissionsAreSubset(rolePermissions, callerPermissions)
 	case "":
-		if role.TenantID != nil && role.BaseRole == nil {
-			return permissionsAreSubset(role.Permissions, callerPermissions)
+		if tenantBound && baseRole == nil {
+			return permissionsAreSubset(rolePermissions, callerPermissions)
 		}
 		return false
 	default:
@@ -83,9 +99,9 @@ func CanGrantRole(role *auth.Role, callerPermissions []string) bool {
 	}
 }
 
-func permissionsAreSubset(rolePermissions []*auth.Permission, callerPermissions []string) bool {
+func permissionsAreSubset(rolePermissions []string, callerPermissions []string) bool {
 	for _, permission := range rolePermissions {
-		if permission == nil || !HasPermission(permission.Name, callerPermissions) {
+		if permission == "" || !HasPermission(permission, callerPermissions) {
 			return false
 		}
 	}

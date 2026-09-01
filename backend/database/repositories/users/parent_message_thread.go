@@ -53,7 +53,7 @@ func (r *ParentMessageThreadRepository) FindByStudentGuardian(ctx context.Contex
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find parent message thread by student+guardian", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find parent message thread by student+guardian", Err: base.TranslateNotFound(err)}
 	}
 	return thread, nil
 }
@@ -79,7 +79,7 @@ func (r *ParentMessageThreadRepository) GetOrCreate(ctx context.Context, tenantI
 		ModelTableExpr(r.TableName).
 		On("CONFLICT (tenant_id, student_id, guardian_account_id) DO NOTHING").
 		Exec(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get-or-create parent message thread", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get-or-create parent message thread", Err: base.TranslateNotFound(err)}
 	}
 	// Whether we inserted or hit the conflict, the row now exists; load the
 	// canonical row (tenant-scoped) so callers always get the persisted thread.
@@ -107,7 +107,7 @@ func (r *ParentMessageThreadRepository) LockForMessageAppend(ctx context.Context
 		For("UPDATE")
 	query = base.WithTenantFilter(ctx, query, "parent_message_thread")
 	if err := query.Scan(ctx, &id); err != nil {
-		return &modelBase.DatabaseError{Op: "lock parent message thread for append", Err: err}
+		return &modelBase.DatabaseError{Op: "lock parent message thread for append", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -140,7 +140,7 @@ func (r *ParentMessageThreadRepository) TouchLastMessage(ctx context.Context, th
 	query = base.WithTenantFilter(ctx, query, "parent_message_thread")
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "touch parent message thread last message", Err: err}
+		return &modelBase.DatabaseError{Op: "touch parent message thread last message", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -163,11 +163,11 @@ func (r *ParentMessageThreadRepository) ClaimStaffMessageNotification(ctx contex
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "claim staff parent-message notification", Err: err}
+		return false, &modelBase.DatabaseError{Op: "claim staff parent-message notification", Err: base.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "count claimed staff parent-message notifications", Err: err}
+		return false, &modelBase.DatabaseError{Op: "count claimed staff parent-message notifications", Err: base.TranslateNotFound(err)}
 	}
 	return rows == 1, nil
 }
@@ -212,7 +212,7 @@ func (r *ParentMessageThreadRepository) ListGuardiansForStudent(ctx context.Cont
 	query = base.WithTenantFilter(ctx, query, "sg")
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }

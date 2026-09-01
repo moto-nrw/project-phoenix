@@ -70,7 +70,7 @@ var pickupDate = timezone.DateFromTime(pickupNow)
 // atOn returns the given Berlin wall-clock instant on calendar date d, so a
 // seeded visit/attendance lands on the same day as the list being built.
 func atOn(d timezone.Date, hour, minute int) time.Time {
-	return time.Date(d.Year, d.Month, d.Day, hour, minute, 0, 0, timezone.Berlin)
+	return time.Date(d.Year(), d.Month(), d.Day(), hour, minute, 0, 0, timezone.Berlin)
 }
 
 func newTestService(db *bun.DB) slotlists.Service {
@@ -187,6 +187,11 @@ func (p slotListParticipation) ParticipatingStudentIDsByDate(
 
 func (u slotListUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
 	return u.currentStaff, nil
+}
+
+func (u slotListUserContext) HasCurrentStaff(ctx context.Context) (bool, error) {
+	staff, err := u.GetCurrentStaff(ctx)
+	return err == nil && staff != nil, err
 }
 
 type failingRoomRepo struct {

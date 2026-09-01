@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -27,6 +28,9 @@ const excusedRequestLockClass int32 = 0x65786162
 // exist. Services map this to a 409/404.
 var ErrExcusedRequestNotPending = activeModels.ErrExcusedRequestNotPending
 
+// ErrExcusedRequestNotDecided is the repository alias of the model sentinel.
+var ErrExcusedRequestNotDecided = activeModels.ErrExcusedRequestNotDecided
+
 // ErrExcusedRequestNotFound is returned when no request row exists under the
 // current tenant.
 var ErrExcusedRequestNotFound = activeModels.ErrExcusedRequestNotFound
@@ -37,6 +41,14 @@ var ErrExcusedRequestNotFound = activeModels.ErrExcusedRequestNotFound
 // review flows need.
 type ExcusedAbsenceRequestRepository struct {
 	*base.Repository[*activeModels.ExcusedAbsenceRequest]
+}
+
+func (r *ExcusedAbsenceRequestRepository) FindByID(ctx context.Context, id any) (*activeModels.ExcusedAbsenceRequest, error) {
+	row, err := r.Repository.FindByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrExcusedRequestNotFound
+	}
+	return row, err
 }
 
 // NewExcusedAbsenceRequestRepository wires a fresh repository.
@@ -57,7 +69,7 @@ func (r *ExcusedAbsenceRequestRepository) LockStudentRequests(ctx context.Contex
 	if _, err := base.GetDB(ctx, r.DB).
 		NewRaw("SELECT pg_advisory_xact_lock(?, ?)", excusedRequestLockClass, int32(studentID)).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "lock student excused requests", Err: err}
+		return &modelBase.DatabaseError{Op: "lock student excused requests", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -79,7 +91,7 @@ func (r *ExcusedAbsenceRequestRepository) ListPendingForStudent(ctx context.Cont
 		OrderExpr(`"excused_absence_request".id DESC`)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending excused absence requests for student", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending excused absence requests for student", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -113,7 +125,7 @@ func (r *ExcusedAbsenceRequestRepository) ListRecentForStudent(ctx context.Conte
 		OrderExpr(`"excused_absence_request".id DESC`)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list recent excused absence requests for student", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list recent excused absence requests for student", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -131,10 +143,13 @@ func (r *ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Conte
 	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
 		query = query.Where(where, val)
 	}
+	query = base.ApplyRequestUrgency(
+		query, filters, `"excused_absence_request".dates @> ?::jsonb`, `["`+filters.UrgentDate+`"]`,
+	)
 	query = base.ApplyRequestQueueFilters(query, "excused_absence_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending excused absence requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending excused absence requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -161,7 +176,7 @@ func (r *ExcusedAbsenceRequestRepository) ListDecidedForTenant(ctx context.Conte
 	query = base.ApplyRequestQueueFilters(query, "excused_absence_request", "updated_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list decided excused absence requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list decided excused absence requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -185,7 +200,7 @@ func (r *ExcusedAbsenceRequestRepository) FindPendingByIDForUpdate(ctx context.C
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrExcusedRequestNotFound
 		}
-		return nil, &modelBase.DatabaseError{Op: "find pending excused absence request for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find pending excused absence request for update", Err: base.TranslateNotFound(err)}
 	}
 	if row.Status != activeModels.ExcusedRequestStatusPending {
 		return nil, ErrExcusedRequestNotPending
@@ -215,7 +230,7 @@ func (r *ExcusedAbsenceRequestRepository) FindByIDForUpdate(ctx context.Context,
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrExcusedRequestNotFound
 		}
-		return nil, &modelBase.DatabaseError{Op: "find excused absence request for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find excused absence request for update", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -223,6 +238,34 @@ func (r *ExcusedAbsenceRequestRepository) FindByIDForUpdate(ctx context.Context,
 // Decide transitions a pending row to its final state. reviewed_at is stamped
 // for staff decisions; applied_at only when the excused status days were
 // actually written (approvals). Guardian withdrawals pass reviewedBy = nil.
+// UpdatePending rewrites a pending request's payload. The status guard is in
+// the WHERE clause, so an edit racing a staff decision loses without a second
+// read: zero rows affected means the request was decided in between.
+func (r *ExcusedAbsenceRequestRepository) UpdatePending(
+	ctx context.Context, id int64, dates []timezone.Date, note, absenceStatus string,
+) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*activeModels.ExcusedAbsenceRequest)(nil)).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Set("dates = ?", dates).
+		Set("note = ?", note).
+		Set("absence_status = ?", absenceStatus).
+		Set("updated_at = ?", time.Now()).
+		Where(`"excused_absence_request".id = ?`, id).
+		Where(`"excused_absence_request".status = ?`, activeModels.ExcusedRequestStatusPending)
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		q = q.Where(where, val)
+	}
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update pending excused absence request", Err: base.TranslateNotFound(err)}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return ErrExcusedRequestNotPending
+	}
+	return nil
+}
+
 func (r *ExcusedAbsenceRequestRepository) Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy *int64, applied bool) error {
 	now := time.Now()
 	q := base.GetDB(ctx, r.DB).NewUpdate().
@@ -246,11 +289,50 @@ func (r *ExcusedAbsenceRequestRepository) Decide(ctx context.Context, id int64, 
 
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "decide excused absence request", Err: err}
+		return &modelBase.DatabaseError{Op: "decide excused absence request", Err: base.TranslateNotFound(err)}
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
 		return ErrExcusedRequestNotPending
+	}
+	return nil
+}
+
+// Redecide rewrites an already decided row. The WHERE clause names the two
+// states a correction may start from, so a concurrent withdrawal, care-end
+// close or mark-done cannot be silently overwritten by a correction that was
+// prepared before it landed.
+func (r *ExcusedAbsenceRequestRepository) Redecide(
+	ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool,
+) error {
+	now := time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*activeModels.ExcusedAbsenceRequest)(nil)).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Set("status = ?", newStatus).
+		Set("decision_reason = ?", reason).
+		Set("reviewed_by = ?", reviewedBy).
+		Set("reviewed_at = ?", now).
+		Set("updated_at = ?", now).
+		Where(`"excused_absence_request".id = ?`, id).
+		Where(`"excused_absence_request".status IN (?)`, bun.List([]string{
+			activeModels.ExcusedRequestStatusApproved,
+			activeModels.ExcusedRequestStatusRejected,
+		}))
+	if applied {
+		q = q.Set("applied_at = ?", now)
+	} else {
+		q = q.Set("applied_at = NULL")
+	}
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		q = q.Where(where, val)
+	}
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "correct excused absence request", Err: base.TranslateNotFound(err)}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return ErrExcusedRequestNotDecided
 	}
 	return nil
 }

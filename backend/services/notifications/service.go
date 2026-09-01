@@ -38,7 +38,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -195,9 +194,9 @@ type router struct {
 	logger   *slog.Logger
 }
 
-func (r *router) SetTenantRuntime(runtime tenant.Runtime) {
+func (r *router) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	for _, channel := range r.channels {
-		if setter, ok := channel.(interface{ SetTenantRuntime(tenant.Runtime) }); ok {
+		if setter, ok := channel.(interface{ SetTenantRuntime(tenant.UnitOfWork) }); ok {
 			setter.SetTenantRuntime(runtime)
 		}
 	}
@@ -331,7 +330,7 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 
 	// Channels run after commit, so they must not inherit the closed transaction.
 	// Snapshot the mutable payload before the callback outlives this call.
-	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
+	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	event.Data = maps.Clone(event.Data)
 	event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
 	event.Audience.StaffAccountIDs = slices.Clone(event.Audience.StaffAccountIDs)
@@ -368,7 +367,7 @@ func (r *router) NotifySynchronously(ctx context.Context, event Event) error {
 			return ErrOutsideActiveWindow
 		}
 	}
-	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
+	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	// The durable producer waits for one channel, not for all of them. Every
 	// other channel stays fire-and-forget exactly as in Notify — a parent with
 	// the portal open must see the in-app notification even though only Web
@@ -453,7 +452,7 @@ func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
 		}
 	}
 
-	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
+	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	tenant.RegisterAfterCommit(ctx, func() {
 		r.deliverBatch(dispatchCtx, prepared)
 	})

@@ -1,14 +1,13 @@
 package api_test
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"testing"
 
-	"github.com/uptrace/bun/driver/pgdriver"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // TestSeedCoverageRatchet keeps the demo seeder honest about which tables it
@@ -25,39 +24,20 @@ import (
 //   - An allowlisted table that now HAS rows fails too: remove the entry. The
 //     ratchet only turns one way, the list may never grow silently.
 //
-// Entries marked "GAP: prod has N rows" are the real backlog: production
-// tenants fill those tables and the seeder does not, so every screen built on
-// them looks empty in dev. The counts come from a read-only aggregate scan of
-// the production database on 2026-08-20 (row counts only, no personal data).
-// Shrink this list by teaching the seeder the missing flow, never by deleting
-// the check.
-var seedCoverageAllowlist = map[string]string{
+// Intentional exemptions are durable semantics, not coverage debt. They are
+// limited to security/session artifacts, one-time migration backups, legacy
+// compatibility tables, and transient lifecycle state.
+var seedCoverageExemptions = map[string]string{
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",
-	"active.staff_balance_adjustments":     "GAP: prod has 9 rows",
 	"active.staff_month_balance_snapshots": "empty in prod too",
 	"active.staff_vacation_openings":       "empty in prod too",
-	"active.staff_vacation_quota":          "GAP: prod has 1 rows",
-	"active.work_session_breaks":           "GAP: prod has 7 rows",
-
-	"activities.group_targets": "GAP: prod has 29 rows",
-	"activities.schedules":     "GAP: prod has 330 rows",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
-	"audit.data_access_log":             "GAP: prod has 149 rows",
-	"audit.data_deletions":              "GAP: prod has 796 rows",
-	"audit.data_imports":                "GAP: prod has 11 rows",
-	"audit.deviation_events":            "GAP: prod has 4 rows",
-	"audit.enrollment_deletions":        "GAP: prod has 9 rows",
 	"audit.enrollment_restorations":     "empty in prod too",
-	"audit.guardian_changes":            "GAP: prod has 81 rows",
 	"audit.personnel_number_changes":    "empty in prod too",
-	"audit.room_color_migration_backup": "GAP: prod has 38 rows",
-	"audit.staff_master_data_changes":   "GAP: prod has 18 rows",
-	"audit.student_deletions":           "GAP: prod has 110 rows",
-	"audit.time_tracking_deletions":     "GAP: prod has 2 rows",
-	"audit.unregistered_tag_scans":      "GAP: prod has 307 rows",
+	"audit.room_color_migration_backup": "one-time migration snapshot; only installations with legacy reserved room colors can contain rows",
 	"audit.wc_alias_migration_backup":   "empty in prod too",
 
 	"auth.accounts_parents":           "empty in prod too",
@@ -66,8 +46,8 @@ var seedCoverageAllowlist = map[string]string{
 	"auth.mfa_overrides":              "empty in prod too",
 	"auth.mfa_trusted_devices":        "empty in prod too",
 	"auth.passkey_credentials":        "empty in prod too",
-	"auth.passkey_sessions":           "GAP: prod has 72 rows",
-	"auth.password_reset_rate_limits": "GAP: prod has 1 rows",
+	"auth.passkey_sessions":           "short-lived WebAuthn challenge state; fake challenges would be invalid and cleanup removes them",
+	"auth.password_reset_rate_limits": "short-lived abuse-control state; deliberately created only by password-reset traffic",
 	"auth.password_reset_tokens":      "empty in prod too",
 
 	"calendar.appointment_occurrence_overrides":     "empty in prod too",
@@ -86,73 +66,70 @@ var seedCoverageAllowlist = map[string]string{
 	"education.class_teachers":                      "empty in prod too",
 	"education.grade_transition_class_list_entries": "not in prod yet (migration newer than the deployed image)",
 	"education.grade_transition_class_teachers":     "empty in prod too",
-	"education.grade_transition_history":            "GAP: prod has 472 rows",
-	"education.grade_transition_mappings":           "GAP: prod has 33 rows",
-	"education.grade_transitions":                   "GAP: prod has 2 rows",
-	"education.group_substitution":                  "GAP: prod has 4 rows",
 
 	"enrollment.care_offering_auto_triggers": "empty in prod too",
-	"enrollment.change_request_messages":     "GAP: prod has 2 rows",
-	"enrollment.change_requests":             "GAP: prod has 23 rows",
-	"enrollment.form_schemas":                "GAP: prod has 53 rows",
-	"enrollment.late_invites":                "GAP: prod has 24 rows",
-	"enrollment.offering_change_requests":    "GAP: prod has 7 rows",
 
 	"feedback.entries": "empty in prod too",
 
-	"iot.push_subscriptions":   "GAP: prod has 37 rows",
+	"iot.push_subscriptions":   "browser/VAPID-bound state; a server-side seed cannot create an honest browser subscription",
 	"iot.pwa_standalone_usage": "not in prod yet (migration newer than the deployed image)",
 
 	"meta.migration_metadata": "empty in prod too",
 
-	"platform.announcement_views":           "GAP: prod has 135 rows",
 	"platform.operator_email_change_tokens": "empty in prod too",
 	"platform.operator_invitation_tokens":   "empty in prod too",
-	"platform.operator_mfa_trusted_devices": "GAP: prod has 1 rows",
-	"platform.operator_passkey_credentials": "GAP: prod has 1 rows",
-	"platform.operator_passkey_sessions":    "GAP: prod has 4 rows",
+	"platform.operator_mfa_trusted_devices": "cryptographically bound trusted-device state; never forge in demo data",
+	"platform.operator_passkey_credentials": "hardware/browser-bound WebAuthn credential; never forge in demo data",
+	"platform.operator_passkey_sessions":    "short-lived WebAuthn challenge state; fake challenges would be invalid",
 
-	"schedule.activity_exceptions":              "GAP: prod has 2 rows",
-	"schedule.calendar_periods":                 "GAP: prod has 10 rows",
-	"schedule.closing_days":                     "GAP: prod has 3 rows",
 	"schedule.dateframes":                       "empty in prod too",
 	"schedule.grade_transition_roster_removals": "empty in prod too",
-	"schedule.meal_plan_entries":                "GAP: prod has 12 rows",
-	"schedule.planning_tracks":                  "GAP: prod has 7 rows",
 	"schedule.recurrence_rules":                 "empty in prod too",
-	"schedule.shift_types":                      "GAP: prod has 5 rows",
 	"schedule.staff_shift_series":               "empty in prod too",
 	"schedule.staff_shift_series_exceptions":    "empty in prod too",
-	"schedule.staff_shifts":                     "GAP: prod has 3 rows",
-	"schedule.student_arrival_exceptions":       "GAP: prod has 327 rows",
-	"schedule.student_arrival_notes":            "GAP: prod has 20 rows",
-	"schedule.student_arrival_schedules":        "GAP: prod has 4002 rows",
-	"schedule.student_pickup_exceptions":        "GAP: prod has 205 rows",
-	"schedule.student_pickup_notes":             "GAP: prod has 53 rows",
-	"schedule.timeframes":                       "GAP: prod has 16 rows",
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
 	"users.class_list_entries":                "not in prod yet (migration newer than the deployed image)",
-	"users.guardian_phone_numbers":            "GAP: prod has 3071 rows",
 	"users.guests":                            "empty in prod too",
-	"users.notification_preferences":          "GAP: prod has 277 rows",
 	"users.parent_announcement_options":       "empty in prod too",
-	"users.parent_announcement_reads":         "GAP: prod has 31 rows",
 	"users.parent_announcement_responses":     "empty in prod too",
-	"users.parent_message_reads":              "GAP: prod has 352 rows",
 	"users.persons_guardians":                 "empty in prod too",
-	"users.profiles":                          "GAP: prod has 1 rows",
+	"users.profiles":                          "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
 	"users.staff_document_file_cleanup":       "empty in prod too",
 	"users.staff_documents":                   "empty in prod too",
 	"users.staff_financial_data":              "empty in prod too",
-	"users.staff_master_data":                 "GAP: prod has 9 rows",
 	"users.staff_qualifications":              "empty in prod too",
 	"users.student_companions":                "empty in prod too",
 	"users.student_care_exit_removals":        "transient by design (#2487): holds a planned exit's removed plan only until the exit is cancelled or takes effect",
 	"users.student_care_exit_source_removals": "transient by design: holds source bookings and weekly plans only until a planned care exit is cancelled or takes effect",
-	"users.student_data_change_requests":      "GAP: prod has 97 rows",
 	"users.student_document_file_cleanup":     "empty in prod too",
 	"users.student_documents":                 "empty in prod too",
+}
+
+// Coverage debt is deliberately separate from durable exemptions. Adding an
+// entry is an explicit regression and fails TestSeedCoverageRatchet.
+var seedCoverageDebt = map[string]string{}
+
+// Transient tables may be populated during a seed flow and empty again after
+// their lifecycle completes. Unlike exemptions, a populated transient table
+// is not stale classification debt.
+var seedCoverageTransient = map[string]string{
+	"auth.invitation_tokens": "short-lived invitation state; successful acceptance consumes the seeded tokens",
+}
+
+var seedCoverageAllowlist = mergeCoverageClassifications(seedCoverageExemptions, seedCoverageTransient, seedCoverageDebt)
+
+func mergeCoverageClassifications(classifications ...map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for _, classification := range classifications {
+		for table, reason := range classification {
+			if _, exists := merged[table]; exists {
+				panic("duplicate seed coverage classification: " + table)
+			}
+			merged[table] = reason
+		}
+	}
+	return merged
 }
 
 // tableCoverageQuery lists every application table. Views, system schemas, and
@@ -172,13 +149,16 @@ const tableCoverageQuery = `
 
 func TestSeedCoverageRatchet(t *testing.T) {
 	t.Parallel()
+	if len(seedCoverageDebt) != 0 {
+		t.Fatalf("seed coverage debt must stay empty; implement real flows instead: %v", seedCoverageDebt)
+	}
 
 	dsn := strings.TrimSpace(os.Getenv("SEED_COVERAGE_DSN"))
 	if dsn == "" {
 		t.Skip("SEED_COVERAGE_DSN not set: needs a seeded stack (migrate reset + seed + simulate full-day)")
 	}
 
-	db := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
+	db := testpkg.OpenPostgresSQL(dsn)
 	defer func() { _ = db.Close() }()
 
 	rows, err := db.Query(tableCoverageQuery)
@@ -228,7 +208,7 @@ func TestSeedCoverageRatchet(t *testing.T) {
 		switch {
 		case !filled && !allowed:
 			uncovered = append(uncovered, table)
-		case filled && allowed:
+		case filled && allowed && seedCoverageTransient[table] == "":
 			stale = append(stale, table)
 		}
 	}

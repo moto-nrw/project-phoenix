@@ -28,7 +28,7 @@ func studentDeletionRowCount(t *testing.T, tc *testContext, table string, id int
 func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	repos := repositories.NewFactory(tc.db)
 	studentService := userService.NewStudentService(
 		repos.Student,
@@ -44,6 +44,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		&testpkg.FeedbackEntryCounterMock{},
 		tc.db,
 	)
 

@@ -35,18 +35,20 @@ import (
 )
 
 // ErrForbiddenGroup indicates that the requested group is outside the
-// caller's supervised group set.
-var ErrForbiddenGroup = errors.New("caller does not supervise the requested group")
+// caller's visible group set.
+var ErrForbiddenGroup = errors.New("caller cannot view the requested group")
 
 const studentPhotoStoredURLPrefix = "/uploads/student-photos/"
 
 type Getter interface {
 	Get(ctx context.Context, requestedGroupID int64) (*Projection, error)
+	ListGroups(ctx context.Context) ([]Group, error)
 }
 
 type Dependencies struct {
 	People            userService.PersonService
 	Education         educationService.Service
+	Substitutions     educationService.SubstitutionModule
 	UserContext       userContextService.UserContextService
 	Active            activeService.Service
 	Settings          configService.SettingsService
@@ -87,6 +89,7 @@ type Group struct {
 	RoomID          *int64 `json:"room_id,string,omitempty"`
 	RoomName        string `json:"room_name,omitempty"`
 	ViaSubstitution bool   `json:"via_substitution"`
+	IsPersonal      bool   `json:"is_personal"`
 }
 
 type Student struct {
@@ -192,7 +195,7 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 	if err := s.validateDependencies(); err != nil {
 		return nil, err
 	}
-	groups, selected, err := s.resolveGroups(ctx, requestedGroupID)
+	groups, selected, err := s.resolveGroups(ctx, requestedGroupID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -214,11 +217,29 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 	return s.finishProjection(ctx, state)
 }
 
+func (s *service) ListGroups(ctx context.Context) ([]Group, error) {
+	if err := s.validateGroupDependencies(); err != nil {
+		return nil, err
+	}
+	groups, _, err := s.resolveGroups(ctx, 0, true)
+	return groups, err
+}
+
 func (s *service) validateDependencies() error {
-	if s.deps.People == nil || s.deps.Education == nil || s.deps.UserContext == nil ||
+	if err := s.validateGroupDependencies(); err != nil {
+		return err
+	}
+	if s.deps.People == nil || s.deps.Substitutions == nil ||
 		s.deps.Active == nil || s.deps.Settings == nil || s.deps.Pickups == nil ||
 		s.deps.Arrivals == nil || s.deps.Instances == nil || s.deps.CareDays == nil ||
 		s.deps.CareParticipation == nil || s.deps.StatusDays == nil {
+		return errors.New("OGS group live service is not fully configured")
+	}
+	return nil
+}
+
+func (s *service) validateGroupDependencies() error {
+	if s.deps.Education == nil || s.deps.UserContext == nil || s.deps.Settings == nil {
 		return errors.New("OGS group live service is not fully configured")
 	}
 	return nil
@@ -242,20 +263,37 @@ func (s *service) prefetchSettings(ctx context.Context) (context.Context, error)
 	return configService.WithSettingsSnapshot(ctx, snapshot), nil
 }
 
-func (s *service) resolveGroups(ctx context.Context, requestedGroupID int64) ([]Group, *educationModels.Group, error) {
+func (s *service) resolveGroups(ctx context.Context, requestedGroupID int64, allowMissingRoomNames bool) ([]Group, *educationModels.Group, error) {
 	myGroups, err := s.deps.UserContext.GetMyGroups(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load supervised groups: %w", err)
 	}
-	if len(myGroups) == 0 {
+	personalIDs := make(map[int64]bool, len(myGroups))
+	for _, group := range myGroups {
+		personalIDs[group.ID] = true
+	}
+
+	visibleGroups := myGroups
+	broad, err := s.hasOperationalOverview(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if broad && authorize.HasPermission(permissions.GroupsRead, jwt.PermissionsFromCtx(ctx)) {
+		visibleGroups, err = s.deps.Education.ListGroups(ctx, nil)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load tenant groups: %w", err)
+		}
+	}
+
+	if len(visibleGroups) == 0 {
 		if requestedGroupID > 0 {
 			return nil, nil, ErrForbiddenGroup
 		}
 		return nil, nil, nil
 	}
 
-	sortGroups(myGroups)
-	selected := selectGroup(myGroups, requestedGroupID)
+	sortGroups(visibleGroups)
+	selected := selectGroup(visibleGroups, personalIDs, requestedGroupID)
 	if selected == nil {
 		return nil, nil, ErrForbiddenGroup
 	}
@@ -264,7 +302,7 @@ func (s *service) resolveGroups(ctx context.Context, requestedGroupID int64) ([]
 	if err != nil {
 		return nil, nil, fmt.Errorf("load substitution metadata: %w", err)
 	}
-	groups, err := s.mapGroups(ctx, myGroups, substituted)
+	groups, err := s.mapGroups(ctx, visibleGroups, personalIDs, substituted, allowMissingRoomNames)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -277,8 +315,13 @@ func sortGroups(groups []*educationModels.Group) {
 	})
 }
 
-func selectGroup(groups []*educationModels.Group, requestedGroupID int64) *educationModels.Group {
+func selectGroup(groups []*educationModels.Group, personalIDs map[int64]bool, requestedGroupID int64) *educationModels.Group {
 	if requestedGroupID <= 0 {
+		for _, group := range groups {
+			if personalIDs[group.ID] {
+				return group
+			}
+		}
 		return groups[0]
 	}
 	for _, group := range groups {
@@ -289,7 +332,7 @@ func selectGroup(groups []*educationModels.Group, requestedGroupID int64) *educa
 	return nil
 }
 
-func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group, substituted map[int64]bool) ([]Group, error) {
+func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group, personalIDs, substituted map[int64]bool, allowMissingRoomNames bool) ([]Group, error) {
 	// One bulk query resolves every room name; a per-group FindGroupWithRoom
 	// loop would run on every aggregate refresh including SSE revalidations.
 	roomGroupIDs := make([]int64, 0, len(groups))
@@ -302,20 +345,49 @@ func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group
 	if len(roomGroupIDs) > 0 {
 		loaded, err := s.deps.Education.GetGroupsWithRoomsByIDs(ctx, roomGroupIDs)
 		if err != nil {
-			return nil, fmt.Errorf("load group rooms: %w", err)
+			if !allowMissingRoomNames {
+				return nil, fmt.Errorf("load group rooms: %w", err)
+			}
+			s.logger().Warn("load group rooms failed",
+				"error", err,
+			)
+		} else {
+			withRooms = loaded
 		}
-		withRooms = loaded
 	}
 
 	result := make([]Group, 0, len(groups))
 	for _, group := range groups {
-		item := Group{ID: group.ID, Name: group.Name, RoomID: group.RoomID, ViaSubstitution: substituted[group.ID]}
+		item := Group{
+			ID: group.ID, Name: group.Name, RoomID: group.RoomID,
+			ViaSubstitution: substituted[group.ID], IsPersonal: personalIDs[group.ID],
+		}
 		if withRoom := withRooms[group.ID]; withRoom != nil && withRoom.Room != nil {
 			item.RoomName = withRoom.Room.Name
 		}
 		result = append(result, item)
 	}
 	return result, nil
+}
+
+func (s *service) logger() *slog.Logger {
+	if s.deps.Logger != nil {
+		return s.deps.Logger
+	}
+	return slog.Default()
+}
+
+func (s *service) hasOperationalOverview(ctx context.Context) (bool, error) {
+	principal, principalErr := permissions.PrincipalFromContext(ctx)
+	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
+	admin := principalErr == nil && principal.HasAdminScope()
+	allowed, err := authorize.HasOperationalOverview(
+		ctx, s.deps.Settings, s.deps.UserContext, assignmentBound, admin,
+	)
+	if err != nil {
+		return false, fmt.Errorf("resolve operational overview scope: %w", err)
+	}
+	return allowed, nil
 }
 
 func (s *service) loadStudents(ctx context.Context, state *buildState) error {
@@ -761,23 +833,26 @@ func (s *service) loadTracking(ctx context.Context, studentIDs []int64) (Trackin
 }
 
 func (s *service) loadTransfers(ctx context.Context, groupID int64, date timezone.Date) ([]Transfer, error) {
-	substitutions, err := s.deps.Education.GetActiveGroupSubstitutions(ctx, groupID, date)
+	principal, err := permissions.PrincipalFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]Transfer, 0, len(substitutions))
-	for _, sub := range substitutions {
-		if sub.RegularStaffID != nil {
-			continue
-		}
+	caller := educationService.SubstitutionCaller{
+		AccountID: principal.AccountID(), TenantID: principal.TenantID(), Scope: string(principal.Scope()),
+		Roles: principal.Roles(), Admin: principal.HasAdminScope(),
+	}
+	overview, err := s.deps.Substitutions.Overview(ctx, caller, educationService.OverviewQuery{GroupID: groupID, On: &date})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Transfer, 0, len(overview.GroupHandovers))
+	for _, handover := range overview.GroupHandovers {
 		item := Transfer{
-			ID:                sub.ID,
-			GroupID:           sub.GroupID,
-			SubstituteStaffID: sub.SubstituteStaffID,
-			EndDate:           sub.EndDate.String(),
-		}
-		if sub.SubstituteStaff != nil && sub.SubstituteStaff.Person != nil {
-			item.SubstituteName = strings.TrimSpace(sub.SubstituteStaff.Person.FirstName + " " + sub.SubstituteStaff.Person.LastName)
+			ID:                handover.ID,
+			GroupID:           handover.Group.ID,
+			SubstituteStaffID: handover.Target.ID,
+			EndDate:           handover.Period.EndDate,
+			SubstituteName:    handover.Target.FullName,
 		}
 		result = append(result, item)
 	}

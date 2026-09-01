@@ -3,6 +3,7 @@ package platform
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -47,6 +48,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(common.SecurityPrincipalMiddleware)
 
 		// Announcements for users
 		r.Route("/announcements", func(r chi.Router) {

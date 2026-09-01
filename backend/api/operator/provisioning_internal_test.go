@@ -310,7 +310,7 @@ func newMockAdminDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 
 func withMockAdminRuntime(t *testing.T, req *http.Request, db *bun.DB) *http.Request {
 	t.Helper()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(context.Context, int64, func(context.Context, any) error) error {
 			return errors.New("tenant transaction is not available in this operator test")
 		},
@@ -319,13 +319,14 @@ func withMockAdminRuntime(t *testing.T, req *http.Request, db *bun.DB) *http.Req
 				if _, execErr := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); execErr != nil {
 					return execErr
 				}
-				return fn(modelBase.ContextWithTx(txCtx, &tx), tx)
+				return fn(tenant.WithTransactionForTest(txCtx, &tx), tx)
 			})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
-	return req.WithContext(tenant.WithRuntime(req.Context(), runtime))
+	return req.WithContext(tenant.WithUnitOfWork(req.Context(), runtime))
 }
 
 func (m *mockCaregiverCapabilityService) EnableCaregiverCapability(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
@@ -2698,7 +2699,7 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.
 			enableFn: func(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
 				assert.Equal(t, int64(12), tenant.FromContext(ctx))
 				assert.Equal(t, int64(34), accountID)
-				tx, ok := modelBase.TxFromContext(ctx)
+				tx, ok := tenant.TransactionFromContext(ctx)
 				require.True(t, ok)
 				require.NotNil(t, tx)
 				assert.Equal(t, userModels.EnableCaregiverCapabilityInput{
@@ -2764,7 +2765,7 @@ func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing
 			disableFn: func(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
 				assert.Equal(t, int64(12), tenant.FromContext(ctx))
 				assert.Equal(t, int64(34), accountID)
-				tx, ok := modelBase.TxFromContext(ctx)
+				tx, ok := tenant.TransactionFromContext(ctx)
 				require.True(t, ok)
 				require.NotNil(t, tx)
 				return nil, &usersSvc.CaregiverCapabilityBlockedError{

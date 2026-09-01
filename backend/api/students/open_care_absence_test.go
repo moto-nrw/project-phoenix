@@ -31,7 +31,7 @@ import (
 func TestAbsenceWriter_GrouplessStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// A staff member (the Sekretariat case) who supervises nothing, and a child
 	// with no group at all.
@@ -170,7 +170,7 @@ func TestAbsenceWriter_GrouplessStudent(t *testing.T) {
 func TestAbsenceWriterCannotEditStammdaten(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absence", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceWriterGroup")
@@ -225,7 +225,7 @@ func TestAbsenceWriterCannotEditStammdaten(t *testing.T) {
 func TestAbsenceWriter_DetailFlags(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Flag", "Staff")
 	student := testpkg.CreateTestStudent(t, tc.db, "Flag", "Kind", "1a")
@@ -254,13 +254,12 @@ func TestAbsenceWriter_DetailFlags(t *testing.T) {
 }
 
 // TestOpenCareAbsence_ParentExcusedRequestDecidable covers the parent-side
-// counterpart: a guardian's excused request is equally undecidable for every
-// non-admin in a school without groups, so the queue and the decision follow
-// the same absence gate (#2232).
+// counterpart: a guardian's excused request is visible and decidable for an
+// administrator holding the absence permission (#2232).
 func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Queue", "Staff")
@@ -270,12 +269,12 @@ func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 	require.NoError(t, testpkg.WithTenantTx(t, adminTenantCtx(chain.TenantID), tc.db, chain.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
 			var err error
-			pending, err = tc.services.ExcusedRequests.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Familienfeier")
+			pending, err = tc.resource.ExcusedRequestService.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Familienfeier")
 			return err
 		}))
 	require.NotNil(t, pending)
 
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 	absencePerms := []string{"users:read", "users:absence"}
 
 	t.Run("request_is_visible_in_the_queue", func(t *testing.T) {
@@ -300,8 +299,10 @@ func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 	})
 
 	t.Run("request_can_be_approved", func(t *testing.T) {
+		// #2267: reason policy defaults to "both"
 		req := testutil.NewAuthenticatedRequest(t, "POST",
-			fmt.Sprintf("/excused-absence-requests/%d/decide", pending.ID), map[string]any{"approve": true})
+			fmt.Sprintf("/excused-absence-requests/%d/decide", pending.ID),
+			map[string]any{"approve": true, "reason": "Passt so"})
 		rr := authExec(t, tc, req, claims, absencePerms)
 		assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	})
@@ -315,7 +316,7 @@ func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Reviewer")
 	student := testpkg.CreateTestStudent(t, tc.db, "Note", "Kind", "1a")
@@ -323,7 +324,7 @@ func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 
 	const note = "Kommt später, Termin beim Kinderarzt"
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		_, err := tc.services.ExcusedRequests.CreateRequest(
+		_, err := tc.resource.ExcusedRequestService.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,
 		)
@@ -332,7 +333,7 @@ func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 
 	rr := authExec(t, tc,
 		testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil),
-		testutil.TeacherTestClaims(int(account.ID)),
+		testutil.AdminTestClaims(int(account.ID)),
 		[]string{"users:read", "users:absence"},
 	)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -357,7 +358,7 @@ func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 func TestAbsenceWithoutReadPermissionRefused(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "NoRead", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoReadGroup")

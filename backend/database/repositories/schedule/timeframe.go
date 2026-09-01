@@ -41,7 +41,7 @@ func (r *TimeframeRepository) FindActive(ctx context.Context) ([]*schedule.Timef
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -66,29 +66,7 @@ func (r *TimeframeRepository) FindByTimeRange(ctx context.Context, startTime, en
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by time range",
-			Err: err,
-		}
-	}
-
-	return timeframes, nil
-}
-
-// FindByDescription finds timeframes with matching description
-func (r *TimeframeRepository) FindByDescription(ctx context.Context, description string) ([]*schedule.Timeframe, error) {
-	var timeframes []*schedule.Timeframe
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&timeframes).
-		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
-		Where("LOWER(description) LIKE LOWER(?)", "%"+description+"%")
-
-	query = base.WithTenantFilter(ctx, query, "timeframe")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by description",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

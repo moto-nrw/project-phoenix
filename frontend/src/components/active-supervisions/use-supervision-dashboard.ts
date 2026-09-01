@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
-import { berlinTodayISO } from "~/lib/date-helpers";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
@@ -29,9 +28,16 @@ const logger = createLogger({ component: "useSupervisionDashboard" });
 
 // BFF response type for consolidated dashboard data
 interface BFFDashboardResponse {
+  businessDay: string;
+  spontaneousStartAvailability: {
+    available: boolean;
+    blockedReason?: "weekend";
+  };
   supervisedGroups: Array<{
     id: string;
     name: string;
+    canAssign: boolean;
+    isCurrentUserSupervising?: boolean;
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;
@@ -111,8 +117,6 @@ interface BFFDashboardResponse {
 export interface SupervisionDashboardOptions {
   /** Bearer token of the signed-in user; no fetch while absent. */
   readonly sessionToken: string | undefined;
-  /** Minute clock — only its Berlin calendar day feeds the cache key. */
-  readonly now: Date;
   /** `?session=` — precise session (active group) selection from the URL. */
   readonly sessionParam: string | null;
   /** Legacy `?room=` entry point (sidebar, old links). */
@@ -138,6 +142,9 @@ export interface SupervisionDashboard {
   readonly schulhofTabEnabled: boolean;
   readonly schulhofTabAvailable: boolean;
   readonly webSpontaneousActivitiesEnabled: boolean;
+  readonly businessDay: string | undefined;
+  readonly spontaneousStartAvailability:
+    BFFDashboardResponse["spontaneousStartAvailability"] | undefined;
   readonly sessionInfoByActiveGroup: Map<string, SupervisionSessionInfo>;
   readonly trackingData: TrackingIndicatorsResponse | undefined;
   readonly pickupTimesData: Map<string, BulkPickupTime> | undefined;
@@ -194,9 +201,8 @@ export interface SupervisionDashboard {
  *   selected session travels to the fetcher through `requestedGroupIdRef`
  *   (the request parameter the stable-key contract forces), and selection
  *   changes re-run the aggregate via `mutate` instead of a key change.
- * - The Berlin calendar day is part of the key, so the aggregate rolls
- *   forward automatically at midnight (and when a backgrounded tab catches
- *   up) — `keepPreviousData` bridges the roll without a loading flash.
+ * - The backend's `businessDay` is the only calendar day this surface uses.
+ *   Browser time does not choose a school day or a spontaneous start window.
  * - A fetched aggregate is retained as a snapshot until the next one
  *   arrives (mirroring SWR's `keepPreviousData` across key changes), so
  *   values that must survive refetch gaps — e.g. the Schulhof tab
@@ -205,7 +211,7 @@ export interface SupervisionDashboard {
 export function useSupervisionDashboard(
   options: SupervisionDashboardOptions,
 ): SupervisionDashboard {
-  const { sessionToken, now, sessionParam, roomParam } = options;
+  const { sessionToken, sessionParam, roomParam } = options;
   const { data: session } = useSession();
   const accountId = session?.user.id;
 
@@ -227,13 +233,11 @@ export function useSupervisionDashboard(
   // ride in the key — this ref is the request parameter instead.
   const requestedGroupIdRef = useRef<string | null>(null);
 
-  const dashboardDay = berlinTodayISO(now);
-
   // SWR-based aggregate fetching with caching. The key prefix
   // "active-supervision-dashboard-" is invalidated by global SSE on relevant
   // events; the account suffix prevents cached data crossing account changes
-  // in the same tenant; the Berlin day suffix rolls the aggregate forward at
-  // midnight.
+  // in the same tenant. The aggregate response is the only source for the
+  // Berlin business day; browser time never participates in the request key.
   const {
     data: dashboardData,
     error: dashboardError,
@@ -241,7 +245,7 @@ export function useSupervisionDashboard(
     isLoading: isDashboardLoading,
   } = useSWRAuth<BFFDashboardResponse>(
     sessionToken
-      ? `active-supervision-dashboard-${refreshKey}-${accountId}-${dashboardDay}`
+      ? `active-supervision-dashboard-${refreshKey}-${accountId}`
       : null,
     async () => {
       logger.debug("SWR fetching dashboard data");
@@ -287,7 +291,11 @@ export function useSupervisionDashboard(
     },
     {
       keepPreviousData: true,
-      revalidateOnFocus: false,
+      // Re-fetch server time without deriving a browser calendar day. Focus
+      // covers backgrounded tabs; polling advances a continuously open tab
+      // across the Berlin midnight boundary.
+      refreshInterval: 60_000,
+      revalidateOnFocus: true,
     },
   );
 
@@ -393,6 +401,8 @@ export function useSupervisionDashboard(
   // snapshot so transient dashboard refetches don't drop the tab.
   const webSpontaneousActivitiesEnabled =
     snapshot?.capabilities?.webSpontaneousActivitiesEnabled === true;
+  const businessDay = snapshot?.businessDay;
+  const spontaneousStartAvailability = snapshot?.spontaneousStartAvailability;
   const schulhofTabEnabled = webSpontaneousActivitiesEnabled;
   const schulhofTabAvailable =
     schulhofTabEnabled && schulhofStatus?.exists === true;
@@ -782,6 +792,8 @@ export function useSupervisionDashboard(
     schulhofTabEnabled,
     schulhofTabAvailable,
     webSpontaneousActivitiesEnabled,
+    businessDay,
+    spontaneousStartAvailability,
     sessionInfoByActiveGroup,
     trackingData,
     pickupTimesData,

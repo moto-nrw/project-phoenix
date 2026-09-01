@@ -376,7 +376,7 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 	modelReader := &fakeOverviewWorkModelReader{models: []*configModel.WorkTimeModel{{
 		ID:                 modelID,
 		RotationLength:     1,
-		RotationAnchorDate: monday,
+		RotationAnchorDate: workforceDate(monday),
 		Entries: []*configModel.WorkTimeModelEntry{
 			{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 240},
 			{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 60},
@@ -395,8 +395,8 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 		context.Background(),
 		[]*users.Staff{scheduledStaff, modelStaff},
 		[]*configModel.StaffWorkSchedule{
-			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: validFrom},
-			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: validFrom},
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: workforceDate(validFrom)},
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: workforceDate(validFrom)},
 		},
 		[]timezone.Date{monday},
 	)
@@ -961,7 +961,7 @@ func TestNormalizeShiftCoverageQuery_ValidationBounds(t *testing.T) {
 		mutate func(*ShiftCoverageQuery)
 	}{
 		{name: "dates required", mutate: func(query *ShiftCoverageQuery) { query.Dates = nil }},
-		{name: "calendar date required", mutate: func(query *ShiftCoverageQuery) { query.Dates = []timezone.Date{{}} }},
+		{name: "calendar date required", mutate: func(query *ShiftCoverageQuery) { query.Dates = []timezone.Date{""} }},
 		{name: "date count bounded", mutate: func(query *ShiftCoverageQuery) {
 			query.Dates = make([]timezone.Date, 367)
 			for day := range query.Dates {

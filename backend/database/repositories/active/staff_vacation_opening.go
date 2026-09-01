@@ -57,7 +57,7 @@ func (r *StaffVacationOpeningRepository) GetByStaffAndYear(ctx context.Context, 
 		if errors.Is(err, sql.ErrNoRows) || err.Error() == "sql: no rows in result set" {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "get vacation opening by staff+year", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get vacation opening by staff+year", Err: base.TranslateNotFound(err)}
 	}
 	return opening, nil
 }
@@ -81,7 +81,7 @@ func (r *StaffVacationOpeningRepository) GetByStaffIDsAndYear(ctx context.Contex
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get vacation openings by staff IDs+year", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get vacation openings by staff IDs+year", Err: base.TranslateNotFound(err)}
 	}
 	for _, opening := range openings {
 		result[opening.StaffID] = opening

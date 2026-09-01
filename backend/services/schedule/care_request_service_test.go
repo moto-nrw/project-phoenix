@@ -2,7 +2,7 @@ package schedule_test
 
 // Integration tests for the care-schedule change-request lifecycle
 // (services/schedule/care_request_service.go): CreateRequest, Decide
-// (approve/reject + apply), WithdrawRequest, GetPendingForStudent. These port
+// (approve/reject + apply), GetPendingForStudent. These port
 // the scenarios that previously lived on the chat-request path
 // (services/messaging/requests*.go) onto the decoupled schedule-domain service
 // — the apply/merge/canonicalize/validate business rules are unchanged, only
@@ -52,6 +52,25 @@ type careFixture struct {
 	autoExcusal  *schedule.PickupAutoExcusalSyncer
 }
 
+func newCareScheduleRequestService(
+	requestRepo scheduleModels.CareScheduleChangeRequestRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	arrival schedule.ArrivalScheduleService,
+	pickup schedule.PickupScheduleService,
+	factory *services.Factory,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+) schedule.CareScheduleRequestService {
+	return schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+		requestRepo, studentRepo, personRepo, arrival, pickup, nil, nil, nil,
+		factory.UserContext, emitter, broadcaster,
+		testpkg.RequestReviewPolicy{UserContext: factory.UserContext}, nil, logger,
+		factory.StudentAudit,
+	)
+}
+
 func (f *careFixture) emitter(
 	t *testing.T,
 	messageRepo usersModels.ParentMessageRepository,
@@ -68,7 +87,7 @@ func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	sf, err := services.NewFactory(repos, db, slog.Default())
+	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
@@ -78,7 +97,7 @@ func newCareFixture(t *testing.T) *careFixture {
 		repos.InstanceStudent,
 		db,
 	)
-	svc := schedule.NewCareScheduleRequestServiceWithPickupChanges(
+	svc := schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -90,6 +109,8 @@ func newCareFixture(t *testing.T) *careFixture {
 		sf.UserContext,
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
 		nil, // broadcaster — cache-invalidation fan-out; nil no-ops
+		testpkg.RequestReviewPolicy{UserContext: sf.UserContext},
+		nil,
 		slog.Default(),
 		sf.StudentAudit,
 	)
@@ -371,17 +392,16 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 	seedCareDay(t, f, ctx, 2)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
 	wantErr := errors.New("pickup delete failed")
-	failingService := schedule.NewCareScheduleRequestService(
+	failingService := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		failingPickupDeleteService{PickupScheduleService: f.sf.PickupSchedule, err: wantErr},
-		f.sf.UserContext,
+		f.sf,
 		nil,
 		nil,
 		slog.Default(),
-		f.sf.StudentAudit,
 	)
 
 	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -414,7 +434,7 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 	ctx := f.staffCtx(f.staffAccount)
 	seedCareDay(t, f, ctx, 2)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
-	service := schedule.NewCareScheduleRequestService(
+	service := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
@@ -424,11 +444,10 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 			studentID:             f.chain.StudentID,
 			weekday:               2,
 		},
-		f.sf.UserContext,
+		f.sf,
 		nil,
 		nil,
 		slog.Default(),
-		f.sf.StudentAudit,
 	)
 
 	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -504,13 +523,13 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 	// The default fixture passes a nil emitter; wire one so the link gate is
 	// live. Only the thread repo is consulted for the access check — the pill
 	// path self-no-ops with the remaining deps nil.
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, nil, nil, nil),
 		nil,
 		slog.Default(),
@@ -576,13 +595,13 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	// account, whose sender_account_id FKs auth.accounts without cascade. Register
 	// the clear LAST so it runs FIRST (LIFO) ahead of CleanupAuthFixtures(staff).
 	settings := &toggleSettings{enabled: true}
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, settings, nil),
 		nil,
 		slog.Default(),
@@ -629,13 +648,13 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	f := newCareFixture(t)
 	// Created pill (guardian) + status pill (staff) both reference auth.accounts
 	// without cascade; clear them LIFO-first, ahead of the staff auth cleanup.
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, nil),
 		nil,
 		slog.Default(),
@@ -684,13 +703,13 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 	t.Parallel()
 
 	f := newCareFixture(t)
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
@@ -720,13 +739,13 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 	f := newCareFixture(t)
 	// Wire an emitter whose settings report messaging OFF; notification pills
 	// are dropped, but the request workflow remains available.
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
@@ -866,42 +885,6 @@ func TestCreateRequest_OnePendingPerStudent(t *testing.T) {
 	require.ErrorIs(t, err, schedule.ErrCareRequestAlreadyPending)
 }
 
-// --- Withdraw --------------------------------------------------------------
-
-// TestWithdraw_BySubmitterAndGuards: the submitter withdraws their own pending
-// request; a second withdraw of the now-terminal row fails; and a withdraw by a
-// DIFFERENT guardian account is reported not-found (id space is not probeable).
-func TestWithdraw_BySubmitterAndGuards(t *testing.T) {
-	t.Parallel()
-
-	f := newCareFixture(t)
-	ctx := f.staffCtx(f.chain.AccountID)
-	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
-
-	// A different guardian account cannot withdraw it.
-	other := testpkg.CreateTestAccount(t, f.db, "other-guardian")
-	t.Cleanup(func() {
-		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, other.ID)
-	})
-	_, err := f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, other.ID)
-	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound, "a foreign account cannot withdraw the request")
-
-	// The submitter withdraws it.
-	withdrawn, err := f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, f.chain.AccountID)
-	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusWithdrawn, withdrawn.Status)
-
-	// A second withdraw of the terminal row fails.
-	_, err = f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, f.chain.AccountID)
-	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotPending)
-
-	// A foreign account probing the now-TERMINAL row must still get not-found,
-	// not the not-pending the submitter gets: ownership is checked before the
-	// pending-status distinction, so a decided request's id stays unprobeable.
-	_, err = f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, other.ID)
-	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound, "a foreign account cannot probe a decided request's id")
-}
-
 // --- GetPendingForStudent --------------------------------------------------
 
 // TestGetPendingForStudent_NoneReturnsNil pins that a child with no open request
@@ -975,9 +958,9 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 	))
 
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
-		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf.UserContext,
+		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf,
 		nil, bc, slog.Default(),
 	)
 
@@ -1002,9 +985,9 @@ func TestDecide_ApproveCompanionEventOnlyOnEffectiveChange(t *testing.T) {
 
 	f := newCareFixture(t)
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
-		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf.UserContext,
+		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf,
 		nil, bc, slog.Default(),
 	)
 
@@ -1086,22 +1069,6 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 	require.NoError(t, f.repos.StudentCompanion.ReplaceForStudent(ctx, f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
 }
 
-// TestWithdrawRequest_BogusIDNotFound covers the repository's no-rows lock
-// branch: withdrawing an id that exists in no tenant returns not-found (never a
-// panic or a leak of another child's row). The id is derived from a real
-// fixture request, then offset past any real row, to stay hermetic.
-func TestWithdrawRequest_BogusIDNotFound(t *testing.T) {
-	t.Parallel()
-
-	f := newCareFixture(t)
-	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
-	bogusID := req.ID + 1_000_000
-
-	_, err := f.svc.WithdrawRequest(f.staffCtx(f.chain.AccountID), bogusID, f.chain.StudentID, f.chain.AccountID)
-	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound,
-		"withdrawing a non-existent request must be not-found")
-}
-
 // TestDecide_BogusIDNotFound covers the staff-decision lock on a missing row:
 // the pending-row lookup returns not-found, so Decide surfaces it instead of
 // dereferencing a nil request.
@@ -1136,13 +1103,13 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 	// without cascade; clear them LIFO-first, ahead of the auth cleanup.
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, broadcaster),
 		broadcaster,
 		slog.Default(),
@@ -1167,11 +1134,15 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 	require.NoError(t, err)
 	assertWoke(t, "creating a care request")
 
-	// withdraw (submitter withdraws own pending request) → wake
+	// reject → wake. This step used to be the guardian withdrawal, which #2267
+	// retired; a staff rejection is the remaining way an open request closes
+	// without being applied.
 	broadcaster.Reset()
-	_, err = svc.WithdrawRequest(f.staffCtx(f.chain.AccountID), req.ID, f.chain.StudentID, f.chain.AccountID)
+	_, err = svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: false, Reason: "passt nicht", ReviewedBy: f.staffAccount,
+	})
 	require.NoError(t, err)
-	assertWoke(t, "withdrawing a care request")
+	assertWoke(t, "rejecting a care request")
 
 	// re-file, then approve (applies the weekly plan) → wake
 	req2, err := svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,

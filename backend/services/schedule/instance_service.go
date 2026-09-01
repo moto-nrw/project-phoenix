@@ -350,6 +350,17 @@ type instanceService struct {
 	deps InstanceServiceDependencies
 }
 
+type spontaneousStartWorkdayGuardKey struct{}
+
+func withSpontaneousStartWorkdayGuard(ctx context.Context) context.Context {
+	return context.WithValue(ctx, spontaneousStartWorkdayGuardKey{}, struct{}{})
+}
+
+func hasSpontaneousStartWorkdayGuard(ctx context.Context) bool {
+	_, ok := ctx.Value(spontaneousStartWorkdayGuardKey{}).(struct{})
+	return ok
+}
+
 // NewInstanceService constructs an InstanceService. Panics if a required
 // dependency is nil — the service has no sensible degraded mode for lifecycle
 // transitions, so the factory must wire it completely at startup.
@@ -374,7 +385,7 @@ func (s *instanceService) now() time.Time {
 }
 
 func instanceBoundary(day timezone.Date, wallClock time.Time) time.Time {
-	return time.Date(day.Year, day.Month, day.Day, wallClock.Hour(), wallClock.Minute(), wallClock.Second(), wallClock.Nanosecond(), timezone.Berlin)
+	return time.Date(day.Year(), day.Month(), day.Day(), wallClock.Hour(), wallClock.Minute(), wallClock.Second(), wallClock.Nanosecond(), timezone.Berlin)
 }
 
 func (s *instanceService) validateStartTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
@@ -393,6 +404,18 @@ func (s *instanceService) validateStartTime(ctx context.Context, instance *sched
 		return ErrInstanceStartExpired
 	}
 	return nil
+}
+
+func validateSpontaneousStartWorkday(instance *scheduleModel.ActivityInstance, now time.Time) error {
+	if !instance.IsSpontaneous {
+		return nil
+	}
+	switch now.In(timezone.Berlin).Weekday() {
+	case time.Saturday, time.Sunday:
+		return ErrInstanceWeekend
+	default:
+		return nil
+	}
 }
 
 func (s *instanceService) validateCompleteTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
@@ -531,6 +554,11 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 
 	now := s.now()
+	if hasSpontaneousStartWorkdayGuard(ctx) && instance.IsSpontaneous {
+		if err := validateSpontaneousStartWorkday(instance, now); err != nil {
+			return nil, err
+		}
+	}
 	newGroup := &activeModel.Group{
 		StartTime:      now,
 		LastActivity:   now,
@@ -2230,7 +2258,7 @@ func (s *instanceService) hasTx(ctx context.Context) bool {
 	if s.deps.DB == nil {
 		return true // no DB wired (unit tests): nothing to lock, nothing to wrap
 	}
-	_, ok := modelBase.TxFromContext(ctx)
+	_, ok := tenant.TransactionFromContext(ctx)
 	return ok
 }
 
@@ -2402,7 +2430,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		// find). Fail fast instead of silently no-oping the admin action.
 		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
-	if _, ok := modelBase.TxFromContext(ctx); !ok {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		var result *ReplanWeekResult
 		err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			var err error

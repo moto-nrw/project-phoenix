@@ -21,6 +21,9 @@ defaults:
   run:
     shell: bash
 
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   # Draft PRs run no CI. lint/test skip implicitly via `needs: detect-changes`;
   # env-sync-check and ci-gate carry the same guard explicitly. The full suite
@@ -293,7 +296,7 @@ jobs:
     needs: [lint, test, backend-architecture-ratchet, env-sync-check]
     runs-on: ubuntu-latest
     steps:
-      - uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # release/v1
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # release/v1
         with:
           jobs: ${{ toJSON(needs) }}
           allowed-skips: lint, test, backend-architecture-ratchet

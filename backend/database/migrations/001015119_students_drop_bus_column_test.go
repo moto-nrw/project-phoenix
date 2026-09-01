@@ -2,17 +2,16 @@ package migrations
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func busColumnExists(t *testing.T, db *bun.DB) bool {
+func busColumnExists(t *testing.T, db *testpkg.DB) bool {
 	t.Helper()
 	var exists bool
 	require.NoError(t, db.NewRaw(`
@@ -78,14 +77,9 @@ func TestStudentsDropBusColumnMigration(t *testing.T) {
 	require.NoError(t, studentsDropBusColumnUp(ctx, db))
 	require.False(t, busColumnExists(t, db), "Up should drop the bus column")
 
-	// bun scans a scalar jsonb column into a custom map type via a struct field
-	// (the same shape the student repository uses to hydrate bus_days).
 	var row struct {
-		BusDays usersModel.BusDays `bun:"bus_days"`
+		BusDays json.RawMessage `bun:"bus_days"`
 	}
 	require.NoError(t, db.NewRaw(`SELECT bus_days FROM users.students WHERE id = ?`, busKid.ID).Scan(ctx, &row))
-	assert.Equal(t, usersModel.BusDays{
-		usersModel.BusDayMonday: true,
-		usersModel.BusDayFriday: true,
-	}, row.BusDays.Normalize(), "bus_days must survive the drop unchanged")
+	assert.JSONEq(t, `{"mon":true,"fri":true}`, string(row.BusDays), "bus_days must survive the drop unchanged")
 }

@@ -13,6 +13,8 @@ import { ChildMasterDataView } from "./child-master-data";
 import {
   getChildFeatures,
   getChildMasterData,
+  getRequestSharingOptions,
+  setRequestSharing,
   submitMasterDataRequest,
   updateMasterDataField,
   type ChildFeatures,
@@ -63,6 +65,8 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
     }),
     submitMasterDataRequest: vi.fn(),
     updateMasterDataField: vi.fn(),
+    getRequestSharingOptions: vi.fn(),
+    setRequestSharing: vi.fn(),
   };
 });
 
@@ -70,6 +74,8 @@ const mockGetFeatures = vi.mocked(getChildFeatures);
 const mockGetMasterData = vi.mocked(getChildMasterData);
 const mockSubmit = vi.mocked(submitMasterDataRequest);
 const mockUpdateField = vi.mocked(updateMasterDataField);
+const mockSharingOptions = vi.mocked(getRequestSharingOptions);
+const mockSetRequestSharing = vi.mocked(setRequestSharing);
 
 function features(overrides: Partial<ChildFeatures> = {}): ChildFeatures {
   return {
@@ -119,6 +125,14 @@ function masterData(overrides: Partial<ChildMasterData> = {}): ChildMasterData {
   };
 }
 
+async function submitIdentityRequest() {
+  const button = screen.getByRole("button", {
+    name: "Anfrage an OGS senden",
+  });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+}
+
 describe("ChildMasterDataView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -126,6 +140,14 @@ describe("ChildMasterDataView", () => {
     mockGetMasterData.mockResolvedValue(masterData());
     mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
     mockSubmit.mockResolvedValue([]);
+    mockSharingOptions.mockResolvedValue({
+      family_protected: false,
+      recipients: [],
+    });
+    mockSetRequestSharing.mockResolvedValue({
+      family_protected: false,
+      recipients: [],
+    });
   });
 
   it("loads and renders the editable child details", async () => {
@@ -472,14 +494,14 @@ describe("ChildMasterDataView", () => {
     );
     const firstName = screen.getByLabelText("Vorname");
     fireEvent.change(firstName, { target: { value: "Lea" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith("42", [
-        { target: "person", field_key: "first_name", value: "Lea" },
-      ]),
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [{ target: "person", field_key: "first_name", value: "Lea" }],
+        [],
+      ),
     );
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
 
@@ -513,9 +535,7 @@ describe("ChildMasterDataView", () => {
     );
     const firstName = screen.getByLabelText("Vorname");
     fireEvent.change(firstName, { target: { value: "Lea" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
     expect(
@@ -567,17 +587,77 @@ describe("ChildMasterDataView", () => {
     );
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith("42", [
-        {
-          target: "departure",
-          field_key: "allowed_departure_modes",
-          value: {
-            mon: ["pickup"],
-            tue: ["alone", "bus"],
-            wed: ["pickup"],
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [
+          {
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            value: {
+              mon: ["pickup"],
+              tue: ["alone", "bus"],
+              wed: ["pickup"],
+            },
           },
+        ],
+        [],
+      ),
+    );
+  });
+
+  it("requests only Monday to change from pickup to walking", async () => {
+    mockGetMasterData.mockResolvedValue(
+      masterData({
+        allowed_departure_modes: {
+          mon: ["pickup"],
+          tue: ["pickup"],
+          wed: ["pickup"],
+          thu: ["pickup"],
+          fri: ["pickup"],
         },
-      ]),
+      }),
+    );
+
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    const section = departureSection.closest("section");
+    if (!section) {
+      throw new Error("departure section not found");
+    }
+
+    fireEvent.click(screen.getByLabelText("Mo Geht allein"));
+    fireEvent.click(screen.getByLabelText("Mo Wird abgeholt"));
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    );
+
+    await waitFor(() =>
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [
+          {
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            value: {
+              mon: ["alone"],
+              tue: ["pickup"],
+              wed: ["pickup"],
+              thu: ["pickup"],
+              fri: ["pickup"],
+            },
+          },
+        ],
+        [],
+      ),
     );
   });
 
@@ -662,14 +742,14 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByLabelText("Klasse"), {
       target: { value: "3b" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith("42", [
-        { target: "student", field_key: "school_class", value: "3b" },
-      ]),
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [{ target: "student", field_key: "school_class", value: "3b" }],
+        [],
+      ),
     );
   });
 
@@ -683,9 +763,7 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
       target: { value: "" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     expect(
       await screen.findByText("Eine geänderte Angabe darf nicht leer sein."),
@@ -719,7 +797,7 @@ describe("ChildMasterDataView", () => {
     expect(wedPickup).toBeChecked();
   });
 
-  it("does not offer accompanied departure requests without companion-note support", async () => {
+  it("shows accompanied departures without offering them for editing", async () => {
     mockGetMasterData.mockResolvedValue(
       masterData({
         allowed_departure_modes: {
@@ -744,10 +822,17 @@ describe("ChildMasterDataView", () => {
       throw new Error("departure section not found");
     }
 
-    expect(
-      screen.queryByLabelText("Mo Mit anderem Kind"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Mo Geht mit anderem Kind")).toBeChecked();
+    expect(screen.getByLabelText("Mo Geht mit anderem Kind")).toBeDisabled();
     expect(screen.getByLabelText("Mo Geht allein")).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Ihr Kind geht an mindestens einem Tag mit einem anderen Kind. Sie können den Heimweg hier nicht ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Mo Geht allein").closest("label"),
+    ).toHaveClass("cursor-default");
     expect(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
     ).toBeDisabled();
@@ -830,9 +915,7 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByLabelText("Vorname"), {
       target: { value: "Lea" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     expect(
       await screen.findByText("Die Anfrage konnte nicht gesendet werden."),

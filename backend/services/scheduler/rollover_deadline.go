@@ -34,12 +34,6 @@ func NewRolloverDeadlineRunner(fn func(ctx context.Context, asOf time.Time) (any
 	return &rolloverDeadlineRunner{run: fn}
 }
 
-// SetRolloverDeadlineRunner wires the per-tick rollover resolver.
-// Nil runner → task does not register (opt-in pattern).
-func (s *Scheduler) SetRolloverDeadlineRunner(r RolloverDeadlineRunner) {
-	s.rolloverDeadlineRunner = r
-}
-
 // scheduleRolloverDeadlineTask registers the per-tenant tick. Reuses
 // the existing operations.session_cleanup_interval_minutes signal as
 // a "background cadence" knob would be heavier than this needs —
@@ -63,7 +57,7 @@ func (s *Scheduler) runRolloverDeadlineTaskPolling(task *ScheduledTask) {
 		slog.String("interval", rolloverDeadlineInterval.String()))
 }
 
-func (s *Scheduler) checkAndRunRolloverDeadline(task *ScheduledTask) {
+func (s *Scheduler) checkAndRunRolloverDeadline(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -77,7 +71,7 @@ func (s *Scheduler) checkAndRunRolloverDeadline(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := s.taskContext(ctx, 30*time.Minute)
 	defer cancel()
 
 	now := time.Now()

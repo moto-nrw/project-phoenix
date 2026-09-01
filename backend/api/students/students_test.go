@@ -64,7 +64,7 @@ func requireStudentsBusDaysColumn(t *testing.T, tc *testContext) {
 func TestListStudents_WithPickupTimes(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 
 	// Create two students: one with a pickup schedule, one without
 	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "WithSchedule", "PT1")
@@ -74,7 +74,7 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 	// converts to Europe/Berlin before extracting the date. The test must use
 	// the same conversion so the inserted schedule matches the handler's query,
 	// even when CI runs near midnight UTC (where UTC and Berlin dates differ).
-	berlinToday := timezone.DateOf(time.Now())
+	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7 // Sunday
@@ -170,14 +170,14 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 func TestListStudents_WithArrivalTimes(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 
 	schoolClass := fmt.Sprintf("AT-%d", time.Now().UnixNano())
 	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "WithSchedule", schoolClass)
 	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "NoSchedule", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Arrival", "Creator")
 
-	berlinToday := timezone.DateOf(time.Now())
+	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7
@@ -268,7 +268,7 @@ func TestListStudents_WithArrivalTimes(t *testing.T) {
 func TestListStudents_DayPlanningStatus(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	fixedNow := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 	tc.resource.Now = func() time.Time { return fixedNow }
 
@@ -356,7 +356,7 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 func TestListStudents(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// Create test students using fixtures
 	testpkg.CreateTestStudent(t, tc.db, "List", "StudentOne", "1a")
@@ -397,7 +397,7 @@ func TestListStudents(t *testing.T) {
 func TestListStudents_WithLocationFilter(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	testpkg.CreateTestStudent(t, tc.db, "Location", "Filter", "LF1")
 
@@ -419,7 +419,7 @@ func TestListStudents_WithLocationFilter(t *testing.T) {
 func TestListStudents_WithNameFilters(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	testpkg.CreateTestStudent(t, tc.db, "NameFilter", "Test", "NF1")
 
@@ -444,7 +444,7 @@ func TestListStudents_WithNameFilters(t *testing.T) {
 func TestListStudents_ExtendedFilters(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	testpkg.CreateTestStudent(t, tc.db, "Filter", "Student", "FI1")
 
@@ -484,7 +484,7 @@ func TestListStudents_ExtendedFilters(t *testing.T) {
 func TestGetStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Get", "Student", "GS1")
 
@@ -552,7 +552,7 @@ func TestGetStudent(t *testing.T) {
 func TestCreateStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_creates_student", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -739,7 +739,7 @@ func TestCreateStudent(t *testing.T) {
 func TestCreateStudent_WithGroupID(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "CreateGroup")
 
@@ -760,7 +760,7 @@ func TestCreateStudent_WithGroupID(t *testing.T) {
 func TestCreateStudent_WithAllOptionalFields(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("create_with_all_fields", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "FullCreateGroup")
@@ -795,7 +795,7 @@ func TestCreateStudent_WithAllOptionalFields(t *testing.T) {
 func TestUpdateStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Update", "Student", "US1")
 
@@ -846,7 +846,7 @@ func TestUpdateStudent(t *testing.T) {
 func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1")
 
@@ -884,7 +884,7 @@ func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 func TestUpdateStudent_WithSickStatus(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Sick", "Status", "SS1")
 
@@ -913,7 +913,7 @@ func TestUpdateStudent_WithSickStatus(t *testing.T) {
 func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("mark_student_as_sick_sets_sick_since", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "SickSince", "Student", "SS2")
@@ -965,7 +965,7 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("mark_as_excused_sets_excused_since", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Status", "ES1")
@@ -1016,7 +1016,7 @@ func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("both_flags_true_in_same_request_is_rejected", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Mutex", "Student", "MS1")
@@ -1073,7 +1073,7 @@ func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
 func TestUpdateStudent_ExtendedFields(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("update_health_info", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Health", "Student", "HS1")
@@ -1327,7 +1327,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 func TestUpdateStudent_PersonFields(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("update_last_name", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Original", "Last", "OL1")
@@ -1386,7 +1386,7 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 func TestDeleteStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_deletes_student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Delete", "Me", "DM1")
@@ -1422,7 +1422,7 @@ func TestDeleteStudent(t *testing.T) {
 func TestStudentRequestValidation(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("bind_validates_required_fields", func(t *testing.T) {
 		// Empty body should fail validation
@@ -1441,7 +1441,7 @@ func TestStudentRequestValidation(t *testing.T) {
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	router := tc.resource.Router()
 	assert.NotNil(t, router, "Router should not be nil")
@@ -1454,7 +1454,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 func TestRenderErrorCases(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("internal_server_error", func(t *testing.T) {
 		// Request for student that doesn't exist to trigger error path
@@ -1474,7 +1474,7 @@ func TestRenderErrorCases(t *testing.T) {
 func TestGetStudent_WithGroupAndSupervisors(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("student_with_group_and_teacher", func(t *testing.T) {
 		// Create a complete setup: teacher, group, and student
@@ -1538,7 +1538,7 @@ func TestGetStudent_WithGroupAndSupervisors(t *testing.T) {
 func TestUpdateStudent_AllPersonFields(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("update_all_person_fields", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Update", "AllFields", "UAF1")
@@ -1636,7 +1636,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 func TestCreateStudent_ExtendedValidation(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("create_with_all_optional_fields", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -1694,7 +1694,7 @@ func TestCreateStudent_ExtendedValidation(t *testing.T) {
 func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("filter_with_group_id", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroup")
@@ -1754,7 +1754,7 @@ func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 func TestListSchoolClasses(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	testpkg.CreateTestStudent(t, tc.db, "Class", "One", "DistinctClass1")
 	testpkg.CreateTestStudent(t, tc.db, "Class", "Two", "DistinctClass2")
 	testpkg.CreateTestStudent(t, tc.db, "Class", "Duplicate", "DistinctClass1")
@@ -1790,7 +1790,7 @@ func countString(values []string, needle string) int {
 func TestListStudents_AlumniHidden(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	alumniClass := fmt.Sprintf("AlumHidden-%d", time.Now().UnixNano()%1_000_000)
 

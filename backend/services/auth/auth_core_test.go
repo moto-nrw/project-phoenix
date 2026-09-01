@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -45,7 +44,7 @@ const testNewPassword = "NewStr0ng!Pass" //nolint:gosec // pragma: allowlist sec
 // setupAuthService creates an Auth Service with real database connection
 func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return serviceFactory.Auth
@@ -53,7 +52,7 @@ func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
 
 func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return serviceFactory.Invitation
@@ -1215,9 +1214,9 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
 		sentinelErr := errors.New("force outer rollback")
-		txHandler := modelBase.NewTxHandler(db)
+		txHandler := tenant.NewTransactionRunner()
 
-		err = txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		err = txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 			if err := service.AssignRoleToAccount(txCtx, int(account.ID), int(role.ID)); err != nil {
 				return err
 			}
@@ -1348,6 +1347,7 @@ func TestAuthService_CreatePermission(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 		assert.NotNil(t, perm)
 		assert.Greater(t, perm.ID, int64(0))
 		assert.Equal(t, name, perm.Name)
@@ -1369,6 +1369,7 @@ func TestAuthService_GetPermissionByID(t *testing.T) {
 		resource := fmt.Sprintf("resource-get-%s", uniqueID)
 		perm, err := service.CreatePermission(ctx, name, "desc", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		// ACT
 		result, err := service.GetPermissionByID(ctx, int(perm.ID))
@@ -1419,6 +1420,7 @@ func TestAuthService_GrantPermissionToAccount(t *testing.T) {
 		resource := fmt.Sprintf("resource-grant-%s", uniqueID)
 		perm, err := service.CreatePermission(ctx, permName, "desc", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		// ACT
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(perm.ID))
@@ -1553,6 +1555,7 @@ func TestAuthService_GetPermissionByName(t *testing.T) {
 		resource := fmt.Sprintf("res-%s", uniqueID)
 		permission, err := service.CreatePermission(ctx, permName, "Test permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
 		result, err := service.GetPermissionByName(ctx, permName)
@@ -1588,6 +1591,7 @@ func TestAuthService_UpdatePermission(t *testing.T) {
 		resource := fmt.Sprintf("upd-res-%s", uniqueID)
 		permission, err := service.CreatePermission(ctx, permName, "Original description", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		permission.Description = "Updated description"
 
@@ -1619,6 +1623,7 @@ func TestAuthService_DeletePermission(t *testing.T) {
 		resource := fmt.Sprintf("del-res-%s", uniqueID)
 		permission, err := service.CreatePermission(ctx, permName, "To be deleted", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
 		err = service.DeletePermission(ctx, int(permission.ID))
@@ -1653,6 +1658,7 @@ func TestAuthService_GetAccountPermissions(t *testing.T) {
 		resource := fmt.Sprintf("acct-res-%s", uniqueID)
 		permission, err := service.CreatePermission(ctx, permName, "Account permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(permission.ID))
 		require.NoError(t, err)
@@ -1687,6 +1693,7 @@ func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
 		resource := fmt.Sprintf("direct-res-%s", uniqueID)
 		permission, err := service.CreatePermission(ctx, permName, "Direct permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(permission.ID))
 		require.NoError(t, err)
@@ -1721,6 +1728,7 @@ func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
 		resource := fmt.Sprintf("rem-res-%s", uniqueID)
 		permission, err := service.CreatePermission(ctx, permName, "To be removed", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(permission.ID))
 		require.NoError(t, err)
@@ -1756,6 +1764,7 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 		resource := fmt.Sprintf("role-res-%s", uniqueID)
 		permission, err := service.CreatePermission(ctx, permName, "Role permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
 		err = service.AssignPermissionToRole(ctx, int(role.ID), int(permission.ID))
@@ -1784,6 +1793,7 @@ func TestAuthService_RemovePermissionFromRole(t *testing.T) {
 		resource := fmt.Sprintf("rolerem-res-%s", uniqueID)
 		permission, err := service.CreatePermission(ctx, permName, "To be removed from role", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		err = service.AssignPermissionToRole(ctx, int(role.ID), int(permission.ID))
 		require.NoError(t, err)
@@ -1815,6 +1825,7 @@ func TestAuthService_GetRolePermissions(t *testing.T) {
 		resource := fmt.Sprintf("roleget-res-%s", uniqueID)
 		permission, err := service.CreatePermission(ctx, permName, "Role permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		err = service.AssignPermissionToRole(ctx, int(role.ID), int(permission.ID))
 		require.NoError(t, err)
@@ -1949,6 +1960,7 @@ func TestAuthService_DenyPermissionToAccount(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permission, err := service.CreatePermission(ctx, "deny-perm-"+uniqueID, "Test permission", "deny-resource-"+uniqueID, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
 		err = service.DenyPermissionToAccount(ctx, 99999999, int(permission.ID))
@@ -1974,6 +1986,7 @@ func TestAuthService_DenyPermissionToAccount(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permission, err := service.CreatePermission(ctx, "deny-success-perm-"+uniqueID, "Test", "deny-success-res-"+uniqueID, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
 		err = service.DenyPermissionToAccount(ctx, int(account.ID), int(permission.ID))

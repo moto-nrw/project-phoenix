@@ -8,7 +8,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // A school role invitation left the account with a person and nothing else
@@ -72,7 +71,7 @@ func TestRepairSchoolIdentitiesCoversLegacyTeacherRole(t *testing.T) {
 // ensureLegacySystemTeacherRole returns the id of the retired platform
 // 'teacher' role, creating it when the schema no longer seeds it. The name is
 // what identifies it: base_role stays NULL, which is the whole point.
-func ensureLegacySystemTeacherRole(t *testing.T, db *bun.DB) int64 {
+func ensureLegacySystemTeacherRole(t *testing.T, db *testpkg.DB) int64 {
 	t.Helper()
 	ctx := context.Background()
 
@@ -125,7 +124,7 @@ type brokenSchoolIdentity struct {
 
 func strPtrValue(v string) *string { return &v }
 
-func createIdentityRepairRole(t *testing.T, db *bun.DB, tenantID int64, name string, baseRole *string) int64 {
+func createIdentityRepairRole(t *testing.T, db *testpkg.DB, tenantID int64, name string, baseRole *string) int64 {
 	t.Helper()
 	var id int64
 	err := db.NewRaw(`
@@ -141,7 +140,7 @@ func createIdentityRepairRole(t *testing.T, db *bun.DB, tenantID int64, name str
 // createBrokenSchoolIdentity reproduces the state the invitation flow produced:
 // an active account at the school, holding a role, with a person record and no
 // staff record.
-func createBrokenSchoolIdentity(t *testing.T, db *bun.DB, tenantID int64, firstName, lastName string, roleID int64) brokenSchoolIdentity {
+func createBrokenSchoolIdentity(t *testing.T, db *testpkg.DB, tenantID int64, firstName, lastName string, roleID int64) brokenSchoolIdentity {
 	t.Helper()
 	ctx := context.Background()
 
@@ -175,7 +174,7 @@ func createBrokenSchoolIdentity(t *testing.T, db *bun.DB, tenantID int64, firstN
 	return brokenSchoolIdentity{accountID: accountID, personID: personID}
 }
 
-func liveStaffCount(t *testing.T, db *bun.DB, personID int64) int {
+func liveStaffCount(t *testing.T, db *testpkg.DB, personID int64) int {
 	t.Helper()
 	count, err := db.NewSelect().
 		TableExpr(`users.staff AS "s"`).
@@ -228,7 +227,7 @@ func TestRepairSchoolIdentitiesTenantScopingIsEnforcedBySchema(t *testing.T) {
 		"and the caregiver profile lands under that same school")
 }
 
-func liveStaffCountForTenant(t *testing.T, db *bun.DB, personID, tenantID int64) int {
+func liveStaffCountForTenant(t *testing.T, db *testpkg.DB, personID, tenantID int64) int {
 	t.Helper()
 	count, err := db.NewSelect().
 		TableExpr(`users.staff AS "s"`).
@@ -240,7 +239,7 @@ func liveStaffCountForTenant(t *testing.T, db *bun.DB, personID, tenantID int64)
 	return count
 }
 
-func liveTeacherCountForTenant(t *testing.T, db *bun.DB, personID, tenantID int64) int {
+func liveTeacherCountForTenant(t *testing.T, db *testpkg.DB, personID, tenantID int64) int {
 	t.Helper()
 	count, err := db.NewSelect().
 		TableExpr(`users.teachers AS "t"`).
@@ -253,7 +252,7 @@ func liveTeacherCountForTenant(t *testing.T, db *bun.DB, personID, tenantID int6
 	return count
 }
 
-func liveTeacherCount(t *testing.T, db *bun.DB, personID int64) int {
+func liveTeacherCount(t *testing.T, db *testpkg.DB, personID int64) int {
 	t.Helper()
 	count, err := db.NewSelect().
 		TableExpr(`users.teachers AS "t"`).
@@ -342,7 +341,7 @@ func TestRepairSchoolIdentitiesSkipsAmbiguousNameAcrossSchools(t *testing.T) {
 // a second school where it holds a role and has no person at all.
 func createSchoolAccessWithoutPerson(
 	t *testing.T,
-	db *bun.DB,
+	db *testpkg.DB,
 	homeTenantID, targetTenantID int64,
 	firstName, lastName string,
 	targetRoleID int64,
@@ -372,7 +371,7 @@ func createSchoolAccessWithoutPerson(
 	return accountID
 }
 
-func addActiveSchoolAccess(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+func addActiveSchoolAccess(t *testing.T, db *testpkg.DB, accountID, tenantID int64) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
@@ -380,7 +379,7 @@ func addActiveSchoolAccess(t *testing.T, db *bun.DB, accountID, tenantID int64) 
 	require.NoError(t, err)
 }
 
-func addPersonAt(t *testing.T, db *bun.DB, tenantID, accountID int64, firstName, lastName string) int64 {
+func addPersonAt(t *testing.T, db *testpkg.DB, tenantID, accountID int64, firstName, lastName string) int64 {
 	t.Helper()
 	var personID int64
 	err := db.NewRaw(`
@@ -391,7 +390,7 @@ func addPersonAt(t *testing.T, db *bun.DB, tenantID, accountID int64, firstName,
 	return personID
 }
 
-func livePersonCount(t *testing.T, db *bun.DB, tenantID, accountID int64) int {
+func livePersonCount(t *testing.T, db *testpkg.DB, tenantID, accountID int64) int {
 	t.Helper()
 	count, err := db.NewSelect().
 		TableExpr(`users.persons AS "p"`).
@@ -403,7 +402,7 @@ func livePersonCount(t *testing.T, db *bun.DB, tenantID, accountID int64) int {
 	return count
 }
 
-func requireSinglePersonAt(t *testing.T, db *bun.DB, tenantID, accountID int64) int64 {
+func requireSinglePersonAt(t *testing.T, db *testpkg.DB, tenantID, accountID int64) int64 {
 	t.Helper()
 	var ids []int64
 	require.NoError(t, db.NewRaw(`
@@ -414,7 +413,7 @@ func requireSinglePersonAt(t *testing.T, db *bun.DB, tenantID, accountID int64) 
 	return ids[0]
 }
 
-func personFirstName(t *testing.T, db *bun.DB, personID int64) string {
+func personFirstName(t *testing.T, db *testpkg.DB, personID int64) string {
 	t.Helper()
 	var name string
 	require.NoError(t, db.NewRaw(`SELECT first_name FROM users.persons WHERE id = ?`, personID).
@@ -422,7 +421,7 @@ func personFirstName(t *testing.T, db *bun.DB, personID int64) string {
 	return name
 }
 
-func personLastName(t *testing.T, db *bun.DB, personID int64) string {
+func personLastName(t *testing.T, db *testpkg.DB, personID int64) string {
 	t.Helper()
 	var name string
 	require.NoError(t, db.NewRaw(`SELECT last_name FROM users.persons WHERE id = ?`, personID).
@@ -503,7 +502,7 @@ func reasonForAccount(rows []unrepairableSchoolIdentity, accountID, tenantID int
 
 // ensureLehrkraftSystemRole returns the id of the platform Lehrkraft role
 // (migration 1.15.278), creating it if this database predates it.
-func ensureLehrkraftSystemRole(t *testing.T, db *bun.DB) int64 {
+func ensureLehrkraftSystemRole(t *testing.T, db *testpkg.DB) int64 {
 	t.Helper()
 	ctx := context.Background()
 
@@ -526,7 +525,7 @@ func ensureLehrkraftSystemRole(t *testing.T, db *bun.DB) int64 {
 
 // deleteSystemRoleRow removes a tenant-less role this package had to create,
 // plus the catalog rows hanging off it (#2419).
-func deleteSystemRoleRow(t *testing.T, db *bun.DB, roleID int64) {
+func deleteSystemRoleRow(t *testing.T, db *testpkg.DB, roleID int64) {
 	t.Helper()
 	bg := context.Background()
 	_, _ = db.ExecContext(bg, `DELETE FROM auth.account_roles WHERE role_id = ?`, roleID)
@@ -534,7 +533,7 @@ func deleteSystemRoleRow(t *testing.T, db *bun.DB, roleID int64) {
 	_, _ = db.ExecContext(bg, `DELETE FROM auth.roles WHERE id = ?`, roleID)
 }
 
-func addRoleAt(t *testing.T, db *bun.DB, accountID, roleID, tenantID int64) {
+func addRoleAt(t *testing.T, db *testpkg.DB, accountID, roleID, tenantID int64) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
@@ -542,7 +541,7 @@ func addRoleAt(t *testing.T, db *bun.DB, accountID, roleID, tenantID int64) {
 	require.NoError(t, err)
 }
 
-func markPersonAsStudent(t *testing.T, db *bun.DB, tenantID, personID int64) {
+func markPersonAsStudent(t *testing.T, db *testpkg.DB, tenantID, personID int64) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO users.students (tenant_id, person_id, school_class, created_at, updated_at)

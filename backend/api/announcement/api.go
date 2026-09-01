@@ -16,7 +16,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -50,7 +49,7 @@ func (rs *Resource) Router() chi.Router {
 		// structurally; per-target scoping for a delegated announcer role (e.g.
 		// a group lead limited to their own group) is deliberately deferred.
 		// The parent-news feature flag is still re-checked in the service.
-		announce := authorize.RequiresPermission(permissions.AdminWildcard)
+		announce := common.RequiresPermission(permissions.AdminWildcard)
 		r.With(announce, withTx).Get("/", rs.list)
 		r.With(announce, withTx).Post("/", rs.create)
 		r.With(announce, withTx).Get("/{announcementId}", rs.get)

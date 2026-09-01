@@ -55,7 +55,7 @@ type StaffOffboardingServiceDependencies struct {
 
 type staffOffboardingService struct {
 	StaffOffboardingServiceDependencies
-	txHandler   *modelBase.TxHandler
+	txHandler   *tenant.TransactionRunner
 	broadcaster realtime.Broadcaster
 }
 
@@ -63,7 +63,7 @@ type staffOffboardingService struct {
 func NewStaffOffboardingService(deps StaffOffboardingServiceDependencies) StaffOffboardingService {
 	return &staffOffboardingService{
 		StaffOffboardingServiceDependencies: deps,
-		txHandler:                           modelBase.NewTxHandler(deps.DB),
+		txHandler:                           tenant.NewTransactionRunner(),
 	}
 }
 
@@ -97,7 +97,7 @@ func (s *staffOffboardingService) SetBroadcaster(broadcaster realtime.Broadcaste
 func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error {
 	groupAccessChanged := false
 	var deactivatedAccountID int64
-	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		return s.offboardStaffInTx(txCtx, staffID, deletedByStaffID, deletedBy, &groupAccessChanged, &deactivatedAccountID)
 	}); err != nil {
 		return err
@@ -117,7 +117,7 @@ func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID, de
 }
 
 func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string, groupAccessChanged *bool, deactivatedAccountID *int64) error {
-	staff, err := s.StaffRepo.FindByID(ctx, staffID)
+	staff, err := s.StaffRepo.FindByIDForUpdate(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil // idempotent: already gone (or soft-deleted)
@@ -133,6 +133,9 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 	}
 	if len(supervisors) > 0 {
 		return &UsersError{Op: opOffboardStaff, Err: ErrStaffInUse}
+	}
+	if err := s.rejectActiveGroupHandovers(ctx, staffID); err != nil {
+		return err
 	}
 
 	cleanupCounts, err := s.cleanupAssignments(ctx, staffID, deletedByStaffID)
@@ -163,6 +166,22 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 	}
 
 	return s.recordAudit(ctx, staffID, deletedBy, cleanupCounts)
+}
+
+func (s *staffOffboardingService) rejectActiveGroupHandovers(ctx context.Context, staffID int64) error {
+	options := modelBase.NewQueryOptions()
+	options.Filter = modelBase.NewFilter().
+		Equal("target_type", educationModels.GroupSubstitutionTypeGroupHandover).
+		Equal("substitute_staff_id", staffID).
+		GreaterThanOrEqual("end_date", timezone.TodayDate())
+	handovers, err := s.GroupSubstitutionRepo.ListWithOptions(ctx, options)
+	if err != nil {
+		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("active group handover check: %w", err)}
+	}
+	if len(handovers) > 0 {
+		return &UsersError{Op: opOffboardStaff, Err: ErrStaffInUse}
+	}
+	return nil
 }
 
 // cleanupAssignments removes planned/future assignments that the old

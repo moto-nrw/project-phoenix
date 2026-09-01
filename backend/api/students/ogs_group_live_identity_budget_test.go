@@ -43,7 +43,9 @@ var identityStageMatchers = map[string]func(string) bool{
 		return strings.Contains(q, "users.teachers") && strings.Contains(q, "staff_id = ")
 	},
 	"substitutions": func(q string) bool {
-		return strings.Contains(q, "education.group_substitution") &&
+		hasTable := strings.Contains(q, "education.group_substitution") ||
+			strings.Contains(q, `"education"."group_substitution"`)
+		return hasTable &&
 			(strings.Contains(q, "substitute_staff_id = ") || strings.Contains(q, `substitute_staff_id" = `))
 	},
 }
@@ -90,7 +92,7 @@ func (c *identityStageCounter) captured(stage string) []string {
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "IdentityBudget", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "IdentityBudgetGroup")

@@ -27,17 +27,17 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Get checkout context (visit + attendance status)
-	checkoutCtx, err := rs.getCheckoutContext(ctx, studentID)
+	// 3. Authorize the checkout operation
+	staff, err := rs.authorizeStudentCheckout(ctx)
 	if err != nil {
-		rs.handleCheckoutContextError(w, r, err)
+		rs.handleAuthorizationError(w, r, err)
 		return
 	}
 
-	// 4. Authorize the checkout operation
-	staff, err := rs.authorizeStudentCheckout(ctx, userClaims, checkoutCtx)
+	// 4. Get checkout context (visit + attendance status)
+	checkoutCtx, err := rs.getCheckoutContext(ctx, studentID)
 	if err != nil {
-		rs.handleAuthorizationError(w, r, err)
+		rs.handleCheckoutContextError(w, r, err)
 		return
 	}
 

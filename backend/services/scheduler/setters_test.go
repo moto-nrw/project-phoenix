@@ -1,5 +1,4 @@
-// Coverage tests for the scheduler's Set* injection methods, the
-// checkAndRunBreakAutoEnd fallback path, and the instance-overdue tick's
+// Coverage tests for the checkAndRunBreakAutoEnd fallback path and the instance-overdue tick's
 // startup + shutdown loop. These paths are reachable without a real DB by
 // exercising the non-tenant-aware branches (forEachTenant / forEachTenantSettings
 // fall back to the plain ctx when db/schoolRepo aren't wired).
@@ -28,82 +27,9 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Setter coverage — pure wiring methods that the factory calls at startup.
-// -----------------------------------------------------------------------------
-
-func TestScheduler_SetWorkSessionCleaner(t *testing.T) {
-	t.Parallel()
-
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
-	cleaner := &fakeWorkSessionCleaner{}
-	s.SetWorkSessionCleaner(cleaner)
-	assert.Same(t, cleaner, s.workSessionCleanup)
-}
-
-func TestScheduler_SetBreakAutoEnder(t *testing.T) {
-	t.Parallel()
-
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
-	ender := &mockBreakAutoEnder{}
-	s.SetBreakAutoEnder(ender)
-	assert.Same(t, ender, s.breakAutoEnder)
-}
-
-func TestScheduler_SetDB(t *testing.T) {
-	t.Parallel()
-
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
-	// Passing nil is legitimate at test time — the field is only consulted
-	// by forEachTenant, and a nil db falls back to the plain-ctx branch.
-	s.SetDB(nil)
-	assert.Nil(t, s.db)
-}
-
-func TestScheduler_SetSchoolRepo(t *testing.T) {
-	t.Parallel()
-
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
-	s.SetSchoolRepo(nil)
-	assert.Nil(t, s.schoolRepo)
-}
-
-func TestScheduler_SetSettingsService(t *testing.T) {
-	t.Parallel()
-
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
-	resolver := &stubSettingsResolver{}
-	s.SetSettingsService(resolver)
-	assert.Same(t, resolver, s.settings)
-}
-
-func TestScheduler_SetAutoStartService(t *testing.T) {
-	t.Parallel()
-
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
-	autoStart := &fakeAutoStartService{}
-	s.SetAutoStartService(autoStart)
-	assert.Same(t, autoStart, s.autoStart)
-}
-
-func TestScheduler_SetAutoEndService(t *testing.T) {
-	t.Parallel()
-
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
-	autoEnd := &fakeAutoEndService{}
-	s.SetAutoEndService(autoEnd)
-	assert.Same(t, autoEnd, s.autoEnd)
-}
-
-// -----------------------------------------------------------------------------
 // checkAndRunBreakAutoEnd — the non-tenant-aware branch is exercised by
 // leaving db/schoolRepo unset; forEachTenant then falls back to fn(ctx).
 // -----------------------------------------------------------------------------
-
-type fakeWorkSessionCleaner struct{}
-
-func (f *fakeWorkSessionCleaner) CleanupOpenSessions(_ context.Context) (int, error) {
-	return 0, nil
-}
 
 type countingBreakAutoEnder struct {
 	mu    sync.Mutex
@@ -129,7 +55,7 @@ func TestCheckAndRunBreakAutoEnd_HappyPath(t *testing.T) {
 
 	task := &ScheduledTask{Name: "break-auto-end", Schedule: "60s-poll"}
 
-	s.checkAndRunBreakAutoEnd(task)
+	s.checkAndRunBreakAutoEnd(context.Background(), task)
 
 	assert.Equal(t, 1, ender.calls, "break auto-ender should run once")
 }
@@ -146,7 +72,7 @@ func TestCheckAndRunBreakAutoEnd_ServiceError(t *testing.T) {
 
 	// Error path: the func inside forEachTenant returns the err, which
 	// logs and continues — no panic, no blocked task. Running is reset.
-	s.checkAndRunBreakAutoEnd(task)
+	s.checkAndRunBreakAutoEnd(context.Background(), task)
 
 	task.mu.Lock()
 	defer task.mu.Unlock()
@@ -163,7 +89,7 @@ func TestCheckAndRunBreakAutoEnd_AlreadyRunning(t *testing.T) {
 
 	task := &ScheduledTask{Name: "break-auto-end", Running: true}
 
-	s.checkAndRunBreakAutoEnd(task)
+	s.checkAndRunBreakAutoEnd(context.Background(), task)
 
 	assert.Equal(t, 0, ender.calls, "must skip when task already running")
 }
@@ -179,7 +105,7 @@ func TestCheckAndRunBreakAutoEnd_ZeroCount(t *testing.T) {
 
 	task := &ScheduledTask{Name: "break-auto-end"}
 
-	s.checkAndRunBreakAutoEnd(task)
+	s.checkAndRunBreakAutoEnd(context.Background(), task)
 	assert.Equal(t, 1, ender.calls)
 }
 
@@ -265,7 +191,7 @@ func TestCheckAndRunOverdue_AlreadyRunning(t *testing.T) {
 
 	task := &ScheduledTask{Name: "instance-overdue", Running: true}
 
-	s.checkAndRunOverdue(task)
+	s.checkAndRunOverdue(context.Background(), task)
 
 	assert.Equal(t, 0, repo.calls, "must skip when task running")
 }
@@ -285,7 +211,7 @@ func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
 
 	task := &ScheduledTask{Name: "instance-overdue"}
 
-	s.checkAndRunOverdue(task)
+	s.checkAndRunOverdue(context.Background(), task)
 
 	assert.Equal(t, 1, repo.calls, "one call for the configured unit-test tenant")
 	assert.Empty(t, spy.CallsByMethod("tenant"), "no overdue instances → no broadcast")
@@ -301,7 +227,7 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 	t.Parallel()
 
 	today := timezone.NewDate(2026, 4, 20)
-	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
+	now := time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local)
 	newInstance := func(id, roomID int64) *scheduleModel.ActivityInstance {
 		inst := &scheduleModel.ActivityInstance{
 			Date:          today,
@@ -370,7 +296,7 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 				context.Background(),
 				1,
 				5,
-				time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local),
+				time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local),
 			)
 
 			assert.Empty(t, spy.CallsByMethod("tenant"))
@@ -547,7 +473,7 @@ func TestCheckAndRunAutoStart_DefaultDisabled(t *testing.T) {
 
 	task := &ScheduledTask{Name: "timetable-auto-start"}
 
-	s.checkAndRunAutoStart(task)
+	s.checkAndRunAutoStart(context.Background(), task)
 
 	svc.mu.Lock()
 	defer svc.mu.Unlock()
@@ -565,7 +491,7 @@ func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
 
 	task := &ScheduledTask{Name: "timetable-auto-start"}
 
-	s.checkAndRunAutoStart(task)
+	s.checkAndRunAutoStart(context.Background(), task)
 
 	svc.mu.Lock()
 	defer svc.mu.Unlock()
@@ -629,7 +555,7 @@ func TestCheckAndRunAutoEnd_DefaultDisabled(t *testing.T) {
 
 	svc := &fakeAutoEndService{}
 	s := unitScheduler(&Scheduler{autoEnd: svc, logger: slog.Default(), settings: &stubSettingsResolver{}})
-	s.checkAndRunAutoEnd(&ScheduledTask{Name: "timetable-auto-end"})
+	s.checkAndRunAutoEnd(context.Background(), &ScheduledTask{Name: "timetable-auto-end"})
 
 	svc.mu.Lock()
 	defer svc.mu.Unlock()
@@ -649,7 +575,7 @@ func TestCheckAndRunAutoEnd_PassesConfiguredGrace(t *testing.T) {
 			intVal:      15,
 		}})
 
-	s.checkAndRunAutoEnd(&ScheduledTask{Name: "timetable-auto-end"})
+	s.checkAndRunAutoEnd(context.Background(), &ScheduledTask{Name: "timetable-auto-end"})
 
 	svc.mu.Lock()
 	defer svc.mu.Unlock()
@@ -668,7 +594,7 @@ func TestCheckAndRunAutoEnd_UsesEnabledTimetableDefault(t *testing.T) {
 			configModel.KeyTimetableAutoEndEnabled: true,
 		}}})
 
-	s.checkAndRunAutoEnd(&ScheduledTask{Name: "timetable-auto-end"})
+	s.checkAndRunAutoEnd(context.Background(), &ScheduledTask{Name: "timetable-auto-end"})
 
 	svc.mu.Lock()
 	defer svc.mu.Unlock()
@@ -725,7 +651,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 		overdueBroadcaster: spy})
 
 	// Use a `now` set to 10:30 local on the same day → 30 min past threshold=5.
-	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
+	now := time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local)
 	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, now)
 
 	assert.Len(t, spy.CallsByMethod("tenant"), 1, "broadcast attempted even when failure is expected")

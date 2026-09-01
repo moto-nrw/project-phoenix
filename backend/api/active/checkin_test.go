@@ -13,11 +13,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/active"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -173,7 +172,7 @@ func TestAttendance_Fields(t *testing.T) {
 
 	t.Run("attendance has required fields", func(t *testing.T) {
 		now := time.Now()
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		attendance := &activeModels.Attendance{
 			StudentID:   123,
 			Date:        today,
@@ -198,7 +197,7 @@ func TestAttendance_Fields(t *testing.T) {
 
 		attendance := &activeModels.Attendance{
 			StudentID:    123,
-			Date:         timezone.TodayDate(),
+			Date:         timezone.NewDate(2026, 8, 24),
 			CheckInTime:  now,
 			CheckedInBy:  456,
 			DeviceID:     111,
@@ -217,14 +216,11 @@ func TestAttendance_Fields(t *testing.T) {
 // Handler Integration Tests (Hermetic with Test DB)
 // =============================================================================
 
-// setupCheckinTestHandler creates a handler with real services for integration testing
-func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
+// setupCheckinRoute creates the check-in route with real services.
+func setupCheckinRoute(t *testing.T, db *bun.DB) *active.Resource {
 	t.Helper()
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
+	_, serviceFactory := testutil.SetupAPITest(t)
 
 	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Education, serviceFactory.Schulhof, serviceFactory.UserContext, serviceFactory.Settings, db, slog.Default())
 }
@@ -258,7 +254,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	checkinPermissions := []string{permissions.VisitsUpdate}
 
 	t.Run("returns 401 when no JWT token", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create minimal fixtures
 		activity := testpkg.CreateTestActivityGroup(t, db, "no-auth-test")
@@ -279,7 +275,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 401 for invalid JWT token", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "InvalidToken", "Student", "1a")
 
@@ -294,7 +290,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid student ID in URL", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create staff with account
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest")
@@ -318,7 +314,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 400 when active_group_id is missing", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create staff with account
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID")
@@ -339,7 +335,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 404 when active group does not exist", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create staff with account
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest")
@@ -360,7 +356,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 403 when user is not staff", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create person with account but NO staff record
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User")
@@ -387,7 +383,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	t.Run("staff without a group relation to the student may check in", func(t *testing.T) {
 		// #2329: being verified staff of the tenant is the whole gate — the
 		// former "you must be their group teacher" refusal is gone.
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "3a")
@@ -409,7 +405,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 409 when active group session has ended", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Create teacher with account and education group
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "EndedSession", "Teacher")
@@ -448,7 +444,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("returns 409 when room capacity is reached", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "FullRoom", "Teacher")
 		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Full Room Group")
 		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
@@ -475,7 +471,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("successful checkin creates visit", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		// Ensure web manual device exists (required for manual check-ins)
 		_ = testpkg.EnsureWebManualDevice(t, db)

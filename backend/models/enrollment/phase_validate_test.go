@@ -85,7 +85,7 @@ func TestPhase_Validate_RequiresServiceStart(t *testing.T) {
 	t.Parallel()
 
 	p := validPhase()
-	p.ServiceStartDate = timezone.Date{}
+	p.ServiceStartDate = timezone.Date("")
 	err := p.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_start_date")
@@ -95,7 +95,7 @@ func TestPhase_Validate_RequiresServiceEnd(t *testing.T) {
 	t.Parallel()
 
 	p := validPhase()
-	p.ServiceEndDate = timezone.Date{}
+	p.ServiceEndDate = timezone.Date("")
 	err := p.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_end_date")

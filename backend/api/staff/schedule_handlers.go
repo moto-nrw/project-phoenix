@@ -121,7 +121,7 @@ func (rs *Resource) buildTemplateScheduleResponse(ctx context.Context, staff *us
 	}
 	anchor := model.RotationAnchorDate
 	if staff.RotationAnchorDate != nil {
-		anchor = *staff.RotationAnchorDate
+		anchor = config.NewCalendarDate(staff.RotationAnchorDate.Year(), staff.RotationAnchorDate.Month(), staff.RotationAnchorDate.Day())
 	}
 
 	rows, err := rs.WorkSessionService.GetCurrentScheduleRows(ctx, staff.ID)
@@ -159,9 +159,9 @@ func (rs *Resource) buildCustomScheduleResponse(ctx context.Context, staff *user
 
 	entries, totals, rotation := scheduleRowsToResponseParts(rows)
 	earliest := earliestValidFrom(rows)
-	anchor := timezone.Date{}
+	anchor := config.CalendarDate("")
 	if staff.RotationAnchorDate != nil {
-		anchor = *staff.RotationAnchorDate
+		anchor = config.NewCalendarDate(staff.RotationAnchorDate.Year(), staff.RotationAnchorDate.Month(), staff.RotationAnchorDate.Day())
 	} else if earliest != nil {
 		anchor = *earliest
 	}
@@ -180,8 +180,8 @@ func (rs *Resource) buildCustomScheduleResponse(ctx context.Context, staff *user
 
 // earliestValidFrom returns the earliest valid_from across schedule rows, or
 // nil when there are none.
-func earliestValidFrom(rows []*config.StaffWorkSchedule) *timezone.Date {
-	var earliest *timezone.Date
+func earliestValidFrom(rows []*config.StaffWorkSchedule) *config.CalendarDate {
+	var earliest *config.CalendarDate
 	for _, row := range rows {
 		if earliest == nil || row.ValidFrom.Before(*earliest) {
 			vf := row.ValidFrom
@@ -193,7 +193,7 @@ func earliestValidFrom(rows []*config.StaffWorkSchedule) *timezone.Date {
 
 // anchorString renders a rotation anchor; the zero Date (no anchor and no
 // schedule rows, only possible with rotation_length 1) renders empty.
-func anchorString(anchor timezone.Date) string {
+func anchorString(anchor config.CalendarDate) string {
 	if anchor.IsZero() {
 		return ""
 	}

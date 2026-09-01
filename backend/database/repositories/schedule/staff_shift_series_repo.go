@@ -42,7 +42,7 @@ func (r *StaffShiftSeriesRepository) CapValidUntil(ctx context.Context, id int64
 	query = base.WithTenantFilter(ctx, query, "staff_shift_series")
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "cap staff shift series valid_until", Err: err}
+		return &modelBase.DatabaseError{Op: "cap staff shift series valid_until", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -64,11 +64,11 @@ func (r *StaffShiftSeriesRepository) CapAllByStaffID(ctx context.Context, staffI
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "cap staff shift series by staff", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "cap staff shift series by staff", Err: base.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "cap staff shift series by staff", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "cap staff shift series by staff", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -92,7 +92,7 @@ func (r *StaffShiftSeriesRepository) FindOverlappingInLineage(ctx context.Contex
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find overlapping staff shift series in lineage", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find overlapping staff shift series in lineage", Err: base.TranslateNotFound(err)}
 	}
 	return series, nil
 }

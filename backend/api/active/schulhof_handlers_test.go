@@ -58,6 +58,11 @@ func (m *mockUserContextService) GetCurrentStaff(ctx context.Context) (*users.St
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockUserContextService) HasCurrentStaff(ctx context.Context) (bool, error) {
+	staff, err := m.GetCurrentStaff(ctx)
+	return err == nil && staff != nil, err
+}
+
 func (m *mockUserContextService) GetNavigationContext(context.Context) (*usercontextsvc.NavigationContext, error) {
 	return nil, errors.New("not implemented")
 }

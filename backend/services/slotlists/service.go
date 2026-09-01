@@ -181,11 +181,16 @@ type Dependencies struct {
 	ArrivalService      arrivalTimeReader
 	ListExport          *listexport.RendererService
 	Settings            settingsReader
-	UserContext         authorize.StudentAccessUserContext
+	UserContext         slotListUserContext
 	Logger              *slog.Logger
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
 	Now func() time.Time
+}
+
+type slotListUserContext interface {
+	authorize.StudentAccessUserContext
+	GetCurrentStaff(ctx context.Context) (*userModel.Staff, error)
 }
 
 type service struct {
@@ -205,7 +210,7 @@ type service struct {
 	arrivalService      arrivalTimeReader
 	listExport          *listexport.RendererService
 	settings            settingsReader
-	userContext         authorize.StudentAccessUserContext
+	userContext         slotListUserContext
 	logger              *slog.Logger
 	// now is the clock the service reads "today" and "has this slot started
 	// yet" from. Production leaves it nil (→ time.Now); tests inject a fixed
@@ -1698,7 +1703,7 @@ func (s *service) beforeEffectiveArrival(date timezone.Date, arrival *scheduleSv
 	}
 	at := *arrival.ArrivalTime
 	start := time.Date(
-		date.Year, date.Month, date.Day,
+		date.Year(), date.Month(), date.Day(),
 		at.Hour(), at.Minute(), at.Second(), at.Nanosecond(),
 		timezone.Berlin,
 	)
@@ -1707,12 +1712,12 @@ func (s *service) beforeEffectiveArrival(date timezone.Date, arrival *scheduleSv
 
 func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Time) {
 	start := time.Date(
-		inst.Date.Year, inst.Date.Month, inst.Date.Day,
+		inst.Date.Year(), inst.Date.Month(), inst.Date.Day(),
 		inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), inst.StartTime.Nanosecond(),
 		timezone.Berlin,
 	)
 	end := time.Date(
-		inst.Date.Year, inst.Date.Month, inst.Date.Day,
+		inst.Date.Year(), inst.Date.Month(), inst.Date.Day(),
 		inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), inst.EndTime.Nanosecond(),
 		timezone.Berlin,
 	)

@@ -265,6 +265,55 @@ describe("SupervisionProvider", () => {
     },
   );
 
+  it("updates a group's personal section after a handover", async () => {
+    setupFetchMock({
+      groups: {
+        groups: [
+          {
+            id: "10",
+            name: "Incoming Group",
+            is_personal: false,
+            via_substitution: false,
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.is_personal).toBe(false);
+    });
+
+    setupFetchMock({
+      groups: {
+        groups: [
+          {
+            id: "10",
+            name: "Incoming Group",
+            is_personal: true,
+            via_substitution: true,
+          },
+        ],
+      },
+    });
+
+    await act(async () => {
+      await result.current.refresh({
+        force: true,
+        groupsOnly: true,
+        silent: true,
+      });
+    });
+
+    expect(result.current.groups[0]).toMatchObject({
+      is_personal: true,
+      via_substitution: true,
+    });
+  });
+
   it("should debounce rapid refresh calls", async () => {
     setupFetchMock(); // Use defaults
 
@@ -636,8 +685,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
     vi.restoreAllMocks();
   });
 
-  it("should fetch from the overview endpoint when user is admin", async () => {
-    setOverviewScope("admins");
+  it("fetches from the overview endpoint for admins in own mode", async () => {
     setupFetchMock({
       adminAll: {
         success: true,
@@ -756,7 +804,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
 
   // Deactivation: back on the restrictive scope, the client stops asking for
   // the school-wide list entirely instead of collecting 403s.
-  it("never asks for the overview endpoint under the own scope", async () => {
+  it("never asks for the overview endpoint for staff under the own scope", async () => {
     setOverviewScope("own");
     setupFetchMock({
       supervised: {
@@ -772,7 +820,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
     });
 
     const { result } = renderHook(() => useSupervision(), {
-      wrapper: createWrapper("test-token", ["admin"]),
+      wrapper: createWrapper("test-token", ["user"]),
     });
 
     await waitFor(() => {

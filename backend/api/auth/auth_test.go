@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/services"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -43,22 +42,28 @@ func init() {
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *authAPI.Resource
 }
 
-// setupTestContext creates test resources for auth handler tests
-func setupTestContext(t *testing.T) *testContext {
+// setupAuthRoute creates the auth route and only exposes its resource.
+func setupAuthRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, db)
+	db, resource := setupAuthDependenciesRoute(t)
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
+}
+
+func setupAuthDependenciesRoute(t *testing.T) (*bun.DB, *authAPI.Resource) {
+	t.Helper()
+	db, svc := testutil.SetupAPITest(t)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, svc.Schools, db)
+	resource.SettingsService = svc.Settings
+	resource.SetGuardianInvitationService(svc.GuardianInvitation)
+	return db, resource
 }
 
 // setupPublicRouter creates a router for testing public endpoints
@@ -73,7 +78,7 @@ func setupPublicRouter(t *testing.T) chi.Router {
 func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
 
-	tc := setupTestContext(t)
+	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
@@ -88,7 +93,7 @@ func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
 
-	tc := setupTestContext(t)
+	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
@@ -103,7 +108,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 // TestLogin tests the login endpoint
 func TestLogin(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
@@ -640,7 +645,8 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 // TestPasswordReset tests the password reset endpoints
 func TestPasswordReset(t *testing.T) {
 	t.Parallel()
-	router := setupPublicRouter(t)
+	db, router := setupPublicRouterWithDB(t)
+	testpkg.OwnTestPasswordResetTokensForEmail(t, db, "admin@example.com")
 
 	t.Run("initiate always returns success", func(t *testing.T) {
 		body := map[string]string{
@@ -1191,6 +1197,7 @@ func TestAccountManagement(t *testing.T) {
 
 	adminClaims := testutil.AdminTestClaims(1)
 	adminClaims.Scope = tenant.ScopePlatform
+	adminClaims.TenantID = 0
 
 	t.Run("list accounts with permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts", nil)
@@ -1876,7 +1883,7 @@ func TestDeleteRole(t *testing.T) {
 func setupRefreshTokenRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
 
-	tc := setupTestContext(t)
+	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
 
@@ -1945,10 +1952,10 @@ func TestLogout(t *testing.T) {
 // TestListTenants tests the public GET /auth/tenants endpoint
 func TestListTenants(t *testing.T) {
 	t.Parallel()
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -2013,18 +2020,17 @@ func TestListTenants(t *testing.T) {
 // INVITATION HANDLER — SUCCESS PATH TESTS (multi-tenancy coverage)
 // ============================================================================
 
-// setupTestContextWithSchoolRepo is like setupTestContext but provides a SchoolRepo
+// setupAuthRouteWithSchoolRepo is like setupAuthRoute but provides a SchoolRepo
 // so the school name resolution branch in createInvitation is exercised.
-func setupTestContextWithSchoolRepo(t *testing.T) *testContext {
+func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -2033,7 +2039,7 @@ func setupTestContextWithSchoolRepo(t *testing.T) *testContext {
 // covering WithTenantTx wrapper, school name resolution, and slog output.
 func TestInvitationCreateSuccess(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContextWithSchoolRepo(t)
+	tc := setupAuthRouteWithSchoolRepo(t)
 
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
@@ -2160,6 +2166,7 @@ func TestLinkToTenant(t *testing.T) {
 		email := fmt.Sprintf("link-success-%d@example.com", time.Now().UnixNano())
 		password := "SecurePass123!"
 		account := testpkg.CreateTestAccountWithPassword(t, db, email, password)
+		testpkg.OwnTestAccountWithIdentity(t, db, account.ID)
 		// Linking provisions the person and staff record too (#2222).
 
 		// The identity fields are required for a staff-tier role (#2222).
@@ -2230,7 +2237,7 @@ func TestLinkToTenant(t *testing.T) {
 // This ensures the frontend cannot resolve a decommissioned tenant via subdomain lookup.
 func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	t.Parallel()
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 
 	// Create a dedicated tenant for this test using a high ID to avoid collisions.
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -2242,7 +2249,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

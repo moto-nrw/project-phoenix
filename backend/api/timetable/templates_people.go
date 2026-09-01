@@ -30,18 +30,18 @@ func (rs *Resource) templateRosterValidFrom(
 		if startDate != nil {
 			return *startDate, nil
 		}
-		return timezone.TodayDate(), nil
+		return rs.todayDate(), nil
 	}
 	if rs.CalendarPeriodService == nil {
-		return timezone.Date{}, errors.New("calendar period service not wired")
+		return timezone.Date(""), errors.New("calendar period service not wired")
 	}
 	period, err := rs.CalendarPeriodService.GetPeriodByID(ctx, *calendarPeriodID)
 	if err != nil {
-		return timezone.Date{}, err
+		return timezone.Date(""), err
 	}
 	if startDate != nil {
 		if startDate.Before(period.StartDate) || startDate.After(period.EndDate) {
-			return timezone.Date{}, fmt.Errorf("%w (%s to %s)",
+			return timezone.Date(""), fmt.Errorf("%w (%s to %s)",
 				errTemplateStartDateOutsidePeriod,
 				period.StartDate.String(), period.EndDate.String())
 		}
@@ -78,12 +78,12 @@ func (rs *Resource) templateWritePreflight(
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"resolve template grade level limit failed", err))
-		return 0, timezone.Date{}, false
+		return 0, timezone.Date(""), false
 	}
 	rosterValidFrom, err = rs.templateRosterValidFrom(ctx, calendarPeriodID, startDate)
 	if err != nil {
 		renderTemplatePeriodLookupError(w, r, err)
-		return 0, timezone.Date{}, false
+		return 0, timezone.Date(""), false
 	}
 	return gradeLevelMax, rosterValidFrom, true
 }

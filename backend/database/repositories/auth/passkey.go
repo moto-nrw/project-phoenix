@@ -39,7 +39,7 @@ func (r *PasskeyCredentialRepository) FindActiveByAccountID(ctx context.Context,
 		Order("created_at ASC").
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active passkeys by account id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active passkeys by account id", Err: base.TranslateNotFound(err)}
 	}
 	return credentials, nil
 }
@@ -55,24 +55,22 @@ func (r *PasskeyCredentialRepository) FindActiveByCredentialIDAndUserHandle(ctx 
 		Limit(1).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active passkey by credential id and user handle", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active passkey by credential id and user handle", Err: base.TranslateNotFound(err)}
 	}
 	return credential, nil
 }
 
 func (r *PasskeyCredentialRepository) UpdateAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error {
-	res, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.PasskeyCredential)(nil)).
-		ModelTableExpr(passkeyCredentialTable).
-		Set("credential_json = ?::jsonb", string(credentialJSON)).
-		Set("last_used_at = ?", usedAt).
-		Where(whereID, id).
-		Where("revoked_at IS NULL").
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "update passkey after use", Err: err}
+	credential := &auth.PasskeyCredential{
+		Model:          modelBase.Model{ID: id},
+		CredentialJSON: credentialJSON,
+		LastUsedAt:     &usedAt,
 	}
-	return base.AssertRowsAffected(res, 1, "update passkey after use")
+	updated, err := r.UpdateColumnsIfNull(ctx, credential, "revoked_at", "credential_json", "last_used_at")
+	if err != nil {
+		return base.UpdateOperationError(err, "update passkey after use")
+	}
+	return base.AssertRowsAffectedCount(updated, 1, "update passkey after use")
 }
 
 func (r *PasskeyCredentialRepository) Revoke(ctx context.Context, accountID, id int64, revokedAt time.Time) error {
@@ -85,7 +83,7 @@ func (r *PasskeyCredentialRepository) Revoke(ctx context.Context, accountID, id 
 		Where("revoked_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "revoke passkey", Err: err}
+		return &modelBase.DatabaseError{Op: "revoke passkey", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(res, 1, "revoke passkey")
 }
@@ -115,7 +113,7 @@ func (r *PasskeySessionRepository) Consume(ctx context.Context, id, purpose stri
 		Returning("*").
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "consume passkey session", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "consume passkey session", Err: base.TranslateNotFound(err)}
 	}
 	return session, nil
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
-import { LogOut } from "lucide-react";
+import { LogOut, UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
@@ -17,6 +17,7 @@ import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   CardGridSkeleton,
@@ -41,6 +42,7 @@ import { TransitStudentsSection } from "~/components/rooms/transit-students-sect
 import {
   SCHULHOF_ROOM_NAME,
   SCHULHOF_TAB_ID,
+  additionalSupervisionTarget,
 } from "~/components/active-supervisions/view-model";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
@@ -51,10 +53,7 @@ import { useSchulhofActions } from "~/components/active-supervisions/use-schulho
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
 import { SupervisionHeader } from "~/components/active-supervisions/supervision-header";
-
-// Re-exported for its unit tests; the implementation lives with the other
-// active-supervisions helpers.
-export { spontaneousActivityWindow } from "~/components/active-supervisions/spontaneous-window";
+import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 
 function MeinRaumPageContent() {
   const attendanceWebEnabled = useAttendanceWebEnabled();
@@ -75,6 +74,8 @@ function MeinRaumPageContent() {
   const sessionParam = searchParams.get("session");
   const roomParam = searchParams.get("room");
 
+  // Display clock for relative pickup information only. The dashboard's
+  // school day and spontaneous-start window come exclusively from the backend.
   const now = useMinuteClock();
 
   // SSE is handled globally by TenantAuthWrapper - no page-level setup
@@ -84,7 +85,6 @@ function MeinRaumPageContent() {
   // here - it's already called in TenantAuthWrapper.
   const dashboard = useSupervisionDashboard({
     sessionToken: session?.user?.token,
-    now,
     sessionParam,
     roomParam,
   });
@@ -112,6 +112,7 @@ function MeinRaumPageContent() {
 
   const filters = useStudentFilters(students);
   const reopen = useReopenBanner();
+  const [showAddSupervisor, setShowAddSupervisor] = useState(false);
 
   const actions = useTimetableActions({
     allRooms,
@@ -130,10 +131,18 @@ function MeinRaumPageContent() {
     clearReopenable: reopen.clearReopenable,
   });
 
+  const spontaneousStartBlockedReason =
+    dashboard.spontaneousStartAvailability?.blockedReason === "weekend"
+      ? "Spontane Aktivitäten sind nur montags bis freitags möglich."
+      : undefined;
+
   const schulhof = useSchulhofActions({
     schulhofStatus,
     currentStaffId,
     currentRoom,
+    spontaneousStartBlockedReason: schulhofStatus?.activeGroupId
+      ? undefined
+      : spontaneousStartBlockedReason,
     refresh,
     setError,
   });
@@ -229,6 +238,8 @@ function MeinRaumPageContent() {
     <SpontaneousActivityStart
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id}
+      disabled={dashboard.spontaneousStartAvailability?.available === false}
+      disabledReason={spontaneousStartBlockedReason}
       isStarting={actions.isStartingSpontaneous}
       occupiedRoomIds={occupiedRoomIds}
       onStart={(payload) =>
@@ -253,6 +264,43 @@ function MeinRaumPageContent() {
         }
       />
     </div>
+  ) : null;
+
+  const additionalSupervisionActiveGroupId = additionalSupervisionTarget({
+    currentRoom,
+    isSchulhofTabSelected,
+    schulhofStatus,
+  });
+  const isCurrentSupervisionOwn = isSchulhofTabSelected
+    ? (schulhofStatus?.isUserSupervising ?? false)
+    : (currentRoom?.isCurrentUserSupervising ?? false);
+
+  const addSupervisorButton = additionalSupervisionActiveGroupId ? (
+    <>
+      {isCurrentSupervisionOwn ? (
+        <StatusBadge label="Eigene Aufsicht" tone="green" />
+      ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={() => setShowAddSupervisor(true)}
+      >
+        <UserPlus className="h-4 w-4" aria-hidden="true" />
+        Betreuer hinzufügen
+      </Button>
+    </>
+  ) : null;
+  const mobileAddSupervisorButton = additionalSupervisionActiveGroupId ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      onClick={() => setShowAddSupervisor(true)}
+      aria-label="Betreuer hinzufügen"
+    >
+      <UserPlus className="h-4 w-4" aria-hidden="true" />
+    </Button>
   ) : null;
 
   // Show unclaimed rooms banner when user has no supervised groups and no Schulhof
@@ -409,34 +457,52 @@ function MeinRaumPageContent() {
         onClearAllFilters={filters.clearAllFilters}
         onTabChange={handleTabChange}
         actionButton={
-          // Only show release button when user IS supervising Schulhof
-          // "Beaufsichtigen" button is shown in the empty state instead (no duplicate)
-          isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
-            <button
-              type="button"
-              onClick={() => schulhof.setShowReleaseModal(true)}
-              className="flex h-10 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 text-red-600 transition-colors hover:bg-red-100"
-              aria-label="Aufsicht abgeben"
-            >
-              <LogOut className="h-5 w-5" aria-hidden="true" />
-              <span className="text-sm font-medium">Aufsicht abgeben</span>
-            </button>
+          additionalSupervisionActiveGroupId ||
+          (isSchulhofTabSelected && schulhofStatus?.isUserSupervising) ? (
+            <div className="flex items-center gap-2">
+              {isDesktop ? addSupervisorButton : mobileAddSupervisorButton}
+              {isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
+                <button
+                  type="button"
+                  onClick={() => schulhof.setShowReleaseModal(true)}
+                  className="flex h-10 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 text-red-600 transition-colors hover:bg-red-100"
+                  aria-label="Aufsicht abgeben"
+                >
+                  <LogOut className="h-5 w-5" aria-hidden="true" />
+                  <span className="text-sm font-medium">Aufsicht abgeben</span>
+                </button>
+              ) : null}
+            </div>
           ) : undefined
         }
         mobileActionButton={
-          // Only show release button when user IS supervising Schulhof
-          isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
-            <button
-              type="button"
-              onClick={() => schulhof.setShowReleaseModal(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100"
-              aria-label="Aufsicht abgeben"
-            >
-              <LogOut className="h-4 w-4" aria-hidden="true" />
-            </button>
+          mobileAddSupervisorButton ||
+          (isSchulhofTabSelected && schulhofStatus?.isUserSupervising) ? (
+            <div className="flex items-center gap-2">
+              {mobileAddSupervisorButton}
+              {isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
+                <button
+                  type="button"
+                  onClick={() => schulhof.setShowReleaseModal(true)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100"
+                  aria-label="Aufsicht abgeben"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
           ) : undefined
         }
       />
+
+      {showAddSupervisor ? (
+        <AddSupervisorModal
+          activeGroupId={additionalSupervisionActiveGroupId}
+          isOpen
+          onClose={() => setShowAddSupervisor(false)}
+          onAdded={mutateDashboard}
+        />
+      ) : null}
 
       {/* Schulhof Release Supervision Modal */}
       <ReleaseSupervisionModal
@@ -463,6 +529,15 @@ function MeinRaumPageContent() {
             supervisorCount={schulhofStatus.supervisorCount}
             supervisorNames={schulhofStatus.supervisors.map((s) => s.name)}
             isToggling={schulhof.isTogglingSchulhof}
+            startDisabled={
+              !schulhofStatus.activeGroupId &&
+              dashboard.spontaneousStartAvailability?.available === false
+            }
+            startDisabledReason={
+              schulhofStatus.activeGroupId
+                ? undefined
+                : spontaneousStartBlockedReason
+            }
             onToggle={() =>
               schulhof.handleToggleSchulhof().catch(() => undefined)
             }

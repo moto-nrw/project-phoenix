@@ -16,19 +16,17 @@ import (
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	hub      *realtime.Hub
 	resource *sseAPI.Resource
 }
 
-// setupTestContext initializes test database, services, and resource.
-func setupTestContext(t *testing.T) *testContext {
+// setupSSERoute initializes test database, services, and resource.
+func setupSSERoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
@@ -46,7 +44,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		hub:      hub,
 		resource: resource,
 	}
@@ -59,7 +56,7 @@ func setupTestContext(t *testing.T) *testContext {
 func TestSSEEvents_NoAuth(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSSERoute(t)
 
 	// Use the full router which has JWT middleware
 	router := ctx.resource.Router()
@@ -80,7 +77,7 @@ func TestSSEEvents_NoAuth(t *testing.T) {
 func TestSSERouter_EndpointExists(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSSERoute(t)
 
 	router := ctx.resource.Router()
 
@@ -100,7 +97,7 @@ func TestSSERouter_EndpointExists(t *testing.T) {
 func TestSSERouter_WrongMethod(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSSERoute(t)
 
 	router := ctx.resource.Router()
 
@@ -123,7 +120,7 @@ func TestSSERouter_WrongMethod(t *testing.T) {
 func TestSSEResource_Creation(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSSERoute(t)
 
 	// Verify resource was created successfully
 	assert.NotNil(t, ctx.resource, "Resource should be created")
@@ -133,7 +130,7 @@ func TestSSEResource_Creation(t *testing.T) {
 func TestSSEResource_RouterReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSSERoute(t)
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should not be nil")

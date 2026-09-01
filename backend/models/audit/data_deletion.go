@@ -84,21 +84,6 @@ func (dd *DataDeletion) Validate() error {
 	return nil
 }
 
-// GetID implements the base.Entity interface
-func (dd *DataDeletion) GetID() interface{} {
-	return dd.ID
-}
-
-// GetCreatedAt implements the base.Entity interface
-func (dd *DataDeletion) GetCreatedAt() time.Time {
-	return dd.DeletedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface
-func (dd *DataDeletion) GetUpdatedAt() time.Time {
-	return dd.DeletedAt
-}
-
 // GetMetadata returns the metadata map
 func (dd *DataDeletion) GetMetadata() map[string]interface{} {
 	if dd.Metadata == nil {

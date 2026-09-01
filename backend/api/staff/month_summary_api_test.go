@@ -18,7 +18,7 @@ import (
 func TestStaffMonthSummaryAPI(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStaffRoute(t)
 	suffix := time.Now().UnixNano()
 
 	editorPerson, editorAccount := testpkg.CreateTestPersonWithAccount(t, tc.db, "Summary", fmt.Sprintf("Editor-%d", suffix))

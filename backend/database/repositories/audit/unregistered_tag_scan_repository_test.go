@@ -192,10 +192,10 @@ func TestUnregisteredTagScanRepository_DeleteOlderThan(t *testing.T) {
 	repo := repositories.NewFactory(db).UnregisteredTagScan
 	ctx := testpkg.Ctx(t)
 	now := time.Now()
-	oldScan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-DELETE-OLD", nil, now.Add(-48*time.Hour))
+	oldScan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-DELETE-OLD", nil, now.Add(-120*24*time.Hour))
 	newScan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-DELETE-NEW", nil, now)
 
-	deleted, err := repo.DeleteOlderThan(ctx, now.Add(-24*time.Hour))
+	deleted, err := repo.DeleteOlderThan(ctx, now.Add(-90*24*time.Hour))
 
 	require.NoError(t, err)
 	require.Equal(t, 1, deleted)

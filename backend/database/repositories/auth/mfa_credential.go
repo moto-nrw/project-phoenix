@@ -47,7 +47,7 @@ func (r *MFACredentialRepository) Update(ctx context.Context, credential *auth.M
 		Where(whereID, credential.ID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update mfa credential", Err: err}
+		return &modelBase.DatabaseError{Op: "update mfa credential", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -62,7 +62,7 @@ func (r *MFACredentialRepository) FindByAccountID(ctx context.Context, accountID
 		Limit(1).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find mfa credential by account id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find mfa credential by account id", Err: base.TranslateNotFound(err)}
 	}
 	return credential, nil
 }
@@ -82,7 +82,7 @@ func (r *MFACredentialRepository) DeleteByAccountID(ctx context.Context, account
 		Where("account_id = ?", accountID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete mfa credential by account id", Err: err}
+		return &modelBase.DatabaseError{Op: "delete mfa credential by account id", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -99,7 +99,7 @@ func (r *MFACredentialRepository) List(ctx context.Context, filters map[string]i
 		}
 	}
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list mfa credentials", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list mfa credentials", Err: base.TranslateNotFound(err)}
 	}
 	return credentials, nil
 }

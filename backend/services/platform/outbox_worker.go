@@ -54,11 +54,45 @@ type OutboxWorker struct {
 	maxAttempts   int
 	logger        *slog.Logger
 	db            *bun.DB
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
+	// mailIdentity stamps the tenant reply address onto every rendered
+	// message. It lives here rather than in each renderer because every
+	// outbox kind is tenant-bound, so one choke point covers all of them and
+	// no renderer can forget it (#1936). Optional: nil means no Reply-To.
+	mailIdentity email.ReplyToResolver
+}
+
+// SetMailIdentityResolver wires the tenant reply-address resolver.
+func (w *OutboxWorker) SetMailIdentityResolver(r email.ReplyToResolver) {
+	w.mailIdentity = r
+}
+
+// applyTenantReplyTo points replies at the OGS instead of moto. The visible
+// From is untouched, so SPF/DKIM alignment for the central sender is
+// unaffected. A renderer that already set ReplyTo wins — this only fills the
+// gap. Any resolver error is logged and the mail goes out without the header,
+// because losing the return path must never cost the message.
+func (w *OutboxWorker) applyTenantReplyTo(ctx context.Context, row *platformModels.EmailOutbox, msg *email.Message) {
+	if w.mailIdentity == nil || msg == nil || msg.ReplyTo.Address != "" {
+		return
+	}
+	identity, err := w.mailIdentity.ResolveReplyTo(ctx, row.GetTenantID())
+	if err != nil {
+		w.logger.Warn("outbox: reply-to lookup failed, sending without it",
+			slog.Int64("outbox_id", row.ID),
+			slog.String("kind", row.Kind),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if identity.IsZero() {
+		return
+	}
+	msg.ReplyTo = email.NewEmail(identity.Name, identity.Address)
 }
 
 // SetTenantRuntime wires the transaction runtime used by this cross-tenant worker.
-func (w *OutboxWorker) SetTenantRuntime(runtime tenant.Runtime) {
+func (w *OutboxWorker) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	w.tenantRuntime = &runtime
 }
 
@@ -66,7 +100,7 @@ func (w *OutboxWorker) withTenantRuntime(ctx context.Context) context.Context {
 	if w.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *w.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *w.tenantRuntime)
 }
 
 // OutboxWorkerConfig is the dep-injection bundle for NewOutboxWorker.
@@ -136,14 +170,14 @@ func (w *OutboxWorker) RunOnce(ctx context.Context, batchSize int) (int, error) 
 	if w.repo == nil {
 		return 0, fmt.Errorf("outbox worker not wired (missing repo)")
 	}
+	if w.db == nil {
+		return 0, fmt.Errorf("outbox worker not wired (missing db)")
+	}
 	if w.registry == nil {
 		return 0, fmt.Errorf("outbox worker not wired (missing registry)")
 	}
 	if w.mailer == nil {
 		return 0, fmt.Errorf("outbox worker not wired (missing mailer)")
-	}
-	if w.db == nil {
-		return 0, fmt.Errorf("outbox worker not wired (missing db)")
 	}
 
 	now := time.Now()
@@ -171,6 +205,27 @@ func (w *OutboxWorker) RunOnce(ctx context.Context, batchSize int) (int, error) 
 	return processed, nil
 }
 
+// Backlog returns the durable platform-wide pending queue depth.
+func (w *OutboxWorker) Backlog(ctx context.Context) (int, error) {
+	ctx = w.withTenantRuntime(ctx)
+	if w.repo == nil {
+		return 0, fmt.Errorf("outbox worker not wired (missing repo)")
+	}
+	if w.db == nil {
+		return 0, fmt.Errorf("outbox worker not wired (missing db)")
+	}
+	var backlog int
+	err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
+		var countErr error
+		backlog, countErr = w.repo.CountPending(adminCtx)
+		return countErr
+	})
+	if err != nil {
+		return 0, fmt.Errorf("count pending outbox: %w", err)
+	}
+	return backlog, nil
+}
+
 // processRow handles one claimed row. Per-row failures are logged
 // here, never bubbled up. MarkSent/MarkRetry/MarkFailed run under
 // phoenix_admin for the same RLS-bypass reason as the pickup query.
@@ -194,6 +249,8 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		w.recordFailure(ctx, row, fmt.Sprintf("render: %v", renderErr))
 		return
 	}
+
+	w.applyTenantReplyTo(tenantCtx, row, msg)
 
 	// Send and MarkSent share one admin transaction that first re-locks
 	// the claimed row (FOR UPDATE). Features cancel queued emails by

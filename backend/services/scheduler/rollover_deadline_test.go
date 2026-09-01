@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -56,10 +57,12 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 		rolloverDeadlineRunner: probe,
 		logger:                 slog.Default()})
 
-	s.checkAndRunRolloverDeadline(&ScheduledTask{})
+	s.checkAndRunRolloverDeadline(context.Background(), &ScheduledTask{})
 
 	assert.GreaterOrEqual(t, probe.calls, 1)
-	rows, err := repos.Timeframe.FindByDescription(testpkg.Ctx(t), probe.description)
+	options := modelBase.NewQueryOptions()
+	options.Filter.ILike("description", "%"+probe.description+"%")
+	rows, err := repos.Timeframe.List(testpkg.Ctx(t), options)
 	require.NoError(t, err)
 	assert.Empty(t, rows,
 		"returning the worker error must roll back writes made in that tenant tick")

@@ -56,6 +56,19 @@ func TestRenderParentWriteErrorMapsDisabledCareFieldToForbiddenCode(t *testing.T
 	assert.Contains(t, recorder.Body.String(), `"code":"care_request_field_disabled"`)
 }
 
+func TestRenderParentWriteErrorMapsBookingLedCareToForbiddenCode(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/me/children/1/care-schedule/requests", nil)
+	request = request.WithContext(context.Background())
+
+	renderParentWriteError(recorder, request, parentService.ErrCareRequestBookingsAuthoritative)
+
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"code":"care_request_bookings_authoritative"`)
+}
+
 func TestRenderParentWriteErrorMapsAlreadyLeftToConflictCode(t *testing.T) {
 	t.Parallel()
 

@@ -46,7 +46,7 @@ func (r *DataDeletionRepository) Create(ctx context.Context, deletion *audit.Dat
 	if err := deletion.Validate(); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "validate",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -69,7 +69,7 @@ func (r *DataDeletionRepository) FindByStudentID(ctx context.Context, studentID 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -92,7 +92,7 @@ func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate,
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -114,7 +114,7 @@ func (r *DataDeletionRepository) FindByType(ctx context.Context, deletionType st
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by type",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -152,7 +152,7 @@ func (r *DataDeletionRepository) List(ctx context.Context, filters map[string]in
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

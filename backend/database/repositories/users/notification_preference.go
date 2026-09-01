@@ -42,7 +42,7 @@ func (r *NotificationPreferenceRepository) Upsert(ctx context.Context, pref *use
 		Set("updated_at = NOW()").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert notification preference", Err: err}
+		return &modelBase.DatabaseError{Op: "upsert notification preference", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -59,7 +59,7 @@ func (r *NotificationPreferenceRepository) ListByAccount(ctx context.Context, ac
 	query = base.WithTenantFilter(ctx, query, aliasNotificationPreference)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list notification preferences by account", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list notification preferences by account", Err: base.TranslateNotFound(err)}
 	}
 	return prefs, nil
 }
@@ -86,7 +86,7 @@ func (r *NotificationPreferenceRepository) FilterOptedIn(ctx context.Context, no
 	query = base.WithTenantFilter(ctx, query, aliasNotificationPreference)
 
 	if err := query.Scan(ctx, &optedIn); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "filter opted-in accounts", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "filter opted-in accounts", Err: base.TranslateNotFound(err)}
 	}
 	return optedIn, nil
 }
@@ -107,7 +107,7 @@ func (r *NotificationPreferenceRepository) HasAnyOptedIn(ctx context.Context, no
 
 	exists, err := query.Exists(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check for opted-in accounts", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check for opted-in accounts", Err: base.TranslateNotFound(err)}
 	}
 	return exists, nil
 }
@@ -140,7 +140,7 @@ func (r *NotificationPreferenceRepository) FilterOptedInByType(
 	query = base.WithTenantFilter(ctx, query, aliasNotificationPreference)
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "filter opted-in accounts by type", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "filter opted-in accounts by type", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		optedInByType[row.NotificationType] = append(optedInByType[row.NotificationType], row.AccountID)
@@ -170,7 +170,7 @@ func (r *NotificationPreferenceRepository) FilterNotOptedOut(ctx context.Context
 	query = base.WithTenantFilter(ctx, query, aliasNotificationPreference)
 
 	if err := query.Scan(ctx, &optedOut); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "filter opted-out accounts", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "filter opted-out accounts", Err: base.TranslateNotFound(err)}
 	}
 
 	declined := make(map[int64]struct{}, len(optedOut))
@@ -207,7 +207,7 @@ func (r *NotificationPreferenceRepository) DisableAllForAccount(ctx context.Cont
 	}
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "disable all notification preferences", Err: err}
+		return &modelBase.DatabaseError{Op: "disable all notification preferences", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

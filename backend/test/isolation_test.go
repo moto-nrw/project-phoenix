@@ -21,7 +21,6 @@ import (
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	repoFacilities "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
-	repoFeedback "github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	repoSchedule "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -44,7 +43,7 @@ func isolationTenants(tb testing.TB, db *bun.DB) (tenantA, tenantB int64) {
 
 // ctxForTenant returns a background context with the given tenant ID set.
 func ctxForTenant(tenantID int64) context.Context {
-	return tenant.WithTenantID(context.Background(), tenantID)
+	return tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
 }
 
 // ============================================================================
@@ -326,59 +325,6 @@ func TestTenantIsolation_TokenVisibility(t *testing.T) {
 	_, err = repo.FindByID(ctx43, tkA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A token %d", tkA.ID)
-}
-
-// ============================================================================
-// Feedback Domain
-// ============================================================================
-
-func TestTenantIsolation_FeedbackEntryVisibility(t *testing.T) {
-	t.Parallel()
-
-	db := SetupTestDB(t)
-	tenantA, tenantB := isolationTenants(t, db)
-
-	// Feedback entries require students (which require persons).
-	sA := CreateTestStudentForTenant(t, db, tenantA, "FeedbackA", "Student", "2a")
-	sB := CreateTestStudentForTenant(t, db, tenantB, "FeedbackB", "Student", "2a")
-
-	feA := CreateTestFeedbackEntryForTenant(t, db, tenantA, sA.ID)
-	feB := CreateTestFeedbackEntryForTenant(t, db, tenantB, sB.ID)
-
-	repo := repoFeedback.NewEntryRepository(db)
-
-	// --- Tenant A ---
-	ctx42 := ctxForTenant(tenantA)
-
-	entries, err := repo.List(ctx42, nil)
-	require.NoError(t, err)
-
-	for _, e := range entries {
-		assert.Equal(t, tenantA, e.TenantID,
-			"cross-tenant leak: tenant B feedback visible to tenant A (List)")
-	}
-
-	// FeedbackEntryRepository.FindByID returns (nil, nil) on not-found
-	result, err := repo.FindByID(ctx42, feB.ID)
-	assert.NoError(t, err, "EntryRepository.FindByID returns nil on not-found, not error")
-	assert.Nil(t, result,
-		"cross-tenant FindByID should return nil: tenant A must not see tenant B feedback %d", feB.ID)
-
-	// --- Tenant B ---
-	ctx43 := ctxForTenant(tenantB)
-
-	entries, err = repo.List(ctx43, nil)
-	require.NoError(t, err)
-
-	for _, e := range entries {
-		assert.Equal(t, tenantB, e.TenantID,
-			"cross-tenant leak: tenant A feedback visible to tenant B (List)")
-	}
-
-	result, err = repo.FindByID(ctx43, feA.ID)
-	assert.NoError(t, err)
-	assert.Nil(t, result,
-		"cross-tenant FindByID should return nil: tenant B must not see tenant A feedback %d", feA.ID)
 }
 
 // ============================================================================

@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,14 +14,14 @@ import (
 func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	// Create staff for the created_by FK constraint
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "WCInternal", "Staff")
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
 
 	group, err := tc.svc.WCActivityGroupForTest(ctx)
 
@@ -36,13 +35,13 @@ func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 func TestWcActivityGroup_FindsExisting(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "WCExist", "Staff")
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
 
 	group1, err := tc.svc.WCActivityGroupForTest(ctx)
 	require.NoError(t, err)
@@ -58,13 +57,13 @@ func TestWcActivityGroup_FindsExisting(t *testing.T) {
 func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofInt", "Staff")
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
 
 	group, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 
@@ -78,13 +77,13 @@ func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofExist", "Staff")
 
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), testpkg.Tenant(t))
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
 
 	group1, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 	require.NoError(t, err)
@@ -104,7 +103,7 @@ func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 func TestWcActivityGroup_NoStaffContext(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := testpkg.Ctx(t)
 
@@ -120,7 +119,7 @@ func TestWcActivityGroup_NoStaffContext(t *testing.T) {
 func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := testpkg.Ctx(t)
 

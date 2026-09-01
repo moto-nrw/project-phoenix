@@ -37,9 +37,16 @@ func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName s
 		Exec(context.Background())
 	require.NoError(tb, err, "Failed to create test operator")
 
-	tb.Cleanup(func() { CleanupOperator(tb, db, op.ID) })
+	OwnTestOperator(tb, db, op.ID)
 
 	return op
+}
+
+// OwnTestOperator registers exact-ID teardown for an operator created through
+// a service or repository path.
+func OwnTestOperator(tb testing.TB, db *bun.DB, operatorID int64) {
+	tb.Helper()
+	tb.Cleanup(func() { CleanupOperator(tb, db, operatorID) })
 }
 
 // CleanupOperator removes an operator and its audit-log rows. All other
@@ -50,6 +57,17 @@ func CleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 	tb.Helper()
 	ctx := context.Background()
 
-	_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operatorID)
-	_, _ = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operatorID)
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(tb, err)
+	defer func() { _ = tx.Rollback() }()
+
+	// MFA audit writes run asynchronously. Lock the operator first so an audit
+	// insert cannot land between deleting its logs and deleting the operator.
+	_, err = tx.ExecContext(ctx, `SELECT id FROM platform.operators WHERE id = ? FOR UPDATE`, operatorID)
+	require.NoError(tb, err)
+	_, err = tx.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operatorID)
+	require.NoError(tb, err)
+	_, err = tx.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operatorID)
+	require.NoError(tb, err)
+	require.NoError(tb, tx.Commit())
 }

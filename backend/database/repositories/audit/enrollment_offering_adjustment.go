@@ -35,7 +35,7 @@ func (r *enrollmentOfferingAdjustmentRepository) ListByRequestChildID(ctx contex
 		OrderExpr(`"enrollment_offering_adjustment".changed_at DESC, "enrollment_offering_adjustment".id DESC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list enrollment offering adjustments", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list enrollment offering adjustments", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -59,7 +59,7 @@ func (r *enrollmentOfferingAdjustmentRepository) ListDirectForTenant(
 	query = base.ApplyRequestQueueFilters(query, "enrollment_offering_adjustment", "changed_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list direct enrollment offering adjustments", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list direct enrollment offering adjustments", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }

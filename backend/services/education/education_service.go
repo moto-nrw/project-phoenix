@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // service implements the Education Service interface
@@ -21,11 +22,12 @@ type service struct {
 	groupRepo        education.GroupRepository
 	groupTeacherRepo education.GroupTeacherRepository
 	classTeacherRepo education.ClassTeacherRepository
-	substitutionRepo education.GroupSubstitutionRepository
 	roomRepo         facilities.RoomRepository
 	teacherRepo      users.TeacherRepository
 	staffRepo        users.StaffRepository
 	studentRepo      users.StudentRepository
+	substitutionRepo education.GroupSubstitutionRepository
+	txHandler        *tenant.TransactionRunner
 
 	// broadcaster announces group_access_changed after a write to either table
 	// that decides group access (#2084). Optional: services constructed without
@@ -51,9 +53,8 @@ func (s *service) SetMasterDataAudit(creator auditModels.StaffMasterDataChangeCr
 }
 
 // announceGroupAccessChanged queues the tenant-wide invalidation for a write
-// that changed who may open which group. Education writes funnel through here,
-// so a cascade (DeleteGroup drops both) announces itself for free. Staff
-// offboarding also uses the shared realtime helper after its direct cleanup.
+// that changed who may open which group. Typed handovers must be ended before
+// group deletion or staff offboarding; legacy cleanup still uses this signal.
 func (s *service) announceGroupAccessChanged(ctx context.Context, source string) {
 	realtime.QueueGroupAccessChanged(ctx, s.broadcaster, nil, source)
 }
@@ -63,21 +64,23 @@ func NewService(
 	groupRepo education.GroupRepository,
 	groupTeacherRepo education.GroupTeacherRepository,
 	classTeacherRepo education.ClassTeacherRepository,
-	substitutionRepo education.GroupSubstitutionRepository,
 	roomRepo facilities.RoomRepository,
 	teacherRepo users.TeacherRepository,
 	staffRepo users.StaffRepository,
 	studentRepo users.StudentRepository,
+	substitutionRepo education.GroupSubstitutionRepository,
+	db *bun.DB,
 ) Service {
 	return &service{
 		groupRepo:        groupRepo,
 		groupTeacherRepo: groupTeacherRepo,
 		classTeacherRepo: classTeacherRepo,
-		substitutionRepo: substitutionRepo,
 		roomRepo:         roomRepo,
 		teacherRepo:      teacherRepo,
 		staffRepo:        staffRepo,
 		studentRepo:      studentRepo,
+		substitutionRepo: substitutionRepo,
+		txHandler:        tenant.NewTransactionRunner(),
 	}
 }
 
@@ -212,7 +215,38 @@ func roomIDHasChanged(oldRoomID, newRoomID *int64) bool {
 
 // DeleteGroup deletes an education group by ID
 func (s *service) DeleteGroup(ctx context.Context, id int64) error {
-	if _, err := s.groupRepo.FindByID(ctx, id); err != nil {
+	removedTeacherLinks := false
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		var deleteErr error
+		removedTeacherLinks, deleteErr = s.deleteGroupInTx(txCtx, id)
+		return deleteErr
+	})
+	if err != nil {
+		return err
+	}
+	if removedTeacherLinks {
+		s.announceGroupAccessChanged(ctx, "group_teacher_remove")
+	}
+	s.announceGroupAccessChanged(ctx, "group_delete")
+	return nil
+}
+
+func (s *service) deleteGroupInTx(ctx context.Context, id int64) (bool, error) {
+	if err := s.validateGroupDeletion(ctx, id); err != nil {
+		return false, err
+	}
+	removedTeacherLinks, err := s.deleteGroupTeacherRelations(ctx, id)
+	if err != nil {
+		return false, &EducationError{Op: "DeleteGroup", Err: err}
+	}
+	if err := s.groupRepo.Delete(ctx, id); err != nil {
+		return false, &EducationError{Op: "DeleteGroup", Err: err}
+	}
+	return removedTeacherLinks, nil
+}
+
+func (s *service) validateGroupDeletion(ctx context.Context, id int64) error {
+	if _, err := s.groupRepo.FindByIDForUpdate(ctx, id); err != nil {
 		return &EducationError{Op: "DeleteGroup", Err: ErrGroupNotFound}
 	}
 
@@ -228,69 +262,47 @@ func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 		return &EducationError{Op: "DeleteGroup", Err: ErrGroupHasStudents}
 	}
 
-	if err := deleteGroupTeacherRelations(ctx, s, id); err != nil {
+	handovers, err := s.substitutionRepo.FindByGroup(ctx, id)
+	if err != nil {
 		return &EducationError{Op: "DeleteGroup", Err: err}
 	}
-
-	if err := deleteGroupSubstitutions(ctx, s, id); err != nil {
-		return &EducationError{Op: "DeleteGroup", Err: err}
+	today := timezone.TodayDate()
+	for _, handover := range handovers {
+		if handover.TargetType == education.GroupSubstitutionTypeGroupHandover && !handover.EndDate.Before(today) {
+			return &EducationError{Op: "DeleteGroup", Err: ErrGroupHasHandover}
+		}
 	}
-
-	if err := s.groupRepo.Delete(ctx, id); err != nil {
-		return &EducationError{Op: "DeleteGroup", Err: err}
-	}
-
-	// Even an empty group changes the structural group list. Per-link cleanup
-	// emits above only when leaders or active substitutions exist, so it cannot
-	// be the sole signal for immutable group caches.
-	s.announceGroupAccessChanged(ctx, "group_delete")
 	return nil
 }
 
-// deleteGroupTeacherRelations deletes all teacher relationships for a group
-func deleteGroupTeacherRelations(ctx context.Context, service Service, groupID int64) error {
-	groupTeachers, err := service.GetGroupTeachers(ctx, groupID)
-	if err != nil || len(groupTeachers) == 0 {
-		return nil
+// deleteGroupTeacherRelations deletes all teacher relationships for a group.
+func (s *service) deleteGroupTeacherRelations(ctx context.Context, groupID int64) (bool, error) {
+	groupTeachers, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
+	if err != nil {
+		return false, err
 	}
-
-	for _, teacher := range groupTeachers {
-		if err := service.RemoveTeacherFromGroup(ctx, groupID, teacher.ID); err != nil {
-			return err
+	for _, relation := range groupTeachers {
+		if err := s.groupTeacherRepo.Delete(ctx, relation.ID); err != nil {
+			return false, err
 		}
 	}
 
-	return nil
-}
-
-// deleteGroupSubstitutions deletes all substitutions for a group
-func deleteGroupSubstitutions(ctx context.Context, service Service, groupID int64) error {
-	substitutions, err := service.GetActiveGroupSubstitutions(ctx, groupID, timezone.TodayDate())
-	if err != nil || len(substitutions) == 0 {
-		return nil
-	}
-
-	for _, sub := range substitutions {
-		if err := service.DeleteSubstitution(ctx, sub.ID); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return len(groupTeachers) > 0, nil
 }
 
 // ListGroups retrieves groups with optional filtering
-func (s *service) ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error) {
-	// Now we can directly use the modern ListWithOptions method
-	groups, err := s.groupRepo.ListWithOptions(ctx, options)
+func (s *service) ListGroups(ctx context.Context, query *education.GroupListQuery) ([]*education.Group, error) {
+	groups, err := s.groupRepo.ListWithRooms(ctx, query)
 	if err != nil {
 		return nil, &EducationError{Op: "ListGroups", Err: err}
 	}
 	return groups, nil
 }
 
-// CountGroups counts groups matching the query options (filters only, no pagination)
-func (s *service) CountGroups(ctx context.Context, options *base.QueryOptions) (int, error) {
+// CountGroups counts groups matching the list filters, ignoring pagination.
+func (s *service) CountGroups(ctx context.Context, query *education.GroupListQuery) (int, error) {
+	options := base.NewQueryOptions()
+	options.Filter = query.Filter()
 	count, err := s.groupRepo.CountWithOptions(ctx, options)
 	if err != nil {
 		return 0, &EducationError{Op: "CountGroups", Err: err}
@@ -320,6 +332,20 @@ func (s *service) GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map
 
 // RemoveTeacherFromGroup removes a teacher from a group
 func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.removeTeacherFromGroupInTx(txCtx, groupID, teacherID)
+	})
+	if err != nil {
+		return err
+	}
+	s.announceGroupAccessChanged(ctx, "group_teacher_remove")
+	return nil
+}
+
+func (s *service) removeTeacherFromGroupInTx(ctx context.Context, groupID, teacherID int64) error {
+	if _, err := s.groupRepo.FindByIDForUpdate(ctx, groupID); err != nil {
+		return &EducationError{Op: "RemoveTeacherFromGroup", Err: ErrGroupNotFound}
+	}
 	// Find the group-teacher relationship
 	relations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
 	if err != nil {
@@ -346,44 +372,48 @@ func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID
 		return &EducationError{Op: "RemoveTeacherFromGroup", Err: err}
 	}
 
-	s.announceGroupAccessChanged(ctx, "group_teacher_remove")
 	return nil
 }
 
 // UpdateGroupTeachers updates the teacher assignments for a group
 func (s *service) UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error {
-	if _, err := s.groupRepo.FindByID(ctx, groupID); err != nil {
-		return &EducationError{Op: "UpdateGroupTeachers", Err: ErrGroupNotFound}
+	changed := false
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		var updateErr error
+		changed, updateErr = s.updateGroupTeachersInTx(txCtx, groupID, teacherIDs)
+		return updateErr
+	})
+	if err != nil {
+		return err
+	}
+	if changed {
+		s.announceGroupAccessChanged(ctx, "group_teachers")
+	}
+	return nil
+}
+
+func (s *service) updateGroupTeachersInTx(ctx context.Context, groupID int64, teacherIDs []int64) (bool, error) {
+	if _, err := s.groupRepo.FindByIDForUpdate(ctx, groupID); err != nil {
+		return false, &EducationError{Op: "UpdateGroupTeachers", Err: ErrGroupNotFound}
 	}
 
 	currentRelations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
 	if err != nil {
-		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
+		return false, &EducationError{Op: "UpdateGroupTeachers", Err: err}
 	}
 
 	currentTeacherIDs, newTeacherIDs := buildTeacherIDMaps(currentRelations, teacherIDs)
 
 	removed, err := s.removeObsoleteTeachers(ctx, currentTeacherIDs, newTeacherIDs)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	added, err := s.addNewTeachersToGroup(ctx, groupID, currentTeacherIDs, teacherIDs)
 	if err != nil {
-		return err
+		return false, err
 	}
-
-	// Leadership decides group access exactly like a substitution does
-	// (usercontext.GetMyGroups is the union of both tables), so an admin
-	// adding a colleague here must reach their open tab too.
-	//
-	// Only when the set ACTUALLY changed: the group form submits teacher_ids on
-	// every save, so announcing unconditionally would make every client in the
-	// school refetch its group list when an admin only renamed a group.
-	if removed || added {
-		s.announceGroupAccessChanged(ctx, "group_teachers")
-	}
-	return nil
+	return removed || added, nil
 }
 
 // buildTeacherIDMaps builds maps for current and new teacher IDs
@@ -556,248 +586,4 @@ func (s *service) GetTeacherGroups(ctx context.Context, teacherID int64) ([]*edu
 	}
 
 	return groups, nil
-}
-
-// Substitution operations
-
-// CreateSubstitution creates a new substitution
-func (s *service) CreateSubstitution(ctx context.Context, substitution *education.GroupSubstitution) error {
-	// Validate substitution data
-	if err := substitution.Validate(); err != nil {
-		return &EducationError{Op: "CreateSubstitution", Err: err}
-	}
-
-	// Validate no backdating - start date must be today or in the future
-	today := timezone.TodayDate()
-	if substitution.StartDate.Before(today) {
-		return &EducationError{Op: "CreateSubstitution", Err: ErrSubstitutionBackdated}
-	}
-
-	// Verify group exists
-	_, err := s.groupRepo.FindByID(ctx, substitution.GroupID)
-	if err != nil {
-		return &EducationError{Op: "CreateSubstitution", Err: ErrGroupNotFound}
-	}
-
-	// Verify regular staff exists - only if RegularStaffID is provided
-	if substitution.RegularStaffID != nil {
-		_, err = s.staffRepo.FindByID(ctx, *substitution.RegularStaffID)
-		if err != nil {
-			return &EducationError{Op: "CreateSubstitution", Err: ErrTeacherNotFound}
-		}
-	}
-
-	// Verify substitute staff exists
-	_, err = s.staffRepo.FindByID(ctx, substitution.SubstituteStaffID)
-	if err != nil {
-		return &EducationError{Op: "CreateSubstitution", Err: ErrTeacherNotFound}
-	}
-
-	// Note: We intentionally allow staff members to have multiple overlapping substitutions.
-	// This enables a staff member to supervise multiple groups simultaneously.
-
-	// Create the substitution
-	substitution.SetTenantID(tenant.FromContext(ctx))
-	if err := s.substitutionRepo.Create(ctx, substitution); err != nil {
-		return &EducationError{Op: "CreateSubstitution", Err: err}
-	}
-
-	s.announceGroupAccessChanged(ctx, "substitution_create")
-	return nil
-}
-
-// UpdateSubstitution updates an existing substitution
-func (s *service) UpdateSubstitution(ctx context.Context, substitution *education.GroupSubstitution) error {
-	// Validate substitution data
-	if err := substitution.Validate(); err != nil {
-		return &EducationError{Op: "UpdateSubstitution", Err: err}
-	}
-
-	// Validate no backdating - start date must be today or in the future
-	today := timezone.TodayDate()
-	if substitution.StartDate.Before(today) {
-		return &EducationError{Op: "UpdateSubstitution", Err: ErrSubstitutionBackdated}
-	}
-
-	// Verify substitution exists
-	existing, err := s.substitutionRepo.FindByID(ctx, substitution.ID)
-	if err != nil {
-		return &EducationError{Op: "UpdateSubstitution", Err: ErrSubstitutionNotFound}
-	}
-	accessChanged := existing.GroupID != substitution.GroupID ||
-		existing.SubstituteStaffID != substitution.SubstituteStaffID ||
-		existing.StartDate != substitution.StartDate ||
-		existing.EndDate != substitution.EndDate
-
-	// Carry the stored tenant over the caller's model. Callers that decode a
-	// JSON body into a bare model leave tenant_id at 0 (tenancy is a
-	// server-side fact, never a client input), and the generic repository
-	// Update writes EVERY column — the row would be rewritten with
-	// tenant_id = 0 and RLS rejects it with "new row violates row-level
-	// security policy". Reading it from the row we just loaded also means a
-	// caller cannot move a substitution into another tenant by sending one.
-	substitution.SetTenantID(existing.GetTenantID())
-	// created_at is immutable server-owned metadata. The generic repository
-	// writes every column, and a JSON PUT body leaves this field at its zero
-	// value; bun would therefore apply the column default and reset it.
-	substitution.CreatedAt = existing.CreatedAt
-
-	// Verify group exists
-	_, err = s.groupRepo.FindByID(ctx, substitution.GroupID)
-	if err != nil {
-		return &EducationError{Op: "UpdateSubstitution", Err: ErrGroupNotFound}
-	}
-
-	// Verify regular staff exists - only if RegularStaffID is provided
-	if substitution.RegularStaffID != nil {
-		_, err = s.staffRepo.FindByID(ctx, *substitution.RegularStaffID)
-		if err != nil {
-			return &EducationError{Op: "UpdateSubstitution", Err: ErrTeacherNotFound}
-		}
-	}
-
-	// Verify substitute staff exists
-	_, err = s.staffRepo.FindByID(ctx, substitution.SubstituteStaffID)
-	if err != nil {
-		return &EducationError{Op: "UpdateSubstitution", Err: ErrTeacherNotFound}
-	}
-
-	// Check for conflicting substitutions (excluding this one)
-	conflicts, err := s.substitutionRepo.FindOverlapping(ctx, substitution.SubstituteStaffID,
-		substitution.StartDate, substitution.EndDate)
-	if err == nil {
-		for _, conflict := range conflicts {
-			if conflict.ID != substitution.ID {
-				return &EducationError{Op: "UpdateSubstitution", Err: ErrSubstitutionConflict}
-			}
-		}
-	}
-
-	// Update the substitution
-	if err := s.substitutionRepo.Update(ctx, substitution); err != nil {
-		return &EducationError{Op: "UpdateSubstitution", Err: err}
-	}
-
-	if accessChanged {
-		s.announceGroupAccessChanged(ctx, "substitution_update")
-	}
-	return nil
-}
-
-// DeleteSubstitution deletes a substitution by ID
-func (s *service) DeleteSubstitution(ctx context.Context, id int64) error {
-	// Verify substitution exists
-	_, err := s.substitutionRepo.FindByID(ctx, id)
-	if err != nil {
-		return &EducationError{Op: "DeleteSubstitution", Err: ErrSubstitutionNotFound}
-	}
-
-	// Delete the substitution
-	if err := s.substitutionRepo.Delete(ctx, id); err != nil {
-		return &EducationError{Op: "DeleteSubstitution", Err: err}
-	}
-
-	s.announceGroupAccessChanged(ctx, "substitution_delete")
-	return nil
-}
-
-// GetSubstitution retrieves a substitution by ID
-func (s *service) GetSubstitution(ctx context.Context, id int64) (*education.GroupSubstitution, error) {
-	substitution, err := s.substitutionRepo.FindByIDWithRelations(ctx, id)
-	if err != nil {
-		return nil, &EducationError{Op: "GetSubstitution", Err: ErrSubstitutionNotFound}
-	}
-	return substitution, nil
-}
-
-// ListSubstitutions retrieves substitutions with optional filtering
-func (s *service) ListSubstitutions(ctx context.Context, options *base.QueryOptions) ([]*education.GroupSubstitution, error) {
-	// Now using the modern ListWithOptions method with relations loaded
-	substitutions, err := s.substitutionRepo.ListWithRelations(ctx, options)
-	if err != nil {
-		return nil, &EducationError{Op: "ListSubstitutions", Err: err}
-	}
-	return substitutions, nil
-}
-
-// GetActiveSubstitutions gets all active substitutions for a specific date
-func (s *service) GetActiveSubstitutions(ctx context.Context, date timezone.Date) ([]*education.GroupSubstitution, error) {
-	substitutions, err := s.substitutionRepo.FindActiveWithRelations(ctx, date)
-	if err != nil {
-		return nil, &EducationError{Op: "GetActiveSubstitutions", Err: err}
-	}
-	return substitutions, nil
-}
-
-// GetActiveGroupSubstitutions gets active substitutions for a specific group and date
-func (s *service) GetActiveGroupSubstitutions(ctx context.Context, groupID int64, date timezone.Date) ([]*education.GroupSubstitution, error) {
-	// Verify group exists
-	_, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		return nil, &EducationError{Op: "GetActiveGroupSubstitutions", Err: ErrGroupNotFound}
-	}
-
-	substitutions, err := s.substitutionRepo.FindActiveByGroupWithRelations(ctx, groupID, date)
-	if err != nil {
-		return nil, &EducationError{Op: "GetActiveGroupSubstitutions", Err: err}
-	}
-	return substitutions, nil
-}
-
-// GetStaffSubstitutions gets all substitutions for a staff member
-func (s *service) GetStaffSubstitutions(ctx context.Context, staffID int64, asRegular bool) ([]*education.GroupSubstitution, error) {
-	// Verify staff exists
-	_, err := s.staffRepo.FindByID(ctx, staffID)
-	if err != nil {
-		return nil, &EducationError{Op: "GetStaffSubstitutions", Err: ErrTeacherNotFound}
-	}
-
-	var substitutions []*education.GroupSubstitution
-	var repoErr error
-
-	if asRegular {
-		substitutions, repoErr = s.substitutionRepo.FindByRegularStaff(ctx, staffID)
-	} else {
-		substitutions, repoErr = s.substitutionRepo.FindBySubstituteStaff(ctx, staffID)
-	}
-
-	if repoErr != nil {
-		return nil, &EducationError{Op: "GetStaffSubstitutions", Err: repoErr}
-	}
-
-	return substitutions, nil
-}
-
-// CheckSubstitutionConflicts checks for conflicting substitutions for a staff member
-func (s *service) CheckSubstitutionConflicts(ctx context.Context, staffID int64, startDate, endDate timezone.Date) ([]*education.GroupSubstitution, error) {
-	// Verify staff exists
-	_, err := s.staffRepo.FindByID(ctx, staffID)
-	if err != nil {
-		return nil, &EducationError{Op: "CheckSubstitutionConflicts", Err: ErrTeacherNotFound}
-	}
-
-	// Validate date range
-	if startDate.After(endDate) {
-		return nil, &EducationError{Op: "CheckSubstitutionConflicts", Err: ErrInvalidDateRange}
-	}
-
-	// Check for conflicts
-	conflicts, err := s.substitutionRepo.FindOverlapping(ctx, staffID, startDate, endDate)
-	if err != nil {
-		return nil, &EducationError{Op: "CheckSubstitutionConflicts", Err: err}
-	}
-
-	return conflicts, nil
-}
-
-// CreateGroupTransfer persists a group-transfer substitution WITHOUT the
-// FindOverlapping conflict check: group transfers deliberately allow staff to
-// hold multiple groups at once (issue #584: moved verbatim from api/groups).
-func (s *service) CreateGroupTransfer(ctx context.Context, substitution *education.GroupSubstitution) error {
-	if err := s.substitutionRepo.Create(ctx, substitution); err != nil {
-		return err
-	}
-
-	s.announceGroupAccessChanged(ctx, "group_transfer")
-	return nil
 }

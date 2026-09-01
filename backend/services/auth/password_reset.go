@@ -168,7 +168,7 @@ func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress 
 func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, accountID int64) (*auth.PasswordResetToken, error) {
 	var resetToken *auth.PasswordResetToken
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithinAdmin(s.withTenantRuntime(ctx), func(ctx context.Context) error {
 
 		if err := s.repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
 			s.getLogger().Error("failed to invalidate reset tokens, rolling back",

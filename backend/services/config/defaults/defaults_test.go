@@ -1,11 +1,9 @@
-package defaults_test
+package defaults
 
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -143,6 +141,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_guardian_management_enabled",
 		"operations.parent_master_data_edit_enabled",
 		"operations.parent_master_data_request_enabled",
+		"operations.parent_request_group_leader_review_enabled",
 		"operations.parent_news_enabled",
 		"operations.meal_plan_enabled",
 		// Related-accounts management.
@@ -167,6 +166,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"notifications.care_cancelled_enabled",
 		"notifications.care_cancelled_default_on",
 		"notifications.care_cancelled_email",
+		// Tenant reply address for parent-facing mail (#1936).
+		"email.reply_to_address",
 	}
 
 	for _, key := range expectedKeys {
@@ -180,6 +181,19 @@ func TestAllSettingsRegistered(t *testing.T) {
 	// The `>=` is intentional so later work packages can add more settings
 	// without retrofitting this assertion.
 	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
+}
+
+func TestParentRequestGroupLeaderReviewSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentRequestGroupLeaderReviewEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "group leaders must not receive family-data access by default")
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "elternportal", def.Category)
 }
 
 func TestAbsenceApprovalEmailSetting(t *testing.T) {
@@ -216,7 +230,7 @@ func TestFederalStateSetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyFederalState)
 	require.NotNil(t, def, "operations.federal_state should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, holidays.DefaultRegion, def.Default, "default must stay DE-NW - existing schools are NRW")
+	assert.Equal(t, "DE-NW", def.Default, "default must stay DE-NW - existing schools are NRW")
 	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "federal_state is operator-only - changing it shifts the whole Arbeitszeitkonto")
 	assert.Equal(t, "operations", def.Tab)
 
@@ -224,12 +238,16 @@ func TestFederalStateSetting(t *testing.T) {
 	// regions, or a school could pick a state without a holiday calendar.
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 16)
+	values := make([]string, 0, len(def.Options.Static))
 	for _, opt := range def.Options.Static {
 		value, ok := opt.Value.(string)
 		require.True(t, ok, "federal_state option values must be strings")
-		assert.True(t, holidays.ValidRegion(value), "federal_state option must have a holiday calendar")
+		values = append(values, value)
 	}
-	assert.True(t, holidays.ValidRegion(holidays.DefaultRegion))
+	assert.ElementsMatch(t, []string{
+		"DE-BW", "DE-BY", "DE-BE", "DE-BB", "DE-HB", "DE-HH", "DE-HE", "DE-MV",
+		"DE-NI", "DE-NW", "DE-RP", "DE-SL", "DE-SN", "DE-ST", "DE-SH", "DE-TH",
+	}, values)
 }
 
 func TestDisplayEnabledSetting(t *testing.T) {
@@ -348,29 +366,24 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, "config:manage", nfcDef.WritePermission)
 }
 
-// TestOperationalOverviewScopeSetting pins the one setting that decides who
-// may see and operate every running module (#2380). The three option values
-// are a wire contract with the backend gate, so a rename must fail here.
+// TestOperationalOverviewScopeSetting pins the two modes that decide which
+// groups and running modules staff can see (#2801).
 func TestOperationalOverviewScopeSetting(t *testing.T) {
 	t.Parallel()
 
 	def := config.GetDefinition(config.KeyOperationalOverviewScope)
 	require.NotNil(t, def, "operations.operational_overview_scope should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, config.OverviewScopeOwn, def.Default, "the restrictive scope is the default")
+	assert.Equal(t, config.OverviewScopeAllStaff, def.Default, "new schools start with the whole-team scope")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "aufsicht", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
 	require.NotNil(t, def.Options)
-	require.Len(t, def.Options.Static, 3)
-	values := make([]any, 0, 3)
-	for _, opt := range def.Options.Static {
-		values = append(values, opt.Value)
-	}
-	assert.Contains(t, values, config.OverviewScopeOwn)
-	assert.Contains(t, values, config.OverviewScopeAdmins)
-	assert.Contains(t, values, config.OverviewScopeAllStaff)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Ganzes Team", Value: config.OverviewScopeAllStaff},
+		{Label: "Eigene Zuständigkeiten", Value: config.OverviewScopeOwn},
+	}, def.Options.Static)
 
 	// The retired flag must not come back: two settings answering the same
 	// question is exactly what #2380 removed.
@@ -1519,7 +1532,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_cleanup_enabled", false},
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
-		{"operations.operational_overview_scope", config.OverviewScopeOwn},
+		{"operations.operational_overview_scope", config.OverviewScopeAllStaff},
 		{"operations.status_flag_clear_time", "18:00"},
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},
@@ -1725,4 +1738,33 @@ func TestPayrollSettings(t *testing.T) {
 	require.NotNil(t, mandant.Validation.Pattern)
 	assert.True(t, mandant.Validation.AllowEmpty)
 	assert.Equal(t, `^\d{1,5}$`, *mandant.Validation.Pattern)
+}
+
+// TestParentRequestReasonPolicySetting pins the switch that decides who has to
+// write a reason for a parent request (#2267). The four option values are a
+// wire contract with the enforcement in the request services and with both
+// clients, so a rename must fail here.
+func TestParentRequestReasonPolicySetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentRequestReasonPolicy)
+	require.NotNil(t, def, "operations.parent_request_reason_policy should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.ReasonPolicyBoth, def.Default, "both sides explain themselves by default")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "elternportal", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 4)
+	values := make([]any, 0, 4)
+	for _, opt := range def.Options.Static {
+		values = append(values, opt.Value)
+		assert.NotEmpty(t, opt.Label, "every option needs a German label")
+	}
+	assert.Contains(t, values, config.ReasonPolicyNobody)
+	assert.Contains(t, values, config.ReasonPolicyGuardians)
+	assert.Contains(t, values, config.ReasonPolicyStaff)
+	assert.Contains(t, values, config.ReasonPolicyBoth)
 }

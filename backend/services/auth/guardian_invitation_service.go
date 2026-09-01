@@ -16,7 +16,6 @@ import (
 	"github.com/gofrs/uuid"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -97,8 +96,8 @@ type EnrollmentBackfiller interface {
 
 type guardianInvitationService struct {
 	GuardianInvitationServiceConfig
-	txHandler     *modelBase.TxHandler
-	tenantRuntime *tenant.Runtime
+	txHandler     *tenant.TransactionRunner
+	tenantRuntime *tenant.UnitOfWork
 }
 
 // NewGuardianInvitationService builds a guardian invitation service. A nil
@@ -113,7 +112,7 @@ func NewGuardianInvitationService(cfg GuardianInvitationServiceConfig) GuardianI
 	cfg.FrontendURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 	return &guardianInvitationService{
 		GuardianInvitationServiceConfig: cfg,
-		txHandler:                       modelBase.NewTxHandler(cfg.DB),
+		txHandler:                       tenant.NewTransactionRunner(),
 	}
 }
 
@@ -121,7 +120,7 @@ func (s *guardianInvitationService) getLogger() *slog.Logger {
 	return cmp.Or(s.Logger, slog.Default())
 }
 
-func (s *guardianInvitationService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *guardianInvitationService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -129,7 +128,7 @@ func (s *guardianInvitationService) withTenantRuntime(ctx context.Context) conte
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // resolveTokenExpiry follows the documented HasTenantOverride → ResolveInt →
@@ -324,7 +323,7 @@ func (s *guardianInvitationService) guardianAcceptTarget(ctx context.Context, in
 
 func (s *guardianInvitationService) acceptGuardianInvitation(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, emailAddress, passwordHash string) (*authModels.Account, error) {
 	var account *authModels.Account
-	err := s.txHandler.RunInTx(tenant.WithTenantID(s.withTenantRuntime(ctx), invitation.TenantID), func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(tenant.WithTenantID(s.withTenantRuntime(ctx), invitation.TenantID), func(txCtx context.Context) error {
 		acc, innerErr := s.createOrFindAccount(txCtx, emailAddress, passwordHash)
 		if innerErr != nil {
 			return innerErr

@@ -209,7 +209,7 @@ func (rs *Resource) retryStudentDocumentCleanups(ctx context.Context, studentID 
 	}
 	for _, document := range documents {
 		docID, storedName := document.ID, document.FilenameStored
-		cleanupCtx := context.WithoutCancel(modelBase.ContextWithoutTx(ctx))
+		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 		cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 		tenant.RegisterAfterCommit(ctx, func() {
 			coordinator.CleanupDocument(cleanupCtx, tenantID, studentID, docID, storedName, source)
@@ -437,7 +437,7 @@ func (rs *Resource) deleteStudentDocument(w http.ResponseWriter, r *http.Request
 	if !doc.IsFileDeleted() {
 		tenantID := tenant.FromContext(r.Context())
 		documentID, storedName := doc.ID, doc.FilenameStored
-		cleanupCtx := context.WithoutCancel(modelBase.ContextWithoutTx(r.Context()))
+		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(r.Context()))
 		cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 		tenant.RegisterAfterCommit(r.Context(), func() {
 			coordinator.CleanupDocument(cleanupCtx, tenantID, id, documentID, storedName, "delete")

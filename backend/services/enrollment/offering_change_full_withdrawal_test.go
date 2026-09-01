@@ -135,25 +135,6 @@ func TestOfferingChangeRequestService_Reject_DoesNotCreateWithdrawalCompletion(t
 	assertNoPendingWithdrawal(t, env, fx.studentID)
 }
 
-func TestOfferingChangeRequestService_Withdraw_DoesNotCreateWithdrawalCompletion(t *testing.T) {
-	t.Parallel()
-
-	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	defer cleanup()
-	ctx := offeringChangeAdminContext(t)
-	svc := newOfferingChangeServiceForTest(t, env)
-	fx := setupOfferingChangeFixture(t, env, "WithdrawCompleteWithdrawal")
-	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
-		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
-		CompleteWithdrawalConfirmed: true,
-	})
-	require.NoError(t, err)
-
-	require.NoError(t, svc.Withdraw(ctx, row.ID, env.creatorID, fx.studentID))
-	assertNoPendingWithdrawal(t, env, fx.studentID)
-}
-
 func assertNoPendingWithdrawal(t *testing.T, env *decisionTestEnv, studentID int64) {
 	t.Helper()
 	pending, _, err := env.repos.CareWithdrawal.ListPending(
@@ -271,7 +252,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	oldDecision := time.Now().AddDate(0, 0, -30)
 	_, err = env.db.NewUpdate().TableExpr("enrollment.offering_change_requests").
 		Set("reviewed_at = ?", oldDecision).
-		Set("effective_from = ?", timezone.TodayDate().AddDays(-1)).
+		Set("effective_from = ?", timezone.NewDate(2026, 8, 24).AddDays(-1)).
 		Where("id = ?", row.ID).Exec(ctx)
 	require.NoError(t, err)
 	view, err := svc.GetForStudent(ctx, fx.studentID)
@@ -279,7 +260,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	require.NotNil(t, view, "the status remains while the completion task is open")
 
 	changed, err := env.repos.CareWithdrawal.MarkObsoleteForRebooking(
-		ctx, fx.studentID, timezone.TodayDate().AddDays(-1), time.Now(),
+		ctx, fx.studentID, timezone.NewDate(2026, 8, 24).AddDays(-1), time.Now(),
 	)
 	require.NoError(t, err)
 	require.True(t, changed)

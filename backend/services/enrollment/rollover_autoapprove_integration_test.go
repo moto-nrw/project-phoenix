@@ -427,7 +427,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
 	req.ServiceStartDate = timezone.TodayDate().AddDays(-1)
-	req.ServiceEndDate = timezone.NewDate(req.ServiceStartDate.Year, req.ServiceStartDate.Month+10, req.ServiceStartDate.Day)
+	req.ServiceEndDate = timezone.NewDate(req.ServiceStartDate.Year(), req.ServiceStartDate.Month()+10, req.ServiceStartDate.Day())
 	req.Name = "inactive-scheduled-past-target"
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)

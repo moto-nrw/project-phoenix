@@ -18,7 +18,6 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -54,31 +53,31 @@ func (rs *Resource) Router() chi.Router {
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
 		r.With(
-			authorize.RequiresPermission(permissions.TimeTrackingManage),
-			authorize.RequiresPermission(permissions.SchedulesRead),
-			authorize.RequiresPermission(permissions.UsersRead),
+			common.RequiresPermission(permissions.TimeTrackingManage),
+			common.RequiresPermission(permissions.SchedulesRead),
+			common.RequiresPermission(permissions.UsersRead),
 			withTx,
 		).Get("/overview", rs.overview)
 		// Printable Dienstplan week (#2079). The wall-sheet variant uses the
 		// same permission triple as /overview; export.go additionally requires
 		// schedules:manage for the sensitive internal variant.
 		r.With(
-			authorize.RequiresPermission(permissions.TimeTrackingManage),
-			authorize.RequiresPermission(permissions.SchedulesRead),
-			authorize.RequiresPermission(permissions.UsersRead),
+			common.RequiresPermission(permissions.TimeTrackingManage),
+			common.RequiresPermission(permissions.SchedulesRead),
+			common.RequiresPermission(permissions.UsersRead),
 			withTx,
 		).Post("/export", rs.exportPlan)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/move", rs.move)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/cancellation", rs.cancellation)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/series", rs.createSeries)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/series/{id}", rs.getSeries)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/series/{id}/split", rs.splitSeries)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/series/{id}", rs.endSeries)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/move", rs.move)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/cancellation", rs.cancellation)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/series", rs.createSeries)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/series/{id}", rs.getSeries)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/series/{id}/split", rs.splitSeries)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/series/{id}", rs.endSeries)
 	})
 
 	return r
@@ -355,17 +354,17 @@ func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to timezone.D
 	toStr := r.URL.Query().Get("to")
 	if fromStr == "" || toStr == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	from, err := timezone.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	to, err = timezone.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	return from, to, true
 }

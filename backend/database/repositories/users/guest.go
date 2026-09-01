@@ -49,7 +49,7 @@ func (r *GuestRepository) FindByStaffID(ctx context.Context, staffID int64) (*us
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -73,7 +73,7 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -165,7 +165,7 @@ func (r *GuestRepository) FindWithStaffAndPerson(ctx context.Context, id int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with staff and person",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

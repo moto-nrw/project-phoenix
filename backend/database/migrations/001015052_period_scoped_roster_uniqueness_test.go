@@ -7,7 +7,6 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestPeriodScopedRosterUniquenessAllowsSamePersonAcrossScopes(t *testing.T) {
@@ -38,7 +37,7 @@ func TestPeriodScopedRosterUniquenessAllowsSamePersonAcrossScopes(t *testing.T) 
 	require.Error(t, insertRosterSupervisorErr(t, db, tenantID, staff.ID, group.ID, &periodA))
 }
 
-func insertRosterUniquenessPeriod(t *testing.T, db *bun.DB, tenantID int64, name string) int64 {
+func insertRosterUniquenessPeriod(t *testing.T, db *testpkg.DB, tenantID int64, name string) int64 {
 	t.Helper()
 
 	var id int64
@@ -53,12 +52,12 @@ func insertRosterUniquenessPeriod(t *testing.T, db *bun.DB, tenantID int64, name
 	return id
 }
 
-func insertRosterEnrollment(t *testing.T, db *bun.DB, tenantID, studentID, groupID int64, periodID *int64) {
+func insertRosterEnrollment(t *testing.T, db *testpkg.DB, tenantID, studentID, groupID int64, periodID *int64) {
 	t.Helper()
 	require.NoError(t, insertRosterEnrollmentErr(t, db, tenantID, studentID, groupID, periodID))
 }
 
-func insertRosterEnrollmentErr(t *testing.T, db *bun.DB, tenantID, studentID, groupID int64, periodID *int64) error {
+func insertRosterEnrollmentErr(t *testing.T, db *testpkg.DB, tenantID, studentID, groupID int64, periodID *int64) error {
 	t.Helper()
 	_, err := db.NewRaw(`
 		INSERT INTO activities.student_enrollments (
@@ -69,12 +68,12 @@ func insertRosterEnrollmentErr(t *testing.T, db *bun.DB, tenantID, studentID, gr
 	return err
 }
 
-func insertRosterSupervisor(t *testing.T, db *bun.DB, tenantID, staffID, groupID int64, periodID *int64) {
+func insertRosterSupervisor(t *testing.T, db *testpkg.DB, tenantID, staffID, groupID int64, periodID *int64) {
 	t.Helper()
 	require.NoError(t, insertRosterSupervisorErr(t, db, tenantID, staffID, groupID, periodID))
 }
 
-func insertRosterSupervisorErr(t *testing.T, db *bun.DB, tenantID, staffID, groupID int64, periodID *int64) error {
+func insertRosterSupervisorErr(t *testing.T, db *testpkg.DB, tenantID, staffID, groupID int64, periodID *int64) error {
 	t.Helper()
 	_, err := db.NewRaw(`
 		INSERT INTO activities.supervisors (

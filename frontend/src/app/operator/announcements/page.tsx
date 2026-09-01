@@ -1095,7 +1095,7 @@ function AnnouncementCard({
   }, [announcement.content]);
 
   return (
-    <div className="relative rounded-3xl border border-gray-100/50 bg-white/90 p-5 pr-12 shadow-sm backdrop-blur-md transition-all duration-150">
+    <div className="moto-content-surface relative rounded-2xl border p-5 pr-12 transition-all duration-150">
       {/* Kebab menu - absolute top right */}
       <div className="absolute top-3 right-3">
         <OverflowMenu
@@ -1309,10 +1309,7 @@ function AnnouncementSkeletons() {
   return (
     <div className="mt-4 space-y-4">
       {Array.from({ length: 3 }, (_, i) => (
-        <div
-          key={i}
-          className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-sm"
-        >
+        <div key={i} className="moto-content-surface rounded-2xl border p-5">
           <div className="space-y-3">
             <Skeleton className="h-5 w-3/5 rounded" />
             <div className="flex gap-2">

@@ -44,10 +44,12 @@ func TestCrossTenantIsolation(t *testing.T) {
 	testpkg.UnclaimTestAccount(t, db, outsiderB.ID)
 
 	ctxA := func(accountID int64) context.Context {
-		return context.WithValue(tenant.WithTenantID(context.Background(), schoolA), jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
+		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), schoolA)
+		return context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	}
 	ctxB := func(accountID int64) context.Context {
-		return context.WithValue(tenant.WithTenantID(context.Background(), schoolB), jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
+		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), schoolB)
+		return context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	}
 
 	// A conversation inside school A.

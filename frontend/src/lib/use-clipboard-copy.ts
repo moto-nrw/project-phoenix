@@ -21,10 +21,12 @@ export function useClipboardCopy(component: string, resetMs = 1500) {
         setCopied(true);
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => setCopied(false), resetMs);
+        return true;
       } catch (err) {
         logger.warn("clipboard_copy_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        return false;
       }
     },
     [logger, resetMs],

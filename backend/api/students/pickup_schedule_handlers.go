@@ -373,21 +373,21 @@ func pickupScheduleDateRange(r *http.Request) (timezone.Date, timezone.Date, boo
 	fromRaw := strings.TrimSpace(r.URL.Query().Get("from"))
 	toRaw := strings.TrimSpace(r.URL.Query().Get("to"))
 	if fromRaw == "" && toRaw == "" {
-		return timezone.Date{}, timezone.Date{}, false, nil
+		return timezone.Date(""), timezone.Date(""), false, nil
 	}
 	if fromRaw == "" || toRaw == "" {
-		return timezone.Date{}, timezone.Date{}, false, errors.New("from and to must be provided together")
+		return timezone.Date(""), timezone.Date(""), false, errors.New("from and to must be provided together")
 	}
 	from, err := timezone.ParseDate(fromRaw)
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, false, fmt.Errorf("invalid from date: %w", err)
+		return timezone.Date(""), timezone.Date(""), false, fmt.Errorf("invalid from date: %w", err)
 	}
 	to, err := timezone.ParseDate(toRaw)
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, false, fmt.Errorf("invalid to date: %w", err)
+		return timezone.Date(""), timezone.Date(""), false, fmt.Errorf("invalid to date: %w", err)
 	}
 	if to.Before(from) || to.After(from.AddDays(31)) {
-		return timezone.Date{}, timezone.Date{}, false, errors.New("pickup schedule date range must span at most 32 days")
+		return timezone.Date(""), timezone.Date(""), false, errors.New("pickup schedule date range must span at most 32 days")
 	}
 	return from, to, true, nil
 }
@@ -517,7 +517,7 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		date := timezone.TodayDate()
+		date := rs.todayDate()
 		if req.EffectiveDate != nil {
 			date = *req.EffectiveDate
 		}

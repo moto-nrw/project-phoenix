@@ -21,7 +21,7 @@ import (
 // setupAuthServiceWithDB creates an auth service with real database connection
 func setupAuthServiceWithDB(t *testing.T, db *bun.DB) auth.AuthService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Auth
 }
@@ -49,6 +49,7 @@ func TestAuthService_DeleteRole_Extended(t *testing.T) {
 		resource := fmt.Sprintf("delete-role-res-%d", time.Now().UnixNano())
 		perm, err := service.CreatePermission(ctx, permName, "Test permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		err = service.AssignPermissionToRole(ctx, int(role.ID), int(perm.ID))
 		require.NoError(t, err)
@@ -142,6 +143,7 @@ func TestAuthService_AssignPermissionToRole_SystemRoleProtection(t *testing.T) {
 		resource := fmt.Sprintf("sys-role-res-%d", time.Now().UnixNano())
 		perm, err := service.CreatePermission(ctx, permName, "Test permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		// ACT
 		err = service.AssignPermissionToRole(ctx, int(systemRole.ID), int(perm.ID))
@@ -340,6 +342,7 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 		resource := fmt.Sprintf("delete-perm-res-%s", uniqueID)
 		perm, err := service.CreatePermission(ctx, permName, "Permission to delete", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		// Create role and assign permission
 		roleName := fmt.Sprintf("perm-role-%s", uniqueID)
@@ -367,6 +370,7 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 		resource := fmt.Sprintf("delete-perm-res2-%s", uniqueID)
 		perm, err := service.CreatePermission(ctx, permName, "Permission to delete", resource, "write")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		// Create account and grant permission
 		email := fmt.Sprintf("delete-perm-user-%s@test.local", uniqueID)
@@ -433,6 +437,7 @@ func TestAuthService_RemovePermissionFromAccount_Extended(t *testing.T) {
 		resource := fmt.Sprintf("remove-res-%s", uniqueID)
 		perm, err := service.CreatePermission(ctx, permName, "Permission to remove", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		email := fmt.Sprintf("remove-perm-user-%s@test.local", uniqueID)
 		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
@@ -468,6 +473,7 @@ func TestAuthService_AssignPermissionToRole_Extended(t *testing.T) {
 		resource := fmt.Sprintf("assign-res-%s", uniqueID)
 		perm, err := service.CreatePermission(ctx, permName, "Test permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		// ACT
 		err = service.AssignPermissionToRole(ctx, 99999999, int(perm.ID))
@@ -509,6 +515,7 @@ func TestAuthService_RemovePermissionFromRole_Extended(t *testing.T) {
 		resource := fmt.Sprintf("remove-from-res-%s", uniqueID)
 		perm, err := service.CreatePermission(ctx, permName, "Test permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		err = service.AssignPermissionToRole(ctx, int(role.ID), int(perm.ID))
 		require.NoError(t, err)
@@ -561,6 +568,7 @@ func TestAuthService_GetRolePermissions_Extended(t *testing.T) {
 		resource := fmt.Sprintf("role-res-%s", uniqueID)
 		perm, err := service.CreatePermission(ctx, permName, "Test permission", resource, "read")
 		require.NoError(t, err)
+		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		err = service.AssignPermissionToRole(ctx, int(role.ID), int(perm.ID))
 		require.NoError(t, err)

@@ -15,8 +15,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -207,8 +207,9 @@ type careLifecycleService struct {
 	auditService          StudentAuditService
 	lockCareBookingWrites func(context.Context) error
 	studentDeletion       StudentDeletionService
-	txHandler             *modelBase.TxHandler
+	txHandler             *tenant.TransactionRunner
 	logger                *slog.Logger
+	today                 func() timezone.Date
 }
 
 // CareLifecycleDependencies wires the service. Every field is required except
@@ -230,10 +231,14 @@ type CareLifecycleDependencies struct {
 	BookingsAuthoritative func(context.Context) (bool, error)
 	DB                    *bun.DB
 	Logger                *slog.Logger
+	Today                 func() timezone.Date
 }
 
 // NewCareLifecycleService builds the service.
 func NewCareLifecycleService(deps CareLifecycleDependencies) CareLifecycleService {
+	if deps.Today == nil {
+		deps.Today = timezone.TodayDate
+	}
 	return &careLifecycleService{
 		studentRepo:           deps.StudentRepo,
 		personRepo:            deps.PersonRepo,
@@ -245,8 +250,9 @@ func NewCareLifecycleService(deps CareLifecycleDependencies) CareLifecycleServic
 		auditService:          deps.AuditService,
 		studentDeletion:       deps.StudentDeletion,
 		lockCareBookingWrites: deps.LockCareBookingWrites,
-		txHandler:             modelBase.NewTxHandler(deps.DB),
+		txHandler:             tenant.NewTransactionRunner(),
 		logger:                deps.Logger,
+		today:                 deps.Today,
 	}
 }
 
@@ -280,7 +286,7 @@ func (s *careLifecycleService) DeleteWithdrawal(ctx context.Context, completionI
 		return nil, errors.New("care lifecycle: student deletion service is not configured")
 	}
 	var result *StudentDeletionResult
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		if s.lockCareBookingWrites != nil {
 			if err := s.lockCareBookingWrites(txCtx); err != nil {
 				return fmt.Errorf("care lifecycle: lock care booking writes for deletion: %w", err)
@@ -317,7 +323,7 @@ func (s *careLifecycleService) getLogger() *slog.Logger {
 // ---------------------------------------------------------------------------
 
 func (s *careLifecycleService) Preview(ctx context.Context, input CareExitInput) (*CareExitPreview, error) {
-	normalized, err := normalizeCareExitInput(input)
+	normalized, err := normalizeCareExitInput(input, s.today())
 	if err != nil {
 		return nil, err
 	}
@@ -356,11 +362,11 @@ func (s *careLifecycleService) confirm(
 	actorAccountID int64,
 	allowPast bool,
 ) (*CareExitResult, error) {
-	state, err := newCareExitConfirmation(completionSnapshot, token, input, actorAccountID, allowPast)
+	state, err := newCareExitConfirmation(completionSnapshot, token, input, actorAccountID, allowPast, s.today())
 	if err != nil {
 		return nil, err
 	}
-	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		return s.applyCareExitConfirmation(txCtx, state)
 	})
 	if err != nil {
@@ -387,8 +393,9 @@ func newCareExitConfirmation(
 	input CareExitInput,
 	actorAccountID int64,
 	allowPast bool,
+	today timezone.Date,
 ) (*careExitConfirmation, error) {
-	normalized, err := normalizeCareExitInputMode(input, allowPast)
+	normalized, err := normalizeCareExitInputMode(input, allowPast, today)
 	if err != nil {
 		return nil, err
 	}
@@ -558,7 +565,7 @@ func (s *careLifecycleService) cleanupConfirmedCareExit(ctx context.Context, sta
 	// Recurring arrival and pickup plans have no date range. Keep them through
 	// a future last care day, but end them immediately once that day has passed.
 	endSourceBookings := s.cleanupRepo.EndSourceBookings
-	if state.input.LastCareDay.Before(timezone.TodayDate()) {
+	if state.input.LastCareDay.Before(s.today()) {
 		endSourceBookings = s.cleanupRepo.EndSourceBookingsAndSchedules
 	}
 	// A completed care exit ends every remaining source booking, including
@@ -602,13 +609,13 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 	}
 
 	cancelled := 0
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		if s.lockCareBookingWrites != nil {
 			if err := s.lockCareBookingWrites(txCtx); err != nil {
 				return fmt.Errorf("care lifecycle: lock care booking writes for cancellation: %w", err)
 			}
 		}
-		today := timezone.TodayDate()
+		today := s.today()
 		locked, err := s.studentRepo.FindByIDsForUpdate(txCtx, ids)
 		if err != nil {
 			return err
@@ -683,12 +690,12 @@ func (s *careLifecycleService) Resume(ctx context.Context, input CareResumeInput
 	if !input.Checked {
 		return ErrCareResumeNotChecked
 	}
-	today := timezone.TodayDate()
+	today := s.today()
 	if input.NewStart.Before(today) {
 		return ErrCareResumeStartInPast
 	}
 
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		locked, err := s.studentRepo.FindByIDsForUpdate(txCtx, []int64{input.StudentID})
 		if err != nil {
 			return err
@@ -776,7 +783,7 @@ func (s *careLifecycleService) ListEnded(
 	ctx context.Context,
 	filter userModels.CareExitListFilter,
 ) ([]*userModels.EndedCare, int, error) {
-	return s.careExitRepo.ListEnded(ctx, timezone.TodayDate(), filter)
+	return s.careExitRepo.ListEnded(ctx, s.today(), filter)
 }
 
 func (s *careLifecycleService) ReconcileAuthoritativeBookingChange(
@@ -786,7 +793,7 @@ func (s *careLifecycleService) ReconcileAuthoritativeBookingChange(
 	if s.withdrawalRepo == nil {
 		return errors.New("care lifecycle: withdrawal repository is not configured")
 	}
-	today := timezone.TodayDate()
+	today := s.today()
 	if s.bookingsAuthoritative == nil {
 		return errors.New("care lifecycle: bookings-authoritative resolver is not configured")
 	}
@@ -965,7 +972,7 @@ func (s *careLifecycleService) PreviewWithdrawalCareEnd(
 		return nil, err
 	}
 	input.StudentIDs = []int64{*completion.StudentID}
-	normalized, err := normalizeCareExitInputMode(input, true)
+	normalized, err := normalizeCareExitInputMode(input, true, s.today())
 	if err != nil {
 		return nil, err
 	}
@@ -1042,7 +1049,7 @@ func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezon
 	closedPresence := 0
 	closedRequests := 0
 	var releasedTags map[int64]string
-	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		if s.lockCareBookingWrites != nil {
 			if err := s.lockCareBookingWrites(txCtx); err != nil {
 				return fmt.Errorf("care lifecycle: lock care booking writes for due effects: %w", err)
@@ -1109,7 +1116,7 @@ func (s *careLifecycleService) reconcileExpiredCareBookings(ctx context.Context,
 	if s.bookingsAuthoritative == nil {
 		return errors.New("care lifecycle: bookings-authoritative resolver is not configured")
 	}
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		if s.lockCareBookingWrites != nil {
 			if err := s.lockCareBookingWrites(txCtx); err != nil {
 				return fmt.Errorf("care lifecycle: lock care booking writes for booking expiry: %w", err)
@@ -1232,7 +1239,7 @@ func (s *careLifecycleService) buildPreview(
 		return nil, err
 	}
 
-	today := timezone.TodayDate()
+	today := s.today()
 	preview := &CareExitPreview{
 		LastCareDay: input.LastCareDay,
 		Reason:      input.Reason,
@@ -1336,11 +1343,11 @@ func cloneCareFields(student *userModels.Student) *userModels.Student {
 
 // normalizeCareExitInput validates the whole-action fields and returns the
 // canonical form every later step works from.
-func normalizeCareExitInput(input CareExitInput) (CareExitInput, error) {
-	return normalizeCareExitInputMode(input, false)
+func normalizeCareExitInput(input CareExitInput, today timezone.Date) (CareExitInput, error) {
+	return normalizeCareExitInputMode(input, false, today)
 }
 
-func normalizeCareExitInputMode(input CareExitInput, allowPast bool) (CareExitInput, error) {
+func normalizeCareExitInputMode(input CareExitInput, allowPast bool, today timezone.Date) (CareExitInput, error) {
 	ids := dedupeSortedIDs(input.StudentIDs)
 	if len(ids) == 0 {
 		return input, ErrCareExitNoStudents
@@ -1348,7 +1355,7 @@ func normalizeCareExitInputMode(input CareExitInput, allowPast bool) (CareExitIn
 	if len(ids) > MaxCareExitBatchSize {
 		return input, ErrCareExitTooManyStudents
 	}
-	if !allowPast && input.LastCareDay.Before(timezone.TodayDate()) {
+	if !allowPast && input.LastCareDay.Before(today) {
 		return input, ErrCareExitDayInPast
 	}
 

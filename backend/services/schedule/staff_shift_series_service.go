@@ -101,6 +101,7 @@ type staffShiftSeriesService struct {
 	db            *bun.DB
 	broadcaster   realtime.Broadcaster
 	logger        *slog.Logger
+	today         func() timezone.Date
 }
 
 // NewStaffShiftSeriesService creates a new staff shift series service. db is
@@ -114,23 +115,29 @@ func NewStaffShiftSeriesService(
 	shiftTypes ShiftTypeService,
 	db *bun.DB,
 	logger *slog.Logger,
-	shiftService ...StaffShiftService,
+	shiftService StaffShiftService,
+	today ...func() timezone.Date,
 ) StaffShiftSeriesService {
-	var occurrenceUpdater StaffShiftService
-	if len(shiftService) > 0 {
-		occurrenceUpdater = shiftService[0]
-	}
-	return &staffShiftSeriesService{
+	service := &staffShiftSeriesService{
 		seriesRepo:    seriesRepo,
 		exceptionRepo: exceptionRepo,
 		shiftRepo:     shiftRepo,
 		staffRepo:     staffRepo,
 		periodRepo:    periodRepo,
 		shiftTypes:    shiftTypes,
-		shiftService:  occurrenceUpdater,
+		shiftService:  shiftService,
 		db:            db,
 		logger:        logger,
+		today:         timezone.TodayDate,
 	}
+	if len(today) > 0 && today[0] != nil {
+		service.today = today[0]
+	}
+	return service
+}
+
+func (s *staffShiftSeriesService) todayDate() timezone.Date {
+	return s.today()
 }
 
 // updateTodayOccurrence keeps a currently planned series occurrence as the
@@ -167,7 +174,7 @@ func (s *staffShiftSeriesService) updateTodayOccurrence(
 	// A cancellation (and its replacement coverage) is a deliberate current-day
 	// deviation. Resizing it through UpdateShift can invalidate its covers, so
 	// retain the cancellation and apply the permanent rule only from tomorrow.
-	if occurrence.Date != timezone.TodayDate() || occurrence.Cancelled ||
+	if occurrence.Date != s.todayDate() || occurrence.Cancelled ||
 		(occurrence.Detached && !updateRetainedOccurrence) {
 		return false, nil
 	}
@@ -250,7 +257,7 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 	if period.StartDate.After(from) {
 		from = period.StartDate
 	}
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := s.todayDate().AddDays(1)
 	if tomorrow.After(from) {
 		from = tomorrow
 	}
@@ -353,12 +360,12 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 // hasFutureSeriesOccurrence checks the recurrence itself before a split mutates
 // the predecessor. Exceptions and overlapping shifts intentionally do not
 // count here: they are deviations of an otherwise valid recurring rule.
-func hasFutureSeriesOccurrence(series *scheduleModels.StaffShiftSeries, period *scheduleModels.CalendarPeriod) bool {
+func hasFutureSeriesOccurrence(series *scheduleModels.StaffShiftSeries, period *scheduleModels.CalendarPeriod, today timezone.Date) bool {
 	from := series.ValidFrom
 	if period.StartDate.After(from) {
 		from = period.StartDate
 	}
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := today.AddDays(1)
 	if tomorrow.After(from) {
 		from = tomorrow
 	}
@@ -398,7 +405,7 @@ func (s *staffShiftSeriesService) CreateSeries(ctx context.Context, series *sche
 	if err != nil {
 		return nil, err
 	}
-	if !hasFutureSeriesOccurrence(series, period) {
+	if !hasFutureSeriesOccurrence(series, period, s.todayDate()) {
 		return nil, fmt.Errorf(
 			"%w: no occurrences left to create for the selected weekdays and week pattern",
 			ErrSeriesInvalid,
@@ -463,9 +470,10 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		return nil, err
 	}
 
-	updateToday := input.EffectiveDate == timezone.TodayDate()
+	today := s.todayDate()
+	updateToday := input.EffectiveDate == today
 	effective := input.EffectiveDate
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := today.AddDays(1)
 	if tomorrow.After(effective) {
 		effective = tomorrow
 	}
@@ -550,7 +558,7 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		until := next.ValidFrom
 		successor.ValidUntil = &until
 	}
-	if !hasFutureSeriesOccurrence(successor, period) {
+	if !hasFutureSeriesOccurrence(successor, period, today) {
 		return nil, fmt.Errorf(
 			"%w: no occurrences left to change for the selected weekdays and week pattern",
 			ErrSeriesInvalid,
@@ -616,7 +624,7 @@ func (s *staffShiftSeriesService) EndSeries(ctx context.Context, seriesID int64,
 		return nil, err
 	}
 	effective := from
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := s.todayDate().AddDays(1)
 	if tomorrow.After(effective) {
 		effective = tomorrow
 	}

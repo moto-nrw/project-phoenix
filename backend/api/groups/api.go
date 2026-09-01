@@ -15,9 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -74,38 +72,16 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations only require groups:read permission
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students", rs.getGroupStudents)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/supervisors", rs.getGroupSupervisors)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/substitutions", rs.getGroupSubstitutions)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getGroup)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students", rs.getGroupStudents)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/supervisors", rs.getGroupSupervisors)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
 
 		// Write operations require groups:create, groups:update, or groups:delete permission
-		r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteGroup)
-
-		// Group transfer operations - Self-service feature for group leaders
-		//
-		// DESIGN NOTE: No permission checks required (intentional design decision)
-		// Authorization is based on group ownership, not permissions:
-		// - User must be authenticated (JWT middleware from parent router)
-		// - User must be a Teacher (checked in handler via GetCurrentTeacher)
-		// - User must be assigned to this group (verified via education.group_teacher table)
-		//
-		// This differs from /api/substitutions (admin-only, multi-day coverage):
-		// - Transfers: Any group leader, same-day only (expires 23:59 UTC), additional access
-		// - Substitutions: Admin-only, configurable duration, managed via admin UI
-		//
-		// Both use the same database table (education.group_substitution), distinguished by:
-		// - Transfers: regular_staff_id IS NULL (additional access)
-		// - Substitutions: regular_staff_id IS NOT NULL (person replacement)
-		r.Route("/{id}/transfer", func(r chi.Router) {
-			r.Use(withTx)
-			r.Post("/", rs.transferGroup)
-			r.Delete("/{substitutionId}", rs.cancelSpecificTransfer)
-		})
+		r.With(common.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createGroup)
+		r.With(common.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateGroup)
+		r.With(common.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteGroup)
 	})
 
 	return r
@@ -153,19 +129,6 @@ type GroupRequest struct {
 func (req *GroupRequest) Bind(_ *http.Request) error {
 	if req.Name == "" {
 		return errors.New("group name is required")
-	}
-	return nil
-}
-
-// TransferGroupRequest represents a request to transfer group access to another user
-type TransferGroupRequest struct {
-	TargetUserID int64 `json:"target_user_id"`
-}
-
-// Bind validates the transfer group request
-func (req *TransferGroupRequest) Bind(_ *http.Request) error {
-	if req.TargetUserID <= 0 {
-		return errors.New("target_user_id is required")
 	}
 	return nil
 }
@@ -253,22 +216,6 @@ func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) int {
 		return 0
 	}
 	return len(students)
-}
-
-// isUserGroupLeader checks if the given teacher is a leader of the specified group.
-// Returns true if the teacher leads the group, false otherwise.
-func (rs *Resource) isUserGroupLeader(ctx context.Context, teacherID int64, groupID int64) (bool, error) {
-	myGroups, err := rs.EducationService.GetTeacherGroups(ctx, teacherID)
-	if err != nil {
-		return false, err
-	}
-
-	for _, group := range myGroups {
-		if group.ID == groupID {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // userHasGroupAccess checks if the current user has access to the specified group.
@@ -461,35 +408,24 @@ func buildNoRoomResponse(students []*users.Student) map[string]interface{} {
 
 // listGroups handles listing all groups with optional filtering
 func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-
 	// Add filters if provided
 	name := r.URL.Query().Get("name")
 	roomIDStr := r.URL.Query().Get("room_id")
-
-	// Create filter
-	filter := base.NewFilter()
-
-	// Apply filters
-	if name != "" {
-		filter.ILike("name", "%"+name+"%")
-	}
+	query := &education.GroupListQuery{NameContains: name}
 
 	if roomIDStr != "" {
 		roomID, err := strconv.ParseInt(roomIDStr, 10, 64)
 		if err == nil {
-			filter.Equal("room_id", roomID)
+			query.RoomID = &roomID
 		}
 	}
 
-	// Add pagination
 	page, pageSize := common.ParsePagination(r)
-	queryOptions.WithPagination(page, pageSize)
-	queryOptions.Filter = filter
+	query.Limit = pageSize
+	query.Offset = (page - 1) * pageSize
 
 	// Get all groups
-	groups, err := rs.EducationService.ListGroups(r.Context(), queryOptions)
+	groups, err := rs.EducationService.ListGroups(r.Context(), query)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -524,9 +460,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Count total for pagination (same filters, no LIMIT/OFFSET)
-	countOptions := base.NewQueryOptions()
-	countOptions.Filter = filter
-	total, countErr := rs.EducationService.CountGroups(r.Context(), countOptions)
+	total, countErr := rs.EducationService.CountGroups(r.Context(), query)
 	if countErr != nil {
 		total = len(responses)
 	}
@@ -861,32 +795,6 @@ func (rs *Resource) buildRoomStatusResponse(ctx context.Context, students []*use
 	return result
 }
 
-// getGroupSubstitutions gets active substitutions for a specific group
-func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request) {
-	// Parse and get group
-	group, ok := rs.parseAndGetGroup(w, r)
-	if !ok {
-		return
-	}
-
-	// Get active substitutions for this group
-	date := timezone.TodayDate()
-	if dateStr := r.URL.Query().Get("date"); dateStr != "" {
-		parsedDate, err := timezone.ParseDate(dateStr)
-		if err == nil {
-			date = parsedDate
-		}
-	}
-
-	substitutions, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), group.ID, date)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, substitutions, "Group substitutions retrieved successfully")
-}
-
 // resolveStudentLocation determines the student's location string based on active attendance data.
 func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess bool) string {
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
@@ -921,220 +829,4 @@ func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64,
 	}
 
 	return "Anwesend"
-}
-
-// validateGroupLeaderAccess ensures current user is a teacher who leads the specified group
-func (rs *Resource) validateGroupLeaderAccess(w http.ResponseWriter, r *http.Request, groupID int64) (*users.Staff, *users.Teacher, bool) {
-	currentStaff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du musst ein Mitarbeiter sein, um Gruppen zu übergeben")))
-		return nil, nil, false
-	}
-
-	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Gruppen zu übergeben")))
-		return nil, nil, false
-	}
-
-	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return nil, nil, false
-	}
-
-	if !isGroupLeader {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen vornehmen")))
-		return nil, nil, false
-	}
-
-	return currentStaff, currentTeacher, true
-}
-
-// resolveTargetStaff validates and retrieves the target staff for a group transfer
-func (rs *Resource) resolveTargetStaff(w http.ResponseWriter, r *http.Request, targetUserID int64) (*users.Person, *users.Staff, bool) {
-	targetPerson, err := rs.UserService.Get(r.Context(), targetUserID)
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("Der ausgewählte Betreuer wurde nicht gefunden")))
-		return nil, nil, false
-	}
-
-	targetStaff, err := rs.UserService.GetStaffByPersonID(r.Context(), targetPerson.ID)
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter")))
-		return nil, nil, false
-	}
-
-	return targetPerson, targetStaff, true
-}
-
-// translateTransferRequestError converts transfer request errors to German messages
-func (rs *Resource) translateTransferRequestError(err error) string {
-	if err.Error() == "target_user_id is required" {
-		return "Bitte wähle einen Betreuer aus"
-	}
-	return "Ungültige Anfrage"
-}
-
-// checkDuplicateTransfer verifies target doesn't already have access to this group
-func (rs *Resource) checkDuplicateTransfer(w http.ResponseWriter, r *http.Request, groupID int64, targetStaffID int64, targetPerson *users.Person) bool {
-	today := timezone.TodayDate()
-	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return false
-	}
-
-	for _, transfer := range existingTransfers {
-		if transfer.RegularStaffID == nil && transfer.SubstituteStaffID == targetStaffID {
-			targetName := targetPerson.FirstName + " " + targetPerson.LastName
-			errorMsg := fmt.Sprintf("Du hast diese Gruppe bereits an %s übergeben", targetName)
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errorMsg)))
-			return false
-		}
-	}
-	return true
-}
-
-// transferGroup handles POST /api/groups/{id}/transfer
-// Allows a group leader to grant temporary access to another user until end of day
-func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
-	groupID, ok := common.ParseInt64IDWithError(w, r, "id", "Ungültige Gruppen-ID")
-	if !ok {
-		return
-	}
-
-	req := &TransferGroupRequest{}
-	if err := render.Bind(r, req); err != nil {
-		errMsg := rs.translateTransferRequestError(err)
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsg)))
-		return
-	}
-
-	currentStaff, _, ok := rs.validateGroupLeaderAccess(w, r, groupID)
-	if !ok {
-		return
-	}
-
-	targetPerson, targetStaff, ok := rs.resolveTargetStaff(w, r, req.TargetUserID)
-	if !ok {
-		return
-	}
-
-	if targetStaff.ID == currentStaff.ID {
-		//nolint:staticcheck // ST1005: German user-facing message
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("Du kannst die Gruppe nicht an dich selbst übergeben")))
-		return
-	}
-
-	if !rs.checkDuplicateTransfer(w, r, groupID, targetStaff.ID, targetPerson) {
-		return
-	}
-
-	today := timezone.TodayDate()
-
-	// Create substitution (without regular_staff_id = additional access, not replacement)
-	substitution := &education.GroupSubstitution{
-		GroupID:           groupID,
-		RegularStaffID:    nil, // NULL = additional access, not replacement
-		SubstituteStaffID: targetStaff.ID,
-		StartDate:         today,
-		EndDate:           today, // single-day transfer; access ends with the calendar day
-		Reason:            "Gruppenübergabe",
-	}
-
-	// Validate substitution data
-	if err := substitution.Validate(); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	// Create the transfer directly via repository (bypass service conflict check)
-	// For group transfers, we WANT users to have multiple groups, so skip FindOverlapping check
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.EducationService.CreateGroupTransfer(ctx, substitution)
-	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusCreated, map[string]interface{}{
-		"substitution_id": substitution.ID,
-		"group_id":        groupID,
-		"target_staff_id": targetStaff.ID,
-		"valid_until":     today.EndOfDay().Format(time.RFC3339),
-	}, "Group access transferred successfully")
-}
-
-// cancelSpecificTransfer handles DELETE /api/groups/{id}/transfer/{substitutionId}
-// Allows a group leader to cancel a specific transfer by substitution ID
-func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Request) {
-	groupID, ok := common.ParseInt64IDWithError(w, r, "id", "Ungültige Gruppen-ID")
-	if !ok {
-		return
-	}
-
-	substitutionID, ok := common.ParseInt64IDWithError(w, r, "substitutionId", "Ungültige Substitutions-ID")
-	if !ok {
-		return
-	}
-
-	// Get current user's teacher record
-	currentTeacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du musst ein Gruppenleiter sein, um Übertragungen zurückzunehmen")))
-		return
-	}
-
-	// Verify that current user is a leader of this group
-	isGroupLeader, err := rs.isUserGroupLeader(r.Context(), currentTeacher.ID, groupID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	if !isGroupLeader {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("Du bist kein Leiter dieser Gruppe. Nur der Original-Gruppenleiter kann Übertragungen zurücknehmen")))
-		return
-	}
-
-	// Verify that the substitution exists and belongs to this group
-	substitution, err := rs.EducationService.GetSubstitution(r.Context(), substitutionID)
-	if err != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("Übertragung nicht gefunden")))
-		return
-	}
-
-	// Verify it's a transfer (not admin substitution) and belongs to this group
-	if substitution.RegularStaffID != nil {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("Dies ist eine Admin-Vertretung und kann nicht hier gelöscht werden")))
-		return
-	}
-
-	if substitution.GroupID != groupID {
-		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("Diese Übertragung gehört nicht zu dieser Gruppe")))
-		return
-	}
-
-	// Delete the specific transfer
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.EducationService.DeleteSubstitution(ctx, substitutionID)
-	}); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, nil, "Transfer cancelled successfully")
 }

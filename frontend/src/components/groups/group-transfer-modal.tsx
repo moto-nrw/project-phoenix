@@ -20,24 +20,14 @@ const EMPTY_TRANSFERS: NonNullable<
   GroupTransferModalProps["existingTransfers"]
 > = [];
 
-/**
- * Holt aus einem Fehler die Meldung heraus, die der Nutzerin gezeigt werden
- * kann: die Klienten werfen `API error (409): {"error":"..."}`, interessant ist
- * nur der innere Text.
- */
 function extractErrorMessage(err: unknown, fallback: string): string {
-  if (!(err instanceof Error)) {
+  if (
+    !(err instanceof Error) ||
+    !["TransferError", "CancelTransferError"].includes(err.name)
+  ) {
     return fallback;
   }
-
-  const withoutPrefix = err.message.replace(/^API error \(\d+\):\s*/, "");
-
-  try {
-    const parsed = JSON.parse(withoutPrefix) as { error?: string };
-    return parsed.error ?? withoutPrefix;
-  } catch {
-    return withoutPrefix;
-  }
+  return err.message || fallback;
 }
 
 interface GroupTransferModalProps {
@@ -50,14 +40,10 @@ interface GroupTransferModalProps {
   } | null;
   readonly availableUsers: ReadonlyArray<{
     readonly id: string;
-    readonly personId: string;
-    readonly firstName: string;
-    readonly lastName: string;
     readonly fullName: string;
-    readonly email: string;
   }>;
   readonly onTransfer: (
-    targetPersonId: string,
+    targetStaffId: string,
     targetName: string,
   ) => Promise<void>;
   readonly existingTransfers?: ReadonlyArray<{
@@ -65,8 +51,8 @@ interface GroupTransferModalProps {
     readonly substitutionId: string;
     readonly targetStaffId: string;
   }>;
+  readonly loadError?: string | null;
   readonly onCancelTransfer?: (substitutionId: string) => Promise<void>;
-  readonly onRefreshTransfers?: () => Promise<void>;
 }
 
 export function GroupTransferModal({
@@ -76,40 +62,41 @@ export function GroupTransferModal({
   availableUsers,
   onTransfer,
   existingTransfers = EMPTY_TRANSFERS,
+  loadError = null,
   onCancelTransfer,
-  onRefreshTransfers: _onRefreshTransfers,
 }: GroupTransferModalProps) {
-  const [selectedPersonId, setSelectedPersonId] = useState("");
+  const [selectedStaffId, setSelectedStaffId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const errorRef = useScrollToError(error);
+  const displayedError = error ?? loadError;
+  const errorRef = useScrollToError(displayedError);
 
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      setSelectedPersonId("");
+      setSelectedStaffId("");
       setError(null);
       setDeletingId(null);
     }
   }, [isOpen]);
 
   const handleTransfer = async () => {
-    if (!selectedPersonId) {
-      setError("Bitte wählen Sie einen Betreuer aus.");
+    if (!selectedStaffId) {
+      setError("Bitte wählen Sie eine pädagogische Fachkraft aus.");
       return;
     }
 
     const selectedUser = availableUsers.find(
-      (user) => user.personId === selectedPersonId,
+      (user) => user.id === selectedStaffId,
     );
-    const targetName = selectedUser?.fullName ?? "Betreuer";
+    const targetName = selectedUser?.fullName ?? "Pädagogische Fachkraft";
 
     try {
       setLoading(true);
       setError(null);
-      await onTransfer(selectedPersonId, targetName);
-      setSelectedPersonId("");
+      await onTransfer(selectedStaffId, targetName);
+      setSelectedStaffId("");
       setError(null);
     } catch (err) {
       logger.error("group_transfer_failed", {
@@ -171,7 +158,7 @@ export function GroupTransferModal({
         onClick={() => void handleTransfer()}
         isLoading={loading}
         loadingText="Wird übergeben..."
-        disabled={!selectedPersonId || loading || availableUsers.length === 0}
+        disabled={!selectedStaffId || loading || availableUsers.length === 0}
       >
         Übergeben
       </Button>
@@ -187,9 +174,9 @@ export function GroupTransferModal({
       isDismissDisabled={loading}
     >
       <div className="space-y-6">
-        {error ? (
+        {displayedError ? (
           <div ref={errorRef}>
-            <Alert type="error" message={error} />
+            <Alert type="error" message={displayedError} />
           </div>
         ) : null}
 
@@ -198,15 +185,12 @@ export function GroupTransferModal({
           icon={<Clock className="h-full w-full" />}
         >
           <p className="text-sm text-gray-600">
-            Der ausgewählte Betreuer erhält{" "}
+            Die ausgewählte pädagogische Fachkraft ist{" "}
             <strong className="font-medium text-gray-900">
-              zusätzliche Berechtigungen
+              heute zusätzlich zuständig
             </strong>{" "}
-            für diese Gruppe bis{" "}
-            <strong className="font-medium text-gray-900">
-              heute 23:59 Uhr
-            </strong>
-            . Du behältst weiterhin vollen Zugriff auf die Gruppe.
+            für diese Gruppe. Die Gruppe erscheint für diese Person unter „Meine
+            Gruppen“.
           </p>
         </InfoSection>
 
@@ -261,21 +245,21 @@ export function GroupTransferModal({
           <CustomSelect
             id="transfer-user-select"
             ariaLabelledBy="transfer-user-select-label"
-            value={selectedPersonId}
-            onChange={setSelectedPersonId}
+            value={selectedStaffId}
+            onChange={setSelectedStaffId}
             options={[
-              { value: "", label: "Betreuer auswählen..." },
+              { value: "", label: "Fachkraft auswählen..." },
               ...availableUsers.map((user) => ({
-                value: user.personId,
+                value: user.id,
                 label: user.fullName,
               })),
             ]}
-            placeholder="Betreuer auswählen..."
+            placeholder="Fachkraft auswählen..."
           />
-          {availableUsers.length === 0 && (
+          {availableUsers.length === 0 && !loadError && (
             <p className="mt-2 text-sm text-gray-500">
-              Keine Betreuer verfügbar. Bitte stellen Sie sicher, dass
-              Lehrkräfte im System angelegt sind.
+              Keine pädagogische Fachkraft verfügbar. Bitte wenden Sie sich an
+              die Verwaltung.
             </p>
           )}
         </div>

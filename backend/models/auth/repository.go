@@ -157,10 +157,6 @@ type AccountPermissionRepository interface {
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
-
-	FindByPermissionID(ctx context.Context, permissionID int64) ([]*AccountPermission, error)
-
-	FindByAccountAndPermission(ctx context.Context, accountID, permissionID int64) (*AccountPermission, error)
 }
 
 // TokenRepository defines operations for managing authentication tokens
@@ -184,9 +180,6 @@ type TokenRepository interface {
 
 	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*Token, error)
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
-
-	// Token family tracking methods
-	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens
@@ -332,11 +325,6 @@ type MFAOverrideRepository interface {
 	// surface so a single account's override picture across tenants is
 	// inspectable.
 	ListByAccount(ctx context.Context, accountID int64) ([]*MFAOverride, error)
-
-	// DeleteAllByAccount wipes every override row when the account is
-	// reset or destroyed. Returns the number of rows removed for the
-	// audit log.
-	DeleteAllByAccount(ctx context.Context, accountID int64) (int64, error)
 }
 
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.
@@ -401,6 +389,23 @@ type AccountTenantRepository interface {
 	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)
 	ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]AccountTenantAccessInfo, error)
+}
+
+type StaffCalendarFeedOwner struct {
+	AccountID int64 `bun:"account_id"`
+	TenantID  int64 `bun:"tenant_id"`
+}
+
+type StaffCalendarFeedTokenRepository interface {
+	// FindOwnerByTokenHash resolves a cross-tenant capability token; generic
+	// tenant-scoped filters cannot perform this lookup before the tenant is known.
+	FindOwnerByTokenHash(ctx context.Context, tokenHash string) (*StaffCalendarFeedOwner, error)
+	// EnsureToken atomically creates the token once and returns the winning value
+	// when concurrent requests race; a generic update cannot express that contract.
+	EnsureToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (string, error)
+	// RotateToken replaces the active mapping's capability token atomically; this
+	// domain operation is intentionally narrower than a generic per-field update.
+	RotateToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (bool, error)
 }
 
 // GuardianInvitationRepository defines operations for managing guardian invitations.

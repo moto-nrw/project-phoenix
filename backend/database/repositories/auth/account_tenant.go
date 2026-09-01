@@ -84,6 +84,7 @@ func (r *AccountTenantRepository) Deactivate(ctx context.Context, accountID, ten
 		ModelTableExpr(accountTenantTable).
 		Set("status = ?", auth.AccountTenantStatusInactive).
 		Set("deactivated_at = NOW()").
+		Set("staff_calendar_feed_token = NULL").
 		Set("updated_at = NOW()").
 		Where("account_id = ?", accountID).
 		Where("tenant_id = ?", tenantID).

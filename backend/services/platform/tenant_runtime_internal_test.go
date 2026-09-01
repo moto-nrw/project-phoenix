@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newMockTenantRuntimePtr(t testing.TB, db *bun.DB) *tenant.Runtime {
+func newMockTenantRuntimePtr(t testing.TB, db *bun.DB) *tenant.UnitOfWork {
 	t.Helper()
 	runtime := testpkg.TenantRuntime(t, db)
 	return &runtime

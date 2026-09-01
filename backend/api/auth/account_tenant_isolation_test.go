@@ -30,11 +30,12 @@ type accountIsolationEnv struct {
 
 func newAccountIsolationEnv(t *testing.T) *accountIsolationEnv {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupAuthRoute(t)
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
 	tenantID := testpkg.Tenant(t)
 	actor := testpkg.CreateTestAccount(t, tc.db, "account-scope-actor")
+	testpkg.OwnTestAccount(t, tc.db, actor.ID)
 	foreignTenantID, _ := testpkg.CreateTestTenant(t, tc.db)
 	return &accountIsolationEnv{
 		tc:              tc,
@@ -96,7 +97,7 @@ func TestAccountManagementOwnTenantAllowed(t *testing.T) {
 	e := newAccountIsolationEnv(t)
 	account := testpkg.CreateTestAccount(t, e.tc.db, "account-scope-local")
 
-	got, err := e.tc.services.Auth.GetAccountByID(tenant.WithTenantID(context.Background(), e.tenantID), int(account.ID))
+	got, err := e.tc.resource.AuthService.GetAccountByID(tenant.WithTenantID(context.Background(), e.tenantID), int(account.ID))
 	require.NoError(t, err)
 	assert.Equal(t, account.ID, got.ID)
 
@@ -338,8 +339,8 @@ func TestAccountManagementForeignGetDoesNotLeakExistence(t *testing.T) {
 	missingID := e.missingAccountID(t)
 	ctx := tenant.WithTenantID(context.Background(), e.tenantID)
 
-	_, foreignErr := e.tc.services.Auth.GetAccountByID(ctx, int(foreignID))
-	_, missingErr := e.tc.services.Auth.GetAccountByID(ctx, int(missingID))
+	_, foreignErr := e.tc.resource.AuthService.GetAccountByID(ctx, int(foreignID))
+	_, missingErr := e.tc.resource.AuthService.GetAccountByID(ctx, int(missingID))
 	require.ErrorIs(t, foreignErr, authService.ErrAccountNotFound)
 	require.ErrorIs(t, missingErr, authService.ErrAccountNotFound)
 	assert.Equal(t, missingErr.Error(), foreignErr.Error())
@@ -407,7 +408,7 @@ func TestAccountManagementInactiveMembershipDenied(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := tenant.WithTenantID(context.Background(), e.tenantID)
-	_, err = e.tc.services.Auth.GetAccountByID(ctx, int(account.ID))
+	_, err = e.tc.resource.AuthService.GetAccountByID(ctx, int(account.ID))
 	require.ErrorIs(t, err, authService.ErrAccountNotFound)
 	assert.NotContains(t, accountIDs(e.listAccounts(t, e.claims)), account.ID)
 	assertAccountActionStatus(t, e, e.claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", account.ID), map[string]string{"email": account.Email}, http.StatusNotFound)
@@ -421,10 +422,10 @@ func TestAccountManagementOrganizationScopeStaysWithinOrganization(t *testing.T)
 	foreignID, _ := e.foreignAccount(t, "account-scope-org-foreign")
 	ctx := tenant.WithScope(tenant.WithOrgID(context.Background(), organizationID), tenant.ScopeOrg)
 
-	got, err := e.tc.services.Auth.GetAccountByID(ctx, int(sameOrgID))
+	got, err := e.tc.resource.AuthService.GetAccountByID(ctx, int(sameOrgID))
 	require.NoError(t, err)
 	assert.Equal(t, sameOrgID, got.ID)
-	_, err = e.tc.services.Auth.GetAccountByID(ctx, int(foreignID))
+	_, err = e.tc.resource.AuthService.GetAccountByID(ctx, int(foreignID))
 	require.ErrorIs(t, err, authService.ErrAccountNotFound)
 
 	claims := e.claims
@@ -454,11 +455,11 @@ func TestAccountManagementPlatformScopeRemainsGlobal(t *testing.T) {
 	foreignID, _ := e.foreignAccount(t, "account-scope-platform")
 	ctx := tenant.WithScope(context.Background(), tenant.ScopePlatform)
 
-	got, err := e.tc.services.Auth.GetAccountByID(ctx, int(foreignID))
+	got, err := e.tc.resource.AuthService.GetAccountByID(ctx, int(foreignID))
 	require.NoError(t, err)
 	assert.Equal(t, foreignID, got.ID)
-	require.NoError(t, e.tc.services.Auth.DeactivateAccount(ctx, int(foreignID)))
-	require.NoError(t, e.tc.services.Auth.ActivateAccount(ctx, int(foreignID)))
+	require.NoError(t, e.tc.resource.AuthService.DeactivateAccount(ctx, int(foreignID)))
+	require.NoError(t, e.tc.resource.AuthService.ActivateAccount(ctx, int(foreignID)))
 
 	claims := e.claims
 	claims.Scope = tenant.ScopePlatform

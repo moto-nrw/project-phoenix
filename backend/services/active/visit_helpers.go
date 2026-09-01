@@ -283,7 +283,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 		return
 	}
 
-	now := time.Now()
+	now := s.now()
 	today := timezone.DateFromTime(now)
 	rows, err := s.StudentStatusRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
 	if err != nil {

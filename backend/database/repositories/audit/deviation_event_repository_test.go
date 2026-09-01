@@ -93,7 +93,7 @@ func TestDeviationEventRepository_DeleteOlderThan(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Retention-Gruppe")
 
-	cutoff := timezone.NewDate(2026, time.March, 1)
+	cutoff := timezone.TodayDate().AddDays(-365)
 	createTestDeviationEvent(t, db, scope, group.ID, cutoff.AddDays(-30), "14:00", auditModels.DeviationEventAbsence)
 	recent := createTestDeviationEvent(t, db, scope, group.ID, cutoff.AddDays(5), "14:00", auditModels.DeviationEventAbsence)
 

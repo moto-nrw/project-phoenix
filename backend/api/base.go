@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
@@ -31,18 +32,14 @@ import (
 	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
-	pwaAPI "github.com/moto-nrw/project-phoenix/api/pwa"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
@@ -74,6 +71,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
+	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
+	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
+	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -94,13 +97,118 @@ func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.Offe
 	return lister
 }
 
-func recordHTTPRuntimeEvent(event apiCommon.TenantRuntimeEvent) {
+func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, event apiCommon.TenantRuntimeEvent) {
+	observability.RecordUnitOfWorkEvent(
+		"http",
+		string(event.Kind),
+		string(event.Result),
+		event.Duration,
+		event.Retries,
+	)
 	switch {
-	case event.Outcome == apiCommon.TenantRuntimeMissingTenant:
-		observability.RecordTenantRuntimeEvent("http", "missing_tenant")
-	case event.Outcome == apiCommon.TenantRuntimeTransaction && event.Err != nil:
-		observability.RecordTenantRuntimeEvent("http", "transaction_failure")
+	case event.Kind == apiCommon.TenantRuntimeMissingTenant:
+		tracer.Failure(ctx, "http", string(event.Kind), "missing_tenant", event.Err)
+	case event.Kind == apiCommon.TenantRuntimeTransaction && event.Err != nil:
+		tracer.Failure(ctx, "http", string(event.Kind), "transaction_failure", event.Err)
+	case event.Kind == apiCommon.TenantRuntimeResponseWrite && event.Err != nil:
+		tracer.Failure(ctx, "http", string(event.Kind), "response_write_failure", event.Err)
 	}
+}
+
+func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (*services.Factory, *mealplanModule.Module, *feedbackModule.Module, error) {
+	mealPlanSettings := mealplanCompose.NewSettings()
+	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
+		DB:       db,
+		Settings: mealPlanSettings,
+		Observe: func(observation mealplanCompose.Observation) {
+			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	feedbackSettings := feedbackCompose.NewSettings()
+	feedbackCapability, err := feedbackCompose.New(feedbackCompose.Dependencies{
+		DB:       db,
+		Settings: feedbackSettings,
+		Today:    feedbackModule.Today,
+		Observe: func(observation feedbackCompose.Observation) {
+			observability.ObserveFeedbackOperation(
+				observation.Operation,
+				observation.Duration,
+				observation.Stats.Queries,
+				observation.Stats.Rows,
+				observation.Stats.StatementDuration,
+				feedbackModule.ErrorCode(observation.Err),
+				observation.Err,
+			)
+		},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	factory, err := services.NewFactoryWithModules(
+		repoFactory, db, logger,
+		mealPlan, mealPlanSettings.Bind,
+		feedbackCapability, feedbackSettings.Bind,
+	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return factory, mealPlan, feedbackCapability, nil
+}
+
+var mealPlanErrorRules = []apiCommon.ErrorRule{
+	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("feature_disabled"))},
+	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
+	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
+}
+
+func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
+	renderer := apiCommon.RulesRenderer(mealPlanErrorRules, apiCommon.ErrorInternalServerRenderer(internalMessage))
+	apiCommon.RenderError(w, r, renderer(err))
+}
+
+func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI.Resource {
+	return mealplanAPI.NewResource(module, mealplanAPI.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router, mealplanAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(router, db, register)
+		},
+		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
+			if access == mealplanAPI.AccessRead {
+				return apiCommon.RequireConfigRead()
+			}
+			return apiCommon.RequireConfigUpdate()
+		},
+		Success: apiCommon.Respond,
+		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
+			apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+		},
+		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
+			renderMealPlanFailure(w, r, err, internalMessage)
+		},
+	})
+}
+
+func newFeedbackResource(module *feedbackModule.Module, db *bun.DB) *feedbackAPI.Resource {
+	return feedbackAPI.NewResource(module, feedbackAPI.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router, feedbackAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(router, db, register)
+		},
+		Permission: func(permission string) feedbackAPI.Middleware {
+			return apiCommon.RequiresPermission(permission)
+		},
+		Success: apiCommon.Respond,
+		Failure: func(w http.ResponseWriter, r *http.Request, failure feedbackAPI.Failure) {
+			apiCommon.RenderError(w, r, &apiCommon.ErrResponse{
+				Err: failure.Err, HTTPStatusCode: failure.Status,
+				Status: failure.Classification, ErrorText: failure.Err.Error(),
+			})
+		},
+		ObserveResponse: func(status int, code string) {
+			observability.ObserveFeedbackHTTPResponse("staff", status, code)
+		},
+	})
 }
 
 // API represents the API structure
@@ -110,8 +218,11 @@ type API struct {
 	db                 *bun.DB
 	repos              *repositories.Factory
 	tenantRuntime      apiCommon.TenantRuntime
-	Metrics            *observability.HTTPMetrics
+	metrics            *httpMetrics
+	tracer             *observability.Tracer
 	metricsBearerToken string
+	databaseLogger     *slog.Logger
+	feedback           *feedbackModule.Module
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -143,7 +254,6 @@ type API struct {
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
-	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingAPI.Resource
 	Timetable        *timetableAPI.Resource
@@ -152,10 +262,10 @@ type API struct {
 	StaffMessaging   *staffMessagingAPI.Resource
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
+	StaffNotices     *staffAPI.StaffNoticeResource
 	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
-	PWA              *pwaAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -163,8 +273,25 @@ type API struct {
 	Platform *platformAPI.Resource
 }
 
+type apiBuildResources struct {
+	pool     *bun.DB
+	tracker  analytics.Tracker
+	released bool
+}
+
+func (resources *apiBuildResources) close() error {
+	if resources.released {
+		return nil
+	}
+	var err error
+	if resources.tracker != nil {
+		err = resources.tracker.Close()
+	}
+	return errors.Join(err, database.ClosePool(resources.pool))
+}
+
 // New creates a new API instance
-func New(enableCORS bool, logger *slog.Logger) (*API, error) {
+func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -175,14 +302,20 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
-	databaseTenantRuntime, err := database.NewTenantRuntime(db)
+	buildResources := apiBuildResources{pool: db}
+	defer func() {
+		resultErr = errors.Join(resultErr, buildResources.close())
+	}()
+	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait))
+	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
 	if err != nil {
 		return nil, err
 	}
 	tenantRuntime, err := services.BindTenantRuntime(
-		databaseTenantRuntime.WithinTenant,
-		databaseTenantRuntime.WithinAdmin,
-		databaseTenantRuntime,
+		postgresUnitOfWork.WithinTenant,
+		postgresUnitOfWork.WithinAdmin,
+		postgresUnitOfWork,
+		database.IsRetryableTransactionError,
 	)
 	if err != nil {
 		return nil, err
@@ -203,15 +336,31 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Initialize repository factory with DB connection
 	repoFactory := repositories.NewFactory(db)
 
-	// Initialize service factory with repository factory
-	serviceFactory, err := services.NewFactory(repoFactory, db, logger)
+	// Compose one authoritative instance of each migrated module.
+	serviceFactory, mealPlanCapability, feedbackCapability, err := initializeModuleServices(repoFactory, db, logger)
 	if err != nil {
 		return nil, err
 	}
+	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
 	}
-	observability.RegisterDBStatsProvider(db.DB)
+	serviceFactory.SetSettingsObservers(
+		observability.ObserveSettingsLookup,
+		observability.RecordSettingsSideEffectFailure,
+	)
+	observability.RegisterDBStatsProvider(func() observability.DBStats {
+		stats := database.SnapshotCapacity(db)
+		return observability.DBStats{
+			OpenConnections:   stats.OpenConnections,
+			InUse:             stats.InUse,
+			Idle:              stats.Idle,
+			WaitCount:         stats.WaitCount,
+			WaitDuration:      stats.WaitDuration,
+			MaxIdleClosed:     stats.MaxIdleClosed,
+			MaxLifetimeClosed: stats.MaxLifetimeClosed,
+		}
+	})
 	observability.RegisterSSEStatsProvider(serviceFactory.RealtimeHub)
 	observability.RegisterPWAUsageStatsProvider(observability.PWAUsageStatsProviderFunc(func() ([]observability.PWAUsageStat, error) {
 		rows, err := serviceFactory.PWAUsage.SnapshotUsage()
@@ -231,34 +380,40 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	}))
 
 	// Create API instance
-	httpMetrics := observability.NewHTTPMetrics()
+	httpMetrics := newHTTPMetrics()
+	tracer := newRuntimeTracer(logger)
 	api := &API{
 		Services:           serviceFactory,
 		Router:             chi.NewRouter(),
 		db:                 db,
 		repos:              repoFactory,
 		tenantRuntime:      tenantRuntime,
-		Metrics:            httpMetrics,
+		metrics:            httpMetrics,
+		tracer:             tracer,
 		metricsBearerToken: metricsBearerToken,
+		databaseLogger:     logger.With("handler", "database"),
+		feedback:           feedbackCapability,
 	}
 
 	// Setup router middleware
+	api.Router.Use(func(next http.Handler) http.Handler { return requestIDMiddleware(tracer, next) })
 	api.Router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
-	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(recordHTTPRuntimeEvent))
+	api.Router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
+		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)
+	}))
+	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(ctx context.Context, event apiCommon.TenantRuntimeEvent) {
+		recordHTTPRuntimeEvent(ctx, tracer, event)
+	}))
 	api.Router.Use(apiCommon.TenantRequestObserverMiddleware(func(event apiCommon.TenantRequestEvent) {
 		observability.ObserveTenantRequest(
 			event.TenantID,
 			event.Scope,
 			event.Request.Method,
-			observability.RoutePattern(event.Request),
+			apiCommon.RoutePattern(event.Request),
 			event.Status,
 			event.Duration,
 			event.Outcome,
 		)
-		switch event.Outcome {
-		case "missing_tenant":
-			observability.RecordTenantRuntimeEvent("http", "missing_tenant")
-		}
 	}))
 	setupBasicMiddleware(api.Router, logger, httpMetrics)
 
@@ -271,22 +426,30 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
+	api.MealPlan = newMealPlanResource(mealPlanCapability, db)
+	api.Feedback = newFeedbackResource(feedbackCapability, db)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
 
+	buildResources.released = true
 	return api, nil
 }
 
+func newRuntimeTracer(logger *slog.Logger) *observability.Tracer {
+	return observability.NewTracer(logger, func(entryPoint, _ string, outcome string) {
+		observability.RecordTenantRuntimeEvent(entryPoint, outcome)
+	})
+}
+
 // setupBasicMiddleware configures basic router middleware
-func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *observability.HTTPMetrics) {
-	router.Use(requestIDMiddleware)
+func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *httpMetrics) {
 	router.Use(middleware.ClientIPFromXFF())
 	router.Use(syncClientIPToRemoteAddr)
 	if httpMetrics != nil {
-		router.Use(httpMetrics.Middleware)
+		router.Use(httpMetrics.middleware)
 	}
-	// Redact the parent calendar-feed token (the sole credential for the public
+	// Redact calendar-feed tokens (the sole credential for the public
 	// /public/calendar/{token} feed) from the per-request "path" attribute, and
 	// strip query-string values (staff-UI searches carry student names and
 	// e-mail addresses as query parameters, issue #2105) so neither lands in
@@ -564,39 +727,43 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// implementing the resync, so the assertion cannot silently miss here.
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:           api.Services.Users,
-		GuardianService:         api.Services.Guardian,
-		StudentService:          api.Services.Students,
-		ClassListEntryService:   api.Services.ClassListEntries,
-		StudentDeletionService:  api.Services.StudentDeletion,
-		CareLifecycleService:    api.Services.CareLifecycle,
-		StudentAuditService:     api.Services.StudentAudit,
-		EducationService:        api.Services.Education,
-		GradeTransitionService:  api.Services.GradeTransition,
-		UserContextService:      api.Services.UserContext,
-		ActiveService:           api.Services.Active,
-		IoTService:              api.Services.IoT,
-		StaffPINAuthenticator:   api.Services.StaffPINAuth,
-		PickupScheduleService:   api.Services.PickupSchedule,
-		PartialAbsenceService:   api.Services.PartialAbsence,
-		ArrivalScheduleService:  api.Services.ArrivalSchedule,
-		InstanceService:         api.Services.Instance,
-		CareDayService:          api.Services.CareDay,
-		SchoolService:           api.Services.Schools,
-		SettingsService:         api.Services.Settings,
-		MasterDataReviewService: api.Services.MasterDataReview,
-		CareRequestService:      api.Services.CareRequests,
-		OfferingChangeService:   api.Services.OfferingChanges,
-		PickupAdjustmentService: api.Services.PickupAdjustments,
-		ExcusedRequestService:   api.Services.ExcusedRequests,
-		StudentStatusDayService: api.Services.StudentStatusDays,
-		AbsenceOverview:         api.Services.AbsenceOverview,
-		StudentHistoryService:   api.Services.StudentHistory,
-		OGSGroupLiveService:     api.Services.OGSGroupLive,
-		ActivityService:         api.Services.Activities,
-		EnrollmentDecision:      api.Services.EnrollmentDecision,
-		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
-		OfferingSourceResyncer:  studentClassResyncer,
+		PersonService:                api.Services.Users,
+		GuardianService:              api.Services.Guardian,
+		StudentService:               api.Services.Students,
+		ClassListEntryService:        api.Services.ClassListEntries,
+		StudentDeletionService:       api.Services.StudentDeletion,
+		CareLifecycleService:         api.Services.CareLifecycle,
+		StudentAuditService:          api.Services.StudentAudit,
+		EducationService:             api.Services.Education,
+		GradeTransitionService:       api.Services.GradeTransition,
+		UserContextService:           api.Services.UserContext,
+		ActiveService:                api.Services.Active,
+		IoTService:                   api.Services.IoT,
+		StaffPINAuthenticator:        api.Services.StaffPINAuth,
+		PickupScheduleService:        api.Services.PickupSchedule,
+		PartialAbsenceService:        api.Services.PartialAbsence,
+		ArrivalScheduleService:       api.Services.ArrivalSchedule,
+		InstanceService:              api.Services.Instance,
+		CareDayService:               api.Services.CareDay,
+		SchoolService:                api.Services.Schools,
+		SettingsService:              api.Services.Settings,
+		MasterDataReviewService:      api.Services.MasterDataReview,
+		CareRequestService:           api.Services.CareRequests,
+		OfferingChangeService:        api.Services.OfferingChanges,
+		PickupAdjustmentService:      api.Services.PickupAdjustments,
+		ExcusedRequestService:        api.Services.ExcusedRequests,
+		ParentRequestBulkService:     api.Services.ParentRequests,
+		ParentRequestConflictService: api.Services.ParentRequests,
+		FamilyProtectionService:      api.Services.FamilyProtection,
+		RequestReviewAccess:          api.Services.RequestReviewPolicy,
+		StudentStatusDayService:      api.Services.StudentStatusDays,
+		AbsenceOverview:              api.Services.AbsenceOverview,
+		StudentHistoryService:        api.Services.StudentHistory,
+		OGSGroupLiveService:          api.Services.OGSGroupLive,
+		ActivityService:              api.Services.Activities,
+		EnrollmentDecision:           api.Services.EnrollmentDecision,
+		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
+		OfferingSourceResyncer:       studentClassResyncer,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -614,6 +781,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
+	api.StaffNotices = staffAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
@@ -626,8 +794,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.AbsenceTypes = absencetypesAPI.NewResource(api.Services.StaffAbsenceType, db, logger.With("handler", "absence-types"))
-	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
-	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
+	api.AbsenceTypes.SetActorResolver(api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -649,9 +816,73 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
-	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
-	api.Settings.SetPayrollStatusService(api.Services.PayrollStatus)
-	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
+	settingsRuntime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
+		Protected: func(r chi.Router, fn func(chi.Router, configAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(r, db, fn)
+		},
+		Permission: func(access configAPI.Access) configAPI.Middleware {
+			switch access {
+			case configAPI.AccessRead:
+				return apiCommon.RequireConfigRead()
+			case configAPI.AccessManage:
+				return apiCommon.RequireConfigManage()
+			case configAPI.AccessReadOrWrite:
+				return apiCommon.RequireConfigReadOrWrite()
+			default:
+				return apiCommon.RequireConfigWrite()
+			}
+		},
+		TenantGuard: apiCommon.TenantOperationMiddleware,
+		RequestActor: func(ctx context.Context) (int64, int64, []string) {
+			principal, err := apiCommon.CurrentPrincipal(ctx)
+			if err != nil {
+				return 0, 0, nil
+			}
+			return principal.TenantID(), principal.AccountID(), principal.Permissions()
+		},
+		Editable:  apiCommon.CanEditConfig,
+		Success:   apiCommon.Respond,
+		NoContent: apiCommon.RespondNoContent,
+		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
+			switch status {
+			case http.StatusBadRequest:
+				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+			case http.StatusForbidden:
+				apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
+			case http.StatusNotFound:
+				apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))
+			default:
+				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
+			}
+		},
+		ImageUpload: func(w http.ResponseWriter, r *http.Request, field string, maxBody int64) (*configAPI.UploadedFile, error) {
+			file, err := apiCommon.ParseImage(w, r, field, maxBody)
+			if err != nil {
+				return nil, err
+			}
+			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+		},
+		PDFUpload: func(w http.ResponseWriter, r *http.Request, field string, maxFile, maxBody int64) (*configAPI.UploadedFile, error) {
+			file, err := apiCommon.ParsePDFWithLimits(w, r, field, maxFile, maxBody)
+			if err != nil {
+				return nil, err
+			}
+			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+		},
+		ImageSave:  apiCommon.SaveImage,
+		PDFSave:    apiCommon.SavePDF,
+		FileRemove: apiCommon.RemoveImage,
+		StoredPath: apiCommon.ResolveStoredPath,
+		LegalDocumentReference: func(ctx context.Context, storedURL string) (bool, error) {
+			publicURL := enrollmentSvc.PublicEnrollmentLegalDocumentURL(storedURL)
+			referenced, err := repoFactory.FormSchema.HasLegalDocumentReference(ctx, storedURL, publicURL)
+			if err != nil {
+				return false, fmt.Errorf("check AGB document references: %w", err)
+			}
+			return referenced, nil
+		},
+	})
+	api.Settings = configAPI.NewSettingsResource(api.Services.TenantSettings, settingsRuntime)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
@@ -665,7 +896,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:       api.Services.Settings,
 		FacilityService:       api.Services.Facilities,
 		EducationService:      api.Services.Education,
-		FeedbackService:       api.Services.Feedback,
+		FeedbackService:       api.feedback,
+		FeedbackResponseObserver: func(status int, code string) {
+			observability.ObserveFeedbackHTTPResponse("iot", status, code)
+		},
 		PickupScheduleService: api.Services.PickupSchedule,
 		SchoolService:         api.Services.Schools,
 		TimetableDataService:  api.Services.TimetableData,
@@ -682,8 +916,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
 	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
-	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
-	api.Database = databaseAPI.NewResource(api.Services.Database, db)
+	api.Substitutions = substitutionsAPI.NewResource(api.Services.Substitution, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
 	api.TimeTracking.HolidayService = api.Services.Holidays
@@ -716,7 +949,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.Notifications)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
-	api.PWA = pwaAPI.NewResource(api.Services.PWAUsage, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -757,6 +989,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
 	})
+}
+
+func (a *API) currentStaffID(ctx context.Context) (int64, error) {
+	staff, err := a.Services.UserContext.GetCurrentStaff(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if staff == nil {
+		return 0, errors.New("current staff member not found")
+	}
+	return staff.ID, nil
 }
 
 // ServeHTTP implements the http.Handler interface for the API
@@ -853,7 +1096,7 @@ func (a *API) registerPublicRoutes() {
 	// the parent's Termine in sync.
 	a.Router.Get("/public/calendar/{token}", a.servePublicCalendarFeed)
 
-	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
+	a.Router.With(metricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", metricsHandler())
 }
 
 // registerPortalRoutes mounts the root-level portal routers (tenant auth,
@@ -925,6 +1168,8 @@ func (a *API) registerTenantRoutes() {
 		// separate surface from /messages (which is parent-facing).
 		r.Mount("/staff-messages", a.StaffMessaging.Router())
 		r.Mount("/parent-announcements", a.Announcements.Router())
+		// Tagesinformationen (#2180): lesen alle Mitarbeitenden, schreiben Admins.
+		r.Mount("/staff-notices", a.StaffNotices.Router())
 		r.Mount("/files", a.FileStore.Router())
 
 		// Mount guardian resources
@@ -986,7 +1231,7 @@ func (a *API) registerTenantRoutes() {
 		r.Mount("/substitutions", a.Substitutions.Router())
 
 		// Mount database resources
-		r.Mount("/database", a.Database.Router())
+		r.Mount("/database", a.databaseStatsRouter())
 
 		// Mount import resources (CSV/Excel import endpoints)
 		r.Mount("/import", a.Import.Router())
@@ -1010,7 +1255,7 @@ func (a *API) registerTenantRoutes() {
 		r.Mount("/notifications", a.Notifications.Router())
 
 		// Mount PWA standalone-usage reporting (issue #2189)
-		r.Mount("/pwa", a.PWA.Router())
+		r.Mount("/pwa", a.pwaUsageRouter())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
@@ -1022,9 +1267,35 @@ func (a *API) registerTenantRoutes() {
 	})
 }
 
-// servePublicCalendarFeed serves the parent iCalendar subscription feed. There
-// is no auth — the token in the URL is the capability; the service resolves the
-// account by token and aggregates across the parent's tenants.
+func (a *API) databaseStatsRouter() chi.Router {
+	router := chi.NewRouter()
+	apiCommon.ProtectedTenantGroup(router, a.db, func(router chi.Router, withTx apiCommon.Middleware) {
+		router.With(apiCommon.RequiresPermission("system:manage"), withTx).Get("/stats", a.getDatabaseStats)
+	})
+	return router
+}
+
+func (a *API) getDatabaseStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := a.Services.Database.GetStats(r.Context(), a.Services.DatabaseStatsCapabilities(r.Context()))
+	if err != nil {
+		a.getDatabaseLogger().Error("failed to get database stats",
+			"error", err,
+		)
+		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))
+		return
+	}
+	apiCommon.RespondWithJSON(w, r, http.StatusOK, stats)
+}
+
+func (a *API) getDatabaseLogger() *slog.Logger {
+	if a.databaseLogger != nil {
+		return a.databaseLogger
+	}
+	return slog.Default()
+}
+
+// servePublicCalendarFeed serves parent and staff iCalendar subscription feeds.
+// There is no auth — the token in the URL is the capability.
 func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	if a.Services.Calendar == nil {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -1032,6 +1303,9 @@ func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	token := chi.URLParam(r, "token")
 	filename, content, err := a.Services.Calendar.ParentCalendarFeedByToken(r.Context(), token)
+	if errors.Is(err, calendarService.ErrNotFound) {
+		filename, content, err = a.Services.Calendar.StaffCalendarFeedByToken(r.Context(), token)
+	}
 	if err != nil {
 		if errors.Is(err, calendarService.ErrNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)

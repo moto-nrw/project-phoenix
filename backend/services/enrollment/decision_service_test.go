@@ -169,6 +169,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 			slog.Default(),
 		),
 		Logger: slog.Default(),
+		Today:  func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	})
 }
 
@@ -440,7 +441,7 @@ func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceS
 	ctx := testpkg.Ctx(t)
 	env.sourcePhase.ServiceStartDate = serviceStartDate
 	if !env.sourcePhase.ServiceEndDate.After(serviceStartDate) {
-		env.sourcePhase.ServiceEndDate = timezone.NewDate(serviceStartDate.Year, serviceStartDate.Month+10, serviceStartDate.Day)
+		env.sourcePhase.ServiceEndDate = timezone.NewDate(serviceStartDate.Year(), serviceStartDate.Month()+10, serviceStartDate.Day())
 	}
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 }
@@ -2162,7 +2163,7 @@ func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *te
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "activation-scheduled-past@example.com", "Past", "Start")
-	startDate := timezone.TodayDate().AddDays(-1)
+	startDate := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	setSourcePhaseServiceStartDate(t, env, startDate)
 
 	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
@@ -3663,7 +3664,7 @@ func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	setSourcePhaseServiceStartDate(t, env, today.AddDays(-30))
 	reqID, childID := submitOneChild(t, env, "lco-attrs@example.com", "Lina", "Attrs")
 
@@ -3880,7 +3881,7 @@ func TestBookingViewDate(t *testing.T) {
 
 	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.NewDate(2027, 7, 31)),
 		"inside or ahead of the period the reference date is simply today")
-	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.Date{}),
+	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.Date("")),
 		"a missing period end must not move the reference date")
 	assert.Equal(t, timezone.NewDate(2026, 7, 31),
 		enrollmentService.BookingViewDate(today, timezone.NewDate(2026, 7, 31)),

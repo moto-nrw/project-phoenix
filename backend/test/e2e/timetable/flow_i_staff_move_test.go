@@ -22,22 +22,12 @@ import (
 func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	t.Parallel()
 
-	s := newScenario(t)
-	defer s.teardown()
-	s.extraCleanup = append(s.extraCleanup, func() {
-		_, _ = s.db.NewDelete().Model((*struct{})(nil)).
-			ModelTableExpr("audit.deviation_events").
-			Where("tenant_id = ?", s.primaryTenant).Exec(s.tenantCtx())
-	})
+	s := setupTimetableScenarioModule(t)
 
 	date := timezone.TodayDate().AddDays(7)
 	room := testpkg.CreateTestRoom(t, s.db, "Flow-I-Raum")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 	mover := testpkg.CreateTestStaff(t, s.db, "Ina", "Umzieherin")
 	free := testpkg.CreateTestStaff(t, s.db, "Frido", "Verfuegbar")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	schulhof := testpkg.CreateTestActivityInstance(t, s.db, date, room.ID, testpkg.ActivityInstanceOpts{
 		Title: "Schulhof", StartHHMM: "12:00", EndHHMM: "14:00",
@@ -45,14 +35,10 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	mensa := testpkg.CreateTestActivityInstance(t, s.db, date, room.ID, testpkg.ActivityInstanceOpts{
 		Title: "Mensa", StartHHMM: "12:30", EndHHMM: "13:30",
 	})
-	s.registerCleanup("schedule.activity_instances", schulhof.ID, mensa.ID)
 
 	row := testpkg.CreateTestInstanceStaff(t, s.db, schulhof.ID, mover.ID, testpkg.InstanceStaffOpts{})
-	s.registerCleanup("schedule.instance_staff", row.ID)
 	testpkg.CreateTestStaffShift(t, s.db, mover.ID, date, testpkg.StaffShiftOpts{})
 	testpkg.CreateTestStaffShift(t, s.db, free.ID, date, testpkg.StaffShiftOpts{})
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	claims := s.primaryAdminClaims()
 
@@ -132,9 +118,6 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Where(`"instance_staff".instance_id = ?`, mensa.ID).Scan(s.tenantCtx()))
 	assert.Len(t, mensaRows, 2)
-	for _, r := range mensaRows {
-		s.registerCleanup("schedule.instance_staff", r.ID)
-	}
 
 	// 5. Tenant isolation: a foreign tenant cannot see or move.
 	foreign := adminClaimsForTenant(2, s.secondaryTenant)

@@ -21,7 +21,7 @@ export function StudentCheckoutSection({
     <button
       type="button"
       onClick={onCheckoutClick}
-      className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] sm:gap-4 sm:py-6"
+      className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-2xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] sm:gap-4 sm:py-6"
     >
       <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-200 sm:h-14 sm:w-14">
         <MotoConceptIcon concept="home" size={26} />
@@ -50,7 +50,7 @@ export function StudentCheckinSection({
     <button
       type="button"
       onClick={onCheckinClick}
-      className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] sm:gap-4 sm:py-6"
+      className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-2xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] sm:gap-4 sm:py-6"
     >
       <div className="border-moto-green text-moto-green flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14">
         <LogIn className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -102,7 +102,7 @@ export function StudentSickReportSection({
       type="button"
       onClick={onToggle}
       disabled={isLoading}
-      className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
+      className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-2xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
     >
       <div
         className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${
@@ -162,7 +162,7 @@ export function StudentExcusedReportSection({
       type="button"
       onClick={onToggle}
       disabled={isLoading}
-      className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-3xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
+      className="moto-content-surface flex flex-1 flex-col items-center gap-3 rounded-2xl border px-3 py-4 backdrop-blur-md transition-all hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
     >
       <div
         className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${
@@ -233,7 +233,7 @@ export function StudentStatusActionsMenu({
         aria-label="Weitere Statusaktionen"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="moto-content-surface flex h-full min-h-[116px] w-14 items-center justify-center rounded-3xl border text-gray-500 backdrop-blur-md transition-all hover:bg-gray-50 hover:text-gray-700 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:min-h-[140px] sm:w-16"
+        className="moto-content-surface flex h-full min-h-[116px] w-14 items-center justify-center rounded-2xl border text-gray-500 backdrop-blur-md transition-all hover:bg-gray-50 hover:text-gray-700 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:min-h-[140px] sm:w-16"
       >
         {isLoading ? (
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />

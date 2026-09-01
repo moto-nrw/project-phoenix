@@ -7,33 +7,28 @@ import (
 	"context"
 	"encoding/json"
 	"mime/multipart"
-	"net/http"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 )
 
 // Client handles HTTP communication with the backend API
 type Client struct {
-	baseURL    string
-	adapter    *phoenixapi.Adapter
-	httpClient *http.Client
-	auth       phoenixapi.AuthRef
-	token      string
-	verbose    bool
+	baseURL string
+	adapter Adapter
+	auth    AuthRef
+	token   string
+	verbose bool
 }
 
 // NewClientWithAdapter creates a client that reuses a shared adapter.
-func NewClientWithAdapter(adapter *phoenixapi.Adapter, verbose bool) *Client {
-	return &Client{
-		baseURL:    adapter.BaseURL(),
-		adapter:    adapter,
-		httpClient: adapter.HTTPClient(),
-		verbose:    verbose,
+func NewClientWithAdapter(adapter Adapter, verbose bool) *Client {
+	client := &Client{adapter: adapter, verbose: verbose}
+	if adapter != nil {
+		client.baseURL = adapter.BaseURL()
 	}
+	return client
 }
 
-func (c *Client) BindAuth(auth phoenixapi.AuthRef) {
+func (c *Client) BindAuth(auth AuthRef) {
 	c.auth = auth
 	c.token = auth.Token
 }
@@ -97,35 +92,47 @@ func (c *Client) PostWithHeaders(path string, body any, headers map[string]strin
 	return c.doRequestWithHeaders("POST", path, body, true, headers)
 }
 
-func (c *Client) GetWithAuth(auth phoenixapi.AuthRef, path string) ([]byte, error) {
+func (c *Client) GetWithAuth(auth AuthRef, path string) ([]byte, error) {
 	return c.doRequestWithExplicitAuth("GET", path, nil, auth, nil)
 }
 
-func (c *Client) PostWithAuth(auth phoenixapi.AuthRef, path string, body any) ([]byte, error) {
+func (c *Client) PostWithAuth(auth AuthRef, path string, body any) ([]byte, error) {
 	return c.doRequestWithExplicitAuth("POST", path, body, auth, nil)
 }
 
-func (c *Client) PutWithAuth(auth phoenixapi.AuthRef, path string, body any) ([]byte, error) {
+func (c *Client) PutWithAuth(auth AuthRef, path string, body any) ([]byte, error) {
 	return c.doRequestWithExplicitAuth("PUT", path, body, auth, nil)
 }
 
-func (c *Client) PostWithAuthAndHeaders(auth phoenixapi.AuthRef, path string, body any, headers map[string]string) ([]byte, error) {
+func (c *Client) PatchWithAuth(auth AuthRef, path string, body any) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("PATCH", path, body, auth, nil)
+}
+
+func (c *Client) DeleteWithAuth(auth AuthRef, path string) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("DELETE", path, nil, auth, nil)
+}
+
+func (c *Client) DeleteWithAuthBody(auth AuthRef, path string, body any) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("DELETE", path, body, auth, nil)
+}
+
+func (c *Client) PostWithAuthAndHeaders(auth AuthRef, path string, body any, headers map[string]string) ([]byte, error) {
 	return c.doRequestWithExplicitAuth("POST", path, body, auth, headers)
 }
 
 // DevicePost makes a device-authenticated POST request (API key + PIN).
 func (c *Client) DevicePost(path string, body any, apiKey, pin string) ([]byte, error) {
-	return c.PostWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path, body)
+	return c.PostWithAuth(DeviceAuth(apiKey, pin, apiKey), path, body)
 }
 
 // DeviceGet makes a device-authenticated GET request (API key + PIN).
 func (c *Client) DeviceGet(path string, apiKey, pin string) ([]byte, error) {
-	return c.GetWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path)
+	return c.GetWithAuth(DeviceAuth(apiKey, pin, apiKey), path)
 }
 
 // DevicePut makes a device-authenticated PUT request (API key + PIN).
 func (c *Client) DevicePut(path string, body any, apiKey, pin string) ([]byte, error) {
-	return c.PutWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path, body)
+	return c.PutWithAuth(DeviceAuth(apiKey, pin, apiKey), path, body)
 }
 
 // PostFile makes an authenticated multipart POST with a single file part,
@@ -165,8 +172,19 @@ func (c *Client) Put(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("PUT", path, body, true, nil)
 }
 
+// Delete makes an authenticated DELETE request.
+func (c *Client) Delete(path string) ([]byte, error) {
+	return c.doRequestWithHeaders("DELETE", path, nil, true, nil)
+}
+
+// DeleteWithBody makes an authenticated DELETE request with an explicit
+// confirmation payload for destructive APIs that require a preview token.
+func (c *Client) DeleteWithBody(path string, body any) ([]byte, error) {
+	return c.doRequestWithHeaders("DELETE", path, body, true, nil)
+}
+
 func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, headers map[string]string) ([]byte, error) {
-	authRef := phoenixapi.AuthRef{}
+	authRef := AuthRef{}
 	if auth {
 		authRef = c.authRef()
 	}
@@ -175,10 +193,10 @@ func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, 
 
 // authRef is the bound authentication, falling back to a bare token when only
 // that was set.
-func (c *Client) authRef() phoenixapi.AuthRef {
+func (c *Client) authRef() AuthRef {
 	if c.auth.Token == "" && c.token != "" {
-		return phoenixapi.AuthRef{
-			Kind:  phoenixapi.AuthBearer,
+		return AuthRef{
+			Kind:  AuthBearer,
 			Label: "seed",
 			Token: c.token,
 		}
@@ -186,7 +204,7 @@ func (c *Client) authRef() phoenixapi.AuthRef {
 	return c.auth
 }
 
-func (c *Client) doRequestWithExplicitAuth(method, path string, body any, authRef phoenixapi.AuthRef, headers map[string]string) ([]byte, error) {
+func (c *Client) doRequestWithExplicitAuth(method, path string, body any, authRef AuthRef, headers map[string]string) ([]byte, error) {
 	respBody, statusCode, err := c.adapter.Raw(context.Background(), authRef, method, path, body, headers)
 	if err != nil {
 		return nil, err

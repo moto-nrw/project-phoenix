@@ -23,7 +23,6 @@ func (rs *Resource) ParentRouter() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.ParentMiddleware)
-
 		r.Get("/events", rs.parentEventsHandler)
 	})
 

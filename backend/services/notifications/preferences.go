@@ -93,10 +93,10 @@ type preferenceService struct {
 	settings       configService.SettingsService
 	db             *bun.DB
 	accountTenants authModel.AccountTenantRepository
-	tenantRuntime  *tenant.Runtime
+	tenantRuntime  *tenant.UnitOfWork
 }
 
-func (s *preferenceService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *preferenceService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -104,7 +104,7 @@ func (s *preferenceService) withTenantRuntime(ctx context.Context) context.Conte
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // NewPreferenceService builds the consent service. db and accountTenants are

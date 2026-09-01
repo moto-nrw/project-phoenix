@@ -1,7 +1,6 @@
 package base
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -121,24 +120,4 @@ func TestDatabaseError_Unwrap(t *testing.T) {
 			t.Errorf("DatabaseError.Unwrap() = %v, want nil", got)
 		}
 	})
-}
-
-func TestContextWithTx_And_TxFromContext(t *testing.T) {
-	t.Parallel()
-
-	t.Run("extract tx from context without tx", func(t *testing.T) {
-		ctx := context.Background()
-
-		tx, ok := TxFromContext(ctx)
-		if ok {
-			t.Error("TxFromContext() should return false when no tx in context")
-		}
-		if tx != nil {
-			t.Errorf("TxFromContext() = %v, want nil", tx)
-		}
-	})
-
-	// Note: Testing with a real bun.Tx requires a database connection
-	// The functions ContextWithTx and TxFromContext are tested together
-	// in integration tests that have database access
 }

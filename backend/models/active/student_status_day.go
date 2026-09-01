@@ -12,6 +12,10 @@ const (
 	StudentStatusDaySick      = "sick"
 	StudentStatusDayExcused   = "excused"
 	StudentStatusDayClassTrip = "class_trip"
+	// StudentStatusDayPresent is not a stored status: it is what a day with no
+	// active status row means. Named here so every reader that has to answer
+	// "what does this day look like now" says the same word.
+	StudentStatusDayPresent = "present"
 )
 
 func StudentStatusDayStatuses() []string {
@@ -52,6 +56,10 @@ type StudentStatusDay struct {
 	ReportedAt time.Time     `bun:"reported_at,notnull" json:"reported_at"`
 	ClearedAt  *time.Time    `bun:"cleared_at" json:"cleared_at,omitempty"`
 	Source     string        `bun:"source,notnull" json:"source"`
+	// GuardianAccountID identifies who supplied a parent-authored note. It is
+	// never serialized: other guardians may see the effective absence, but not
+	// the author or free-text reason.
+	GuardianAccountID *int64 `bun:"guardian_account_id" json:"-"`
 	// Note carries an optional free-text reason supplied alongside the
 	// status (currently only parent sick notes set it). Nullable.
 	Note *string `bun:"note" json:"note,omitempty"`

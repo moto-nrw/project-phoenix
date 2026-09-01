@@ -1390,7 +1390,7 @@ func (s *Service) resolveAssignableSchoolRole(ctx context.Context, roleID, tenan
 		return ValidateAssignableSchoolRole(lookupCtx, s.repos.Role, roleID, tenantID)
 	}
 
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+	if tx, ok := tenant.TransactionFromContext(ctx); ok && tx != nil {
 		return lookup(ctx)
 	}
 

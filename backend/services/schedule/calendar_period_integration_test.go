@@ -22,7 +22,7 @@ import (
 func setupCalendarPeriodService(t *testing.T, db *bun.DB) schedule.CalendarPeriodService {
 	t.Helper()
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.CalendarPeriod
 }
@@ -273,7 +273,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	tenantID := int64(600000) + time.Now().UnixNano()%50000
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
@@ -602,9 +602,9 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 		p := periods[0]
 		// Independent re-derivation of the expected school year — keeps the
 		// test honest against the production helper.
-		today := timezone.TodayDate()
-		startYear := today.Year
-		if today.Month < time.August {
+		today := timezone.NewDate(2026, 8, 24)
+		startYear := today.Year()
+		if today.Month() < time.August {
 			startYear--
 		}
 		assert.Equal(t, fmt.Sprintf("Schuljahr %d/%d", startYear, startYear+1), p.Name)
@@ -732,9 +732,9 @@ func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
 	tenantID, ctx := newBootstrapTenant(t, db)
 
 	// Same bounds as the default school year so the two inserts overlap.
-	today := timezone.TodayDate()
-	startYear := today.Year
-	if today.Month < time.August {
+	today := timezone.NewDate(2026, 8, 24)
+	startYear := today.Year()
+	if today.Month() < time.August {
 		startYear--
 	}
 	explicit := &scheduleModels.CalendarPeriod{

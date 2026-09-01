@@ -1,15 +1,20 @@
 package auth_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // ============================================================================
@@ -324,6 +329,25 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
+}
+
+func TestGuardianInvitationRepository_UpdateEmailStatusPreservesRowsAffectedError(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	repo := repositories.NewFactory(db).GuardianInvitation
+	rowsErr := errors.New("rows affected failed")
+	mock.ExpectExec(`UPDATE "auth"\."guardian_invitations" AS "guardian_invitation"`).
+		WillReturnResult(sqlmock.NewErrorResult(rowsErr))
+
+	err = repo.UpdateEmailStatus(context.Background(), 42, nil, nil, 1)
+	assert.EqualError(t, err, "failed to get rows affected: rows affected failed")
+	assert.ErrorIs(t, err, rowsErr)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 // Deliberately NOT parallel: unscoped sweep — the delete runs across all

@@ -48,7 +48,7 @@ func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *htt
 	}
 
 	visibleDays := config.ResolveIntOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceVisibleDays, 30, logger)
-	options, err := parseAttendanceExportOptions(r, visibleDays)
+	options, err := parseAttendanceExportOptions(r, visibleDays, rs.todayDate())
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -92,7 +92,7 @@ func (rs *Resource) checkAttendanceExportAccess(w http.ResponseWriter, r *http.R
 	return true
 }
 
-func parseAttendanceExportOptions(r *http.Request, visibleDays int) (attendanceExportOptions, error) {
+func parseAttendanceExportOptions(r *http.Request, visibleDays int, today timezone.Date) (attendanceExportOptions, error) {
 	options := attendanceExportOptions{Format: listexport.Format(strings.TrimSpace(r.URL.Query().Get("format")))}
 	if options.Format == "" {
 		options.Format = listexport.FormatPDF
@@ -100,7 +100,7 @@ func parseAttendanceExportOptions(r *http.Request, visibleDays int) (attendanceE
 	if options.Format != listexport.FormatPDF && options.Format != listexport.FormatDOCX && options.Format != listexport.FormatXLSX {
 		return options, fmt.Errorf("unsupported export format %q", options.Format)
 	}
-	options.To = timezone.TodayDate()
+	options.To = today
 	options.From = options.To.AddDays(-(visibleDays - 1))
 	var err error
 	if raw := strings.TrimSpace(r.URL.Query().Get("from")); raw != "" {
@@ -115,7 +115,6 @@ func parseAttendanceExportOptions(r *http.Request, visibleDays int) (attendanceE
 			return options, errors.New("invalid to date format, expected YYYY-MM-DD")
 		}
 	}
-	today := timezone.TodayDate()
 	if options.From.After(today) || options.To.After(today) {
 		return options, errors.New("attendance exports cannot include future dates")
 	}

@@ -85,7 +85,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "CorrectionReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggCorrectionGroup")
@@ -94,7 +94,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	fixture := setupCorrectionFixture(t, tc, student.ID, student.TenantID, "Kindlein")
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 	perms := []string{"users:read", "users:update"}
 
 	fetch := func(t *testing.T, query string) aggListEnvelope {
@@ -110,7 +110,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	// service the admin route calls: the child stays in Ganztag and is taken
 	// out of Mittagessen. The frozen before/after snapshots must show that.
 	err := testpkg.WithTenantTx(t, t.Context(), tc.db, student.TenantID, func(ctx context.Context, _ bun.Tx) error {
-		_, updateErr := tc.services.EnrollmentDecision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		_, updateErr := tc.resource.EnrollmentDecision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 			RequestID:      fixture.child.RequestID,
 			ChildID:        fixture.child.ID,
 			Offerings:      []enrollmentService.OfferingAdjustmentSelection{{OfferingID: fixture.ganztag.ID}},
@@ -192,17 +192,17 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 
 // Deliberately NOT parallel: the tenant-wide settings cache is process-global state.
 func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testing.T) {
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Withdrawal", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "WithdrawalReviewGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Komplett", "Abmeldung", "WA1")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-	require.NoError(t, tc.services.Settings.SetValue(
+	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
 	t.Cleanup(func() {
-		require.NoError(t, tc.services.Settings.ResetValue(
+		require.NoError(t, tc.resource.SettingsService.ResetValue(
 			testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil,
 		))
 	})
@@ -217,13 +217,14 @@ func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testi
 		Where("id = ?", pending.ID).Exec(t.Context())
 	require.NoError(t, err)
 
+	// #2267: reason policy defaults to "both"
 	body := strings.NewReader(fmt.Sprintf(
-		`{"approve":true,"effective_from":%q,"complete_withdrawal_confirmed":true}`,
+		`{"approve":true,"reason":"Passt so","effective_from":%q,"complete_withdrawal_confirmed":true}`,
 		pending.EffectiveFrom.String(),
 	))
 	response := authExec(t, tc,
 		testutil.NewRequest("POST", fmt.Sprintf("/offering-change-requests/%d/decide", pending.ID), body),
-		testutil.TeacherTestClaims(int(account.ID)), []string{"users:update"})
+		testutil.AdminTestClaims(int(account.ID)), []string{"users:update"})
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 }
 

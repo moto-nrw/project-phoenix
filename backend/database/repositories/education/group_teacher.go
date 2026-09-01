@@ -42,7 +42,7 @@ func (r *GroupTeacherRepository) DeleteByTeacherID(ctx context.Context, teacherI
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete by teacher id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	rows, _ := result.RowsAffected()
@@ -63,7 +63,7 @@ func (r *GroupTeacherRepository) FindByGroup(ctx context.Context, groupID int64)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -84,7 +84,7 @@ func (r *GroupTeacherRepository) FindByTeacher(ctx context.Context, teacherID in
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by teacher",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -109,7 +109,7 @@ func (r *GroupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -161,7 +161,7 @@ func (r *GroupTeacherRepository) ListGroupTeacherBlockers(ctx context.Context, t
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list group teacher blockers",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return results, nil

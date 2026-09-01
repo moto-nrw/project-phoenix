@@ -46,6 +46,17 @@ func (absenceApprovalOnSettings) ResolveBoolForTenant(_ context.Context, _ int64
 	return true, nil
 }
 
+// ResolveStringForTenant answers the string settings the write paths read
+// (today: the reason policy, #2267). An empty value means "not configured",
+// which the consumers read as the registry default.
+func (absenceApprovalOnSettings) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
+	return "", nil
+}
+
+func (alwaysOnSettings) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
+	return "", nil
+}
+
 // testJWTSecret must match the constant testpkg.GetTestTokenAuth signs
 // with, so the Router's MustNewTokenAuth (which reads viper) validates the
 // tokens these tests mint.
@@ -58,13 +69,15 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
 	t.Helper()
 	repos := repositories.NewFactory(db)
-	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
+	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
 		repos.Student,
 		repos.Person,
 		nil, nil, nil,
+		testpkg.AbsenceRequestReviewPolicy{},
+		nil,
 		slog.Default(),
 		db,
 	)

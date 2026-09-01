@@ -7,9 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/filestore"
 )
 
 // seedFileStorageStep fills the school file storage (#2596): one folder per
@@ -40,7 +37,7 @@ type demoFolder struct {
 func (s seedFileStorageStep) Run(_ context.Context, rt *Runtime) error {
 	// Team uploads on, so the demo also shows the staff side of the storage:
 	// an upload area for folders they can see and their own files deletable.
-	if _, err := rt.Client.Put("/api/settings/values/"+configModels.KeyFilesStaffUploadEnabled, map[string]any{"value": true}); err != nil {
+	if _, err := rt.Client.Put("/api/settings/values/"+"files.staff_upload_enabled", map[string]any{"value": true}); err != nil {
 		return fmt.Errorf("enable team uploads: %w", err)
 	}
 
@@ -88,7 +85,7 @@ func (seedFileStorageStep) folders() []demoFolder {
 	return []demoFolder{
 		{
 			Name:       "Vorlagen und Formulare",
-			Visibility: filestore.VisibilityAllStaff,
+			Visibility: "all_staff",
 			Files: []demoFile{
 				{
 					Filename: "Elternbrief Vorlage.docx",
@@ -111,7 +108,7 @@ func (seedFileStorageStep) folders() []demoFolder {
 		},
 		{
 			Name:       "Unterlagen der Leitung",
-			Visibility: filestore.VisibilityAdmins,
+			Visibility: "admins",
 			Files: []demoFile{
 				{
 					Filename: "Dienstanweisung Aufsicht.pdf",
@@ -125,7 +122,7 @@ func (seedFileStorageStep) folders() []demoFolder {
 		},
 		{
 			Name:       "AG-Planung",
-			Visibility: filestore.VisibilitySelected,
+			Visibility: "selected",
 			Shared:     true,
 			Files: []demoFile{
 				{

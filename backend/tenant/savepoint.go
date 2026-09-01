@@ -30,30 +30,30 @@ func WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 		return fmt.Errorf("%w: callback is required", ErrSavepointControl)
 	}
 
-	runtime, err := runtimeFromContext(ctx)
+	uow, err := unitOfWorkFromContext(ctx)
 	if err != nil {
 		return fmt.Errorf("%w: transaction is required", ErrSavepointControl)
 	}
 
-	if err := runtime.savepoint(ctx, CreateSavepoint); err != nil {
-		return fmt.Errorf("%w: create: %v", ErrSavepointControl, err)
+	if err := uow.savepoint(ctx, CreateSavepoint); err != nil {
+		return fmt.Errorf("%w: create: %w", ErrSavepointControl, err)
 	}
 
 	hooks, hookCount := afterCommitCheckpoint(ctx)
 	operationErr := fn(ctx)
 	if operationErr != nil {
-		if err := runtime.savepoint(ctx, RollbackSavepoint); err != nil {
-			return errors.Join(operationErr, fmt.Errorf("%w: rollback: %v", ErrSavepointControl, err))
+		if err := uow.savepoint(ctx, RollbackSavepoint); err != nil {
+			return errors.Join(operationErr, fmt.Errorf("%w: rollback: %w", ErrSavepointControl, err))
 		}
 		discardAfterCommitHooksAfter(hooks, hookCount)
-		if err := runtime.savepoint(ctx, ReleaseSavepoint); err != nil {
-			return errors.Join(operationErr, fmt.Errorf("%w: release after rollback: %v", ErrSavepointControl, err))
+		if err := uow.savepoint(ctx, ReleaseSavepoint); err != nil {
+			return errors.Join(operationErr, fmt.Errorf("%w: release after rollback: %w", ErrSavepointControl, err))
 		}
 		return operationErr
 	}
 
-	if err := runtime.savepoint(ctx, ReleaseSavepoint); err != nil {
-		return fmt.Errorf("%w: release: %v", ErrSavepointControl, err)
+	if err := uow.savepoint(ctx, ReleaseSavepoint); err != nil {
+		return fmt.Errorf("%w: release: %w", ErrSavepointControl, err)
 	}
 	return nil
 }

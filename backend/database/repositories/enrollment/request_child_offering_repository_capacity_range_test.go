@@ -15,7 +15,7 @@ func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRange_Incl
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	futureFrom := from.AddDays(30)
 	until := from.AddDays(90)
 
@@ -46,7 +46,7 @@ func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRangeExclu
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {

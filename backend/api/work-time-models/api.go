@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
@@ -41,11 +40,11 @@ func (rs *Resource) Router() chi.Router {
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}", rs.get)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}", rs.get)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
 	})
 
 	return r
@@ -185,9 +184,9 @@ func (rs *Resource) renderSaveError(w http.ResponseWriter, r *http.Request, err 
 // zero-minute entries; the business rules are enforced by the service via
 // WorkTimeModelService.ValidateModelWithEntries.
 func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.WorkTimeModelEntry, error) {
-	anchor := timezone.Date{}
+	anchor := config.CalendarDate("")
 	if req.RotationAnchorDate != "" {
-		parsed, err := timezone.ParseDate(req.RotationAnchorDate)
+		parsed, err := config.ParseCalendarDate(req.RotationAnchorDate)
 		if err != nil {
 			return nil, nil, errors.New("rotation_anchor_date must be YYYY-MM-DD")
 		}

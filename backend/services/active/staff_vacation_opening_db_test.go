@@ -67,6 +67,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	svc := active.NewStaffAbsenceService(
 		repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota,
 		repos.StaffAbsenceAudit, wtmIntSettings{}, nil,
+		func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	)
 	// Setter injection, wired exactly like services/factory.go does.
 	openingAware, ok := svc.(interface {
@@ -101,9 +102,9 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 // skips instead of exercising a case the service rejects by design.
 func openingCutoffDate(t *testing.T) timezone.Date {
 	t.Helper()
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	cutoff := today.AddDays(-1)
-	if cutoff.Year != today.Year || timezone.NewDate(today.Year, time.January, 1).DaysUntil(cutoff) < 5 {
+	if cutoff.Year() != today.Year() || timezone.NewDate(today.Year(), time.January, 1).DaysUntil(cutoff) < 5 {
 		t.Skip("no closed Stichtag with room for earlier absences in the current vacation year yet")
 	}
 	return cutoff
@@ -160,11 +161,11 @@ func TestSetVacationOpening_DerivesTakenBeforeFromQuota(t *testing.T) {
 	assert.InDelta(t, 17.5, opening.TakenBeforeDays, 0.001)
 	assert.InDelta(t, 12.5, opening.EnteredRemainingDays, 0.001)
 	assert.Equal(t, f.cutoff, opening.EffectiveDate)
-	assert.Equal(t, f.cutoff.Year, opening.Year)
+	assert.Equal(t, f.cutoff.Year(), opening.Year)
 	assert.Equal(t, f.admin.ID, opening.DecidedBy)
 	assert.Equal(t, f.tenantID, opening.TenantID)
 
-	summary, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year)
+	summary, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year())
 	require.NoError(t, err)
 	assert.InDelta(t, 17.5, summary.TakenBeforeDays, 0.001)
 	assert.InDelta(t, 12.5, summary.RemainingDays, 0.001,
@@ -174,12 +175,12 @@ func TestSetVacationOpening_DerivesTakenBeforeFromQuota(t *testing.T) {
 	assert.Equal(t, opening.ID, summary.Opening.ID)
 
 	// The takeover belongs to its own year only.
-	nextYear, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year+1)
+	nextYear, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year()+1)
 	require.NoError(t, err)
 	assert.Zero(t, nextYear.TakenBeforeDays)
 	assert.Nil(t, nextYear.Opening)
 
-	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, f.cutoff.Year)
+	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, f.cutoff.Year())
 	require.NoError(t, err)
 	require.NotNil(t, stored)
 	assert.Equal(t, opening.ID, stored.ID)
@@ -198,7 +199,7 @@ func TestSetVacationOpening_NegativeRemainingAllowsOverdrawnAccount(t *testing.T
 	require.NotNil(t, opening)
 	assert.InDelta(t, 32, opening.TakenBeforeDays, 0.001)
 
-	summary, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year)
+	summary, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year())
 	require.NoError(t, err)
 	assert.InDelta(t, -2, summary.RemainingDays, 0.001,
 		"an overdrawn vacation account must stay negative instead of being clamped to zero")
@@ -218,7 +219,7 @@ func TestSetVacationOpening_RejectsSecondOpeningForSameYear(t *testing.T) {
 	require.ErrorIs(t, err, active.ErrVacationOpeningExists)
 
 	// The first booking is untouched.
-	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, f.cutoff.Year)
+	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, f.cutoff.Year())
 	require.NoError(t, err)
 	require.NotNil(t, stored)
 	assert.InDelta(t, 10, stored.EnteredRemainingDays, 0.001)
@@ -240,7 +241,7 @@ func TestSetVacationOpening_RejectsVacationAbsencesBeforeCutoff(t *testing.T) {
 	_, err := f.set(12)
 	require.ErrorIs(t, err, active.ErrVacationOpeningAbsencesBeforeCutoff)
 
-	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, f.cutoff.Year)
+	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, f.cutoff.Year())
 	require.NoError(t, err)
 	assert.Nil(t, stored, "nothing may be booked when the guard trips")
 }
@@ -300,8 +301,8 @@ func TestSetVacationOpening_RejectsOpenCutoff(t *testing.T) {
 	f := newVacationOpeningFixture(t)
 
 	for _, effectiveDate := range []timezone.Date{
-		timezone.TodayDate(),
-		timezone.TodayDate().AddDays(1),
+		timezone.NewDate(2026, 8, 24),
+		timezone.NewDate(2026, 8, 24).AddDays(1),
 	} {
 		_, err := f.svc.SetVacationOpening(f.ctx, f.staff.ID, f.admin.ID, active.SetVacationOpeningRequest{
 			EffectiveDate: effectiveDate,
@@ -312,7 +313,7 @@ func TestSetVacationOpening_RejectsOpenCutoff(t *testing.T) {
 		assert.Contains(t, err.Error(), "effective_date must be before today")
 	}
 
-	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, timezone.TodayDate().Year)
+	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, timezone.NewDate(2026, 8, 24).Year())
 	require.NoError(t, err)
 	assert.Nil(t, stored)
 }
@@ -326,7 +327,7 @@ func TestSetVacationOpening_RejectsPastVacationYear(t *testing.T) {
 
 	f := newVacationOpeningFixture(t)
 
-	lastYear := timezone.NewDate(timezone.TodayDate().Year-1, time.June, 10)
+	lastYear := timezone.NewDate(timezone.NewDate(2026, 8, 24).Year()-1, time.June, 10)
 	_, err := f.svc.SetVacationOpening(f.ctx, f.staff.ID, f.admin.ID, active.SetVacationOpeningRequest{
 		EffectiveDate: lastYear,
 		RemainingDays: 12,
@@ -335,7 +336,7 @@ func TestSetVacationOpening_RejectsPastVacationYear(t *testing.T) {
 	require.ErrorIs(t, err, active.ErrVacationOpeningInvalid)
 	assert.Contains(t, err.Error(), "effective_date must be in the current vacation year")
 
-	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, lastYear.Year)
+	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, lastYear.Year())
 	require.NoError(t, err)
 	assert.Nil(t, stored)
 }
@@ -365,13 +366,13 @@ func TestDeleteVacationOpening_WritesTombstoneAndRestoresSummary(t *testing.T) {
 	opening, err := f.set(12.5)
 	require.NoError(t, err)
 
-	require.NoError(t, f.svc.DeleteVacationOpening(f.ctx, f.staff.ID, f.admin.ID, f.cutoff.Year))
+	require.NoError(t, f.svc.DeleteVacationOpening(f.ctx, f.staff.ID, f.admin.ID, f.cutoff.Year()))
 
-	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, f.cutoff.Year)
+	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, f.cutoff.Year())
 	require.NoError(t, err)
 	assert.Nil(t, stored)
 
-	summary, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year)
+	summary, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year())
 	require.NoError(t, err)
 	assert.Zero(t, summary.TakenBeforeDays)
 	assert.Nil(t, summary.Opening)
@@ -409,7 +410,7 @@ func TestDeleteVacationOpening_MissingRowIsNotFound(t *testing.T) {
 
 	f := newVacationOpeningFixture(t)
 
-	err := f.svc.DeleteVacationOpening(f.ctx, f.staff.ID, f.admin.ID, f.cutoff.Year)
+	err := f.svc.DeleteVacationOpening(f.ctx, f.staff.ID, f.admin.ID, f.cutoff.Year())
 	require.ErrorIs(t, err, active.ErrVacationOpeningNotFound)
 }
 
@@ -420,14 +421,14 @@ func TestSetVacationOpening_RespectsCustomQuota(t *testing.T) {
 
 	f := newVacationOpeningFixture(t)
 
-	require.NoError(t, f.svc.UpsertVacationQuota(f.ctx, f.staff.ID, f.cutoff.Year, 26, 4))
+	require.NoError(t, f.svc.UpsertVacationQuota(f.ctx, f.staff.ID, f.cutoff.Year(), 26, 4))
 
 	opening, err := f.set(12.5)
 	require.NoError(t, err)
 	// 26 + 4 − 12,5
 	assert.InDelta(t, 17.5, opening.TakenBeforeDays, 0.001)
 
-	summary, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year)
+	summary, err := f.svc.GetVacationQuotaSummary(f.ctx, f.staff.ID, f.cutoff.Year())
 	require.NoError(t, err)
 	assert.InDelta(t, 12.5, summary.RemainingDays, 0.001)
 }
@@ -451,7 +452,7 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("batched lookup keyed by staff", func(t *testing.T) {
-		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, []int64{f.staff.ID, f.admin.ID}, f.cutoff.Year)
+		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, []int64{f.staff.ID, f.admin.ID}, f.cutoff.Year())
 		require.NoError(t, err)
 		require.Contains(t, byStaff, f.staff.ID)
 		assert.NotContains(t, byStaff, f.admin.ID, "staff without a takeover stay absent from the map")
@@ -459,14 +460,14 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 	})
 
 	t.Run("empty batch short-circuits", func(t *testing.T) {
-		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, nil, f.cutoff.Year)
+		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, nil, f.cutoff.Year())
 		require.NoError(t, err)
 		assert.Empty(t, byStaff)
 	})
 
 	t.Run("list by year", func(t *testing.T) {
 		options := modelBase.NewQueryOptions()
-		options.Filter.Equal("year", f.cutoff.Year)
+		options.Filter.Equal("year", f.cutoff.Year())
 
 		openings, err := repo.List(f.ctx, options)
 
@@ -477,7 +478,7 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 
 	t.Run("list of another year is empty", func(t *testing.T) {
 		options := modelBase.NewQueryOptions()
-		options.Filter.Equal("year", f.cutoff.Year-1)
+		options.Filter.Equal("year", f.cutoff.Year()-1)
 
 		openings, err := repo.List(f.ctx, options)
 

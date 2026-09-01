@@ -81,10 +81,8 @@ vi.mock("~/contexts/ToastContext", () => ({
   }),
 }));
 
-vi.mock("~/lib/group-transfer-api", () => ({
-  groupTransferService: {
-    getAllAvailableStaff: mockGetAllAvailableStaff,
-  },
+vi.mock("~/lib/staff-role-api", () => ({
+  fetchGroupLeaderCandidates: mockGetAllAvailableStaff,
 }));
 
 vi.mock("~/lib/logger", () => ({
@@ -163,6 +161,25 @@ describe("CaregiverBlockerResolutionModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows when replacement staff cannot be loaded", async () => {
+    mockGetAllAvailableStaff.mockRejectedValueOnce(new Error("invalid data"));
+
+    render(
+      <CaregiverBlockerResolutionModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onResolved={vi.fn()}
+        state={createState()}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Ersatzkräfte konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("ends active supervisions and removes them from the list", async () => {
     mockFetch.mockResolvedValue({ ok: true });
 
@@ -195,7 +212,7 @@ describe("CaregiverBlockerResolutionModal", () => {
     );
   });
 
-  it("removes substitutions and reports success", async () => {
+  it("ends group handovers and reports success", async () => {
     mockFetch.mockResolvedValue({ ok: true });
 
     render(
@@ -208,7 +225,6 @@ describe("CaregiverBlockerResolutionModal", () => {
             {
               id: "9",
               groupName: "Gruppe Rot",
-              role: "substitute",
               startDate: "2026-04-05",
               endDate: "2026-04-06",
             },
@@ -221,12 +237,16 @@ describe("CaregiverBlockerResolutionModal", () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/substitutions/9",
-        expect.objectContaining({ method: "DELETE", credentials: "include" }),
+        "/api/substitutions/end",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "include",
+          body: JSON.stringify({ type: "group_handover", id: 9 }),
+        }),
       );
     });
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Vertretung für "Gruppe Rot" entfernt.',
+      'Gruppenübergabe für "Gruppe Rot" beendet.',
     );
   });
 

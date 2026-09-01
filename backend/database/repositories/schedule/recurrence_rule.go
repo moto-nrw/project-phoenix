@@ -49,7 +49,7 @@ func (r *RecurrenceRuleRepository) FindByFrequency(ctx context.Context, frequenc
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by frequency",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -80,32 +80,7 @@ func (r *RecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday st
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by weekday",
-			Err: err,
-		}
-	}
-
-	return rules, nil
-}
-
-// FindByMonthDay finds all recurrence rules that include the specified month day
-func (r *RecurrenceRuleRepository) FindByMonthDay(ctx context.Context, day int) ([]*schedule.RecurrenceRule, error) {
-	var rules []*schedule.RecurrenceRule
-
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model(&rules).
-		ModelTableExpr(tableExprRecurrenceAsRR).
-		Where("? = ANY(month_days)", day)
-
-	if where, val, ok := repoBase.TenantWhere(ctx, "recurrence_rule"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by month day",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -130,7 +105,7 @@ func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDat
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by date range",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -147,25 +122,9 @@ func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDat
 
 // List retrieves recurrence rules matching the provided query options
 func (r *RecurrenceRuleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.RecurrenceRule, error) {
-	rules := make([]*schedule.RecurrenceRule, 0)
-	query := repoBase.GetDB(ctx, r.db).NewSelect().Model(&rules).ModelTableExpr(tableExprRecurrenceAsRR)
-
-	if where, val, ok := repoBase.TenantWhere(ctx, "recurrence_rule"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, &modelBase.DatabaseError{Op: "list", Err: repoBase.DatabaseErrorCause(err)}
 	}
-
-	return rules, nil
+	return rows, nil
 }

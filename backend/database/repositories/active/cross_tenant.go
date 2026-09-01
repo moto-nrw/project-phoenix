@@ -48,7 +48,7 @@ func (r *CrossTenantRepository) FindCrossTenantStudents(ctx context.Context, hos
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find cross-tenant students",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

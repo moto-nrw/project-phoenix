@@ -79,6 +79,14 @@ type careTestService struct {
 	parentService.Service
 }
 
+func careFixtureToday() timezone.Date {
+	return timezone.NewDate(2026, 8, 24)
+}
+
+func careFixtureNow() time.Time {
+	return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+}
+
 func (s careTestService) SubmitCareException(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime, _ *time.Time) (*parentService.CareException, error) {
 	return s.SubmitCareExceptionWithReason(ctx, accountID, studentID, date, pickupTime, "Testgrund")
 }
@@ -110,6 +118,9 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		DB:          db,
 		Logger:      slog.Default(),
+		Now: func() time.Time {
+			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+		},
 	})
 	return careTestService{Service: svc}, db
 }
@@ -138,6 +149,9 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		Broadcaster: bc,
 		DB:          db,
 		Logger:      slog.Default(),
+		Now: func() time.Time {
+			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+		},
 	})
 	return careTestService{Service: svc}, bc, db
 }
@@ -155,7 +169,7 @@ func TestSubmitCareException_PersistsGuardianRowWithNullCreatedBy(t *testing.T) 
 	svc, bc, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	date := timezone.TodayDate().AddDays(1)
+	date := careFixtureToday().AddDays(1)
 	result, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, wallClock(14, 30), wallClock(8, 15))
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -191,7 +205,7 @@ func TestSubmitCareException_FeatureDisabled(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		timezone.TodayDate().AddDays(1), wallClock(15, 0), nil)
+		careFixtureToday().AddDays(1), wallClock(15, 0), nil)
 	assert.ErrorIs(t, err, parentService.ErrPickupChangeDisabled)
 }
 
@@ -202,7 +216,7 @@ func TestSubmitCareException_NoTimes(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		timezone.TodayDate().AddDays(1), nil, nil)
+		careFixtureToday().AddDays(1), nil, nil)
 	assert.ErrorIs(t, err, parentService.ErrNoCareException)
 }
 
@@ -213,7 +227,7 @@ func TestSubmitCareException_PastDate(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		timezone.TodayDate().AddDays(-1), wallClock(15, 0), nil)
+		careFixtureToday().AddDays(-1), wallClock(15, 0), nil)
 	assert.ErrorIs(t, err, parentService.ErrPastCareDate)
 }
 
@@ -231,21 +245,21 @@ func TestSubmitCareException_TodayAfterCheckout(t *testing.T) {
 
 	_, err := svc.SubmitCareException(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		timezone.TodayDate(), wallClock(16, 0), nil,
+		careFixtureToday(), wallClock(16, 0), nil,
 	)
 	require.NoError(t, err)
 
-	now := timezone.Now()
+	now := careFixtureNow()
 	checkout := now.Add(-5 * time.Minute)
-	testpkg.CreateTestAttendance(t, db, chain.StudentID, staff.ID, device.ID, now.Add(-2*time.Hour), &checkout)
+	testpkg.CreateTestAttendanceForDate(t, db, chain.StudentID, staff.ID, device.ID, careFixtureToday(), now.Add(-2*time.Hour), &checkout)
 
 	_, err = svc.SubmitCareException(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		timezone.TodayDate(), wallClock(15, 0), nil,
+		careFixtureToday(), wallClock(15, 0), nil,
 	)
 	assert.ErrorIs(t, err, parentService.ErrCareExceptionAlreadyLeft)
 
-	err = svc.DeleteCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, timezone.TodayDate())
+	err = svc.DeleteCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, careFixtureToday())
 	assert.ErrorIs(t, err, parentService.ErrCareExceptionAlreadyLeft)
 }
 
@@ -257,8 +271,8 @@ func TestSubmitCareException_TooFarDate(t *testing.T) {
 
 	// One day past the two-calendar-month cap is rejected; the boundary itself
 	// stays allowed.
-	today := timezone.TodayDate()
-	maxDate := timezone.NewDate(today.Year, today.Month+2, today.Day)
+	today := careFixtureToday()
+	maxDate := timezone.NewDate(today.Year(), today.Month()+2, today.Day())
 
 	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		maxDate.AddDays(1), wallClock(15, 0), nil)
@@ -281,7 +295,7 @@ func TestSubmitCareException_NotOwnedChild(t *testing.T) {
 	}()
 
 	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID,
-		timezone.TodayDate().AddDays(1), wallClock(15, 0), nil)
+		careFixtureToday().AddDays(1), wallClock(15, 0), nil)
 	assert.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
 
@@ -291,7 +305,7 @@ func TestCareExceptionRequiresPickupManagePermission(t *testing.T) {
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	date := timezone.TodayDate().AddDays(1)
+	date := careFixtureToday().AddDays(1)
 
 	_, err := svc.SubmitCareExceptionWithReason(ctx, chain.AccountID, chain.StudentID, date, wallClock(15, 0), "Arzttermin")
 	require.NoError(t, err)
@@ -324,7 +338,7 @@ func TestSubmitCareException_ConflictWithStaffException(t *testing.T) {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 
-	date := timezone.TodayDate().AddDays(2)
+	date := careFixtureToday().AddDays(2)
 	staffTime := wallClock(16, 0)
 	staffEx := &scheduleModels.StudentPickupException{
 		StudentID:     chain.StudentID,
@@ -353,7 +367,7 @@ func TestSubmitCareException_ClearingLegRemovesIt(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	date := timezone.TodayDate().AddDays(1)
+	date := timezone.NewDate(2026, 8, 24).AddDays(1)
 
 	// Both legs set first.
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, wallClock(14, 30), wallClock(8, 15))
@@ -376,7 +390,7 @@ func TestSubmitCareException_ClearingLegRemovesIt(t *testing.T) {
 		Scan(ctx, &arrivalCount))
 	assert.Equal(t, 0, arrivalCount, "emptying the arrival field must delete the guardian row")
 
-	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID, timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(30))
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	require.NotNil(t, list[0].PickupTime)
@@ -391,7 +405,7 @@ func TestDeleteCareExceptionPreservesArrival(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	date := timezone.TodayDate().AddDays(3)
+	date := timezone.NewDate(2026, 8, 24).AddDays(3)
 	guardianID := chain.AccountID
 	arrival := &scheduleModels.StudentArrivalException{
 		StudentID:         chain.StudentID,
@@ -405,8 +419,8 @@ func TestDeleteCareExceptionPreservesArrival(t *testing.T) {
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, wallClock(14, 45), wallClock(8, 15))
 	require.NoError(t, err)
 
-	from := timezone.TodayDate()
-	to := timezone.TodayDate().AddDays(30)
+	from := timezone.NewDate(2026, 8, 24)
+	to := timezone.NewDate(2026, 8, 24).AddDays(30)
 	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	require.Len(t, list, 1)
@@ -443,7 +457,7 @@ func TestGuardianExceptionSurvivesAccountDeletion(t *testing.T) {
 	// the exception's created_by_guardian FK.
 	account := testpkg.CreateTestAccount(t, db, "orphan-guardian")
 
-	date := timezone.TodayDate().AddDays(5)
+	date := careFixtureToday().AddDays(5)
 	guardianID := account.ID
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:         student.ID,
@@ -481,7 +495,7 @@ func TestDeleteCareException_PastDate(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	date := timezone.TodayDate().AddDays(-1)
+	date := careFixtureToday().AddDays(-1)
 	guardianID := chain.AccountID
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:         chain.StudentID,
@@ -523,9 +537,9 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 
-	guardianDay := timezone.TodayDate().AddDays(1)
-	staffPickupDay := timezone.TodayDate().AddDays(2)
-	staffArrivalDay := timezone.TodayDate().AddDays(3)
+	guardianDay := timezone.NewDate(2026, 8, 24).AddDays(1)
+	staffPickupDay := timezone.NewDate(2026, 8, 24).AddDays(2)
+	staffArrivalDay := timezone.NewDate(2026, 8, 24).AddDays(3)
 
 	// Day 1: a parent pickup and a legacy guardian arrival row on the same date.
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, guardianDay, wallClock(15, 0), wallClock(8, 0))
@@ -562,7 +576,7 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 	require.NoError(t, repos.StudentArrivalException.Create(ctx, staffArrival))
 
 	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
-		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(30))
 	require.NoError(t, err)
 	require.Len(t, list, 3, "each distinct date is one merged entry")
 
@@ -606,7 +620,7 @@ func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 
-	absentDay := timezone.TodayDate().AddDays(1)
+	absentDay := timezone.NewDate(2026, 8, 24).AddDays(1)
 	// A staff pickup row with no time — the "child is absent today" marker.
 	absent := &scheduleModels.StudentPickupException{
 		StudentID:     chain.StudentID,
@@ -618,7 +632,7 @@ func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
 	require.NoError(t, repos.StudentPickupException.Create(ctx, absent))
 
 	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
-		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(30))
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	assert.Equal(t, absentDay, list[0].Date)
@@ -648,7 +662,7 @@ func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 
-	absentDay := timezone.TodayDate().AddDays(1)
+	absentDay := timezone.NewDate(2026, 8, 24).AddDays(1)
 	// A staff arrival row with no expected time — the "child is absent today" marker.
 	absent := &scheduleModels.StudentArrivalException{
 		StudentID:       chain.StudentID,
@@ -660,7 +674,7 @@ func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
 	require.NoError(t, repos.StudentArrivalException.Create(ctx, absent))
 
 	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
-		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(30))
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	assert.Equal(t, absentDay, list[0].Date)
@@ -680,7 +694,7 @@ func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	date := timezone.TodayDate().AddDays(2)
+	date := timezone.NewDate(2026, 8, 24).AddDays(2)
 	guardianID := chain.AccountID
 	arrival := &scheduleModels.StudentArrivalException{
 		StudentID:         chain.StudentID,
@@ -710,7 +724,7 @@ func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
 	assert.Equal(t, 1, arrivalCount)
 
 	after, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
-		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(30))
 	require.NoError(t, err)
 	require.Len(t, after, 1)
 	assert.Nil(t, after[0].PickupTime)
@@ -731,7 +745,7 @@ func TestSubmitCareException_RepoErrorSurfaces(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID,
-		timezone.TodayDate().AddDays(1), wallClock(15, 0), nil)
+		careFixtureToday().AddDays(1), wallClock(15, 0), nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errBoom, "DB error must propagate, not be swallowed")
 	assert.NotErrorIs(t, err, parentService.ErrCareExceptionConflict, "a read failure is not a staff conflict")
@@ -757,7 +771,7 @@ func TestListCareExceptions_RepoErrorSurfaces(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	rows, err := svc.ListCareExceptions(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(30))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errBoom)
 	assert.Nil(t, rows, "no partial list on error")
@@ -775,7 +789,7 @@ func TestDeleteCareException_RepoErrorSurfaces(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	err := svc.DeleteCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		timezone.TodayDate().AddDays(1))
+		careFixtureToday().AddDays(1))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errBoom)
 }
@@ -793,7 +807,7 @@ func TestListCareExceptions_ArrivalRepoErrorSurfaces(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	rows, err := svc.ListCareExceptions(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(30))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errBoom)
 	assert.Nil(t, rows)
@@ -805,7 +819,7 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	date := timezone.TodayDate().AddDays(1)
+	date := careFixtureToday().AddDays(1)
 
 	// Seed a guardian pickup row with the real service.
 	realSvc, _, _ := buildCareService(t, true)
@@ -826,6 +840,7 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		DB:          db,
 		Logger:      slog.Default(),
+		Now:         careFixtureNow,
 	})
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))
@@ -850,7 +865,7 @@ func TestListCareExceptions_NotOwnedChild(t *testing.T) {
 	}()
 
 	_, err := svc.ListCareExceptions(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID,
-		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(30))
 	assert.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
 
@@ -866,7 +881,7 @@ func TestDeleteCareException_NotOwnedChild(t *testing.T) {
 	}()
 
 	err := svc.DeleteCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID,
-		timezone.TodayDate().AddDays(1))
+		careFixtureToday().AddDays(1))
 	assert.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
 
@@ -876,7 +891,7 @@ func TestSubmitCareExceptionWithReasonPersistsReason(t *testing.T) {
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	date := timezone.TodayDate().AddDays(1)
+	date := careFixtureToday().AddDays(1)
 	result, err := svc.SubmitCareExceptionWithReason(
 		testpkg.WithPackageTenantRuntime(context.Background()),
 		chain.AccountID,
@@ -911,7 +926,7 @@ func TestSubmitCareExceptionWithReasonPreservesExistingArrival(t *testing.T) {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 
-	date := timezone.TodayDate().AddDays(1)
+	date := careFixtureToday().AddDays(1)
 	arrival := &scheduleModels.StudentArrivalException{
 		StudentID:       chain.StudentID,
 		ExceptionDate:   date,
@@ -954,7 +969,7 @@ func TestSubmitCareExceptionWithReasonValidatesInput(t *testing.T) {
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	date := timezone.TodayDate().AddDays(1)
+	date := careFixtureToday().AddDays(1)
 	_, err := svc.SubmitCareExceptionWithReason(
 		testpkg.WithPackageTenantRuntime(context.Background()),
 		chain.AccountID,

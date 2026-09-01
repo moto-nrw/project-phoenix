@@ -59,7 +59,7 @@ func TestActivityInstance_Validate(t *testing.T) {
 		},
 		{
 			name:    "missing date",
-			mutate:  func(i *ActivityInstance) { i.Date = timezone.Date{} },
+			mutate:  func(i *ActivityInstance) { i.Date = timezone.Date("") },
 			wantErr: "date is required",
 		},
 		{

@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/uptrace/bun"
 )
 
 const (
 	roomsWCAliasUniqueVersion     = "1.15.48"
 	roomsWCAliasUniqueDescription = "Add partial UNIQUE(tenant_id) WHERE name IN ('WC','Toilette') on facilities.rooms; archive losers when a tenant already has both aliases. Backup of every renamed row goes to audit.wc_alias_migration_backup. Rollback drops the index but does NOT restore archived names — see backup table for manual restore."
+	roomsWCAliasUniqueIndex       = "uniq_facilities_rooms_tenant_wc_alias"
 )
 
 func init() {
@@ -170,9 +170,9 @@ func roomsWCAliasUniqueUp(ctx context.Context, db *bun.DB) error {
 		CREATE UNIQUE INDEX IF NOT EXISTS %s
 		ON facilities.rooms (tenant_id)
 		WHERE name IN ('WC', 'Toilette');
-	`, facilities.RoomWCAliasUniqueConstraintName)
+	`, roomsWCAliasUniqueIndex)
 	if _, err := db.NewRaw(createSQL).Exec(ctx); err != nil {
-		return fmt.Errorf("failed creating %s: %w", facilities.RoomWCAliasUniqueConstraintName, err)
+		return fmt.Errorf("failed creating %s: %w", roomsWCAliasUniqueIndex, err)
 	}
 
 	return nil
@@ -198,11 +198,11 @@ func roomsWCAliasUniqueUp(ctx context.Context, db *bun.DB) error {
 // renaming the other one out of the namespace by hand.
 func roomsWCAliasUniqueDown(ctx context.Context, db *bun.DB) error {
 	fmt.Printf("Rolling back migration 1.15.48: dropping %s (archived names not auto-restored — see audit.wc_alias_migration_backup)...\n",
-		facilities.RoomWCAliasUniqueConstraintName)
+		roomsWCAliasUniqueIndex)
 
-	dropSQL := fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, facilities.RoomWCAliasUniqueConstraintName)
+	dropSQL := fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, roomsWCAliasUniqueIndex)
 	if _, err := db.NewRaw(dropSQL).Exec(ctx); err != nil {
-		return fmt.Errorf("failed dropping %s: %w", facilities.RoomWCAliasUniqueConstraintName, err)
+		return fmt.Errorf("failed dropping %s: %w", roomsWCAliasUniqueIndex, err)
 	}
 	return nil
 }

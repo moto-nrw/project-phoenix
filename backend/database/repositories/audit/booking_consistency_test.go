@@ -100,7 +100,7 @@ func TestBookingConsistencyAuditRequiresDateAndTenant(t *testing.T) {
 	_, err := repo.Audit(context.Background(), timezone.TodayDate())
 	require.ErrorContains(t, err, "requires a tenant context")
 
-	_, err = repo.Audit(testpkg.Ctx(t), timezone.Date{})
+	_, err = repo.Audit(testpkg.Ctx(t), timezone.Date(""))
 	require.ErrorContains(t, err, "date is required")
 }
 

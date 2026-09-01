@@ -71,7 +71,7 @@ func (s *staffAbsenceService) GetVacationOpening(ctx context.Context, staffID in
 // validateSetVacationOpening runs the pure request guards. Split out so the
 // booking path itself stays readable — the checks are a flat list with no
 // interaction between them.
-func validateSetVacationOpening(staffID, decidedBy int64, req SetVacationOpeningRequest) error {
+func validateSetVacationOpening(staffID, decidedBy int64, req SetVacationOpeningRequest, today timezone.Date) error {
 	switch {
 	case staffID <= 0:
 		return fmt.Errorf("%w: staff id is required", ErrVacationOpeningInvalid)
@@ -83,14 +83,14 @@ func validateSetVacationOpening(staffID, decidedBy int64, req SetVacationOpening
 		return fmt.Errorf("%w: note is required", ErrVacationOpeningInvalid)
 	// Same reasoning as the Stundenkonto opening: the Stichtag needs a closed
 	// cutoff, and the bulk import applies ONE Stichtag to both sides.
-	case !req.EffectiveDate.Before(timezone.TodayDate()):
+	case !req.EffectiveDate.Before(today):
 		return fmt.Errorf("%w: effective_date must be before today", ErrVacationOpeningInvalid)
 	// The takeover rebaselines the vacation account of the Stichtag's year, and
 	// only the running year still has a live account to rebaseline. A Stichtag
 	// in a closed year would silently rewrite a historical account whose days
 	// are already spent. The import handler bounds its Stichtag the same way;
 	// the check belongs here too so the per-staff route cannot bypass it.
-	case req.EffectiveDate.Year != timezone.TodayDate().Year:
+	case req.EffectiveDate.Year() != today.Year():
 		return fmt.Errorf("%w: effective_date must be in the current vacation year", ErrVacationOpeningInvalid)
 	default:
 		return nil
@@ -102,7 +102,7 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 	if s.openingRepo == nil {
 		return nil, fmt.Errorf("vacation opening repository is not configured")
 	}
-	if err := validateSetVacationOpening(staffID, decidedBy, req); err != nil {
+	if err := validateSetVacationOpening(staffID, decidedBy, req, s.today()); err != nil {
 		return nil, err
 	}
 	// Vacation absences use the same per-staff advisory lock. Holding it from
@@ -112,7 +112,7 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 		return nil, fmt.Errorf("failed to lock staff absence writes: %w", err)
 	}
 
-	year := req.EffectiveDate.Year
+	year := req.EffectiveDate.Year()
 	existing, err := s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing vacation opening: %w", err)
@@ -177,7 +177,7 @@ func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, a
 	if absence.AbsenceType != activeModels.AbsenceTypeVacation || s.openingRepo == nil {
 		return nil
 	}
-	for year := absence.DateStart.Year; year <= absence.DateEnd.Year; year++ {
+	for year := absence.DateStart.Year(); year <= absence.DateEnd.Year(); year++ {
 		opening, err := s.openingRepo.GetByStaffAndYear(ctx, absence.StaffID, year)
 		if err != nil {
 			return fmt.Errorf("failed to check vacation opening: %w", err)
@@ -242,8 +242,8 @@ func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID
 // rejectVacationAbsencesBefore blocks a takeover when vacation absences that
 // count against the quota already exist before the Stichtag in its year.
 func (s *staffAbsenceService) rejectVacationAbsencesBefore(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
-	yearStart := timezone.NewDate(effectiveDate.Year, time.January, 1)
-	yearEnd := timezone.NewDate(effectiveDate.Year, time.December, 31)
+	yearStart := timezone.NewDate(effectiveDate.Year(), time.January, 1)
+	yearEnd := timezone.NewDate(effectiveDate.Year(), time.December, 31)
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, yearStart, yearEnd)
 	if err != nil {
 		return fmt.Errorf("failed to check absences for vacation opening: %w", err)

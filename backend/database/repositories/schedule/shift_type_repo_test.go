@@ -1,7 +1,6 @@
 package schedule_test
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -164,7 +162,7 @@ func TestShiftTypeRepository_TenantIsolation(t *testing.T) {
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
+	tenant2 := testpkg.TenantContext(otherTenantID)
 
 	st := newShiftType("Isolated-"+testUnique(), "#83CD2D")
 	require.NoError(t, repo.Create(tenant1, st))

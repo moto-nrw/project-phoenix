@@ -488,7 +488,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if student.CareEndedOn(timezone.TodayDate()) &&
+	if student.CareEndedOn(rs.todayDate()) &&
 		!authorize.HasPermission(permissions.UsersDelete, jwt.PermissionsFromCtx(r.Context())) {
 		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return
@@ -1337,7 +1337,7 @@ func (rs *Resource) resyncSourcedTemplatesOnClassChange(ctx context.Context, cla
 	if !classChangeRequested || previousSchoolClass == currentSchoolClass {
 		return nil
 	}
-	return rs.OfferingSourceResyncer.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate())
+	return rs.OfferingSourceResyncer.ResyncOfferingSourcedTemplates(ctx, rs.todayDate())
 }
 
 // applyStudentUpdate performs the locked-row student patch inside the caller's

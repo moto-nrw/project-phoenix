@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -35,7 +36,7 @@ func (r *unregisteredTagScanRepository) FindByID(ctx context.Context, id int64) 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find unregistered tag scan", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find unregistered tag scan", Err: base.TranslateNotFound(err)}
 	}
 	return &scan, nil
 }
@@ -47,7 +48,7 @@ func (r *unregisteredTagScanRepository) ListForOperator(ctx context.Context, fil
 	query = query.OrderExpr(`"scan".scanned_at DESC`).Limit(500)
 
 	if err := query.Scan(ctx, &scans); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list unregistered tag scans", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list unregistered tag scans", Err: base.TranslateNotFound(err)}
 	}
 	if scans == nil {
 		scans = []*auditModels.UnregisteredTagScan{}
@@ -68,7 +69,7 @@ func (r *unregisteredTagScanRepository) Resolve(ctx context.Context, id, operato
 		Where(`"scan".resolved_at IS NULL`).
 		Exec(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve unregistered tag scan", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "resolve unregistered tag scan", Err: base.TranslateNotFound(err)}
 	}
 	if err := base.AssertRowsAffected(result, 1, "resolve unregistered tag scan"); err != nil {
 		return nil, err
@@ -77,10 +78,17 @@ func (r *unregisteredTagScanRepository) Resolve(ctx context.Context, id, operato
 }
 
 func (r *unregisteredTagScanRepository) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
-	// The generic adds the TenantScoped tenant_id filter the hand-rolled
-	// delete lacked; equivalent because FORCE RLS on audit.unregistered_tag_scans
-	// already scoped scheduler deletes to the tenant transaction.
-	deleted, err := r.DeleteBefore(ctx, "scanned_at", cutoff, "delete old unregistered tag scans")
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return 0, &modelBase.DatabaseError{Op: "delete old unregistered tag scans", Err: errors.New("tenant context is required")}
+	}
+	var deleted int64
+	err := base.GetDB(ctx, r.db).NewRaw(
+		`SELECT audit.delete_expired_unregistered_tag_scans(?, ?)`, tenantID, cutoff,
+	).Scan(ctx, &deleted)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete old unregistered tag scans", Err: err}
+	}
 	return int(deleted), err
 }
 

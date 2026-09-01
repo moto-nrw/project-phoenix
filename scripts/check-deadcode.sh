@@ -25,7 +25,8 @@ run_deadcode() {
   printf '%s\n' "$output" | grep -v '^go: ' || true
 }
 
-test_findings=$(run_deadcode tests)
+test_output=$(run_deadcode tests)
+test_findings=$(printf '%s\n' "$test_output" | grep -v '^internal/architecture/' || true)
 if [[ -n "$test_findings" ]]; then
   echo "Dead code detected with test entry points included:"
   printf '%s\n' "$test_findings"
@@ -34,7 +35,7 @@ fi
 
 production_output=$(run_deadcode production)
 if production_findings=$(printf '%s\n' "$production_output" | grep -Ev \
-  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|_test_helpers\.go|models/config/registry\.go:.*unreachable func: ResetRegistry$'); then
+  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|^internal/architecture/|_test_helpers\.go|models/config/registry\.go:.*unreachable func: ResetRegistry$'); then
   :
 else
   production_filter_status=$?
@@ -46,6 +47,18 @@ fi
 if [[ -n "$production_findings" ]]; then
   echo "Production code reachable only from tests or from no entry point:"
   printf '%s\n' "$production_findings"
+  exit 1
+fi
+
+deadcode_binary=$(go tool -n deadcode)
+tool_output=$(
+  cd "$repo_root/scripts/backend-architecture"
+  "$deadcode_binary" ./... 2>&1
+)
+tool_findings=$(printf '%s\n' "$tool_output" | grep -v '^go: ' || true)
+if [[ -n "$tool_findings" ]]; then
+  echo "Dead code detected in the architecture command:"
+  printf '%s\n' "$tool_findings"
   exit 1
 fi
 

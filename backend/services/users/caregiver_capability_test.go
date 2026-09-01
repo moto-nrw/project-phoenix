@@ -3,6 +3,7 @@ package users_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +37,7 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *services.Factory) {
 func setupServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
 	t.Helper()
 
-	factory, err := services.NewFactory(repositories.NewFactory(db), db, slog.Default())
+	factory, err := services.NewFactoryForTests(repositories.NewFactory(db), db, slog.Default())
 	require.NoError(t, err)
 	return factory
 }
@@ -385,6 +387,51 @@ func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *tes
 	require.True(t, ok)
 	assert.Equal(t, false, after["has_user_role"])
 	assert.Equal(t, true, after["has_teacher"])
+}
+
+// The nested request transaction verifies that disable retains its
+// independently committed retry boundary.
+func TestCaregiverCapability_DisableCommitsIndependentlyOfAmbientTransaction(t *testing.T) {
+	t.Parallel()
+
+	db, factory := setupCaregiverFactory(t)
+	tenantID := testpkg.Tenant(t)
+	ctx := testpkg.Ctx(t)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Independent", "Disable")
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "admin")
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "user")
+
+	outerRollback := errors.New("rollback outer request transaction")
+	err := testpkg.WithTenantTx(t, ctx, db, tenantID, func(outerCtx context.Context, _ bun.Tx) error {
+		state, disableErr := factory.CaregiverCapability.DisableCaregiverCapability(outerCtx, account.ID)
+		require.NoError(t, disableErr)
+		assert.False(t, state.HasUserRole)
+		return outerRollback
+	})
+	require.ErrorIs(t, err, outerRollback)
+
+	state, err := factory.CaregiverCapability.GetCaregiverCapability(testpkg.Ctx(t), account.ID)
+	require.NoError(t, err)
+	assert.False(t, state.HasUserRole)
+}
+
+func TestCaregiverCapability_DisableRejectsMissingUnitOfWork(t *testing.T) {
+	t.Parallel()
+
+	db, factory := setupCaregiverFactory(t)
+	tenantID := testpkg.Tenant(t)
+	ctx := tenant.WithTenantID(context.Background(), tenantID)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Standalone", "Disable")
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "admin")
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "user")
+
+	state, err := factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
+	require.ErrorIs(t, err, tenant.ErrRuntimeRequired)
+	assert.Nil(t, state)
 }
 
 // Deliberately NOT parallel: assigning a SYSTEM role creates a row in

@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -40,7 +39,6 @@ func init() {
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *activeAPI.Resource
 }
 
@@ -54,16 +52,16 @@ func (s *recordingEndActiveGroupService) EndActiveGroupSession(ctx context.Conte
 	return s.Service.EndActiveGroupSession(ctx, id)
 }
 
-// setupTestContext creates test resources for active handler tests
-func setupTestContext(t *testing.T) *testContext {
+// setupActiveRoute creates test resources for active handler tests
+func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
 	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Education, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default())
+	resource.SupervisionDashboardService = svc.SupervisionDashboard
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -81,7 +79,7 @@ func mountActiveRouter(tc *testContext) chi.Router {
 // setupProtectedRouter builds the production router mounted at /active.
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -90,7 +88,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 // already exposes every one of those endpoints.
 func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -265,13 +263,13 @@ func TestEndActiveGroup(t *testing.T) {
 				return false, nil
 			},
 		}
-		recordingService := &recordingEndActiveGroupService{Service: tc.services.Active}
+		recordingService := &recordingEndActiveGroupService{Service: tc.resource.ActiveService}
 		disabledResource := activeAPI.NewResource(
 			recordingService,
-			tc.services.Users,
-			tc.services.Education,
-			tc.services.Schulhof,
-			tc.services.UserContext,
+			tc.resource.PersonService,
+			tc.resource.EducationService,
+			tc.resource.SchulhofService,
+			tc.resource.UserContextService,
 			disabledSettings,
 			tc.db,
 			slog.Default(),
@@ -286,7 +284,7 @@ func TestEndActiveGroup(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 		assert.Contains(t, rr.Body.String(), common.ErrCodeAttendanceWebDisabled)
 		assert.Zero(t, recordingService.endCalls, "the disabled route must not invoke group teardown")
-		stored, err := tc.services.Active.GetActiveGroup(settingCtx, activeGroup.ID)
+		stored, err := tc.resource.ActiveService.GetActiveGroup(settingCtx, activeGroup.ID)
 		require.NoError(t, err)
 		assert.Nil(t, stored.EndTime, "the disabled route must not invoke group teardown")
 	})
@@ -450,22 +448,15 @@ func TestListSupervisors(t *testing.T) {
 	})
 }
 
-// supervisorTestTenantID isolates TestCreateSupervisor's fixtures from the
-// default test tenant (1) so concurrent test packages' CleanupActivityFixtures
-// — which deletes by raw int64 ID across many tables in tenant 1 — cannot
-// FK-cascade-delete this test's active group mid-request and surface as the
-// opaque "active: CreateGroupSupervisor: database operation failed" 500.
-const supervisorTestTenantID int64 = 99001
-
 func TestCreateSupervisor(t *testing.T) {
 	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
+	supervisorTestTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, tc.db, supervisorTestTenantID)
 	adminClaims := testutil.AdminTestClaimsForTenant(1, supervisorTestTenantID)
 
-	// All fixtures live in supervisorTestTenantID — out of reach of other
-	// packages' tenant-1-scoped cleanup.
+	// All fixtures live in this test's separate tenant.
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoomForTenant(t, tc.db, supervisorTestTenantID,
 		fmt.Sprintf("Supervisor Room %d", suffix))
@@ -1608,7 +1599,7 @@ func TestListSupervisorsWithFilters(t *testing.T) {
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	router := tc.resource.Router()
 	require.NotNil(t, router, "Router should return a valid chi.Router")
 }
@@ -1869,7 +1860,7 @@ func TestCreateVisitAdditional(t *testing.T) {
 // checkout endpoint lives under /active/visits/student/{studentId}/checkout).
 func setupCheckoutRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -2084,7 +2075,7 @@ func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
 // production Router() exposes.
 func setupFullCoverageRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -2188,6 +2179,9 @@ func TestClaimGroup(t *testing.T) {
 func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 	t.Parallel()
 	tc, router := setupFullCoverageRouter(t)
+	require.NoError(t, tc.resource.SettingsService.SetValue(
+		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
+	))
 
 	// Create staff with account for claims
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Display", "Staff")
@@ -2260,12 +2254,11 @@ func TestGetAllActiveSupervisions(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 	})
 
-	t.Run("forbidden for admin when setting is disabled (default)", func(t *testing.T) {
-		// The setting defaults to false, so admin should get 403
+	t.Run("allowed for admin with the whole-team default", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/all", nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
-		testutil.AssertForbidden(t, rr)
+		assert.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 	})
 
 	t.Run("forbidden without groups:read permission", func(t *testing.T) {

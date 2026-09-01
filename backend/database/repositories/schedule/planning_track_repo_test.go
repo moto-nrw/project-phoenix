@@ -66,6 +66,48 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestPlanningTrackRepositoryFindByIDs(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	scope := testpkg.NewTenantScope(t, db)
+	repo := repositories.NewFactory(db).PlanningTrack
+	ctx := scope.Context()
+
+	active := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
+	archived := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
+	require.NoError(t, repo.Create(ctx, active))
+	require.NoError(t, repo.Create(ctx, archived))
+	archivedAt := time.Now()
+	archived.ArchivedAt = &archivedAt
+	updated, err := repo.UpdateColumns(ctx, archived, "archived_at")
+	require.NoError(t, err)
+	require.Positive(t, updated)
+
+	empty, err := repo.FindByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+
+	// Archived rows resolve too (historical references keep their colour);
+	// unknown IDs are simply absent instead of an error.
+	tracks, err := repo.FindByIDs(ctx, []int64{active.ID, archived.ID, archived.ID + 1000})
+	require.NoError(t, err)
+	require.Len(t, tracks, 2)
+	byID := map[int64]*model.PlanningTrack{}
+	for _, track := range tracks {
+		byID[track.ID] = track
+	}
+	require.NotNil(t, byID[active.ID])
+	require.NotNil(t, byID[archived.ID])
+	assert.True(t, byID[archived.ID].IsArchived())
+
+	// Tenant isolation: another tenant sees none of these rows.
+	otherScope := testpkg.NewTenantScope(t, db)
+	foreign, err := repo.FindByIDs(otherScope.Context(), []int64{active.ID, archived.ID})
+	require.NoError(t, err)
+	assert.Empty(t, foreign)
+}
+
 func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	t.Parallel()
 

@@ -74,7 +74,7 @@ func (c *planningTimesCounter) captured(table string) []string {
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestListStudentsPlanningTimesQueryBudget(t *testing.T) {
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	tc.resource.Now = func() time.Time {
 		return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 	}

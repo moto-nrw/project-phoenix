@@ -58,14 +58,14 @@ func (r *StudentStatusDayRepository) ListOverviewWithOptions(ctx context.Context
 	if options != nil {
 		if options.Filter != nil {
 			options.Filter.WithTableAlias("student_status_day")
-			query = options.Filter.ApplyToQuery(query)
+			query = base.ApplyFilter(query, options.Filter)
 		}
 		if options.Pagination != nil {
-			query = options.Pagination.ApplyToQuery(query)
+			query = base.ApplyPagination(query, *options.Pagination)
 		}
 	}
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list status day overview", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list status day overview", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -102,10 +102,15 @@ func (r *StudentStatusDayRepository) UpsertReported(ctx context.Context, entry *
 			THEN COALESCE(EXCLUDED.note, student_status_days.note)
 			ELSE EXCLUDED.note
 		END`).
+		Set(`guardian_account_id = CASE
+			WHEN student_status_days.cleared_at IS NULL AND EXCLUDED.note IS NULL
+			THEN student_status_days.guardian_account_id
+			ELSE EXCLUDED.guardian_account_id
+		END`).
 		Returning("id").
 		Scan(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert student status day", Err: err}
+		return &modelBase.DatabaseError{Op: "upsert student status day", Err: base.TranslateNotFound(err)}
 	}
 	_, err = r.slotRepo.ApplyStatusDay(ctx, entry.StudentID, entry.Date, entry.ID, attendanceSubstatus(entry.Status))
 	return err
@@ -144,7 +149,7 @@ func (r *StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID 
 	}
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark student status day cleared", Err: err}
+		return &modelBase.DatabaseError{Op: "mark student status day cleared", Err: base.TranslateNotFound(err)}
 	}
 	return r.releaseStatusDays(ctx, ids)
 }
@@ -163,7 +168,7 @@ func (r *StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int
 	}
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark student status day cleared by id", Err: err}
+		return &modelBase.DatabaseError{Op: "mark student status day cleared by id", Err: base.TranslateNotFound(err)}
 	}
 	_, err := r.slotRepo.ReleaseStatusDay(ctx, id)
 	return err
@@ -203,7 +208,7 @@ func (r *StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, st
 	}
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark student status days cleared for dates", Err: err}
+		return &modelBase.DatabaseError{Op: "mark student status days cleared for dates", Err: base.TranslateNotFound(err)}
 	}
 	return r.releaseStatusDays(ctx, ids)
 }
@@ -224,7 +229,7 @@ func (r *StudentStatusDayRepository) findActiveIDs(
 		Where(`"student_status_day".cleared_at IS NULL`)
 	query = base.WithTenantFilter(ctx, query, "student_status_day")
 	if err := query.Scan(ctx, &ids); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active student status day ids", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active student status day ids", Err: base.TranslateNotFound(err)}
 	}
 	return ids, nil
 }
@@ -252,7 +257,7 @@ func (r *StudentStatusDayRepository) FindActiveByID(ctx context.Context, id int6
 		if err == sql.ErrNoRows {
 			return nil, err
 		}
-		return nil, &modelBase.DatabaseError{Op: "find active student status day by id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active student status day by id", Err: base.TranslateNotFound(err)}
 	}
 	return entry, nil
 }
@@ -283,7 +288,7 @@ func (r *StudentStatusDayRepository) FindActiveByStudentIDsAndDate(ctx context.C
 	query = base.WithTenantFilter(ctx, query, "student_status_day")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active student status days by student ids and date", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active student status days by student ids and date", Err: base.TranslateNotFound(err)}
 	}
 	return entries, nil
 }
@@ -315,7 +320,7 @@ func (r *StudentStatusDayRepository) FindSignedOffByStudentIDsAndDate(ctx contex
 	query = base.WithTenantFilter(ctx, query, "student_status_day")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find signed-off student status days by student ids and date", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find signed-off student status days by student ids and date", Err: base.TranslateNotFound(err)}
 	}
 	return entries, nil
 }
@@ -343,7 +348,7 @@ func (r *StudentStatusDayRepository) findByStudentAndDateRange(ctx context.Conte
 	query = base.WithTenantFilter(ctx, query, "student_status_day")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find student status days by date range", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find student status days by date range", Err: base.TranslateNotFound(err)}
 	}
 	return entries, nil
 }
@@ -382,7 +387,7 @@ func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
 	if _, err := db.NewRaw(upsertQuery, date, status, reportedFallback, reportedFallback, source).Exec(ctx); err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "archive status flag",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -394,14 +399,14 @@ func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "clear status flag",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "clear status flag rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return affected, nil
@@ -457,7 +462,7 @@ func (r *StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context
 	if err := query.Scan(ctx, counts); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count effective dashboard absences",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return counts, nil

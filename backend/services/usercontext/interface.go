@@ -25,6 +25,7 @@ type UserContextService interface {
 
 	// GetCurrentStaff retrieves the staff member linked to the currently authenticated user
 	GetCurrentStaff(ctx context.Context) (*users.Staff, error)
+	HasCurrentStaff(ctx context.Context) (bool, error)
 
 	// GetNavigationContext aggregates the identity and group data consumed by
 	// the shared frontend context into one backend request.

@@ -146,6 +146,7 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo: repos.ParentChild,
 		Settings:  masterDataSettings(true, true, false),
+		MealPlan:  availableMealPlan(false),
 		DB:        db,
 		Logger:    slog.Default(),
 	})

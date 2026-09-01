@@ -1,7 +1,6 @@
 package schedule_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -171,7 +169,7 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "DeleteUpcoming")
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	past := newShift(staff.ID, today.AddDays(-1), 8, 12, staff.ID)
 	sameDay := newShift(staff.ID, today, 8, 12, staff.ID)
 	future := newShift(staff.ID, today.AddDays(1), 8, 12, staff.ID)
@@ -181,7 +179,7 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	otherTenantCtx := tenant.WithTenantID(context.Background(), otherTenantID)
+	otherTenantCtx := testpkg.TenantContext(otherTenantID)
 	deleted, err := repo.DeleteUpcomingByStaffID(otherTenantCtx, staff.ID, today)
 	require.NoError(t, err)
 	assert.Zero(t, deleted, "wrong tenant must not delete tenant 1 shifts")
@@ -231,7 +229,7 @@ func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
+	tenant2 := testpkg.TenantContext(otherTenantID)
 
 	day := timezone.NewDate(2026, time.July, 9)
 	shift := newShift(staff.ID, day, 8, 16, staff.ID)
@@ -259,7 +257,7 @@ func TestStaffShiftRepository_RejectsCrossTenantStaffReference(t *testing.T) {
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
+	tenant2 := testpkg.TenantContext(otherTenantID)
 
 	day := timezone.NewDate(2026, time.July, 10)
 	shift := newShift(staff.ID, day, 8, 16, staff.ID)

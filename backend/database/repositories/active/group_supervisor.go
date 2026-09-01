@@ -4,6 +4,7 @@ package active
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -16,16 +17,18 @@ import (
 // GroupSupervisorRepository implements active.GroupSupervisorRepository interface
 type GroupSupervisorRepository struct {
 	*base.Repository[*active.GroupSupervisor]
-	db *bun.DB
+	db    *bun.DB
+	today func() timezone.Date
 }
 
 // NewGroupSupervisorRepository creates a new GroupSupervisorRepository
-func NewGroupSupervisorRepository(db *bun.DB) active.GroupSupervisorRepository {
+func NewGroupSupervisorRepository(db *bun.DB, clocks ...func() time.Time) active.GroupSupervisorRepository {
 	repo := base.NewRepository[*active.GroupSupervisor](db, "active.group_supervisors", "GroupSupervisor")
 	repo.TenantScoped = true
 	return &GroupSupervisorRepository{
 		Repository: repo,
 		db:         db,
+		today:      timezone.CalendarDateClock(clocks...),
 	}
 }
 
@@ -43,7 +46,7 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -75,7 +78,7 @@ func (r *GroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Contex
 		TableExpr(`active.group_supervisors AS "group_supervisor"`).
 		ColumnExpr(`"group_supervisor".staff_id, "group".room_id`).
 		Join(`JOIN active.groups AS "group" ON "group".id = "group_supervisor".group_id`).
-		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate()).
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today()).
 		Where(`"group".end_time IS NULL`)
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -83,7 +86,7 @@ func (r *GroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Contex
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list active supervised rooms",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -107,7 +110,7 @@ func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before ti
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find stale open supervisions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -115,7 +118,7 @@ func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before ti
 }
 
 // FindByActiveGroupID finds supervisors for a specific active group
-// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+// If activeOnly is true, returns supervisors whose end date has not been reached.
 // Includes Staff.Person relation for staff name display
 func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
@@ -131,7 +134,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 		Where(`"group_supervisor".group_id = ?`, activeGroupID)
 
 	if activeOnly {
-		query = query.Where(`"group_supervisor".end_date IS NULL`)
+		query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 	}
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -140,7 +143,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -148,7 +151,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 }
 
 // FindByActiveGroupIDs finds supervisors for multiple active groups in a single query
-// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+// If activeOnly is true, returns supervisors whose end date has not been reached.
 // Includes Staff.Person relation for staff name display
 func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
 	if len(activeGroupIDs) == 0 {
@@ -168,7 +171,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs))
 
 	if activeOnly {
-		query = query.Where(`"group_supervisor".end_date IS NULL`)
+		query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 	}
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -177,7 +180,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -189,8 +192,9 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = ?", timezone.TodayDate()).
-		Where(`"group_supervisor".id = ? AND "group_supervisor".end_date IS NULL`, id)
+		Set("end_date = ?", r.today()).
+		Where(`"group_supervisor".id = ?`, id).
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
@@ -198,7 +202,7 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end supervision",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -228,73 +232,40 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
 	return base.AssertRowsAffected(result, 1, "update group_supervisor")
 }
 
-// applyActiveOnlyFilter handles the special active_only filter for group supervisors.
-// Returns the modified query with the appropriate WHERE clause applied.
-func (r *GroupSupervisorRepository) applyActiveOnlyFilter(query *bun.SelectQuery, filter *modelBase.Filter) *bun.SelectQuery {
-	activeOnly, ok := filter.Get("active_only")
-	if !ok {
-		return query
-	}
-
-	// Remove from filter so ApplyToQuery doesn't try to use it as a column
-	filter.Remove("active_only")
-
-	isActive, isBool := activeOnly.(bool)
-	if !isBool {
-		return query
-	}
-
-	if isActive {
-		return query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > NOW()`)
-	}
-	// active=false returns only inactive (ended) supervisors
-	return query.Where(`"group_supervisor".end_date IS NOT NULL AND "group_supervisor".end_date <= NOW()`)
-}
-
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupSupervisor, error) {
-	var supervisions []*active.GroupSupervisor
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&supervisions).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`)
-
-	query = base.WithTenantFilter(ctx, query, "group_supervisor")
-
-	if options != nil {
-		if options.Filter != nil {
-			query = r.applyActiveOnlyFilter(query, options.Filter)
-			options.Filter.WithTableAlias("group_supervisor")
-		}
-		query = options.ApplyToQuery(query)
+	if options != nil && options.Filter != nil {
+		rewriteActiveOnlyFilter(options.Filter, "end_date", r.today())
 	}
 
-	err := query.Scan(ctx)
+	supervisions, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, &modelBase.DatabaseError{Op: "list", Err: base.DatabaseErrorCause(err)}
+	}
+	if len(supervisions) == 0 {
+		return nil, nil
 	}
 
 	return supervisions, nil
 }
 
 // EndAllActiveByStaffID ends all active supervisions for a staff member.
-// Sets end_date = CURRENT_DATE for all supervisions where end_date IS NULL.
+// Sets end_date = CURRENT_DATE for every supervision active today.
 // Returns the number of supervisions that were ended.
 func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error) {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = CURRENT_DATE").
-		Where(`"group_supervisor".staff_id = ? AND "group_supervisor".end_date IS NULL`, staffID)
+		Set("end_date = ?", r.today()).
+		Where(`"group_supervisor".staff_id = ?`, staffID).
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
@@ -302,7 +273,7 @@ func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, s
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end all active by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -310,7 +281,7 @@ func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, s
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end all active by staff ID (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -335,7 +306,7 @@ func (r *GroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Conte
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end by active group and staff id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -343,7 +314,7 @@ func (r *GroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Conte
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end by active group and staff id (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -360,9 +331,9 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = now()").
+		Set("end_date = ?", r.today()).
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs)).
-		Where(`"group_supervisor".end_date IS NULL`)
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
@@ -370,7 +341,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end supervisions by active group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -378,7 +349,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end supervisions by active group IDs (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -413,7 +384,7 @@ func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get staff IDs with supervision today",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -439,7 +410,7 @@ func (r *GroupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Co
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list active supervision blockers",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return results, nil

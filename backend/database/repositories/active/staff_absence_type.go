@@ -43,7 +43,7 @@ func (r *StaffAbsenceTypeRepository) ListAll(ctx context.Context) ([]*active.Sta
 	query = base.WithTenantFilter(ctx, query, "staff_absence_type")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list all staff absence types", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list all staff absence types", Err: base.TranslateNotFound(err)}
 	}
 	return types, nil
 }
@@ -64,7 +64,7 @@ func (r *StaffAbsenceTypeRepository) LockByID(ctx context.Context, id int64) (*a
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "lock staff absence type", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "lock staff absence type", Err: base.TranslateNotFound(err)}
 	}
 	return absenceType, nil
 }
@@ -80,7 +80,7 @@ func (r *StaffAbsenceTypeRepository) IsInUse(ctx context.Context, id int64) (boo
 
 	exists, err := query.Exists(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check staff absence type usage", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check staff absence type usage", Err: base.TranslateNotFound(err)}
 	}
 	return exists, nil
 }
@@ -115,7 +115,7 @@ func (r *StaffAbsenceTypeRepository) Update(ctx context.Context, absenceType *ac
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(absenceType).
-		Column("name", "is_active").
+		Column("name", "is_active", "allowance_enabled", "overrun_policy").
 		Where("id = ?", absenceType.ID).
 		ModelTableExpr(tableStaffAbsenceTypes)
 
@@ -125,7 +125,7 @@ func (r *StaffAbsenceTypeRepository) Update(ctx context.Context, absenceType *ac
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update staff absence type", Err: err}
+		return &modelBase.DatabaseError{Op: "update staff absence type", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "update staff absence type")
 }

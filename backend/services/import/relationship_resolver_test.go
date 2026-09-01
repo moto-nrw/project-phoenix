@@ -350,6 +350,9 @@ func (m *mockGroupRepo) Create(_ context.Context, _ *education.Group) error { re
 func (m *mockGroupRepo) FindByID(_ context.Context, _ interface{}) (*education.Group, error) {
 	return nil, nil
 }
+func (m *mockGroupRepo) FindByIDForUpdate(_ context.Context, _ interface{}) (*education.Group, error) {
+	return nil, nil
+}
 func (m *mockGroupRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*education.Group, error) {
 	return nil, nil
 }
@@ -362,6 +365,9 @@ func (m *mockGroupRepo) List(_ context.Context, _ map[string]interface{}) ([]*ed
 	return m.groups, m.err
 }
 func (m *mockGroupRepo) ListWithOptions(_ context.Context, _ *base.QueryOptions) ([]*education.Group, error) {
+	return m.groups, m.err
+}
+func (m *mockGroupRepo) ListWithRooms(_ context.Context, _ *education.GroupListQuery) ([]*education.Group, error) {
 	return m.groups, m.err
 }
 func (m *mockGroupRepo) FindByName(_ context.Context, _ string) (*education.Group, error) {

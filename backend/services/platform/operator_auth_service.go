@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	emailpkg "github.com/moto-nrw/project-phoenix/email"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -81,7 +80,7 @@ type OperatorAuthService interface {
 type operatorAuthService struct {
 	OperatorAuthServiceConfig
 	tokenAuth     *jwt.TokenAuth
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 	// mfaService is optional. When non-nil the LoginWithMFAGate path uses it
 	// to gate token issuance behind a second factor. Wired post-construction
 	// via SetMFAService to break the OperatorAuthService ↔ OperatorMFAService
@@ -90,7 +89,7 @@ type operatorAuthService struct {
 }
 
 // SetTenantRuntime wires the transaction runtime used by operator auth flows.
-func (s *operatorAuthService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *operatorAuthService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -98,12 +97,12 @@ func (s *operatorAuthService) withTenantRuntime(ctx context.Context) context.Con
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 func detachedOperatorContext(ctx context.Context) context.Context {
 	ctx = context.WithoutCancel(ctx)
-	ctx = modelBase.ContextWithoutTx(ctx)
+	ctx = tenant.ContextWithoutTransaction(ctx)
 	return tenant.ContextWithoutAfterCommitHooks(ctx)
 }
 

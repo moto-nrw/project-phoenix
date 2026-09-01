@@ -3,6 +3,7 @@ package checkin
 import (
 	"cmp"
 	"log/slog"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -25,7 +26,15 @@ type Resource struct {
 	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
 	// Checkin holds the extracted RFID check-in business logic (issue #575 B8).
 	Checkin *checkinSvc.CheckinService
+	Now     func() time.Time
 	logger  *slog.Logger
+}
+
+func (rs *Resource) currentTime() time.Time {
+	if rs.Now != nil {
+		return rs.Now()
+	}
+	return time.Now()
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -56,6 +65,7 @@ func NewResource(
 		PickupScheduleService: pickupScheduleService,
 		SettingsService:       settingsService,
 		UnregisteredTagScans:  scanService,
+		Now:                   time.Now,
 		logger:                logger,
 	}
 }

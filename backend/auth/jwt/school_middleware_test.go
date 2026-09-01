@@ -135,7 +135,7 @@ func TestSchoolMiddleware_ZeroTenantID_Unauthorized(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	assert.Equal(t, tenant.RuntimeMissingTenant, observed.Outcome)
+	assert.Equal(t, tenant.RuntimeMissingTenant, observed.Kind)
 	assert.True(t, errors.Is(observed.Err, tenant.ErrInvalidTenantID))
 }
 

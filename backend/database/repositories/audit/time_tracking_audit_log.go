@@ -137,6 +137,22 @@ var auditLogBranches = map[string]string{
 			) AS detail
 		FROM active.staff_vacation_openings vo
 		WHERE vo.tenant_id = %s`,
+	auditModels.AuditLogSourceAbsenceTypeAllowance: `
+		SELECT c.created_at AS occurred_at, 'absence_type_allowance' AS source, c.id AS entry_id,
+			c.staff_id AS staff_id, ARRAY[c.staff_id] AS staff_ids,
+			c.changed_by AS actor_staff_id, FALSE AS actor_is_system,
+			c.reason AS reason,
+			jsonb_build_object(
+				'absence_type_id', c.absence_type_id,
+				'absence_type_label', sat.name,
+				'year', c.year,
+				'old_entitled_days', c.old_entitled_days,
+				'new_entitled_days', c.new_entitled_days
+			) AS detail
+		FROM active.staff_absence_type_allowance_changes c
+		JOIN active.staff_absence_types sat
+			ON sat.tenant_id = c.tenant_id AND sat.id = c.absence_type_id
+		WHERE c.tenant_id = %s`,
 	auditModels.AuditLogSourcePersonnelNumber: `
 		SELECT c.occurred_at AS occurred_at, 'personnel_number' AS source, c.id AS entry_id,
 			c.staff_id AS staff_id, ARRAY[c.staff_id] AS staff_ids,
@@ -214,7 +230,7 @@ func (r *timeTrackingAuditLogRepository) ListEntries(ctx context.Context, filter
 
 	var entries []*auditModels.TimeTrackingAuditLogEntry
 	if err := base.GetDB(ctx, r.db).NewRaw(sb.String(), args...).Scan(ctx, &entries); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list time tracking audit log", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list time tracking audit log", Err: base.TranslateNotFound(err)}
 	}
 	return entries, nil
 }

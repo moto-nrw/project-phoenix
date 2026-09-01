@@ -26,16 +26,18 @@ var errActivityInstanceNil = fmt.Errorf("activity instance cannot be nil")
 // ActivityInstanceRepository implements schedule.ActivityInstanceRepository.
 type ActivityInstanceRepository struct {
 	*base.Repository[*schedule.ActivityInstance]
-	db *bun.DB
+	db    *bun.DB
+	today func() timezone.Date
 }
 
 // NewActivityInstanceRepository creates a new ActivityInstanceRepository.
-func NewActivityInstanceRepository(db *bun.DB) *ActivityInstanceRepository {
+func NewActivityInstanceRepository(db *bun.DB, clocks ...func() time.Time) *ActivityInstanceRepository {
 	repo := base.NewRepository[*schedule.ActivityInstance](db, tableActivityInstances, "ActivityInstance")
 	repo.TenantScoped = true
 	return &ActivityInstanceRepository{
 		Repository: repo,
 		db:         db,
+		today:      timezone.CalendarDateClock(clocks...),
 	}
 }
 
@@ -68,7 +70,7 @@ func (r *ActivityInstanceRepository) CreateTemplateBackedIfAbsent(ctx context.Co
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "create template-backed if absent",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -76,7 +78,7 @@ func (r *ActivityInstanceRepository) CreateTemplateBackedIfAbsent(ctx context.Co
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "create template-backed if absent rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return affected > 0, nil
@@ -102,11 +104,11 @@ func (r *ActivityInstanceRepository) CreateIdempotent(ctx context.Context, i *sc
 		On("CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING").
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "create idempotent", Err: err}
+		return false, &modelBase.DatabaseError{Op: "create idempotent", Err: base.TranslateNotFound(err)}
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "create idempotent rows affected", Err: err}
+		return false, &modelBase.DatabaseError{Op: "create idempotent rows affected", Err: base.TranslateNotFound(err)}
 	}
 	return affected == 1, nil
 }
@@ -133,10 +135,10 @@ func (r *ActivityInstanceRepository) MarkCompleted(ctx context.Context, instance
 
 	result, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "mark completed", Err: err}
+		return &modelBase.DatabaseError{Op: "mark completed", Err: base.TranslateNotFound(err)}
 	}
 	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
-		return &modelBase.DatabaseError{Op: "mark completed", Err: sql.ErrNoRows}
+		return &modelBase.DatabaseError{Op: "mark completed", Err: base.TranslateNotFound(sql.ErrNoRows)}
 	}
 	return nil
 }
@@ -155,7 +157,7 @@ func (r *ActivityInstanceRepository) FindByID(ctx context.Context, id any) (*sch
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  opFindByID,
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return &instance, nil
@@ -181,7 +183,7 @@ func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, da
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by tenant and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return instances, nil
@@ -225,7 +227,7 @@ func (r *ActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.C
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find planned template-backed instances from date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return instances, nil
@@ -246,7 +248,7 @@ func (r *ActivityInstanceRepository) MaxID(ctx context.Context) (int64, error) {
 	if err := query.Scan(ctx, &maxID); err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get max activity instance id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return maxID.Int64, nil
@@ -268,7 +270,7 @@ func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Contex
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by tenant and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return instances, nil
@@ -295,7 +297,7 @@ func (r *ActivityInstanceRepository) FindByIDs(ctx context.Context, ids []int64)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return instances, nil
@@ -317,7 +319,7 @@ func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Cont
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by activity group and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return instances, nil
@@ -346,7 +348,7 @@ func (r *ActivityInstanceRepository) FindByActivityGroupAndDateRange(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by activity group and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return instances, nil
@@ -373,7 +375,7 @@ func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, ac
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return &instance, nil
@@ -406,14 +408,14 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "complete active instances by active group ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	rows, err := res.RowsAffected()
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "complete active instances by active group ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -489,7 +491,7 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete planned non-spontaneous in window",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	deleted, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
@@ -508,14 +510,14 @@ func (r *ActivityInstanceRepository) DeletePlannedMaterializedWeekendInstances(c
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
 		Where(`"activity_instance".calendar_period_id IS NOT NULL`).
-		Where(`"activity_instance".date > ?`, timezone.TodayDate()).
+		Where(`"activity_instance".date > ?`, r.today()).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
 		Where(`"activity_instance".is_spontaneous = ?`, false).
 		Where(`EXTRACT(ISODOW FROM "activity_instance".date)::int IN (?)`, bun.List(weekdays))
 	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete removed legacy weekend instances", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete removed legacy weekend instances", Err: base.TranslateNotFound(err)}
 	}
 	deleted, _ := res.RowsAffected()
 	return deleted, nil
@@ -566,7 +568,7 @@ func (r *ActivityInstanceRepository) PropagateListKindToFutureInstances(
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "propagate list kind to future instances",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	updated, _ := res.RowsAffected() // nil-driver-safe: fall through with 0

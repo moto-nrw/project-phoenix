@@ -2,11 +2,55 @@ package cmd
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"io"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/spf13/cobra"
 )
+
+type seedRoot struct {
+	newAdapter func(string, bool) seedapi.Adapter
+	random     io.Reader
+	seed       func(context.Context, seedapi.Adapter, io.Reader, bool, seedapi.SeedOptions, string, string, string) error
+}
+
+type seedAdapter = seedapi.Adapter
+type seedOptions = seedapi.SeedOptions
+
+func runSeed(ctx context.Context, adapter seedapi.Adapter, random io.Reader, verbose bool, options seedapi.SeedOptions, email, password, pin string) error {
+	_, err := seedapi.NewSeeder(adapter, random, verbose, options).Seed(ctx, email, password, pin)
+	return err
+}
+
+func (root seedRoot) run(ctx context.Context, baseURL string, verbose bool, options seedapi.SeedOptions, email, password, pin string) error {
+	if err := root.validate(); err != nil {
+		return err
+	}
+	adapter := root.newAdapter(baseURL, verbose)
+	if adapter == nil {
+		return fmt.Errorf("seed API adapter factory returned nil")
+	}
+	return root.seed(ctx, adapter, root.random, verbose, options, email, password, pin)
+}
+
+func (root seedRoot) validate() error {
+	if root.newAdapter == nil {
+		return fmt.Errorf("seed API adapter factory is required")
+	}
+	if root.random == nil {
+		return fmt.Errorf("seed random source is required")
+	}
+	if root.seed == nil {
+		return fmt.Errorf("seed runner is required")
+	}
+	return nil
+}
+
+var defaultSeedRoot = seedRoot{newAdapter: func(baseURL string, verbose bool) seedapi.Adapter {
+	return newSeedCommandAdapter(baseURL, verbose)
+}, random: authService.SecureRandomSource(), seed: runSeed}
 
 // seedCmd represents the seed command
 var seedCmd = &cobra.Command{
@@ -41,9 +85,7 @@ Use optional flags to get deterministic, memorable credentials:
 Usage:
   go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234
   go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234 --tenant-slug demo-school --staff-password 'Test1234%' --admin-email school-admin@example.com`,
-	Run: func(cmd *cobra.Command, args []string) {
-		ctx := context.Background()
-
+	RunE: func(cmd *cobra.Command, args []string) error {
 		email, _ := cmd.Flags().GetString("email")
 		password, _ := cmd.Flags().GetString("password")
 		pin, _ := cmd.Flags().GetString("pin")
@@ -51,11 +93,11 @@ Usage:
 		verbose, _ := cmd.Flags().GetBool("verbose")
 
 		if email == "" || password == "" || pin == "" {
-			log.Fatal("--email, --password, and --pin are required")
+			return fmt.Errorf("--email, --password, and --pin are required")
 		}
 
 		if err := assertNonProductionURL(url); err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		tenantSlug, _ := cmd.Flags().GetString("tenant-slug")
@@ -68,13 +110,7 @@ Usage:
 			AdminEmail:    adminEmail,
 		}
 
-		seeder := seedapi.NewSeeder(url, verbose, options)
-		result, err := seeder.Seed(ctx, email, password, pin)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		_ = result
+		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)
 	},
 }
 

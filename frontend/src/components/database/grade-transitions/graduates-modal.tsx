@@ -167,7 +167,9 @@ export function GraduatesModal({
   return (
     <>
       <Modal
-        isOpen
+        // Ausgeblendet, solange die Lösch-Bestätigung offen ist — nie zwei
+        // eigenständige Dialoge übereinander (#2774).
+        isOpen={!confirmOpen}
         onClose={onClose}
         title={`Abgänge: Jahrgangswechsel ${transition.academicYear}`}
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
