@@ -451,6 +451,38 @@ function stickyClasses(
   } ${SIDEBAR_WIDTH_TRANSITION}`;
 }
 
+/**
+ * Hält den Platz einer Zeile frei, die beim Einklappen sofort aus dem Baum
+ * geht, und zieht ihn mit derselben Kurve auf null wie die Breite der Leiste
+ * (#2923).
+ *
+ * Die Zeile beginnt ausdrücklich auf voller Höhe und wird erst im nächsten
+ * Bild geschlossen: stünde die Zielhöhe schon beim Einhängen da, gäbe es
+ * nichts zu überblenden und alle Zeilen darunter sprängen im ersten Bild um
+ * eine Zeilenhöhe hoch — genau der zweite Sprung, den dieser PR beseitigt.
+ */
+function CollapsingRowPlaceholder() {
+  const [isOpen, setIsOpen] = useState(true);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setIsOpen(false));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  return (
+    <div
+      aria-hidden="true"
+      className={`grid motion-safe:transition-[grid-template-rows] motion-safe:duration-200 motion-safe:ease-in-out ${
+        isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+      }`}
+    >
+      <div className="overflow-hidden">
+        <div className="h-10" />
+      </div>
+    </div>
+  );
+}
+
 interface SidebarContentProps extends SidebarProps {
   // Einklappbare Seitenleiste (#2825): der Zustand lebt im äußeren Sidebar-
   // Wrapper (useSidebarCollapsed), damit auch der Suspense-Fallback die
@@ -1410,8 +1442,9 @@ function SidebarContent({
                   von "Meine Gruppen" unterscheiden.
                   Damit die Zeilen darunter beim Einklappen nicht sofort um
                   eine Zeilenhöhe hochspringen, bleibt für die Dauer der
-                  Bewegung ein leerer Platzhalter stehen, dessen Höhe mit
-                  derselben Kurve auf null geht wie die Breite der Leiste. */}
+                  Bewegung ein leerer Platzhalter stehen, der auf voller Höhe
+                  beginnt und mit derselben Kurve auf null geht wie die Breite
+                  der Leiste. */}
               {otherGroups.length > 0 && !collapsed && labelsVisible && (
                 <SidebarAccordionSection
                   icon={GROUP_NAV_ICON}
@@ -1461,18 +1494,7 @@ function SidebarContent({
               )}
               {otherGroups.length > 0 &&
                 labelsMounted &&
-                (collapsed || !labelsVisible) && (
-                  <div
-                    aria-hidden="true"
-                    className={`grid motion-safe:transition-[grid-template-rows] motion-safe:duration-200 motion-safe:ease-in-out ${
-                      labelsVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                    }`}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="h-10" />
-                    </div>
-                  </div>
-                )}
+                (collapsed || !labelsVisible) && <CollapsingRowPlaceholder />}
             </>
           )}
 

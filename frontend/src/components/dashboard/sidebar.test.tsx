@@ -2600,8 +2600,21 @@ describe("Sidebar", () => {
       // mitten in der Breitenänderung eine Zeile hoch.
       expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
       expect(placeholder()).toBeInTheDocument();
+      // Er beginnt auf voller Höhe: stünde die Zielhöhe schon beim Einhängen
+      // da, gäbe es nichts zu überblenden und die Zeilen darunter sprängen im
+      // ersten Bild hoch.
+      expect(placeholder()?.parentElement?.parentElement?.className).toContain(
+        "grid-rows-[1fr]",
+      );
 
-      // Nach der Bewegung ist auch der Platzhalter weg.
+      // Danach geht die Höhe mit derselben Kurve auf null …
+      await waitFor(() =>
+        expect(
+          placeholder()?.parentElement?.parentElement?.className,
+        ).toContain("grid-rows-[0fr]"),
+      );
+
+      // … und nach der Bewegung ist auch der Platzhalter weg.
       await waitFor(() => expect(placeholder()).not.toBeInTheDocument());
     });
 
