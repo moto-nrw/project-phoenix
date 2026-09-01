@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
@@ -43,6 +43,78 @@ function getOverlay() {
 }
 
 describe("ConfirmDeleteModal", () => {
+  // #2932: the footer is the kit Button (size="md") — danger for the
+  // destructive step, outline for Abbrechen — not hand-rolled class strings.
+  it("renders its footer from the kit Button variants", () => {
+    render(
+      <ModalProvider>
+        <ConfirmDeleteModal
+          isOpen
+          title="Eintrag löschen"
+          description="Diese Aktion kann nicht rückgängig gemacht werden."
+          gate={{ mode: "twoStep" }}
+          onConfirm={vi.fn()}
+          onClose={vi.fn()}
+          loading={false}
+          error=""
+        />
+      </ModalProvider>,
+    );
+
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    const firstStep = screen.getByRole("button", { name: "Ja, löschen" });
+
+    expect(cancel).toHaveClass("ring-1", "ring-gray-300", "text-gray-700");
+    expect(firstStep).toHaveClass("bg-moto-red", "text-white");
+    expect(firstStep.className).not.toContain("FF3130");
+
+    for (const button of [cancel, firstStep]) {
+      expect(button).toHaveClass("rounded-lg", "px-4", "py-2", "text-sm");
+    }
+
+    fireEvent.click(firstStep);
+
+    const finalStep = screen.getByRole("button", {
+      name: "Endgültig löschen",
+    });
+    expect(finalStep).toHaveClass("bg-moto-red", "text-white", "px-4", "py-2");
+  });
+
+  it("exposes a named dialog and closes on Escape", async () => {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+
+    try {
+      render(
+        <ModalProvider>
+          <ConfirmDeleteModal
+            isOpen
+            title="Eintrag löschen"
+            description="Diese Aktion kann nicht rückgängig gemacht werden."
+            gate={{ mode: "twoStep" }}
+            onConfirm={vi.fn()}
+            onClose={onClose}
+            loading={false}
+            error=""
+          />
+        </ModalProvider>,
+      );
+
+      expect(
+        screen.getByRole("dialog", { name: "Eintrag löschen" }),
+      ).toBeInTheDocument();
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders into document.body instead of the card it is declared in", () => {
     const { container } = renderInsideCard();
 

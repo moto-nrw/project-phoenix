@@ -63,8 +63,22 @@ vi.mock("./header/session-warning", () => ({
 }));
 
 vi.mock("./header/profile-dropdown", () => ({
-  ProfileTrigger: ({ onClick }: { onClick: () => void }) => (
-    <button type="button" data-testid="profile-trigger" onClick={onClick}>
+  ProfileTrigger: ({
+    onClick,
+    ref,
+    ariaLabel,
+  }: {
+    onClick: () => void;
+    ref?: React.Ref<HTMLButtonElement>;
+    ariaLabel: string;
+  }) => (
+    <button
+      ref={ref}
+      type="button"
+      data-testid="profile-trigger"
+      aria-label={ariaLabel}
+      onClick={onClick}
+    >
       Profile
     </button>
   ),
@@ -209,6 +223,10 @@ describe("Header", () => {
   it("toggles profile menu on click", () => {
     render(<Header />);
 
+    expect(screen.getByTestId("profile-trigger")).toHaveAccessibleName(
+      "Profilmenü von Test User",
+    );
+
     // Menu should be closed initially
     expect(screen.queryByTestId("profile-dropdown")).not.toBeInTheDocument();
 
@@ -219,6 +237,25 @@ describe("Header", () => {
     // Click to close
     fireEvent.click(screen.getByTestId("close-dropdown"));
     expect(screen.queryByTestId("profile-dropdown")).not.toBeInTheDocument();
+  });
+
+  it("closes the profile menu on outside click", () => {
+    render(<Header />);
+    fireEvent.click(screen.getByTestId("profile-trigger"));
+
+    fireEvent.mouseDown(document.body);
+
+    expect(screen.queryByTestId("profile-dropdown")).not.toBeInTheDocument();
+  });
+
+  it("closes the profile menu on Escape", () => {
+    render(<Header />);
+    fireEvent.click(screen.getByTestId("profile-trigger"));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByTestId("profile-dropdown")).not.toBeInTheDocument();
+    expect(screen.getByTestId("profile-trigger")).toHaveFocus();
   });
 
   it("opens logout modal when logout is clicked", () => {

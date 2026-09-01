@@ -132,7 +132,7 @@ func loadSplitSupervisors(t *testing.T, s *scenarioSetup, groupID int64) []*acti
 
 func createSplitRequestChild(t *testing.T, s *scenarioSetup, studentID int64) int64 {
 	t.Helper()
-	suffix := time.Now().UnixNano()
+	suffix := testpkg.UniqueSuffix()
 	var phaseID int64
 	require.NoError(t, s.db.NewRaw(`
 		INSERT INTO enrollment.phases

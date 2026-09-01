@@ -15,10 +15,12 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +46,7 @@ type AuthCleanupRepositories struct {
 	Token                  authModels.TokenRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	AuthEvent              auditModels.AuthEventRepository
-	PushSubscription       iotModels.PushSubscriptionRepository
+	PushSubscription       deliveryModels.PushSubscriptionRepository
 }
 
 func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
@@ -52,7 +54,7 @@ func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCle
 	return AuthCleanupRepositories{
 		Account: authRepo.NewAccountRepository(db), Token: authRepo.NewTokenRepository(db),
 		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
-		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: iotRepo.NewPushSubscriptionRepository(db),
+		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
 }
 

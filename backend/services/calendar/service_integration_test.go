@@ -2804,7 +2804,12 @@ func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
-	service := setupCalendarServiceWithOutbox(t, db, outbox)
+	pushOutbox := &recordingPushOutbox{}
+	cfg := calendarTestConfig(db)
+	cfg.Outbox = outbox
+	cfg.PushOutbox = pushOutbox
+	cfg.ParentsURL = "https://parents.test"
+	service := calendarSvc.NewService(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OccMail", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -2833,6 +2838,7 @@ func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t
 	// Removing a single occurrence clears the still-pending notice.
 	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(t, organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
 	assert.Equal(t, 1, outbox.cancelled, "single-occurrence cancel must clear pending notifications")
+	assert.Equal(t, 1, pushOutbox.cancelled, "single-occurrence cancel must clear pending pushes")
 }
 
 func TestCalendarServiceIntegration_StaffTimetableEventsCarryRoom(t *testing.T) {
@@ -2883,4 +2889,11 @@ func TestCalendarServiceIntegration_StaffTimetableEventsCarryRoom(t *testing.T) 
 	// Shifts carry no room column, so Location stays deliberately empty.
 	assert.Equal(t, calModels.EventSourceShift, events[2].Source)
 	assert.Nil(t, events[2].Location)
+}
+
+type recordingPushOutbox struct{ cancelled int }
+
+func (r *recordingPushOutbox) CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error) {
+	r.cancelled++
+	return 0, nil
 }

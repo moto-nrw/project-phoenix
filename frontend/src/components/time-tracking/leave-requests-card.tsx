@@ -308,7 +308,7 @@ export function LeaveRequestsCard() {
         confirmText="Stornieren"
         cancelText="Behalten"
         isConfirmLoading={cancelSubmitting}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+        confirmVariant="danger"
       >
         {cancelTarget && (
           <div className="space-y-2 text-sm text-gray-700">
@@ -376,7 +376,7 @@ function AbsenceRequestItem({
               variant="ghost"
               size="compact"
               onClick={() => onCancel(absence)}
-              className="px-0 text-red-600 hover:bg-transparent hover:text-red-700"
+              className="text-moto-red hover:text-moto-red-strong px-0 hover:bg-transparent"
             >
               Stornieren
             </Button>

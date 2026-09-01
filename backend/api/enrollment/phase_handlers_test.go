@@ -184,7 +184,7 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 		Slug:   fmt.Sprintf("public-phase-tenant-scope-org-%d", now),
 		Active: true,
 	}
-	require.NoError(t, platformRepo.NewOrganizationRepository(db).Create(ctx, org))
+	testpkg.CreateTestOrganization(t, db, org)
 
 	targetSchool := &platformModels.School{
 		Model:          baseModel.Model{ID: now + 100},

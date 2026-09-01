@@ -87,6 +87,13 @@ type GuardianService struct {
 	txHandler *tenant.TransactionRunner
 }
 
+// GuardianDisplay is the People Directory projection used outside this domain.
+type GuardianDisplay struct {
+	GuardianProfileID int64
+	FirstName         string
+	LastName          string
+}
+
 // NewGuardianService creates a new GuardianService instance
 func NewGuardianService(deps GuardianServiceDependencies) *GuardianService {
 	deps.FrontendURL = strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
@@ -197,6 +204,27 @@ func (s *GuardianService) GetGuardianByID(ctx context.Context, id int64) (*users
 	}
 
 	return profile, nil
+}
+
+// GuardianDisplays resolves names without exposing People Directory models or
+// persistence to consumers.
+func (s *GuardianService) GuardianDisplays(ctx context.Context, ids []int64) ([]GuardianDisplay, error) {
+	if len(ids) == 0 {
+		return []GuardianDisplay{}, nil
+	}
+	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve guardian displays: %w", err)
+	}
+	displays := make([]GuardianDisplay, 0, len(profiles))
+	for _, profile := range profiles {
+		displays = append(displays, GuardianDisplay{
+			GuardianProfileID: profile.ID,
+			FirstName:         profile.FirstName,
+			LastName:          profile.LastName,
+		})
+	}
+	return displays, nil
 }
 
 // UpdateGuardian updates a guardian profile

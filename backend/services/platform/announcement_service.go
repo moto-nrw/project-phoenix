@@ -3,6 +3,7 @@ package platform
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
 )
 
@@ -50,12 +52,16 @@ type announcementService struct {
 	AnnouncementServiceConfig
 }
 
+type OrganizationTargetQuery interface {
+	CountOrganizationsByID(context.Context, []int64) (int, error)
+}
+
 // AnnouncementServiceConfig holds configuration for the announcement service
 type AnnouncementServiceConfig struct {
 	AnnouncementRepo     platform.AnnouncementRepository
 	AnnouncementViewRepo platform.AnnouncementViewRepository
 	AuditLogRepo         platform.OperatorAuditLogRepository
-	OrgRepo              platform.OrganizationRepository
+	Organizations        OrganizationTargetQuery
 	SchoolRepo           platform.SchoolRepository
 	DB                   *bun.DB
 	Logger               *slog.Logger
@@ -118,8 +124,11 @@ func diffInt64(newIDs, existingIDs []int64) []int64 {
 func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, tenantIDs []int64) error {
 	if len(orgIDs) > 0 {
 		unique := deduplicateInt64(orgIDs)
-		count, err := s.OrgRepo.CountByIDs(ctx, unique)
+		count, err := s.Organizations.CountOrganizationsByID(ctx, unique)
 		if err != nil {
+			if errors.Is(err, organizationtenancy.ErrInvalidOrganization) {
+				return &InvalidDataError{Err: err}
+			}
 			return fmt.Errorf("failed to verify organizations: %w", err)
 		}
 		if count != len(unique) {

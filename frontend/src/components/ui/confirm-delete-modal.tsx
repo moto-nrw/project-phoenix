@@ -1,8 +1,8 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import { FocusScope } from "@radix-ui/react-focus-scope";
+import { Button } from "./button";
+import { Modal } from "./modal";
 
 // Shared destructive-confirmation shell for the operator drill-in modals.
 // Two gate modes capture both flows we need today:
@@ -84,8 +84,6 @@ export function ConfirmDeleteModal({
     onClose();
   }, [onClose]);
 
-  if (!isOpen) return null;
-
   const inFirstStep = gate.mode === "twoStep" && !confirmed;
   const textGatePassed =
     gate.mode === "textConfirm" && textInput === gate.expected;
@@ -95,110 +93,89 @@ export function ConfirmDeleteModal({
   const confirmDisabled =
     gateBlocked || (gate.mode === "textConfirm" && !textGatePassed);
 
-  const modalContent = (
-    // Wrapping in FocusScope pushes a new entry onto Radix's focusScopesStack,
-    // which auto-pauses any parent scope — the Modal/FormModal this dialog is
-    // usually opened from, or a Vaul drawer. Without it the parent trap treats
-    // the body-portaled confirmation as "outside" and pulls focus straight
-    // back, so the confirm/cancel buttons are unreachable by keyboard and a
-    // textConfirm input cannot hold focus. Matches Modal/FormModal.
-    <FocusScope asChild loop trapped>
-      {/* z-[9999] matches the kit Modal/FormModal overlays: expanded
-          moto-content-surface cards carry z-index 60 (globals.css :has rule),
-          which painted over the old z-50 overlay when the modal sat next to a
-          SectionCard (#1424). */}
-      <div
-        data-modal-focus-scope="true"
-        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
-        // pointerEvents: 'auto' is required when this dialog is rendered while
-        // a Radix/Vaul dialog (e.g. the mobile master/detail drawer) has set
-        // `document.body { pointer-events: none }`. Portaled to body, the
-        // overlay otherwise inherits `none` and the confirm/cancel buttons are
-        // dead. Matches the kit Modal/FormModal overlays.
-        style={{ pointerEvents: "auto" }}
+  const footer = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={close}
+        disabled={loading}
+        className="disabled:cursor-not-allowed"
       >
-        <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          <div className="mt-2 text-sm text-gray-600">{description}</div>
-
-          {warningSlot && <div className="mt-3">{warningSlot}</div>}
-
-          {gate.mode === "textConfirm" && (
-            <div className="mt-4">
-              <label
-                htmlFor={gate.inputId}
-                className="block text-sm font-medium text-gray-700"
-              >
-                {gate.label}
-              </label>
-              {gate.preview && (
-                <div className="mb-1 text-sm font-medium text-gray-900">
-                  {gate.preview}
-                </div>
-              )}
-              <input
-                id={gate.inputId}
-                type="text"
-                value={textInput}
-                onChange={(event) => setTextInput(event.target.value)}
-                placeholder={gate.placeholder}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#FF3130] focus:ring-1 focus:ring-[#FF3130] focus:outline-none"
-                autoComplete="off"
-              />
-            </div>
-          )}
-
-          {error && (
-            <div className="mt-3 rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
-              {error}
-            </div>
-          )}
-
-          <div className="mt-5 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={close}
-              disabled={loading}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-            >
-              Abbrechen
-            </button>
-            {inFirstStep ? (
-              <button
-                type="button"
-                onClick={() => setConfirmed(true)}
-                disabled={gateBlocked}
-                className="rounded-lg bg-[#FF3130] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#CC2626] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {gate.mode === "twoStep" && gate.firstStepLabel
-                  ? gate.firstStepLabel
-                  : "Ja, löschen"}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void onConfirm()}
-                disabled={confirmDisabled}
-                className="rounded-lg bg-[#FF3130] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#CC2626] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? loadingLabel : confirmLabel}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </FocusScope>
+        Abbrechen
+      </Button>
+      {inFirstStep ? (
+        <Button
+          type="button"
+          variant="danger"
+          size="md"
+          onClick={() => setConfirmed(true)}
+          disabled={gateBlocked}
+          className="disabled:cursor-not-allowed"
+        >
+          {gate.mode === "twoStep" && gate.firstStepLabel
+            ? gate.firstStepLabel
+            : "Ja, löschen"}
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="danger"
+          size="md"
+          onClick={() => void onConfirm()}
+          disabled={confirmDisabled}
+          className="disabled:cursor-not-allowed"
+        >
+          {loading ? loadingLabel : confirmLabel}
+        </Button>
+      )}
+    </>
   );
 
-  // Rendered into the body like the kit Modal/FormModal. A `fixed` overlay left
-  // inside the tree is positioned against the nearest ancestor carrying a
-  // filter, transform or backdrop-filter — and `moto-content-surface` (every
-  // SectionCard, InfoCard and StatCard) carries `backdrop-filter`. Nested in a
-  // card the dialog would be laid out inside that card and clipped by its
-  // `overflow-hidden`, with the page behind it still interactive.
-  if (typeof document !== "undefined") {
-    return createPortal(modalContent, document.body);
-  }
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={close}
+      title={title}
+      footer={footer}
+      isDismissDisabled={loading}
+      isBackdropDismissDisabled
+    >
+      <div className="text-sm text-gray-600">{description}</div>
 
-  return modalContent;
+      {warningSlot && <div className="mt-3">{warningSlot}</div>}
+
+      {gate.mode === "textConfirm" && (
+        <div className="mt-4">
+          <label
+            htmlFor={gate.inputId}
+            className="block text-sm font-medium text-gray-700"
+          >
+            {gate.label}
+          </label>
+          {gate.preview && (
+            <div className="mb-1 text-sm font-medium text-gray-900">
+              {gate.preview}
+            </div>
+          )}
+          <input
+            id={gate.inputId}
+            type="text"
+            value={textInput}
+            onChange={(event) => setTextInput(event.target.value)}
+            placeholder={gate.placeholder}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#FF3130] focus:ring-1 focus:ring-[#FF3130] focus:outline-none"
+            autoComplete="off"
+          />
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-3 rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
+          {error}
+        </div>
+      )}
+    </Modal>
+  );
 }

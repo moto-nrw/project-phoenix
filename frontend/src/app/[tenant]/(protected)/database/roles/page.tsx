@@ -352,25 +352,25 @@ function RolesPageContent() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="border-moto-red/20 bg-moto-red-soft mb-6 rounded-lg border p-4">
+          <p className="text-moto-red-strong text-sm">{error}</p>
         </div>
       )}
 
       {unclassifiedCount > 0 && (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <div className="border-moto-amber/20 bg-moto-amber-soft mb-6 rounded-lg border p-4">
           <div className="flex items-start gap-3">
             <TriangleAlert
               className="text-moto-amber-strong mt-0.5 h-5 w-5 flex-shrink-0"
               aria-hidden
             />
             <div>
-              <p className="text-sm font-medium text-amber-800">
+              <p className="text-moto-amber-strong text-sm font-medium">
                 {unclassifiedCount === 1
                   ? "1 Rolle hat keine Systemrollen-Zuordnung"
                   : `${unclassifiedCount} Rollen haben keine Systemrollen-Zuordnung`}
               </p>
-              <p className="mt-1 text-sm text-amber-700">
+              <p className="text-moto-amber-strong mt-1 text-sm">
                 Ankündigungen werden möglicherweise nicht korrekt zugestellt.
                 Bitte bearbeiten Sie die betroffenen Rollen und wählen Sie eine
                 Systemrolle aus.
@@ -430,7 +430,7 @@ function RolesPageContent() {
           title="Rolle löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
+          confirmVariant="danger"
         >
           <p className="text-sm text-gray-700">
             Möchten Sie die Rolle{" "}

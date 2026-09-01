@@ -1,13 +1,18 @@
 package realtime
 
 import (
-	"cmp"
 	"fmt"
 	"log/slog"
 	"sync"
-
-	"github.com/moto-nrw/project-phoenix/observability"
 )
+
+type ConnectionObserver func(tenantID int64, event string)
+type BroadcastObserver func(tenantID int64, eventType, target string, dropped int)
+
+type Observers struct {
+	Connection ConnectionObserver
+	Broadcast  BroadcastObserver
+}
 
 // Client represents a single SSE client connection
 type Client struct {
@@ -78,15 +83,28 @@ type Hub struct {
 	schoolAccountClients map[int64][]*Client
 	mu                   sync.RWMutex
 	logger               *slog.Logger
+	observeConnection    ConnectionObserver
+	observeBroadcast     BroadcastObserver
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (h *Hub) getLogger() *slog.Logger {
-	return cmp.Or(h.logger, slog.Default())
+	return loggerOrDefault(h.logger)
+}
+
+func loggerOrDefault(logger *slog.Logger) *slog.Logger {
+	if logger == nil {
+		return slog.Default()
+	}
+	return logger
 }
 
 // NewHub creates a new SSE hub
-func NewHub(logger *slog.Logger) *Hub {
+func NewHub(logger *slog.Logger, observers ...Observers) *Hub {
+	var observe Observers
+	if len(observers) > 0 {
+		observe = observers[0]
+	}
 	return &Hub{
 		clients:              make(map[*Client]bool),
 		groupClients:         make(map[string][]*Client),
@@ -95,6 +113,8 @@ func NewHub(logger *slog.Logger) *Hub {
 		staffAccountClients:  make(map[int64][]*Client),
 		schoolAccountClients: make(map[int64][]*Client),
 		logger:               logger,
+		observeConnection:    observe.Connection,
+		observeBroadcast:     observe.Broadcast,
 	}
 }
 
@@ -135,7 +155,7 @@ func (h *Hub) Register(client *Client, tenantID int64, activeGroupIDs []string) 
 		slog.Any("subscribed_groups", activeGroupIDs),
 		slog.Int("total_clients", len(h.clients)),
 	)
-	observability.RecordSSEConnection(tenantID, "connected")
+	h.observe(tenantID, "connected")
 }
 
 // RegisterParent adds a guardian-portal client. It is identified by its own
@@ -156,7 +176,7 @@ func (h *Hub) RegisterParent(client *Client) {
 		slog.Int64("user_id", client.UserID),
 		slog.Int("total_clients", len(h.clients)),
 	)
-	observability.RecordSSEConnection(0, "connected")
+	h.observe(0, "connected")
 }
 
 // RegisterSchool adds a school-portal client (#2208). It is indexed by its
@@ -180,7 +200,7 @@ func (h *Hub) RegisterSchool(client *Client, tenantID int64) {
 		slog.Int64("tenant_id", tenantID),
 		slog.Int("total_clients", len(h.clients)),
 	)
-	observability.RecordSSEConnection(tenantID, "connected")
+	h.observe(tenantID, "connected")
 }
 
 // Unregister removes a client from the hub and all group subscriptions
@@ -249,7 +269,13 @@ func (h *Hub) Unregister(client *Client) {
 		slog.Int64("tenant_id", client.TenantID),
 		slog.Int("total_clients", len(h.clients)),
 	)
-	observability.RecordSSEConnection(client.TenantID, "disconnected")
+	h.observe(client.TenantID, "disconnected")
+}
+
+func (h *Hub) observe(tenantID int64, event string) {
+	if h.observeConnection != nil {
+		h.observeConnection(tenantID, event)
+	}
 }
 
 // BroadcastToGroup sends an event to all clients subscribed to the specified active group
@@ -296,7 +322,7 @@ func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event
 		slog.Int("recipient_count", len(clients)),
 		slog.Int("successful", successCount),
 	)
-	observability.RecordSSEBroadcast(tenantID, string(event.Type), "group", droppedCount)
+	h.observeDelivery(tenantID, string(event.Type), "group", droppedCount)
 
 	return nil
 }
@@ -335,7 +361,7 @@ func (h *Hub) BroadcastToGroups(tenantID int64, topics []string, event Event) er
 		slog.Int("topic_count", len(topics)),
 		slog.Int("recipient_count", len(recipients)),
 	)
-	observability.RecordSSEBroadcast(tenantID, string(event.Type), "groups", droppedCount)
+	h.observeDelivery(tenantID, string(event.Type), "groups", droppedCount)
 	return nil
 }
 
@@ -371,7 +397,7 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 		slog.String("event_type", string(event.Type)),
 		slog.Int("recipient_count", recipients),
 	)
-	observability.RecordSSEBroadcast(tenantID, string(event.Type), "tenant", droppedCount)
+	h.observeDelivery(tenantID, string(event.Type), "tenant", droppedCount)
 	return nil
 }
 
@@ -406,7 +432,7 @@ func (h *Hub) BroadcastToTenantAdmins(tenantID int64, event Event) error {
 		slog.String("event_type", string(event.Type)),
 		slog.Int("recipient_count", recipients),
 	)
-	observability.RecordSSEBroadcast(tenantID, string(event.Type), "tenant_admin", droppedCount)
+	h.observeDelivery(tenantID, string(event.Type), "tenant_admin", droppedCount)
 	return nil
 }
 
@@ -450,7 +476,7 @@ func (h *Hub) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event
 		slog.String("event_type", string(event.Type)),
 		slog.Int("recipient_count", recipients),
 	)
-	observability.RecordSSEBroadcast(tenantID, string(event.Type), "staff_account", droppedCount)
+	h.observeDelivery(tenantID, string(event.Type), "staff_account", droppedCount)
 	return nil
 }
 
@@ -491,7 +517,7 @@ func (h *Hub) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, even
 		slog.String("event_type", string(event.Type)),
 		slog.Int("recipient_count", recipients),
 	)
-	observability.RecordSSEBroadcast(tenantID, string(event.Type), "school_account", droppedCount)
+	h.observeDelivery(tenantID, string(event.Type), "school_account", droppedCount)
 	return nil
 }
 
@@ -540,7 +566,7 @@ func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 		slog.String("event_type", string(event.Type)),
 		slog.Int("recipient_count", recipients),
 	)
-	observability.RecordSSEBroadcast(tenantID, string(event.Type), "parent_message", droppedCount)
+	h.observeDelivery(tenantID, string(event.Type), "parent_message", droppedCount)
 	return nil
 }
 
@@ -579,7 +605,7 @@ func (h *Hub) BroadcastToGuardian(tenantID, guardianAccountID int64, event Event
 		slog.String("event_type", string(event.Type)),
 		slog.Int("recipient_count", recipients),
 	)
-	observability.RecordSSEBroadcast(tenantID, string(event.Type), "guardian", droppedCount)
+	h.observeDelivery(tenantID, string(event.Type), "guardian", droppedCount)
 	return nil
 }
 
@@ -609,7 +635,7 @@ func (h *Hub) BroadcastToAll(event Event) error {
 			)
 		}
 	}
-	observability.RecordSSEBroadcast(0, string(event.Type), "all", droppedCount)
+	h.observeDelivery(0, string(event.Type), "all", droppedCount)
 	return nil
 }
 
@@ -627,13 +653,19 @@ func (h *Hub) GetGroupSubscriberCount(tenantID int64, activeGroupID string) int 
 	return len(h.groupClients[tenantGroupKey(tenantID, activeGroupID)])
 }
 
-func (h *Hub) SnapshotStats() observability.SSEStats {
+func (h *Hub) SnapshotSSEClientsByTenant() map[int64]int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	stats := observability.SSEStats{ClientsByTenant: make(map[int64]int)}
+	clients := make(map[int64]int)
 	for client := range h.clients {
-		stats.ClientsByTenant[client.TenantID]++
+		clients[client.TenantID]++
 	}
-	return stats
+	return clients
+}
+
+func (h *Hub) observeDelivery(tenantID int64, eventType, target string, dropped int) {
+	if h.observeBroadcast != nil {
+		h.observeBroadcast(tenantID, eventType, target, dropped)
+	}
 }

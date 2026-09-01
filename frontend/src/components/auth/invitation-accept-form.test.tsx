@@ -697,7 +697,7 @@ describe("InvitationAcceptForm", () => {
       });
 
       const passwordLabel = screen.getByText("Passwort");
-      expect(passwordLabel.className).toContain("text-red-600");
+      expect(passwordLabel.className).toContain("text-moto-red");
     });
   });
 });

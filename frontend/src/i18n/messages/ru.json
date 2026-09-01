@@ -60,6 +60,7 @@
     "soon": "Скоро",
     "refresh": "Обновить данные",
     "closeMenu": "Закрыть меню",
+    "profileMenu": "Меню профиля: {name}",
     "profile": "Профиль",
     "logout": "Выйти",
     "comingSoonTooltip": "Скоро",

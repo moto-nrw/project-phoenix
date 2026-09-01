@@ -15,6 +15,12 @@ import {
   DrawerTitle,
 } from "~/components/ui/drawer";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
+import {
+  OVERLAY_BACKDROP_CLASS,
+  OVERLAY_BACKDROP_TINT_CLASS,
+  OVERLAY_BACKDROP_TINT_HIDDEN_CLASS,
+} from "./overlay-styles";
+import { Button } from "./button";
 
 // Shared a11y contract for all modal dialogs (also consumed by form-modal).
 export const dialogAriaProps = {
@@ -34,6 +40,10 @@ function getModalAnimationClass(
 interface ModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
+  /** Runs when an animated dismissal starts, before the delayed close callback. */
+  readonly onDismissStart?: () => void;
+  /** Resets the dialog animation without remounting its children. */
+  readonly animationKey?: string;
   readonly title: string;
   readonly children: React.ReactNode;
   readonly footer?: React.ReactNode;
@@ -56,6 +66,8 @@ interface ModalProps {
   readonly backdropLabel?: string;
   /** Prevent every dismissal path while an operation must finish in place. */
   readonly isDismissDisabled?: boolean;
+  /** Keep backdrop taps from discarding in-progress form input. */
+  readonly isBackdropDismissDisabled?: boolean;
   /**
    * Auf schmalen Schirmen als Sheet von unten statt als mittiges Fenster, mit
    * angehefteter Fussleiste und freiem Sicherheitsbereich. Ab `sm` bleibt es
@@ -78,14 +90,17 @@ export function Modal(props: ModalProps) {
 function MobileSheetModal({
   isOpen,
   onClose,
+  onDismissStart,
   title,
   children,
   footer,
   closeLabel = "Modal schließen",
   isDismissDisabled = false,
+  isBackdropDismissDisabled = false,
 }: ModalProps) {
   const { openModal, closeModal } = useModal();
   const onCloseRef = useLatest(onClose);
+  const onDismissStartRef = useLatest(onDismissStart);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -95,9 +110,12 @@ function MobileSheetModal({
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      if (!open && !isDismissDisabled) onCloseRef.current();
+      if (!open && !isDismissDisabled) {
+        onDismissStartRef.current?.();
+        onCloseRef.current();
+      }
     },
-    [isDismissDisabled, onCloseRef],
+    [isDismissDisabled, onCloseRef, onDismissStartRef],
   );
 
   if (!isOpen) return null;
@@ -106,7 +124,7 @@ function MobileSheetModal({
     <Drawer
       open
       onOpenChange={handleOpenChange}
-      dismissible={!isDismissDisabled}
+      dismissible={!isDismissDisabled && !isBackdropDismissDisabled}
     >
       <DrawerContent
         data-mobile-sheet="true"
@@ -164,6 +182,8 @@ function MobileSheetModal({
 function DialogModal({
   isOpen,
   onClose,
+  onDismissStart,
+  animationKey,
   title,
   children,
   footer,
@@ -171,6 +191,7 @@ function DialogModal({
   closeLabel = "Modal schließen",
   backdropLabel = "Hintergrund - Klicken zum Schließen",
   isDismissDisabled = false,
+  isBackdropDismissDisabled = false,
   mobileSheet = false,
 }: ModalProps) {
   // Stable id so the dialog can reference its heading via aria-labelledby,
@@ -189,6 +210,7 @@ function DialogModal({
 
   // Store onClose in a ref so handleClose never changes identity
   const onCloseRef = useLatest(onClose);
+  const onDismissStartRef = useLatest(onDismissStart);
   const isDismissDisabledRef = useLatest(isDismissDisabled);
 
   // Pending dismissal (exit-animation delay before onClose). Tracked so a
@@ -203,6 +225,7 @@ function DialogModal({
   const handleClose = useCallback(() => {
     if (isDismissDisabledRef.current) return;
     if (dismissTimerRef.current !== null) return;
+    onDismissStartRef.current?.();
     setIsExiting(true);
     setIsAnimating(false);
 
@@ -218,7 +241,7 @@ function DialogModal({
       }
       onCloseRef.current();
     }, 250);
-  }, [isDismissDisabledRef, onCloseRef]);
+  }, [isDismissDisabledRef, onCloseRef, onDismissStartRef]);
 
   // Cancel an in-flight dismissal as soon as dismissal gets locked, and bring
   // the dialog back from its exit animation.
@@ -258,6 +281,8 @@ function DialogModal({
       setIsExiting(false);
       return;
     }
+    setIsAnimating(false);
+    setIsExiting(false);
 
     // Ignore the Escape that is already dispatching when this listener is
     // attached: a Vaul drawer closes synchronously DURING the keydown, so a
@@ -287,7 +312,7 @@ function DialogModal({
       document.removeEventListener("keydown", handleEscKey);
       clearTimeout(animationTimer);
     };
-  }, [isOpen, handleClose]);
+  }, [isOpen, handleClose, animationKey]);
 
   if (!isOpen) return null;
 
@@ -323,10 +348,14 @@ function DialogModal({
           type="button"
           tabIndex={-1}
           onClick={handleClose}
-          disabled={isDismissDisabled}
+          disabled={isDismissDisabled || isBackdropDismissDisabled}
           aria-label={backdropLabel}
-          className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${
-            isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
+          // No bg-transparent reset here: Tailwind emits it after bg-black/*
+          // and the tint never rendered. The hidden state below is the reset.
+          className={`absolute inset-0 cursor-default border-none p-0 ${OVERLAY_BACKDROP_CLASS} transition-all duration-200 ease-out ${
+            isAnimating && !isExiting
+              ? OVERLAY_BACKDROP_TINT_CLASS
+              : OVERLAY_BACKDROP_TINT_HIDDEN_CLASS
           }`}
           style={{
             animation:
@@ -345,6 +374,7 @@ function DialogModal({
           {...dialogAriaProps}
           aria-labelledby={title ? titleId : undefined}
           style={{
+            pointerEvents: "auto",
             background:
               "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
             backdropFilter: "blur(20px)",
@@ -469,6 +499,8 @@ function DialogModal({
   return modalContent;
 }
 
+export type ConfirmVariant = "primary" | "danger" | "warning" | "success";
+
 // A specialized confirmation modal with yes/no buttons
 interface ConfirmationModalProps {
   readonly isOpen: boolean;
@@ -487,7 +519,14 @@ interface ConfirmationModalProps {
    * inconsistent state (e.g. a multi-request operation).
    */
   readonly isDismissDisabled?: boolean;
-  readonly confirmButtonClass?: string;
+  /** Forwarded to Modal — backdrop taps do not close the confirmation. */
+  readonly isBackdropDismissDisabled?: boolean;
+  /**
+   * Tone of the confirm button, mapped onto the kit Button variants:
+   * `primary` (neutral, default), `danger` (delete / irreversible),
+   * `warning` (proceed despite a side effect), `success` (publish / release).
+   */
+  readonly confirmVariant?: ConfirmVariant;
   /**
    * Text shown on the confirm button while isConfirmLoading. Defaults to
    * German; pass a translated string on localized surfaces.
@@ -512,7 +551,8 @@ export function ConfirmationModal({
   isConfirmLoading = false,
   isConfirmDisabled = false,
   isDismissDisabled = false,
-  confirmButtonClass = "bg-gray-900 hover:bg-gray-700",
+  isBackdropDismissDisabled = false,
+  confirmVariant = "primary",
   loadingText = "Wird geladen...",
   closeLabel,
   backdropLabel,
@@ -520,25 +560,31 @@ export function ConfirmationModal({
 }: ConfirmationModalProps) {
   const modalFooter = (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onClose}
         disabled={isDismissDisabled}
-        className={`${mobileSheet ? "hidden sm:block" : ""} flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:shadow-none`}
+        className={`flex-1 whitespace-nowrap disabled:cursor-not-allowed ${
+          mobileSheet ? "hidden sm:inline-flex" : ""
+        }`}
       >
         {cancelText}
-      </button>
+      </Button>
 
-      <button
+      <Button
         type="button"
+        variant={confirmVariant}
+        size="md"
         onClick={onConfirm}
         disabled={isConfirmLoading || isConfirmDisabled}
-        className={`flex-1 rounded-lg px-4 py-2 whitespace-nowrap ${confirmButtonClass} text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100`}
+        className="flex-1 whitespace-nowrap disabled:cursor-not-allowed"
       >
         {isConfirmLoading ? (
           <span className="flex items-center justify-center gap-2">
             <svg
-              className="h-4 w-4 animate-spin text-white"
+              className="h-4 w-4 animate-spin"
               fill="none"
               viewBox="0 0 24 24"
             >
@@ -561,7 +607,7 @@ export function ConfirmationModal({
         ) : (
           confirmText
         )}
-      </button>
+      </Button>
     </>
   );
 
@@ -572,6 +618,7 @@ export function ConfirmationModal({
       title={title}
       footer={modalFooter}
       isDismissDisabled={isDismissDisabled}
+      isBackdropDismissDisabled={isBackdropDismissDisabled}
       closeLabel={closeLabel}
       backdropLabel={backdropLabel}
       mobileSheet={mobileSheet}

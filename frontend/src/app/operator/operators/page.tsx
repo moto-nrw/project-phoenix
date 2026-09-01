@@ -299,7 +299,7 @@ function PendingInvitationsList({
         onConfirm={() => void handleRevoke()}
         title="Einladung widerrufen"
         confirmText="Widerrufen"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
       >
         <p>
           Möchtest du die Einladung an{" "}

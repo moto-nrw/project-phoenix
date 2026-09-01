@@ -80,7 +80,7 @@ export default function RootPage() {
     >
       <div className="space-y-6">
         {!loading && listStatus === "error" ? (
-          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border px-4 py-3 text-sm">
             Backend nicht erreichbar. Bitte versuchen Sie es später erneut.
           </p>
         ) : !loading && tenants.length === 0 ? (

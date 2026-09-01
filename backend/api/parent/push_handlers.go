@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
 // pushSubscriptionRequest mirrors the browser's PushSubscription JSON.

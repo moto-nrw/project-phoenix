@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -56,7 +57,7 @@ func (s *service) SetMasterDataAudit(creator auditModels.StaffMasterDataChangeCr
 // that changed who may open which group. Typed handovers must be ended before
 // group deletion or staff offboarding; legacy cleanup still uses this signal.
 func (s *service) announceGroupAccessChanged(ctx context.Context, source string) {
-	realtime.QueueGroupAccessChanged(ctx, s.broadcaster, nil, source)
+	realtimeevents.QueueGroupAccessChanged(ctx, s.broadcaster, nil, source)
 }
 
 // NewService creates a new education service instance
