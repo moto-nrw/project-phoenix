@@ -3,6 +3,7 @@ package platform
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
 )
 
@@ -124,6 +126,9 @@ func (s *announcementService) validateTargetingIDs(ctx context.Context, orgIDs, 
 		unique := deduplicateInt64(orgIDs)
 		count, err := s.Organizations.CountOrganizationsByID(ctx, unique)
 		if err != nil {
+			if errors.Is(err, organizationtenancy.ErrInvalidOrganization) {
+				return &InvalidDataError{Err: err}
+			}
 			return fmt.Errorf("failed to verify organizations: %w", err)
 		}
 		if count != len(unique) {
