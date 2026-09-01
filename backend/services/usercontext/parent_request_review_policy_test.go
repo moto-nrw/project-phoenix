@@ -142,8 +142,64 @@ func TestParentRequestReviewerPolicyAccessLevel(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ReviewAccessNone, level)
 
-	enabled := NewParentRequestReviewPolicy(&reviewSettingStub{enabled: true}, &reviewGroupStub{}, "review.enabled")
+	group := &education.Group{}
+	group.ID = 71
+	enabled := NewParentRequestReviewPolicy(
+		&reviewSettingStub{enabled: true},
+		&reviewGroupStub{groups: []*education.Group{group}},
+		"review.enabled",
+	)
 	level, err = enabled.AccessLevel(context.Background(), []string{"users:update"})
 	require.NoError(t, err)
 	assert.Equal(t, ReviewAccessGroupLeader, level)
+}
+
+func TestParentRequestReviewerPolicyAccessLevelRequiresCurrentGroup(t *testing.T) {
+	t.Parallel()
+
+	policy := NewParentRequestReviewPolicy(
+		&reviewSettingStub{enabled: true},
+		&reviewGroupStub{},
+		"review.enabled",
+	)
+
+	level, err := policy.AccessLevel(context.Background(), []string{"users:update"})
+
+	require.NoError(t, err)
+	assert.Equal(t, ReviewAccessNone, level)
+}
+
+func TestParentRequestReviewerPolicyAccessLevelRequiresQueuePermission(t *testing.T) {
+	t.Parallel()
+
+	group := &education.Group{}
+	group.ID = 71
+	policy := NewParentRequestReviewPolicy(
+		&reviewSettingStub{enabled: true},
+		&reviewGroupStub{groups: []*education.Group{group}},
+		"review.enabled",
+	)
+
+	level, err := policy.AccessLevel(context.Background(), []string{"users:read"})
+
+	require.NoError(t, err)
+	assert.Equal(t, ReviewAccessNone, level)
+}
+
+func TestParentRequestReviewerPolicyStudentFilterRequiresQueuePermission(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(71)
+	group := &education.Group{}
+	group.ID = groupID
+	policy := NewParentRequestReviewPolicy(
+		&reviewSettingStub{enabled: true},
+		&reviewGroupStub{groups: []*education.Group{group}},
+		"review.enabled",
+	)
+
+	filter, err := policy.StudentFilter(context.Background(), []string{"users:read"})
+
+	require.NoError(t, err)
+	assert.False(t, filter(&users.Student{GroupID: &groupID}))
 }
