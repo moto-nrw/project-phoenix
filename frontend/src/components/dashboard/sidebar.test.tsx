@@ -2665,6 +2665,27 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Eulen")).not.toBeInTheDocument();
     });
 
+    it("klappt den offenen Bereich nicht zusätzlich zur Hülle zu", async () => {
+      withOtherGroups();
+
+      render(<Sidebar />);
+      fireEvent.click(screen.getByText("Weitere Gruppen"));
+      await waitFor(() =>
+        expect(screen.getByText("Eulen")).toBeInTheDocument(),
+      );
+
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "true");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+
+      // Die Hülle zieht die volle Höhe zusammen. Der Inhalt behält seine
+      // Höhe bis zum Ende der Bewegung — zwei geschachtelte Höhenwechsel
+      // ergäben sonst eine zweite Bewegung der Zeilen darunter.
+      const header = screen.getByText("Weitere Gruppen").closest("button");
+      expect(header!.nextElementSibling).toHaveClass("grid-rows-[1fr]");
+    });
+
     it("hält geschlossene Bereiche aus der Tastaturreihenfolge heraus", () => {
       render(<Sidebar />);
 

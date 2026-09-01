@@ -36,6 +36,14 @@ interface SidebarAccordionSectionProps {
   // aus, statt zu blitzen. Siehe useSidebarCollapseTransition.
   readonly labelsMounted?: boolean;
   readonly labelsVisible?: boolean;
+  // Nur für den Bereich, der beim Einklappen als Ganzes verschwindet
+  // ("Weitere Gruppen", #2923): dort zieht die Hülle die volle Höhe des
+  // offenen Bereichs auf null. Klappte der Inhalt gleichzeitig seine eigene
+  // Höhe zu, liefen zwei ineinander geschachtelte Höhenbewegungen — die Hülle
+  // misst dann eine Höhe, die sich unter ihr weiter ändert, und die Zeilen
+  // darunter bewegen sich zweimal. Der Inhalt bleibt deshalb für die Dauer
+  // der äußeren Bewegung offen stehen.
+  readonly keepBodyExpandedWhileCollapsing?: boolean;
 }
 
 export function SidebarAccordionSection({
@@ -55,14 +63,17 @@ export function SidebarAccordionSection({
   collapsed = false,
   labelsMounted = true,
   labelsVisible = true,
+  keepBodyExpandedWhileCollapsing = false,
 }: SidebarAccordionSectionProps) {
   const iconColorClass =
     (isIconActive ?? isActive) && activeColor ? activeColor : "";
   const conceptDefinition = concept ? MOTO_CONCEPTS[concept] : null;
   const ConceptIcon = conceptDefinition?.icon;
   const showActiveIcon = isIconActive ?? isActive;
-  // Im Streifen ist der Bereichsinhalt nie offen.
-  const bodyExpanded = isExpanded && !collapsed;
+  // Im Streifen ist der Bereichsinhalt nie offen — außer solange die äußere
+  // Bewegung läuft, siehe keepBodyExpandedWhileCollapsing.
+  const bodyExpanded =
+    isExpanded && (!collapsed || keepBodyExpandedWhileCollapsing);
   // Ausgeklappt bleibt die Kopfzeile unmarkiert, sobald ein Unterpunkt
   // ausgewählt ist — dort trägt der Unterpunkt die Markierung. Im Streifen
   // sind die Unterpunkte nicht sichtbar; ohne diese Zeile stünde der Bereich

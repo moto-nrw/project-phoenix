@@ -1434,6 +1434,12 @@ function SidebarContent({
                       collapsed={collapsed}
                       labelsMounted={labelsMounted}
                       labelsVisible={labelsVisible}
+                      // Die Hülle darüber zieht die ganze Höhe des offenen
+                      // Bereichs zusammen. Der Inhalt behält seine Höhe
+                      // solange bei, sonst liefen zwei geschachtelte
+                      // Höhenbewegungen und die Zeilen darunter bewegten sich
+                      // zweimal (#2923).
+                      keepBodyExpandedWhileCollapsing={labelsMounted}
                       onToggle={() => {
                         // Aus dem Streifen heraus zuerst aufklappen: die
                         // Untergruppen sind sonst nicht sichtbar.
