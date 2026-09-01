@@ -921,7 +921,10 @@ const WIZARD_STEPS = ["Inhalt", "Empfänger"] as const;
  * upload arrives too late to help.
  */
 const MAX_ATTACHMENTS = 5;
-const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+// Als runde Zahl geschrieben, nicht über formatBytes: „25 MB" ist die Grenze,
+// die jemand im Kopf behält, „25.0 MB" liest sich wie eine Messung.
+const MAX_ATTACHMENT_MB = 25;
+const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024;
 const ACCEPTED_ATTACHMENT_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 
 /**
@@ -1111,7 +1114,7 @@ function AnnouncementFormModal({
     for (const file of picked.slice(0, Math.max(room, 0))) {
       if (file.size > MAX_ATTACHMENT_BYTES) {
         setAttachmentError(
-          `„${file.name}“ ist zu groß. Erlaubt sind bis zu ${formatBytes(MAX_ATTACHMENT_BYTES)} je Datei.`,
+          `„${file.name}“ ist zu groß. Erlaubt sind bis zu ${MAX_ATTACHMENT_MB} MB je Datei.`,
         );
         continue;
       }
@@ -1632,8 +1635,8 @@ function AnnouncementFormModal({
                 </p>
                 <p className="mt-1 text-xs text-gray-500">
                   Erlaubt sind PDF, DOCX, XLSX, PPTX, PNG und JPEG. Bis zu{" "}
-                  {formatBytes(MAX_ATTACHMENT_BYTES)} je Datei, höchstens{" "}
-                  {MAX_ATTACHMENTS} Dateien.
+                  {MAX_ATTACHMENT_MB} MB je Datei, höchstens {MAX_ATTACHMENTS}{" "}
+                  Dateien.
                 </p>
               </div>
 

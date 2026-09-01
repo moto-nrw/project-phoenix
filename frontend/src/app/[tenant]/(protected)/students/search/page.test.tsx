@@ -1456,7 +1456,6 @@ describe("StudentSearchPage", () => {
         forward: vi.fn(),
         refresh: vi.fn(),
         prefetch: vi.fn(),
-        bfcacheId: "test",
       });
 
       render(<StudentSearchPage />);
@@ -1493,7 +1492,6 @@ describe("StudentSearchPage", () => {
         forward: vi.fn(),
         refresh: vi.fn(),
         prefetch: vi.fn(),
-        bfcacheId: "test",
       });
 
       render(<StudentSearchPage />);
@@ -1777,7 +1775,6 @@ describe("StudentSearchPage", () => {
         forward: vi.fn(),
         refresh: vi.fn(),
         prefetch: vi.fn(),
-        bfcacheId: "test",
       });
 
       const useSession = await import("next-auth/react");
@@ -1856,7 +1853,6 @@ describe("StudentSearchPage", () => {
         forward: vi.fn(),
         refresh: vi.fn(),
         prefetch: vi.fn(),
-        bfcacheId: "test",
       });
 
       // Default authenticated state with token
