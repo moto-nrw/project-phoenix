@@ -9,6 +9,17 @@ import { useEffect, useRef, useState } from "react";
 const WIDTH_TRANSITION_MS = 240;
 
 /**
+ * Fragt bei jedem Klappen neu ab, statt den Wert in einen Zustand zu legen:
+ * die Bewegung hängt daran nur im Moment des Umschaltens, und ein zusätzlicher
+ * Zustand würde beim ersten Rendern eine Abweichung zwischen Server und Client
+ * erzeugen.
+ */
+function prefersReducedMotion(): boolean {
+  if (typeof globalThis.matchMedia !== "function") return false;
+  return globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
  * Steuert Bezeichnungen, Chevrons und Zähler während des Klappens (#2923).
  *
  * Zwei getrennte Angaben, weil beides zu verschiedenen Zeitpunkten gilt:
@@ -21,6 +32,11 @@ const WIDTH_TRANSITION_MS = 240;
  *   ein Bild lang unsichtbar eingehängt und blenden erst danach ein, sonst
  *   erscheinen sie schlagartig statt mit der Breite mitzukommen.
  *
+ * Bei `prefers-reduced-motion` gibt es keine Bewegung, auf die zu warten
+ * wäre: die Breite springt, also wechseln auch die Texte sofort. Sonst
+ * stünden nach dem Zuschnappen für eine Viertelsekunde leere Zeilen im
+ * Streifen.
+ *
  * Beim ersten Rendern gibt es keine Bewegung: der gespeicherte Zustand wird
  * direkt gerendert.
  */
@@ -32,6 +48,12 @@ export function useSidebarCollapseTransition(collapsed: boolean) {
   useEffect(() => {
     if (previousCollapsed.current === collapsed) return;
     previousCollapsed.current = collapsed;
+
+    if (prefersReducedMotion()) {
+      setLabelsMounted(!collapsed);
+      setLabelsVisible(!collapsed);
+      return;
+    }
 
     if (collapsed) {
       // Ausblenden, dann ausbauen.

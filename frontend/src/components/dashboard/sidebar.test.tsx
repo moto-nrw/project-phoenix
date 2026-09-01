@@ -2390,6 +2390,38 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
     });
 
+    it("entfernt die Bezeichnungen bei prefers-reduced-motion sofort", () => {
+      // Ohne Bewegung gibt es nichts, worauf die Texte warten könnten: die
+      // Breite springt. Blieben sie die Dauer der Blende stehen, stünden im
+      // 64px-Streifen für eine Viertelsekunde abgeschnittene Zeilen.
+      const original = globalThis.matchMedia;
+      globalThis.matchMedia = ((query: string) =>
+        ({
+          matches: query.includes("prefers-reduced-motion"),
+          media: query,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+          addListener: () => undefined,
+          removeListener: () => undefined,
+          dispatchEvent: () => false,
+          onchange: null,
+        }) as unknown as MediaQueryList) as typeof globalThis.matchMedia;
+
+      try {
+        render(<Sidebar />);
+        expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
+
+        act(() => {
+          localStorage.setItem("sidebar-collapsed", "true");
+          globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+        });
+
+        expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+      } finally {
+        globalThis.matchMedia = original;
+      }
+    });
+
     it("blendet das zweite Gruppen-Icon erst mit den Bezeichnungen wieder ein", async () => {
       withOtherGroups();
       localStorage.setItem("sidebar-collapsed", "true");
