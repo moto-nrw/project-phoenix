@@ -21,7 +21,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -115,6 +115,7 @@ type Config struct {
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
 	// calendar is unaffected).
 	Outbox                 OutboxEnqueuer
+	PushOutbox             PushOutboxCanceller
 	SchoolRepo             platformModels.SchoolRepository
 	Settings               LogoResolver
 	AccountRepo            FeedAccountRepo

@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,7 +98,7 @@ func newTestAnnouncementService(overrides func(m *testAnnouncementMocks)) platfo
 		AnnouncementRepo:     m.announcementRepo,
 		AnnouncementViewRepo: m.viewRepo,
 		AuditLogRepo:         m.auditLogRepo,
-		OrgRepo:              m.orgRepo,
+		Organizations:        m.orgRepo,
 		SchoolRepo:           m.schoolRepo,
 		DB:                   &bun.DB{},
 		Logger:               slog.Default(),
@@ -275,6 +276,13 @@ func TestAnnouncementService_ValidateTargetingIDs_Errors(t *testing.T) {
 			orgCountFn: func(context.Context, []int64) (int, error) { return 0, fmt.Errorf("db timeout") },
 			orgIDs:     []int64{10},
 			wantInErr:  "db timeout",
+		},
+		{
+			name:       "InvalidOrgID",
+			orgCountFn: func(context.Context, []int64) (int, error) { return 0, organizationtenancy.ErrInvalidOrganization },
+			orgIDs:     []int64{0},
+			wantInErr:  "invalid organization",
+			wantType:   &platformSvc.InvalidDataError{},
 		},
 		{
 			name:          "SchoolNotFound",

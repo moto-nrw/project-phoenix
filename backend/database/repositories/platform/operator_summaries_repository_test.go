@@ -37,7 +37,6 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 	ctx := context.Background()
 	now := time.Now().UnixNano()
 
-	orgRepo := platformRepo.NewOrganizationRepository(db)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 
 	orgA := &platformModels.Organization{
@@ -58,9 +57,9 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 		Slug:   fmt.Sprintf("sum-trash-%d", now),
 		Active: true,
 	}
-	require.NoError(t, orgRepo.Create(ctx, orgA))
-	require.NoError(t, orgRepo.Create(ctx, orgB))
-	require.NoError(t, orgRepo.Create(ctx, orgADel))
+	testpkg.CreateTestOrganization(t, db, orgA)
+	testpkg.CreateTestOrganization(t, db, orgB)
+	testpkg.CreateTestOrganization(t, db, orgADel)
 	_, err := db.ExecContext(ctx, `UPDATE platform.organizations SET deleted_at = NOW() WHERE id = ?`, orgADel.ID)
 	require.NoError(t, err)
 

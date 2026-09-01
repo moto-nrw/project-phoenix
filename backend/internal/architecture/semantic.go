@@ -545,10 +545,18 @@ type tableMatchSummary struct {
 
 func (a semanticAnalyzer) matchSQLTables(source, sourceOwner, query string, aliases map[string]struct{}, pattern *regexp.Regexp, operation tableOperation) tableMatchSummary {
 	var objects []string
-	for _, match := range pattern.FindAllStringSubmatch(query, -1) {
-		objects = append(objects, match[1])
+	for _, match := range pattern.FindAllStringSubmatchIndex(query, -1) {
+		if pattern == writeTablePattern && sqlUpdateBelongsToLockClause(query, match[0]) {
+			continue
+		}
+		objects = append(objects, query[match[2]:match[3]])
 	}
 	return a.matchDataObjects(source, sourceOwner, objects, aliases, operation)
+}
+
+func sqlUpdateBelongsToLockClause(query string, matchStart int) bool {
+	prefix := strings.Fields(query[:matchStart])
+	return len(prefix) > 0 && strings.EqualFold(prefix[len(prefix)-1], "FOR")
 }
 
 func (a semanticAnalyzer) matchDataObjects(source, sourceOwner string, objects []string, aliases map[string]struct{}, operation tableOperation) tableMatchSummary {

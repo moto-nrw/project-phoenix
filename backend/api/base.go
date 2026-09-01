@@ -39,13 +39,11 @@ import (
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	schoolAPI "github.com/moto-nrw/project-phoenix/api/school"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
-	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/api/statistics"
@@ -56,6 +54,8 @@ import (
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
+	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
+	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
 	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
@@ -77,6 +77,8 @@ import (
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
+	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -116,6 +118,15 @@ func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, e
 }
 
 func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (*services.Factory, *mealplanModule.Module, *feedbackModule.Module, error) {
+	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
+		DB: db,
+		Observe: func(observation organizationCompose.Observation) {
+			observability.ObserveOrganizationTenancyOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, organizationModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	mealPlanSettings := mealplanCompose.NewSettings()
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db,
@@ -149,10 +160,12 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
+		organizations,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,
 		observability.ObserveSynchronousDelivery,
+		observability.ObserveDurableDelivery,
 	)
 	if err != nil {
 		return nil, nil, nil, err

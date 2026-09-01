@@ -15,6 +15,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -219,7 +220,7 @@ func (rs *ProvisioningResource) CreateOrganization(w http.ResponseWriter, r *htt
 		return
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	org := &platformModels.Organization{Name: req.Name, Slug: req.Slug, Active: true}
+	org := &organizationtenancy.CreateOrganization{Name: req.Name, Slug: req.Slug, Active: true}
 	created, err := rs.service.CreateOrganization(r.Context(), org, operatorID, getClientIP(r))
 	if err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/stretchr/testify/assert"
 )
 

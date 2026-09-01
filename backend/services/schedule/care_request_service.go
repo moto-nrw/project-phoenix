@@ -362,14 +362,16 @@ func (s *careScheduleRequestService) CreateRequest(ctx context.Context, studentI
 	if err := s.recordCareRequestEvent(ctx, req, usersModels.ParentRequestEventSubmitted, guardianAccountID, nil); err != nil {
 		return nil, err
 	}
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      "request_created",
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: guardianAccountID,
 		Body:           careRequestCreatedBody,
 		RequestType:    usersModels.ParentMessageRequestCareSchedule,
 		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.wakeGuardiansAfterCommit(ctx, req)
 	return req, nil
 }
@@ -461,14 +463,16 @@ func (s *careScheduleRequestService) CreatePickupChange(
 	if err := s.recordCareRequestEvent(ctx, req, usersModels.ParentRequestEventSubmitted, guardianAccountID, nil); err != nil {
 		return nil, err
 	}
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      "request_created",
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: guardianAccountID,
 		Body:           pickupRequestCreatedBody,
 		RequestType:    usersModels.ParentMessageRequestPickupChange,
 		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.wakeGuardiansAfterCommit(ctx, req)
 	return req, nil
 }
@@ -1031,7 +1035,9 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 	if err := s.persistCareDecision(ctx, req, input, state, snapshot); err != nil {
 		return nil, err
 	}
-	s.registerCareDecisionEffects(ctx, req, input, state, companionsChanged)
+	if err := s.registerCareDecisionEffects(ctx, req, input, state, companionsChanged); err != nil {
+		return nil, err
+	}
 	item, err := s.reloadCareDecisionItem(ctx, req.ID)
 	if err != nil {
 		return nil, err
@@ -1193,7 +1199,7 @@ func (s *careScheduleRequestService) persistCareDecision(ctx context.Context, re
 	return nil
 }
 
-func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, input CareRequestDecideInput, state careDecisionState, companionsChanged bool) {
+func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, input CareRequestDecideInput, state careDecisionState, companionsChanged bool) error {
 	if input.Approve {
 		tenant.RegisterAfterCommit(ctx, func() { s.recordApplyAudit(req, input.ReviewedBy) })
 		s.broadcastCareScheduleChanges(ctx, req.TenantID, req.StudentID, companionsChanged)
@@ -1207,12 +1213,14 @@ func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Con
 			)
 		})
 	}
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType: "request_status", ActorKind: usersModels.ParentMessageSenderStaff,
 		ActorAccountID: input.ReviewedBy, Body: state.pillBody,
 		RequestType: careRequestPillType(req.RequestKind), RequestStatus: state.pillStatus,
 		DecisionReason: state.reason,
-	})
+	}); err != nil {
+		return err
+	}
 	// Every other guardian of this child hears about the decision: the full
 	// pill for explicit share recipients, a neutral line for the rest.
 	s.notifyOtherGuardiansAfterCommit(ctx, req, parentmessaging.ChildEvent{
@@ -1222,6 +1230,7 @@ func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Con
 		DecisionReason: state.reason,
 	})
 	s.wakeGuardiansAfterCommit(ctx, req)
+	return nil
 }
 
 func (s *careScheduleRequestService) reloadCareDecisionItem(ctx context.Context, requestID int64) (*CareRequestReviewItem, error) {
@@ -1434,12 +1443,11 @@ func (s *careScheduleRequestService) resolvePickupChangeStaff(ctx context.Contex
 	return staff, nil
 }
 
-// emitRequestPillAfterCommit schedules the notification pill for after the
-// ambient transaction commits. The emitter is best-effort and opens its own
-// tenant transaction; ref fields always point at the request row.
-func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, ev parentmessaging.ChildEvent) {
+// emitRequestPillAfterCommit writes the durable decision intent in the ambient
+// transaction, then schedules the best-effort chat pill after commit.
+func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, ev parentmessaging.ChildEvent) error {
 	if s.emitter == nil {
-		return
+		return nil
 	}
 	tenantID := req.TenantID
 	if tenantID <= 0 {
@@ -1450,9 +1458,13 @@ func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Cont
 	ev.RefID = &refID
 	studentID := req.StudentID
 	guardianAccountID := req.SubmittedBy
+	if err := s.emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
+		return fmt.Errorf("schedule: enqueue care request decision: %w", err)
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 	})
+	return nil
 }
 
 // wakeGuardiansAfterCommit fans a message-INDEPENDENT parent_child_updated out to
@@ -2264,13 +2276,15 @@ func (s *careScheduleRequestService) MarkDone(
 		reviewedBy, map[string]any{"reason": trimmed}); err != nil {
 		return err
 	}
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType: "request_status", ActorKind: usersModels.ParentMessageSenderStaff,
 		ActorAccountID: reviewedBy, Body: parentRequestDoneBody,
 		RequestType:    careRequestPillType(req.RequestKind),
 		RequestStatus:  usersModels.ParentMessageRequestStatusDone,
 		DecisionReason: trimmed,
-	})
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -2370,7 +2384,7 @@ func (s *careScheduleRequestService) Correct(
 	); err != nil {
 		return err
 	}
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderStaff,
 		ActorAccountID: reviewedBy,
@@ -2378,7 +2392,9 @@ func (s *careScheduleRequestService) Correct(
 		RequestType:    careRequestPillType(req.RequestKind),
 		RequestStatus:  pillStatus,
 		DecisionReason: trimmed,
-	})
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 

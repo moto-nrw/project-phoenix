@@ -10,7 +10,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -18,17 +17,15 @@ import (
 type RejectedEnrollmentCleanupResult struct {
 	DeletedRequests    int
 	DeletedLateInvites int64
-	DeletedOutboxRows  int64
+	// DeletedOutboxRows is retained as an API field name. Delivery rows are
+	// cancelled and retained for audit; this counts rows transitioned to cancelled.
+	DeletedOutboxRows int64
 }
 
 // RejectedEnrollmentCleaner removes rejected enrollment data after its
 // tenant-configured retention window.
 type RejectedEnrollmentCleaner interface {
 	CleanupRejectedEnrollments(ctx context.Context) (RejectedEnrollmentCleanupResult, error)
-}
-
-type relatedOutboxCleaner interface {
-	DeleteByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) (int64, error)
 }
 
 type rejectedRequestCleaner interface {
@@ -49,7 +46,7 @@ type rejectedEnrollmentCleanupService struct {
 	requests    rejectedRequestCleaner
 	children    rejectedRequestChildLocker
 	lateInvites usedLateInviteCleaner
-	outbox      relatedOutboxCleaner
+	delivery    EnrollmentDeletionDelivery
 	settings    RequestSettingsResolver
 	deletion    enrollmentModels.DeletionRepository
 	audit       auditModels.EnrollmentDeletionRepository
@@ -70,7 +67,7 @@ func NewRejectedEnrollmentCleanupService(
 	requests enrollmentModels.RequestRepository,
 	children enrollmentModels.RequestChildRepository,
 	lateInvites enrollmentModels.LateInviteRepository,
-	outbox relatedOutboxCleaner,
+	delivery EnrollmentDeletionDelivery,
 	settings RequestSettingsResolver,
 	db *bun.DB,
 	logger *slog.Logger,
@@ -83,7 +80,7 @@ func NewRejectedEnrollmentCleanupService(
 		requests:    requests,
 		children:    children,
 		lateInvites: lateInvites,
-		outbox:      outbox,
+		delivery:    delivery,
 		settings:    settings,
 		runInTx:     newRejectedEnrollmentCleanupTxRunner(db),
 		logger:      logger,
@@ -105,7 +102,7 @@ func newRejectedEnrollmentCleanupTxRunner(db *bun.DB) func(context.Context, func
 }
 
 func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx context.Context) (RejectedEnrollmentCleanupResult, error) {
-	if s.requests == nil || s.children == nil || s.lateInvites == nil || s.outbox == nil || s.settings == nil || s.runInTx == nil {
+	if s.requests == nil || s.children == nil || s.lateInvites == nil || s.delivery == nil || s.settings == nil || s.runInTx == nil {
 		return RejectedEnrollmentCleanupResult{}, errors.New("rejected enrollment cleanup is not configured")
 	}
 	days, err := s.settings.ResolveInt(ctx, configModel.KeyEnrollmentRejectedRetentionDays)
@@ -136,6 +133,10 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 			if !childrenRemainFullyRejectedBefore(children, cutoff) {
 				continue
 			}
+			emailCount, countErr := s.delivery.CountRelatedEmails(txCtx, enrollmentRequestDeliveryType, requestID)
+			if countErr != nil {
+				return fmt.Errorf("count rejected enrollment delivery rows: %w", countErr)
+			}
 			var impact *enrollmentModels.DeletionImpact
 			if s.deletion != nil || s.audit != nil {
 				if s.deletion == nil || s.audit == nil {
@@ -155,11 +156,13 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 						slog.Int("blocking_students", len(impact.BlockingStudentIDs)))
 					continue
 				}
+				impact.Counts.EmailOutbox = emailCount
 			}
 			if impact != nil {
-				// Production uses the same explicit cross-schema deletion as the
-				// manual workflow. This is essential for polymorphic rows such as
-				// platform.email_outbox, which no foreign key can cascade.
+				cancelled, cancelErr := s.delivery.CancelRelatedEmails(txCtx, enrollmentRequestDeliveryType, requestID, "related enrollment data deleted")
+				if cancelErr != nil {
+					return fmt.Errorf("cancel rejected enrollment delivery rows: %w", cancelErr)
+				}
 				if deleteErr := s.deletion.DeleteRequest(txCtx, requestID); deleteErr != nil {
 					return fmt.Errorf("delete rejected enrollment request dependencies: %w", deleteErr)
 				}
@@ -175,7 +178,7 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 					return fmt.Errorf("audit rejected enrollment cleanup: %w", auditErr)
 				}
 				result.DeletedLateInvites += int64(impact.Counts.LateInvites)
-				result.DeletedOutboxRows += int64(impact.Counts.EmailOutbox)
+				result.DeletedOutboxRows += cancelled
 			} else {
 				// Compatibility path for focused unit tests that construct the
 				// historical service without the production audit dependencies.
@@ -183,15 +186,15 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 				if deleteLateInvitesErr != nil {
 					return fmt.Errorf("delete used enrollment late invites: %w", deleteLateInvitesErr)
 				}
-				deletedOutbox, deleteOutboxErr := s.outbox.DeleteByRelatedEntity(txCtx, platformModels.EmailRelatedTypeEnrollmentRequest, requestID)
-				if deleteOutboxErr != nil {
-					return fmt.Errorf("delete dependent enrollment outbox rows: %w", deleteOutboxErr)
+				cancelled, cancelErr := s.delivery.CancelRelatedEmails(txCtx, enrollmentRequestDeliveryType, requestID, "related enrollment data deleted")
+				if cancelErr != nil {
+					return fmt.Errorf("cancel rejected enrollment delivery rows: %w", cancelErr)
 				}
 				if deleteRequestErr := s.requests.DeleteByID(txCtx, requestID); deleteRequestErr != nil {
 					return fmt.Errorf("delete rejected enrollment request: %w", deleteRequestErr)
 				}
 				result.DeletedLateInvites += deletedLateInvites
-				result.DeletedOutboxRows += deletedOutbox
+				result.DeletedOutboxRows += cancelled
 			}
 			result.DeletedRequests++
 		}

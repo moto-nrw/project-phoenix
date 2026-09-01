@@ -13,8 +13,8 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -404,11 +404,12 @@ type recordingAbsenceNotifier struct {
 	reports []notificationsSvc.AbsenceReport
 }
 
-func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsSvc.AbsenceReport) {
+func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsSvc.AbsenceReport) error {
 	n.reports = append(n.reports, report)
+	return nil
 }
 
-func TestDecide_ApprovalNotifiesAfterCommit(t *testing.T) {
+func TestDecide_ApprovalEnqueuesBeforeCommit(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -450,7 +451,7 @@ func TestDecide_ApprovalNotifiesAfterCommit(t *testing.T) {
 		ReviewedBy: reviewer,
 	})
 	require.NoError(t, err)
-	assert.Empty(t, notifier.reports, "the notification must not run before the decision commits")
+	require.Len(t, notifier.reports, 1, "the durable intent must be enqueued in the decision transaction")
 
 	commit()
 	require.Len(t, notifier.reports, 1)

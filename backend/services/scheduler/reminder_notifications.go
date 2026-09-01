@@ -40,7 +40,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -585,7 +585,9 @@ func buildPersonalReminderEvent(tenantID, accountID int64, notificationType stri
 	}
 
 	return notifications.Event{
-		Type: notificationType,
+		Type:           notificationType,
+		IdempotencyKey: fmt.Sprintf("personal-reminder:%d:%d:%s:%s:%d", tenantID, accountID, notificationType, timezone.DateFromTime(timezone.Now()).String(), count),
+		RelatedType:    "personal_reminder", RelatedID: accountID,
 		Audience: notifications.Audience{
 			TenantID:        tenantID,
 			Scope:           notifications.ScopeStaff,

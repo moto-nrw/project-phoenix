@@ -25,9 +25,9 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -422,7 +422,7 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	// so it correctly stays unstamped.
 	parentmessaging.DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
 	s.broadcastAfterCommit(ctx, thread)
-	s.notifyGuardianDevice(ctx, thread)
+	s.notifyGuardianDevice(ctx, thread, message.ID)
 	return messages, nil
 }
 
@@ -481,7 +481,7 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 		return nil, fmt.Errorf("messaging: list messages: %w", err)
 	}
 	s.broadcastAfterCommit(ctx, thread)
-	s.notifyGuardianDevice(ctx, thread)
+	s.notifyGuardianDevice(ctx, thread, message.ID)
 	s.Logger.Info("staff sent parent message",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
@@ -670,7 +670,7 @@ func (s *Service) broadcastValues(tenantID, guardianAccountID, threadID, student
 // The copy names neither the child nor the sender. A push payload leaves the
 // backend and is rendered on a lock screen; the thread behind the deep link is
 // authenticated, and that is where the details belong.
-func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.ParentMessageThread) {
+func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.ParentMessageThread, messageID int64) {
 	if thread == nil || s.Notifier == nil || s.Preferences == nil {
 		return
 	}
@@ -704,7 +704,9 @@ func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.
 	title, notificationBody := notifications.ParentMessageCopy(locale)
 
 	err = s.Notifier.Notify(ctx, notifications.Event{
-		Type:     notifications.TypeParentMessage,
+		Type:           notifications.TypeParentMessage,
+		IdempotencyKey: fmt.Sprintf("parent-message:%d:%d", thread.ID, messageID),
+		RelatedType:    "parent_message_thread", RelatedID: thread.ID,
 		Title:    title,
 		Body:     notificationBody,
 		DeepLink: "/messages",

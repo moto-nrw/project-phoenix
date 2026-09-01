@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -29,6 +30,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	calendarModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -184,7 +186,7 @@ type Factory struct {
 
 	// IoT domain
 	Device             iotModels.DeviceRepository
-	PushSubscription   iotModels.PushSubscriptionRepository
+	PushSubscription   deliveryModels.PushSubscriptionRepository
 	PWAStandaloneUsage *iot.PWAStandaloneUsageRepository
 
 	// Config domain
@@ -217,7 +219,6 @@ type Factory struct {
 	BookingConsistency           auditModels.BookingConsistencyRepository
 
 	// Platform domain (operator dashboard)
-	Organization             platformModels.OrganizationRepository
 	Operator                 platformModels.OperatorRepository
 	Announcement             platformModels.AnnouncementRepository
 	AnnouncementView         platformModels.AnnouncementViewRepository
@@ -227,8 +228,6 @@ type Factory struct {
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
-	EmailOutbox              platformModels.EmailOutboxCleanupRepository
-	EmailDelivery            platformModels.EmailDeliveryRepository
 
 	// Operator MFA (issue #1308 phase 7b)
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
@@ -504,7 +503,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 
 		// IoT repositories
 		Device:             iot.NewDeviceRepository(db),
-		PushSubscription:   iot.NewPushSubscriptionRepository(db),
+		PushSubscription:   deliveryCompose.NewPushSubscriptionRepository(db),
 		PWAStandaloneUsage: iot.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
@@ -537,7 +536,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		BookingConsistency:           audit.NewBookingConsistencyRepository(auditRepositoryRuntime),
 
 		// Platform repositories
-		Organization:             platformRepo.NewOrganizationRepository(db),
 		Operator:                 platformRepo.NewOperatorRepository(db),
 		Announcement:             platformRepo.NewAnnouncementRepository(db),
 		AnnouncementView:         platformRepo.NewAnnouncementViewRepository(db),
@@ -547,8 +545,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
-		EmailOutbox:              platformRepo.NewEmailOutboxRepository(db),
-		EmailDelivery:            platformRepo.NewEmailDeliveryRepository(db),
 
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
 		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),

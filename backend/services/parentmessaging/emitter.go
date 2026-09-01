@@ -8,8 +8,8 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -66,13 +66,10 @@ func isTerminalRequestEvent(ev ChildEvent) bool {
 	return ev.EventType == usersModels.ParentMessageEventRequestStatus && ev.RefTable != "" && ev.RefID != nil
 }
 
-// Emitter appends notification pills to parent-OGS threads on behalf of
-// OUTSIDE services (schedule change requests, master-data review, parent
-// self-service writes). It is deliberately best-effort and transactionally
-// detached: EmitChildEvent must be called AFTER the originating action has
-// committed (from a tenant.RegisterAfterCommit callback) and opens its OWN
-// tenant transaction on a background context, so a pill failure can never
-// roll back — or be rolled back by — the action it mirrors.
+// Emitter coordinates parent request notifications for services outside the
+// messaging domain. EnqueueRequestDecision writes the durable device intent in
+// the caller's transaction. EmitChildEvent appends the best-effort chat pill in
+// a detached transaction after commit.
 type Emitter struct {
 	db            *bun.DB
 	threadRepo    usersModels.ParentMessageThreadRepository
@@ -82,10 +79,8 @@ type Emitter struct {
 	logger        *slog.Logger
 	tenantRuntime *tenant.UnitOfWork
 
-	// notifier and preferences push a staff DECISION to the submitting
-	// guardian's devices (#1671). Optional and set through
-	// WithDecisionNotifications, so every existing construction site keeps
-	// working and a partially-wired test emitter simply does not push.
+	// notifier and preferences enqueue a staff decision for the submitting
+	// guardian's devices in the decision transaction (#1671).
 	notifier    notifications.Service
 	preferences notifications.PreferenceService
 }
@@ -104,10 +99,7 @@ func (e *Emitter) backgroundContext() context.Context {
 	return ctx
 }
 
-// WithDecisionNotifications adds the guardian push for decided requests. It is a
-// separate setter rather than two more NewEmitter parameters because the emitter
-// is constructed in several places (including tests) that have no business
-// knowing about notifications.
+// WithDecisionNotifications adds durable guardian delivery for decided requests.
 func (e *Emitter) WithDecisionNotifications(notifier notifications.Service, preferences notifications.PreferenceService) *Emitter {
 	if e == nil {
 		return nil
@@ -328,19 +320,6 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 	}
 	Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID)
 
-	// A staff decision is the one pill a parent should hear about away from the
-	// app (#1671). Deliberately placed next to the SSE wake and under the same
-	// condition, so pill, wake and push always agree on who was reached: a
-	// guardian whose access was revoked gets none of the three, and a school with
-	// messaging off gets none either — the decision pill is that school's
-	// in-app channel too, and pushing about something the app does not show
-	// would be a dead end. The push additionally re-reads the access itself (see
-	// notifyRequestDecision): it runs in a transaction of its own, so it must not
-	// inherit a verdict from one that has already committed. That can only make
-	// the push narrower than the pill, never wider.
-	if !messagingOff && !skipGuardianBroadcast {
-		e.notifyRequestDecision(tenantID, studentID, guardianAccountID, ev)
-	}
 }
 
 // isStaffDecisionPill reports whether a pill is the OGS deciding a parent's
@@ -372,83 +351,73 @@ func requestDecisionCopy(locale, requestType, requestStatus string) (title, body
 	return notifications.ParentRequestDecisionCopy(locale, requestType, requestStatus)
 }
 
-// notifyRequestDecision pushes a staff decision to the submitting guardian.
+// EnqueueRequestDecision records a staff decision delivery for the submitting
+// guardian in the caller's domain transaction.
 //
 // Only staff-authored terminal request pills qualify: a guardian withdrawing
 // their own request is not news to them, and an "offen" pill is the submission
-// itself. Fire-and-forget on a detached background context, like everything else
-// past the emitter's own commit.
-func (e *Emitter) notifyRequestDecision(tenantID, studentID, guardianAccountID int64, ev ChildEvent) {
+// itself. The transaction requirement prevents a request decision from
+// committing without its durable delivery intent.
+func (e *Emitter) EnqueueRequestDecision(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev ChildEvent) error {
 	if e.notifier == nil || e.preferences == nil || e.db == nil || e.threadRepo == nil {
-		return
+		return nil
 	}
 	if !isStaffDecisionPill(ev) {
-		return
+		return nil
 	}
+	if ev.RefID == nil {
+		return nil
+	}
+	if _, active := tenant.TransactionFromContext(ctx); !active {
+		return errors.New("parentmessaging: request decision enqueue requires an active tenant transaction")
+	}
+	refID := *ev.RefID
 
-	// The access recheck, the consent read and the delivery are RLS-scoped, so
-	// they need a tenant transaction of their own — the pill's transaction
-	// committed before this call.
-	bgCtx := e.backgroundContext()
-	err := tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		// Authorization first, and read here rather than carried over from the
-		// pill's transaction: a push payload is rendered on a lock screen, so the
-		// question "may this account still hear about this child?" is answered
-		// against the students_guardians row this transaction sees, not against a
-		// verdict from a snapshot that is already history. Consent is the second
-		// gate and never a substitute for the first.
-		guardians, aerr := e.threadRepo.ListGuardiansForStudent(txCtx, studentID)
-		if aerr != nil {
-			return aerr
-		}
-		locale := ""
-		hasAccess := false
-		for _, guardian := range guardians {
-			if guardian != nil && guardian.AccountID == guardianAccountID {
-				hasAccess = true
-				locale = guardian.PortalLocale
-				break
-			}
-		}
-		if !hasAccess {
-			return nil
-		}
-		optedIn, ferr := e.preferences.FilterOptedIn(txCtx, notifications.TypeParentRequestDecided, []int64{guardianAccountID})
-		if ferr != nil {
-			return ferr
-		}
-		if len(optedIn) == 0 {
-			return nil
-		}
-		title, body := requestDecisionCopy(locale, ev.RequestType, ev.RequestStatus)
-		return e.notifier.Notify(txCtx, notifications.Event{
-			Type:     notifications.TypeParentRequestDecided,
-			Title:    title,
-			Body:     body,
-			DeepLink: fmt.Sprintf("/children/%d", studentID),
-			Priority: notifications.PriorityNormal,
-			Audience: notifications.Audience{
-				TenantID:           tenantID,
-				Scope:              notifications.ScopeGuardian,
-				GuardianAccountIDs: optedIn,
-				// The recheck above answers the access question for this
-				// transaction; StudentIDs carries it into the delivery transaction,
-				// which is the last one before the payload leaves the backend.
-				StudentIDs: []int64{studentID},
-			},
-		})
-	})
-	switch {
-	case errors.Is(err, notifications.ErrDisabled), errors.Is(err, notifications.ErrOutsideActiveWindow):
-		return
-	case err != nil:
-		loggerOr(e.logger).Warn("parent messaging: request decision push failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int64("student_id", studentID),
-			slog.String("request_type", ev.RequestType),
-			slog.String("error", err.Error()),
-		)
+	// Authorization first: a push payload is rendered on a lock screen, so
+	// consent is never a substitute for current child access.
+	guardians, err := e.threadRepo.ListGuardiansForStudent(ctx, studentID)
+	if err != nil {
+		return err
 	}
+	locale := ""
+	hasAccess := false
+	for _, guardian := range guardians {
+		if guardian != nil && guardian.AccountID == guardianAccountID {
+			hasAccess = true
+			locale = guardian.PortalLocale
+			break
+		}
+	}
+	if !hasAccess {
+		return nil
+	}
+	optedIn, err := e.preferences.FilterOptedIn(ctx, notifications.TypeParentRequestDecided, []int64{guardianAccountID})
+	if err != nil {
+		return err
+	}
+	if len(optedIn) == 0 {
+		return nil
+	}
+	title, body := requestDecisionCopy(locale, ev.RequestType, ev.RequestStatus)
+	err = e.notifier.Notify(ctx, notifications.Event{
+		Type:           notifications.TypeParentRequestDecided,
+		IdempotencyKey: fmt.Sprintf("parent-request-decision:%s:%d:%s", ev.RefTable, refID, ev.RequestStatus),
+		RelatedType:    ev.RefTable, RelatedID: refID,
+		Title:    title,
+		Body:     body,
+		DeepLink: fmt.Sprintf("/children/%d", studentID),
+		Priority: notifications.PriorityNormal,
+		Audience: notifications.Audience{
+			TenantID:           tenantID,
+			Scope:              notifications.ScopeGuardian,
+			GuardianAccountIDs: optedIn,
+			StudentIDs:         []int64{studentID},
+		},
+	})
+	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+		return nil
+	}
+	return err
 }
 
 // BroadcastChildUpdateToGuardians wakes EVERY guardian of the child with a

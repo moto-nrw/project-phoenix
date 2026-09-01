@@ -1229,18 +1229,25 @@ func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
 	rs.ParentEventEmitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 }
 
-// scheduleStudentUpdateWakes registers the after-commit SSE fan-out for a
-// student update. It always broadcasts the tenant-wide student_updated staff
+// scheduleStudentUpdateWakes enqueues any durable absence notification and
+// registers the after-commit SSE fan-out for a student update. It always
+// broadcasts the tenant-wide student_updated staff
 // event; it additionally wakes the child's guardians when the request actually
 // touched a status field (sick/excused), because a sick/excused edit writes
 // TODAY's status day — the exact signal the parent pickup tile resolves
 // today_absent from — while student_updated never reaches the parents stream. A
 // plain name/notes edit changes nothing parent-visible, so it wakes no one
-// (#1725). Runs after the OUTER tx commits so a woken client never reads the
-// pre-commit snapshot; tenantID is captured before the hook fires.
-func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool, reportedStatus string, reportDate timezone.Date) {
+// (#1725). Only the ephemeral broadcasts run after the OUTER tx commits, so a
+// woken client never reads the pre-commit snapshot; tenantID is captured before
+// the hook fires.
+func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool, reportedStatus string, reportDate timezone.Date) error {
 	statusChanged := req.Sick != nil || req.Excused != nil
 	actorAccountID := int64(jwt.ClaimsFromCtx(ctx).ID)
+	if reportedStatus != "" {
+		if err := rs.notifyAbsenceReported(ctx, tenantID, []int64{studentID}, reportedStatus, []timezone.Date{reportDate}, false, actorAccountID); err != nil {
+			return err
+		}
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		rs.broadcastStudentUpdated(tenantID, studentID)
 		// Only when the write actually changed the links (or a linked child's
@@ -1254,10 +1261,8 @@ func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, st
 		if statusChanged {
 			rs.wakeChildGuardians(tenantID, studentID)
 		}
-		if reportedStatus != "" {
-			rs.notifyAbsenceReported(tenantID, []int64{studentID}, reportedStatus, []timezone.Date{reportDate}, false, actorAccountID)
-		}
 	})
+	return nil
 }
 
 // In-tx sentinel: a concurrent partial update committed between the pre-tx
@@ -1481,7 +1486,9 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 
 	// Broadcast after the OUTER tx commits. Broadcasting now would race
 	// subscribers into refetching the still-pre-commit row.
-	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged, reportedStatus, timezone.DateFromTime(statusHistoryNow))
+	if err := rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged, reportedStatus, timezone.DateFromTime(statusHistoryNow)); err != nil {
+		return false, err
+	}
 	return companionsChanged, nil
 }
 
