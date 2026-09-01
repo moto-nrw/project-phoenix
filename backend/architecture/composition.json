@@ -25658,7 +25658,7 @@
       "declaration": "TestVerifyCodeForAccount_RefusesForeignPortalChallenge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        123
+        125
       ],
       "tables": [
         "auth.mfa_email_challenges"
@@ -25670,7 +25670,7 @@
       "declaration": "newLoginGateScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        69
       ],
       "tables": [
         "auth.account_tenants",
@@ -25753,7 +25753,7 @@
       "declaration": "TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        243
+        249
       ],
       "tables": []
     },
@@ -25763,7 +25763,7 @@
       "declaration": "newExtraMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        28
+        29
       ],
       "tables": []
     },
@@ -25783,7 +25783,7 @@
       "declaration": "newTestMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        38
       ],
       "tables": []
     },
@@ -28965,7 +28965,7 @@
       "declaration": "newTestOperatorMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        26
+        27
       ],
       "tables": []
     },
