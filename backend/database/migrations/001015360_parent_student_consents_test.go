@@ -61,7 +61,7 @@ func TestStudentConsentChangesAreTenantScopedAndAppendOnly(t *testing.T) {
 	`, tenantB, studentB.ID)
 }
 
-func TestParentStudentConsentsRollbackPreservesExistingPermission(t *testing.T) {
+func TestParentStudentConsentsRollbackOnlyRemovesUnchangedMigrationGrant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
@@ -91,6 +91,8 @@ func TestParentStudentConsentsRollbackPreservesExistingPermission(t *testing.T) 
 
 	preExisting := testpkg.CreateTestParentGuardianChain(t, db)
 	backfilled := testpkg.CreateTestParentGuardianChain(t, db)
+	changedAfterMigration := testpkg.CreateTestParentGuardianChain(t, db)
+	regrantedAfterMigration := testpkg.CreateTestParentGuardianChain(t, db)
 	setPermissions(preExisting.StudentID, `{
 		"parent_portal.access": true,
 		"parent_portal.consent.manage": true
@@ -98,14 +100,39 @@ func TestParentStudentConsentsRollbackPreservesExistingPermission(t *testing.T) 
 	setPermissions(backfilled.StudentID, `{
 		"parent_portal.access": true
 	}`)
+	setPermissions(changedAfterMigration.StudentID, `{
+		"parent_portal.access": true
+	}`)
+	setPermissions(regrantedAfterMigration.StudentID, `{
+		"parent_portal.access": true
+	}`)
 
 	require.NoError(t, parentStudentConsentsUp(ctx, db))
 	assert.Equal(t, "true", permissionValue(preExisting.StudentID, "parent_portal.consent.manage"))
 	assert.Equal(t, "true", permissionValue(backfilled.StudentID, "parent_portal.consent.manage"))
+	setPermissions(backfilled.StudentID, `{
+		"parent_portal.access": true,
+		"parent_portal.absence.create": true,
+		"parent_portal.consent.manage": true
+	}`)
+	setPermissions(changedAfterMigration.StudentID, `{
+		"parent_portal.access": true,
+		"parent_portal.consent.manage": false
+	}`)
+	setPermissions(regrantedAfterMigration.StudentID, `{
+		"parent_portal.access": true
+	}`)
+	setPermissions(regrantedAfterMigration.StudentID, `{
+		"parent_portal.access": true,
+		"parent_portal.consent.manage": true
+	}`)
 
 	require.NoError(t, parentStudentConsentsDown(ctx, db))
 	assert.Equal(t, "true", permissionValue(preExisting.StudentID, "parent_portal.consent.manage"))
 	assert.Equal(t, "<missing>", permissionValue(backfilled.StudentID, "parent_portal.consent.manage"))
+	assert.Equal(t, "false", permissionValue(changedAfterMigration.StudentID, "parent_portal.consent.manage"))
+	assert.Equal(t, "true", permissionValue(regrantedAfterMigration.StudentID, "parent_portal.consent.manage"))
 	assert.Equal(t, "true", permissionValue(preExisting.StudentID, "parent_portal.access"))
 	assert.Equal(t, "true", permissionValue(backfilled.StudentID, "parent_portal.access"))
+	assert.Equal(t, "true", permissionValue(backfilled.StudentID, "parent_portal.absence.create"))
 }

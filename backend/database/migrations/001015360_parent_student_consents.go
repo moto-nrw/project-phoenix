@@ -72,6 +72,29 @@ func parentStudentConsentsUp(ctx context.Context, db *bun.DB) error {
 		FROM meta.parent_student_consent_permission_grants AS migration_grant
 		WHERE student_guardian.id = migration_grant.student_guardian_id;
 
+		CREATE FUNCTION meta.invalidate_parent_student_consent_permission_grant()
+		RETURNS TRIGGER
+		LANGUAGE plpgsql
+		SECURITY DEFINER
+		SET search_path = pg_catalog, meta
+		AS $$
+		BEGIN
+			DELETE FROM meta.parent_student_consent_permission_grants
+			WHERE student_guardian_id = OLD.id;
+			RETURN NEW;
+		END;
+		$$;
+		CREATE TRIGGER invalidate_parent_student_consent_permission_grant
+			AFTER UPDATE OF permissions ON users.students_guardians
+			FOR EACH ROW
+			WHEN (
+				(OLD.permissions -> 'parent_portal.consent.manage')
+				IS DISTINCT FROM
+				(NEW.permissions -> 'parent_portal.consent.manage')
+			)
+			EXECUTE FUNCTION meta.invalidate_parent_student_consent_permission_grant();
+		REVOKE ALL ON FUNCTION meta.invalidate_parent_student_consent_permission_grant() FROM PUBLIC;
+
 		INSERT INTO audit.student_consent_changes
 			(tenant_id, student_id, consent_key, action, source, actor_account_id, created_at, updated_at)
 		SELECT tenant_id, id, 'agb', 'granted', 'migration_snapshot', NULL::BIGINT, agb_accepted_at, agb_accepted_at
@@ -97,6 +120,10 @@ func parentStudentConsentsUp(ctx context.Context, db *bun.DB) error {
 
 func parentStudentConsentsDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.NewRaw(`
+		DROP TRIGGER IF EXISTS invalidate_parent_student_consent_permission_grant
+			ON users.students_guardians;
+		DROP FUNCTION IF EXISTS meta.invalidate_parent_student_consent_permission_grant();
+
 		UPDATE users.students_guardians AS student_guardian
 		SET permissions = student_guardian.permissions - 'parent_portal.consent.manage'
 		FROM meta.parent_student_consent_permission_grants AS migration_grant
