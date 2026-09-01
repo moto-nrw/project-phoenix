@@ -2370,10 +2370,10 @@ describe("Sidebar", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("zeigt das zweite Gruppen-Icon auch während des Einklappens nicht", () => {
+    it("blendet das zweite Gruppen-Icon während des Einklappens aus", async () => {
       withOtherGroups();
 
-      render(<Sidebar />);
+      const { container } = render(<Sidebar />);
       expect(
         screen.getByRole("button", { name: "Weitere Gruppen" }),
       ).toBeInTheDocument();
@@ -2383,11 +2383,24 @@ describe("Sidebar", () => {
         globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
       });
 
-      // Die Bezeichnungen stehen noch (sie blenden gerade aus) — der zweite
-      // Bereich ist trotzdem schon weg, sonst stünden für die Dauer der
-      // Bewegung zwei gleiche Icons untereinander.
+      // Der Bereich bleibt für die Dauer der Bewegung stehen — sonst
+      // sprängen die Zeilen darunter im ersten Bild um seine ganze Höhe
+      // hoch. Sichtbar ist er dabei nicht: er blendet aus und zieht seine
+      // Höhe auf null, exponiert wird er auch nicht.
+      const fading = container.querySelector(
+        'div[aria-hidden="true"].grid.opacity-0.grid-rows-\\[0fr\\]',
+      );
+      expect(fading).not.toBeNull();
+      expect(fading).toContainElement(screen.getByText("Weitere Gruppen"));
+      expect(fading?.firstElementChild).toHaveAttribute("inert");
+      // Die übrigen Bezeichnungen stehen noch und blenden aus.
       expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
-      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
+
+      // Nach der Bewegung ist der Bereich weg: im Streifen stünden sonst
+      // zwei nicht unterscheidbare Gruppen-Icons untereinander.
+      await waitFor(() =>
+        expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument(),
+      );
     });
 
     it("entfernt die Bezeichnungen bei prefers-reduced-motion sofort", () => {
@@ -2426,19 +2439,28 @@ describe("Sidebar", () => {
       withOtherGroups();
       localStorage.setItem("sidebar-collapsed", "true");
 
-      render(<Sidebar />);
+      const { container } = render(<Sidebar />);
+      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
 
       act(() => {
         localStorage.setItem("sidebar-collapsed", "false");
         globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
       });
 
-      // Erst wenn die Bezeichnungen einblenden, kommt der zweite Bereich
-      // dazu — sonst stünden die beiden gleichen Icons noch unbeschriftet
-      // untereinander.
-      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
+      // Der Bereich hängt sich unsichtbar ein und wächst mit den
+      // Bezeichnungen auf — sonst stünden die beiden gleichen Icons ein Bild
+      // lang unbeschriftet untereinander.
+      const growing = container.querySelector(
+        'div[aria-hidden="true"].grid.opacity-0.grid-rows-\\[0fr\\]',
+      );
+      expect(growing).toContainElement(screen.getByText("Weitere Gruppen"));
+
       await waitFor(() =>
-        expect(screen.getByText("Weitere Gruppen")).toBeInTheDocument(),
+        expect(
+          container.querySelector(
+            "div.grid.opacity-100.grid-rows-\\[1fr\\] .truncate",
+          ),
+        ).toHaveTextContent("Weitere Gruppen"),
       );
     });
 
@@ -2612,42 +2634,35 @@ describe("Sidebar", () => {
       ).toHaveLength(1);
     });
 
-    it("hält die Zeile 'Weitere Gruppen' bis zum Ende der Bewegung frei", async () => {
+    it("hält den offenen Bereich 'Weitere Gruppen' samt Unterpunkten bis zum Ende der Bewegung", async () => {
       withOtherGroups();
 
       const { container } = render(<Sidebar />);
-      const placeholder = () =>
-        container.querySelector(
-          'div[aria-hidden="true"].grid > div > div.h-10',
-        );
+      fireEvent.click(screen.getByText("Weitere Gruppen"));
+      await waitFor(() =>
+        expect(screen.getByText("Eulen")).toBeInTheDocument(),
+      );
 
       act(() => {
         localStorage.setItem("sidebar-collapsed", "true");
         globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
       });
 
-      // Der zweite Gruppen-Bereich ist sofort weg (zwei gleiche Icons wären
-      // nicht unterscheidbar), sein Platz bleibt aber stehen und geht mit
-      // derselben Kurve auf null — sonst rutschen alle Zeilen darunter
-      // mitten in der Breitenänderung eine Zeile hoch.
-      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
-      expect(placeholder()).toBeInTheDocument();
-      // Er beginnt auf voller Höhe: stünde die Zielhöhe schon beim Einhängen
-      // da, gäbe es nichts zu überblenden und die Zeilen darunter sprängen im
-      // ersten Bild hoch.
-      expect(placeholder()?.parentElement?.parentElement?.className).toContain(
-        "grid-rows-[1fr]",
+      // Der ganze Bereich bleibt stehen — Kopfzeile und Unterpunkte —, und
+      // seine Höhe geht mit derselben Kurve auf null wie die Breite der
+      // Leiste. Verschwände er sofort, sprängen alle Zeilen darunter im
+      // ersten Bild um seine volle Höhe hoch.
+      const fading = container.querySelector(
+        'div[aria-hidden="true"].grid.grid-rows-\\[0fr\\]',
       );
+      expect(fading).toContainElement(screen.getByText("Weitere Gruppen"));
+      expect(fading).toContainElement(screen.getByText("Eulen"));
 
-      // Danach geht die Höhe mit derselben Kurve auf null …
+      // Erst nach der Bewegung geht der Bereich aus dem Baum.
       await waitFor(() =>
-        expect(
-          placeholder()?.parentElement?.parentElement?.className,
-        ).toContain("grid-rows-[0fr]"),
+        expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument(),
       );
-
-      // … und nach der Bewegung ist auch der Platzhalter weg.
-      await waitFor(() => expect(placeholder()).not.toBeInTheDocument());
+      expect(screen.queryByText("Eulen")).not.toBeInTheDocument();
     });
 
     it("hält geschlossene Bereiche aus der Tastaturreihenfolge heraus", () => {

@@ -451,38 +451,6 @@ function stickyClasses(
   } ${SIDEBAR_WIDTH_TRANSITION}`;
 }
 
-/**
- * Hält den Platz einer Zeile frei, die beim Einklappen sofort aus dem Baum
- * geht, und zieht ihn mit derselben Kurve auf null wie die Breite der Leiste
- * (#2923).
- *
- * Die Zeile beginnt ausdrücklich auf voller Höhe und wird erst im nächsten
- * Bild geschlossen: stünde die Zielhöhe schon beim Einhängen da, gäbe es
- * nichts zu überblenden und alle Zeilen darunter sprängen im ersten Bild um
- * eine Zeilenhöhe hoch — genau der zweite Sprung, den dieser PR beseitigt.
- */
-function CollapsingRowPlaceholder() {
-  const [isOpen, setIsOpen] = useState(true);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setIsOpen(false));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
-  return (
-    <div
-      aria-hidden="true"
-      className={`grid motion-safe:transition-[grid-template-rows] motion-safe:duration-200 motion-safe:ease-in-out ${
-        isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-      }`}
-    >
-      <div className="overflow-hidden">
-        <div className="h-10" />
-      </div>
-    </div>
-  );
-}
-
 interface SidebarContentProps extends SidebarProps {
   // Einklappbare Seitenleiste (#2825): der Zustand lebt im äußeren Sidebar-
   // Wrapper (useSidebarCollapsed), damit auch der Suspense-Fallback die
@@ -1435,66 +1403,77 @@ function SidebarContent({
               {/* "Weitere Gruppen" trägt dasselbe Icon wie "Meine Gruppen".
                   Ausgeklappt trennen die Bezeichnungen die beiden Bereiche;
                   im Streifen stünden zwei nicht unterscheidbare Icons
-                  untereinander, deshalb bleibt der zweite dort weg — schon
-                  während der Bewegung, sonst stehen die beiden gleichen Icons
-                  für die Dauer der Blende doch untereinander. Beim Aufklappen
-                  kommt der Bereich erst mit den Bezeichnungen dazu, die ihn
-                  von "Meine Gruppen" unterscheiden.
-                  Damit die Zeilen darunter beim Einklappen nicht sofort um
-                  eine Zeilenhöhe hochspringen, bleibt für die Dauer der
-                  Bewegung ein leerer Platzhalter stehen, der auf voller Höhe
-                  beginnt und mit derselben Kurve auf null geht wie die Breite
-                  der Leiste. */}
-              {otherGroups.length > 0 && !collapsed && labelsVisible && (
-                <SidebarAccordionSection
-                  icon={GROUP_NAV_ICON}
-                  concept="groups"
-                  label="Weitere Gruppen"
-                  activeColor="text-moto-green"
-                  isExpanded={areOtherGroupsExpanded}
-                  collapsed={collapsed}
-                  labelsMounted={labelsMounted}
-                  labelsVisible={labelsVisible}
-                  onToggle={() => {
-                    // Aus dem Streifen heraus zuerst aufklappen: die
-                    // Untergruppen sind sonst nicht sichtbar.
-                    if (collapsed) onExpandSidebar();
-                    if (expanded !== "groups") {
-                      toggle("groups");
-                    }
-                    setOtherGroupsExpanded(
-                      (current) => !(current ?? hasSelectedOtherGroup),
-                    );
-                  }}
-                  isActive={isAccordionSectionActive(
-                    "/ogs-groups",
-                    Boolean(currentGroupParam) || Boolean(childGroupId),
-                  )}
-                  isIconActive={
-                    pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
-                  }
-                  hasChildren
+                  untereinander, deshalb bleibt der zweite dort weg.
+                  Er verschwindet aber nicht schlagartig: für die Dauer der
+                  Bewegung bleibt der Bereich mit seinen offenen Unterpunkten
+                  stehen, blendet aus und zieht seine ganze Höhe mit derselben
+                  Kurve auf null wie die Breite der Leiste. Ohne das sprängen
+                  die Zeilen darunter im ersten Bild um die volle Höhe des
+                  offenen Bereichs hoch — genau der zweite Sprung, den dieser
+                  PR beseitigt. Beim Aufklappen läuft dieselbe Bewegung
+                  rückwärts: der Bereich wächst mit der Breite auf und wird
+                  erst dabei durch seine Bezeichnung unterscheidbar. */}
+              {otherGroups.length > 0 && (!collapsed || labelsMounted) && (
+                <div
+                  aria-hidden={!labelsVisible}
+                  className={`grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-200 motion-safe:ease-in-out ${
+                    labelsVisible
+                      ? "grid-rows-[1fr] opacity-100"
+                      : "grid-rows-[0fr] opacity-0"
+                  }`}
                 >
-                  {otherGroups.map((group, index) => (
-                    <SidebarSubItem
-                      key={group.id}
-                      href={`/ogs-groups?group=${group.id}`}
-                      label={group.name}
-                      count={formatGroupAttendanceCount(group.id)}
-                      isActive={isGroupSubItemActive(
-                        childGroupId,
-                        group.id.toString(),
-                        pathname,
-                        currentGroupParam,
-                        personalGroups.length + index,
+                  {/* inert: der ausblendende Bereich darf keinen
+                      Tastaturfokus mehr fangen. */}
+                  <div className="overflow-hidden" inert={!labelsVisible}>
+                    <SidebarAccordionSection
+                      icon={GROUP_NAV_ICON}
+                      concept="groups"
+                      label="Weitere Gruppen"
+                      activeColor="text-moto-green"
+                      isExpanded={areOtherGroupsExpanded}
+                      collapsed={collapsed}
+                      labelsMounted={labelsMounted}
+                      labelsVisible={labelsVisible}
+                      onToggle={() => {
+                        // Aus dem Streifen heraus zuerst aufklappen: die
+                        // Untergruppen sind sonst nicht sichtbar.
+                        if (collapsed) onExpandSidebar();
+                        if (expanded !== "groups") {
+                          toggle("groups");
+                        }
+                        setOtherGroupsExpanded(
+                          (current) => !(current ?? hasSelectedOtherGroup),
+                        );
+                      }}
+                      isActive={isAccordionSectionActive(
+                        "/ogs-groups",
+                        Boolean(currentGroupParam) || Boolean(childGroupId),
                       )}
-                    />
-                  ))}
-                </SidebarAccordionSection>
+                      isIconActive={
+                        pathname.startsWith("/ogs-groups") ||
+                        Boolean(childGroupId)
+                      }
+                      hasChildren
+                    >
+                      {otherGroups.map((group, index) => (
+                        <SidebarSubItem
+                          key={group.id}
+                          href={`/ogs-groups?group=${group.id}`}
+                          label={group.name}
+                          count={formatGroupAttendanceCount(group.id)}
+                          isActive={isGroupSubItemActive(
+                            childGroupId,
+                            group.id.toString(),
+                            pathname,
+                            currentGroupParam,
+                            personalGroups.length + index,
+                          )}
+                        />
+                      ))}
+                    </SidebarAccordionSection>
+                  </div>
+                </div>
               )}
-              {otherGroups.length > 0 &&
-                labelsMounted &&
-                (collapsed || !labelsVisible) && <CollapsingRowPlaceholder />}
             </>
           )}
 
