@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestStudentConsentChangesAreTenantScopedAndAppendOnly(t *testing.T) {
@@ -60,4 +59,53 @@ func TestStudentConsentChangesAreTenantScopedAndAppendOnly(t *testing.T) {
 			(tenant_id, student_id, consent_key, action, source)
 		VALUES (?, ?, 'photo', 'withdrawn', 'parent_portal')
 	`, tenantB, studentB.ID)
+}
+
+func TestParentStudentConsentsRollbackPreservesExistingPermission(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+
+	require.NoError(t, parentStudentConsentsDown(ctx, db))
+	defer func() { require.NoError(t, parentStudentConsentsUp(ctx, db)) }()
+
+	setPermissions := func(studentID int64, permissions string) {
+		t.Helper()
+		_, err := db.NewRaw(`
+			UPDATE users.students_guardians
+			SET permissions = ?::jsonb
+			WHERE student_id = ?
+		`, permissions, studentID).Exec(ctx)
+		require.NoError(t, err)
+	}
+	permissionValue := func(studentID int64, key string) string {
+		t.Helper()
+		var value string
+		require.NoError(t, db.NewRaw(`
+			SELECT COALESCE(permissions ->> ?, '<missing>')
+			FROM users.students_guardians
+			WHERE student_id = ?
+		`, key, studentID).Scan(ctx, &value))
+		return value
+	}
+
+	preExisting := testpkg.CreateTestParentGuardianChain(t, db)
+	backfilled := testpkg.CreateTestParentGuardianChain(t, db)
+	setPermissions(preExisting.StudentID, `{
+		"parent_portal.access": true,
+		"parent_portal.consent.manage": true
+	}`)
+	setPermissions(backfilled.StudentID, `{
+		"parent_portal.access": true
+	}`)
+
+	require.NoError(t, parentStudentConsentsUp(ctx, db))
+	assert.Equal(t, "true", permissionValue(preExisting.StudentID, "parent_portal.consent.manage"))
+	assert.Equal(t, "true", permissionValue(backfilled.StudentID, "parent_portal.consent.manage"))
+
+	require.NoError(t, parentStudentConsentsDown(ctx, db))
+	assert.Equal(t, "true", permissionValue(preExisting.StudentID, "parent_portal.consent.manage"))
+	assert.Equal(t, "<missing>", permissionValue(backfilled.StudentID, "parent_portal.consent.manage"))
+	assert.Equal(t, "true", permissionValue(preExisting.StudentID, "parent_portal.access"))
+	assert.Equal(t, "true", permissionValue(backfilled.StudentID, "parent_portal.access"))
 }

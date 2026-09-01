@@ -55,10 +55,22 @@ func parentStudentConsentsUp(ctx context.Context, db *bun.DB) error {
 		REVOKE UPDATE, DELETE, TRUNCATE ON audit.student_consent_changes FROM phoenix_tenant;
 		GRANT USAGE ON SEQUENCE audit.student_consent_changes_id_seq TO phoenix_tenant;
 
-		UPDATE users.students_guardians
+		CREATE TABLE meta.parent_student_consent_permission_grants (
+			student_guardian_id BIGINT PRIMARY KEY
+				REFERENCES users.students_guardians(id) ON DELETE CASCADE
+		);
+
+		INSERT INTO meta.parent_student_consent_permission_grants (student_guardian_id)
+		SELECT id
+		FROM users.students_guardians
+		WHERE guardian_role IN ('primary_guardian', 'legal_guardian', 'co_guardian')
+			AND NOT (COALESCE(permissions, '{}'::jsonb) ? 'parent_portal.consent.manage');
+
+		UPDATE users.students_guardians AS student_guardian
 		SET permissions = COALESCE(permissions, '{}'::jsonb)
 			|| '{"parent_portal.consent.manage": true}'::jsonb
-		WHERE guardian_role IN ('primary_guardian', 'legal_guardian', 'co_guardian');
+		FROM meta.parent_student_consent_permission_grants AS migration_grant
+		WHERE student_guardian.id = migration_grant.student_guardian_id;
 
 		INSERT INTO audit.student_consent_changes
 			(tenant_id, student_id, consent_key, action, source, actor_account_id, created_at, updated_at)
@@ -85,10 +97,13 @@ func parentStudentConsentsUp(ctx context.Context, db *bun.DB) error {
 
 func parentStudentConsentsDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.NewRaw(`
-		UPDATE users.students_guardians
-		SET permissions = permissions - 'parent_portal.consent.manage'
-		WHERE permissions ? 'parent_portal.consent.manage';
+		UPDATE users.students_guardians AS student_guardian
+		SET permissions = student_guardian.permissions - 'parent_portal.consent.manage'
+		FROM meta.parent_student_consent_permission_grants AS migration_grant
+		WHERE student_guardian.id = migration_grant.student_guardian_id
+			AND student_guardian.permissions ? 'parent_portal.consent.manage';
 
+		DROP TABLE meta.parent_student_consent_permission_grants;
 		DROP TABLE IF EXISTS audit.student_consent_changes CASCADE;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("drop parent student consent history: %w", err)
