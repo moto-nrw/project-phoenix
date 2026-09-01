@@ -280,7 +280,7 @@ export function OverflowMenu({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full" : ""} ${triggerColorClass} transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
+        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
       >
         {triggerContent ?? (
           <MoreVertical className={iconSizeClass} aria-hidden />
@@ -359,7 +359,7 @@ export function OverflowMenu({
 
                 const item = entry;
                 const colorClass = item.destructive
-                  ? "text-red-600"
+                  ? "text-moto-red"
                   : "text-gray-700";
                 const interactive = item.disabled
                   ? "cursor-not-allowed opacity-50"

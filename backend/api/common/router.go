@@ -42,6 +42,25 @@ func ProtectedTenantGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 	})
 }
 
+// ProtectedParentGroup registers a route group behind the parents-portal
+// chain (Verifier → Authenticator → ParentMiddleware).
+//
+// There is no tenant middleware and no tenant transaction: a parent token is
+// deliberately cross-tenant, because a guardian's children can attend several
+// schools. Every handler in such a group must therefore resolve the school
+// from the resource it was asked for, and open its own transaction for that
+// school — never from the token.
+func ProtectedParentGroup(r chi.Router, fn func(r chi.Router)) {
+	tokenAuth := jwt.MustNewTokenAuth()
+
+	r.Group(func(gr chi.Router) {
+		gr.Use(tokenAuth.Verifier())
+		gr.Use(jwt.Authenticator)
+		gr.Use(jwt.ParentMiddleware)
+		fn(gr)
+	})
+}
+
 // ProtectedSchoolGroup is the school-portal sibling of ProtectedTenantGroup
 // (#2207): identical chain, but with jwt.SchoolMiddleware gating the group to
 // school-scope tokens. School tokens are tenant-bound, so the tenant

@@ -428,3 +428,80 @@ export async function fetchAnnouncementRecipients(
   );
   return data ?? [];
 }
+
+/* --- Anhänge (#2890) -------------------------------------------------------
+ *
+ * Eigener Pfad statt einer Unterroute von /api/parent-announcements: die
+ * Bytes gehören der Dateiablage, die Mitteilung steuert nur den
+ * Empfängerkreis bei.
+ */
+
+const ATTACHMENTS_BASE = "/api/announcement-attachments";
+
+export interface AnnouncementAttachment {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
+export interface AnnouncementAttachmentList {
+  attachments: AnnouncementAttachment[];
+  /** Höchstzahl der Anhänge je Mitteilung. */
+  max_count: number;
+  /** Größengrenze je Datei in Bytes. */
+  max_bytes: number;
+  /** false, sobald die Mitteilung veröffentlicht ist. */
+  editable: boolean;
+}
+
+const EMPTY_ATTACHMENTS: AnnouncementAttachmentList = {
+  attachments: [],
+  max_count: 0,
+  max_bytes: 0,
+  editable: false,
+};
+
+export async function fetchAnnouncementAttachments(
+  announcementId: string,
+): Promise<AnnouncementAttachmentList> {
+  const data = await request<AnnouncementAttachmentList>(
+    `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}`,
+    undefined,
+    "Anhänge konnten nicht geladen werden",
+  );
+  return data ?? EMPTY_ATTACHMENTS;
+}
+
+export async function uploadAnnouncementAttachment(
+  announcementId: string,
+  file: File,
+): Promise<AnnouncementAttachment | undefined> {
+  const form = new FormData();
+  form.append("file", file);
+  return request<AnnouncementAttachment>(
+    `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}`,
+    { method: "POST", body: form },
+    "Die Datei konnte nicht hochgeladen werden",
+  );
+}
+
+export async function deleteAnnouncementAttachment(
+  announcementId: string,
+  attachmentId: string,
+): Promise<void> {
+  await request<unknown>(
+    `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}`,
+    { method: "DELETE" },
+    "Der Anhang konnte nicht entfernt werden",
+  );
+}
+
+/** Adresse, unter der das Personal einen Anhang zur Kontrolle öffnet. */
+export function announcementAttachmentDownloadUrl(
+  announcementId: string,
+  attachmentId: string,
+): string {
+  return `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}/download`;
+}

@@ -197,7 +197,7 @@ export function FilterPanel({
   // app's calm blue-accent pill (same tokens as the active-filter badge in
   // PageHeaderWithSearch) so the panel matches the detail-modal language.
   const selectedOptionClass = isQuiet
-    ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200 ring-inset"
+    ? "bg-moto-blue-soft text-moto-blue-strong ring-1 ring-moto-blue/20 ring-inset"
     : "bg-gray-900 text-white";
 
   // One pill button, shared by the buttons/grid/dropdown-multi layouts. The

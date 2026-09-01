@@ -555,7 +555,7 @@ function renderTimerContent(
         <span className="mt-0.5 text-xs font-medium text-[#F78C10]">
           Pause ({plannedBreakDurationMins} Min)
         </span>
-        <span className="mt-0.5 text-center text-xs font-medium text-amber-600">
+        <span className="text-moto-amber-strong mt-0.5 text-center text-xs font-medium">
           {plannedBreakEndsAt
             ? `Automatisch weiter um ${formatTime(plannedBreakEndsAt)}`
             : "Automatisch weiter nach der Pause"}
@@ -583,7 +583,7 @@ function renderTimerContent(
         {formatDuration(displayMinutes)}
       </span>
       {breakWarning && (
-        <span className="mt-0.5 text-xs font-medium text-amber-600">
+        <span className="text-moto-amber-strong mt-0.5 text-xs font-medium">
           {breakWarning}
         </span>
       )}
@@ -1473,7 +1473,7 @@ function BreakActivityLog({
     type: "work" | "break";
     isActive: boolean;
   }) => {
-    if (seg.type === "break" && seg.isActive) return "text-amber-600";
+    if (seg.type === "break" && seg.isActive) return "text-moto-amber-strong";
     if (seg.type === "break") return "text-gray-500";
     return "";
   };
@@ -1590,7 +1590,7 @@ type StatusTone = "green" | "amber" | "gray";
 // orange) and turns brown on white.
 const STATUS_TEXT: Record<StatusTone, string> = {
   green: "text-moto-green",
-  amber: "text-amber-600",
+  amber: "text-moto-amber-strong",
   gray: "text-gray-700",
 };
 
@@ -2932,7 +2932,7 @@ function EditSessionModal({
                 htmlFor="edit-notes"
                 className="mb-1 block text-sm font-medium text-gray-700"
               >
-                Grund der Änderung <span className="text-red-500">*</span>
+                Grund der Änderung <span className="text-moto-red">*</span>
               </label>
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {EDIT_REASON_PRESETS.map((reason) => (
@@ -3094,7 +3094,7 @@ function EditSessionModal({
                     size="compact"
                     onClick={handleAbsenceDelete}
                     disabled={absenceDeleting}
-                    className="px-0 text-sm text-red-600 hover:bg-transparent hover:text-red-700"
+                    className="text-moto-red hover:text-moto-red-strong px-0 text-sm hover:bg-transparent"
                   >
                     {absenceDeleting
                       ? "Abwesenheit wird gelöscht..."

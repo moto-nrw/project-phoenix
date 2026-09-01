@@ -588,7 +588,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               return (
                 <span
                   key={value}
-                  className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
+                  className="bg-moto-blue-soft text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
                 >
                   {option.label}
                   <button
@@ -596,7 +596,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                     onClick={() =>
                       handleMultiselectRemove(field.name, selectedValues, value)
                     }
-                    className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
+                    className="bg-moto-blue/20 text-moto-blue-strong hover:bg-moto-blue/30 hover:text-moto-blue-strong ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full"
                     aria-label={`Remove ${option.label}`}
                   >
                     ×
@@ -645,7 +645,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const hasError = field.name === errorFieldName;
 
     const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-moto-red/40" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-moto-blue focus:outline-none`;
-    const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-red-600" : "text-gray-700"}`;
+    const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-moto-red" : "text-gray-700"}`;
 
     switch (field.type) {
       case "custom": {
@@ -682,7 +682,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             />
             <label
               htmlFor={field.name}
-              className={`ml-2 block text-xs md:text-sm ${hasError ? "text-red-600" : "text-gray-700"}`}
+              className={`ml-2 block text-xs md:text-sm ${hasError ? "text-moto-red" : "text-gray-700"}`}
             >
               {field.label}
             </label>

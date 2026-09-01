@@ -29,9 +29,9 @@ function WarningIcon({ className }: Readonly<{ className?: string }>) {
  */
 function SessionExpiryWarningDesktop() {
   return (
-    <div className="flex items-center space-x-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2">
-      <WarningIcon className="h-5 w-5 flex-shrink-0 text-red-600" />
-      <span className="text-sm font-medium text-red-800">
+    <div className="border-moto-red/20 bg-moto-red-soft flex items-center space-x-2 rounded-lg border px-4 py-2">
+      <WarningIcon className="text-moto-red h-5 w-5 flex-shrink-0" />
+      <span className="text-moto-red-strong text-sm font-medium">
         Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.
       </span>
     </div>
@@ -43,7 +43,7 @@ function SessionExpiryWarningDesktop() {
  */
 function SessionExpiryWarningMobile() {
   return (
-    <div className="p-2 text-red-600">
+    <div className="text-moto-red p-2">
       <WarningIcon />
     </div>
   );
