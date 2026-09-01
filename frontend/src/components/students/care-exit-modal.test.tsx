@@ -102,6 +102,10 @@ function pickReason(label: string) {
 }
 
 describe("CareExitModal", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-08-30T12:00:00+02:00"));
@@ -302,6 +306,8 @@ describe("CareExitModal", () => {
   });
 
   it("uses the existing exit flow for an authoritative complete withdrawal", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-31T10:00:00+02:00"));
     const { onFinished } = renderWithdrawalModal();
 
     expect(screen.getByText("31.08.2026")).toBeVisible();

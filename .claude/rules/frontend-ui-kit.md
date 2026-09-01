@@ -171,7 +171,7 @@ On motion, `ui-skills` is stricter than `better-ui/animations.md` and wins: no a
 
 ## Detection
 
-**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on four drift patterns — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-rounded-3xl` (off-scale card radius), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes). Generic colors and `rounded-3xl` are hard-zero: the first production match fails. Overlays retain a shrink-only per-file baseline; reduce it whenever a legacy overlay is migrated and never increase it. Test/stories files are exempt from the class-string rules.
+**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on four drift patterns — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-rounded-3xl` (off-scale card radius), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes). All four are hard-zero: the first production match fails. Test/stories files are exempt from the class-string rules.
 
 ```bash
 # Components imported from the design-system package — should be ZERO (tokens only)
