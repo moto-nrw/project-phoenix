@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 
 	audit "github.com/moto-nrw/project-phoenix/models/audit"
 )
@@ -123,6 +124,17 @@ type authEventCommand struct {
 
 func (r authEventCommand) Create(ctx context.Context, event *audit.AuthEvent) error {
 	return r.command.Append(ctx, event)
+}
+
+func (r authEventCommand) CreateStaffPreviewEndOnce(ctx context.Context, event *audit.AuthEvent) (bool, error) {
+	if event == nil || event.EventType != audit.EventTypeStaffPreviewEnded {
+		return false, fmt.Errorf("staff preview end event is required")
+	}
+	command, ok := r.command.(audit.AppendOnceCommand)
+	if !ok {
+		return false, fmt.Errorf("audit command does not support append once")
+	}
+	return command.AppendOnce(ctx, event)
 }
 
 type dataImportCommand struct {

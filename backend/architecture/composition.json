@@ -25847,10 +25847,22 @@
     {
       "scope": "test",
       "file": "services/auth/token_revocation_audit_test.go",
-      "declaration": "TestRevocationAuditFailureRollsBackAndRetryIsIdempotent",
+      "declaration": "TestLogoutRevokesTokensWhenAuditFails",
       "target": "database/repositories.NewFactory",
       "lines": [
         76
+      ],
+      "tables": [
+        "auth.tokens"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/auth/token_revocation_audit_test.go",
+      "declaration": "TestRevocationAuditFailureRollsBackAndRetryIsIdempotent",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        104
       ],
       "tables": [
         "audit.auth_events",

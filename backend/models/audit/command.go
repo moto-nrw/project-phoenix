@@ -9,6 +9,13 @@ type Command interface {
 	Append(context.Context, any) error
 }
 
+// AppendOnceCommand is the idempotent companion capability for ledgers with
+// a database uniqueness constraint. It reports whether this call inserted the
+// event while preserving the same append-only command boundary.
+type AppendOnceCommand interface {
+	AppendOnce(context.Context, any) (bool, error)
+}
+
 // AppendStore is the persistence port implemented by the Audit Postgres
 // adapter. Composition code supplies its transaction resolver explicitly.
 type AppendStore interface {

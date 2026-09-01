@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	auditCommandViewsVersion     = "1.15.357"
+	auditCommandViewsVersion     = "1.15.358"
 	auditCommandViewsDescription = "Create Audit-owned append and time-tracking views (#2655)"
 )
 

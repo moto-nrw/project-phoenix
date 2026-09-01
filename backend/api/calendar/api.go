@@ -35,6 +35,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(jwt.TenantMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 		withTx := common.TenantTxMiddleware

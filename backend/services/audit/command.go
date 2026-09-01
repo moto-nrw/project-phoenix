@@ -19,6 +19,10 @@ type appendStore interface {
 	Append(context.Context, any) error
 }
 
+type appendOnceStore interface {
+	AppendOnce(context.Context, any) (bool, error)
+}
+
 // Command is the single application entry point for append-only Audit writes.
 type Command struct {
 	store   appendStore
@@ -39,11 +43,34 @@ func (c *Command) Append(ctx context.Context, event any) error {
 	if err != nil {
 		rows = 0
 	}
+	c.observeAppend(started, event, rows, err)
+	return err
+}
+
+// AppendOnce appends an event subject to its database uniqueness constraint
+// and reports whether this call inserted the row.
+func (c *Command) AppendOnce(ctx context.Context, event any) (bool, error) {
+	started := time.Now()
+	store, ok := c.store.(appendOnceStore)
+	if !ok {
+		err := fmt.Errorf("audit command: store does not support append once")
+		c.observeAppend(started, event, 0, err)
+		return false, err
+	}
+	inserted, err := store.AppendOnce(ctx, event)
+	rows := 0
+	if inserted {
+		rows = 1
+	}
+	c.observeAppend(started, event, rows, err)
+	return inserted, err
+}
+
+func (c *Command) observeAppend(started time.Time, event any, rows int, err error) {
 	c.observe(AppendObservation{
 		EventType: fmt.Sprintf("%T", event),
 		Duration:  time.Since(started),
 		Rows:      rows,
 		Err:       err,
 	})
-	return err
 }

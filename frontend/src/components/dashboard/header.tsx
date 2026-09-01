@@ -10,6 +10,7 @@ import { Button } from "~/components/ui/button";
 import { LogoutModal } from "~/components/ui/logout-modal";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
+import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 import {
@@ -102,6 +103,7 @@ export function Header() {
   } = breadcrumb;
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const rawPathname = usePathname();
@@ -124,6 +126,7 @@ export function Header() {
     mode,
     homeUrl,
     profileUrl,
+    canStartStaffPreview,
   } = useShellAuth();
   // Ein-/Ausklappen der Desktop-Seitenleiste (#2825) — nur in den Portalen
   // mit einklappbarer Leiste; das Eltern- und das Schul-Portal haben eigene
@@ -393,6 +396,11 @@ export function Header() {
                 }
                 onClose={() => setIsProfileMenuOpen(false)}
                 onLogout={() => setIsLogoutModalOpen(true)}
+                onStartPreview={
+                  mode === "teacher" && canStartStaffPreview
+                    ? () => setIsPreviewModalOpen(true)
+                    : undefined
+                }
               />
             </div>
           </div>
@@ -403,6 +411,12 @@ export function Header() {
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
       />
+      {mode === "teacher" && canStartStaffPreview && (
+        <StaffPreviewModal
+          isOpen={isPreviewModalOpen}
+          onClose={() => setIsPreviewModalOpen(false)}
+        />
+      )}
     </header>
   );
 }

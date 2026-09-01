@@ -2118,7 +2118,10 @@ func (s *Service) auditLogout(ctx context.Context, revoked *auth.Token, tokens [
 		tenantID = claimTenantID
 	}
 	if tenantID == 0 {
-		s.getLogger().Error("failed to audit logout", slog.Int64("account_id", revoked.AccountID), slog.String("error", "tenant is required"))
+		s.getLogger().Error("failed to audit logout",
+			slog.Int64("account_id", revoked.AccountID),
+			slog.String("error", "tenant is required"),
+		)
 		return
 	}
 	auditCtx := tenant.WithTenantID(s.withTenantRuntime(ctx), tenantID)
@@ -2132,7 +2135,10 @@ func (s *Service) auditLogout(ctx context.Context, revoked *auth.Token, tokens [
 		return s.logAuthEvent(txCtx, revoked.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
 	})
 	if err != nil {
-		s.getLogger().Error("failed to audit logout", slog.Int64("account_id", revoked.AccountID), slog.Any("error", err))
+		s.getLogger().Error("failed to audit logout",
+			slog.Int64("account_id", revoked.AccountID),
+			slog.Any("error", err),
+		)
 	}
 }
 

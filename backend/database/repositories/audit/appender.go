@@ -18,31 +18,65 @@ func NewAppender(runtime Runtime) *Appender {
 }
 
 func (a *Appender) Append(ctx context.Context, event any) error {
+	db, err := a.prepare(ctx, event)
+	if err != nil {
+		return err
+	}
+	table, err := appendEvent(ctx, db, event)
+	return wrapDatabase("append "+table, err)
+}
+
+// AppendOnce appends an event subject to its database uniqueness constraint
+// and reports whether this call inserted the row.
+func (a *Appender) AppendOnce(ctx context.Context, event any) (bool, error) {
+	db, err := a.prepare(ctx, event)
+	if err != nil {
+		return false, err
+	}
+	table, inserted, err := appendEventOnce(ctx, db, event)
+	return inserted, wrapDatabase("append once "+table, err)
+}
+
+func (a *Appender) prepare(ctx context.Context, event any) (bun.IDB, error) {
 	if event == nil || (reflect.ValueOf(event).Kind() == reflect.Pointer && reflect.ValueOf(event).IsNil()) {
-		return fmt.Errorf("audit event is required")
+		return nil, fmt.Errorf("audit event is required")
 	}
 	scoped, ok := event.(interface {
 		GetTenantID() int64
 		SetTenantID(int64)
 	})
 	if !ok {
-		return fmt.Errorf("audit event %T is not tenant scoped", event)
+		return nil, fmt.Errorf("audit event %T is not tenant scoped", event)
 	}
 	if err := validateEvent(event); err != nil {
-		return err
+		return nil, err
 	}
-	db, err := prepareTenant(ctx, a.runtime, scoped)
-	if err != nil {
-		return err
-	}
-	table, err := appendEvent(ctx, db, event)
-	if err != nil {
-		return wrapDatabase("append "+table, err)
-	}
-	return nil
+	return prepareTenant(ctx, a.runtime, scoped)
 }
 
 func appendEvent(ctx context.Context, db bun.IDB, event any) (string, error) {
+	table, query, err := appendQuery(db, event)
+	if err != nil {
+		return table, err
+	}
+	_, err = query.Exec(ctx)
+	return table, err
+}
+
+func appendEventOnce(ctx context.Context, db bun.IDB, event any) (string, bool, error) {
+	table, query, err := appendQuery(db, event)
+	if err != nil {
+		return table, false, err
+	}
+	result, err := query.On("CONFLICT DO NOTHING").Exec(ctx)
+	if err != nil {
+		return table, false, err
+	}
+	rows, err := result.RowsAffected()
+	return table, rows > 0, err
+}
+
+func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 	var query *bun.InsertQuery
 	var table string
 	switch value := event.(type) {
@@ -87,10 +121,9 @@ func appendEvent(ctx context.Context, db bun.IDB, event any) (string, error) {
 	case *auditModels.WorkSessionEdit:
 		table, query = "audit.work_session_edits", db.NewInsert().Model(value).ModelTableExpr("audit.work_session_edits")
 	default:
-		return "event", fmt.Errorf("unsupported event type %T", event)
+		return "event", nil, fmt.Errorf("unsupported event type %T", event)
 	}
-	_, err := query.Exec(ctx)
-	return table, err
+	return table, query, nil
 }
 
 func validateEvent(event any) error {
