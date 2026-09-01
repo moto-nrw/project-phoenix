@@ -926,6 +926,11 @@ const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_MB = 25;
 const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024;
 const ACCEPTED_ATTACHMENT_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
+// Sagt, was zu tun ist, nicht nur dass es nicht geht. Steht sowohl im
+// Anhangsbereich einer veröffentlichten Mitteilung als auch in der Meldung,
+// falls jemand die Schaltfläche doch noch erwischt.
+const ATTACHMENTS_LOCKED_HINT =
+  "Die Mitteilung ist veröffentlicht. Die Dateien stehen jetzt fest. Ziehen Sie die Mitteilung zurück, wenn Sie etwas ändern möchten.";
 
 /**
  * Two-step wizard, like writing an e-mail: first the content, then who
@@ -969,6 +974,11 @@ function AnnouncementFormModal({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [attachmentBusy, setAttachmentBusy] = useState(false);
+  // Ob die Anhänge dieser Mitteilung noch änderbar sind. Die Antwort der
+  // Liste sagt es: ein Entwurf, der zwischenzeitlich anderswo veröffentlicht
+  // wurde, ist es nicht mehr. Ohne diesen Zustand bietet der Assistent weiter
+  // "Datei auswählen" und ein Kreuz an, die dann beide mit 409 scheitern.
+  const [attachmentsEditable, setAttachmentsEditable] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Beim Bearbeiten eines Entwurfs die schon hochgeladenen Dateien nachladen.
@@ -982,6 +992,7 @@ function AnnouncementFormModal({
       .then((list) => {
         if (!cancelled) {
           setExistingAttachments(list.attachments);
+          setAttachmentsEditable(list.editable);
           setAttachmentError("");
         }
       })
@@ -1111,6 +1122,10 @@ function AnnouncementFormModal({
 
   const addFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    if (!attachmentsEditable) {
+      setAttachmentError(ATTACHMENTS_LOCKED_HINT);
+      return;
+    }
     setAttachmentError("");
     const room = MAX_ATTACHMENTS - attachmentCount;
     const picked = Array.from(files);
@@ -1139,6 +1154,10 @@ function AnnouncementFormModal({
 
   const removeExistingAttachment = async (attachmentId: string) => {
     if (!persistedId) return;
+    if (!attachmentsEditable) {
+      setAttachmentError(ATTACHMENTS_LOCKED_HINT);
+      return;
+    }
     setAttachmentBusy(true);
     setAttachmentError("");
     try {
@@ -1664,8 +1683,11 @@ function AnnouncementFormModal({
                       attachmentId,
                     )
                   }
-                  onRemove={(attachmentId) =>
-                    void removeExistingAttachment(attachmentId)
+                  onRemove={
+                    attachmentsEditable
+                      ? (attachmentId) =>
+                          void removeExistingAttachment(attachmentId)
+                      : undefined
                   }
                   busy={attachmentBusy}
                 />
@@ -1704,36 +1726,42 @@ function AnnouncementFormModal({
                 </ul>
               )}
 
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept={ACCEPTED_ATTACHMENT_TYPES}
-                  className="hidden"
-                  onChange={(e) => {
-                    addFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={
-                    attachmentBusy || attachmentCount >= MAX_ATTACHMENTS
-                  }
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Datei auswählen
-                </Button>
-                {attachmentCount >= MAX_ATTACHMENTS && (
-                  <p className="mt-2 text-xs text-gray-500">
-                    Die Höchstzahl ist erreicht. Entfernen Sie eine Datei, um
-                    eine andere anzuhängen.
-                  </p>
-                )}
-              </div>
+              {attachmentsEditable ? (
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept={ACCEPTED_ATTACHMENT_TYPES}
+                    className="hidden"
+                    onChange={(e) => {
+                      addFiles(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    disabled={
+                      attachmentBusy || attachmentCount >= MAX_ATTACHMENTS
+                    }
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Datei auswählen
+                  </Button>
+                  {attachmentCount >= MAX_ATTACHMENTS && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Die Höchstzahl ist erreicht. Entfernen Sie eine Datei, um
+                      eine andere anzuhängen.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  {ATTACHMENTS_LOCKED_HINT}
+                </p>
+              )}
 
               {attachmentError && (
                 <p role="alert" className="text-moto-red-strong text-sm">
