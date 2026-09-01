@@ -23,6 +23,7 @@ export function useChangeRequestAccess() {
   const { data: session, status } = useSession();
   const { mode } = useShellAuth();
   const admin = isAdmin(session);
+  const accountId = session?.user.id;
   const needsParentReviewAccess =
     status === "authenticated" &&
     mode === "teacher" &&
@@ -31,9 +32,12 @@ export function useChangeRequestAccess() {
 
   const { data, error, isLoading, mutate } =
     useSWRAuth<ParentRequestReviewAccess>(
-      needsParentReviewAccess ? CHANGE_REQUEST_ACCESS_SWR_KEY : null,
+      needsParentReviewAccess && accountId
+        ? `${CHANGE_REQUEST_ACCESS_SWR_KEY}:${accountId}`
+        : null,
       fetchChangeRequestAccess,
       {
+        keepPreviousData: false,
         revalidateOnFocus: true,
         revalidateOnReconnect: true,
         shouldRetryOnError: false,
@@ -48,9 +52,11 @@ export function useChangeRequestAccess() {
   return {
     ...access,
     isLoading:
-      needsParentReviewAccess && data === undefined && error === undefined
-        ? isLoading
-        : false,
+      status === "loading" ||
+      (needsParentReviewAccess &&
+        data === undefined &&
+        error === undefined &&
+        isLoading),
     error,
     refresh: mutate,
   };

@@ -49,9 +49,16 @@ describe("useSettingsCacheBridge", () => {
 
     subscribers[0]!();
 
-    expect(mockMutate).toHaveBeenCalledWith(
-      "test-tenant:change-request-access",
+    const accessMatcher = mockMutate.mock.calls.find(
+      ([key]) => typeof key === "function",
+    )?.[0] as ((key: unknown) => boolean) | undefined;
+    expect(accessMatcher).toBeTypeOf("function");
+    expect(accessMatcher?.("test-tenant:change-request-access:account-7")).toBe(
+      true,
     );
+    expect(
+      accessMatcher?.("other-tenant:change-request-access:account-7"),
+    ).toBe(false);
   });
 
   it("invalidates the schema SWR cache on phoenix:tenant-settings-stale", () => {

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { SETTINGS_SCHEMA_SWR_KEY } from "~/lib/settings-api";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
-import { useTenantMutate } from "~/lib/swr";
+import { useTenantMutate, useTenantMutateMatching } from "~/lib/swr";
 import { CHANGE_REQUEST_ACCESS_SWR_KEY } from "./use-change-request-access";
 
 /**
@@ -20,11 +20,14 @@ import { CHANGE_REQUEST_ACCESS_SWR_KEY } from "./use-change-request-access";
  */
 export function useSettingsCacheBridge(): void {
   const tenantMutate = useTenantMutate();
+  const refreshChangeRequestAccess = useTenantMutateMatching([
+    CHANGE_REQUEST_ACCESS_SWR_KEY,
+  ]);
 
   useEffect(() => {
     const invalidate = () => {
       void tenantMutate(SETTINGS_SCHEMA_SWR_KEY);
-      void tenantMutate(CHANGE_REQUEST_ACCESS_SWR_KEY);
+      void refreshChangeRequestAccess();
     };
     const unsubscribeBroadcast = subscribeSettingsChanged(invalidate);
     if (typeof window !== "undefined") {
@@ -36,5 +39,5 @@ export function useSettingsCacheBridge(): void {
         window.removeEventListener("phoenix:tenant-settings-stale", invalidate);
       }
     };
-  }, [tenantMutate]);
+  }, [tenantMutate, refreshChangeRequestAccess]);
 }

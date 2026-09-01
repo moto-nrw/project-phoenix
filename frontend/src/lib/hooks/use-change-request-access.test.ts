@@ -52,6 +52,44 @@ describe("useChangeRequestAccess", () => {
     expect(result.current.canReviewParentRequests).toBe(false);
   });
 
+  it("bleibt während die Sitzung geladen wird im Ladezustand", () => {
+    mockUseSession.mockReturnValue({
+      data: undefined,
+      status: "loading",
+    });
+
+    const { result } = renderHook(() => useChangeRequestAccess());
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.canOpenRequestsPage).toBe(false);
+  });
+
+  it("trennt die Zugriffsauswertung nach Konto", () => {
+    const { rerender } = renderHook(() => useChangeRequestAccess());
+    const firstAccountKey = mockUseSWRAuth.mock.calls.at(-1)?.[0];
+
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "8",
+          token: "other-token",
+          roles: ["user"],
+          permissions: ["users:read", "users:update"],
+        },
+      },
+      status: "authenticated",
+    });
+    rerender();
+
+    expect(firstAccountKey).toBe("change-request-access:7");
+    expect(mockUseSWRAuth.mock.calls.at(-1)?.[0]).toBe(
+      "change-request-access:8",
+    );
+    expect(mockUseSWRAuth.mock.calls.at(-1)?.[2]).toMatchObject({
+      keepPreviousData: false,
+    });
+  });
+
   it("öffnet Elternanfragen für eine aktuelle Gruppenleitung", () => {
     mockUseSWRAuth.mockReturnValue({
       data: "group_leader",

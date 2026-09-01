@@ -138,6 +138,7 @@ describe("AnfragenPage", () => {
     expect(
       screen.getByLabelText("Anfragen werden geladen…"),
     ).toBeInTheDocument();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("leitet ohne aktuellen effektiven Prüfbereich zum Dashboard", () => {
