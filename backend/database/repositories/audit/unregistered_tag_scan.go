@@ -99,12 +99,10 @@ func (r *unregisteredTagScanRepository) operatorBaseQuery(ctx context.Context) *
 		ColumnExpr(`"scan".*`).
 		ColumnExpr(`"school".id AS school_id`).
 		ColumnExpr(`"school".name AS school_name`).
-		ColumnExpr(`"org".id AS organization_id`).
-		ColumnExpr(`"org".name AS organization_name`).
+		ColumnExpr(`"school".organization_id AS organization_id`).
 		ColumnExpr(`"device".device_id AS device_identifier`).
 		ColumnExpr(`"device".name AS device_name`).
 		Join(`INNER JOIN platform.schools AS "school" ON "school".id = "scan".tenant_id`).
-		Join(`INNER JOIN platform.organizations AS "org" ON "org".id = "school".organization_id`).
 		Join(`LEFT JOIN iot.devices AS "device" ON "device".id = "scan".device_id`)
 }
 

@@ -77,6 +77,8 @@ import (
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
+	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -116,6 +118,15 @@ func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, e
 }
 
 func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (*services.Factory, *mealplanModule.Module, *feedbackModule.Module, error) {
+	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
+		DB: db,
+		Observe: func(observation organizationCompose.Observation) {
+			observability.ObserveOrganizationTenancyOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, organizationModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	mealPlanSettings := mealplanCompose.NewSettings()
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db,
@@ -149,6 +160,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
+		organizations,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,
