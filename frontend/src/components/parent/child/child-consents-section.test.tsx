@@ -3,15 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
-import { getChildConsents, withdrawChildPhotoConsent } from "~/lib/parent-api";
+import {
+  getChildConsents,
+  grantChildPhotoConsent,
+  withdrawChildPhotoConsent,
+} from "~/lib/parent-api";
 import { ChildConsentsSection } from "./child-consents-section";
 
 vi.mock("~/lib/parent-api", () => ({
   getChildConsents: vi.fn(),
+  grantChildPhotoConsent: vi.fn(),
   withdrawChildPhotoConsent: vi.fn(),
 }));
 
 const mockedGet = vi.mocked(getChildConsents);
+const mockedGrant = vi.mocked(grantChildPhotoConsent);
 const mockedWithdraw = vi.mocked(withdrawChildPhotoConsent);
 
 const granted = [
@@ -20,23 +26,27 @@ const granted = [
     state: "granted" as const,
     changed_at: "2026-08-25T10:00:00Z",
     can_withdraw: false,
+    can_grant: false,
   },
   {
     key: "data_processing" as const,
     state: "granted" as const,
     changed_at: "2026-08-25T10:00:00Z",
     can_withdraw: false,
+    can_grant: false,
   },
   {
     key: "email_contact" as const,
     state: "not_recorded" as const,
     can_withdraw: false,
+    can_grant: false,
   },
   {
     key: "photo" as const,
     state: "granted" as const,
     changed_at: "2026-08-25T10:00:00Z",
     can_withdraw: true,
+    can_grant: false,
   },
 ];
 
@@ -108,6 +118,7 @@ describe("ChildConsentsSection", () => {
         state: "not_recorded" as const,
         changed_at: undefined,
         can_withdraw: false,
+        can_grant: false,
       })),
     );
 
@@ -134,6 +145,7 @@ describe("ChildConsentsSection", () => {
         state: "withdrawn",
         changed_at: "2026-08-31T09:45:00Z",
         can_withdraw: false,
+        can_grant: true,
       },
     ]);
     renderSection();
@@ -160,5 +172,48 @@ describe("ChildConsentsSection", () => {
     expect(
       screen.queryByRole("button", { name: "Foto-Einwilligung widerrufen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("bietet nach einem Widerruf eine neue Foto-Einwilligung an", async () => {
+    const user = userEvent.setup();
+    mockedGet.mockResolvedValue([
+      ...granted.slice(0, 3),
+      {
+        key: "photo",
+        state: "withdrawn",
+        changed_at: "2026-08-31T09:45:00Z",
+        can_withdraw: false,
+        can_grant: true,
+      },
+    ]);
+    mockedGrant.mockResolvedValue(granted);
+    renderSection();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Foto-Einwilligung erneut geben",
+      }),
+    );
+    expect(
+      screen.getByRole("heading", {
+        name: "Foto-Einwilligung erneut geben?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Die OGS darf danach wieder ein Foto hinterlegen."),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Einwilligung geben" }),
+    );
+
+    await waitFor(() => expect(mockedGrant).toHaveBeenCalledWith("42"));
+    expect(await screen.findAllByText("Hinterlegt")).toHaveLength(3);
+    expect(
+      screen.getByText("Die Foto-Einwilligung wurde erneut gegeben."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Foto-Einwilligung widerrufen" }),
+    ).toBeInTheDocument();
   });
 });

@@ -77,6 +77,7 @@ type Service interface {
 	// voluntary photo consent can be withdrawn through this interface.
 	GetChildConsents(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error)
 	WithdrawPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error)
+	GrantPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error)
 
 	GetProfile(ctx context.Context, accountID int64) (*Profile, error)
 

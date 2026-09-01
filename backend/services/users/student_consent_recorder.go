@@ -18,12 +18,14 @@ const (
 
 // StudentConsentState is the current staff/parent-facing state of one consent
 // or required acknowledgement. ChangedAt is the grant/withdrawal time when
-// known. CanWithdraw is decided by the calling portal's permission check.
+// known. CanWithdraw and CanGrant are decided by the calling portal's
+// permission check and the recorded state.
 type StudentConsentState struct {
 	Key         string
 	State       string
 	ChangedAt   *time.Time
 	CanWithdraw bool
+	CanGrant    bool
 }
 
 // StudentConsentChangeRecorder appends audit rows for effective changes to
@@ -42,7 +44,7 @@ type StudentConsentChangeRecorder interface {
 // latest photo withdrawal into one shared projection. Both portals use this so
 // staff cannot see a different state than parents.
 type StudentConsentStateReader interface {
-	CurrentStates(ctx context.Context, student *userModels.Student, canWithdrawPhoto bool) ([]StudentConsentState, error)
+	CurrentStates(ctx context.Context, student *userModels.Student, canManagePhoto bool) ([]StudentConsentState, error)
 }
 
 type StudentConsentService interface {
@@ -61,7 +63,7 @@ func NewStudentConsentService(repo auditModels.StudentConsentChangeRepository) S
 func (r *studentConsentService) CurrentStates(
 	ctx context.Context,
 	student *userModels.Student,
-	canWithdrawPhoto bool,
+	canManagePhoto bool,
 ) ([]StudentConsentState, error) {
 	if r == nil || r.repo == nil {
 		return nil, fmt.Errorf("student consent reader: repository not wired")
@@ -87,7 +89,7 @@ func (r *studentConsentService) CurrentStates(
 	photo := currentConsentFromTimestamp(
 		auditModels.StudentConsentPhoto,
 		student.PhotoConsentGivenAt,
-		canWithdrawPhoto,
+		canManagePhoto,
 	)
 	if latestPhotoChange != nil && latestPhotoChange.Action == auditModels.StudentConsentWithdrawn {
 		changedAt := latestPhotoChange.CreatedAt
@@ -95,6 +97,7 @@ func (r *studentConsentService) CurrentStates(
 			Key:       auditModels.StudentConsentPhoto,
 			State:     StudentConsentStateWithdrawn,
 			ChangedAt: &changedAt,
+			CanGrant:  canManagePhoto,
 		}
 	}
 

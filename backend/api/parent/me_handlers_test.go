@@ -70,6 +70,8 @@ type fakeParentService struct {
 	consentsErr        error
 	withdrawConsents   []parentService.ChildConsent
 	withdrawConsentErr error
+	grantConsents      []parentService.ChildConsent
+	grantConsentErr    error
 	gotConsentAccount  int64
 	gotConsentStudent  int64
 }
@@ -123,6 +125,11 @@ func (f *fakeParentService) WithdrawPhotoConsent(_ context.Context, accountID, s
 	f.gotConsentAccount = accountID
 	f.gotConsentStudent = studentID
 	return f.withdrawConsents, f.withdrawConsentErr
+}
+func (f *fakeParentService) GrantPhotoConsent(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.grantConsents, f.grantConsentErr
 }
 func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string, []int64) (*parentService.SickNoteResult, error) {
 	return &parentService.SickNoteResult{}, nil

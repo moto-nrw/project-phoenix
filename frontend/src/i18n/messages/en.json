@@ -1584,7 +1584,7 @@
     },
     "consents": {
       "title": "Consents and confirmations",
-      "description": "Here you can see what is stored for your child. You can only withdraw photo consent here.",
+      "description": "Here you can see your child's consents. You can change photo consent here.",
       "items": {
         "agb": "General terms and conditions",
         "data_processing": "Privacy information acknowledged",
@@ -1612,7 +1612,15 @@
       "success": "Photo consent was withdrawn. If a photo was stored, it was deleted.",
       "loadError": "The consents could not be loaded. Please try again.",
       "retry": "Try again",
-      "withdrawError": "Photo consent could not be withdrawn. Please try again."
+      "withdrawError": "Photo consent could not be withdrawn. Please try again.",
+      "grantButton": "Give photo consent again",
+      "grantButtonShort": "Give again",
+      "grantConfirmTitle": "Give photo consent again?",
+      "grantConfirmBody": "The OGS may store a photo again afterwards.",
+      "grantConfirmButton": "Give consent",
+      "granting": "Saving",
+      "grantSuccess": "Photo consent was given again.",
+      "grantError": "Photo consent could not be saved. Please try again."
     }
   },
   "parentMessages": {

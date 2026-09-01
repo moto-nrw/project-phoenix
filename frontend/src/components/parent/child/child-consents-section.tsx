@@ -14,10 +14,13 @@ import {
 import { formatBerlinDate } from "~/lib/date-helpers";
 import {
   getChildConsents,
+  grantChildPhotoConsent,
   withdrawChildPhotoConsent,
   type ChildConsent,
   type ChildConsentState,
 } from "~/lib/parent-api";
+
+type PhotoConsentAction = "withdraw" | "grant";
 
 export function ChildConsentsSection({
   studentId,
@@ -27,10 +30,15 @@ export function ChildConsentsSection({
   const [consents, setConsents] = useState<ChildConsent[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
-  const [withdrawing, setWithdrawing] = useState(false);
-  const [withdrawFailed, setWithdrawFailed] = useState(false);
-  const [withdrawn, setWithdrawn] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PhotoConsentAction | null>(
+    null,
+  );
+  const [submittingAction, setSubmittingAction] = useState(false);
+  const [failedAction, setFailedAction] = useState<PhotoConsentAction | null>(
+    null,
+  );
+  const [successfulAction, setSuccessfulAction] =
+    useState<PhotoConsentAction | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -50,17 +58,24 @@ export function ChildConsentsSection({
     };
   }, [reloadKey, studentId]);
 
-  async function confirmWithdrawal() {
-    setWithdrawing(true);
-    setWithdrawFailed(false);
+  async function confirmAction() {
+    const action = pendingAction;
+    if (!action) return;
+
+    setSubmittingAction(true);
+    setFailedAction(null);
     try {
-      setConsents(await withdrawChildPhotoConsent(studentId));
-      setWithdrawOpen(false);
-      setWithdrawn(true);
+      const updatedConsents =
+        action === "grant"
+          ? await grantChildPhotoConsent(studentId)
+          : await withdrawChildPhotoConsent(studentId);
+      setConsents(updatedConsents);
+      setPendingAction(null);
+      setSuccessfulAction(action);
     } catch {
-      setWithdrawFailed(true);
+      setFailedAction(action);
     } finally {
-      setWithdrawing(false);
+      setSubmittingAction(false);
     }
   }
 
@@ -100,9 +115,17 @@ export function ChildConsentsSection({
         description={t("description")}
         concept="confirmations"
       >
-        {withdrawn ? <Alert type="success" message={t("success")} /> : null}
-        {withdrawFailed ? (
+        {successfulAction === "withdraw" ? (
+          <Alert type="success" message={t("success")} />
+        ) : null}
+        {successfulAction === "grant" ? (
+          <Alert type="success" message={t("grantSuccess")} />
+        ) : null}
+        {failedAction === "withdraw" ? (
           <Alert type="error" message={t("withdrawError")} />
+        ) : null}
+        {failedAction === "grant" ? (
+          <Alert type="error" message={t("grantError")} />
         ) : null}
         <ul className="divide-y divide-gray-100">
           {visibleConsents.map((consent) => (
@@ -132,11 +155,32 @@ export function ChildConsentsSection({
                       className="text-moto-red-strong hover:text-moto-red-strong mt-1 h-auto min-h-12 px-0 underline-offset-4 hover:bg-transparent hover:underline"
                       aria-label={t("withdrawButton")}
                       onClick={() => {
-                        setWithdrawFailed(false);
-                        setWithdrawOpen(true);
+                        setFailedAction(null);
+                        setSuccessfulAction(null);
+                        setPendingAction("withdraw");
                       }}
                     >
                       {t("withdrawButtonShort")}
+                    </Button>
+                  </div>
+                ) : null}
+                {consent.key === "photo" &&
+                consent.state === "withdrawn" &&
+                consent.can_grant ? (
+                  <div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="compact"
+                      className="text-moto-green-strong hover:text-moto-green-strong mt-1 h-auto min-h-12 px-0 underline-offset-4 hover:bg-transparent hover:underline"
+                      aria-label={t("grantButton")}
+                      onClick={() => {
+                        setFailedAction(null);
+                        setSuccessfulAction(null);
+                        setPendingAction("grant");
+                      }}
+                    >
+                      {t("grantButtonShort")}
                     </Button>
                   </div>
                 ) : null}
@@ -152,21 +196,35 @@ export function ChildConsentsSection({
         </ul>
       </ParentSection>
       <ConfirmationModal
-        isOpen={withdrawOpen}
-        onClose={() => setWithdrawOpen(false)}
-        onConfirm={() => void confirmWithdrawal()}
-        title={t("confirmTitle")}
-        confirmText={t("confirmButton")}
+        isOpen={pendingAction !== null}
+        onClose={() => setPendingAction(null)}
+        onConfirm={() => void confirmAction()}
+        title={
+          pendingAction === "grant" ? t("grantConfirmTitle") : t("confirmTitle")
+        }
+        confirmText={
+          pendingAction === "grant"
+            ? t("grantConfirmButton")
+            : t("confirmButton")
+        }
         cancelText={t("cancel")}
-        loadingText={t("withdrawing")}
-        isConfirmLoading={withdrawing}
-        isDismissDisabled={withdrawing}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+        loadingText={
+          pendingAction === "grant" ? t("granting") : t("withdrawing")
+        }
+        isConfirmLoading={submittingAction}
+        isDismissDisabled={submittingAction}
+        confirmButtonClass={
+          pendingAction === "withdraw"
+            ? "bg-moto-red hover:bg-moto-red-strong"
+            : undefined
+        }
         closeLabel={t("close")}
         backdropLabel={t("close")}
         mobileSheet
       >
-        <p>{t("confirmBody")}</p>
+        <p>
+          {pendingAction === "grant" ? t("grantConfirmBody") : t("confirmBody")}
+        </p>
       </ConfirmationModal>
     </>
   );

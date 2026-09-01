@@ -46,6 +46,7 @@ export type ChildConsentState = ConsentState;
 
 export interface ChildConsent extends ConsentRecord {
   readonly can_withdraw: boolean;
+  readonly can_grant: boolean;
 }
 
 // Per-child status values exposed on the enrollment-requests list.
@@ -554,6 +555,16 @@ export async function withdrawChildPhotoConsent(
 ): Promise<ChildConsent[]> {
   return deleteJson<ChildConsent[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/consents/photo`,
+  );
+}
+
+/** Records a new voluntary photo consent and returns all updated states. */
+export async function grantChildPhotoConsent(
+  studentId: string,
+): Promise<ChildConsent[]> {
+  return putJson<ChildConsent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/consents/photo`,
+    {},
   );
 }
 

@@ -1584,7 +1584,7 @@
     },
     "consents": {
       "title": "Einwilligungen und Bestätigungen",
-      "description": "Hier sehen Sie, was für Ihr Kind gespeichert ist. Nur die Foto-Einwilligung können Sie hier widerrufen.",
+      "description": "Hier sehen Sie, was für Ihr Kind gespeichert ist. Die Foto-Einwilligung können Sie hier ändern.",
       "items": {
         "agb": "Allgemeine Geschäftsbedingungen (AGB)",
         "data_processing": "Datenschutz zur Kenntnis genommen",
@@ -1612,7 +1612,15 @@
       "success": "Die Foto-Einwilligung wurde widerrufen. Falls ein Foto gespeichert war, wurde es gelöscht.",
       "loadError": "Die Einwilligungen konnten gerade nicht geladen werden. Bitte versuchen Sie es noch einmal.",
       "retry": "Erneut laden",
-      "withdrawError": "Die Foto-Einwilligung konnte nicht widerrufen werden. Bitte versuchen Sie es noch einmal."
+      "withdrawError": "Die Foto-Einwilligung konnte nicht widerrufen werden. Bitte versuchen Sie es noch einmal.",
+      "grantButton": "Foto-Einwilligung erneut geben",
+      "grantButtonShort": "Erneut geben",
+      "grantConfirmTitle": "Foto-Einwilligung erneut geben?",
+      "grantConfirmBody": "Die OGS darf danach wieder ein Foto hinterlegen.",
+      "grantConfirmButton": "Einwilligung geben",
+      "granting": "Wird gespeichert",
+      "grantSuccess": "Die Foto-Einwilligung wurde erneut gegeben.",
+      "grantError": "Die Foto-Einwilligung konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal."
     }
   },
   "parentMessages": {

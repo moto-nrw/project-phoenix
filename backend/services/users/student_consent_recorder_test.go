@@ -49,7 +49,7 @@ func TestStudentConsentServiceReturnsTheCurrentSharedPortalState(t *testing.T) {
 	states, err := NewStudentConsentService(repo).CurrentStates(
 		context.Background(),
 		student,
-		false,
+		true,
 	)
 
 	require.NoError(t, err)
@@ -60,6 +60,7 @@ func TestStudentConsentServiceReturnsTheCurrentSharedPortalState(t *testing.T) {
 	assert.Equal(t, StudentConsentStateWithdrawn, states[3].State)
 	assert.Equal(t, withdrawnAt, *states[3].ChangedAt)
 	assert.False(t, states[3].CanWithdraw)
+	assert.True(t, states[3].CanGrant)
 }
 
 func TestStudentConsentRecorderRecordsOnlyBooleanStateTransitions(t *testing.T) {

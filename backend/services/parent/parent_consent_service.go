@@ -2,6 +2,7 @@ package parent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -19,6 +20,18 @@ const (
 )
 
 type ChildConsent = usersService.StudentConsentState
+
+type photoConsentAction string
+
+const (
+	photoConsentActionWithdraw photoConsentAction = "withdraw"
+	photoConsentActionGrant    photoConsentAction = "grant"
+)
+
+// ErrPhotoConsentNotWithdrawn prevents the re-grant endpoint from becoming a
+// separate first-time consent path. A new grant here requires an append-only
+// withdrawal event from the existing consent history.
+var ErrPhotoConsentNotWithdrawn = errors.New("parent: photo consent was not withdrawn")
 
 func (s *service) GetChildConsents(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
@@ -49,6 +62,16 @@ func (s *service) GetChildConsents(ctx context.Context, accountID, studentID int
 // stored image. Repeated calls are successful without adding duplicate audit
 // entries.
 func (s *service) WithdrawPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error) {
+	return s.setPhotoConsent(ctx, accountID, studentID, photoConsentActionWithdraw)
+}
+
+// GrantPhotoConsent records a new voluntary photo consent after a withdrawal.
+// It never restores a photo deleted by the earlier withdrawal.
+func (s *service) GrantPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error) {
+	return s.setPhotoConsent(ctx, accountID, studentID, photoConsentActionGrant)
+}
+
+func (s *service) setPhotoConsent(ctx context.Context, accountID, studentID int64, action photoConsentAction) ([]ChildConsent, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionConsentManage)
 	if err != nil {
 		return nil, err
@@ -77,20 +100,43 @@ func (s *service) WithdrawPhotoConsent(ctx context.Context, accountID, studentID
 		if loadErr != nil {
 			return loadErr
 		}
-		if student.PhotoConsentGivenAt != nil {
+		granting := action == photoConsentActionGrant
+		if granting && student.PhotoConsentGivenAt == nil {
+			currentStates, stateErr := s.StudentConsents.CurrentStates(txCtx, student, true)
+			if stateErr != nil {
+				return stateErr
+			}
+			wasWithdrawn := false
+			for _, consent := range currentStates {
+				if consent.Key == auditModels.StudentConsentPhoto {
+					wasWithdrawn = consent.State == usersService.StudentConsentStateWithdrawn
+					break
+				}
+			}
+			if !wasWithdrawn {
+				return ErrPhotoConsentNotWithdrawn
+			}
+		}
+		stateChanged := (granting && student.PhotoConsentGivenAt == nil) || (!granting && student.PhotoConsentGivenAt != nil)
+		if stateChanged {
 			changedAt := s.now()
 			before := *student
 			storedURL := ""
-			if student.PhotoPath != nil {
-				storedURL = *student.PhotoPath
+			actorID := accountID
+			if granting {
+				student.PhotoConsentGivenAt = &changedAt
+				student.PhotoConsentGivenBy = &actorID
+			} else {
+				if student.PhotoPath != nil {
+					storedURL = *student.PhotoPath
+				}
+				student.PhotoPath = nil
+				student.PhotoConsentGivenAt = nil
+				student.PhotoConsentGivenBy = nil
 			}
-			student.PhotoPath = nil
-			student.PhotoConsentGivenAt = nil
-			student.PhotoConsentGivenBy = nil
 			if updateErr := s.StudentRepo.Update(txCtx, student); updateErr != nil {
 				return updateErr
 			}
-			actorID := accountID
 			if auditErr := s.StudentConsents.RecordTransitions(
 				txCtx,
 				&before,
@@ -101,7 +147,7 @@ func (s *service) WithdrawPhotoConsent(ctx context.Context, accountID, studentID
 			); auditErr != nil {
 				return auditErr
 			}
-			if storedURL != "" {
+			if !granting && storedURL != "" {
 				if s.StudentPhotos == nil {
 					return fmt.Errorf("parent: student photo service not wired")
 				}
@@ -117,7 +163,7 @@ func (s *service) WithdrawPhotoConsent(ctx context.Context, accountID, studentID
 		return loadErr
 	})
 	if err != nil {
-		return nil, fmt.Errorf("parent: withdraw photo consent: %w", err)
+		return nil, fmt.Errorf("parent: set photo consent: %w", err)
 	}
 	return consents, nil
 }

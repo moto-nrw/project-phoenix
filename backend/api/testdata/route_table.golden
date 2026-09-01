@@ -986,6 +986,7 @@ PUT /operator/schools/{id}/accounts/{accountId}/mfa/override
 PUT /operator/schools/{id}/settings/values/{key}
 PUT /parent/me/children/{studentId}/care-offerings/requests/{requestId}
 PUT /parent/me/children/{studentId}/care-schedule/requests/{requestId}
+PUT /parent/me/children/{studentId}/consents/photo
 PUT /parent/me/children/{studentId}/excused-requests/{requestId}
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup

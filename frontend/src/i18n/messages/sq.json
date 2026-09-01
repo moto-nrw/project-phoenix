@@ -1584,7 +1584,7 @@
     },
     "consents": {
       "title": "Pëlqimet dhe konfirmimet",
-      "description": "Këtu shihni çfarë është ruajtur për fëmijën tuaj. Këtu mund të tërhiqni vetëm pëlqimin për fotografinë.",
+      "description": "Këtu shihni pëlqimet për fëmijën tuaj. Këtu mund të ndryshoni pëlqimin për fotografinë.",
       "items": {
         "agb": "Kushtet e përgjithshme",
         "data_processing": "Informacioni për privatësinë u pranua",
@@ -1612,7 +1612,15 @@
       "success": "Pëlqimi për fotografinë u tërhoq. Nëse kishte një fotografi të ruajtur, ajo u fshi.",
       "loadError": "Pëlqimet nuk mund të ngarkoheshin. Ju lutemi provoni përsëri.",
       "retry": "Provo përsëri",
-      "withdrawError": "Pëlqimi për fotografinë nuk mund të tërhiqej. Ju lutemi provoni përsëri."
+      "withdrawError": "Pëlqimi për fotografinë nuk mund të tërhiqej. Ju lutemi provoni përsëri.",
+      "grantButton": "Jep përsëri pëlqimin për fotografinë",
+      "grantButtonShort": "Jep përsëri",
+      "grantConfirmTitle": "Të jepet përsëri pëlqimi për fotografinë?",
+      "grantConfirmBody": "Më pas OGS-ja mund të ruajë përsëri një fotografi.",
+      "grantConfirmButton": "Jep pëlqimin",
+      "granting": "Po ruhet",
+      "grantSuccess": "Pëlqimi për fotografinë u dha përsëri.",
+      "grantError": "Pëlqimi për fotografinë nuk mund të ruhej. Ju lutemi provoni përsëri."
     }
   },
   "parentMessages": {

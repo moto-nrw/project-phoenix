@@ -90,6 +90,11 @@ func TestWithdrawPhotoConsentRemovesPhotoAndRecordsOneHistoryEntry(t *testing.T)
 	consents, err := svc.WithdrawPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, ChildConsentState(consents, "photo"), "withdrawn")
+	for _, consent := range consents {
+		if consent.Key == "photo" {
+			assert.True(t, consent.CanGrant)
+		}
+	}
 	assert.Equal(t, []string{storedURL}, unlinker.urls)
 
 	// DELETE is idempotent: the current state stays withdrawn and the audit
@@ -102,6 +107,65 @@ func TestWithdrawPhotoConsentRemovesPhotoAndRecordsOneHistoryEntry(t *testing.T)
 	assert.Equal(t, "withdrawn", rows[0].Action)
 	assert.Equal(t, "parent_portal", rows[0].Source)
 	assert.Equal(t, chain.AccountID, *rows[0].ActorAccountID)
+}
+
+func TestGrantPhotoConsentAfterWithdrawalRecordsNewStateWithoutRestoringPhoto(t *testing.T) {
+	t.Parallel()
+
+	svc, db, repos, unlinker := buildConsentService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	now := time.Date(2026, time.August, 31, 9, 30, 0, 0, time.UTC)
+	storedURL := "/uploads/students/portrait.jpg"
+	student, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	require.NoError(t, err)
+	student.PhotoConsentGivenAt = &now
+	student.PhotoPath = &storedURL
+	require.NoError(t, repos.Student.Update(testpkg.Ctx(t), student))
+
+	_, err = svc.WithdrawPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	consents, err := svc.GrantPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.Equal(t, "granted", ChildConsentState(consents, "photo"))
+	assert.Equal(t, []string{storedURL}, unlinker.urls)
+
+	updated, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, updated.PhotoConsentGivenAt)
+	require.NotNil(t, updated.PhotoConsentGivenBy)
+	assert.Equal(t, chain.AccountID, *updated.PhotoConsentGivenBy)
+	assert.Nil(t, updated.PhotoPath)
+
+	// PUT is idempotent: a retry keeps the current state and does not append a
+	// second grant event.
+	_, err = svc.GrantPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	rows, err := repos.StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	assert.Equal(t, "granted", rows[0].Action)
+	assert.Equal(t, "withdrawn", rows[1].Action)
+	assert.Equal(t, "parent_portal", rows[0].Source)
+	assert.Equal(t, chain.AccountID, *rows[0].ActorAccountID)
+}
+
+func TestGrantPhotoConsentRejectsNeverRecordedConsent(t *testing.T) {
+	t.Parallel()
+
+	svc, db, repos, _ := buildConsentService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	_, err := svc.GrantPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
+	require.ErrorIs(t, err, parentService.ErrPhotoConsentNotWithdrawn)
+
+	student, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	require.NoError(t, err)
+	assert.Nil(t, student.PhotoConsentGivenAt)
+	assert.Nil(t, student.PhotoConsentGivenBy)
+
+	rows, err := repos.StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	require.NoError(t, err)
+	assert.Empty(t, rows)
 }
 
 func ChildConsentState(consents []parentService.ChildConsent, key string) string {
