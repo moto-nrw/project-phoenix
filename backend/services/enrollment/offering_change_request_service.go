@@ -2328,19 +2328,11 @@ func (s *offeringChangeRequestService) assertApplicableAt(
 	return s.assertCapacityAvailable(ctx, phase, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal)
 }
 
-func appliedOfferingChangeDate(effectiveFrom timezone.Date) timezone.Date {
-	return appliedOfferingChangeDateOn(effectiveFrom, timezone.TodayDate())
-}
-
 func appliedOfferingChangeDateOn(effectiveFrom, today timezone.Date) timezone.Date {
 	if effectiveFrom.Before(today) {
 		return today
 	}
 	return effectiveFrom
-}
-
-func appliedOfferingChangeDateForPhase(effectiveFrom timezone.Date, phase *enrollmentModels.Phase) timezone.Date {
-	return appliedOfferingChangeDateForPhaseOn(effectiveFrom, phase, timezone.TodayDate())
 }
 
 func appliedOfferingChangeDateForPhaseOn(effectiveFrom timezone.Date, phase *enrollmentModels.Phase, today timezone.Date) timezone.Date {

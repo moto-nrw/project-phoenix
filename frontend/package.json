@@ -116,6 +116,14 @@
     "ignoreDependencies": [
       "sharp",
       "lint-staged"
-    ]
+    ],
+    "playwright": {
+      "config": [],
+      "entry": [
+        "playwright.config.ts",
+        "playwright.guides.config.ts",
+        "e2e/**/*.ts"
+      ]
+    }
   }
 }
