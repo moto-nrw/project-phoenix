@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Actions recorded in audit.file_events (#2596). Mirrored by the CHECK
@@ -25,8 +23,8 @@ const (
 // the folder cascade. The actor name is snapshotted so the row still reads
 // after a rename or account deletion.
 type FileEvent struct {
-	base.Model `bun:"schema:audit,table:file_events"`
-	base.TenantModel
+	Model
+	TenantModel
 	FolderID       *int64 `bun:"folder_id" json:"folder_id,omitempty"`
 	FileID         *int64 `bun:"file_id" json:"file_id,omitempty"`
 	Action         string `bun:"action,notnull" json:"action"`

@@ -9,9 +9,7 @@ import (
 
 // calendarFixtureClockExceptions contains only tests whose purpose requires
 // the system clock. Every exact function key needs its own reviewed reason.
-var calendarFixtureClockExceptions = map[string]string{
-	"database/repositories/audit/deviation_event_repository_test.go:TestDeviationEventRepository_DeleteOlderThan": "The retention capability validates the cutoff against the database clock, so this fixture must use the current 365-day boundary.",
-}
+var calendarFixtureClockExceptions = map[string]string{}
 
 func TestCalendarFixtureClockRatchet(t *testing.T) {
 	t.Parallel()

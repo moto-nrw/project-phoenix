@@ -92,6 +92,7 @@ func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	repoFactory := repositories.NewFactory(db)
 	cfg, err := NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
+	cfg.Audit = testpkg.NewAuthEventCommand(repoFactory.AuthEvent)
 	service, err := NewService(repoFactory, cfg, db, slog.Default())
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, service, db)

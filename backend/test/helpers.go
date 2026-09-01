@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -17,6 +19,33 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
+
+type authEventCommand struct{ repo audit.AuthEventRepository }
+
+func (c authEventCommand) Append(ctx context.Context, event any) error {
+	authEvent, ok := event.(*audit.AuthEvent)
+	if !ok {
+		return fmt.Errorf("test auth event command: unsupported event %T", event)
+	}
+	return c.repo.Create(ctx, authEvent)
+}
+
+func NewAuthEventCommand(repo audit.AuthEventRepository) audit.Command {
+	return authEventCommand{repo: repo}
+}
+
+func NewAuditAuthEvent(accountID int64, ipAddress string) any {
+	return audit.NewAuthEvent(accountID, audit.EventTypeLogin, true, ipAddress)
+}
+
+func SetAuditEventTenant(event any, tenantID int64) {
+	event.(*audit.AuthEvent).SetTenantID(tenantID)
+}
+
+func AuditEventIdentity(event any) (tenantID, eventID, accountID int64) {
+	authEvent := event.(*audit.AuthEvent)
+	return authEvent.TenantID, authEvent.ID, authEvent.AccountID
+}
 
 // Database aliases and constructors keep migration tests on the shared test
 // support boundary instead of adding test-only dependencies to production
@@ -159,7 +188,8 @@ func SetupServeTestDB(t *testing.T) *bun.DB {
 // Without tenant context, EnsureTenantID silently leaves tenant_id=0, which violates
 // FK constraints on tenant-scoped tables.
 func TenantContext(tenantID int64) context.Context {
-	return tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
+	ctx := tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
+	return audit.WithTenantID(ctx, tenantID)
 }
 
 // TenantScope owns a unique tenant for a test and provides the matching context.

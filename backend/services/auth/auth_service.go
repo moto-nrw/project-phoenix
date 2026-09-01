@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -44,6 +45,7 @@ type ServiceConfig struct {
 	RateLimitEnabled    bool
 	TokenAuth           *jwt.TokenAuth
 	Settings            configSvc.SettingsService
+	Audit               auditModels.Command
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig
@@ -87,6 +89,7 @@ type Service struct {
 	db                  *bun.DB
 	logger              *slog.Logger
 	settings            configSvc.SettingsService
+	audit               auditModels.Command
 	tenantRuntime       *tenant.UnitOfWork
 	// mfaService is optional. When non-nil and an account requires MFA the
 	// login flow returns a challenge token instead of an access/refresh
@@ -159,6 +162,7 @@ func NewService(
 		db:                  db,
 		logger:              logger,
 		settings:            config.Settings,
+		audit:               config.Audit,
 	}, nil
 }
 

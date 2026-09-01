@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -45,6 +46,7 @@ type cleanupContext struct {
 	TenantRuntime              tenant.UnitOfWork
 	Output                     io.Writer
 	Logger                     *log.Logger
+	Audit                      services.AuditCommand
 }
 
 type authCleanupService interface {
@@ -148,24 +150,27 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	tenantRuntime, err := tenant.NewUnitOfWork(
+	tenantRuntime, err := services.BindTenantRuntime(
 		postgresRuntime.WithinTenant,
 		postgresRuntime.WithinAdmin,
-		tenant.SavepointFunc(postgresRuntime),
+		postgresRuntime,
 		database.IsRetryableTransactionError,
 	)
 	if err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	tenantRuntime = tenantRuntime.WithTransactionDetacher(postgresRuntime.ContextWithoutTransaction)
-	tenantRuntime = tenantRuntime.WithContextAdapters(postgresRuntime.ContextWithTenant, postgresRuntime.ContextWithTransaction)
-
+	auditCommand, err := services.NewCleanupAuditCommand(slog.Default().With("service", "cleanup-cli"))
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &cleanupContext{
 		DB:            db,
 		TenantRuntime: tenantRuntime,
 		Output:        os.Stdout,
 		Logger:        log.Default(),
+		Audit:         auditCommand,
 	}, nil
 }
 
@@ -186,7 +191,7 @@ func newCleanupContextWithAuthCleanup() (*cleanupContext, error) {
 }
 
 func buildAuthCleanupService(ctx *cleanupContext) authCleanupService {
-	return services.NewAuthCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "auth-cleanup-cli"))
+	return services.NewAuthCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
 }
 
 func newCleanupContextWithInvitationCleanup() (*cleanupContext, error) {
@@ -250,7 +255,7 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 }
 
 func buildRetentionCleanupService(ctx *cleanupContext) active.CleanupService {
-	return services.NewRetentionCleanupService(ctx.DB, slog.Default().With("service", "retention-cleanup-cli"))
+	return services.NewRetentionCleanupService(ctx.DB, slog.Default().With("service", "retention-cleanup-cli"), ctx.Audit)
 
 }
 
@@ -274,7 +279,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 }
 
 func buildTimetableCleanupService(ctx *cleanupContext) schedule.TimetableCleanupService {
-	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "timetable-cleanup-cli"))
+	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
 }
 
 // newCleanupContextWithTimeTrackingCleanup initializes database + time-tracking
@@ -298,7 +303,7 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 }
 
 func buildTimeTrackingCleanupService(ctx *cleanupContext) active.TimeTrackingCleanupService {
-	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "time-tracking-cleanup-cli"))
+	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
 }
 
 // Close releases database resources.
@@ -461,20 +466,15 @@ type recentDeletionRow struct {
 
 // queryRecentDeletions fetches recent deletion activity from the audit table.
 func queryRecentDeletions(ctx context.Context, db *bun.DB) ([]recentDeletionRow, error) {
-	var deletions []recentDeletionRow
-
-	err := db.NewRaw(`
-		SELECT
-			TO_CHAR(deleted_at, 'YYYY-MM-DD') as date,
-			SUM(records_deleted) as records_deleted,
-			COUNT(DISTINCT student_id) as student_count
-		FROM audit.data_deletions
-		WHERE deletion_type = 'visit_retention'
-			AND deleted_at >= NOW() - INTERVAL '30 days'
-		GROUP BY TO_CHAR(deleted_at, 'YYYY-MM-DD')
-		ORDER BY date DESC
-		LIMIT 10
-	`).Scan(ctx, &deletions)
-
-	return deletions, err
+	summaries, err := repositories.ListRecentAuditRetentionSummaries(ctx, db, time.Now().AddDate(0, 0, -30), 10)
+	if err != nil {
+		return nil, err
+	}
+	deletions := make([]recentDeletionRow, len(summaries))
+	for index, summary := range summaries {
+		deletions[index] = recentDeletionRow{
+			Date: summary.Date, RecordsDeleted: summary.RecordsDeleted, StudentCount: summary.StudentCount,
+		}
+	}
+	return deletions, nil
 }

@@ -94,6 +94,7 @@ func devRouter(parentCtx context.Context, res *Resource) chi.Router {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(res.DB))
 	r.Post("/instances/{id}/deviations", res.applyDeviations)
 	return r
 }

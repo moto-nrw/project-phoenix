@@ -456,6 +456,31 @@ func createGhostRecords(db rawDB) {
 	}
 }
 
+func TestCheckAllowsOwnershipForViewCreatedByUntrackedCandidateMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+`)
+
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_create_ghost_view.go"), `package migrations
+
+func createGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE VIEW ghost.records AS SELECT 1 AS id;`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "1 legacy violation(s) remain") {
+		t.Fatalf("new view ownership with an untracked candidate migration was rejected: %v\n%s", err, output)
+	}
+}
+
 func TestCheckRejectsOwnershipBackfilledThroughModifiedMigration(t *testing.T) {
 	t.Parallel()
 
@@ -773,11 +798,23 @@ func runRepositoryCheck(t *testing.T, repo, baseRef string) (string, error) {
 
 func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	output, err := processOutput(dir, nil, "git", append([]string{"-C", dir}, args...)...)
+	output, err := processOutput(dir, gitTestEnvironment(), "git", append([]string{"-C", dir}, args...)...)
 	if err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, output)
 	}
 	return string(output)
+}
+
+func gitTestEnvironment() []string {
+	var environment []string
+	for _, variable := range os.Environ() {
+		if strings.HasPrefix(variable, "GIT_CONFIG=") || strings.HasPrefix(variable, "GIT_CONFIG_COUNT=") ||
+			strings.HasPrefix(variable, "GIT_CONFIG_KEY_") || strings.HasPrefix(variable, "GIT_CONFIG_VALUE_") {
+			continue
+		}
+		environment = append(environment, variable)
+	}
+	return environment
 }
 
 func readFile(t *testing.T, path string) string {

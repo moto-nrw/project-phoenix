@@ -48,6 +48,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 
 	authCfg, err := authSvcPkg.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
+	authCfg.Audit = testpkg.NewAuthEventCommand(repos.AuthEvent)
 	authService, err := authSvcPkg.NewService(repos, authCfg, db, nil)
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, authService, db)
