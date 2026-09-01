@@ -40,6 +40,15 @@ const (
 	attachmentStorageKind = "announcement-attachments"
 )
 
+// Beide Meldungen erreichen eine Person in der Schule und sagen, was als
+// Nächstes zu tun ist — nicht nur, dass etwas fehlgeschlagen ist.
+var (
+	//nolint:staticcheck // ST1005: user-facing German message
+	errAnnouncementPublished = errors.New("Die Mitteilung ist schon veröffentlicht. Ziehen Sie sie zurück, um Anhänge zu ändern.")
+	//nolint:staticcheck // ST1005: user-facing German message
+	errAttachmentLimit = errors.New("Diese Mitteilung hat schon die höchstmögliche Zahl an Anhängen.")
+)
+
 // AnnouncementAttachmentResponse is one attachment on the wire.
 type AnnouncementAttachmentResponse struct {
 	ID          string    `json:"id"`
@@ -143,12 +152,10 @@ func renderAttachmentError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, filestoreSvc.ErrAttachmentAnnouncementPublished):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
-			errors.New("Die Mitteilung ist schon veröffentlicht. Ziehen Sie sie zurück, um Anhänge zu ändern."),
-			"announcement_published"))
+			errAnnouncementPublished, "announcement_published"))
 	case errors.Is(err, filestoreSvc.ErrAttachmentLimitReached):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
-			errors.New("Diese Mitteilung hat schon die höchstmögliche Zahl an Anhängen."),
-			"attachment_limit_reached"))
+			errAttachmentLimit, "attachment_limit_reached"))
 	default:
 		renderError(w, r, err)
 	}

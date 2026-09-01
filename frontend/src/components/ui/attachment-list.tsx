@@ -7,8 +7,11 @@ import { formatBytes, isViewableInBrowser } from "~/lib/files-api";
 
 /**
  * One attached file, in the shape both the staff and the parents side use.
+ * Deliberately not exported: both callers pass their own domain type, which
+ * matches structurally — exporting a third name for the same shape would only
+ * invite it to drift.
  */
-export interface AttachmentListItem {
+interface AttachmentListItem {
   id: string;
   filename: string;
   size_bytes: number;
