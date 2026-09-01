@@ -210,11 +210,11 @@ case "$tool" in
             local tok=$1 go_path files go_file rel
             go_path=$(command -v go 2>/dev/null) || deny_untracked go
             vet_executable "$go_path" || deny_untracked go
-            files=$(cd "$curdir" && "$go_path" list -deps -json "$tok" |
+            files=$(cd "$curdir" && "$go_path" list -deps -test -json "$tok" |
                 jq -r --arg root "$root" '
                     select(.Dir == $root or (.Dir | startswith($root + "/"))) |
                     .Dir as $dir |
-                    (.GoFiles[]?, .CgoFiles[]?, .CFiles[]?, .CXXFiles[]?, .MFiles[]?, .HFiles[]?, .SFiles[]?, .SysoFiles[]?, .EmbedFiles[]?) |
+                    (.GoFiles[]?, .CgoFiles[]?, .CFiles[]?, .CXXFiles[]?, .MFiles[]?, .HFiles[]?, .SFiles[]?, .SysoFiles[]?, .EmbedFiles[]?, .TestGoFiles[]?, .XTestGoFiles[]?) |
                     $dir + "/" + .
                 ') || deny_untracked "$tok"
             [[ -n "$files" ]] || deny_untracked "$tok"
@@ -254,17 +254,33 @@ EOF
         }
 
         vet_go_command() {
+            local tok has_package=false
             while [[ $# -gt 0 ]]; do
                 case "$(clean_token "$1")" in
                     -C|-C*) deny "Blocked: go -C changes the executable resolution directory and cannot be inspected by the absolute-rule guard." ;;
                     run) shift; vet_go_run "$@"; return 0 ;;
                     test)
                         shift
-                        for tok in "$@"; do
-                            case "$(clean_token "$tok")" in
+                        while [[ $# -gt 0 ]]; do
+                            tok=$(clean_token "$1")
+                            case "$tok" in
                                 -exec|-exec=*) deny "Blocked: go test -exec can launch an untracked program." ;;
+                                --) deny "Blocked: go test arguments after -- cannot be inspected by the absolute-rule guard." ;;
+                                -bench|-benchtime|-count|-coverprofile|-cpu|-list|-p|-parallel|-run|-shuffle|-timeout|-vet)
+                                    shift
+                                    [[ $# -gt 0 ]] || deny "Blocked: go test flag $tok needs an argument."
+                                    ;;
+                                -a|-asan|-cover|-failfast|-fullpath|-json|-msan|-race|-short|-trimpath|-v|-work|-x) ;;
+                                -*) deny "Blocked: go test flag $tok can change the executed source set and cannot be inspected by the absolute-rule guard." ;;
+                                .|./*|../*|/*)
+                                    vet_go_dependencies "$tok"
+                                    has_package=true
+                                    ;;
+                                *) deny "Blocked: go test may test only tracked local packages." ;;
                             esac
+                            shift
                         done
+                        "$has_package" || vet_go_dependencies .
                         return 0
                         ;;
                     *) return 0 ;;
@@ -295,6 +311,9 @@ EOF
                     ;;
                 PATH)
                     deny "Blocked: PATH can change which executable runs. Use the configured toolchain path directly."
+                    ;;
+                GO*|CGO_*|CC|CXX|AR|AS|LD|RANLIB|PKG_CONFIG)
+                    deny "Blocked: $name can alter Go toolchain execution. Set toolchain configuration only inside a tracked wrapper."
                     ;;
             esac
         }
@@ -466,6 +485,12 @@ EOF
                     ;;
                 eval)
                     deny "Blocked: eval builds its command at runtime and cannot be inspected by the absolute-rule guard. Write the command out directly."
+                    ;;
+                trap)
+                    deny "Blocked: trap handlers execute later and cannot be inspected by the absolute-rule guard. Write the command out directly."
+                    ;;
+                pushd|popd)
+                    deny "Blocked: $first changes the executable resolution directory and cannot be inspected by the absolute-rule guard. Use cd with an explicit tracked path instead."
                     ;;
                 bash | sh | zsh | source | .)
                     shift

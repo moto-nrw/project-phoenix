@@ -22,7 +22,7 @@ sweep() {
   if ! go run ./internal/testdb/cmd/sweep && [ "$status" -eq 0 ]; then
     status=1
   fi
-  [ -n "${PHX_TEST_RUN_LOCK:-}" ] && rm -rf "$PHX_TEST_RUN_LOCK"
+  [ -n "${PHX_TEST_RUN_LOCK:-}" ] && rm -f "$PHX_TEST_RUN_LOCK"
   return "$status"
 }
 # Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im

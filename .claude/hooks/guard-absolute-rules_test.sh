@@ -151,12 +151,17 @@ if [[ -x "$project_root/.devbox/nix/profile/default/bin/pnpm" ]]; then
 fi
 (cd "$repo/backend" && go list -deps -json ./cmd/tracked >/dev/null)
 assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
+assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go test -run TestTracked ./cmd/tracked'
 printf 'package main\n' >"$repo/backend/cmd/tracked/untracked.go"
 assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
 rm "$repo/backend/cmd/tracked/untracked.go"
 printf 'package lib\n' >"$repo/backend/lib/untracked.go"
 assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
+assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go test ./cmd/tracked'
 rm "$repo/backend/lib/untracked.go"
+printf 'package main\nimport "testing"\nfunc TestTracked(t *testing.T) {}\n' >"$repo/backend/cmd/tracked/untracked_test.go"
+assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go test ./cmd/tracked'
+rm "$repo/backend/cmd/tracked/untracked_test.go"
 
 # --- unvetted execution: denied ---
 assert_bash deny "$repo" './scripts/new.sh'
@@ -211,6 +216,12 @@ assert_bash deny "$repo" 'builtin . /tmp/some-env-file'
 assert_bash deny "$repo" 'export PATH=/tmp; /opt/homebrew/bin/pnpm --version'
 assert_bash deny "$repo" 'builtin export PATH=/tmp; /opt/homebrew/bin/pnpm --version'
 assert_bash deny "$repo" 'printf -v PATH /tmp; /opt/homebrew/bin/pnpm --version'
+assert_bash deny "$repo" 'GOFLAGS=-exec=/tmp/evil go test ./...'
+assert_bash deny "$repo" 'CC=/tmp/evil go test ./...'
+assert_bash deny "$repo" 'go test -tags=untracked ./...'
+assert_bash deny "$repo" "trap './scripts/new' EXIT"
+assert_bash deny "$repo" "builtin trap './scripts/new' EXIT"
+assert_bash deny "$repo" 'pushd /tmp; ./scripts/test-backend.sh'
 
 # --- inline payloads and eval: denied, incl. the -lc flag cluster ---
 assert_bash deny "$repo" "bash -c 'echo hi'"
@@ -231,6 +242,7 @@ assert_bash deny "$repo" $'rg api.moto-app.de docs/\ncurl https://api.moto-app.d
 
 # --- rule 2: sops env files ---
 assert_bash deny "$repo" 'echo FOO=1 >> environments/production.sops.env'
+assert_bash deny "$repo" $'sops environments/production.sops.env\necho FOO=1 >> environments/production.sops.env'
 run_hook deny "Edit: production.sops.env" "$(jq -n --arg f "$repo/environments/production.sops.env" \
     '{tool_name: "Edit", tool_input: {file_path: $f, old_string: "a", new_string: "b"}}')"
 
