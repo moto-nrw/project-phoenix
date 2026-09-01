@@ -15,8 +15,10 @@
 //   ui-kit/no-hand-rolled-surface   — hand-built card surfaces
 //                                     (`rounded-xl/2xl` + `border` + `bg-white`)
 //                                     outside src/components/ui/; use
-//                                     moto-content-surface or a kit surface
-//                                     component (issue #2933)
+//                                     moto-content-surface (cards),
+//                                     moto-popover-surface (floating menus),
+//                                     ChoiceTile (selectable rows) or a kit
+//                                     surface component (issue #2933)
 //   ui-kit/no-rounded-3xl           — off-scale surface radius; cards are
 //                                     rounded-2xl (moto-content-surface)
 //   ui-kit/require-checkbox-label   — every shared Checkbox is wrapped by a
@@ -32,10 +34,9 @@ const SURFACE_BASELINE = new Map([
   ["src/app/[tenant]/(protected)/activities/page.tsx", 1],
   ["src/app/[tenant]/(protected)/database/page-skeleton.tsx", 1],
   ["src/app/[tenant]/(protected)/database/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/database/personal/import/page.tsx", 4],
-  ["src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx", 7],
-  ["src/app/[tenant]/(protected)/database/students/class-list/import/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/database/students/import/page.tsx", 4],
+  ["src/app/[tenant]/(protected)/database/personal/import/page.tsx", 3],
+  ["src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx", 6],
+  ["src/app/[tenant]/(protected)/database/students/import/page.tsx", 3],
   ["src/app/[tenant]/(protected)/day-log/page.tsx", 1],
   ["src/app/[tenant]/(protected)/info-displays/page.tsx", 1],
   ["src/app/[tenant]/(protected)/lists/page.tsx", 5],
@@ -58,17 +59,12 @@ const SURFACE_BASELINE = new Map([
   ["src/app/operator/organizations/[slug]/schools/[schoolSlug]/page.tsx", 2],
   ["src/app/operator/organizations/page.tsx", 1],
   ["src/app/operator/persons/page.tsx", 1],
-  ["src/app/operator/schools/[id]/settings/page.tsx", 1],
-  ["src/app/operator/settings/page.tsx", 2],
   ["src/app/parents/accept-guardian-invite/[token]/page.tsx", 1],
   ["src/app/start/page.tsx", 2],
   ["src/components/active-supervisions/planned-now-section.tsx", 1],
   ["src/components/active-supervisions/spontaneous-activity-start.tsx", 1],
-  ["src/components/activities/quick-create-modal.tsx", 2],
   ["src/components/admin/guardian-approval-queue.tsx", 2],
-  ["src/components/admin/invitation-form.tsx", 1],
-  ["src/components/admin/pending-invitations-list.tsx", 2],
-  ["src/components/auth/auth-shell.tsx", 3],
+  ["src/components/auth/auth-shell.tsx", 2],
   ["src/components/auth/role-permission-management-modal.tsx", 1],
   ["src/components/calendar/personal-calendar.tsx", 1],
   ["src/components/class-day/student-row.tsx", 1],
@@ -82,17 +78,14 @@ const SURFACE_BASELINE = new Map([
   ["src/components/enrollment/admin-enrollment-deletion-modal.tsx", 1],
   ["src/components/enrollment/admin-enrollment-phase-detail.tsx", 3],
   ["src/components/enrollment/admin-enrollments-list.tsx", 1],
-  ["src/components/enrollment/care-offerings-editor.tsx", 1],
-  ["src/components/enrollment/enrollment-form-editor.tsx", 7],
+  ["src/components/enrollment/enrollment-form-editor.tsx", 6],
   ["src/components/enrollment/enrollment-form.tsx", 3],
   ["src/components/enrollment/enrollment-status-view.tsx", 7],
   ["src/components/enrollment/phase-enrollment-actions.tsx", 1],
   ["src/components/enrollment/phases-editor.tsx", 1],
   ["src/components/enrollment/rollover-form.tsx", 1],
   ["src/components/groups/group-transfer-modal.tsx", 1],
-  ["src/components/guardians/student-guardian-manager.tsx", 1],
-  ["src/components/help/guide-components.tsx", 8],
-  ["src/components/help/help-search.tsx", 2],
+  ["src/components/help/guide-components.tsx", 1],
   ["src/components/import/student-row-card.tsx", 1],
   ["src/components/import/upload-section.tsx", 1],
   ["src/components/messaging/team-chat-inbox.tsx", 1],
@@ -110,11 +103,10 @@ const SURFACE_BASELINE = new Map([
   ["src/components/parent/parent-page.tsx", 1],
   ["src/components/parent/start/parent-start-page.tsx", 1],
   ["src/components/rooms/room-detail-content.tsx", 1],
-  ["src/components/rooms/students-in-room-section.tsx", 3],
-  ["src/components/rooms/transit-students-section.tsx", 3],
+  ["src/components/rooms/students-in-room-section.tsx", 2],
+  ["src/components/rooms/transit-students-section.tsx", 2],
   ["src/components/school/supervisions/supervisions-overview.tsx", 1],
   ["src/components/settings/settings-field.tsx", 2],
-  ["src/components/settings/trusted-devices-section.tsx", 1],
   ["src/components/staff/abwesenheiten-tab.tsx", 6],
   ["src/components/staff/arbeitszeitmodell-tab.tsx", 2],
   ["src/components/staff/month-close-modal.tsx", 1],
@@ -123,12 +115,10 @@ const SURFACE_BASELINE = new Map([
   ["src/components/staff/use-absence-type-select.tsx", 1],
   ["src/components/students/care-exit-modal.tsx", 1],
   ["src/components/students/care-plan-editor-modal.tsx", 2],
-  ["src/components/students/care-plan-view.tsx", 1],
   ["src/components/students/care-resume-modal.tsx", 1],
   ["src/components/students/care-schedule-manager.tsx", 1],
   ["src/components/students/care-weekly-plan-modal.tsx", 1],
   ["src/components/students/requests/conflict-decision-group.tsx", 1],
-  ["src/components/students/school-checkin-mode-mobile.tsx", 1],
   ["src/components/students/student-card-skeleton.tsx", 1],
   ["src/components/students/student-card.tsx", 1],
   ["src/components/students/student-deletion-modal.tsx", 1],
@@ -145,16 +135,20 @@ const SURFACE_BASELINE = new Map([
   ["src/components/timetable/substitution-slide-over.tsx", 2],
   ["src/components/timetable/tagesplan-view.tsx", 1],
   ["src/components/timetable/timetable-style.ts", 3],
-  ["src/components/timetable/weekly-calendar-grid.tsx", 1],
 ]);
+
 
 const BRAND_COLOR_RE =
   /\b(?:text|bg|border(?:-[trblxyse])?|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+(?:\/(?:\d+|\[[^\]\s]+\]))?(?![\w-])/g;
 const FIXED_RE = /\bfixed\b/;
 const INSET_0_RE = /\binset-0\b/;
-const SURFACE_ROUNDED_RE = /\brounded-(?:xl|2xl)\b/;
-const SURFACE_BORDER_RE = /\bborder\b/;
-const SURFACE_BG_RE = /\bbg-white\b/;
+// A surface is three UNPREFIXED tokens: `print:border`, `sm:rounded-2xl` and
+// `focus:bg-white` belong to another state, `border-0` / `border-none` /
+// `border-b` draw no frame, and `bg-white/80` is not the solid card fill.
+// `\b` accepted all of those because `-` and `:` are word boundaries.
+const SURFACE_ROUNDED_RE = /(?:^|\s)rounded-(?:xl|2xl)(?=\s|$)/;
+const SURFACE_BORDER_RE = /(?:^|\s)border(?:-[1-9]\d*)?(?=\s|$)/;
+const SURFACE_BG_RE = /(?:^|\s)bg-white(?=\s|$)/;
 const ROUNDED_3XL_RE = /\brounded-3xl\b/g;
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
@@ -372,11 +366,11 @@ const noHandRolledSurface = {
     type: "problem",
     docs: {
       description:
-        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface or a kit surface component (InfoCard, SectionCard).",
+        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (InfoCard, SectionCard).",
     },
     messages: {
       handRolledSurface:
-        "Hand-rolled card surface ('{{match}}'). Use the moto-content-surface utility or a kit surface component (InfoCard, SectionCard) instead. The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only (issue #2933).",
+        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (InfoCard, SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933). The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only.",
     },
     schema: [],
   },
@@ -444,11 +438,31 @@ function jsxName(node) {
   return node?.type === "JSXIdentifier" ? node.name : null;
 }
 
+/**
+ * `<ChoiceTile>` renders a native `<label>` unless its `as` prop says
+ * otherwise, so a Checkbox inside the default tile already owns the whole
+ * hit area. `as="button"` / `as="div"` tiles are not labels.
+ */
+function isLabelChoiceTile(openingElement) {
+  if (jsxName(openingElement.name) !== "ChoiceTile") return false;
+  const asAttribute = openingElement.attributes.find(
+    (attribute) =>
+      attribute.type === "JSXAttribute" &&
+      attribute.name.type === "JSXIdentifier" &&
+      attribute.name.name === "as",
+  );
+  if (!asAttribute) return true;
+  return (
+    asAttribute.value?.type === "Literal" && asAttribute.value.value === "label"
+  );
+}
+
 function hasLabelAncestor(node) {
   for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
+    if (ancestor.type !== "JSXElement") continue;
     if (
-      ancestor.type === "JSXElement" &&
-      jsxName(ancestor.openingElement.name) === "label"
+      jsxName(ancestor.openingElement.name) === "label" ||
+      isLabelChoiceTile(ancestor.openingElement)
     ) {
       return true;
     }
