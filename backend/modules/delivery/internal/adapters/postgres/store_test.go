@@ -239,6 +239,32 @@ func TestStoreRejectsCrossTenantEmailOutboxAttachment(t *testing.T) {
 	require.EqualError(t, err, "delivery postgres: email delivery not found")
 }
 
+func TestStoreReplaceEmailDeliveriesUsesDatabaseTimestamps(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	relatedType := "announcement"
+	relatedID := testpkg.Tenant(t)
+	address := "guardian@example.test"
+	var timestamps struct {
+		CreatedAt time.Time `bun:"created_at"`
+		UpdatedAt time.Time `bun:"updated_at"`
+	}
+	err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		if err := store.ReplaceEmailDeliveries(txCtx, testpkg.Tenant(t), relatedType, relatedID, []domain.EmailDelivery{{
+			RecipientEmail: &address, Reachability: "ok",
+		}}); err != nil {
+			return err
+		}
+		return tx.NewRaw(`SELECT created_at, updated_at FROM platform.delivery_email_deliveries
+			WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?`, testpkg.Tenant(t), relatedType, relatedID).
+			Scan(txCtx, &timestamps)
+	})
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now(), timestamps.CreatedAt, time.Minute)
+	assert.WithinDuration(t, time.Now(), timestamps.UpdatedAt, time.Minute)
+}
+
 func TestStoreProviderCancellationFinalizesUnderLeaseToken(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

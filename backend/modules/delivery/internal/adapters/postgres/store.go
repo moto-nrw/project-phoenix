@@ -499,7 +499,7 @@ func (s *Store) ReplaceEmailDeliveries(ctx context.Context, tenantID int64, rela
 			RecipientEmail: row.RecipientEmail, Reachability: row.Reachability,
 		})
 	}
-	if _, err := db.NewInsert().Model(&values).
+	if _, err := db.NewInsert().Model(&values).ExcludeColumn("created_at", "updated_at").
 		ModelTableExpr(`platform.delivery_email_deliveries AS "email_delivery"`).Exec(ctx); err != nil {
 		return fmt.Errorf("delivery postgres: replace email deliveries insert: %w", err)
 	}
