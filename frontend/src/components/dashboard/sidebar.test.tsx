@@ -2007,7 +2007,7 @@ describe("Sidebar", () => {
 
       // Unterpunkte tragen die Einrückung und kein eigenes Icon; flache
       // NAV_ITEMS rendern beides genau umgekehrt.
-      expect(abrechnungLink).toHaveClass("pl-10");
+      expect(abrechnungLink).toHaveClass("pl-11");
       expect(abrechnungLink?.querySelector("svg")).toBeNull();
     });
 
@@ -2214,6 +2214,74 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       expect(screen.getByLabelText("Tagesplan")).toBeInTheDocument();
+    });
+  });
+
+  describe("ruhiges Klappen (#2923)", () => {
+    // Ein Raster, ein Baum: eingeklappt und ausgeklappt sind dieselben
+    // Zeilen, damit beim Umschalten nichts ein zweites Mal springt.
+    const rowOf = (labelOrText: string) =>
+      screen.getByRole("link", { name: labelOrText });
+
+    it("gibt Zeilen in beiden Zuständen dasselbe Raster", () => {
+      const { rerender } = render(<Sidebar />);
+      const expandedClasses = rowOf("Aktivitäten").className;
+
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "true");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+      rerender(<Sidebar />);
+
+      // Höhe, Innenabstand und Rundung sind identisch — nur die Breite der
+      // Leiste ändert sich.
+      for (const token of ["h-10", "px-3", "rounded-lg"]) {
+        expect(expandedClasses).toContain(token);
+        expect(rowOf("Aktivitäten").className).toContain(token);
+      }
+    });
+
+    it("animiert Hülle und Inhalt mit derselben Bewegung", () => {
+      const { container } = render(<Sidebar />);
+
+      const aside = container.querySelector("aside");
+      const sticky = aside?.firstElementChild;
+      expect(aside?.className).toContain("motion-safe:transition-[width]");
+      expect(sticky?.className).toContain("motion-safe:transition-[width]");
+      // Gleiche Breite auf beiden Ebenen: der Inhalt wandert mit der Kante,
+      // statt am Ende der Bewegung noch einmal umzuspringen.
+      expect(aside?.className).toContain("w-64");
+      expect(sticky?.className).toContain("w-64");
+    });
+
+    it("blendet die Bezeichnung aus, statt sie sofort zu entfernen", async () => {
+      render(<Sidebar />);
+
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "true");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+
+      // Während der Breitenänderung steht der Text noch und blendet aus …
+      const label = screen.getByText("Aktivitäten");
+      expect(label.className).toContain("opacity-0");
+      expect(label.className).toContain("truncate");
+
+      // … und ist erst nach der Bewegung aus dem Baum verschwunden.
+      await waitFor(() =>
+        expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument(),
+      );
+      expect(screen.getByLabelText("Aktivitäten")).toBeInTheDocument();
+    });
+
+    it("hält geschlossene Bereiche aus der Tastaturreihenfolge heraus", () => {
+      render(<Sidebar />);
+
+      // Der Bereich "Eltern" ist zu; seine Unterpunkte sind unsichtbar und
+      // dürfen den Tastaturfokus nicht fangen.
+      const header = screen.getByRole("button", { name: "Eltern" });
+      const body = header.nextElementSibling?.firstElementChild;
+      expect(body).toHaveAttribute("inert");
     });
   });
 });
