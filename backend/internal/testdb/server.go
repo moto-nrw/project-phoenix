@@ -22,7 +22,9 @@ import (
 // and waits for readiness. A CI service container is already reachable, so
 // this never touches CI setups.
 func EnsureServer(ctx context.Context, cfg *Config) error {
-	return ensureServer(ctx, cfg, startTestContainer, syncLocalSuperuserPassword)
+	return ensureServer(ctx, cfg, func(ctx context.Context) error {
+		return startTestContainer(ctx, cfg)
+	}, syncLocalSuperuserPassword)
 }
 
 func ensureServer(
@@ -179,28 +181,62 @@ func pingServer(ctx context.Context, cfg *Config) error {
 // (the main checkout's directory name), shared by all worktrees.
 const composeProject = "project-phoenix"
 
-func startTestContainer(ctx context.Context) error {
+func startTestContainer(ctx context.Context, cfg *Config) error {
+	startCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+
+	cmd, err := testContainerCommand(startCtx, cfg)
+	if err != nil {
+		return err
+	}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("docker compose -p %s -f docker-compose.example.yml --profile test up -d postgres-test: %w\n%s", composeProject, err, out)
+	}
+	return nil
+}
+
+func testContainerCommand(ctx context.Context, cfg *Config) (*exec.Cmd, error) {
+	username := cfg.templateURL.User.Username()
+	password, hasPassword := cfg.templateURL.User.Password()
+	if username != "postgres" || !hasPassword || password == "" {
+		return nil, fmt.Errorf("automatic test database startup requires the postgres user with a password")
+	}
+	if host := cfg.templateURL.Hostname(); !isLoopbackHost(host) {
+		return nil, fmt.Errorf("automatic test database startup is limited to a loopback TEST_DB_DSN host, got %q", host)
+	}
+	port := cfg.templateURL.Port()
+	if port == "" {
+		port = "5432"
+	}
+
 	backend, err := backendRoot()
 	if err != nil {
-		return fmt.Errorf("locate backend module root: %w", err)
+		return nil, fmt.Errorf("locate backend module root: %w", err)
 	}
 	projectRoot := filepath.Dir(backend)
 	composeFile := filepath.Join(projectRoot, "docker-compose.example.yml")
 	if _, err := os.Stat(composeFile); err != nil {
-		return fmt.Errorf("no docker-compose.example.yml at %s", projectRoot)
+		return nil, fmt.Errorf("no docker-compose.example.yml at %s", projectRoot)
 	}
-
-	startCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
-	defer cancel()
 
 	// Fixed project name: compose derives it from the directory otherwise, so
 	// every worktree would start its own postgres-test on the same host port
 	// and collide with the one already running. One container serves all
 	// worktrees (templates are keyed by migrations hash).
-	cmd := exec.CommandContext(startCtx, "docker", "compose", "-p", composeProject, "-f", composeFile, "--profile", "test", "up", "-d", "postgres-test")
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", composeProject, "-f", composeFile, "--profile", "test", "up", "-d", "postgres-test")
 	cmd.Dir = projectRoot
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker compose -p %s -f docker-compose.example.yml --profile test up -d postgres-test: %w\n%s", composeProject, err, out)
+	cmd.Env = replaceCommandEnvironment(os.Environ(), "TEST_DB_PORT", port)
+	cmd.Env = replaceCommandEnvironment(cmd.Env, "POSTGRES_PASSWORD", password)
+	return cmd, nil
+}
+
+func replaceCommandEnvironment(environment []string, key, value string) []string {
+	prefix := key + "="
+	result := make([]string, 0, len(environment)+1)
+	for _, entry := range environment {
+		if !strings.HasPrefix(entry, prefix) {
+			result = append(result, entry)
+		}
 	}
-	return nil
+	return append(result, prefix+value)
 }

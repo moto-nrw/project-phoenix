@@ -116,6 +116,28 @@ func TestEnsureServerStartsContainerForRefusedConnection(t *testing.T) {
 	assert.Equal(t, 1, starts)
 }
 
+func TestTestContainerCommandUsesDSNConnectionSettings(t *testing.T) {
+	t.Setenv("TEST_DB_PORT", "7777")
+	t.Setenv("POSTGRES_PASSWORD", "stale-password")
+
+	cfg, err := NewConfig("postgres://postgres:pa%27ss@localhost:6543/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+
+	cmd, err := testContainerCommand(context.Background(), cfg)
+	require.NoError(t, err)
+
+	environment := make(map[string]string, len(cmd.Env))
+	for _, entry := range cmd.Env {
+		key, value, ok := strings.Cut(entry, "=")
+		if ok {
+			environment[key] = value
+		}
+	}
+	assert.Equal(t, "6543", environment["TEST_DB_PORT"])
+	assert.Equal(t, "pa'ss", environment["POSTGRES_PASSWORD"])
+	assert.NotContains(t, strings.Join(cmd.Args, " "), "pa'ss", "the password must not be exposed in process arguments")
+}
+
 func TestSyncLocalSuperuserPasswordUsesMatchingComposeService(t *testing.T) {
 	cfg, err := NewConfig("postgres://postgres:pa%27ss@localhost:5433/phoenix_test?sslmode=disable")
 	require.NoError(t, err)
