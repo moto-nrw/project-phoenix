@@ -200,6 +200,7 @@ func TestWebPushDeliverSnapshotsGDPRSafeIntent(t *testing.T) {
 	assert.Equal(t, event.DeepLink, intent.DeepLink)
 	assert.Equal(t, event.RelatedType, intent.RelatedType)
 	assert.Equal(t, event.RelatedID, intent.RelatedID)
+	assert.Equal(t, ScopeTenant, intent.AudienceScope)
 	assert.Empty(t, sender.sent, "durable delivery must not perform network I/O in the producer")
 	encoded, err := json.Marshal(intent)
 	require.NoError(t, err)

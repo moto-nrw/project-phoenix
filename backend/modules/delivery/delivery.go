@@ -94,6 +94,8 @@ type PushRecipient struct {
 	Auth           string    `json:"auth"`
 	Portal         string    `json:"portal"`
 	UpdatedAt      time.Time `json:"updated_at"`
+	AudienceScope  string    `json:"audience_scope,omitempty"`
+	StudentIDs     []int64   `json:"student_ids,omitempty"`
 }
 
 type PushPayload struct {

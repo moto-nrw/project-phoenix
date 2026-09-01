@@ -20,12 +20,13 @@ import (
 )
 
 type deliveryProvider struct {
-	registry     *platform.TemplateRegistry
-	mailer       email.Mailer
-	mailIdentity email.ReplyToResolver
-	push         delivery.PushSender
-	logger       *slog.Logger
-	db           *bun.DB
+	registry       *platform.TemplateRegistry
+	mailer         email.Mailer
+	mailIdentity   email.ReplyToResolver
+	push           delivery.PushSender
+	logger         *slog.Logger
+	db             *bun.DB
+	pushAuthorized func(context.Context, delivery.ClaimedIntent) (bool, error)
 }
 
 type guardianDisplayQuery interface {
@@ -34,6 +35,59 @@ type guardianDisplayQuery interface {
 
 type pushSubscriptionCleaner interface {
 	DeleteExpiredIfUnchanged(context.Context, *deliveryModels.PushSubscription) (bool, error)
+}
+
+type pushSubscriptionAuthorizer interface {
+	FindForTenantStaff(context.Context) ([]*deliveryModels.PushSubscription, error)
+	FindForTenantAdmins(context.Context) ([]*deliveryModels.PushSubscription, error)
+	FindForGuardians(context.Context, []int64, []int64) ([]*deliveryModels.PushSubscription, error)
+	FindForStaffAccounts(context.Context, []int64) ([]*deliveryModels.PushSubscription, error)
+	FindForSchoolAccounts(context.Context, []int64) ([]*deliveryModels.PushSubscription, error)
+}
+
+func newPushAuthorizationChecker(db *bun.DB, subscriptions pushSubscriptionAuthorizer) func(context.Context, delivery.ClaimedIntent) (bool, error) {
+	return func(ctx context.Context, intent delivery.ClaimedIntent) (bool, error) {
+		var eligible []*deliveryModels.PushSubscription
+		err := tenant.WithTenantTx(ctx, db, intent.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			var lookupErr error
+			eligible, lookupErr = eligiblePushSubscriptions(txCtx, subscriptions, intent.PushRecipient)
+			return lookupErr
+		})
+		if err != nil {
+			return false, err
+		}
+		return containsPushSubscription(eligible, intent.PushRecipient), nil
+	}
+}
+
+func eligiblePushSubscriptions(ctx context.Context, subscriptions pushSubscriptionAuthorizer, recipient delivery.PushRecipient) ([]*deliveryModels.PushSubscription, error) {
+	switch recipient.AudienceScope {
+	case string(notifications.ScopeTenant):
+		return subscriptions.FindForTenantStaff(ctx)
+	case string(notifications.ScopeAdmin):
+		return subscriptions.FindForTenantAdmins(ctx)
+	case string(notifications.ScopeGuardian):
+		return subscriptions.FindForGuardians(ctx, []int64{recipient.AccountID}, recipient.StudentIDs)
+	case string(notifications.ScopeStaff):
+		if recipient.Portal == notifications.PortalSchool {
+			return subscriptions.FindForSchoolAccounts(ctx, []int64{recipient.AccountID})
+		}
+		return subscriptions.FindForStaffAccounts(ctx, []int64{recipient.AccountID})
+	default:
+		return nil, nil
+	}
+}
+
+func containsPushSubscription(subscriptions []*deliveryModels.PushSubscription, recipient delivery.PushRecipient) bool {
+	for _, subscription := range subscriptions {
+		if subscription.ID == recipient.SubscriptionID && subscription.AccountID == recipient.AccountID &&
+			subscription.Endpoint == recipient.Endpoint && subscription.P256dh == recipient.P256DH &&
+			subscription.Auth == recipient.Auth && subscription.Portal == recipient.Portal &&
+			subscription.UpdatedAt.Equal(recipient.UpdatedAt) {
+			return true
+		}
+	}
+	return false
 }
 
 func newExpiredPushSubscriptionCleaner(db *bun.DB, subscriptions pushSubscriptionCleaner) func(context.Context, delivery.ClaimedIntent) error {
@@ -83,6 +137,7 @@ func (a durablePushAdapter) EnqueuePush(ctx context.Context, input notifications
 		Recipient: delivery.PushRecipient{
 			SubscriptionID: input.SubscriptionID, AccountID: input.AccountID, Endpoint: input.Endpoint, P256DH: input.P256DH,
 			Auth: input.Auth, Portal: input.Portal, UpdatedAt: input.UpdatedAt,
+			AudienceScope: string(input.AudienceScope), StudentIDs: input.StudentIDs,
 		},
 		Payload: delivery.PushPayload{
 			Title: input.Title, Body: input.Body, DeepLink: input.DeepLink, Type: input.Type, Priority: input.Priority,
@@ -235,5 +290,15 @@ func (p *deliveryProvider) applyReplyTo(ctx context.Context, intent delivery.Cla
 }
 
 func (p *deliveryProvider) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
+	if p.pushAuthorized == nil {
+		return delivery.ProviderResult{}, errors.New("delivery provider: push authorization is not configured")
+	}
+	allowed, err := p.pushAuthorized(ctx, intent)
+	if err != nil {
+		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: check push authorization: %w", err)
+	}
+	if !allowed {
+		return delivery.ProviderResult{}, delivery.ErrCancelled
+	}
 	return p.push.SendPush(ctx, intent)
 }

@@ -84,6 +84,8 @@ type PushIntent struct {
 	Auth           string
 	Portal         string
 	UpdatedAt      time.Time
+	AudienceScope  AudienceScope
+	StudentIDs     []int64
 	Title          string
 	Body           string
 	DeepLink       string
@@ -186,6 +188,7 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 				IdempotencyKey: fmt.Sprintf("%s:subscription:%d", event.IdempotencyKey, sub.ID),
 				RelatedType:    event.RelatedType, RelatedID: event.RelatedID,
 				SubscriptionID: sub.ID, AccountID: sub.AccountID, Endpoint: sub.Endpoint, P256DH: sub.P256dh, Auth: sub.Auth, Portal: sub.Portal, UpdatedAt: sub.UpdatedAt,
+				AudienceScope: event.Audience.Scope, StudentIDs: append([]int64(nil), event.Audience.StudentIDs...),
 				Title: event.Title, Body: event.Body, DeepLink: deepLink, Type: event.Type, Priority: event.Priority,
 			})
 			if err != nil {

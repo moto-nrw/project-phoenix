@@ -1582,6 +1582,7 @@ func newFactory(
 				Subscriber: vapidConfig.Subscriber, PublicKey: vapidConfig.PublicKey, PrivateKey: vapidConfig.PrivateKey,
 			}, newExpiredPushSubscriptionCleaner(db, repos.PushSubscription)),
 			logger: logger.With("service", "delivery"), db: db,
+			pushAuthorized: newPushAuthorizationChecker(db, repos.PushSubscription),
 		},
 		Observe: func(observation deliveryModule.Observation) {
 			observeDurableDelivery(string(observation.Transport), observation.Template, observation.Operation, observation.Duration, observation.Count, observation.Err)
