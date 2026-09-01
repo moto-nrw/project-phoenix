@@ -99,11 +99,13 @@ export function useSSE(
       return;
     }
 
-    let eventSource: EventSource | null = null;
-
     // Event handler for SSE messages - handles parsing and error reporting
-    const handleSSEMessage = (eventType: string, event: Event) => {
-      if (!mountedRef.current) return;
+    const handleSSEMessage = (
+      eventSource: EventSource,
+      eventType: string,
+      event: Event,
+    ) => {
+      if (!mountedRef.current || eventSourceRef.current !== eventSource) return;
       try {
         const messageEvent = event as MessageEvent;
         const parsed = JSON.parse(String(messageEvent.data)) as SSEEvent;
@@ -129,11 +131,13 @@ export function useSSE(
       };
 
       try {
-        eventSource = new EventSource(endpoint);
+        const eventSource = new EventSource(endpoint);
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {
-          if (!mountedRef.current) return;
+          if (!mountedRef.current || eventSourceRef.current !== eventSource) {
+            return;
+          }
           setIsConnected(true);
           setError(null);
           reconnectAttemptsRef.current = 0; // Reset ref
@@ -142,7 +146,9 @@ export function useSSE(
 
         // Handle default message events
         eventSource.onmessage = (event) => {
-          if (!mountedRef.current) return;
+          if (!mountedRef.current || eventSourceRef.current !== eventSource) {
+            return;
+          }
           try {
             const parsed = JSON.parse(String(event.data)) as SSEEvent;
             stableOnMessage(parsed);
@@ -214,12 +220,14 @@ export function useSSE(
 
         for (const eventType of eventTypes) {
           eventSource.addEventListener(eventType, (event) =>
-            handleSSEMessage(eventType, event),
+            handleSSEMessage(eventSource, eventType, event),
           );
         }
 
         eventSource.onerror = (err) => {
-          if (!mountedRef.current) return;
+          if (!mountedRef.current || eventSourceRef.current !== eventSource) {
+            return;
+          }
 
           // Log detailed error information
           logger.error("sse connection error", {

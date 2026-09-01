@@ -361,6 +361,38 @@ describe("useSSE Hook", () => {
       });
     });
 
+    it("ignores callbacks from a replaced EventSource", async () => {
+      const { result, rerender } = renderHook(
+        ({ reconnectKey }) => useSSE("/api/sse/events", { reconnectKey }),
+        { initialProps: { reconnectKey: "before" } },
+      );
+
+      await waitForEventSource();
+      const replacedEventSource = requireLatestEventSource();
+      replacedEventSource.triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+
+      rerender({ reconnectKey: "after" });
+      await waitFor(() => expect(eventSourceInstances).toHaveLength(2));
+      const activeEventSource = requireLatestEventSource();
+
+      replacedEventSource.triggerOpen();
+      replacedEventSource.triggerError();
+
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+        expect(result.current.error).toBeNull();
+        expect(result.current.reconnectAttempts).toBe(0);
+      });
+
+      activeEventSource.triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+    });
+
     it("should attempt reconnection on error", async () => {
       const { result } = renderHook(() =>
         useSSE("/api/sse/events", {
