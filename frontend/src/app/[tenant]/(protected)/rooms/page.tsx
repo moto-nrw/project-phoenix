@@ -701,7 +701,7 @@ function RoomsPageContent() {
                           )}
                         </div>
 
-                        <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
+                        <p className="md:group-hover:text-moto-blue-light mt-2 text-xs text-gray-400 transition-colors duration-150">
                           Tippen für mehr Infos
                         </p>
 

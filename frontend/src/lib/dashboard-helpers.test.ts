@@ -270,15 +270,15 @@ describe("dashboard-helpers", () => {
 
   describe("getActivityStatusColor", () => {
     it("should return green for active status", () => {
-      expect(getActivityStatusColor("active")).toBe("bg-green-500");
+      expect(getActivityStatusColor("active")).toBe("bg-moto-green");
     });
 
     it("should return amber for full status", () => {
-      expect(getActivityStatusColor("full")).toBe("bg-amber-500");
+      expect(getActivityStatusColor("full")).toBe("bg-moto-amber");
     });
 
     it("should return orange for ending_soon status", () => {
-      expect(getActivityStatusColor("ending_soon")).toBe("bg-orange-500");
+      expect(getActivityStatusColor("ending_soon")).toBe("bg-moto-orange");
     });
 
     it("should return gray for unknown status", () => {
@@ -288,15 +288,15 @@ describe("dashboard-helpers", () => {
 
   describe("getGroupStatusColor", () => {
     it("should return green for active status", () => {
-      expect(getGroupStatusColor("active")).toBe("bg-green-500");
+      expect(getGroupStatusColor("active")).toBe("bg-moto-green");
     });
 
     it("should return amber for transitioning status", () => {
-      expect(getGroupStatusColor("transitioning")).toBe("bg-amber-500");
+      expect(getGroupStatusColor("transitioning")).toBe("bg-moto-amber");
     });
 
     it("should return blue for preparing status", () => {
-      expect(getGroupStatusColor("preparing")).toBe("bg-blue-500");
+      expect(getGroupStatusColor("preparing")).toBe("bg-moto-blue");
     });
 
     it("should return gray for unknown status", () => {

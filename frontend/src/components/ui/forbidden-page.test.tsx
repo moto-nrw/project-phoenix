@@ -36,6 +36,6 @@ describe("ForbiddenPage", () => {
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
-    expect(svg).toHaveClass("text-red-600");
+    expect(svg).toHaveClass("text-moto-red");
   });
 });

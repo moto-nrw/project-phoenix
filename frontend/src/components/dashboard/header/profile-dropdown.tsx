@@ -247,7 +247,7 @@ export function ProfileDropdownMenu({
           <button
             type="button"
             onClick={handleLogoutClick}
-            className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-[background-color,color] duration-200 ease-out hover:bg-red-50 hover:text-red-700 active:bg-red-600 active:text-white"
+            className="group text-moto-red hover:bg-moto-red-soft hover:text-moto-red-strong active:bg-moto-red flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-[background-color,color] duration-200 ease-out active:text-white"
           >
             <LogoutIcon className="mr-3 h-4 w-4 transition-colors group-active:text-white" />
             {t("logout")}

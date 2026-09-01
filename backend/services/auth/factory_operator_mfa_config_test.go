@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
-func TestFactoryOperatorMFAUsesConfiguredTokenAuth(t *testing.T) {
+func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	cfg := services.FactoryConfig{
@@ -32,11 +32,6 @@ func TestFactoryOperatorMFAUsesConfiguredTokenAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	operator := testpkg.CreateTestOperator(t, db)
-	token, err := factory.OperatorMFA.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.1"))
-	require.NoError(t, err)
-
-	configuredTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	require.NoError(t, err)
-	_, err = configuredTokenAuth.ParseMFAChallengeJWT(token)
-	require.NoError(t, err)
+	_, err = factory.OperatorMFA.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.1"))
+	require.ErrorIs(t, err, authService.ErrMFAStatusUnavailable)
 }

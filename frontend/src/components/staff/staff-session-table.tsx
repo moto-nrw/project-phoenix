@@ -1366,7 +1366,7 @@ function HintBadges({
 // Saldo values sit as plain text on a white row — identical to KpiCard in
 // staff-time-views, which prices the same figure on /staff/[id]. The -strong
 // ramp steps are used deliberately even though they read brownish: amber only
-// becomes legible on white once it is that dark. The previous text-amber-600
+// becomes legible on white once it is that dark. The previous amber text token
 // (#D97706) sat at 3.19:1 and missed AA for normal text, moto-amber-strong
 // (#92400E) reaches 7.09:1. Green is the brand green because it is legible and
 // unambiguous at this size.

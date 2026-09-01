@@ -285,11 +285,11 @@ export function InvitationAcceptForm({
       {error && (
         <div
           ref={errorRef}
-          className="rounded-xl border border-red-200/50 bg-red-50/50 p-4"
+          className="border-moto-red/10 bg-moto-red-soft/50 rounded-xl border p-4"
         >
           <div className="flex items-start gap-3">
             <svg
-              className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600"
+              className="text-moto-red mt-0.5 h-5 w-5 flex-shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -301,7 +301,7 @@ export function InvitationAcceptForm({
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
-            <p className="text-sm text-red-700">{error}</p>
+            <p className="text-moto-red-strong text-sm">{error}</p>
           </div>
         </div>
       )}
@@ -350,7 +350,7 @@ export function InvitationAcceptForm({
         <div>
           <label
             htmlFor="firstName"
-            className={`mb-1 block text-sm font-medium ${errorFieldName === "firstName" ? "text-red-600" : "text-gray-700"}`}
+            className={`mb-1 block text-sm font-medium ${errorFieldName === "firstName" ? "text-moto-red" : "text-gray-700"}`}
           >
             Vorname
           </label>
@@ -363,13 +363,13 @@ export function InvitationAcceptForm({
             disabled={isSubmitting}
             autoComplete="given-name"
             required
-            className={`${authInputClassName} ${errorFieldName === "firstName" ? "ring-2 ring-red-300" : ""}`}
+            className={`${authInputClassName} ${errorFieldName === "firstName" ? "ring-moto-red/30 ring-2" : ""}`}
           />
         </div>
         <div>
           <label
             htmlFor="lastName"
-            className={`mb-1 block text-sm font-medium ${errorFieldName === "lastName" ? "text-red-600" : "text-gray-700"}`}
+            className={`mb-1 block text-sm font-medium ${errorFieldName === "lastName" ? "text-moto-red" : "text-gray-700"}`}
           >
             Nachname
           </label>
@@ -382,7 +382,7 @@ export function InvitationAcceptForm({
             disabled={isSubmitting}
             autoComplete="family-name"
             required
-            className={`${authInputClassName} ${errorFieldName === "lastName" ? "ring-2 ring-red-300" : ""}`}
+            className={`${authInputClassName} ${errorFieldName === "lastName" ? "ring-moto-red/30 ring-2" : ""}`}
           />
         </div>
       </div>
@@ -390,7 +390,7 @@ export function InvitationAcceptForm({
       <div>
         <label
           htmlFor="password"
-          className={`mb-1 block text-sm font-medium ${errorFieldName === "password" ? "text-red-600" : "text-gray-700"}`}
+          className={`mb-1 block text-sm font-medium ${errorFieldName === "password" ? "text-moto-red" : "text-gray-700"}`}
         >
           Passwort
         </label>
@@ -403,7 +403,7 @@ export function InvitationAcceptForm({
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`${authInputClassName} pr-10 ${errorFieldName === "password" ? "ring-2 ring-red-300" : ""}`}
+            className={`${authInputClassName} pr-10 ${errorFieldName === "password" ? "ring-moto-red/30 ring-2" : ""}`}
             required
           />
           <PasswordToggleButton
@@ -416,7 +416,7 @@ export function InvitationAcceptForm({
       <div>
         <label
           htmlFor="confirmPassword"
-          className={`mb-1 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-red-600" : "text-gray-700"}`}
+          className={`mb-1 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-moto-red" : "text-gray-700"}`}
         >
           Passwort bestätigen
         </label>
@@ -429,7 +429,7 @@ export function InvitationAcceptForm({
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`${authInputClassName} pr-10 ${errorFieldName === "confirmPassword" ? "ring-2 ring-red-300" : ""}`}
+            className={`${authInputClassName} pr-10 ${errorFieldName === "confirmPassword" ? "ring-moto-red/30 ring-2" : ""}`}
             required
           />
           <PasswordToggleButton

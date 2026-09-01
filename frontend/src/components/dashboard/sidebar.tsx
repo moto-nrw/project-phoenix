@@ -329,7 +329,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Operatoren",
         icon: navigationIcons.group,
         concept: "operators",
-        activeColor: "text-violet-500",
+        activeColor: "text-moto-purple",
         alwaysShow: true,
       },
     ],
@@ -1568,7 +1568,7 @@ function SidebarContent({
                   ? "Aktuelle Aufsichten"
                   : "Aktuelle Aufsicht"
               }
-              activeColor="text-violet-500"
+              activeColor="text-moto-purple"
               isExpanded={expanded === "supervisions"}
               onToggle={handleSupervisionsToggle}
               isActive={isAccordionSectionActive(
