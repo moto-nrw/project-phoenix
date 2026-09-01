@@ -33,6 +33,12 @@ type OutboxEnqueuer interface {
 	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
 }
 
+// PushOutboxCanceller removes pending durable pushes when an appointment
+// lifecycle change makes their snapshot stale.
+type PushOutboxCanceller interface {
+	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
+}
+
 // LogoResolver returns the school login image used as e-mail header branding.
 // Optional: a nil resolver or a lookup error degrades to the plain fallback.
 type LogoResolver interface {
@@ -528,15 +534,19 @@ func (s *service) logger() *slog.Logger {
 	return s.cfg.Logger
 }
 
-// cancelPendingNotifications marks every not-yet-sent appointment e-mail
-// (published notice and queued reminders) for this appointment as failed so the
-// worker never sends them — used on cancel and delete.
+// cancelPendingNotifications removes every not-yet-sent appointment delivery
+// whose snapshot has become stale after an appointment lifecycle change.
 func (s *service) cancelPendingNotifications(ctx context.Context, appointmentID int64, reason string) error {
-	if s.cfg.Outbox == nil {
-		return nil
+	if s.cfg.Outbox != nil {
+		if _, err := s.cfg.Outbox.CancelPendingByRelatedEntity(ctx, platformModels.EmailRelatedTypeAppointment, appointmentID, reason); err != nil {
+			return err
+		}
 	}
-	_, err := s.cfg.Outbox.CancelPendingByRelatedEntity(ctx, platformModels.EmailRelatedTypeAppointment, appointmentID, reason)
-	return err
+	if s.cfg.PushOutbox != nil {
+		_, err := s.cfg.PushOutbox.CancelPendingByRelatedEntity(ctx, "appointment", appointmentID, reason)
+		return err
+	}
+	return nil
 }
 
 func (s *service) resolveSchoolName(ctx context.Context, tenantID int64) string {

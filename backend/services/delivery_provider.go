@@ -131,6 +131,14 @@ type durableEmailAdapter struct{ module *delivery.Module }
 
 type durablePushAdapter struct{ module *delivery.Module }
 
+func (a durablePushAdapter) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("cancel push outbox rows: tenant is required: %w", err)
+	}
+	return a.module.Cancel(ctx, tenantID.Int64(), delivery.TransportPush, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
+}
+
 func (a durablePushAdapter) EnqueuePush(ctx context.Context, input notifications.PushIntent) (bool, error) {
 	stored, err := a.module.EnqueuePush(ctx, delivery.PushIntent{
 		TenantID: input.TenantID, Template: input.Template,

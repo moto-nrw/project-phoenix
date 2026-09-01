@@ -292,6 +292,9 @@ func (m *Module) EnqueuePush(ctx context.Context, intent PushIntent) (Enqueued, 
 	if intent.Template == "" || intent.Recipient.Endpoint == "" || intent.Recipient.P256DH == "" || intent.Recipient.Auth == "" {
 		return Enqueued{}, errors.New("delivery: push template and recipient keys are required")
 	}
+	if err := ValidatePushEndpoint(intent.Recipient.Endpoint); err != nil {
+		return Enqueued{}, fmt.Errorf("delivery: invalid push endpoint: %w", err)
+	}
 	if intent.Payload.Title == "" {
 		return Enqueued{}, errors.New("delivery: push title is required")
 	}

@@ -115,6 +115,7 @@ type Config struct {
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
 	// calendar is unaffected).
 	Outbox                 OutboxEnqueuer
+	PushOutbox             PushOutboxCanceller
 	SchoolRepo             platformModels.SchoolRepository
 	Settings               LogoResolver
 	AccountRepo            FeedAccountRepo

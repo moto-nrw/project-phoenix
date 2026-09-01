@@ -2558,6 +2558,7 @@ func newFactory(
 		UserContext:            userContextService,
 		DB:                     db,
 		Outbox:                 emailOutboxService,
+		PushOutbox:             durablePushAdapter{module: deliveryRuntime.Module},
 		SchoolRepo:             repos.School,
 		Settings:               settingsService,
 		AccountRepo:            repos.Account,
