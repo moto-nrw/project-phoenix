@@ -1295,11 +1295,43 @@ func TestUpdateStaff_ChangePersonID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithJWTBearer(authToken(t, "staff:manage")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage", "users:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// TestUpdateStaff_ChangePersonIDRequiresUsersManage pins the boundary added in
+// #2906: staff:manage maintains a staff record, it does not move that record
+// onto a different person.
+func TestUpdateStaff_ChangePersonIDRequiresUsersManage(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+
+	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	person1 := testpkg.CreateTestPerson(t, ctx.db, "Keep"+uniqueSuffix, "Person")
+	person2 := testpkg.CreateTestPerson(t, ctx.db, "Steal"+uniqueSuffix, "Person")
+
+	staff := testpkg.CreateTestStaffForPerson(t, ctx.db, person1.ID)
+
+	body := map[string]interface{}{
+		"person_id":   person2.ID,
+		"staff_notes": "Reassignment attempt",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertForbidden(t, rr)
+
+	// The record still belongs to the original person.
+	reloaded, err := repositories.NewFactory(ctx.db).Staff.FindByID(testpkg.Ctx(t), staff.ID)
+	require.NoError(t, err)
+	require.Equal(t, person1.ID, reloaded.PersonID)
 }
 
 func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
@@ -1315,8 +1347,10 @@ func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
 		"staff_notes": "Should fail",
 	}
 
+	// users:manage is what a reassignment needs since #2906 — without it the
+	// request would stop at 403 and never reach the lookup under test.
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithJWTBearer(authToken(t, "staff:manage")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage", "users:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 

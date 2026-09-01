@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -427,8 +428,18 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	// Update basic fields
 	staff.StaffNotes = req.StaffNotes
 
-	// Handle person ID change
+	// Handle person ID change. Re-pointing a staff record at a different
+	// person moves the whole record — notes, teacher data, qualifications,
+	// time tracking — onto another human being. That is directory authority,
+	// not personnel-record maintenance, so staff:manage alone must not do it
+	// (#2906); the caller needs users:manage, the same tier that replaces a
+	// Lehrkraft's class assignments. Ordinary staff edits send the record's
+	// own person_id back unchanged and never reach this branch.
 	if staff.PersonID != req.PersonID.Int64() {
+		if !authorize.HasPermission(permissions.UsersManage, jwt.PermissionsFromCtx(r.Context())) {
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("insufficient permission to reassign a staff record to another person")))
+			return
+		}
 		if rs.updateStaffPerson(r.Context(), staff, req.PersonID.Int64()) != nil {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("person not found")))
 			return
