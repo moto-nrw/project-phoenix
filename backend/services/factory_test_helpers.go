@@ -12,7 +12,11 @@ import (
 // NewFactoryForTests creates the partial graph used by legacy package tests.
 // Production composition must provide every migrated module explicitly.
 func NewFactoryForTests(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, clocks ...func() time.Time) (*Factory, error) {
-	return newFactory(repos, db, logger, nil, nil, nil, nil, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), nil, nil, nil, nil, clocks...)
+}
+
+func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
+	return newFactory(repos, db, logger, cfg, nil, nil, nil, nil, clocks...)
 }
 
 // NewFactoryForTestsWithFeedback keeps API integration tests on the real
@@ -25,5 +29,5 @@ func NewFactoryForTestsWithFeedback(
 	bindFeedbackSettings FeedbackSettingsBinder,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	return newFactory(repos, db, logger, nil, nil, feedback, bindFeedbackSettings, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), nil, nil, feedback, bindFeedbackSettings, clocks...)
 }

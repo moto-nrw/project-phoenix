@@ -17,6 +17,7 @@ import (
 // name literally would file the wildcard ones as staff and hand out a tier the
 // running code disagrees with.
 func TestRolesBaseRoleBackfillMatchesWildcardPermissions(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)

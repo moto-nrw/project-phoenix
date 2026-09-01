@@ -27,15 +27,19 @@ func GetDatabaseDSN() string {
 }
 
 func resolveDatabaseDSN() (string, error) {
-	appEnv := os.Getenv("APP_ENV")
+	return resolveDatabaseDSNFrom(os.Getenv)
+}
+
+func resolveDatabaseDSNFrom(getenv func(string) string) (string, error) {
+	appEnv := getenv("APP_ENV")
 	if appEnv == "test" {
-		if testDSN := os.Getenv("TEST_DB_DSN"); testDSN != "" {
+		if testDSN := getenv("TEST_DB_DSN"); testDSN != "" {
 			return testDSN, nil
 		}
 		return "", fmt.Errorf("APP_ENV=test requires TEST_DB_DSN environment variable")
 	}
 
-	if dsn := os.Getenv("DB_DSN"); dsn != "" {
+	if dsn := getenv("DB_DSN"); dsn != "" {
 		return dsn, nil
 	}
 

@@ -61,6 +61,7 @@ type ServiceDependencies struct {
 	UnregisteredTagScans     auditSvc.UnregisteredTagScanService
 	Broadcaster              realtime.Broadcaster
 	Logger                   *slog.Logger
+	DailyCheckoutFallback    string
 	DB                       *bun.DB
 }
 

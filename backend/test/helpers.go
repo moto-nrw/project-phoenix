@@ -66,11 +66,9 @@ func SetupTestDB(t testing.TB) *bun.DB {
 		t.Skip("skipping DB integration test in -short mode")
 	}
 
-	packageTestDBOnce.Do(func() {
-		packageTestDBErr = initPackageTestDB()
-	})
-	if packageTestDBErr != nil {
-		t.Fatalf("setup package test database: %v", packageTestDBErr)
+	setupPackageTestDB(t)
+	if perTestDatabases || hasIsolatedTestDB(t) {
+		return setupIsolatedTestDB(t)
 	}
 
 	// Self-heal after tests that call viper.Reset() (factory config tests):
@@ -91,6 +89,24 @@ func SetupTestDB(t testing.TB) *bun.DB {
 	return sharedTestDB
 }
 
+// SetupIsolatedTestDB returns a disposable clone for one test. Use it only
+// when the behavior is database-global (schema, sweeps, hooks, or locks).
+func SetupIsolatedTestDB(t testing.TB) *bun.DB {
+	t.Helper()
+	setupPackageTestDB(t)
+	return setupIsolatedTestDB(t)
+}
+
+func setupPackageTestDB(t testing.TB) {
+	t.Helper()
+	packageTestDBOnce.Do(func() {
+		packageTestDBErr = initPackageTestDB()
+	})
+	if packageTestDBErr != nil {
+		t.Fatalf("setup package test database: %v", packageTestDBErr)
+	}
+}
+
 // WithAfterCommitHooks queues realtime side effects until the returned commit
 // function is called. It keeps service-package tests on the shared test seam
 // instead of importing tenant runtime internals directly.
@@ -105,7 +121,12 @@ func WithAfterCommitHooks(ctx context.Context) (context.Context, func()) {
 func SetupClosableTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 
-	SetupTestDB(t) // ensure the lifecycle ran and viper points at the clone
+	SetupTestDB(t) // ensure the lifecycle ran and selected this test's clone
+	if dsn, ok := isolatedTestDSN(t); ok {
+		db, err := openTestPool(dsn)
+		require.NoError(t, err, "Failed to open private isolated test database pool")
+		return db
+	}
 
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to open private test database pool")
@@ -118,7 +139,12 @@ func SetupClosableTestDB(t *testing.T) *bun.DB {
 func SetupServeTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 
-	SetupTestDB(t) // ensure the package clone and test role password are ready
+	SetupTestDB(t) // ensure the selected clone and test role password are ready
+	if dsn, ok := isolatedTestDSN(t); ok {
+		db, err := openTestPool(authRoleDSN(dsn))
+		require.NoError(t, err, "Failed to open private phoenix_auth isolated test database pool")
+		return db
+	}
 	db, err := database.DBConnForServe()
 	require.NoError(t, err, "Failed to open private phoenix_auth test database pool")
 	return db
@@ -139,6 +165,7 @@ func TenantContext(tenantID int64) context.Context {
 // TenantScope owns a unique tenant for a test and provides the matching context.
 type TenantScope struct {
 	TenantID int64
+	ctx      context.Context
 }
 
 // NewTenantScope creates a unique tenant and returns a scope for tests that
@@ -152,12 +179,16 @@ func NewTenantScope(tb testing.TB, db *bun.DB) TenantScope {
 	tenantID := uniqueJWTSafeTenantID()
 	EnsureTestTenant(tb, db, tenantID)
 
-	return TenantScope{TenantID: tenantID}
+	return TenantScope{TenantID: tenantID, ctx: testRuntimeContext(tb)}
 }
 
 // Context returns a background context scoped to the test tenant.
 func (s TenantScope) Context() context.Context {
-	return TenantContext(s.TenantID)
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = WithPackageTenantRuntime(context.Background())
+	}
+	return tenant.WithTenantID(ctx, s.TenantID)
 }
 
 var uniqueTestTenantCounter int64

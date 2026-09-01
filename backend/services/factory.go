@@ -312,6 +312,71 @@ type FeedbackSettingsBinder func(
 	func(context.Context) (int, error),
 )
 
+// FactoryConfig is the process configuration snapshot consumed by one service
+// graph. Capturing it at the composition root keeps service construction pure
+// and lets independent graphs coexist in the same process.
+type FactoryConfig struct {
+	EmailSMTPHost              string
+	EmailSMTPPort              int
+	EmailSMTPUser              string
+	EmailSMTPPassword          string
+	EmailFromName              string
+	EmailFromAddress           string
+	FrontendURL                string
+	ParentsURL                 string
+	SchoolURL                  string
+	AppEnv                     string
+	InvitationTokenExpiryHours int
+	PasswordResetExpiryMinutes int
+	PostHogAPIKey              string
+	PostHogHost                string
+	RateLimitEnabled           bool
+	JWTSecret                  string
+	JWTExpiry                  time.Duration
+	JWTRefreshExpiry           time.Duration
+	TenantDomain               string
+	OperatorHostname           string
+	VAPIDPublicKey             string
+	VAPIDPrivateKey            string
+	VAPIDSubscriber            string
+	StudentDailyCheckoutTime   string
+	EnrollmentRequireCaptcha   bool
+	EnrollmentCaptchaSecretKey string
+	EnrollmentCaptchaSiteKey   string
+}
+
+func currentFactoryConfig() FactoryConfig {
+	return FactoryConfig{
+		EmailSMTPHost:              viper.GetString("email_smtp_host"),
+		EmailSMTPPort:              viper.GetInt("email_smtp_port"),
+		EmailSMTPUser:              viper.GetString("email_smtp_user"),
+		EmailSMTPPassword:          viper.GetString("email_smtp_password"),
+		EmailFromName:              viper.GetString("email_from_name"),
+		EmailFromAddress:           viper.GetString("email_from_address"),
+		FrontendURL:                viper.GetString("frontend_url"),
+		ParentsURL:                 viper.GetString("parents_url"),
+		SchoolURL:                  viper.GetString("school_url"),
+		AppEnv:                     viper.GetString("app_env"),
+		InvitationTokenExpiryHours: viper.GetInt("invitation_token_expiry_hours"),
+		PasswordResetExpiryMinutes: viper.GetInt("password_reset_token_expiry_minutes"),
+		PostHogAPIKey:              viper.GetString("posthog_api_key"),
+		PostHogHost:                viper.GetString("posthog_host"),
+		RateLimitEnabled:           viper.GetBool("rate_limit_enabled"),
+		JWTSecret:                  viper.GetString("auth_jwt_secret"),
+		JWTExpiry:                  viper.GetDuration("auth_jwt_expiry"),
+		JWTRefreshExpiry:           viper.GetDuration("auth_jwt_refresh_expiry"),
+		TenantDomain:               viper.GetString("tenant_domain"),
+		OperatorHostname:           viper.GetString("next_public_operator_hostname"),
+		VAPIDPublicKey:             viper.GetString("vapid_public_key"),
+		VAPIDPrivateKey:            viper.GetString("vapid_private_key"),
+		VAPIDSubscriber:            viper.GetString("vapid_subscriber"),
+		StudentDailyCheckoutTime:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
+		EnrollmentRequireCaptcha:   strings.TrimSpace(os.Getenv("ENROLLMENT_REQUIRE_CAPTCHA")) == "true",
+		EnrollmentCaptchaSecretKey: os.Getenv("ENROLLMENT_CAPTCHA_SECRET_KEY"),
+		EnrollmentCaptchaSiteKey:   os.Getenv("ENROLLMENT_CAPTCHA_SITE_KEY"),
+	}
+}
+
 // NewFactoryWithModules builds the legacy service graph around the migrated
 // module capabilities it still consumes.
 func NewFactoryWithModules(
@@ -327,13 +392,14 @@ func NewFactoryWithModules(
 	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil {
 		return nil, errors.New("meal plan and feedback capabilities with settings binders are required")
 	}
-	return newFactory(repos, db, logger, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, clocks...)
 }
 
 func newFactory(
 	repos *repositories.Factory,
 	db *bun.DB,
 	logger *slog.Logger,
+	cfg FactoryConfig,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -345,7 +411,15 @@ func newFactory(
 	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 
-	mailer, err := email.NewMailer()
+	mailer, err := email.NewMailer(email.MailerConfig{
+		Host:        cfg.EmailSMTPHost,
+		Port:        cfg.EmailSMTPPort,
+		User:        cfg.EmailSMTPUser,
+		Password:    cfg.EmailSMTPPassword,
+		DefaultFrom: email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress),
+		TemplateDir: "./templates",
+		Logger:      logger.With("service", "email"),
+	})
 	if err != nil {
 		logger.Warn("SMTP mailer initialization failed, falling back to mock mailer", "error", err)
 		mailer = email.NewMockMailer()
@@ -365,25 +439,25 @@ func newFactory(
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger)
 
-	defaultFrom := email.NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
+	defaultFrom := email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
 	if defaultFrom.Address == "" {
 		defaultFrom = email.NewEmail("moto", "no-reply@moto.local")
 	}
 
-	rawFrontendURL := viper.GetString("frontend_url")
+	rawFrontendURL := cfg.FrontendURL
 	frontendURL := strings.TrimRight(rawFrontendURL, "/")
 	if frontendURL == "" {
 		return nil, fmt.Errorf("FRONTEND_URL is required")
 	}
 
-	appEnv := strings.ToLower(viper.GetString("app_env"))
+	appEnv := strings.ToLower(cfg.AppEnv)
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
 
 	// Parents-portal URL - used for every parent-facing email link
 	// (status, decision emails, guardian invitation accept).
-	rawParentsURL := viper.GetString("parents_url")
+	rawParentsURL := cfg.ParentsURL
 	parentsURL := strings.TrimRight(rawParentsURL, "/")
 	if parentsURL == "" {
 		return nil, fmt.Errorf("PARENTS_URL is required")
@@ -394,7 +468,7 @@ func newFactory(
 
 	// School-portal URL (#2207) - used for Lehrkraft invitation links, which
 	// must land on the school portal where the accept flow lives.
-	rawSchoolURL := viper.GetString("school_url")
+	rawSchoolURL := cfg.SchoolURL
 	schoolURL := strings.TrimRight(rawSchoolURL, "/")
 	if schoolURL == "" {
 		return nil, fmt.Errorf("SCHOOL_URL is required")
@@ -403,7 +477,7 @@ func newFactory(
 		return nil, fmt.Errorf("SCHOOL_URL must use https:// in production (received %q)", rawSchoolURL)
 	}
 
-	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
+	invitationExpiryHours := cfg.InvitationTokenExpiryHours
 	if invitationExpiryHours <= 0 {
 		invitationExpiryHours = 48
 	} else if invitationExpiryHours > 168 {
@@ -411,7 +485,7 @@ func newFactory(
 	}
 	invitationTokenExpiry := time.Duration(invitationExpiryHours) * time.Hour
 
-	passwordResetExpiryMinutes := viper.GetInt("password_reset_token_expiry_minutes")
+	passwordResetExpiryMinutes := cfg.PasswordResetExpiryMinutes
 	if passwordResetExpiryMinutes <= 0 {
 		passwordResetExpiryMinutes = 30
 	} else if passwordResetExpiryMinutes > 1440 {
@@ -424,8 +498,8 @@ func newFactory(
 
 	// Product analytics (PostHog) — no-op when POSTHOG_API_KEY is unset
 	tracker, err := analytics.New(
-		viper.GetString("posthog_api_key"),
-		viper.GetString("posthog_host"),
+		cfg.PostHogAPIKey,
+		cfg.PostHogHost,
 		logger.With("component", "analytics"),
 	)
 	if err != nil {
@@ -1120,14 +1194,15 @@ func newFactory(
 	// check-in workflow. Lives in the services/iot/checkin sub-package to avoid
 	// the services/iot ↔ services/active ↔ auth/device import cycle.
 	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
-		Active:     activeService,
-		Users:      usersService,
-		Facilities: facilitiesService,
-		Activities: activitiesService,
-		Settings:   settingsService,
-		Pickup:     pickupScheduleService,
-		Education:  educationService,
-		Logger:     logger.With("service", "checkin"),
+		Active:                activeService,
+		Users:                 usersService,
+		Facilities:            facilitiesService,
+		Activities:            activitiesService,
+		Settings:              settingsService,
+		Pickup:                pickupScheduleService,
+		Education:             educationService,
+		Logger:                logger.With("service", "checkin"),
+		DailyCheckoutFallback: cfg.StudentDailyCheckoutTime,
 	})
 
 	// Initialize display service (info-point dashboards, issue #1325).
@@ -1212,7 +1287,7 @@ func newFactory(
 		Now:                now,
 		// E2E fixtures start future weekday instances. Dedicated unit tests
 		// construct the service with EnforceTimePolicy: true.
-		EnforceTimePolicy: os.Getenv("APP_ENV") != "test",
+		EnforceTimePolicy: cfg.AppEnv != "test",
 	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
@@ -1339,13 +1414,18 @@ func newFactory(
 	}
 	authConfig.ParentsURL = parentsURL
 	authConfig.SchoolURL = schoolURL
+	authConfig.RateLimitEnabled = cfg.RateLimitEnabled
 	authConfig.Settings = settingsService
+	authConfig.TokenAuth, err = authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
 	}
 
-	mfaTokenAuth, err := authjwt.NewTokenAuth()
+	mfaTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("init mfa token auth: %w", err)
 	}
@@ -1356,7 +1436,7 @@ func newFactory(
 		Dispatcher:  dispatcher,
 		DefaultFrom: defaultFrom,
 		FrontendURL: frontendURL,
-		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		JWTSecret:   cfg.JWTSecret,
 		DB:          db,
 		Logger:      authLogger,
 	})
@@ -1368,7 +1448,7 @@ func newFactory(
 	// post-construction so we don't introduce a constructor cycle.
 	authService.SetMFAService(mfaService)
 
-	tenantDomain := strings.TrimSpace(viper.GetString("tenant_domain"))
+	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
 	if tenantDomain == "" {
 		return nil, fmt.Errorf("TENANT_DOMAIN is required")
 	}
@@ -1720,7 +1800,7 @@ func newFactory(
 	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
 	// operatorFrontendURL.
 	var operatorFrontendURL string
-	if operatorHostname := viper.GetString("next_public_operator_hostname"); operatorHostname != "" {
+	if operatorHostname := cfg.OperatorHostname; operatorHostname != "" {
 		protocol := "http"
 		if strings.HasPrefix(frontendURL, "https://") {
 			protocol = "https"
@@ -1764,7 +1844,7 @@ func newFactory(
 		Dispatcher:  dispatcher,
 		DefaultFrom: defaultFrom,
 		FrontendURL: frontendURL,
-		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		JWTSecret:   cfg.JWTSecret,
 		DB:          db,
 		Logger:      platformLogger,
 	})
@@ -1809,8 +1889,11 @@ func newFactory(
 	})
 
 	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
-		Settings: settingsService,
-		Logger:   logger.With("service", "enrollment-captcha"),
+		Settings:       settingsService,
+		Logger:         logger.With("service", "enrollment-captcha"),
+		RequireCaptcha: cfg.EnrollmentRequireCaptcha,
+		SecretKey:      cfg.EnrollmentCaptchaSecretKey,
+		SiteKey:        cfg.EnrollmentCaptchaSiteKey,
 	})
 
 	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
@@ -2265,9 +2348,9 @@ func newFactory(
 	// their consumers: messaging, the calendar (#1671) and the announcement
 	// producer all need them, and messaging is constructed first.
 	vapidConfig := notifications.VAPIDConfig{
-		PublicKey:  strings.TrimSpace(viper.GetString("vapid_public_key")),
-		PrivateKey: strings.TrimSpace(viper.GetString("vapid_private_key")),
-		Subscriber: strings.TrimSpace(viper.GetString("vapid_subscriber")),
+		PublicKey:  strings.TrimSpace(cfg.VAPIDPublicKey),
+		PrivateKey: strings.TrimSpace(cfg.VAPIDPrivateKey),
+		Subscriber: strings.TrimSpace(cfg.VAPIDSubscriber),
 	}
 	if err := vapidConfig.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)

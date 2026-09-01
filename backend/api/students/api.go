@@ -124,6 +124,7 @@ type ResourceConfig struct {
 	Logger                 *slog.Logger
 	Now                    func() time.Time
 	DB                     *bun.DB
+	DevicePINFallback      string
 }
 
 // NewResource creates a new students resource from the provided configuration.
@@ -395,7 +396,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil, rs.DevicePINFallback))
 		r.Use(common.TenantTxMiddleware)
 
 		// RFID tag assignment endpoint

@@ -943,10 +943,9 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 //
 // The proof is indirect but exact: while another transaction holds the account
 // row, offboarding must not get as far as deleting the role mapping.
-// Deliberately NOT parallel: the test takes a row lock in one transaction and
-// expects the offboarding in the other to block on it. Beside a test that
-// touches the same rows, that contention turns into a deadlock instead.
 func TestOffboardStaff_LocksAccountBeforeRevokingRoles(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	sc := newOffboardingScenario(t)
 
 	credential := offboardingCredential("Offboard", "789")

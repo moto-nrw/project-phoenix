@@ -194,20 +194,29 @@ func toFloat(v any) (float64, bool) {
 	}
 }
 
-// --- Registry singleton ---
+// Registry owns a set of setting definitions.
+type Registry struct {
+	mu          sync.RWMutex
+	definitions map[string]*Definition
+}
 
-var (
-	registry   = make(map[string]*Definition)
-	registryMu sync.RWMutex
-)
+func NewRegistry() *Registry {
+	return &Registry{definitions: make(map[string]*Definition)}
+}
+
+var defaultRegistry = NewRegistry()
 
 // Register adds a setting definition to the global registry.
 // It panics on duplicate keys or invalid definitions (catches errors at startup).
 func Register(def Definition) {
-	registryMu.Lock()
-	defer registryMu.Unlock()
+	defaultRegistry.Register(def)
+}
 
-	if _, exists := registry[def.Key]; exists {
+func (r *Registry) Register(def Definition) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, exists := r.definitions[def.Key]; exists {
 		panic(fmt.Sprintf("config: duplicate setting key: %s", def.Key))
 	}
 	if def.AccessPolicy == "" {
@@ -217,33 +226,38 @@ func Register(def Definition) {
 		panic(fmt.Sprintf("config: invalid setting definition: %v", err))
 	}
 	defCopy := def
-	registry[def.Key] = &defCopy
+	r.definitions[def.Key] = &defCopy
 }
 
 // GetDefinition returns a definition by key, or nil if not registered.
 func GetDefinition(key string) *Definition {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
-	return registry[key]
+	return defaultRegistry.GetDefinition(key)
+}
+
+func (r *Registry) GetDefinition(key string) *Definition {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.definitions[key]
 }
 
 // AllDefinitions returns a deep copy of all registered definitions.
 // Callers cannot mutate the registry through the returned pointers.
 func AllDefinitions() map[string]*Definition {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
+	return defaultRegistry.AllDefinitions()
+}
 
-	result := make(map[string]*Definition, len(registry))
-	for k, v := range registry {
+func (r *Registry) AllDefinitions() map[string]*Definition {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make(map[string]*Definition, len(r.definitions))
+	for k, v := range r.definitions {
 		defCopy := *v
 		result[k] = &defCopy
 	}
 	return result
 }
 
-// ResetRegistry clears all registered definitions. For testing only.
-func ResetRegistry() {
-	registryMu.Lock()
-	defer registryMu.Unlock()
-	registry = make(map[string]*Definition)
-}
+// DefaultRegistry returns the process registry populated by defaults packages.
+// Callers must not mutate it after application startup.
+func DefaultRegistry() *Registry { return defaultRegistry }

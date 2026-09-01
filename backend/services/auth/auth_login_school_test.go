@@ -31,7 +31,7 @@ import (
 // decodeTokenClaims decodes a minted JWT and returns scope + tenant_id.
 func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64) {
 	t.Helper()
-	decoded, err := authjwt.MustNewTokenAuth().JwtAuth.Decode(token)
+	decoded, err := schoolTokenAuth(t).JwtAuth.Decode(token)
 	require.NoError(t, err, "minted token must decode")
 	_ = decoded.Get("scope", &scope)
 	var rawTenant float64
@@ -44,6 +44,14 @@ func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64
 		}
 	}
 	return scope, tenantID
+}
+
+func schoolTokenAuth(t *testing.T) *authjwt.TokenAuth {
+	t.Helper()
+	cfg := authTestFactoryConfig(false)
+	tokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	require.NoError(t, err)
+	return tokenAuth
 }
 
 // newSchoolTenant creates a school nobody else in the suite shares and tears
@@ -240,7 +248,7 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 	require.NoError(t, err)
 
 	// Same session, same DB token row — only the tenant claim is stripped.
-	tokenAuth := authjwt.MustNewTokenAuth()
+	tokenAuth := schoolTokenAuth(t)
 	decoded, err := tokenAuth.JwtAuth.Decode(login.RefreshToken)
 	require.NoError(t, err)
 	var sessionToken string
@@ -685,7 +693,7 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 	require.Equal(t, auth.LoginStatusMFAEnrollmentRequired, result.Status)
 	require.NotEmpty(t, result.AccessToken)
 
-	claims, err := authjwt.MustNewTokenAuth().ParseMFAEnrollmentJWT(result.AccessToken)
+	claims, err := schoolTokenAuth(t).ParseMFAEnrollmentJWT(result.AccessToken)
 	require.NoError(t, err)
 	assert.Equal(t, authjwt.MFAEnrollmentScopeSchool, claims.Scope,
 		"school login must mint a school-scope enrollment token")

@@ -89,6 +89,7 @@ func tenantSequenceACLEntries(t *testing.T, db *testpkg.DB, sequence string) []s
 // TestAuditSchemaAppendOnlyForTenantRole is the ratchet for issue #1924. The
 // audit schema must stay append-only for phoenix_tenant: never UPDATE or DELETE.
 func TestAuditSchemaAppendOnlyForTenantRole(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tables := auditSchemaTables(t, db)
@@ -152,6 +153,7 @@ func TestAuditSchemaAppendOnlyForTenantRole(t *testing.T) {
 // the next audit table silently inherits UPDATE/DELETE again and only the
 // per-table assertions above would catch it — after the fact.
 func TestAuditSchemaDefaultACLIsAppendOnly(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	var aclItems []string

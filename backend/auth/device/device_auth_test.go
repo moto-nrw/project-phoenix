@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -266,10 +265,8 @@ func TestSecureCompareStrings_DifferentLengths(t *testing.T) {
 // DeviceOnlyAuthenticator Tests
 // =============================================================================
 
-// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
-// package-level debounce map every device authentication shares.
 func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
-	lastSeenWriteCache = sync.Map{}
+	t.Parallel()
 
 	mockService := newMockIoTService()
 	apiKey := "valid-api-key-123"
@@ -313,13 +310,13 @@ func TestDeviceAuthenticators_ZeroTenantID_IsReportedAndRejected(t *testing.T) {
 		{
 			name: "device only",
 			middleware: func(service iotSvc.Service, observer func(context.Context, error)) func(http.Handler) http.Handler {
-				return deviceOnlyAuthenticator(service, nil, observer)
+				return deviceOnlyAuthenticator(service, nil, newLastSeenDebouncer(), observer)
 			},
 		},
 		{
 			name: "device and PIN",
 			middleware: func(service iotSvc.Service, observer func(context.Context, error)) func(http.Handler) http.Handler {
-				return deviceAuthenticator(service, nil, nil, nil, observer)
+				return deviceAuthenticator(service, nil, nil, nil, "", newLastSeenDebouncer(), observer)
 			},
 		},
 	} {
@@ -500,14 +497,11 @@ func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
 // DeviceAuthenticator Tests (API Key + PIN)
 // =============================================================================
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
-	lastSeenWriteCache = sync.Map{}
+	t.Parallel()
 
 	// Set up environment
 	ogsPin := "test-device-pin-123"
-	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", ogsPin))
-	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
 
 	mockIoT := newMockIoTService()
 	apiKey := "valid-api-key-123"
@@ -519,7 +513,7 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, ogsPin))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		// Verify device is in context
 		ctxDevice := DeviceFromCtx(r.Context())
@@ -542,10 +536,8 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	assert.True(t, mockIoT.updateCalled, "Should update device last seen")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
-	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
-	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
+	t.Parallel()
 
 	mockIoT := newMockIoTService()
 	apiKey := "valid-api-key-123"
@@ -557,7 +549,7 @@ func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "test-pin"))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -571,10 +563,8 @@ func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
-	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "correct-pin"))
-	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
+	t.Parallel()
 
 	mockIoT := newMockIoTService()
 	apiKey := "valid-api-key-123"
@@ -586,7 +576,7 @@ func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "correct-pin"))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -600,12 +590,9 @@ func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
+	t.Parallel()
 	// Ensure OGS_DEVICE_PIN is not set
-	_ = os.Unsetenv("OGS_DEVICE_PIN")
 
 	mockIoT := newMockIoTService()
 	apiKey := "valid-api-key-123"
@@ -617,7 +604,7 @@ func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, ""))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -631,15 +618,13 @@ func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_MissingAPIKey(t *testing.T) {
-	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
-	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
+	t.Parallel()
 
 	mockIoT := newMockIoTService()
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "test-pin"))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -653,16 +638,14 @@ func TestDeviceAuthenticator_MissingAPIKey(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_InvalidAPIKey(t *testing.T) {
-	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
-	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
+	t.Parallel()
 
 	mockIoT := newMockIoTService()
 	// No devices added
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "test-pin"))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -676,10 +659,8 @@ func TestDeviceAuthenticator_InvalidAPIKey(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
-	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
-	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
+	t.Parallel()
 
 	mockIoT := newMockIoTService()
 	apiKey := "valid-api-key-123"
@@ -691,7 +672,7 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "test-pin"))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -709,14 +690,10 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 // PINResolver Wiring Tests
 // =============================================================================
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestDeviceAuthenticator_UsesPINResolver(t *testing.T) {
-	lastSeenWriteCache = sync.Map{}
+	t.Parallel()
 
 	// Do NOT set OGS_DEVICE_PIN env var — PIN only available via resolver
-	_ = os.Unsetenv("OGS_DEVICE_PIN")
 
 	mockIoT := newMockIoTService()
 	apiKey := "valid-api-key-resolver"
@@ -739,7 +716,7 @@ func TestDeviceAuthenticator_UsesPINResolver(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver, ""))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -754,13 +731,10 @@ func TestDeviceAuthenticator_UsesPINResolver(t *testing.T) {
 	assert.True(t, resolverCalled, "PIN resolver should have been called")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
-func TestDeviceAuthenticator_PINResolverFallsBackToEnv(t *testing.T) {
-	lastSeenWriteCache = sync.Map{}
+func TestDeviceAuthenticator_PINResolverFallsBackToConfiguredPIN(t *testing.T) {
+	t.Parallel()
 
 	// Set env var as fallback
-	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "env-pin"))
-	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
 
 	mockIoT := newMockIoTService()
 	apiKey := "valid-api-key-fallback"
@@ -778,7 +752,7 @@ func TestDeviceAuthenticator_PINResolverFallsBackToEnv(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver, "env-pin"))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -792,12 +766,8 @@ func TestDeviceAuthenticator_PINResolverFallsBackToEnv(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code, "should fall back to OGS_DEVICE_PIN env var")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestDeviceAuthenticator_PINResolverWrongPIN(t *testing.T) {
-	lastSeenWriteCache = sync.Map{}
-	_ = os.Unsetenv("OGS_DEVICE_PIN")
+	t.Parallel()
 
 	mockIoT := newMockIoTService()
 	apiKey := "valid-api-key-wrong"
@@ -814,7 +784,7 @@ func TestDeviceAuthenticator_PINResolverWrongPIN(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver, ""))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -917,10 +887,8 @@ func TestCtxKey_DistinctValues(t *testing.T) {
 // Update Last Seen Tests
 // =============================================================================
 
-// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
-// package-level debounce map every device authentication shares.
 func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
-	lastSeenWriteCache = sync.Map{}
+	t.Parallel()
 
 	mockService := newMockIoTService()
 	mockService.updateError = errors.New("database error")
@@ -949,10 +917,8 @@ func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
-// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
-// package-level debounce map every device authentication shares.
 func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
-	lastSeenWriteCache = sync.Map{}
+	t.Parallel()
 
 	mockService := newMockIoTService()
 	apiKey := "valid-api-key-123"
@@ -1014,16 +980,14 @@ func (m *mockIoTServiceNilDevice) GetDeviceByAPIKey(_ context.Context, _ string)
 	return nil, nil // nil device, no error
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
+	t.Parallel()
 	// Test the full middleware path where device is nil
-	require.NoError(t, os.Setenv("OGS_DEVICE_PIN", "test-pin"))
-	defer func() { _ = os.Unsetenv("OGS_DEVICE_PIN") }()
 
 	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockService, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockService, nil, nil, nil, "test-pin"))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -1148,10 +1112,8 @@ func TestRejectDeletedSchool_ContextTimeout_FailsOpen(t *testing.T) {
 	assert.Nil(t, result, "context deadline errors should fail open")
 }
 
-// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
-// package-level debounce map every device authentication shares.
 func TestDeviceOnlyAuthenticator_DeletedSchool_Forbidden(t *testing.T) {
-	lastSeenWriteCache = sync.Map{}
+	t.Parallel()
 
 	mockService := newMockIoTService()
 	apiKey := "valid-api-key-deleted"

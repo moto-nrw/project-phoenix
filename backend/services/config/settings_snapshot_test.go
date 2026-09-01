@@ -10,10 +10,11 @@ import (
 )
 
 func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.batch_text", config.FieldText, "default")
-	registerTestSetting("test.batch_bool", config.FieldBoolean, false)
-	registerTestSetting("test.batch_int", config.FieldNumber, 7)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.batch_text", config.FieldText, "default")
+	registerTestSetting(registry, "test.batch_bool", config.FieldBoolean, false)
+	registerTestSetting(registry, "test.batch_int", config.FieldNumber, 7)
 
 	repo := newMockValueRepo()
 	textValue := &config.SettingValue{
@@ -29,7 +30,7 @@ func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
 	boolValue.TenantID = 41
 	repo.values[repo.key(41, boolValue.SettingKey)] = boolValue
 
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 	batch, ok := service.(BatchSettingsService)
 	require.True(t, ok)
 
@@ -75,9 +76,10 @@ func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
 }
 
 func TestResolveManyKeepsMalformedOverrideIsolated(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.valid", config.FieldBoolean, false)
-	registerTestSetting("test.malformed", config.FieldBoolean, false)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.valid", config.FieldBoolean, false)
+	registerTestSetting(registry, "test.malformed", config.FieldBoolean, false)
 
 	repo := newMockValueRepo()
 	valid := &config.SettingValue{SettingKey: "test.valid", Value: json.RawMessage(`true`)}
@@ -87,7 +89,7 @@ func TestResolveManyKeepsMalformedOverrideIsolated(t *testing.T) {
 	malformed.TenantID = 8
 	repo.values[repo.key(8, malformed.SettingKey)] = malformed
 
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 	batch := service.(BatchSettingsService)
 	snapshot, err := batch.ResolveMany(tenantCtx(8), []string{"test.valid", "test.malformed"})
 	require.NoError(t, err)
@@ -104,13 +106,14 @@ func TestResolveManyKeepsMalformedOverrideIsolated(t *testing.T) {
 }
 
 func TestGetSchemaLoadsAllSettingsWithOneQuery(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.schema_one", config.FieldText, "one")
-	registerTestSetting("test.schema_two", config.FieldBoolean, true)
-	registerTestSetting("test.schema_three", config.FieldNumber, 3)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.schema_one", config.FieldText, "one")
+	registerTestSetting(registry, "test.schema_two", config.FieldBoolean, true)
+	registerTestSetting(registry, "test.schema_three", config.FieldNumber, 3)
 
 	repo := newMockValueRepo()
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 
 	schema, err := service.GetSchema(tenantCtx(5), nil)
 	require.NoError(t, err)

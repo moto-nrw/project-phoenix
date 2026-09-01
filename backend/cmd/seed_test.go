@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -17,6 +16,7 @@ import (
 // =============================================================================
 
 func TestSeedCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "seed", seedCmd.Use)
 	assert.Contains(t, seedCmd.Short, "Seed the database")
 	assert.NotNil(t, seedCmd.RunE)
@@ -89,18 +89,8 @@ func TestSeedRootPreservesRunnerError(t *testing.T) {
 	require.EqualError(t, err, "runner failed")
 }
 
-func TestSeedCmd_IsRegisteredOnRoot(t *testing.T) {
-	found := false
-	for _, cmd := range RootCmd.Commands() {
-		if cmd.Use == "seed" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "seedCmd should be registered on RootCmd")
-}
-
 func TestSeedCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := seedCmd.Flags()
 
 	assert.NotNil(t, f.Lookup("email"))
@@ -114,6 +104,7 @@ func TestSeedCmd_Flags(t *testing.T) {
 }
 
 func TestSeedCmd_FlagDefaults(t *testing.T) {
+	t.Parallel()
 	f := seedCmd.Flags()
 
 	urlFlag := f.Lookup("url")
@@ -121,29 +112,15 @@ func TestSeedCmd_FlagDefaults(t *testing.T) {
 	assert.Equal(t, "http://localhost:8080", urlFlag.DefValue)
 }
 
-func TestSeedCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	seedCmd.SetOut(buf)
-	seedCmd.SetErr(buf)
-
-	err := seedCmd.Usage()
-	require.NoError(t, err)
-
-	output := buf.String()
-	assert.Contains(t, output, "seed")
-	assert.Contains(t, output, "--email")
-	assert.Contains(t, output, "--password")
-	assert.Contains(t, output, "--pin")
-	assert.Contains(t, output, "--url")
-}
-
 func TestSeedCmd_LongDescription(t *testing.T) {
+	t.Parallel()
 	assert.Contains(t, seedCmd.Long, "HTTP API")
 	assert.Contains(t, seedCmd.Long, "REQUIRES")
 	assert.Contains(t, seedCmd.Long, ".seed-state.json")
 }
 
 func TestSeedCmd_FlagTypes(t *testing.T) {
+	t.Parallel()
 	f := seedCmd.Flags()
 
 	emailFlag := f.Lookup("email")

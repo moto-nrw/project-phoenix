@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -145,10 +146,15 @@ func ValidateMigrations() error {
 
 // PrintMigrationPlan prints the full migration plan
 func PrintMigrationPlan() {
+	PrintMigrationPlanTo(os.Stdout)
+}
+
+// PrintMigrationPlanTo writes the full migration plan to output.
+func PrintMigrationPlanTo(output io.Writer) {
 	migrations := RegisteredMigrations()
 
-	fmt.Println("Migration Plan:")
-	fmt.Println("===============")
+	fmt.Fprintln(output, "Migration Plan:")
+	fmt.Fprintln(output, "===============")
 
 	for i, m := range migrations {
 		deps := strings.Join(m.DependsOn, ", ")
@@ -156,10 +162,10 @@ func PrintMigrationPlan() {
 			deps = "none"
 		}
 
-		fmt.Printf("%d. V%s - %s (Dependencies: %s)\n", i+1, m.Version, m.Description, deps)
+		fmt.Fprintf(output, "%d. V%s - %s (Dependencies: %s)\n", i+1, m.Version, m.Description, deps)
 	}
 
-	fmt.Println("===============")
+	fmt.Fprintln(output, "===============")
 }
 
 // DetectVersionCollisions scans migration source files for both semantic version

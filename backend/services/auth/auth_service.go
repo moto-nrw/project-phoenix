@@ -41,6 +41,8 @@ type ServiceConfig struct {
 	ParentsURL          string
 	SchoolURL           string
 	PasswordResetExpiry time.Duration
+	RateLimitEnabled    bool
+	TokenAuth           *jwt.TokenAuth
 	Settings            configSvc.SettingsService
 }
 
@@ -78,6 +80,7 @@ type Service struct {
 	parentsURL          string
 	schoolURL           string
 	passwordResetExpiry time.Duration
+	rateLimitEnabled    bool
 	jwtExpiry           time.Duration
 	jwtRefreshExpiry    time.Duration
 	txHandler           *tenant.TransactionRunner
@@ -131,9 +134,13 @@ func NewService(
 		return nil, &AuthError{Op: opCreateService, Err: errors.New("database is nil")}
 	}
 
-	tokenAuth, err := jwt.NewTokenAuth()
-	if err != nil {
-		return nil, &AuthError{Op: "create token auth", Err: err}
+	tokenAuth := config.TokenAuth
+	if tokenAuth == nil {
+		var err error
+		tokenAuth, err = jwt.NewTokenAuth()
+		if err != nil {
+			return nil, &AuthError{Op: "create token auth", Err: err}
+		}
 	}
 
 	return &Service{
@@ -145,6 +152,7 @@ func NewService(
 		parentsURL:          config.ParentsURL,
 		schoolURL:           config.SchoolURL,
 		passwordResetExpiry: config.PasswordResetExpiry,
+		rateLimitEnabled:    config.RateLimitEnabled,
 		jwtExpiry:           tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:    tokenAuth.JwtRefreshExpiry,
 		txHandler:           tenant.NewTransactionRunner(),

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"os"
@@ -42,6 +43,8 @@ type cleanupContext struct {
 	TimetableCleanupService    schedule.TimetableCleanupService
 	TimeTrackingCleanupService active.TimeTrackingCleanupService
 	TenantRuntime              tenant.UnitOfWork
+	Output                     io.Writer
+	Logger                     *log.Logger
 }
 
 type authCleanupService interface {
@@ -161,6 +164,8 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 	return &cleanupContext{
 		DB:            db,
 		TenantRuntime: tenantRuntime,
+		Output:        os.Stdout,
+		Logger:        log.Default(),
 	}, nil
 }
 
@@ -300,17 +305,30 @@ func buildTimeTrackingCleanupService(ctx *cleanupContext) active.TimeTrackingCle
 func (c *cleanupContext) Close() {
 	if c.DB != nil {
 		if err := c.DB.Close(); err != nil {
-			log.Printf(errCloseDB, err)
+			c.logger().Printf(errCloseDB, err)
 		}
 	}
 }
 
+func (c *cleanupContext) output() io.Writer {
+	if c.Output != nil {
+		return c.Output
+	}
+	return io.Discard
+}
+
+func (c *cleanupContext) logger() *log.Logger {
+	if c.Logger != nil {
+		return c.Logger
+	}
+	return log.New(io.Discard, "", 0)
+}
+
 // setupLogger creates a logger that writes to the specified file or stdout.
 // Returns: logger, cleanup function (call when done), error.
-func setupLogger(logFilePath string) (*log.Logger, func(), error) {
+func setupLogger(logFilePath string, output io.Writer) (*log.Logger, func(), error) {
 	if logFilePath == "" {
-		// No cleanup needed for stdout logger - return no-op function
-		return log.New(os.Stdout, "", log.LstdFlags), func() { /* no cleanup needed for stdout */ }, nil
+		return log.New(output, "", log.LstdFlags), func() {}, nil
 	}
 
 	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -328,13 +346,13 @@ func setupLogger(logFilePath string) (*log.Logger, func(), error) {
 }
 
 // printStudentBreakdown prints a table of student IDs and their counts.
-func printStudentBreakdown(header string, countHeader string, data map[int64]int) {
+func printStudentBreakdown(output io.Writer, header string, countHeader string, data map[int64]int) {
 	if len(data) == 0 {
 		return
 	}
 
-	fmt.Printf("\n%s:\n", header)
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(output, "\n%s:\n", header)
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintf(w, "Student ID\t%s\n", countHeader)
 
 	for studentID, count := range data {
@@ -347,13 +365,13 @@ func printStudentBreakdown(header string, countHeader string, data map[int64]int
 }
 
 // printDateBreakdown prints a table of dates and their counts.
-func printDateBreakdown(data map[string]int) {
+func printDateBreakdown(output io.Writer, data map[string]int) {
 	if len(data) == 0 {
 		return
 	}
 
-	fmt.Println("\nPer-date breakdown:")
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(output, "\nPer-date breakdown:")
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "Date\tRecords")
 
 	for date, count := range data {
@@ -366,13 +384,13 @@ func printDateBreakdown(data map[string]int) {
 }
 
 // printStudentBreakdownWithTotal prints a table with student data and a total row.
-func printStudentBreakdownWithTotal(countHeader string, data map[int64]int) {
+func printStudentBreakdownWithTotal(output io.Writer, countHeader string, data map[int64]int) {
 	if len(data) == 0 {
 		return
 	}
 
-	fmt.Println("\nPer-student breakdown:")
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
+	fmt.Fprintln(output, "\nPer-student breakdown:")
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', tabwriter.AlignRight)
 	_, _ = fmt.Fprintf(w, "Student ID\t%s\t\n", countHeader)
 	_, _ = fmt.Fprintln(w, "----------\t----------------\t")
 
@@ -391,13 +409,13 @@ func printStudentBreakdownWithTotal(countHeader string, data map[int64]int) {
 }
 
 // printMonthlyBreakdownWithTotal prints a table with monthly data and totals.
-func printMonthlyBreakdownWithTotal(header string, data map[string]int64) {
+func printMonthlyBreakdownWithTotal(output io.Writer, header string, data map[string]int64) {
 	if len(data) == 0 {
 		return
 	}
 
-	fmt.Printf("\n%s:\n", header)
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
+	fmt.Fprintf(output, "\n%s:\n", header)
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', tabwriter.AlignRight)
 	_, _ = fmt.Fprintln(w, "Month\tExpired Visits\t")
 	_, _ = fmt.Fprintln(w, "-------\t--------------\t")
 
@@ -416,12 +434,12 @@ func printMonthlyBreakdownWithTotal(header string, data map[string]int64) {
 }
 
 // printRecentDeletions prints a table of recent deletion activity.
-func printRecentDeletions(deletions []recentDeletionRow) {
+func printRecentDeletions(output io.Writer, deletions []recentDeletionRow) {
 	if len(deletions) == 0 {
 		return
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', tabwriter.AlignRight)
 	_, _ = fmt.Fprintln(w, "Date\tRecords Deleted\tStudents\t")
 	_, _ = fmt.Fprintln(w, "----------\t---------------\t--------\t")
 

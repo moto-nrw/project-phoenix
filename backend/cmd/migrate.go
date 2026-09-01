@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
@@ -101,21 +102,24 @@ var migrateValidateCmd = &cobra.Command{
 	Short: "validate migration dependencies",
 	Long:  `Check all migration dependencies for correctness and ordering`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Detect duplicate version registrations by scanning source files.
-		// In Docker, source files don't exist (only the compiled binary),
-		// so DetectVersionCollisions gracefully returns nil when the directory is missing.
-		if err := migrations.DetectVersionCollisions("database/migrations"); err != nil {
-			return fmt.Errorf("migration version collision check failed: %w", err)
-		}
-
-		if err := migrations.ValidateMigrations(); err != nil {
-			return fmt.Errorf("migration validation failed: %w", err)
-		}
-
-		fmt.Println("All migrations validated successfully!")
-		migrations.PrintMigrationPlan()
-		return nil
+		return runMigrationValidation(cmd.OutOrStdout(),
+			func() error { return migrations.DetectVersionCollisions("database/migrations") },
+			migrations.ValidateMigrations,
+			migrations.PrintMigrationPlanTo,
+		)
 	},
+}
+
+func runMigrationValidation(output io.Writer, detect, validate func() error, printPlan func(io.Writer)) error {
+	if err := detect(); err != nil {
+		return fmt.Errorf("migration version collision check failed: %w", err)
+	}
+	if err := validate(); err != nil {
+		return fmt.Errorf("migration validation failed: %w", err)
+	}
+	fmt.Fprintln(output, "All migrations validated successfully!")
+	printPlan(output)
+	return nil
 }
 
 func init() {

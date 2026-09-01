@@ -451,7 +451,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 700,
+          "line": 704,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +461,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 337,
+          "line": 340,
           "declaration": "New"
         }
       ]
@@ -506,12 +506,12 @@
       "locations": [
         {
           "file": "services/auth/auth_service.go",
-          "line": 73,
+          "line": 75,
           "declaration": "type Service"
         },
         {
           "file": "services/auth/auth_service.go",
-          "line": 119,
+          "line": 122,
           "declaration": "NewService"
         },
         {
@@ -561,12 +561,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 318,
+          "line": 383,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 334,
+          "line": 399,
           "declaration": "newFactory"
         },
         {
@@ -576,7 +576,12 @@
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 21,
+          "line": 18,
+          "declaration": "NewFactoryForTestsWithConfig"
+        },
+        {
+          "file": "services/factory_test_helpers.go",
+          "line": 25,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
@@ -16609,7 +16614,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        337
+        340
       ],
       "tables": []
     },
@@ -16619,7 +16624,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        95
+        96
       ],
       "tables": []
     },
@@ -16629,7 +16634,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        162
+        163
       ],
       "tables": []
     },
@@ -16653,7 +16658,7 @@
       "declaration": "var serveCmd",
       "target": "api.WithRuntime",
       "lines": [
-        59
+        62
       ],
       "tables": []
     },
@@ -16743,7 +16748,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        280
+        271
       ],
       "tables": []
     },
@@ -16753,7 +16758,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        281
+        272
       ],
       "tables": []
     },
@@ -16763,7 +16768,7 @@
       "declaration": "setupOperatorInvitationRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        308
+        299
       ],
       "tables": []
     },
@@ -16773,7 +16778,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        298
+        289
       ],
       "tables": []
     },
@@ -16783,7 +16788,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        299
+        290
       ],
       "tables": []
     },
@@ -16886,7 +16891,7 @@
       "declaration": "setupTakeoverLockTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        97
+        95
       ],
       "tables": [
         "auth.accounts",
@@ -16924,7 +16929,7 @@
       "declaration": "setupGuardiansRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        47
+        50
       ],
       "tables": []
     },
@@ -16983,7 +16988,7 @@
       "declaration": "TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2729
+        2715
       ],
       "tables": []
     },
@@ -16993,7 +16998,7 @@
       "declaration": "TestDevicePickupQuery_StaffLookupFailureReturnsServerError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2960
+        2946
       ],
       "tables": []
     },
@@ -17003,7 +17008,7 @@
       "declaration": "setupCheckinRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        112
+        116
       ],
       "tables": []
     },
@@ -17063,7 +17068,7 @@
       "declaration": "TestOperatorResetSchoolSettingValue_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        267
+        259
       ],
       "tables": []
     },
@@ -17073,7 +17078,7 @@
       "declaration": "setupOperatorSettingsRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        63
+        55
       ],
       "tables": []
     },
@@ -17083,7 +17088,7 @@
       "declaration": "setupOperatorSettingsWithSchoolRepoRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        58
+        53
       ],
       "tables": []
     },
@@ -17334,7 +17339,7 @@
       "declaration": "TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1450
+        1445
       ],
       "tables": []
     },
@@ -17344,8 +17349,8 @@
       "declaration": "TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1381,
-        1420
+        1376,
+        1415
       ],
       "tables": [
         "config.work_time_models",
@@ -17878,7 +17883,7 @@
       "declaration": "setupTestCleanupContext",
       "target": "database/repositories.NewFactory",
       "lines": [
-        28
+        34
       ],
       "tables": []
     },
@@ -17888,7 +17893,7 @@
       "declaration": "setupTestCleanupContextWithServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        47
+        55
       ],
       "tables": []
     },
@@ -20193,7 +20198,7 @@
       "declaration": "TestAuthEventRepository_ClaimPendingAccountWideWipes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        277
+        273
       ],
       "tables": []
     },
@@ -20243,7 +20248,7 @@
       "declaration": "TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        247
+        243
       ],
       "tables": [
         "audit.auth_events"
@@ -20255,7 +20260,7 @@
       "declaration": "TestAuthEventRepository_PendingAccountWideWipes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        218
+        215
       ],
       "tables": []
     },
@@ -24724,7 +24729,7 @@
       "declaration": "TestStudentRepository_CompanionNoteSchemaCompatibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        433
+        432
       ],
       "tables": [
         "users.students"
@@ -24746,7 +24751,7 @@
       "declaration": "TestStudentRepository_StaleDeparturePlanIsRebased",
       "target": "database/repositories.NewFactory",
       "lines": [
-        513
+        512
       ],
       "tables": []
     },
@@ -26096,7 +26101,7 @@
       "declaration": "setupAuthService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        46
+        50
       ],
       "tables": []
     },
@@ -26106,7 +26111,7 @@
       "declaration": "setupInvitationService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        54
+        59
       ],
       "tables": []
     },
@@ -26720,7 +26725,7 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        278
+        272
       ],
       "tables": []
     },
@@ -26730,7 +26735,7 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDelete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        296
+        288
       ],
       "tables": []
     },
@@ -26740,8 +26745,8 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap",
       "target": "database/repositories.NewFactory",
       "lines": [
-        252,
-        256
+        248,
+        252
       ],
       "tables": []
     },
@@ -26804,7 +26809,7 @@
       "declaration": "TestCareOfferingMaterializability_CancellationDoesNotRequireRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        400
+        396
       ],
       "tables": []
     },
@@ -26845,7 +26850,7 @@
       "declaration": "TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        436
+        432
       ],
       "tables": []
     },
@@ -27504,7 +27509,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        66
       ],
       "tables": [
         "enrollment.request_children",
@@ -27517,7 +27522,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        208
+        204
       ],
       "tables": [
         "enrollment.late_invites",
@@ -28093,14 +28098,14 @@
       "declaration": "TestWCService_EnsureInfrastructure_PropagatesRoomErrors",
       "target": "database/repositories.NewFactory",
       "lines": [
+        117,
+        118,
+        119,
+        120,
         121,
         122,
         123,
-        124,
-        125,
-        126,
-        127,
-        128
+        124
       ],
       "tables": []
     },
@@ -28130,7 +28135,7 @@
       "declaration": "TestNewFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        36
       ],
       "tables": []
     },
@@ -28140,7 +28145,7 @@
       "declaration": "TestNewFactory_DefaultEmailFrom_WhenNotConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        265
+        247
       ],
       "tables": []
     },
@@ -28150,7 +28155,7 @@
       "declaration": "TestNewFactory_EmailFrom_WhenConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        284
+        262
       ],
       "tables": []
     },
@@ -28160,7 +28165,7 @@
       "declaration": "TestNewFactory_FrontendURL_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        208
       ],
       "tables": []
     },
@@ -28170,7 +28175,7 @@
       "declaration": "TestNewFactory_FrontendURL_TrailingSlashRemoved",
       "target": "database/repositories.NewFactory",
       "lines": [
-        206
+        192
       ],
       "tables": []
     },
@@ -28180,7 +28185,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        116
+        114
       ],
       "tables": []
     },
@@ -28190,7 +28195,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        134
+        130
       ],
       "tables": []
     },
@@ -28200,7 +28205,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        98
+        100
       ],
       "tables": []
     },
@@ -28210,7 +28215,7 @@
       "declaration": "TestNewFactory_NegativeInvitationExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        304
+        280
       ],
       "tables": []
     },
@@ -28220,7 +28225,7 @@
       "declaration": "TestNewFactory_NegativePasswordResetExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        322
+        296
       ],
       "tables": []
     },
@@ -28230,7 +28235,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        170
+        160
       ],
       "tables": []
     },
@@ -28240,7 +28245,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        188
+        176
       ],
       "tables": []
     },
@@ -28250,7 +28255,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        152
+        146
       ],
       "tables": []
     },
@@ -28260,7 +28265,7 @@
       "declaration": "TestNewFactory_PortalURLs_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        240
+        222
       ],
       "tables": []
     },
@@ -28270,7 +28275,7 @@
       "declaration": "TestNewFactory_RejectsPartialVAPIDConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        81
+        84
       ],
       "tables": []
     },
@@ -31352,7 +31357,7 @@
       "declaration": "TestStudentChangeLogCleanup_DeletesOldEdits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        94
+        92
       ],
       "tables": []
     },
@@ -31362,7 +31367,7 @@
       "declaration": "TestStudentChangeLogCleanup_NoOpWhenNothingExpired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        126
+        122
       ],
       "tables": []
     },
@@ -31627,7 +31632,7 @@
       "declaration": "setupParentCalendarRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        30
+        29
       ],
       "tables": []
     },
@@ -31637,7 +31642,7 @@
       "declaration": "setupPersonalCalendarRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        27
+        26
       ],
       "tables": []
     },
@@ -31647,7 +31652,7 @@
       "declaration": "setupTimetableScenarioModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        62
+        63
       ],
       "tables": []
     },

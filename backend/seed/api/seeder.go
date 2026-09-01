@@ -30,14 +30,16 @@ type SeedOptions struct {
 	TenantSlug    string // Fixed tenant slug instead of demo-school-{timestamp}
 	StaffPassword string // Shared password for all 20 staff accounts
 	AdminEmail    string // Fixed email for the bootstrap school admin
+	StatePath     string // Output path; empty uses DefaultSeedStatePath
 }
 
 // Seeder orchestrates the complete API-based seeding process
 type Seeder struct {
-	client  *Client
-	random  io.Reader
-	verbose bool
-	options SeedOptions
+	client    *Client
+	random    io.Reader
+	verbose   bool
+	options   SeedOptions
+	statePath string
 }
 
 // SeedResult contains counts of created entities
@@ -61,11 +63,16 @@ type bootstrapSeedState struct {
 
 // NewSeeder creates a new API seeder
 func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOptions) *Seeder {
+	statePath := options.StatePath
+	if statePath == "" {
+		statePath = DefaultSeedStatePath
+	}
 	return &Seeder{
-		client:  NewClientWithAdapter(adapter, verbose),
-		random:  random,
-		verbose: verbose,
-		options: options,
+		client:    NewClientWithAdapter(adapter, verbose),
+		random:    random,
+		verbose:   verbose,
+		options:   options,
+		statePath: statePath,
 	}
 }
 

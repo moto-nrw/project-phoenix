@@ -9,6 +9,7 @@ import (
 )
 
 func TestPlanningTracksSchemaRejectsCrossTenantTemplateReference(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	group := testpkg.CreateTestActivityGroup(t, db, "PlanningTrackTenantFK")
 
@@ -29,6 +30,7 @@ func TestPlanningTracksSchemaRejectsCrossTenantTemplateReference(t *testing.T) {
 }
 
 func TestPlanningTracksSchemaEnforcesActiveNameAndColor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	testpkg.OwnTenantRows(t, db, scope.TenantID)
