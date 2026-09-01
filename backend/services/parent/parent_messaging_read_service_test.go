@@ -20,6 +20,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -37,6 +38,12 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
+	organizationTenancy, err := organizationCompose.New(organizationCompose.Dependencies{
+		DB:      db,
+		Observe: func(organizationCompose.Observation) {},
+	})
+	require.NoError(t, err)
+	repos.BindOrganizationTenancy(organizationTenancy)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,

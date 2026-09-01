@@ -40,13 +40,15 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 
 	"github.com/uptrace/bun"
 )
 
 // Factory provides access to all repositories
 type Factory struct {
-	db *bun.DB
+	db                       *bun.DB
+	organizationTenancyBound bool
 
 	// Auth domain
 	Account                authModels.AccountRepository
@@ -335,6 +337,44 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime)
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences)
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
+}
+
+// BindOrganizationTenancy replaces school-owning and school-enriched legacy
+// adapters with compositions over the public owner capability.
+func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capability) {
+	if capability == nil {
+		panic("repository factory: organization tenancy capability is required")
+	}
+	if f.organizationTenancyBound {
+		return
+	}
+	f.organizationTenancyBound = true
+	memberships := f.AccountTenant
+	rawAccountTenant, ok := f.AccountTenant.(interface {
+		ListAccountsBySchoolIDs(context.Context, []int64) ([]authModels.OrgAccountInfo, error)
+	})
+	if ok {
+		f.AccountTenant = schoolAccountTenantRepository{AccountTenantRepository: f.AccountTenant, raw: rawAccountTenant, schools: capability}
+	}
+	if f.Account != nil {
+		f.Account = schoolAccountRepository{AccountRepository: f.Account, schools: capability}
+	}
+	f.School = platformRepo.NewSchoolCapabilityAdapter(capability, memberships)
+	if f.ParentChild != nil {
+		f.ParentChild = schoolChildRepository{ChildRepository: f.ParentChild, schools: capability}
+	}
+	if f.ParentEnrollablePhase != nil {
+		f.ParentEnrollablePhase = schoolEnrollablePhaseRepository{EnrollablePhaseRepository: f.ParentEnrollablePhase, schools: capability}
+	}
+	if f.ParentEnrollmentRequest != nil {
+		f.ParentEnrollmentRequest = schoolEnrollmentRequestRepository{EnrollmentRequestRepository: f.ParentEnrollmentRequest, schools: capability}
+	}
+	if f.ParentAnnouncement != nil {
+		f.ParentAnnouncement = schoolParentAnnouncementRepository{ParentAnnouncementRepository: f.ParentAnnouncement, schools: capability}
+	}
+	if f.ParentMessageRead != nil {
+		f.ParentMessageRead = schoolParentMessageReadRepository{ParentMessageReadRepository: f.ParentMessageRead, schools: capability}
+	}
 }
 
 // NewFactory creates a new repository factory with all repositories

@@ -8,7 +8,7 @@ import (
 	"text/tabwriter"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/spf13/cobra"
 )
@@ -50,7 +50,7 @@ type settingOverrideRow struct {
 
 type settingsCommandContext struct {
 	*cleanupContext
-	schools platformModel.SchoolRepository
+	schools organizationtenancy.Query
 	values  configModel.SettingValueRepository
 }
 
@@ -59,11 +59,10 @@ func newSettingsCommandContext() (*settingsCommandContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	schools, values := services.NewSettingsCommandRepositories(base.DB)
 	return &settingsCommandContext{
 		cleanupContext: base,
-		schools:        schools,
-		values:         values,
+		schools:        base.Schools,
+		values:         services.NewSettingsCommandRepository(base.DB),
 	}, nil
 }
 
@@ -73,7 +72,7 @@ func runSettingsOverrides(_ *cobra.Command, _ []string) error {
 		return err
 	}
 	defer ctx.Close()
-	schools, err := ctx.schools.List(context.Background())
+	schools, err := ctx.schools.ListSchools(context.Background())
 	if err != nil {
 		return fmt.Errorf("list schools: %w", err)
 	}
@@ -91,7 +90,7 @@ func selectedSettingOverrideKeys() []string {
 	return activationSettingKeys
 }
 
-func collectSettingOverrideRows(ctx context.Context, schools []*platformModel.School, keys []string, values configModel.SettingValueRepository) ([]settingOverrideRow, error) {
+func collectSettingOverrideRows(ctx context.Context, schools []organizationtenancy.School, keys []string, values configModel.SettingValueRepository) ([]settingOverrideRow, error) {
 	rows := []settingOverrideRow{}
 	for _, school := range schools {
 		for _, key := range keys {

@@ -21,6 +21,7 @@ import (
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -63,6 +64,10 @@ type CrossTenantRepo interface {
 	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
 }
 
+type SchoolQuery interface {
+	ListSchoolsByID(context.Context, []int64) ([]organizationtenancy.School, error)
+}
+
 // SettingsResolver resolves tenant-scoped settings. Implemented by config.SettingsService.
 // Optional dependency — when nil, auto-clear behavior falls back to the registry default.
 type SettingsResolver interface {
@@ -91,6 +96,7 @@ type ServiceDependencies struct {
 
 	// Cross-tenant query repository (optional - nil-safe)
 	CrossTenantRepo CrossTenantRepo
+	Schools         SchoolQuery
 
 	// User domain repositories
 	StudentRepo userModels.StudentRepository
@@ -1503,6 +1509,34 @@ func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID in
 	students, err := s.CrossTenantRepo.FindCrossTenantStudents(ctx, hostingTenantID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("query failed: %w", err)}
+	}
+	if len(students) > 0 {
+		if s.Schools == nil {
+			return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: errors.New("school query is required")}
+		}
+		ids := make([]int64, 0, len(students))
+		seen := make(map[int64]struct{}, len(students))
+		for _, student := range students {
+			if _, found := seen[student.HomeTenantID]; !found {
+				seen[student.HomeTenantID] = struct{}{}
+				ids = append(ids, student.HomeTenantID)
+			}
+		}
+		schools, schoolErr := s.Schools.ListSchoolsByID(ctx, ids)
+		if schoolErr != nil {
+			return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("load home schools: %w", schoolErr)}
+		}
+		slugs := make(map[int64]string, len(schools))
+		for _, school := range schools {
+			slugs[school.ID] = school.Slug
+		}
+		for index := range students {
+			slug, found := slugs[students[index].HomeTenantID]
+			if !found {
+				return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("home school %d not found", students[index].HomeTenantID)}
+			}
+			students[index].HomeTenant = slug
+		}
 	}
 
 	s.getLogger().Info("cross-tenant students queried",

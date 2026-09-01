@@ -20662,6 +20662,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/auth/account_tenant_repository_test.go",
+      "declaration": "newSchoolProjectedAccountTenantRepository",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        25
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/auth/effective_admins_test.go",
       "declaration": "TestAccountRepository_ListEffectiveAdminAccountIDs",
       "target": "database/repositories.NewFactory",
@@ -22492,6 +22502,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         269
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/parent/child_repository_test.go",
+      "declaration": "newSchoolProjectionFactory",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        30
       ],
       "tables": []
     },
@@ -28451,7 +28471,7 @@
       "declaration": "buildReadServiceWithNotifier",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        40
       ],
       "tables": []
     },

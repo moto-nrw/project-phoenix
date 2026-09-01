@@ -4832,6 +4832,69 @@
       "target_role": "public"
     },
     {
+      "id": "root-cli.to.organization-tenancy-compose",
+      "description": "The cleanup CLI constructs the Organization and Tenancy capability for tenant iteration.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "organization-tenancy",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-cli.to.organization-tenancy-public",
+      "description": "The cleanup CLI lists active schools through the public owner query.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "organization-tenancy.postgres-public-adapter",
+      "description": "The legacy school repository interface is adapted to the public owner capability without direct table access.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "postgres",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.to.organization-tenancy",
+      "description": "Cross-tenant presence results resolve the home-school slug through the public owner query.",
+      "scopes": ["production"],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.internal-test.organization-tenancy",
+      "description": "Student presence unit tests implement the public school query contract.",
+      "scopes": ["internal_test"],
+      "source_owner": "student-presence",
+      "source_role": "module-internal-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.behavior-test.organization-tenancy-compose",
+      "description": "Identity access repository behavior tests compose the real school owner adapter.",
+      "scopes": ["external_test"],
+      "source_owner": "identity-access",
+      "source_role": "module-behavior-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.behavior-test.organization-tenancy-compose",
+      "description": "Care plan repository and service behavior tests compose the real school owner adapter.",
+      "scopes": ["external_test"],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "compose"
+    },
+    {
       "id": "audit-platform.to.organization-tenancy",
       "description": "Audit scan presentation resolves organization names through the public owner query.",
       "scopes": ["production"],
