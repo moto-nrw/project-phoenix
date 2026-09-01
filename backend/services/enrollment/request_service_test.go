@@ -512,6 +512,21 @@ func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.
 	require.Len(t, admins, 2, "one admin notification per configured recipient")
 }
 
+func TestRequestService_SubmitRollsBackWhenEmailEnqueueFails(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	env.outbox.err = errors.New("outbox unavailable")
+
+	_, err := env.svc.Submit(testpkg.Ctx(t), validSubmission(t, env.phaseID))
+	require.ErrorContains(t, err, "enqueue submission emails")
+
+	var count int
+	require.NoError(t, env.db.NewRaw(`SELECT COUNT(*) FROM enrollment.requests WHERE phase_id = ?`, env.phaseID).Scan(testpkg.Ctx(t), &count))
+	assert.Zero(t, count)
+}
+
 // TestRequestService_Submit_PersistsAdditionalGuardians verifies that
 // co-guardians are normalized (trim, lowercase email), deduped (against
 // the primary + each other), and that fully-blank cards are dropped. The

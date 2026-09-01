@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -110,6 +111,34 @@ type PushIntent struct {
 	Payload        PushPayload
 	IdempotencyKey string
 	Related        RelatedEntity
+}
+
+// ValidatePushEndpoint restricts provider requests to browser-managed push
+// services. It is applied again by the worker because persisted snapshots may
+// predate subscription validation.
+func ValidatePushEndpoint(endpoint string) error {
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return fmt.Errorf("endpoint must be a valid URL: %w", err)
+	}
+	if parsed.Scheme != "https" || parsed.Hostname() == "" {
+		return errors.New("endpoint must be an https URL")
+	}
+	if parsed.User != nil || parsed.Fragment != "" {
+		return errors.New("endpoint must not contain user information or a fragment")
+	}
+	if port := parsed.Port(); port != "" && port != "443" {
+		return errors.New("endpoint must use the default https port")
+	}
+
+	host := strings.ToLower(parsed.Hostname())
+	if host == "fcm.googleapis.com" || host == "updates.push.services.mozilla.com" || host == "web.push.apple.com" {
+		return nil
+	}
+	if strings.HasSuffix(host, ".notify.windows.com") && host != "notify.windows.com" {
+		return nil
+	}
+	return errors.New("endpoint host is not a trusted push service")
 }
 
 type Enqueued struct {

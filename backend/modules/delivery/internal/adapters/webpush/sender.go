@@ -35,6 +35,9 @@ func (s *Sender) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (d
 	if !s.config.Configured() {
 		return delivery.ProviderResult{}, errors.New("delivery provider: web push is not configured")
 	}
+	if err := delivery.ValidatePushEndpoint(intent.PushRecipient.Endpoint); err != nil {
+		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: invalid push endpoint: %w", err)
+	}
 	payload, err := json.Marshal(intent.PushPayload)
 	if err != nil {
 		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: encode push payload: %w", err)
