@@ -482,7 +482,7 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	fmt.Println()
 
 	fmt.Println("OUTPUT FILES:")
-	fmt.Printf("  %s   (seed state with credentials & IDs)\n", DefaultSeedStatePath)
+	fmt.Printf("  %s   (seed state with credentials & IDs)\n", s.statePath)
 	fmt.Println()
 }
 

@@ -916,6 +916,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "iot"),
 		DailyCheckoutFallback:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
+		DevicePINFallback:       os.Getenv("OGS_DEVICE_PIN"),
 		DB:                      db,
 		DeviceLastSeenDebouncer: deviceLastSeenDebouncer,
 	})

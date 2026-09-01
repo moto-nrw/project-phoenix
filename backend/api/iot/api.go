@@ -62,6 +62,7 @@ type ServiceDependencies struct {
 	Broadcaster              realtime.Broadcaster
 	Logger                   *slog.Logger
 	DailyCheckoutFallback    string
+	DevicePINFallback        string
 	DB                       *bun.DB
 	DeviceLastSeenDebouncer  *device.LastSeenDebouncer
 }
@@ -150,7 +151,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.SchoolService,
 			rs.StaffPINAuthenticator,
 			rs.pinResolver(),
-			"",
+			rs.DevicePINFallback,
 			rs.DeviceLastSeenDebouncer,
 		))
 		r.Use(iotMetricsMiddleware)

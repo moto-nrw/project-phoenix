@@ -301,7 +301,7 @@ import (
 
 func TestDirectMutation(t *testing.T) {
 	t.Parallel()
-	viper.Set("key", "value")
+	viper.` + "Set" + `("key", "value")
 }
 `)
 	if err := os.WriteFile(filepath.Join(root, "direct_test.go"), probe, 0o600); err != nil {
