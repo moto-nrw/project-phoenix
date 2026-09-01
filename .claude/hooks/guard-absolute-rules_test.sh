@@ -3,6 +3,8 @@
 # hermetic fixture repository (incl. a linked worktree), so nothing depends on
 # the real repo's tracked-file state. Asserts BOTH channels of a deny: exit
 # code 2 (Codex) and the permissionDecision JSON on stdout (Claude Code).
+# Nothing in the table is ever executed - payloads are only piped into the
+# hook - so allow cases may name programs that do not exist on this machine.
 #
 # Production hostnames below are assembled by concatenation on purpose, so
 # content scans over this file never see them as literals.
@@ -15,7 +17,6 @@ command -v jq >/dev/null 2>&1 || {
 
 hook_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 hook="$hook_dir/guard-absolute-rules.sh"
-project_root=$(cd "$hook_dir/../.." && pwd)
 
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/guard-test.XXXXXX")
 cleanup() { rm -rf "$fixture"; }
@@ -34,41 +35,28 @@ git -C "$repo" config commit.gpgsign false
 printf '#!/usr/bin/env bash\necho toolchain "$@"\n' >"$repo/scripts/run-go-toolchain.sh"
 printf '#!/usr/bin/env bash\necho backend tests\n' >"$repo/scripts/test-backend.sh"
 printf '#!/usr/bin/env bash\necho env check\n' >"$repo/scripts/env-check.sh"
+printf 'package backend\n' >"$repo/backend/doc.go"
+chmod +x "$repo"/scripts/*.sh
+# tracked symlink escaping the repo: must not launder an outside file
 printf '#!/usr/bin/env bash\necho outside\n' >"$fixture/outside.sh"
 ln -s "$fixture/outside.sh" "$repo/scripts/outside.sh"
+git -C "$repo" add -A
+git -C "$repo" commit -qm fixture
+# untracked on purpose: exists, executable, but not vetted
+printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new.sh"
+printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new"
+printf '#!/usr/bin/env bash\necho untracked launcher\n' >"$repo/env"
+chmod +x "$repo/scripts/new.sh" "$repo/scripts/new" "$repo/env"
+# gitignored devbox tool farm: entries resolve into the nix store (outside
+# the repo) and are exempt from tracking; a broken symlink cycle is not.
+mkdir -p "$repo/.devbox/nix/profile/default/bin"
+ln -s /usr/bin/true "$repo/.devbox/nix/profile/default/bin/go"
+ln -s cycle-b "$repo/.devbox/nix/profile/default/bin/cycle-a"
+ln -s cycle-a "$repo/.devbox/nix/profile/default/bin/cycle-b"
 outside_dir="$fixture/outside-dir"
 mkdir -p "$outside_dir/scripts"
 printf '#!/usr/bin/env bash\necho outside\n' >"$outside_dir/scripts/test-backend.sh"
 chmod +x "$outside_dir/scripts/test-backend.sh"
-printf 'module example.test/project\n\ngo 1.25\n' >"$repo/backend/go.mod"
-printf 'package backend\n' >"$repo/backend/doc.go"
-mkdir -p "$repo/backend/scripts"
-printf '#!/usr/bin/env bash\necho tracked\n' >"$repo/backend/scripts/new"
-mkdir -p "$repo/backend/cmd/tracked"
-mkdir -p "$repo/backend/lib"
-printf 'package lib\n' >"$repo/backend/lib/lib.go"
-printf 'package main\nimport _ "example.test/project/lib"\nfunc main() {}\n' >"$repo/backend/cmd/tracked/main.go"
-chmod +x "$repo/scripts/run-go-toolchain.sh" "$repo/scripts/test-backend.sh" "$repo/scripts/env-check.sh" "$repo/backend/scripts/new"
-git -C "$repo" add -A
-git -C "$repo" commit -qm fixture
-# untracked on purpose: exists, executable, but not vetted
-printf '#!/usr/bin/env bash\necho untracked launcher\n' >"$repo/env"
-chmod +x "$repo/env"
-printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new.sh"
-chmod +x "$repo/scripts/new.sh"
-printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new"
-chmod +x "$repo/scripts/new"
-trusted_text="$repo/node_modules/@openai/codex-test/vendor/test/codex-path/rg"
-mkdir -p "$(dirname "$trusted_text")"
-printf 'echo trusted text\n' >"$trusted_text"
-chmod +x "$trusted_text"
-printf 'package main\nfunc main() {}\n' >"$repo/untracked.go"
-mkdir -p "$fixture/bin"
-printf '#!/usr/bin/env bash\necho evil\n' >"$fixture/bin/evil"
-chmod +x "$fixture/bin/evil"
-mkdir -p "$repo/.devbox/nix/profile/default/bin"
-ln -s cycle-b "$repo/.devbox/nix/profile/default/bin/cycle-a"
-ln -s cycle-a "$repo/.devbox/nix/profile/default/bin/cycle-b"
 
 worktree="$fixture/wt"
 git -C "$repo" worktree add -q "$worktree" -b guard-test-wt
@@ -78,10 +66,10 @@ checks=0
 
 # run_hook <allow|deny> <label> <payload-json>
 run_hook() {
-    local expect=$1 label=$2 payload=$3 path=${4:-$PATH} out status decision
+    local expect=$1 label=$2 payload=$3 out status decision
     checks=$((checks + 1))
     set +e
-    out=$(printf '%s' "$payload" | PATH="$path" bash "$hook" 2>/dev/null)
+    out=$(printf '%s' "$payload" | bash "$hook" 2>/dev/null)
     status=$?
     set -e
     decision=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // empty' 2>/dev/null) || decision=""
@@ -108,13 +96,6 @@ assert_bash() {
         '{tool_name: "Bash", tool_input: {command: $cmd}, cwd: $cwd}')"
 }
 
-# assert_bash_path <allow|deny> <cwd> <path> <command>
-assert_bash_path() {
-    local expect=$1 cwd=$2 path=$3 cmd=$4
-    run_hook "$expect" "Bash: $cmd (cwd=$cwd, PATH=$path)" "$(jq -n --arg cmd "$cmd" --arg cwd "$cwd" \
-        '{tool_name: "Bash", tool_input: {command: $cmd}, cwd: $cwd}')" "$path"
-}
-
 # --- tracked scripts inside the repo: allowed, in every invocation form ---
 assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go test ./...'
 assert_bash allow "$repo" '(cd backend && ../scripts/run-go-toolchain.sh go test ./...)'
@@ -125,49 +106,44 @@ assert_bash allow "$repo" 'bash scripts/env-check.sh'
 assert_bash allow "$repo" 'scripts/run-go-toolchain.sh scripts/test-backend.sh'
 assert_bash allow "$repo" 'scripts/run-go-toolchain.sh golangci-lint run'
 assert_bash allow "$repo" 'scripts/run-go-toolchain.sh govulncheck ./...'
+assert_bash allow "$repo" 'scripts/run-go-toolchain.sh gotestsum --format pkgname -- -count=1 ./...'
 assert_bash allow "$repo/backend" '../scripts/test-backend.sh'
 assert_bash allow "$repo" 'PHX_TEST_RUN_ID=abc scripts/test-backend.sh'
 assert_bash allow "$repo" 'source scripts/env-check.sh'
 assert_bash allow "$repo" 'builtin cd backend && ../scripts/test-backend.sh'
+assert_bash allow "$repo" '/bin/bash scripts/env-check.sh'
 assert_bash allow "$worktree" 'scripts/test-backend.sh'
 assert_bash allow "$worktree" 'cd backend && ../scripts/run-go-toolchain.sh go vet ./...'
 
-# --- interpreters and plain commands: no categorical block ---
+# --- everyday commands: never vetted, never blocked ---
 assert_bash allow "$repo" 'node --version'
 assert_bash allow "$repo" 'python3 -m venv .venv'
 assert_bash allow "$repo" 'git commit -m "fix: x"'
 assert_bash allow "$repo" "rg $prod_host docs/"
 assert_bash allow "$repo" "grep -R 'test-changed.sh' scripts/"
-assert_bash deny "$repo" "scripts/run-go-toolchain.sh grep 'test-changed.sh' scripts/"
 assert_bash allow "$repo" "printf '%s\\n' 'a; scripts/new.sh'"
 assert_bash allow "$repo" 'printf "%s" "text; ./scripts/new.sh"'
-assert_bash allow "$repo" '/bin/bash scripts/env-check.sh'
 assert_bash allow "$repo" '/usr/bin/git --version'
 assert_bash allow "$repo" '/usr/bin/env'
 assert_bash allow "$repo" '/usr/bin/env FOO=1 /usr/bin/true'
 assert_bash allow "$repo" 'if true; then :; fi'
 assert_bash allow "$repo" 'export PHX_GUARD_TEST=1; printf "%s" ok'
 assert_bash allow "$repo" 'cd backend | scripts/test-backend.sh'
-if [[ -x /opt/homebrew/bin/pnpm ]]; then
-    assert_bash allow "$repo" '/opt/homebrew/bin/pnpm --version'
-fi
-if [[ -x "$project_root/.devbox/nix/profile/default/bin/pnpm" ]]; then
-    assert_bash allow "$project_root" "$project_root/.devbox/nix/profile/default/bin/pnpm --version"
-    assert_bash deny "$project_root" "$project_root/.devbox/nix/profile/default/bin/ni --version"
-fi
-(cd "$repo/backend" && go list -deps -json ./cmd/tracked >/dev/null)
-assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
-assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go test -run TestTracked ./cmd/tracked'
-printf 'package main\n' >"$repo/backend/cmd/tracked/untracked.go"
-assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
-rm "$repo/backend/cmd/tracked/untracked.go"
-printf 'package lib\n' >"$repo/backend/lib/untracked.go"
-assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
-assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go test ./cmd/tracked'
-rm "$repo/backend/lib/untracked.go"
-printf 'package main\nimport "testing"\nfunc TestTracked(t *testing.T) {}\n' >"$repo/backend/cmd/tracked/untracked_test.go"
-assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go test ./cmd/tracked'
-rm "$repo/backend/cmd/tracked/untracked_test.go"
+# regression guards for the over-hardened states this guard once had:
+assert_bash allow "$repo" 'ls -la /tmp/whatever 2>&1 | head -1'
+assert_bash allow "$repo" 'gh pr view 2937 --json state'
+assert_bash allow "$repo" 'definitely-not-installed-guard-probe --version'
+assert_bash allow "$repo" 'PATH=/opt/somewhere/bin go version'
+assert_bash allow "$repo" 'CC=/usr/bin/cc go build ./...'
+assert_bash allow "$repo" 'go test -tags=integration -count=1 ./...'
+assert_bash allow "$repo" 'go tool pprof -top cpu.out'
+assert_bash allow "$repo" 'go generate ./...'
+assert_bash allow "$repo" 'command -v gh'
+assert_bash allow "$repo" 'stdbuf -o0 cat somefile'
+assert_bash allow "$repo" 'printf x | node'
+assert_bash allow "$repo" "find . -name '*.tmp' -exec rm {} \\;"
+assert_bash allow "$repo" 'xargs rm'
+assert_bash allow "$repo" "$repo/.devbox/nix/profile/default/bin/go version"
 
 # --- unvetted execution: denied ---
 assert_bash deny "$repo" './scripts/new.sh'
@@ -179,9 +155,7 @@ assert_bash deny "$repo" 'scripts/run-go-toolchain.sh /tmp/evil.sh'
 assert_bash deny "$repo" "scripts/run-go-toolchain.sh node -e 'echo evil'"
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh pnpm exec evil'
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh go test -exec ./scripts/new ./...'
-assert_bash deny "$repo" 'go generate ./...'
-assert_bash deny "$repo" 'scripts/run-go-toolchain.sh go generate ./...'
-assert_bash deny "$repo" 'go tool compile ./untracked.go'
+assert_bash deny "$repo" 'GOFLAGS=-exec=/tmp/evil go test ./...'
 assert_bash deny "$repo" '(cd backend && :); ../scripts/new'
 assert_bash deny "$repo" "scripts/run-go-toolchain.sh \"\$CMD\""
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh <(printf x)'
@@ -203,16 +177,11 @@ assert_bash deny "$repo" 'source /tmp/some-env-file'
 assert_bash deny "$repo" 'scripts/outside.sh'
 assert_bash deny "$repo" './env /usr/bin/true'
 assert_bash deny "$repo" "$repo/.devbox/nix/profile/default/bin/cycle-a"
-assert_bash deny "$repo" "$trusted_text"
-rm "$trusted_text"
-ln -s /usr/bin/true "$trusted_text"
-assert_bash_path allow "$repo" "$(dirname "$trusted_text"):$PATH" 'rg'
 assert_bash deny "$repo" $'cd backend\n../scripts/new.sh'
 assert_bash deny "$repo" 'nice -n 5 ./scripts/new'
 assert_bash deny "$repo" 'python3 ./scripts/new'
 assert_bash deny "$repo" 'xargs ./scripts/new'
 assert_bash deny "$repo" 'if true; then ./scripts/new; fi'
-assert_bash deny "$repo" 'PATH=/tmp evil'
 assert_bash deny "$repo" 'foo() { ./scripts/new; }; foo'
 assert_bash deny "$repo" 'foo(){ ./scripts/new; }; foo'
 assert_bash deny "$repo" 'foo (){ ./scripts/new; }; foo'
@@ -221,23 +190,12 @@ assert_bash deny "$repo" "env --chdir=$outside_dir scripts/test-backend.sh"
 assert_bash deny "$repo" "env -C$outside_dir scripts/test-backend.sh"
 assert_bash deny "$repo" 'find . -exec ./scripts/new.sh \;'
 assert_bash deny "$repo" 'find . -execdir ./scripts/new.sh \;'
-assert_bash deny "$repo" 'go run ./untracked.go'
-assert_bash deny "$repo" 'scripts/run-go-toolchain.sh go run ./untracked.go'
-assert_bash deny "$repo" 'not-a-command-guard-test'
-assert_bash_path deny "$repo" "$fixture/bin:$PATH" 'evil'
 assert_bash deny "$repo" 'cd backend | ./scripts/new'
 assert_bash deny "$repo" 'case x in x) ./scripts/new.sh;; esac'
 assert_bash deny "$repo" 'stdbuf -o0 ./scripts/new'
-assert_bash deny "$repo" 'printf x | node'
 assert_bash deny "$repo" "builtin eval \"\$(cat somefile)\""
 assert_bash deny "$repo" 'builtin source /tmp/some-env-file'
 assert_bash deny "$repo" 'builtin . /tmp/some-env-file'
-assert_bash deny "$repo" 'export PATH=/tmp; /opt/homebrew/bin/pnpm --version'
-assert_bash deny "$repo" 'builtin export PATH=/tmp; /opt/homebrew/bin/pnpm --version'
-assert_bash deny "$repo" 'printf -v PATH /tmp; /opt/homebrew/bin/pnpm --version'
-assert_bash deny "$repo" 'GOFLAGS=-exec=/tmp/evil go test ./...'
-assert_bash deny "$repo" 'CC=/tmp/evil go test ./...'
-assert_bash deny "$repo" 'go test -tags=untracked ./...'
 assert_bash deny "$repo" "trap './scripts/new' EXIT"
 assert_bash deny "$repo" "builtin trap './scripts/new' EXIT"
 assert_bash deny "$repo" 'pushd /tmp; ./scripts/test-backend.sh'
@@ -250,6 +208,8 @@ assert_bash deny "$repo" "env bash -c 'echo hi'"
 assert_bash deny "$repo" "command sh -c 'echo hi'"
 assert_bash deny "$repo" "timeout 10 bash -c 'echo hi'"
 assert_bash deny "$repo" "sudo bash -c 'echo hi'"
+assert_bash deny "$repo" "python3 -c 'print(1)'"
+assert_bash deny "$repo" "node -e 'console.log(1)'"
 assert_bash deny "$repo" "eval \"\$(cat somefile)\""
 assert_bash deny "$repo" "echo \"\$(./scripts/new.sh)\""
 assert_bash deny "$repo" "echo \`./scripts/new.sh\`"
