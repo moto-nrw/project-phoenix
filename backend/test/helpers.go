@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -17,6 +19,33 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
+
+type authEventCommand struct{ repo audit.AuthEventRepository }
+
+func (c authEventCommand) Append(ctx context.Context, event any) error {
+	authEvent, ok := event.(*audit.AuthEvent)
+	if !ok {
+		return fmt.Errorf("test auth event command: unsupported event %T", event)
+	}
+	return c.repo.Create(ctx, authEvent)
+}
+
+func NewAuthEventCommand(repo audit.AuthEventRepository) audit.Command {
+	return authEventCommand{repo: repo}
+}
+
+func NewAuditAuthEvent(accountID int64, ipAddress string) any {
+	return audit.NewAuthEvent(accountID, audit.EventTypeLogin, true, ipAddress)
+}
+
+func SetAuditEventTenant(event any, tenantID int64) {
+	event.(*audit.AuthEvent).SetTenantID(tenantID)
+}
+
+func AuditEventIdentity(event any) (tenantID, eventID, accountID int64) {
+	authEvent := event.(*audit.AuthEvent)
+	return authEvent.TenantID, authEvent.ID, authEvent.AccountID
+}
 
 // Database aliases and constructors keep migration tests on the shared test
 // support boundary instead of adding test-only dependencies to production
@@ -125,64 +154,6 @@ func SetupServeTestDB(t *testing.T) *bun.DB {
 }
 
 // ============================================================================
-// Generic Cleanup Helpers
-// ============================================================================
-
-// CleanupTableRecords removes records from a schema-qualified table by ID.
-// Use this for simple single-table cleanup without FK dependencies.
-//
-// The ID type is generic because the suite has both: most tables use bigint
-// keys, RFID cards use strings. Two copies of this function drifted apart
-// once already.
-//
-// Usage:
-//
-//	testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-//	testpkg.CleanupTableRecords(t, db, "users.rfid_cards", card.ID)
-func CleanupTableRecords[ID int64 | string](tb testing.TB, db *bun.DB, table string, ids ...ID) {
-	tb.Helper()
-	if len(ids) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		TableExpr(table).
-		Where("id IN (?)", bun.List(ids)).
-		Exec(ctx)
-	if err != nil {
-		tb.Logf("Warning: failed to cleanup %s: %v", table, err)
-	}
-}
-
-// CleanupRateLimitsByEmail removes password reset rate limit records by email.
-// Use this for cleaning up after password reset rate limit tests.
-// The rate limit table uses email as the primary key, not an integer ID.
-//
-// Usage:
-//
-//	defer testpkg.CleanupRateLimitsByEmail(t, db, email1, email2)
-func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
-	tb.Helper()
-	if len(emails) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		TableExpr("auth.password_reset_rate_limits").
-		Where("email IN (?)", bun.List(emails)).
-		Exec(ctx)
-	if err != nil {
-		tb.Logf("Warning: failed to cleanup auth.password_reset_rate_limits: %v", err)
-	}
-}
-
-// ============================================================================
 // Context Helpers
 // ============================================================================
 
@@ -191,7 +162,8 @@ func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
 // Without tenant context, EnsureTenantID silently leaves tenant_id=0, which violates
 // FK constraints on tenant-scoped tables.
 func TenantContext(tenantID int64) context.Context {
-	return tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
+	ctx := tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
+	return audit.WithTenantID(ctx, tenantID)
 }
 
 // TenantScope owns a unique tenant for a test and provides the matching context.

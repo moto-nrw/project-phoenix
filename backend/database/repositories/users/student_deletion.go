@@ -15,11 +15,15 @@ import (
 // permanent child deletion. Keeping the counts together prevents the UI
 // preview and the transactional stale-preview check from drifting apart.
 type StudentDeletionRepository struct {
-	db *bun.DB
+	db                   *bun.DB
+	countAuditReferences func(context.Context, int64) (int, error)
 }
 
-func NewStudentDeletionRepository(db *bun.DB) userModels.StudentDeletionRepository {
-	return &StudentDeletionRepository{db: db}
+func NewStudentDeletionRepository(
+	db *bun.DB,
+	countAuditReferences func(context.Context, int64) (int, error),
+) userModels.StudentDeletionRepository {
+	return &StudentDeletionRepository{db: db, countAuditReferences: countAuditReferences}
 }
 
 func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64) (*userModels.StudentDeletionCounts, error) {
@@ -72,9 +76,6 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 			(SELECT COUNT(*) FROM enrollment.request_children WHERE tenant_id = ? AND (created_student_id = ? OR matched_student_id = ?))::int AS enrollment_references,
 			(
 				(SELECT COUNT(*) FROM calendar.appointment_recipient_students WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM audit.enrollment_offering_adjustments WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM audit.guardian_changes WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM audit.student_field_edits WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM schedule.grade_transition_roster_removals WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
 			)::int AS other_records
@@ -88,11 +89,19 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID,
 		tenantID, studentID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
 	}
+	if r.countAuditReferences == nil {
+		return nil, fmt.Errorf("preview student deletion: audit count capability is required")
+	}
+	auditReferences, err := r.countAuditReferences(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count audit references: %w", err)
+	}
+	counts.OtherRecords += auditReferences
 	return counts, nil
 }
 

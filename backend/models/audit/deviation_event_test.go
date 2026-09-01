@@ -2,8 +2,8 @@ package audit
 
 import (
 	"testing"
+	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,7 @@ func TestDeviationEventValidate(t *testing.T) {
 	groupID := int64(11)
 	instanceID := int64(12)
 	shiftID := int64(13)
-	date := timezone.NewDate(2026, 5, 4)
+	date := NewDate(2026, time.May, 4)
 
 	tests := []struct {
 		name  string

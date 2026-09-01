@@ -194,7 +194,7 @@ func (s *timetableCleanupService) CleanupExpiredTimetableData(ctx context.Contex
 	// beyond IDs, so no data_deletions rows.
 	var deviationEventsDeleted int64
 	if s.deviationEventRepo != nil {
-		deviationEventsDeleted, err = s.deviationEventRepo.DeleteOlderThan(ctx, cutoff)
+		deviationEventsDeleted, err = s.deviationEventRepo.DeleteOlderThan(ctx, audit.Date(cutoff))
 		if err != nil {
 			return nil, fmt.Errorf("delete deviation_events: %w", err)
 		}

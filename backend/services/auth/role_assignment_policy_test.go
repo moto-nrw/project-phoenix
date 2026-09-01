@@ -35,7 +35,6 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 	adminRole := testpkg.GetOrCreateTestRole(t, db, "admin")
 	guardianRole := testpkg.GetOrCreateTestRole(t, db, "guardian")
 	tenantRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-policy-rolle", homeTenantID)
-	defer testpkg.CleanupRoleRecords(t, db, tenantRole.ID)
 
 	t.Run("accepts a platform system role", func(t *testing.T) {
 		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, adminRole.ID, homeTenantID)
@@ -65,7 +64,6 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 		derivedRole.BaseRole = &guardianBase
 		_, updateErr := db.NewRaw(`UPDATE auth.roles SET base_role = ? WHERE id = ?`, guardianBase, derivedRole.ID).Exec(ctx)
 		require.NoError(t, updateErr)
-		defer testpkg.CleanupRoleRecords(t, db, derivedRole.ID)
 
 		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, derivedRole.ID, homeTenantID)
 		assert.ErrorIs(t, err, authSvc.ErrRoleGuardianNotAssignable)
@@ -73,7 +71,6 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 
 	t.Run("accepts a custom role named guardian without guardian base role", func(t *testing.T) {
 		roleID := createTenantRole(t, db, "guardian", homeTenantID, nil)
-		defer testpkg.CleanupRoleRecords(t, db, roleID)
 
 		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, roleID, homeTenantID)
 		require.NoError(t, err)
@@ -94,7 +91,6 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 		// The fixtures suffix role names to keep them unique, so the legacy
 		// role has to be inserted under its exact historical name.
 		teacherRoleID := createPlatformRole(t, db, "teacher", true)
-		defer testpkg.CleanupRoleRecords(t, db, teacherRoleID)
 
 		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, teacherRoleID, homeTenantID)
 		assert.ErrorIs(t, err, authSvc.ErrRoleLegacyTeacherNotAssignable)
@@ -102,7 +98,6 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 
 	t.Run("accepts a custom role named teacher", func(t *testing.T) {
 		roleID := createTenantRole(t, db, "teacher", homeTenantID, nil)
-		defer testpkg.CleanupRoleRecords(t, db, roleID)
 
 		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, roleID, homeTenantID)
 		require.NoError(t, err)
@@ -111,7 +106,6 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 
 	t.Run("rejects a platform-wide role that is not a system role", func(t *testing.T) {
 		strayRole := createPlatformRole(t, db, "zugriff-policy-stray-"+strconv.FormatInt(time.Now().UnixNano(), 10), false)
-		defer testpkg.CleanupRoleRecords(t, db, strayRole)
 
 		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, strayRole, homeTenantID)
 		assert.ErrorIs(t, err, authSvc.ErrRoleNotAssignable)
@@ -141,6 +135,9 @@ func createPlatformRole(t *testing.T, db *bun.DB, name string, isSystem bool) in
 		name, isSystem,
 	).Scan(context.Background(), &id)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, repositories.NewFactory(db).Role.Delete(context.Background(), id))
+	})
 	return id
 }
 

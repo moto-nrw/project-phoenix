@@ -9,47 +9,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// Note: cleanupAccountRecords is defined in role_repository_test.go
-
-// cleanupAccountPermission removes an account-permission mapping from the database.
-func cleanupAccountPermission(t *testing.T, db *bun.DB, accountID, permissionID int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		Model((*interface{})(nil)).
-		Table("auth.account_permissions").
-		Where("account_id = ? AND permission_id = ?", accountID, permissionID).
-		Exec(context.Background())
-}
-
-// cleanupPermissionByID removes a permission by ID.
-func cleanupPermissionByID(t *testing.T, db *bun.DB, permissionID int64) {
-	t.Helper()
-	ctx := testpkg.Ctx(t)
-
-	// First clean up any account_permissions referencing this permission
-	_, _ = db.NewDelete().
-		Model((*interface{})(nil)).
-		Table("auth.account_permissions").
-		Where("permission_id = ?", permissionID).
-		Exec(ctx)
-
-	// Clean up any role_permissions referencing this permission
-	_, _ = db.NewDelete().
-		Model((*any)(nil)).
-		Table("auth.role_permissions").
-		Where("permission_id = ?", permissionID).
-		Exec(ctx)
-
-	// Then delete the permission itself
-	_, _ = db.NewDelete().
-		Model((*interface{})(nil)).
-		Table("auth.permissions").
-		Where("id = ?", permissionID).
-		Exec(ctx)
-}
 
 func findAccountPermission(
 	t *testing.T,
@@ -83,8 +43,6 @@ func TestAccountPermissionRepository_Create(t *testing.T) {
 	t.Run("creates account permission mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "perm_create")
 		permission := testpkg.CreateTestPermission(t, db, "TestPerm", "test_resource", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		ap := &auth.AccountPermission{
 			AccountID:    account.ID,
@@ -96,7 +54,6 @@ func TestAccountPermissionRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, ap.ID)
 
-		defer cleanupAccountPermission(t, db, account.ID, permission.ID)
 	})
 
 	t.Run("rejects nil account permission", func(t *testing.T) {
@@ -118,9 +75,6 @@ func TestAccountPermissionRepository_FindByAccountID(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "find_by_acc")
 		permission1 := testpkg.CreateTestPermission(t, db, "Perm1", "resource1", "read")
 		permission2 := testpkg.CreateTestPermission(t, db, "Perm2", "resource2", "write")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission1.ID)
-		defer cleanupPermissionByID(t, db, permission2.ID)
 
 		// Grant both permissions
 		err := repo.GrantPermission(ctx, account.ID, permission1.ID)
@@ -136,7 +90,6 @@ func TestAccountPermissionRepository_FindByAccountID(t *testing.T) {
 
 	t.Run("returns empty slice for account with no permissions", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "no_perms")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		perms, err := repo.FindByAccountID(ctx, account.ID)
 		require.NoError(t, err)
@@ -159,8 +112,6 @@ func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 	t.Run("grants new permission", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "grant_new")
 		permission := testpkg.CreateTestPermission(t, db, "GrantPerm", "grant", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
@@ -174,8 +125,6 @@ func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 	t.Run("updates existing permission to granted", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "grant_update")
 		permission := testpkg.CreateTestPermission(t, db, "UpdatePerm", "update", "write")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		// First deny the permission
 		err := repo.DenyPermission(ctx, account.ID, permission.ID)
@@ -203,8 +152,6 @@ func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 	t.Run("denies new permission", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deny_new")
 		permission := testpkg.CreateTestPermission(t, db, "DenyPerm", "deny", "delete")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		err := repo.DenyPermission(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
@@ -218,8 +165,6 @@ func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 	t.Run("updates existing permission to denied", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deny_update")
 		permission := testpkg.CreateTestPermission(t, db, "DenyUpdate", "deny_update", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		// First grant the permission
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
@@ -247,8 +192,6 @@ func TestAccountPermissionRepository_RemovePermission(t *testing.T) {
 	t.Run("removes existing permission", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "remove_perm")
 		permission := testpkg.CreateTestPermission(t, db, "RemovePerm", "remove", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		// First grant the permission
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
@@ -264,7 +207,6 @@ func TestAccountPermissionRepository_RemovePermission(t *testing.T) {
 
 	t.Run("does not error when removing non-existent permission", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "remove_none")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		// Remove a permission that was never granted
 		err := repo.RemovePermission(ctx, account.ID, 999999)
@@ -287,8 +229,6 @@ func TestAccountPermissionRepository_Update(t *testing.T) {
 	t.Run("updates account permission granted status", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "update_ap")
 		permission := testpkg.CreateTestPermission(t, db, "UpdateAP", "updateap", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		// Create initial permission
 		ap := &auth.AccountPermission{
@@ -332,8 +272,6 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 	t.Run("lists all account permissions", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list_ap")
 		permission := testpkg.CreateTestPermission(t, db, "ListPerm", "listperm", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
@@ -346,8 +284,6 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 	t.Run("filters by granted status", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list_granted")
 		permission := testpkg.CreateTestPermission(t, db, "GrantedPerm", "granted", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
@@ -366,8 +302,6 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 	t.Run("filters by account_id", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list_by_acc")
 		permission := testpkg.CreateTestPermission(t, db, "ByAccPerm", "byacc", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
@@ -401,9 +335,6 @@ func TestAccountPermissionRepository_DeleteByPermissionID(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "del_by_perm1")
 		account2 := testpkg.CreateTestAccount(t, db, "del_by_perm2")
 		permission := testpkg.CreateTestPermission(t, db, "DeletePerm", "delete", "read")
-		defer cleanupAccountRecords(t, db, account1.ID)
-		defer cleanupAccountRecords(t, db, account2.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
 
 		// Grant permission to both accounts
 		err := repo.GrantPermission(ctx, account1.ID, permission.ID)

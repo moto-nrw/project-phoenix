@@ -4,39 +4,30 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/uptrace/bun"
 )
 
 // DataImportRepository implements audit.DataImportRepository
 type DataImportRepository struct {
-	db *bun.DB
+	runtime Runtime
 }
 
 // NewDataImportRepository creates a new data import repository
-func NewDataImportRepository(db *bun.DB) *DataImportRepository {
-	return &DataImportRepository{db: db}
+func NewDataImportRepository(runtime Runtime) *DataImportRepository {
+	return &DataImportRepository{runtime: requireRuntime(runtime)}
 }
 
 // Create creates a new data import audit record
 func (r *DataImportRepository) Create(ctx context.Context, dataImport *audit.DataImport) error {
-	base.EnsureTenantID(ctx, dataImport)
-
-	_, err := base.GetDB(ctx, r.db).NewInsert().
-		Model(dataImport).
-		Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("create data import: %w", err)
-	}
-	return nil
+	return NewAppender(r.runtime).Append(ctx, dataImport)
 }
 
 // FindByID finds a data import record by ID
 func (r *DataImportRepository) FindByID(ctx context.Context, id int64) (*audit.DataImport, error) {
 	dataImport := &audit.DataImport{}
-	err := base.GetDB(ctx, r.db).NewSelect().
+	err := runtimeDB(ctx, r.runtime).NewSelect().
 		Model(dataImport).
+		ModelTableExpr(`audit.data_imports AS "data_import"`).
 		Where("id = ?", id).
 		Scan(ctx)
 	if err != nil {
@@ -48,7 +39,7 @@ func (r *DataImportRepository) FindByID(ctx context.Context, id int64) (*audit.D
 // List lists data imports with optional filters
 func (r *DataImportRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.DataImport, error) {
 	var imports []*audit.DataImport
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&imports)
+	query := runtimeDB(ctx, r.runtime).NewSelect().Model(&imports).ModelTableExpr(`audit.data_imports AS "data_import"`)
 
 	// Apply filters
 	if entityType, ok := filters["entity_type"].(string); ok {

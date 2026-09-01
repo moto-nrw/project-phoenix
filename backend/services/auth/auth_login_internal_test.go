@@ -92,6 +92,7 @@ func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	repoFactory := repositories.NewFactory(db)
 	cfg, err := NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
+	cfg.Audit = testpkg.NewAuthEventCommand(repoFactory.AuthEvent)
 	service, err := NewService(repoFactory, cfg, db, slog.Default())
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, service, db)
@@ -110,7 +111,6 @@ func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 	account, err := service.Register(ctx, email, username, "Test1234%", nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	_, refreshJWT, err := service.Login(ctx, email, "Test1234%")
 	require.NoError(t, err)
@@ -813,8 +813,6 @@ func TestRefreshTokenInTransaction_GuardFailureLeavesPresentedTokenUsable(t *tes
 	require.NoError(t, err)
 	// LIFO: the account rows reference the school, so the school teardown has
 	// to be registered first and therefore run last.
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	_, refreshJWT, err := service.Login(ctx, accountEmail, "Test1234%")

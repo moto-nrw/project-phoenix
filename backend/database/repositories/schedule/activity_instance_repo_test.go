@@ -73,7 +73,6 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, inst)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
 
 		assert.Greater(t, inst.ID, int64(0))
 	})
@@ -93,7 +92,6 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, inst)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
 
 		assert.Greater(t, inst.ID, int64(0))
 		assert.True(t, inst.IsSpontaneous)
@@ -136,9 +134,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		b.IsSpontaneous = true
 
 		require.NoError(t, repo.Create(ctx, a))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", a.ID)
 		require.NoError(t, repo.Create(ctx, b))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", b.ID)
 	})
 
 	t.Run("partial unique index rejects duplicate template slot", func(t *testing.T) {
@@ -151,7 +147,6 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 
 		a := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date, start, end, "Lernzeit A")
 		require.NoError(t, repo.Create(ctx, a))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", a.ID)
 
 		b := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date, start, end, "Lernzeit B")
 		err := repo.Create(ctx, b)
@@ -448,7 +443,6 @@ func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
 
 	for _, inst := range []*scheduleModels.ActivityInstance{s1, s2, s3, s4} {
 		require.NoError(t, repo.Create(ctx, inst))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
 	}
 
 	got, err := repo.FindByTenantAndDateRange(ctx, start, end)
@@ -519,7 +513,6 @@ func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
 			"linked")
 		inst.ActiveGroupID = &ag.ID
 		require.NoError(t, repo.Create(ctx, inst))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
 
 		got, err := repo.FindByActiveGroupID(ctx, ag.ID)
 		require.NoError(t, err)
@@ -946,7 +939,6 @@ func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
 			time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 			"Later")
 		require.NoError(t, repo.Create(ctx, later))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", later.ID)
 
 		earlier := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
 			timezone.NewDate(2026, 9, 18),
@@ -954,7 +946,6 @@ func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
 			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
 			"Earlier")
 		require.NoError(t, repo.Create(ctx, earlier))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", earlier.ID)
 
 		instances, err := repo.FindByIDs(ctx, []int64{later.ID, earlier.ID, 9_999_999})
 		require.NoError(t, err)

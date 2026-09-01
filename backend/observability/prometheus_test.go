@@ -182,6 +182,24 @@ func TestObserveMealPlanOperationRecordsStatementDuration(t *testing.T) {
 	assert.Equal(t, before+1, testutil.CollectAndCount(mealPlanStatementDuration))
 }
 
+func TestObserveAuditAppendRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const eventType = "*audit.AuthEvent"
+	successBefore := testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "success"))
+	errorBefore := testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "error"))
+	rowsBefore := testutil.ToFloat64(auditRows.WithLabelValues(eventType))
+	durationBefore := testutil.CollectAndCount(auditAppendDuration)
+
+	ObserveAuditAppend(eventType, 2*time.Millisecond, 1, nil)
+	ObserveAuditAppend(eventType, time.Millisecond, 0, assert.AnError)
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "success")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "error")))
+	assert.Equal(t, rowsBefore+1, testutil.ToFloat64(auditRows.WithLabelValues(eventType)))
+	assert.Equal(t, durationBefore+1, testutil.CollectAndCount(auditAppendDuration))
+}
+
 func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
 	t.Parallel()
 

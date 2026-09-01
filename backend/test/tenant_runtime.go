@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -58,7 +59,9 @@ func newTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 		return tenant.UnitOfWork{}, err
 	}
 	runtime = runtime.WithTransactionDetacher(postgresRuntime.ContextWithoutTransaction)
-	return runtime.WithContextAdapters(postgresRuntime.ContextWithTenant, postgresRuntime.ContextWithTransaction), nil
+	runtime = runtime.WithTransactionDetacher(func(ctx context.Context) context.Context { return audit.WithTransaction(ctx, nil) })
+	runtime = runtime.WithContextAdapters(postgresRuntime.ContextWithTenant, postgresRuntime.ContextWithTransaction)
+	return runtime.WithContextAdapters(audit.WithTenantID, audit.WithTransaction), nil
 }
 
 func bindPackageTenantRuntime(db *bun.DB) error {
@@ -193,7 +196,11 @@ func (r SettingsRuntimeAdapter) AcquireLock(ctx context.Context, key string, sha
 
 func WithTenantTx(tb testing.TB, ctx context.Context, db *bun.DB, tenantID int64, fn func(context.Context, bun.Tx) error) error {
 	tb.Helper()
-	return tenant.WithTenantTx(WithTenantRuntime(tb, ctx, db), db, tenantID, fn)
+	return tenant.WithTenantTx(WithTenantRuntime(tb, ctx, db), db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+		txCtx = audit.WithTenantID(txCtx, tenantID)
+		txCtx = audit.WithTransaction(txCtx, tx)
+		return fn(txCtx, tx)
+	})
 }
 
 func WithinTenantContext(tb testing.TB, ctx context.Context, db *bun.DB, tenantID int64, fn func(context.Context) error) error {

@@ -168,7 +168,7 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 					ActorType: auditModels.EnrollmentDeletionActorSystem,
 					Scope:     auditModels.EnrollmentDeletionScopeRequest,
 					Reason:    "Automatische Löschung nach Ablauf der Aufbewahrungsfrist",
-					Counts:    impact.Counts,
+					Counts:    auditDeletionCounts(impact.Counts),
 					DeletedAt: time.Now(),
 				}
 				if auditErr := s.audit.Create(txCtx, event); auditErr != nil {

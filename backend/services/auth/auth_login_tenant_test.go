@@ -40,7 +40,6 @@ func TestLoginWithAudit_ValidTenantSlug(t *testing.T) {
 	email, username := uniqueTestCredentials("slug-valid")
 	account, err := service.Register(regCtx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	// Ensure the account is mapped to that tenant
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
@@ -74,7 +73,7 @@ func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
 	email, username := uniqueTestCredentials("slug-notfound")
 	account, err := service.Register(regCtx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 
 	// ACT: Login with a slug that matches no school
 	_, _, err = service.LoginWithAudit(
@@ -108,7 +107,6 @@ func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
 	email, username := uniqueTestCredentials("slug-noaccess")
 	account, err := service.Register(regCtx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	// Map the account only to homeTenantID, NOT to otherTenantID
 	testpkg.MapAccountToTenant(t, db, account.ID, homeTenantID)
@@ -143,7 +141,6 @@ func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
 	email, username := uniqueTestCredentials("slug-default")
 	account, err := service.Register(regCtx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	// Ensure the account has an active tenant mapping
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
@@ -179,7 +176,6 @@ func TestLoginWithAudit_EmptySlugNoTenantMapping(t *testing.T) {
 	email, username := uniqueTestCredentials("slug-nomap")
 	account, err := service.Register(regCtx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	// Remove any account_tenants mapping that Register may have created
 	_, err = db.ExecContext(context.Background(),

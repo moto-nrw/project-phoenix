@@ -80,7 +80,9 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
 	})
 	require.True(t, ok, "staff absence service must accept the deletion audit repository")
-	deletionAware.SetDeletionAudit(auditRepos.NewTimeTrackingDeletionRepository(db))
+	deletionAware.SetDeletionAudit(auditRepos.NewTimeTrackingDeletionRepository(
+		auditRepos.NewRuntime(db, auditModels.TenantIDFromContext),
+	))
 
 	return &vacationOpeningFixture{
 		tenantID: tenantID,
