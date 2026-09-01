@@ -706,7 +706,10 @@ function applyPreviewStart(
 ): void {
   const payload = parseJwtPayload(update.accessToken);
   // Only genuine read-only preview tokens may be injected here — anything
-  // else would smuggle a full session under the preview flag.
+  // else would smuggle a full session under the preview flag. The session
+  // stays as it is, so the session object returned to the client carries no
+  // preview; performStartStaffPreview reads that, closes the just-recorded
+  // preview in the audit trail, and reports the failure instead of reloading.
   if (!payload?.read_only) {
     logger.warn("staff_preview_start_rejected", {
       reason: "token is not a read-only preview token",

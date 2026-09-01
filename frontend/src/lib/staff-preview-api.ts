@@ -8,7 +8,12 @@
  * preview restores the parked admin state.
  */
 
+import { signOut } from "next-auth/react";
+
+import { createLogger } from "~/lib/logger";
 import { sessionFetch, clearSessionCache } from "~/lib/session-cache";
+
+const logger = createLogger({ component: "StaffPreviewApi" });
 
 export interface StaffPreviewCandidate {
   accountId: string;
@@ -48,6 +53,41 @@ type SwrMutateAll = (
   data: undefined,
   opts: { revalidate: boolean },
 ) => Promise<unknown>;
+
+/**
+ * Read which staff member the session `update()` hands back is previewing.
+ *
+ * `undefined` means "cannot tell" — NextAuth returns the session object, but a
+ * caller (or a test double) may hand back nothing. Only a session that really
+ * carries a user is evaluated; everything else stays undecided so no correct
+ * flow is aborted on a missing return value. `null` means: no preview running.
+ */
+function readPreviewTarget(result: unknown): string | null | undefined {
+  if (typeof result !== "object" || result === null) return undefined;
+  const user = (result as { user?: unknown }).user;
+  if (typeof user !== "object" || user === null) return undefined;
+  const target = (user as { previewTargetAccountId?: unknown })
+    .previewTargetAccountId;
+  return typeof target === "string" ? target : null;
+}
+
+/**
+ * Reconcile a session that stayed in the preview after its end was recorded.
+ *
+ * The audit trail says the preview is over, so no page may keep rendering with
+ * the target's token. Signing out is the only state both sides agree on; the
+ * admin logs in again.
+ */
+async function signOutAfterFailedRestore(): Promise<void> {
+  try {
+    await signOut({ redirect: false });
+  } catch (err) {
+    logger.error("staff_preview_signout_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  clearSessionCache();
+}
 
 /** Fetch the selectable staff members of the current school. */
 export async function fetchStaffPreviewCandidates(): Promise<
@@ -124,7 +164,7 @@ export async function performStartStaffPreview(
 ): Promise<StaffPreviewSession> {
   const preview = await startStaffPreview(accountId);
   try {
-    await update({
+    const result = await update({
       previewStart: {
         accessToken: preview.accessToken,
         expiresIn: preview.expiresIn,
@@ -132,6 +172,14 @@ export async function performStartStaffPreview(
         targetName: preview.targetName,
       },
     });
+    // The session callback refuses a token that is not a genuine read-only
+    // preview token, and it refuses a start while a preview is already
+    // running. Both are silent on its side, so the session it returns is the
+    // authority here: it must now preview exactly the requested person.
+    const entered = readPreviewTarget(result);
+    if (entered !== undefined && entered !== preview.targetAccountId) {
+      throw new Error("preview session was not entered");
+    }
   } catch (err) {
     // The backend already minted the token and recorded "preview started".
     // The session never swapped, so no preview exists in the UI — close it in
@@ -155,6 +203,12 @@ export async function performStartStaffPreview(
  * call runs even when restoring the admin session fails: that call needs no
  * session, and a preview whose end never reaches the trail would stay open in
  * the protocol forever.
+ *
+ * Fails the restore, the two sides would disagree: the trail says the preview
+ * ended while the session cookie still carries the target's token. That state
+ * is reconciled here — the session is signed out, so nothing keeps rendering
+ * as the target after the end was recorded. The original error is rethrown so
+ * the caller still sees why.
  */
 export async function performEndStaffPreview(
   previewToken: string | undefined,
@@ -162,13 +216,28 @@ export async function performEndStaffPreview(
   swrMutate: SwrMutateAll,
 ): Promise<void> {
   const tokenAtEnd = previewToken;
+  let restoreError: unknown = null;
   try {
-    await update({ previewEnd: true });
-  } finally {
-    clearSessionCache();
-    if (tokenAtEnd) {
-      await postPreviewEnd(tokenAtEnd);
+    const result = await update({ previewEnd: true });
+    if (typeof readPreviewTarget(result) === "string") {
+      restoreError = new Error("preview session was not restored");
     }
+  } catch (err) {
+    restoreError = err;
+  }
+  clearSessionCache();
+  if (tokenAtEnd) {
+    await postPreviewEnd(tokenAtEnd);
+  }
+  if (restoreError) {
+    logger.error("staff_preview_restore_failed", {
+      error:
+        restoreError instanceof Error
+          ? restoreError.message
+          : String(restoreError),
+    });
+    await signOutAfterFailedRestore();
+    throw restoreError;
   }
   await swrMutate(() => true, undefined, { revalidate: false });
   clearSessionCache();
