@@ -1262,7 +1262,7 @@ function SidebarContent({
       <aside className={asideClasses(collapsed, className)}>
         <div className={stickyClasses(collapsed)}>
           <nav
-            className={`scrollbar-hidden flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
+            className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
           >
             {resolvedOperatorSections.map((section, index) => (
               <div
@@ -1294,10 +1294,12 @@ function SidebarContent({
     <aside className={asideClasses(collapsed, className)}>
       <div className={stickyClasses(collapsed)}>
         {/* Main navigation, scrollable.
-            scrollbar-hidden: im 64px-Streifen wäre ein sichtbarer Balken ein
-            Viertel der Breite (Muster: VS-Code-Aktivitätsleiste). */}
+            Der Rollbalken bleibt ausgeklappt sichtbar — er ist dort der
+            einzige Hinweis, dass unten noch Einträge folgen. Nur im
+            64px-Streifen wird er ausgeblendet, wo er ein Viertel der Breite
+            einnähme (Muster: VS-Code-Aktivitätsleiste). */}
         <nav
-          className={`scrollbar-hidden flex-1 overflow-y-auto ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
+          className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
         >
           {/* Home (admin only) */}
           {beforeAccordionItems
