@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -377,11 +378,21 @@ func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 // with a decided attendance row per child, so the Statistik section "Kurse"
 // (#2891) is not empty on a fresh demo tenant.
 //
-// The occurrences are created through the ordinary instance endpoint with an
-// activity_group_id: that is a real course date, only outside the
-// materialization cycle. One date is cancelled and one child is left
-// undecided on purpose — the screen has to show that cancelled dates count
-// nowhere and that an unfinished block does not drag the quota down.
+// Each demo course gets its own Betreuungsplan template first, and the past
+// dates hang off that template: only templates carry course identity, so an
+// occurrence booked on the plain Angebots-Gruppe would be an operational date
+// and never reach the section. The dates themselves are created through the
+// ordinary instance endpoint — a real course date, only outside the
+// materialization cycle, which does not reach into the past.
+//
+// The template deliberately gets no roster. A roster written today would start
+// its enrollment today, and an enrollment never covers a date before it began,
+// so every seeded date would drop out of the child view. The children come in
+// per occurrence instead, which is what a walk-in course looks like anyway.
+//
+// One date is cancelled and one child is left undecided on purpose — the
+// screen has to show that cancelled dates count nowhere and that an unfinished
+// block does not drag the quota down.
 type seedCourseParticipationStep struct{}
 
 func (seedCourseParticipationStep) Name() string { return "Seeding course participation" }
@@ -404,10 +415,13 @@ func (seedCourseParticipationStep) Run(_ context.Context, rt *Runtime) error {
 		if courseIndex >= 3 {
 			break
 		}
-		activityID := rt.FixedSeeder.activityIDs[activity.Name]
-		roomID := rt.FixedSeeder.activityRoomIDs[activityID]
-		if activityID == 0 || roomID == 0 {
+		roomID := rt.FixedSeeder.activityRoomIDs[rt.FixedSeeder.activityIDs[activity.Name]]
+		if roomID == 0 {
 			continue
+		}
+		activityID, err := createCourseTemplate(rt, activity.Name, roomID, dates)
+		if err != nil {
+			return err
 		}
 		studentIDs := make([]int64, 0, courseDemoChildren)
 		for i := range courseDemoChildren {
@@ -452,6 +466,67 @@ func (seedCourseParticipationStep) Run(_ context.Context, rt *Runtime) error {
 
 	fmt.Printf("  %d course occurrences seeded (%d cancelled)\n", instances, cancelled)
 	return nil
+}
+
+// createCourseTemplate creates the Betreuungsplan template that carries the
+// course identity and returns its group id. The materialization window is left
+// out: the demo dates lie in the past, where materialization never reaches, and
+// a future occurrence would show up as a date that has not happened yet.
+func createCourseTemplate(rt *Runtime, name string, roomID int64, dates []seedDate) (int64, error) {
+	categoryID := seedAnyCategoryID(rt)
+	if categoryID == 0 {
+		return 0, fmt.Errorf("no category available for course template %s", name)
+	}
+	weekday := int(dates[0].Weekday())
+	if weekday == 0 {
+		weekday = 7 // ISO: Sunday is 7, and pastWeekdays never returns one
+	}
+	raw, err := rt.Client.Post("/api/timetable/templates", map[string]any{
+		"name":             name,
+		"type":             "activity",
+		"list_kind":        "activity",
+		"weekdays":         []int{weekday},
+		"start_time":       "14:00",
+		"end_time":         "15:00",
+		"room_id":          roomID,
+		"category_id":      categoryID,
+		"max_participants": 20,
+		"week_pattern":     0,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("create course template %s: %w", name, err)
+	}
+	var resp struct {
+		Data struct {
+			TemplateID json.Number `json:"template_id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return 0, fmt.Errorf("parse course template response: %w", err)
+	}
+	id, err := resp.Data.TemplateID.Int64()
+	if err != nil || id == 0 {
+		return 0, fmt.Errorf("course template response carries no id")
+	}
+	return id, nil
+}
+
+// seedAnyCategoryID picks a stable activity category: the sport one the demo
+// courses belong to, otherwise the alphabetically first so the choice does not
+// change between runs.
+func seedAnyCategoryID(rt *Runtime) int64 {
+	if id := rt.FixedSeeder.categoryIDs["Sport"]; id > 0 {
+		return id
+	}
+	names := make([]string, 0, len(rt.FixedSeeder.categoryIDs))
+	for name := range rt.FixedSeeder.categoryIDs {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	if len(names) == 0 {
+		return 0
+	}
+	return rt.FixedSeeder.categoryIDs[names[0]]
 }
 
 // createCourseOccurrence books one past date of a course with its roster and

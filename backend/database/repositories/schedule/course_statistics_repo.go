@@ -31,6 +31,20 @@ const courseKeyExpr = `COALESCE("template".series_root_id, "template".id)`
 // separating the ones that happened from the cancelled ones. Name, category
 // and Teilnehmergrenze come from the series root, so a renamed successor
 // segment does not split one course into two rows.
+//
+// "Happened" excludes what still lies ahead. The period picker reaches into
+// the future, and a date the school has not run yet must not be counted as a
+// Termin, der stattgefunden hat — which is what the screen and the export
+// promise. So an occurrence counts once it has started or been completed, and
+// otherwise only from the day after its date: a block that ran last Tuesday
+// took place even when nobody ever pressed "abschließen" — that omission shows
+// up as Offen, not as a date that never happened.
+//
+// Only Betreuungsplan templates are courses. An ad-hoc or spontaneous instance
+// may point at an operational group (a supervision or session group), and
+// those materialize rows just as well; without the is_template gate they would
+// appear as courses. Archived templates stay in on purpose: the section is
+// retrospective, and a course archived in March still took place in February.
 func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, to timezone.Date) ([]scheduleModels.CourseInstanceRow, error) {
 	var rows []scheduleModels.CourseInstanceRow
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -42,11 +56,18 @@ func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, 
 		ColumnExpr(`"root".name AS name`).
 		ColumnExpr(`COALESCE("category".name, '') AS category_name`).
 		ColumnExpr(`COALESCE("root".max_participants, 0) AS max_participants`).
-		ColumnExpr(`COUNT(*) FILTER (WHERE "instance".status <> ?) AS held_instances`, scheduleModels.InstanceStatusCancelled).
+		ColumnExpr(`COUNT(*) FILTER (
+			WHERE "instance".status IN (?, ?)
+				OR ("instance".status = ? AND "instance".date < ?)
+		) AS held_instances`,
+			scheduleModels.InstanceStatusActive, scheduleModels.InstanceStatusCompleted,
+			scheduleModels.InstanceStatusPlanned, timezone.TodayDate()).
 		ColumnExpr(`COUNT(*) FILTER (WHERE "instance".status = ?) AS cancelled_instances`, scheduleModels.InstanceStatusCancelled).
 		Where(`"instance".date >= ? AND "instance".date <= ?`, from, to).
 		Where(`"template".tenant_id = "instance".tenant_id`).
 		Where(`"root".tenant_id = "instance".tenant_id`).
+		Where(`"template".is_template`).
+		Where(`"root".is_template`).
 		GroupExpr(courseKeyExpr + `, "root".name, "root".max_participants, "category".name`)
 	query = base.WithTenantFilter(ctx, query, "instance")
 	if err := query.Scan(ctx, &rows); err != nil {
@@ -56,10 +77,15 @@ func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, 
 }
 
 // enrolledOnInstanceDate keeps only the attendance rows the child's course
-// enrollment actually covers on that date. A shortened or later-started
-// enrollment leaves its already-materialized rows behind, and counting those
-// would credit a child with days outside the enrollment. The interval is the
-// one every other reader uses: valid_from inclusive, valid_until exclusive.
+// enrollment actually covers on that date. A shortened, later-started or
+// weekday-narrowed enrollment leaves its already-materialized rows behind, and
+// counting those would credit a child with days the enrollment never covered.
+//
+// The coverage predicate is the one the daily reads use (see
+// instance_student_repo.go): the interval — valid_from inclusive, valid_until
+// exclusive — plus the calendar period, the single-weekday scope (#2129) and
+// the selected weekdays owned by the enrollment decision path. Statistics may
+// not answer a wider question than the Betreuungsplan itself.
 //
 // Two shapes survive without a covering interval, and both are real
 // participation rather than a leftover: a walk-in the kiosk recorded
@@ -74,6 +100,12 @@ const enrolledOnInstanceDate = `(
 				AND "enrollment".activity_group_id = "instance".activity_group_id
 				AND "enrollment".valid_from <= "instance".date
 				AND ("enrollment".valid_until IS NULL OR "enrollment".valid_until > "instance".date)
+				AND ("enrollment".calendar_period_id IS NULL
+					OR "enrollment".calendar_period_id = "instance".calendar_period_id)
+				AND ("enrollment".weekday IS NULL
+					OR "enrollment".weekday = EXTRACT(ISODOW FROM "instance".date))
+				AND (COALESCE(jsonb_array_length("enrollment".selected_weekdays), 0) = 0
+					OR "enrollment".selected_weekdays @> to_jsonb(ARRAY[EXTRACT(ISODOW FROM "instance".date)::integer]))
 		)
 		OR NOT EXISTS (
 			SELECT 1 FROM activities.student_enrollments AS "enrollment"
@@ -86,8 +118,9 @@ const enrolledOnInstanceDate = `(
 // CourseParticipation aggregates the attendance rows of every child per
 // course. Cancelled occurrences drop out completely — they are neither a
 // participation nor an absence — and so do the rows that only record that the
-// care plan never placed the child in the OGS that day, and the rows outside
-// the child's enrollment interval (see enrolledOnInstanceDate).
+// care plan never placed the child in the OGS that day, and the rows the
+// child's enrollment does not cover (see enrolledOnInstanceDate). Operational
+// groups are no courses here either, for the reason given at CourseInstances.
 //
 // The three counters are returned separately instead of a ready-made quota so
 // the service can state the denominator on the screen: present + absent are
@@ -109,6 +142,7 @@ func (r *CourseStatisticsRepository) CourseParticipation(ctx context.Context, fr
 		Where(enrolledOnInstanceDate).
 		Where(`"instance".tenant_id = "attendance".tenant_id`).
 		Where(`"template".tenant_id = "attendance".tenant_id`).
+		Where(`"template".is_template`).
 		GroupExpr(courseKeyExpr + `, "attendance".student_id`)
 	query = base.WithTenantFilter(ctx, query, "attendance")
 	if err := query.Scan(ctx, &rows); err != nil {
