@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -72,7 +73,8 @@ func Tenant(tb testing.TB) int64 {
 func Ctx(tb testing.TB) context.Context {
 	tb.Helper()
 	tenantID := Tenant(tb)
-	return tenant.WithTenantID(testRuntimeContext(tb), tenantID)
+	ctx := tenant.WithTenantID(testRuntimeContext(tb), tenantID)
+	return audit.WithTenantID(ctx, tenantID)
 }
 
 // fixtureTenantID returns the tenant a fixture created by tb belongs to: the
@@ -109,7 +111,8 @@ func OwnTenant(tb testing.TB) int64 {
 func OwnCtx(tb testing.TB) context.Context {
 	tb.Helper()
 	tenantID := OwnTenant(tb)
-	return tenant.WithTenantID(testRuntimeContext(tb), tenantID)
+	ctx := tenant.WithTenantID(testRuntimeContext(tb), tenantID)
+	return audit.WithTenantID(ctx, tenantID)
 }
 
 // ownTenantScopes holds the full names of the subtests that claimed a tenant

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,12 +61,20 @@ func TestNewTenantScopeCreatesTenantAndContext(t *testing.T) {
 	scope := NewTenantScope(t, db)
 	require.NotZero(t, scope.TenantID)
 	assert.Equal(t, scope.TenantID, tenantIDFromContextForTest(t, scope.Context()))
+	assert.Equal(t, scope.TenantID, audit.TenantIDFromContext(scope.Context()))
 
 	var exists bool
 	err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.schools WHERE id = ?)`, scope.TenantID).
 		Scan(context.Background(), &exists)
 	require.NoError(t, err)
 	assert.True(t, exists)
+}
+
+func TestTenantContextsIncludeAuditTenant(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, Tenant(t), audit.TenantIDFromContext(Ctx(t)))
+	assert.Equal(t, OwnTenant(t), audit.TenantIDFromContext(OwnCtx(t)))
 }
 
 func tenantIDFromContextForTest(t *testing.T, ctx context.Context) int64 {

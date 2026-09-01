@@ -218,7 +218,8 @@ func (s TenantScope) Context() context.Context {
 	if ctx == nil {
 		ctx = WithPackageTenantRuntime(context.Background())
 	}
-	return tenant.WithTenantID(ctx, s.TenantID)
+	ctx = tenant.WithTenantID(ctx, s.TenantID)
+	return audit.WithTenantID(ctx, s.TenantID)
 }
 
 var uniqueTestTenantCounter int64
