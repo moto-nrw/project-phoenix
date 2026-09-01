@@ -24,7 +24,14 @@ type workerStore struct {
 	failureToken       string
 	failureAttempts    int
 	failureMaxAttempts int
+	renewed            bool
+	renewToken         string
 	statuses           []domain.EmailDeliveryStatus
+}
+
+func (s *workerStore) RenewLease(_ context.Context, _ domain.Transport, _ int64, token string, _ time.Time) (bool, error) {
+	s.renewToken = token
+	return s.renewed, nil
 }
 
 func (*workerStore) Enqueue(context.Context, domain.Intent) (domain.Enqueued, error) {
@@ -104,7 +111,7 @@ func claimedEmail(attempts int) domain.Intent {
 
 func TestWorkerFinalizesWithClaimLeaseToken(t *testing.T) {
 	t.Parallel()
-	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, finalizeSent: true}
+	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, renewed: true, finalizeSent: true}
 	provider := &workerProvider{}
 	worker := NewWorker(store, provider, func(domain.Observation) {})
 
@@ -114,13 +121,14 @@ func TestWorkerFinalizesWithClaimLeaseToken(t *testing.T) {
 	assert.Equal(t, 1, stats.Claimed)
 	assert.Equal(t, 1, stats.Sent)
 	assert.NotEmpty(t, store.sentToken)
+	assert.Equal(t, store.sentToken, store.renewToken)
 	assert.Equal(t, 1, provider.calls)
 	assert.True(t, provider.hasDeadline)
 }
 
 func TestWorkerCountsStaleFinalizeAsLeaseLoss(t *testing.T) {
 	t.Parallel()
-	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, finalizeSent: false}
+	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, renewed: true, finalizeSent: false}
 	worker := NewWorker(store, &workerProvider{}, func(domain.Observation) {})
 
 	stats, err := worker.RunOnce(context.Background(), 1)
@@ -130,10 +138,24 @@ func TestWorkerCountsStaleFinalizeAsLeaseLoss(t *testing.T) {
 	assert.Zero(t, stats.Sent)
 }
 
+func TestWorkerSkipsIntentWhenLeaseRenewalIsStale(t *testing.T) {
+	t.Parallel()
+	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}}
+	provider := &workerProvider{}
+	worker := NewWorker(store, provider, func(domain.Observation) {})
+
+	stats, err := worker.RunOnce(context.Background(), 1)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, stats.LeaseLost)
+	assert.Zero(t, provider.calls)
+}
+
 func TestWorkerRetriesProviderTimeout(t *testing.T) {
 	t.Parallel()
 	store := &workerStore{
 		claimed:       []domain.Intent{claimedEmail(0)},
+		renewed:       true,
 		failureResult: domain.FinalizeResult{Finalized: true, State: string(domain.StatePending)},
 	}
 	worker := NewWorker(store, &workerProvider{err: context.DeadlineExceeded}, func(domain.Observation) {})
@@ -148,7 +170,7 @@ func TestWorkerRetriesProviderTimeout(t *testing.T) {
 
 func TestWorkerCancelsNonRetryableProviderDecision(t *testing.T) {
 	t.Parallel()
-	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, finalizeCancelled: true}
+	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, renewed: true, finalizeCancelled: true}
 	worker := NewWorker(store, &workerProvider{err: fmt.Errorf("guardian access revoked: %w", domain.ErrCancelled)}, func(domain.Observation) {})
 
 	stats, err := worker.RunOnce(context.Background(), 1)
@@ -163,6 +185,7 @@ func TestWorkerDeadLettersAtAttemptLimit(t *testing.T) {
 	t.Parallel()
 	store := &workerStore{
 		claimed:       []domain.Intent{claimedEmail(1)},
+		renewed:       true,
 		failureResult: domain.FinalizeResult{Finalized: true, State: string(domain.StateDeadLetter)},
 	}
 	worker := NewWorker(store, &workerProvider{err: errors.New("provider rejected")}, func(domain.Observation) {})
@@ -183,6 +206,7 @@ func TestWorkerRetriesAfterSendSucceededButFinalizeFailed(t *testing.T) {
 	t.Parallel()
 	store := &workerStore{
 		claimed:         []domain.Intent{claimedEmail(0)},
+		renewed:         true,
 		finalizeSent:    true,
 		finalizeSentErr: errors.New("database unavailable after provider acceptance"),
 	}

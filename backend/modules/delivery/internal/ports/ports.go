@@ -11,6 +11,7 @@ import (
 type Store interface {
 	Enqueue(context.Context, domain.Intent) (domain.Enqueued, error)
 	Claim(context.Context, domain.Transport, int, time.Time, time.Time) ([]domain.Intent, error)
+	RenewLease(context.Context, domain.Transport, int64, string, time.Time) (bool, error)
 	FinalizeSent(context.Context, domain.Transport, int64, string, json.RawMessage, time.Time) (bool, error)
 	FinalizeCancelled(context.Context, domain.Transport, int64, string, string, time.Time) (bool, error)
 	FinalizeFailure(context.Context, domain.Transport, int64, string, int, string, time.Time, int) (domain.FinalizeResult, error)

@@ -84,6 +84,14 @@ const pushClaimSQL = `
 		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
 	) RETURNING *`
 
+const emailRenewLeaseSQL = `UPDATE platform.email_outbox
+	SET lease_expires_at = ?, updated_at = ?
+	WHERE id = ? AND status = 'claimed' AND lease_token = ?`
+
+const pushRenewLeaseSQL = `UPDATE platform.push_outbox
+	SET lease_expires_at = ?, updated_at = ?
+	WHERE id = ? AND status = 'claimed' AND lease_token = ?`
+
 const emailFinalizeSentSQL = `UPDATE platform.email_outbox
 	SET status = 'sent', provider_result = ?, sent_at = ?, last_error = NULL,
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
@@ -120,13 +128,13 @@ const emailCancelSQL = `UPDATE platform.email_outbox
 	SET status = 'cancelled', last_error = ?, cancelled_at = ?,
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?
-		AND status IN ('pending', 'claimed')`
+	AND status = 'pending'`
 
 const pushCancelSQL = `UPDATE platform.push_outbox
 	SET status = 'cancelled', last_error = ?, cancelled_at = ?,
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?
-		AND status IN ('pending', 'claimed')`
+	AND status = 'pending'`
 
 const emailStatusesSQL = `SELECT * FROM platform.email_outbox
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?
@@ -242,6 +250,32 @@ func (s *Store) Claim(ctx context.Context, transport domain.Transport, limit int
 		return nil, fmt.Errorf("delivery postgres: claim %s: %w", transport, err)
 	}
 	return toDomainRows(transport, rows), nil
+}
+
+func (s *Store) RenewLease(ctx context.Context, transport domain.Transport, id int64, token string, leaseExpiresAt time.Time) (bool, error) {
+	var renewed bool
+	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+		var result interface{ RowsAffected() (int64, error) }
+		var execErr error
+		switch transport {
+		case domain.TransportEmail:
+			result, execErr = db.NewRaw(emailRenewLeaseSQL, leaseExpiresAt, time.Now(), id, token).Exec(txCtx)
+		case domain.TransportPush:
+			result, execErr = db.NewRaw(pushRenewLeaseSQL, leaseExpiresAt, time.Now(), id, token).Exec(txCtx)
+		default:
+			return unknownTransport(transport)
+		}
+		if execErr != nil {
+			return execErr
+		}
+		rows, rowsErr := result.RowsAffected()
+		renewed = rows == 1
+		return rowsErr
+	})
+	if err != nil {
+		return false, fmt.Errorf("delivery postgres: renew %s lease for intent %d: %w", transport, id, err)
+	}
+	return renewed, nil
 }
 
 func (s *Store) FinalizeSent(ctx context.Context, transport domain.Transport, id int64, token string, providerResult json.RawMessage, sentAt time.Time) (bool, error) {
@@ -467,7 +501,8 @@ func (s *Store) AttachEmailOutbox(ctx context.Context, tenantID, deliveryID, out
 		ModelTableExpr(`platform.delivery_email_deliveries AS "email_delivery"`).
 		Set("outbox_id = ?", outboxID).Set("updated_at = NOW()").
 		Where(`"email_delivery".tenant_id = ?`, tenantID).
-		Where(`"email_delivery".id = ?`, deliveryID).Exec(ctx)
+		Where(`"email_delivery".id = ?`, deliveryID).
+		Where(`EXISTS (SELECT 1 FROM platform.email_outbox AS outbox WHERE outbox.id = ? AND outbox.tenant_id = "email_delivery".tenant_id)`, outboxID).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("delivery postgres: attach email outbox: %w", err)
 	}
@@ -492,6 +527,7 @@ func (s *Store) ClaimFailedEmailDelivery(ctx context.Context, tenantID, delivery
 		FROM platform.email_outbox AS outbox
 		WHERE delivery.tenant_id = ? AND delivery.id = ?
 			AND delivery.outbox_id = outbox.id
+			AND outbox.tenant_id = delivery.tenant_id
 			AND outbox.status = 'dead_letter'`, tenantID, deliveryID).Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("delivery postgres: claim failed email delivery: %w", err)

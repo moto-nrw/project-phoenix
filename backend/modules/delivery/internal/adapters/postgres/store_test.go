@@ -105,7 +105,7 @@ func TestStoreCrashBeforeSendReclaimsExpiredLeaseAndFencesStaleWorker(t *testing
 	assert.True(t, finalized)
 }
 
-func TestStoreCancellationFencesClaimedWorker(t *testing.T) {
+func TestStoreCancellationLeavesClaimedWorkOwnedByWorker(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	store, ctx := testStore(t, db)
@@ -130,13 +130,58 @@ func TestStoreCancellationFencesClaimedWorker(t *testing.T) {
 
 	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		count, err := store.Cancel(txCtx, testpkg.Tenant(t), domain.TransportEmail, relatedType, relatedID, "retracted", time.Now())
-		assert.Equal(t, int64(1), count)
+		assert.Zero(t, count)
 		return err
 	})
 	require.NoError(t, err)
 	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, json.RawMessage(`{}`), time.Now())
 	require.NoError(t, err)
-	assert.False(t, finalized)
+	assert.True(t, finalized)
+}
+
+func TestStoreRejectsCrossTenantEmailOutboxAttachment(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	tenantA := testpkg.NewTenantScope(t, db)
+	tenantB := testpkg.NewTenantScope(t, db)
+	relatedType, relatedID := "announcement", int64(41)
+	address := "guardian@example.test"
+
+	var deliveryID, outboxID int64
+	err := tenant.WithTenantTx(ctx, db, tenantA.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := store.ReplaceEmailDeliveries(txCtx, tenantA.TenantID, relatedType, relatedID, []domain.EmailDelivery{{
+			RecipientEmail: &address, Reachability: "ok",
+		}}); err != nil {
+			return err
+		}
+		rows, err := store.EmailDeliveryStatuses(txCtx, tenantA.TenantID, relatedType, relatedID)
+		if err != nil {
+			return err
+		}
+		if len(rows) != 1 {
+			return fmt.Errorf("expected one email delivery, got %d", len(rows))
+		}
+		deliveryID = rows[0].DeliveryID
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = tenant.WithTenantTx(ctx, db, tenantB.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		key := "other-tenant-outbox"
+		stored, enqueueErr := store.Enqueue(txCtx, domain.Intent{
+			TenantID: tenantB.TenantID, Transport: domain.TransportEmail, Template: "announcement", IdempotencyKey: &key,
+			Recipient: json.RawMessage(`{"address":"guardian@example.test"}`), Payload: json.RawMessage(`{}`), NextRetryAt: time.Now(),
+		})
+		outboxID = stored.ID
+		return enqueueErr
+	})
+	require.NoError(t, err)
+
+	err = tenant.WithTenantTx(ctx, db, tenantA.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return store.AttachEmailOutbox(txCtx, tenantA.TenantID, deliveryID, outboxID)
+	})
+	require.EqualError(t, err, "delivery postgres: email delivery not found")
 }
 
 func TestStoreProviderCancellationFinalizesUnderLeaseToken(t *testing.T) {

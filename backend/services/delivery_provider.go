@@ -60,8 +60,8 @@ func (a durablePushAdapter) EnqueuePush(ctx context.Context, input notifications
 	stored, err := a.module.EnqueuePush(ctx, delivery.PushIntent{
 		TenantID: input.TenantID, Template: input.Template,
 		Recipient: delivery.PushRecipient{
-			SubscriptionID: input.SubscriptionID, Endpoint: input.Endpoint, P256DH: input.P256DH,
-			Auth: input.Auth, Portal: input.Portal,
+			SubscriptionID: input.SubscriptionID, AccountID: input.AccountID, Endpoint: input.Endpoint, P256DH: input.P256DH,
+			Auth: input.Auth, Portal: input.Portal, UpdatedAt: input.UpdatedAt,
 		},
 		Payload: delivery.PushPayload{
 			Title: input.Title, Body: input.Body, DeepLink: input.DeepLink, Type: input.Type, Priority: input.Priority,

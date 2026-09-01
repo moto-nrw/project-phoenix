@@ -79,6 +79,16 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		renewed, renewErr := w.store.RenewLease(ctx, transport, rows[index].ID, leaseToken(rows[index]), time.Now().Add(w.leaseDuration))
+		if renewErr != nil {
+			w.observe(domain.Observation{Operation: "renew_error", Transport: string(transport), Template: rows[index].Template, Count: 1, Err: renewErr})
+			continue
+		}
+		if !renewed {
+			stats.LeaseLost++
+			w.observe(domain.Observation{Operation: "stale_renew", Transport: string(transport), Template: rows[index].Template, Count: 1})
+			continue
+		}
 		w.process(ctx, rows[index], stats)
 	}
 	return nil

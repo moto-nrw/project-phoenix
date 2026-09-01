@@ -86,11 +86,13 @@ type GuardianDisplay struct {
 }
 
 type PushRecipient struct {
-	SubscriptionID int64  `json:"subscription_id"`
-	Endpoint       string `json:"endpoint"`
-	P256DH         string `json:"p256dh"`
-	Auth           string `json:"auth"`
-	Portal         string `json:"portal"`
+	SubscriptionID int64     `json:"subscription_id"`
+	AccountID      int64     `json:"account_id"`
+	Endpoint       string    `json:"endpoint"`
+	P256DH         string    `json:"p256dh"`
+	Auth           string    `json:"auth"`
+	Portal         string    `json:"portal"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type PushPayload struct {
