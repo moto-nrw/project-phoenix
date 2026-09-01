@@ -139,7 +139,7 @@ func TestMealParticipationWrites_CareEndedChildIsRejected(t *testing.T) {
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	_, err := svc.ReplaceMealParticipationSchedule(ctx, chain.AccountID, chain.StudentID, []mealplanModule.Weekday{mealplanModule.Monday})
+	_, err := svc.ReplaceMealParticipationSchedule(ctx, chain.AccountID, chain.StudentID, []parentService.MealWeekday{1})
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 
 	err = svc.SetMealParticipationDay(ctx, chain.AccountID, chain.StudentID, timezone.NewDate(2026, 8, 25), true)

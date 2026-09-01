@@ -156,6 +156,9 @@ type StudentRepository interface {
 	// group. Membership follows EnrolledOn, so today decides whether an
 	// immediately activated child (active, enrolled_from still ahead) counts.
 	FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*StudentWithGroupInfo, error)
+	// FindOverlappingWithGroupsOnDate is the string-based boundary variant for
+	// composition roots that do not expose timezone.Date.
+	FindOverlappingWithGroupsOnDate(ctx context.Context, date string) ([]*StudentWithGroupInfo, error)
 
 	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection).
 	// Alumni are excluded: a graduate is soft-deleted and must not block the

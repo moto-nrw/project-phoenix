@@ -15,7 +15,11 @@ type Store interface {
 	InsertParticipationSchedule(context.Context, int64, int64, domain.Date, []domain.Weekday) (domain.OperationStats, error)
 	UpsertParticipationOverride(context.Context, int64, int64, domain.Date, bool) (domain.OperationStats, error)
 	DeleteParticipationOverride(context.Context, int64, domain.Date) (domain.OperationStats, error)
-	FindDailyCandidates(context.Context, domain.Date, time.Time) ([]domain.DailyCandidate, domain.OperationStats, error)
+	FindDailyParticipation(context.Context, []int64, domain.Date, time.Time) (map[int64]domain.DailyParticipation, domain.OperationStats, error)
+}
+
+type Directory interface {
+	FindDailyCandidates(context.Context, domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error)
 }
 
 type Settings interface {

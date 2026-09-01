@@ -20,6 +20,14 @@ func ParseDate(value string) (Date, error) {
 	return Date(date.String()), nil
 }
 
+func (d Date) German() (string, error) {
+	date, err := timezone.ParseDate(string(d))
+	if err != nil {
+		return "", err
+	}
+	return date.Format("02.01.2006"), nil
+}
+
 type Dish struct {
 	Dish string
 	Note *string

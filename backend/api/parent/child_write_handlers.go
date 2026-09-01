@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -370,14 +369,14 @@ type MealParticipationDayResponse struct {
 }
 
 type MealParticipationResponse struct {
-	Weekdays      []mealplanModule.Weekday       `json:"weekdays"`
+	Weekdays      []parentService.MealWeekday    `json:"weekdays"`
 	EffectiveFrom string                         `json:"effective_from,omitempty"`
 	CutoffTime    string                         `json:"cutoff_time"`
 	Days          []MealParticipationDayResponse `json:"days"`
 }
 
 type ReplaceMealParticipationRequest struct {
-	Weekdays []mealplanModule.Weekday `json:"weekdays"`
+	Weekdays []parentService.MealWeekday `json:"weekdays"`
 }
 
 type SetMealParticipationDayRequest struct {
@@ -513,7 +512,7 @@ func (rs *Resource) clearMealParticipationDay(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, nil, "Meal participation day reset")
 }
 
-func mealParticipationResponse(plan mealplanModule.ParticipationPlan) MealParticipationResponse {
+func mealParticipationResponse(plan parentService.MealParticipationPlan) MealParticipationResponse {
 	days := make([]MealParticipationDayResponse, 0, len(plan.Days))
 	for _, day := range plan.Days {
 		days = append(days, MealParticipationDayResponse{Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable})
@@ -587,9 +586,9 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "meal_registration_disabled"))
 	case errors.Is(err, parentService.ErrMealParticipationOutOfRange):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "meal_participation_out_of_range"))
-	case errors.Is(err, mealplanModule.ErrParticipationCutoff):
+	case errors.Is(err, parentService.ErrMealParticipationCutoff):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "meal_participation_cutoff_passed"))
-	case errors.Is(err, mealplanModule.ErrInvalidParticipation):
+	case errors.Is(err, parentService.ErrInvalidMealParticipation):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_meal_participation"))
 	case errors.Is(err, parentService.ErrPickupChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))

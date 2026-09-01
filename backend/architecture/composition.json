@@ -441,17 +441,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 120,
+          "line": 122,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 234,
+          "line": 180,
+          "declaration": "mealPlanParticipantFinder"
+        },
+        {
+          "file": "api/base.go",
+          "line": 309,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 719,
+          "line": 794,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +466,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 355,
+          "line": 430,
           "declaration": "New"
         }
       ]
@@ -471,12 +476,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 120,
+          "line": 122,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 231,
+          "line": 306,
           "declaration": "type API"
         }
       ]
@@ -561,12 +566,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 415,
+          "line": 419,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 435,
+          "line": 439,
           "declaration": "newFactory"
         },
         {
@@ -16614,7 +16619,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        397
+        430
       ],
       "tables": []
     },
@@ -16748,7 +16753,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        272
+        271
       ],
       "tables": []
     },
@@ -16758,7 +16763,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        273
+        272
       ],
       "tables": []
     },
@@ -16768,7 +16773,7 @@
       "declaration": "setupOperatorInvitationRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        314
+        313
       ],
       "tables": []
     },
@@ -16778,7 +16783,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        304
+        303
       ],
       "tables": []
     },
@@ -16788,7 +16793,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        305
+        304
       ],
       "tables": []
     },

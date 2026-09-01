@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 type seedOperationsDemoStep struct{}
@@ -42,8 +40,8 @@ func (seedOperationsDemoStep) Run(_ context.Context, rt *Runtime) error {
 
 func enableMealRegistration(rt *Runtime) error {
 	for _, key := range []string{
-		configModels.KeyMealPlanEnabled,
-		configModels.KeyMealRegistrationEnabled,
+		"operations.meal_plan_enabled",
+		"operations.meal_registration_enabled",
 	} {
 		if _, err := rt.Client.Put("/api/settings/values/"+key, map[string]any{"value": true}); err != nil {
 			return fmt.Errorf("enable %s: %w", key, err)

@@ -62,6 +62,8 @@ var (
 	ErrMealPlanWeekOutOfRange      = errors.New("parent: meal plan week is outside the viewable range")
 	ErrMealRegistrationDisabled    = errors.New("parent: meal registration disabled for this school")
 	ErrMealParticipationOutOfRange = errors.New("parent: meal participation date is outside the changeable range")
+	ErrMealParticipationCutoff     = errors.New("parent: meal participation cutoff has passed")
+	ErrInvalidMealParticipation    = errors.New("parent: invalid meal participation")
 	// ErrNoDates means the sick-note request carried no dates.
 	ErrNoDates = errors.New("parent: at least one date is required")
 	// ErrInvalidStatus means the absence status was neither sick nor excused.
@@ -947,7 +949,7 @@ func parentVisibleStatusDay(row *activeModels.StudentStatusDay, accountID int64)
 // containing weekStart. Unlike ListSickDays this is gated by the
 // operations.meal_plan_enabled toggle: if the school does not run a meal plan
 // the parent must not see one, so a disabled tenant yields ErrMealPlanDisabled.
-func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]mealplanModule.Entry, error) {
+func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]MealPlanEntry, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
@@ -967,13 +969,16 @@ func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 	if s.MealPlan == nil {
 		return nil, errors.New("parent: meal plan capability is required")
 	}
-	var out []mealplanModule.Entry
+	var out []MealPlanEntry
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		rows, findErr := s.MealPlan.Week(txCtx, mealplanModule.Date(monday.String()))
 		if findErr != nil {
 			return findErr
 		}
-		out = rows
+		out = make([]MealPlanEntry, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, MealPlanEntry{Date: string(row.Date), Position: row.Position, Dish: row.Dish, Note: row.Note})
+		}
 		return nil
 	})
 	if txErr != nil {
@@ -1014,14 +1019,14 @@ func (s *service) mealRegistrationAvailableForTenant(ctx context.Context, tenant
 	return available, err
 }
 
-func (s *service) MealParticipation(ctx context.Context, accountID, studentID int64, from, to timezone.Date) (mealplanModule.ParticipationPlan, error) {
+func (s *service) MealParticipation(ctx context.Context, accountID, studentID int64, from, to timezone.Date) (MealParticipationPlan, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
-		return mealplanModule.ParticipationPlan{}, err
+		return MealParticipationPlan{}, err
 	}
 	currentMonday := s.todayDate().StartOfISOWeek()
 	if from.Before(currentMonday) || to.After(currentMonday.AddDays(11)) || to.Before(from) {
-		return mealplanModule.ParticipationPlan{}, ErrMealParticipationOutOfRange
+		return MealParticipationPlan{}, ErrMealParticipationOutOfRange
 	}
 	var plan mealplanModule.ParticipationPlan
 	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -1030,12 +1035,24 @@ func (s *service) MealParticipation(ctx context.Context, accountID, studentID in
 		return readErr
 	})
 	if err != nil {
-		return mealplanModule.ParticipationPlan{}, mapMealParticipationError(err)
+		return MealParticipationPlan{}, mapMealParticipationError(err)
 	}
-	return plan, nil
+	out := MealParticipationPlan{
+		EffectiveFrom: string(plan.EffectiveFrom),
+		CutoffTime:    plan.CutoffTime,
+		Weekdays:      make([]MealWeekday, 0, len(plan.Weekdays)),
+		Days:          make([]MealParticipationDay, 0, len(plan.Days)),
+	}
+	for _, weekday := range plan.Weekdays {
+		out.Weekdays = append(out.Weekdays, MealWeekday(weekday))
+	}
+	for _, day := range plan.Days {
+		out.Days = append(out.Days, MealParticipationDay{Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable})
+	}
+	return out, nil
 }
 
-func (s *service) ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []mealplanModule.Weekday) (mealplanModule.Date, error) {
+func (s *service) ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return "", err
@@ -1043,19 +1060,23 @@ func (s *service) ReplaceMealParticipationSchedule(ctx context.Context, accountI
 	if err := child.requireCareRunning(); err != nil {
 		return "", err
 	}
+	moduleWeekdays := make([]mealplanModule.Weekday, 0, len(weekdays))
+	for _, weekday := range weekdays {
+		moduleWeekdays = append(moduleWeekdays, mealplanModule.Weekday(weekday))
+	}
 	var effectiveFrom mealplanModule.Date
 	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
 		var writeErr error
-		effectiveFrom, writeErr = s.MealPlan.ReplaceParticipationSchedule(txCtx, mealplanModule.ReplaceParticipationSchedule{StudentID: studentID, GuardianAccountID: accountID, Weekdays: weekdays})
+		effectiveFrom, writeErr = s.MealPlan.ReplaceParticipationSchedule(txCtx, mealplanModule.ReplaceParticipationSchedule{StudentID: studentID, GuardianAccountID: accountID, Weekdays: moduleWeekdays})
 		return writeErr
 	})
 	if err != nil {
 		return "", mapMealParticipationError(err)
 	}
-	return effectiveFrom, nil
+	return string(effectiveFrom), nil
 }
 
 func (s *service) SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error {
@@ -1097,6 +1118,10 @@ func mapMealParticipationError(err error) error {
 		return nil
 	case errors.Is(err, mealplanModule.ErrDisabled), errors.Is(err, mealplanModule.ErrRegistrationDisabled):
 		return ErrMealRegistrationDisabled
+	case errors.Is(err, mealplanModule.ErrParticipationCutoff):
+		return ErrMealParticipationCutoff
+	case errors.Is(err, mealplanModule.ErrInvalidParticipation):
+		return ErrInvalidMealParticipation
 	default:
 		return err
 	}

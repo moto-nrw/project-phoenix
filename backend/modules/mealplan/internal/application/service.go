@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
 )
@@ -19,18 +18,19 @@ var (
 )
 
 type Service struct {
-	store    ports.Store
-	settings ports.Settings
-	tx       ports.Transaction
-	observe  ports.Observer
-	now      func() time.Time
+	store     ports.Store
+	directory ports.Directory
+	settings  ports.Settings
+	tx        ports.Transaction
+	observe   ports.Observer
+	now       func() time.Time
 }
 
-func New(store ports.Store, settings ports.Settings, tx ports.Transaction, observe ports.Observer, now func() time.Time) *Service {
-	if store == nil || settings == nil || tx == nil || observe == nil || now == nil {
+func New(store ports.Store, directory ports.Directory, settings ports.Settings, tx ports.Transaction, observe ports.Observer, now func() time.Time) *Service {
+	if store == nil || directory == nil || settings == nil || tx == nil || observe == nil || now == nil {
 		panic("meal plan application: all dependencies are required")
 	}
-	return &Service{store: store, settings: settings, tx: tx, observe: observe, now: now}
+	return &Service{store: store, directory: directory, settings: settings, tx: tx, observe: observe, now: now}
 }
 
 func (s *Service) RegistrationAvailable(ctx context.Context) (available bool, err error) {
@@ -66,7 +66,7 @@ func (s *Service) ReplaceParticipationSchedule(ctx context.Context, studentID, a
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
-		effectiveFrom = nextEffectiveDate(s.now(), cutoffTime)
+		effectiveFrom = domain.NextEffectiveDate(s.now(), cutoffTime)
 		return s.store.InsertParticipationSchedule(txCtx, studentID, accountID, effectiveFrom, weekdays)
 	})
 	return effectiveFrom, err
@@ -78,7 +78,7 @@ func (s *Service) SetParticipationDay(ctx context.Context, studentID, accountID 
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
-		if !changeable(s.now(), date, cutoffTime) {
+		if !domain.Changeable(s.now(), date, cutoffTime) {
 			return domain.OperationStats{}, ErrCutoffPassed
 		}
 		return s.store.UpsertParticipationOverride(txCtx, studentID, accountID, date, participating)
@@ -91,7 +91,7 @@ func (s *Service) ClearParticipationDay(ctx context.Context, studentID, _ int64,
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
-		if !changeable(s.now(), date, cutoffTime) {
+		if !domain.Changeable(s.now(), date, cutoffTime) {
 			return domain.OperationStats{}, ErrCutoffPassed
 		}
 		return s.store.DeleteParticipationOverride(txCtx, studentID, date)
@@ -104,18 +104,28 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
-		cutoff := cutoffAt(date, cutoffTime)
-		candidates, stats, findErr := s.store.FindDailyCandidates(txCtx, date, cutoff)
+		cutoff := domain.CutoffAt(date, cutoffTime)
+		candidates, stats, findErr := s.directory.FindDailyCandidates(txCtx, date)
+		if findErr != nil {
+			return stats, findErr
+		}
+		studentIDs := make([]int64, 0, len(candidates))
+		for _, candidate := range candidates {
+			studentIDs = append(studentIDs, candidate.StudentID)
+		}
+		participation, participationStats, findErr := s.store.FindDailyParticipation(txCtx, studentIDs, date, cutoff)
+		stats = addStats(stats, participationStats)
 		if findErr != nil {
 			return stats, findErr
 		}
 		list = domain.DailyList{Date: date, CutoffTime: cutoffTime, Participants: make([]domain.DailyParticipant, 0, len(candidates))}
 		for _, candidate := range candidates {
-			participating := candidate.Regular
-			if candidate.Override != nil {
-				participating = *candidate.Override
+			state := participation[candidate.StudentID]
+			participating := state.Regular
+			if state.Override != nil {
+				participating = *state.Override
 			}
-			if candidate.SickReportedAt != nil && sickAtCutoff(*candidate.SickReportedAt, candidate.SickClearedAt, cutoff) {
+			if state.SickReportedAt != nil && sickAtCutoff(*state.SickReportedAt, state.SickClearedAt, cutoff) {
 				participating = false
 			}
 			if participating {
@@ -127,6 +137,14 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 		return stats, nil
 	})
 	return list, err
+}
+
+func addStats(left, right domain.OperationStats) domain.OperationStats {
+	return domain.OperationStats{
+		Queries:           left.Queries + right.Queries,
+		Rows:              left.Rows + right.Rows,
+		StatementDuration: left.StatementDuration + right.StatementDuration,
+	}
 }
 
 func (s *Service) Available(ctx context.Context) (available bool, err error) {
@@ -206,7 +224,7 @@ func (s *Service) resolveParticipation(data domain.ParticipationData, from, to d
 	}
 	sickDays := make(map[domain.Date]domain.SickDay, len(data.SickDays))
 	for _, sick := range data.SickDays {
-		cutoff := cutoffAt(sick.Date, cutoffTime)
+		cutoff := domain.CutoffAt(sick.Date, cutoffTime)
 		if sick.ChangedAt.After(cutoff) {
 			continue
 		}
@@ -230,11 +248,11 @@ func (s *Service) resolveParticipation(data domain.ParticipationData, from, to d
 			participating = value
 			source = domain.ParticipationOverride
 		}
-		if sick, exists := sickDays[date]; exists && sickAtCutoff(sick.ReportedAt, sick.ClearedAt, cutoffAt(date, cutoffTime)) {
+		if sick, exists := sickDays[date]; exists && sickAtCutoff(sick.ReportedAt, sick.ClearedAt, domain.CutoffAt(date, cutoffTime)) {
 			participating = false
 			source = domain.ParticipationSick
 		}
-		plan.Days = append(plan.Days, domain.ParticipationDay{Date: date, Participating: participating, Source: source, Changeable: changeable(s.now(), date, cutoffTime)})
+		plan.Days = append(plan.Days, domain.ParticipationDay{Date: date, Participating: participating, Source: source, Changeable: domain.Changeable(s.now(), date, cutoffTime)})
 	}
 	if len(data.Schedules) > 0 {
 		latest := data.Schedules[len(data.Schedules)-1]
@@ -267,31 +285,8 @@ func scheduleContains(schedule *domain.ParticipationSchedule, weekday time.Weekd
 	return false
 }
 
-func cutoffAt(date domain.Date, cutoffTime string) time.Time {
-	clock, _ := time.Parse("15:04", cutoffTime)
-	return time.Date(date.Year(), date.Month(), date.Day(), clock.Hour(), clock.Minute(), 0, 0, timezone.Berlin)
-}
-
 func sickAtCutoff(reportedAt time.Time, clearedAt *time.Time, cutoff time.Time) bool {
 	return !reportedAt.After(cutoff) && (clearedAt == nil || clearedAt.After(cutoff))
-}
-
-func changeable(now time.Time, date domain.Date, cutoffTime string) bool {
-	now = now.In(timezone.Berlin)
-	today := domain.Date(now.Format("2006-01-02"))
-	return !date.Before(today) && !now.After(cutoffAt(date, cutoffTime))
-}
-
-func nextEffectiveDate(now time.Time, cutoffTime string) domain.Date {
-	now = now.In(timezone.Berlin)
-	date := domain.Date(now.Format("2006-01-02"))
-	if now.After(cutoffAt(date, cutoffTime)) {
-		date = date.AddDays(1)
-	}
-	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		date = date.AddDays(1)
-	}
-	return date
 }
 
 func (s *Service) run(ctx context.Context, operation string, fn func(context.Context) (domain.OperationStats, error)) (err error) {

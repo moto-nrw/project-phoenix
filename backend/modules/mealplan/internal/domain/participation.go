@@ -1,6 +1,10 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+)
 
 type Weekday int
 
@@ -52,10 +56,13 @@ type ParticipationPlan struct {
 }
 
 type DailyCandidate struct {
-	StudentID      int64
-	FirstName      string
-	LastName       string
-	SchoolClass    string
+	StudentID   int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}
+
+type DailyParticipation struct {
 	Regular        bool
 	Override       *bool
 	SickReportedAt *time.Time
@@ -73,4 +80,27 @@ type DailyList struct {
 	Date         Date
 	CutoffTime   string
 	Participants []DailyParticipant
+}
+
+func CutoffAt(date Date, cutoffTime string) time.Time {
+	clock, _ := time.Parse("15:04", cutoffTime)
+	return time.Date(date.Year(), date.Month(), date.Day(), clock.Hour(), clock.Minute(), 0, 0, timezone.Berlin)
+}
+
+func Changeable(now time.Time, date Date, cutoffTime string) bool {
+	now = now.In(timezone.Berlin)
+	today := Date(now.Format("2006-01-02"))
+	return !date.Before(today) && !now.After(CutoffAt(date, cutoffTime))
+}
+
+func NextEffectiveDate(now time.Time, cutoffTime string) Date {
+	now = now.In(timezone.Berlin)
+	date := Date(now.Format("2006-01-02"))
+	if now.After(CutoffAt(date, cutoffTime)) {
+		date = date.AddDays(1)
+	}
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDays(1)
+	}
+	return date
 }

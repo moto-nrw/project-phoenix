@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,12 +11,80 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+var testBerlin = time.FixedZone("Europe/Berlin", 2*60*60)
+
+type testParticipantRow struct {
+	StudentID   int64  `bun:"student_id"`
+	FirstName   string `bun:"first_name"`
+	LastName    string `bun:"last_name"`
+	SchoolClass string `bun:"school_class"`
+}
+
+func testParticipantFinder(ctx context.Context, date string) ([]ParticipantCandidate, error) {
+	transaction, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
+		return nil, errors.New("test participant finder: transaction is required")
+	}
+	tx, ok := transaction.(bun.Tx)
+	if !ok {
+		return nil, fmt.Errorf("test participant finder: unsupported transaction %T", transaction)
+	}
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []testParticipantRow
+	err = tx.NewSelect().Model(&rows).
+		ModelTableExpr(`users.students AS "student"`).
+		ColumnExpr(`"student".id AS student_id, "person".first_name, "person".last_name, "student".school_class`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id AND "person".tenant_id = "student".tenant_id`).
+		Where(`"student".tenant_id = ?`, tenantID.Int64()).
+		Where(`"student".status = 'active'`).
+		Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, date).
+		Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, date).
+		OrderExpr(`"student".school_class, "person".last_name, "person".first_name, "student".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]ParticipantCandidate, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, ParticipantCandidate(row))
+	}
+	return result, nil
+}
+
+func dailyParticipantIDs(list mealplan.DailyList) []int64 {
+	ids := make([]int64, 0, len(list.Participants))
+	for _, participant := range list.Participants {
+		ids = append(ids, participant.StudentID)
+	}
+	return ids
+}
+
+type testStatusDayRow struct {
+	bun.BaseModel `bun:"table:student_status_days,alias:student_status_day"`
+	ID            int64     `bun:"id,pk,autoincrement"`
+	TenantID      int64     `bun:"tenant_id"`
+	StudentID     int64     `bun:"student_id"`
+	Date          string    `bun:"date"`
+	Status        string    `bun:"status"`
+	ReportedAt    time.Time `bun:"reported_at"`
+	Source        string    `bun:"source"`
+}
+
+func createSickStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date string, reportedAt time.Time) *testStatusDayRow {
+	t.Helper()
+	row := &testStatusDayRow{TenantID: tenantID, StudentID: studentID, Date: date, Status: "sick", ReportedAt: reportedAt, Source: "manual"}
+	_, err := db.NewInsert().Model(row).ModelTableExpr(`active.student_status_days`).Exec(context.Background())
+	require.NoError(t, err)
+	return row
+}
 
 type testMealPlanSettings struct {
 	mealPlanEnabled         bool
@@ -43,10 +112,11 @@ func enabledTestSettings(settingErr error) testMealPlanSettings {
 func buildModule(t *testing.T, db *bun.DB, enabled bool, settingErr error) *mealplan.Module {
 	t.Helper()
 	module, err := New(Dependencies{
-		DB:       db,
-		Settings: testMealPlanSettings{mealPlanEnabled: enabled, mealRegistrationEnabled: enabled, cutoff: "09:00", err: settingErr},
-		Observe:  func(Observation) {},
-		Now:      func() time.Time { return time.Date(2026, 9, 7, 8, 0, 0, 0, timezone.Berlin) },
+		DB:           db,
+		Settings:     testMealPlanSettings{mealPlanEnabled: enabled, mealRegistrationEnabled: enabled, cutoff: "09:00", err: settingErr},
+		Observe:      func(Observation) {},
+		Now:          func() time.Time { return time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin) },
+		Participants: testParticipantFinder,
 	})
 	require.NoError(t, err)
 	return module
@@ -161,10 +231,11 @@ func TestModuleReportsPersistenceQueryAndRowCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	var observations []Observation
 	module, err := New(Dependencies{
-		DB:       db,
-		Settings: enabledTestSettings(nil),
-		Observe:  func(observation Observation) { observations = append(observations, observation) },
-		Now:      func() time.Time { return time.Date(2026, 9, 28, 8, 0, 0, 0, timezone.Berlin) },
+		DB:           db,
+		Settings:     enabledTestSettings(nil),
+		Observe:      func(observation Observation) { observations = append(observations, observation) },
+		Now:          func() time.Time { return time.Date(2026, 9, 28, 8, 0, 0, 0, testBerlin) },
+		Participants: testParticipantFinder,
 	})
 	require.NoError(t, err)
 
@@ -210,8 +281,9 @@ func TestParticipationRejectsSameDayChangeAfterKitchenCutoff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	module, err := New(Dependencies{
 		DB: db, Settings: enabledTestSettings(nil),
-		Observe: func(Observation) {},
-		Now:     func() time.Time { return time.Date(2026, 9, 7, 9, 1, 0, 0, timezone.Berlin) },
+		Observe:      func(Observation) {},
+		Now:          func() time.Time { return time.Date(2026, 9, 7, 9, 1, 0, 0, testBerlin) },
+		Participants: testParticipantFinder,
 	})
 	require.NoError(t, err)
 	student := testpkg.CreateTestStudent(t, db, "Noah", "Beispiel", "3b")
@@ -234,8 +306,9 @@ func TestRegistrationUsesSeparateToggleAndTenantCutoff(t *testing.T) {
 		Settings: testMealPlanSettings{
 			mealPlanEnabled: true, mealRegistrationEnabled: false, cutoff: "10:30",
 		},
-		Observe: func(Observation) {},
-		Now:     func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, timezone.Berlin) },
+		Observe:      func(Observation) {},
+		Now:          func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin) },
+		Participants: testParticipantFinder,
 	})
 	require.NoError(t, err)
 	available, err := disabledModule.RegistrationAvailable(testpkg.Ctx(t))
@@ -251,8 +324,9 @@ func TestRegistrationUsesSeparateToggleAndTenantCutoff(t *testing.T) {
 		Settings: testMealPlanSettings{
 			mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "10:30",
 		},
-		Observe: func(Observation) {},
-		Now:     func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, timezone.Berlin) },
+		Observe:      func(Observation) {},
+		Now:          func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin) },
+		Participants: testParticipantFinder,
 	})
 	require.NoError(t, err)
 	require.NoError(t, enabledModule.SetParticipationForDay(testpkg.Ctx(t), mealplan.SetParticipationDay{
@@ -270,16 +344,11 @@ func TestDailyListOmitsConfirmedSicknessReportedBeforeCutoff(t *testing.T) {
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true,
 	}))
-	status := testpkg.CreateTestStudentStatusDay(t, db, student.ID, timezone.Date("2026-09-07"), "sick")
-	_, err := db.NewUpdate().Model(status).
-		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
-		Set(`reported_at = ?`, time.Date(2026, 9, 7, 8, 30, 0, 0, timezone.Berlin)).
-		WherePK().Exec(context.Background())
-	require.NoError(t, err)
+	createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2026-09-07", time.Date(2026, 9, 7, 8, 30, 0, 0, testBerlin))
 
 	list, err := module.DailyList(ctx, "2026-09-07")
 	require.NoError(t, err)
-	assert.Empty(t, list.Participants)
+	assert.NotContains(t, dailyParticipantIDs(list), student.ID)
 }
 
 func TestDailyListIncludesChildWhenSicknessIsDeletedBeforeCutoff(t *testing.T) {
@@ -292,7 +361,7 @@ func TestDailyListIncludesChildWhenSicknessIsDeletedBeforeCutoff(t *testing.T) {
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true,
 	}))
-	status := testpkg.CreateTestStudentStatusDay(t, db, student.ID, timezone.Date("2026-09-07"), "sick")
+	status := createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2026-09-07", time.Now())
 	_, err := db.NewDelete().Model(status).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 		WherePK().Exec(context.Background())
@@ -300,8 +369,7 @@ func TestDailyListIncludesChildWhenSicknessIsDeletedBeforeCutoff(t *testing.T) {
 
 	list, err := module.DailyList(ctx, "2026-09-07")
 	require.NoError(t, err)
-	require.Len(t, list.Participants, 1)
-	assert.Equal(t, student.ID, list.Participants[0].StudentID)
+	assert.Contains(t, dailyParticipantIDs(list), student.ID)
 }
 
 func TestDailyListKeepsRegistrationWhenSicknessIsReportedAfterCutoff(t *testing.T) {
@@ -314,18 +382,11 @@ func TestDailyListKeepsRegistrationWhenSicknessIsReportedAfterCutoff(t *testing.
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true,
 	}))
-	status := &activeModels.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date("2026-09-07"), Status: activeModels.StudentStatusDaySick,
-		ReportedAt: time.Date(2026, 9, 7, 9, 1, 0, 0, timezone.Berlin), Source: activeModels.StudentStatusSourceManual,
-	}
-	status.SetTenantID(student.GetTenantID())
-	_, err := db.NewInsert().Model(status).ModelTableExpr(`active.student_status_days`).Exec(context.Background())
-	require.NoError(t, err)
+	createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2026-09-07", time.Date(2026, 9, 7, 9, 1, 0, 0, testBerlin))
 
 	list, err := module.DailyList(ctx, "2026-09-07")
 	require.NoError(t, err)
-	require.Len(t, list.Participants, 1)
-	assert.Equal(t, student.ID, list.Participants[0].StudentID)
+	assert.Contains(t, dailyParticipantIDs(list), student.ID)
 }
 
 func TestDailyListKeepsCutoffStateWhenSicknessIsClearedAfterCutoff(t *testing.T) {
@@ -338,27 +399,26 @@ func TestDailyListKeepsCutoffStateWhenSicknessIsClearedAfterCutoff(t *testing.T)
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true,
 	}))
-	status := testpkg.CreateTestStudentStatusDay(t, db, student.ID, timezone.Date("2026-09-07"), "sick")
+	status := createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2026-09-07", time.Date(2026, 9, 7, 8, 30, 0, 0, testBerlin))
 	_, err := db.NewUpdate().Model(status).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
-		Set(`reported_at = ?`, time.Date(2026, 9, 7, 8, 30, 0, 0, timezone.Berlin)).
-		Set(`cleared_at = ?`, time.Date(2026, 9, 7, 9, 30, 0, 0, timezone.Berlin)).
+		Set(`cleared_at = ?`, time.Date(2026, 9, 7, 9, 30, 0, 0, testBerlin)).
 		WherePK().Exec(context.Background())
 	require.NoError(t, err)
 
 	list, err := module.DailyList(ctx, "2026-09-07")
 	require.NoError(t, err)
-	assert.Empty(t, list.Participants)
+	assert.NotContains(t, dailyParticipantIDs(list), student.ID)
 
 	_, err = db.NewUpdate().Model(status).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
-		Set(`reported_at = ?`, time.Date(2026, 9, 7, 10, 30, 0, 0, timezone.Berlin)).
+		Set(`reported_at = ?`, time.Date(2026, 9, 7, 10, 30, 0, 0, testBerlin)).
 		Set(`cleared_at = NULL`).
 		WherePK().Exec(context.Background())
 	require.NoError(t, err)
 	list, err = module.DailyList(ctx, "2026-09-07")
 	require.NoError(t, err)
-	assert.Empty(t, list.Participants)
+	assert.NotContains(t, dailyParticipantIDs(list), student.ID)
 }
 
 func TestParticipationUsesLatestSicknessSnapshotWhenTimestampsMatch(t *testing.T) {
@@ -371,18 +431,18 @@ func TestParticipationUsesLatestSicknessSnapshotWhenTimestampsMatch(t *testing.T
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true,
 	}))
-	changedAt := time.Date(2026, 9, 7, 8, 30, 0, 0, timezone.Berlin)
+	changedAt := time.Date(2026, 9, 7, 8, 30, 0, 0, testBerlin)
 	_, err := db.NewRaw(`
 		INSERT INTO schedule.meal_sickness_status_history
 			(tenant_id, student_id, date, changed_at, reported_at, cleared_at)
 		VALUES (?, ?, ?, ?, ?, NULL)
-	`, student.GetTenantID(), student.ID, timezone.Date("2026-09-07"), changedAt, changedAt).Exec(context.Background())
+	`, student.GetTenantID(), student.ID, "2026-09-07", changedAt, changedAt).Exec(context.Background())
 	require.NoError(t, err)
 	_, err = db.NewRaw(`
 		INSERT INTO schedule.meal_sickness_status_history
 			(tenant_id, student_id, date, changed_at, reported_at, cleared_at)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, student.GetTenantID(), student.ID, timezone.Date("2026-09-07"), changedAt, changedAt, changedAt).Exec(context.Background())
+	`, student.GetTenantID(), student.ID, "2026-09-07", changedAt, changedAt, changedAt).Exec(context.Background())
 	require.NoError(t, err)
 
 	plan, err := module.Participation(ctx, student.ID, "2026-09-07", "2026-09-07")
@@ -393,6 +453,5 @@ func TestParticipationUsesLatestSicknessSnapshotWhenTimestampsMatch(t *testing.T
 
 	list, err := module.DailyList(ctx, "2026-09-07")
 	require.NoError(t, err)
-	require.Len(t, list.Participants, 1)
-	assert.Equal(t, student.ID, list.Participants[0].StudentID)
+	assert.Contains(t, dailyParticipantIDs(list), student.ID)
 }

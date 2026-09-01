@@ -806,9 +806,9 @@ export async function getChildMealPlan(
   );
 }
 
-export type MealParticipationSource = "none" | "regular" | "override" | "sick";
+type MealParticipationSource = "none" | "regular" | "override" | "sick";
 
-export interface MealParticipationDay {
+interface MealParticipationDay {
   readonly date: string;
   readonly participating: boolean;
   readonly source: MealParticipationSource;

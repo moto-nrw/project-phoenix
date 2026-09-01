@@ -21,7 +21,6 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -66,9 +65,9 @@ type fakeParentService struct {
 	gotTodayAccount int64
 	gotTodayStudent int64
 
-	mealPlanRows         []mealplanModule.Entry
+	mealPlanRows         []parentService.MealPlanEntry
 	mealPlanErr          error
-	mealParticipation    mealplanModule.ParticipationPlan
+	mealParticipation    parentService.MealParticipationPlan
 	mealParticipationErr error
 }
 
@@ -148,13 +147,13 @@ func (f *fakeParentService) ListRequestEvents(context.Context, int64, int64, str
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {
 	return parentService.ChildFeatureFlags{}, nil
 }
-func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]mealplanModule.Entry, error) {
+func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]parentService.MealPlanEntry, error) {
 	return f.mealPlanRows, f.mealPlanErr
 }
-func (f *fakeParentService) MealParticipation(context.Context, int64, int64, timezone.Date, timezone.Date) (mealplanModule.ParticipationPlan, error) {
+func (f *fakeParentService) MealParticipation(context.Context, int64, int64, timezone.Date, timezone.Date) (parentService.MealParticipationPlan, error) {
 	return f.mealParticipation, f.mealParticipationErr
 }
-func (f *fakeParentService) ReplaceMealParticipationSchedule(context.Context, int64, int64, []mealplanModule.Weekday) (mealplanModule.Date, error) {
+func (f *fakeParentService) ReplaceMealParticipationSchedule(context.Context, int64, int64, []parentService.MealWeekday) (string, error) {
 	return "2026-09-07", nil
 }
 func (f *fakeParentService) SetMealParticipationDay(context.Context, int64, int64, timezone.Date, bool) error {
@@ -354,8 +353,8 @@ func mealParticipationRequest() *http.Request {
 func TestGetChildMealPlan_ResponseContract(t *testing.T) {
 	t.Parallel()
 
-	service := &fakeParentService{mealPlanRows: []mealplanModule.Entry{{
-		Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti",
+	service := &fakeParentService{mealPlanRows: []parentService.MealPlanEntry{{
+		Date: "2026-08-24", Position: 0, Dish: "Spaghetti",
 	}}}
 	rs := &Resource{ParentService: service}
 	w := httptest.NewRecorder()
@@ -388,9 +387,9 @@ func TestGetChildMealPlan_DisabledContract(t *testing.T) {
 
 func TestGetMealParticipation_ResponseContract(t *testing.T) {
 	t.Parallel()
-	rs := &Resource{ParentService: &fakeParentService{mealParticipation: mealplanModule.ParticipationPlan{
-		Weekdays: []mealplanModule.Weekday{mealplanModule.Monday, mealplanModule.Wednesday}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00",
-		Days: []mealplanModule.ParticipationDay{{Date: "2026-08-24", Participating: true, Source: mealplanModule.ParticipationRegular, Changeable: false}},
+	rs := &Resource{ParentService: &fakeParentService{mealParticipation: parentService.MealParticipationPlan{
+		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00",
+		Days: []parentService.MealParticipationDay{{Date: "2026-08-24", Participating: true, Source: "regular", Changeable: false}},
 	}}}
 	w := httptest.NewRecorder()
 

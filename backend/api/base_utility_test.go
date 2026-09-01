@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
@@ -320,10 +319,13 @@ func setupOperatorInvitationRoute(t *testing.T) chi.Router {
 		DB:       db,
 		Settings: enabledMealPlanSettings{},
 		Observe:  func(mealplanCompose.Observation) {},
-		Now:      timezone.Now,
+		Now:      time.Now,
+		Participants: func(context.Context, string) ([]mealplanCompose.ParticipantCandidate, error) {
+			return nil, nil
+		},
 	})
 	require.NoError(t, err)
-	api.MealPlan = newMealPlanResource(mealPlan, db)
+	api.MealPlan = newMealPlanResource(mealPlan, db, nil)
 	api.Feedback = newFeedbackResource(feedback, db)
 	api.registerRoutesWithRateLimiting()
 	return api.Router

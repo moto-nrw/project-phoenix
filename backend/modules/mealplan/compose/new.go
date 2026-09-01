@@ -27,6 +27,15 @@ func (fn TransactionFunc) Run(ctx context.Context, callback func(context.Context
 
 type Observation = ports.Observation
 
+type ParticipantCandidate struct {
+	StudentID   int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}
+
+type ParticipantFinder func(context.Context, string) ([]ParticipantCandidate, error)
+
 type Dependencies struct {
 	DB       *bun.DB
 	Settings interface {
@@ -34,12 +43,13 @@ type Dependencies struct {
 		MealRegistrationEnabled(context.Context) (bool, error)
 		MealRegistrationCutoff(context.Context) (string, error)
 	}
-	Observe func(Observation)
-	Now     func() time.Time
+	Observe      func(Observation)
+	Now          func() time.Time
+	Participants ParticipantFinder
 }
 
 func New(dependencies Dependencies) (*mealplan.Module, error) {
-	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil {
+	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
@@ -57,8 +67,27 @@ func New(dependencies Dependencies) (*mealplan.Module, error) {
 		}
 		return tx, tenantID.Int64(), nil
 	})
-	service := application.New(store, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
+	service := application.New(store, participantDirectory{find: dependencies.Participants}, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
 	return mealplan.NewModule(engine{service: service}), nil
+}
+
+type participantDirectory struct{ find ParticipantFinder }
+
+func (d participantDirectory) FindDailyCandidates(ctx context.Context, date domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error) {
+	started := time.Now()
+	rows, err := d.find(ctx, date.String())
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return nil, stats, err
+	}
+	stats.Rows = int64(len(rows))
+	candidates := make([]domain.DailyCandidate, 0, len(rows))
+	for _, row := range rows {
+		candidates = append(candidates, domain.DailyCandidate{
+			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
+		})
+	}
+	return candidates, stats, nil
 }
 
 type Settings struct {
