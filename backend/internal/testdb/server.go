@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,10 +22,15 @@ import (
 // and waits for readiness. A CI service container is already reachable, so
 // this never touches CI setups.
 func EnsureServer(ctx context.Context, cfg *Config) error {
-	return ensureServer(ctx, cfg, startTestContainer)
+	return ensureServer(ctx, cfg, startTestContainer, syncLocalSuperuserPassword)
 }
 
-func ensureServer(ctx context.Context, cfg *Config, start func(context.Context) error) error {
+func ensureServer(
+	ctx context.Context,
+	cfg *Config,
+	start func(context.Context) error,
+	repairAuthentication func(context.Context, *Config) error,
+) error {
 	pingErr := pingServer(ctx, cfg)
 	if pingErr == nil {
 		return nil
@@ -30,6 +38,15 @@ func ensureServer(ctx context.Context, cfg *Config, start func(context.Context) 
 
 	if isPostgresStarting(pingErr) {
 		return waitForServer(ctx, cfg)
+	}
+	if isPostgresAuthenticationFailure(pingErr) {
+		if err := repairAuthentication(ctx, cfg); err != nil {
+			return fmt.Errorf("test database authentication failed and local password synchronization failed: %v: %w", pingErr, err)
+		}
+		if err := pingServer(ctx, cfg); err != nil {
+			return fmt.Errorf("test database authentication still fails after local password synchronization: %w", err)
+		}
+		return nil
 	}
 	if !errors.Is(pingErr, syscall.ECONNREFUSED) {
 		return fmt.Errorf("test database connection failed; refusing to restart the shared server: %w", pingErr)
@@ -64,6 +81,86 @@ func waitForServer(ctx context.Context, cfg *Config) error {
 func isPostgresStarting(err error) bool {
 	var pgErr pgdriver.Error
 	return errors.As(err, &pgErr) && pgErr.Field('C') == "57P03"
+}
+
+func isPostgresAuthenticationFailure(err error) bool {
+	var pgErr pgdriver.Error
+	return errors.As(err, &pgErr) && pgErr.Field('C') == "28P01"
+}
+
+type dockerCommandRunner func(context.Context, string, io.Reader, ...string) ([]byte, error)
+
+func syncLocalSuperuserPassword(ctx context.Context, cfg *Config) error {
+	return syncLocalSuperuserPasswordWithRunner(ctx, cfg, runDockerCommand)
+}
+
+func syncLocalSuperuserPasswordWithRunner(ctx context.Context, cfg *Config, run dockerCommandRunner) error {
+	username := cfg.templateURL.User.Username()
+	password, hasPassword := cfg.templateURL.User.Password()
+	if username != "postgres" || !hasPassword {
+		return fmt.Errorf("automatic password synchronization requires the postgres user with a password")
+	}
+	host := cfg.templateURL.Hostname()
+	if !isLoopbackHost(host) {
+		return fmt.Errorf("automatic password synchronization is limited to a loopback TEST_DB_DSN host, got %q", host)
+	}
+	port := cfg.templateURL.Port()
+	if port == "" {
+		port = "5432"
+	}
+
+	backend, err := backendRoot()
+	if err != nil {
+		return fmt.Errorf("locate backend module root: %w", err)
+	}
+	projectRoot := filepath.Dir(backend)
+	composeFile := filepath.Join(projectRoot, "docker-compose.example.yml")
+	if _, err := os.Stat(composeFile); err != nil {
+		return fmt.Errorf("no docker-compose.example.yml at %s", projectRoot)
+	}
+
+	composeArgs := []string{"compose", "-p", composeProject, "-f", composeFile}
+	portArgs := append(append([]string{}, composeArgs...), "port", "postgres-test", "5432")
+	published, err := run(ctx, projectRoot, nil, portArgs...)
+	if err != nil {
+		return fmt.Errorf("locate shared postgres-test container: %w", err)
+	}
+	if !publishesPort(string(published), port) {
+		return fmt.Errorf("shared postgres-test container does not publish configured port %s", port)
+	}
+
+	statement := fmt.Sprintf("ALTER ROLE %s WITH PASSWORD %s;\n", quoteIdentifier(username), quoteLiteral(password))
+	execArgs := append(append([]string{}, composeArgs...),
+		"exec", "-T", "postgres-test", "psql", "--no-psqlrc", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres")
+	if output, err := run(ctx, projectRoot, strings.NewReader(statement), execArgs...); err != nil {
+		return fmt.Errorf("synchronize postgres-test superuser password: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func publishesPort(output, expected string) bool {
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
+		_, port, err := net.SplitHostPort(strings.TrimSpace(line))
+		if err == nil && port == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func runDockerCommand(ctx context.Context, dir string, stdin io.Reader, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Dir = dir
+	cmd.Stdin = stdin
+	return cmd.CombinedOutput()
 }
 
 func pingServer(ctx context.Context, cfg *Config) error {

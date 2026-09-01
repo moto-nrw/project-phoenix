@@ -3,6 +3,7 @@ package testdb
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -106,10 +107,64 @@ func TestEnsureServerStartsContainerForRefusedConnection(t *testing.T) {
 	err = ensureServer(context.Background(), cfg, func(context.Context) error {
 		starts++
 		return startErr
+	}, func(context.Context, *Config) error {
+		t.Fatal("connection refusal must not trigger authentication repair")
+		return nil
 	})
 
 	require.ErrorContains(t, err, "auto-start failed")
 	assert.Equal(t, 1, starts)
+}
+
+func TestSyncLocalSuperuserPasswordUsesMatchingComposeService(t *testing.T) {
+	cfg, err := NewConfig("postgres://postgres:pa%27ss@localhost:5433/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+
+	calls := 0
+	var statement string
+	runner := func(_ context.Context, _ string, stdin io.Reader, args ...string) ([]byte, error) {
+		calls++
+		for _, arg := range args {
+			assert.NotContains(t, arg, "pa'ss", "the password must not be exposed in process arguments")
+		}
+		switch calls {
+		case 1:
+			assert.Nil(t, stdin)
+			assert.Equal(t, []string{"port", "postgres-test", "5432"}, args[len(args)-3:])
+			return []byte("0.0.0.0:5433\n[::]:5433\n"), nil
+		case 2:
+			body, readErr := io.ReadAll(stdin)
+			require.NoError(t, readErr)
+			statement = string(body)
+			assert.Contains(t, args, "exec")
+			assert.Contains(t, args, "postgres-test")
+			return nil, nil
+		default:
+			t.Fatalf("unexpected docker command %d", calls)
+			return nil, nil
+		}
+	}
+
+	require.NoError(t, syncLocalSuperuserPasswordWithRunner(context.Background(), cfg, runner))
+	assert.Equal(t, 2, calls)
+	assert.Equal(t, "ALTER ROLE \"postgres\" WITH PASSWORD 'pa''ss';\n", statement)
+}
+
+func TestSyncLocalSuperuserPasswordRejectsUnsafeTargets(t *testing.T) {
+	for _, dsn := range []string{
+		"postgres://postgres:test@database.example:5433/phoenix_test?sslmode=disable",
+		"postgres://phoenix_auth:test@localhost:5433/phoenix_test?sslmode=disable",
+		"postgres://postgres@localhost:5433/phoenix_test?sslmode=disable",
+	} {
+		cfg, err := NewConfig(dsn)
+		require.NoError(t, err)
+		err = syncLocalSuperuserPasswordWithRunner(context.Background(), cfg,
+			func(context.Context, string, io.Reader, ...string) ([]byte, error) {
+				t.Fatal("unsafe target must be rejected before invoking docker")
+				return nil, nil
+			})
+		require.Error(t, err)
+	}
 }
 
 func TestQuoteIdentifierEscapesDoubleQuotes(t *testing.T) {
@@ -247,7 +302,7 @@ func integrationConfig(t *testing.T) *Config {
 	return cfg
 }
 
-func TestEnsureServerDoesNotRestartForAuthenticationFailure(t *testing.T) {
+func TestEnsureServerRepairsAuthenticationFailureWithoutRestart(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping DB integration test in -short mode")
 	}
@@ -273,13 +328,17 @@ func TestEnsureServerDoesNotRestartForAuthenticationFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
 	starts := 0
+	repairs := 0
 	err = ensureServer(ctx, badCfg, func(context.Context) error {
 		starts++
+		return nil
+	}, func(context.Context, *Config) error {
+		repairs++
 		return nil
 	})
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "refusing to restart the shared server")
+	assert.Equal(t, 1, repairs, "authentication failures must repair the local test credential")
 	assert.Zero(t, starts, "authentication failures must not restart the shared test server")
 }
 
