@@ -2,7 +2,7 @@ package migrations
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -51,7 +51,7 @@ func init() {
 // untouched; admins keep everything through the admin:* wildcard anyway, the
 // explicit grants exist so the permissions show up in the role management UI.
 func addStaffHRPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.360: Adding staff personnel permissions (#2906)...")
+	slog.Info("migration starting", "migration", staffHRPermissionsVersion)
 
 	specs := []permissionSpec{
 		{
@@ -80,12 +80,12 @@ func addStaffHRPermissions(ctx context.Context, db *bun.DB) error {
 		}
 	}
 
-	fmt.Println("Migration 1.15.360: Granted staff:stammdaten, staff:documents and staff:manage to the admin role")
+	slog.Info("migration finished", "migration", staffHRPermissionsVersion)
 	return nil
 }
 
 func removeStaffHRPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.360: Removing staff personnel permissions...")
+	slog.Info("migration rollback starting", "migration", staffHRPermissionsVersion)
 
 	for _, name := range []string{
 		staffStammdatenPermissionName,
@@ -97,5 +97,6 @@ func removeStaffHRPermissions(ctx context.Context, db *bun.DB) error {
 		}
 	}
 
+	slog.Info("migration rollback finished", "migration", staffHRPermissionsVersion)
 	return nil
 }
