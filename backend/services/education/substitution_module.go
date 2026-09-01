@@ -5,6 +5,7 @@ package education
 import (
 	"context"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -21,6 +22,7 @@ import (
 type GroupStore interface {
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*educationModels.Group, error)
 	FindByIDForUpdate(ctx context.Context, id any) (*educationModels.Group, error)
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*educationModels.Group, error)
 }
 
 type GroupHandoverStore interface {
@@ -145,7 +147,7 @@ func (s *substitutionModule) groupOverviewScope(ctx context.Context, caller Subs
 
 func emptyOverview() *OverviewResult {
 	return &OverviewResult{
-		GroupHandovers: []GroupHandover{}, Targets: []StaffRef{}, RunningSupervisions: []RunningSupervision{},
+		GroupHandovers: []GroupHandover{}, Groups: []GroupRef{}, Targets: []StaffRef{}, RunningSupervisions: []RunningSupervision{},
 		ScheduleAppointments: []ScheduleAppointmentOverview{}, ScheduleTargets: []StaffRef{},
 	}
 }
@@ -197,13 +199,47 @@ func (s *substitutionModule) projectOverview(ctx context.Context, tenantID int64
 		result.GroupHandovers = append(result.GroupHandovers, project(row, access.admin || contains(access.ownedGroupIDs, row.GroupID)))
 	}
 	if includeTargets {
+		groups, err := s.listAssignableGroups(ctx, tenantID, access)
+		if err != nil {
+			return nil, err
+		}
 		targets, err := s.listTargets(ctx, access.actor)
 		if err != nil {
 			return nil, err
 		}
+		result.Groups = groups
 		result.Targets = targets
 	}
 	return result, nil
+}
+
+func (s *substitutionModule) listAssignableGroups(ctx context.Context, tenantID int64, access substitutionAccess) ([]GroupRef, error) {
+	options := base.NewQueryOptions()
+	filter := base.NewFilter().Equal("tenant_id", tenantID)
+	if !access.admin {
+		if len(access.ownedGroupIDs) == 0 {
+			return []GroupRef{}, nil
+		}
+		ids := make([]any, len(access.ownedGroupIDs))
+		for index, id := range access.ownedGroupIDs {
+			ids[index] = id
+		}
+		filter.In("id", ids...)
+	}
+	options.Filter = filter
+	rows, err := s.deps.Groups.ListWithOptions(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	groups := make([]GroupRef, 0, len(rows))
+	for _, row := range rows {
+		if row.TenantID != tenantID {
+			return nil, ErrForbidden
+		}
+		groups = append(groups, GroupRef{ID: row.ID, Name: row.Name})
+	}
+	sort.Slice(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
+	return groups, nil
 }
 
 func canViewGroup(access substitutionAccess, rows []*educationModels.GroupSubstitution, groupID int64) bool {
@@ -631,10 +667,10 @@ func projectAssignment(row *educationModels.GroupSubstitution, group *educationM
 }
 
 func auditChange(row *educationModels.GroupSubstitution, actorID int64, action string) *auditModels.SubstitutionChange {
-	endDate := row.EndDate
+	endDate := auditModels.Date(row.EndDate)
 	return &auditModels.SubstitutionChange{SubstitutionID: row.ID, TargetType: string(TargetGroupHandover), Action: action,
 		GroupID: row.GroupID, TargetStaffID: row.SubstituteStaffID, ActorAccountID: actorID,
-		StartDate: row.StartDate, EndDate: &endDate}
+		StartDate: auditModels.Date(row.StartDate), EndDate: &endDate}
 }
 
 func contains(ids []int64, id int64) bool {

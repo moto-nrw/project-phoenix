@@ -1,30 +1,48 @@
 package data
 
 import (
+	"cmp"
+	"context"
+	"log/slog"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 )
+
+type Feedback interface {
+	Available(context.Context) (bool, error)
+	Submit(context.Context, feedbackModule.CreateEntry) (feedbackModule.Entry, error)
+}
+
+type FeedbackStudentReader interface {
+	GetStudentByIDForUpdate(context.Context, int64) (*usersModel.Student, error)
+}
 
 // FeedbackResource defines the Feedback API resource
 type FeedbackResource struct {
-	IoTService      iotSvc.Service
-	UsersService    usersSvc.PersonService
-	FeedbackService feedbackSvc.Service
-	SettingsService configSvc.SettingsService
+	UsersService    FeedbackStudentReader
+	FeedbackService Feedback
+	ObserveResponse func(int, string)
+	Logger          *slog.Logger
 }
 
 // NewFeedbackResource creates a new Feedback resource
-func NewFeedbackResource(iotService iotSvc.Service, usersService usersSvc.PersonService, feedbackService feedbackSvc.Service, settingsService configSvc.SettingsService) *FeedbackResource {
+func NewFeedbackResource(usersService FeedbackStudentReader, feedbackService Feedback, observeResponse func(int, string), logger *slog.Logger) *FeedbackResource {
+	if usersService == nil || feedbackService == nil || observeResponse == nil {
+		panic("IoT feedback: all dependencies are required")
+	}
 	return &FeedbackResource{
-		IoTService:      iotService,
 		UsersService:    usersService,
 		FeedbackService: feedbackService,
-		SettingsService: settingsService,
+		ObserveResponse: observeResponse,
+		Logger:          logger,
 	}
+}
+
+func (rs *FeedbackResource) getLogger() *slog.Logger {
+	return cmp.Or(rs.Logger, slog.Default())
 }
 
 // Router returns a configured router for feedback submission endpoints

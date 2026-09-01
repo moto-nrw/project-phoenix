@@ -30,7 +30,6 @@ import (
 
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -50,10 +49,6 @@ import (
 // before its real query path runs.
 func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTestContext {
 	t.Helper()
-
-	prevEnv := viper.GetString("app_env")
-	viper.Set("app_env", "test")
-	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
 
 	db, svc := testutil.SetupAPITest(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -81,8 +76,8 @@ func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTes
 // `tenant-${slug}` Next.js cache; without that bust the layout
 // keeps serving the stale resolve payload for up to 5 minutes and
 // the avatar UI flickers between "feature on" and "feature off".
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testing.T) {
+	t.Parallel()
 	ctx := setupOperatorSettingsWithSchoolRepoRoute(t)
 
 	// Reset prior override so the test starts clean.
@@ -116,8 +111,8 @@ func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testi
 // mirrors the PUT test for the DELETE/reset path. Reset is a real
 // state change for callers that previously overrode the value, so the
 // same cache bust contract applies.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testing.T) {
+	t.Parallel()
 	ctx := setupOperatorSettingsWithSchoolRepoRoute(t)
 
 	// Set an override first so reset has something to delete. Without
@@ -160,8 +155,8 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *tes
 // relies on to schedule the photo-purge / cache-bust closures —
 // without this assertion a future refactor that silently drops
 // the hook on photo-flag flips could ship green.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_HookFires(t *testing.T) {
+	t.Parallel()
 	ctx := setupOperatorSettingsWithSchoolRepoRoute(t)
 
 	t.Cleanup(func() {
@@ -202,8 +197,8 @@ func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_HookFires(t *testing
 // override, the OnValueSet hook must fire with the registry default
 // so downstream side effects (photo purge on disable) run when the
 // effective value transitions to false.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_HookFiresWithDefault(t *testing.T) {
+	t.Parallel()
 	ctx := setupOperatorSettingsWithSchoolRepoRoute(t)
 
 	// Override to true first so the reset is a real state change.

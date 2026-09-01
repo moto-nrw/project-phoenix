@@ -298,10 +298,10 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
       .toBe(id);
     assertUrlVocabulary(page, "nach Block-Klick");
 
-    // --- "Vertretung bearbeiten" verweist auf /vertretung?d=&block= ---------
+    // --- "Vertretung eintragen" verweist auf /vertretung?d=&block= ----------
     // Der Block ist unterbesetzt -> der Sprunglink ist sichtbar.
     const vertretungLink = slideOver.getByRole("link", {
-      name: "Vertretung bearbeiten",
+      name: "Vertretung eintragen",
     });
     await expect(vertretungLink).toBeVisible();
     const href = await vertretungLink.getAttribute("href");

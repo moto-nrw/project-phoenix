@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -23,23 +24,25 @@ var serveCmd = &cobra.Command{
 	Short: "start http server with configured api",
 	Long:  `Starts a http server and serves the configured api`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := validateServeConfig(); err != nil {
+		config := currentServeConfig()
+		if err := validateServeConfig(config); err != nil {
 			return fmt.Errorf("invalid server configuration: %w", err)
 		}
 
 		logFormat := "json"
-		if viper.GetBool("log_textlogging") {
+		if config.LogTextLogging {
 			logFormat = "text"
 		}
 
 		logger := applog.New(applog.Config{
-			Level:  viper.GetString("log_level"),
+			Level:  config.LogLevel,
 			Format: logFormat,
-			Env:    viper.GetString("app_env"),
+			Env:    config.AppEnv,
 		})
+		applog.ConfigureDefault(logger)
 
-		if dsn := strings.TrimSpace(viper.GetString("sentry_dsn")); dsn != "" {
-			sentryEnv := strings.TrimSpace(viper.GetString("sentry_environment"))
+		if dsn := strings.TrimSpace(config.SentryDSN); dsn != "" {
+			sentryEnv := strings.TrimSpace(config.SentryEnvironment)
 			err := sentry.Init(sentry.ClientOptions{
 				Dsn:         dsn,
 				Environment: sentryEnv,
@@ -57,8 +60,8 @@ var serveCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		if err := api.WithRuntime(ctx, api.ServeConfig{
-			Port:       viper.GetString("port"),
-			EnableCORS: viper.GetBool("enable_cors"),
+			Port:       config.Port,
+			EnableCORS: config.EnableCORS,
 			Logger:     logger,
 		}, func(runtime *api.Runtime) error {
 			return runtime.Serve(ctx)
@@ -121,52 +124,68 @@ func init() {
 	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-func validateServeConfig() error {
-	required := []string{
-		"port",
-		"app_env",
-		"log_textlogging",
-		"auth_jwt_secret",
-		"auth_jwt_expiry",
-		"auth_jwt_refresh_expiry",
-		"frontend_url",
-		"parents_url",
-		"phoenix_auth_password",
+type serveConfig struct {
+	Port, AppEnv, LogTextLoggingRaw              string
+	JWTSecret, JWTExpiry, JWTRefreshExpiry       string
+	FrontendURL, ParentsURL, PhoenixAuthPassword string
+	DatabaseDSN, TestDatabaseDSN                 string
+	SentryDSN, SentryEnvironment, LogLevel       string
+	LogTextLogging, EnableCORS                   bool
+}
+
+func currentServeConfig() serveConfig {
+	return serveConfig{
+		Port: viper.GetString("port"), AppEnv: viper.GetString("app_env"),
+		LogTextLoggingRaw: viper.GetString("log_textlogging"), LogTextLogging: viper.GetBool("log_textlogging"),
+		JWTSecret: viper.GetString("auth_jwt_secret"), JWTExpiry: viper.GetString("auth_jwt_expiry"),
+		JWTRefreshExpiry: viper.GetString("auth_jwt_refresh_expiry"), FrontendURL: viper.GetString("frontend_url"),
+		ParentsURL: viper.GetString("parents_url"), PhoenixAuthPassword: viper.GetString("phoenix_auth_password"),
+		DatabaseDSN: viper.GetString("db_dsn"), TestDatabaseDSN: viper.GetString("test_db_dsn"),
+		SentryDSN: viper.GetString("sentry_dsn"), SentryEnvironment: viper.GetString("sentry_environment"),
+		LogLevel: viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
+	}
+}
+
+func validateServeConfig(config serveConfig) error {
+	required := map[string]string{
+		"PORT": config.Port, "APP_ENV": config.AppEnv, "LOG_TEXTLOGGING": config.LogTextLoggingRaw,
+		"AUTH_JWT_SECRET": config.JWTSecret, "AUTH_JWT_EXPIRY": config.JWTExpiry,
+		"AUTH_JWT_REFRESH_EXPIRY": config.JWTRefreshExpiry, "FRONTEND_URL": config.FrontendURL,
+		"PARENTS_URL": config.ParentsURL, "PHOENIX_AUTH_PASSWORD": config.PhoenixAuthPassword,
 	}
 
 	var missing []string
-	for _, key := range required {
-		if strings.TrimSpace(viper.GetString(key)) == "" {
-			missing = append(missing, strings.ToUpper(key))
+	for key, value := range required {
+		if strings.TrimSpace(value) == "" {
+			missing = append(missing, key)
 		}
 	}
-
-	appEnv := strings.TrimSpace(viper.GetString("app_env"))
-	if strings.TrimSpace(viper.GetString("db_dsn")) == "" {
-		if appEnv == "test" && strings.TrimSpace(viper.GetString("test_db_dsn")) != "" {
+	appEnv := strings.TrimSpace(config.AppEnv)
+	if strings.TrimSpace(config.DatabaseDSN) == "" {
+		if appEnv == "test" && strings.TrimSpace(config.TestDatabaseDSN) != "" {
 			// Explicit test database DSN is allowed for test runs.
 		} else {
 			missing = append(missing, "DB_DSN")
 		}
 	}
 
-	if strings.TrimSpace(viper.GetString("sentry_dsn")) != "" &&
-		strings.TrimSpace(viper.GetString("sentry_environment")) == "" {
+	if strings.TrimSpace(config.SentryDSN) != "" && strings.TrimSpace(config.SentryEnvironment) == "" {
 		missing = append(missing, "SENTRY_ENVIRONMENT")
 	}
 
 	if len(missing) > 0 {
+		slices.Sort(missing)
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
 
-	if viper.GetString("auth_jwt_secret") == "random" {
+	if config.JWTSecret == "random" {
 		return fmt.Errorf("AUTH_JWT_SECRET=random is not allowed for serve; set an explicit secret")
 	}
 
-	if viper.GetDuration("auth_jwt_expiry") <= 0 {
+	if duration, err := time.ParseDuration(config.JWTExpiry); err != nil || duration <= 0 {
 		return fmt.Errorf("AUTH_JWT_EXPIRY must be a positive duration")
 	}
-	if viper.GetDuration("auth_jwt_refresh_expiry") <= 0 {
+	if duration, err := time.ParseDuration(config.JWTRefreshExpiry); err != nil || duration <= 0 {
 		return fmt.Errorf("AUTH_JWT_REFRESH_EXPIRY must be a positive duration")
 	}
 

@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"context"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
@@ -13,14 +14,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
-	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	mealplanRepo "github.com/moto-nrw/project-phoenix/database/repositories/mealplan"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -33,9 +33,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -46,6 +44,8 @@ import (
 
 // Factory provides access to all repositories
 type Factory struct {
+	db *bun.DB
+
 	// Auth domain
 	Account                authModels.AccountRepository
 	AccountParent          authModels.AccountParentRepository
@@ -90,6 +90,8 @@ type Factory struct {
 	ParentRequestShare  userModels.ParentRequestShareEventRepository
 	ParentRequestEvent  userModels.ParentRequestEventRepository
 
+	CaregiverBindingLock userModels.CaregiverBindingLocker
+
 	// Staff Stammdaten (#1423)
 	StaffMasterData    userModels.StaffMasterDataRepository
 	StaffQualification userModels.StaffQualificationRepository
@@ -102,11 +104,13 @@ type Factory struct {
 	StaffDocument   userModels.StaffDocumentRepository
 	StudentDocument userModels.StudentDocumentRepository
 
-	// School file storage (#2596)
-	FileFolder         filestoreModels.FolderRepository
-	File               filestoreModels.FileRepository
-	FileEvent          auditModels.FileEventRepository
-	SubstitutionChange auditModels.SubstitutionChangeCreator
+	// School file storage (#2596) and the attachments of Elternmitteilungen
+	// (#2890), which reuse its document primitives.
+	FileFolder             filestoreModels.FolderRepository
+	File                   filestoreModels.FileRepository
+	AnnouncementAttachment filestoreModels.AnnouncementAttachmentRepository
+	FileEvent              auditModels.FileEventRepository
+	SubstitutionChange     auditModels.SubstitutionChangeCreator
 
 	NotificationPreference userModels.NotificationPreferenceRepository
 
@@ -162,23 +166,21 @@ type Factory struct {
 	Attendance       activeModels.AttendanceRepository
 	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
 	// Statistics serves the aggregate reads of the Statistik page (#2606).
-	Statistics            activeModels.StatisticsRepository
-	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
-	WorkSession           activeModels.WorkSessionRepository
-	WorkSessionBreak      activeModels.WorkSessionBreakRepository
-	StaffAbsence          activeModels.StaffAbsenceRepository
-	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
-	StaffAbsenceType      activeModels.StaffAbsenceTypeRepository
-	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
-	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
-	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
-	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
+	Statistics                      activeModels.StatisticsRepository
+	ExcusedAbsenceRequest           activeModels.ExcusedAbsenceRequestRepository
+	WorkSession                     activeModels.WorkSessionRepository
+	WorkSessionBreak                activeModels.WorkSessionBreakRepository
+	StaffAbsence                    activeModels.StaffAbsenceRepository
+	StaffAbsenceAudit               activeModels.StaffAbsenceAuditRepository
+	StaffAbsenceType                activeModels.StaffAbsenceTypeRepository
+	StaffAbsenceTypeAllowance       activeModels.StaffAbsenceTypeAllowanceRepository
+	StaffAbsenceTypeAllowanceChange activeModels.StaffAbsenceTypeAllowanceChangeRepository
+	StaffVacationQuota              activeModels.StaffVacationQuotaRepository
+	StaffVacationOpening            activeModels.StaffVacationOpeningRepository
+	StaffBalanceAdjust              activeModels.StaffBalanceAdjustmentRepository
+	StaffMonthSnapshot              activeModels.StaffMonthBalanceSnapshotRepository
 
-	// Meal plan domain
-	MealPlanEntry mealplanModels.MealPlanEntryRepository
-
-	// Feedback domain
-	FeedbackEntry feedbackModels.EntryRepository
+	SessionStartLock activeModels.SessionStartLocker
 
 	// IoT domain
 	Device             iotModels.DeviceRepository
@@ -291,6 +293,53 @@ type Factory struct {
 	StaffNotice userModels.StaffNoticeRepository
 }
 
+// NewAuditStore binds the Audit Postgres adapter to the transaction resolver
+// owned by the composition root.
+func (f *Factory) NewAuditStore(runtime audit.Runtime) auditModels.AppendStore {
+	return NewAuditStore(runtime)
+}
+
+func NewAuditStore(runtime audit.Runtime) auditModels.AppendStore { return audit.NewAppender(runtime) }
+
+// ListRecentAuditRetentionSummaries exposes the Audit-owned cleanup query
+// without widening the producer-facing DataDeletionRepository interface.
+func ListRecentAuditRetentionSummaries(ctx context.Context, db *bun.DB, since time.Time, limit int) ([]auditModels.RecentDeletionSummary, error) {
+	runtime := audit.NewRuntime(db, auditModels.TenantIDFromContext)
+	return audit.NewDataDeletionRepository(runtime).ListRecentRetentionSummaries(ctx, since, limit)
+}
+
+// ConfigureAuditRuntime binds every Audit query adapter to the caller's
+// transaction, tenant, and read-only root DB fallback before services capture
+// the interfaces. Audit writes are routed separately through the fail-closed
+// command by RouteAuditWrites.
+func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
+	f.FileEvent = audit.NewFileEventRepository(runtime)
+	f.SubstitutionChange = audit.NewSubstitutionChangeRepository(runtime)
+	f.DataDeletion = audit.NewDataDeletionRepository(runtime)
+	f.StudentDeletionAudit = audit.NewStudentDeletionRepository(runtime)
+	f.EnrollmentDeletionAudit = audit.NewEnrollmentDeletionRepository(runtime)
+	f.EnrollmentRestorationAudit = audit.NewEnrollmentRestorationRepository(runtime)
+	f.DataAccessLog = audit.NewDataAccessLogRepository(runtime)
+	f.EnrollmentOfferingAdjustment = audit.NewEnrollmentOfferingAdjustmentRepository(runtime)
+	f.GuardianChange = audit.NewGuardianChangeRepository(runtime)
+	f.StudentConsentChange = audit.NewStudentConsentChangeRepository(runtime)
+	f.DeviationEvent = audit.NewDeviationEventRepository(runtime)
+	f.AuthEvent = audit.NewAuthEventRepository(runtime)
+	f.DataImport = audit.NewDataImportRepository(runtime)
+	f.WorkSessionEdit = audit.NewWorkSessionEditRepository(runtime)
+	f.StudentFieldEdit = audit.NewStudentFieldEditRepository(runtime)
+	f.UnregisteredTagScan = audit.NewUnregisteredTagScanRepository(runtime)
+	f.TimeTrackingDeletion = audit.NewTimeTrackingDeletionRepository(runtime)
+	f.PersonnelNumberChange = audit.NewPersonnelNumberChangeRepository(runtime)
+	f.StaffMasterDataChange = audit.NewStaffMasterDataChangeRepository(runtime)
+	f.GuardianFinancialChange = audit.NewGuardianFinancialChangeRepository(runtime)
+	f.ClassListEntryChange = audit.NewClassListEntryChangeRepository(runtime)
+	f.TimeTrackingAuditLog = audit.NewTimeTrackingAuditLogRepository(runtime)
+	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime)
+	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences)
+	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
+}
+
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	var now func() time.Time
@@ -301,7 +350,24 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
 	attendance := active.NewAttendanceRepository(db, now)
 	parentAnnouncement := users.NewParentAnnouncementRepository(db, now)
+	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
+		tenantID := auditModels.TenantIDFromContext(ctx)
+		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
+			switch tx := raw.(type) {
+			case bun.Tx:
+				return tx, tenantID
+			case *bun.Tx:
+				if tx != nil {
+					return tx, tenantID
+				}
+			}
+		}
+		return db, tenantID
+	}
+	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
+	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
 	return &Factory{
+		db: db,
 		// Auth repositories
 		Account:                auth.NewAccountRepository(db),
 		AccountParent:          auth.NewAccountParentRepository(db),
@@ -330,7 +396,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		Staff:               users.NewStaffRepository(db),
 		Student:             users.NewStudentRepository(db),
 		ClassListEntry:      users.NewClassListEntryRepository(db),
-		StudentDeletion:     users.NewStudentDeletionRepository(db),
+		StudentDeletion:     users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences),
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
@@ -346,6 +412,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
 		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
 
+		CaregiverBindingLock: users.NewCaregiverBindingLocker(db),
+
 		// Staff Stammdaten (#1423)
 		StaffMasterData:    users.NewStaffMasterDataRepository(db),
 		StaffQualification: users.NewStaffQualificationRepository(db),
@@ -359,10 +427,11 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StudentDocument: users.NewStudentDocumentRepository(db),
 
 		// School file storage (#2596)
-		FileFolder:         filestore.NewFolderRepository(db),
-		File:               filestore.NewFileRepository(db),
-		FileEvent:          audit.NewFileEventRepository(db),
-		SubstitutionChange: audit.NewSubstitutionChangeRepository(db),
+		FileFolder:             filestore.NewFolderRepository(db),
+		File:                   filestore.NewFileRepository(db),
+		AnnouncementAttachment: filestore.NewAnnouncementAttachmentRepository(db),
+		FileEvent:              audit.NewFileEventRepository(auditRepositoryRuntime),
+		SubstitutionChange:     audit.NewSubstitutionChangeRepository(auditRepositoryRuntime),
 
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
@@ -410,30 +479,28 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:           active.NewGroupRepository(db),
-		ActiveVisit:           active.NewVisitRepository(db),
-		GroupSupervisor:       groupSupervisor,
-		CombinedGroup:         active.NewCombinedGroupRepository(db),
-		GroupMapping:          active.NewGroupMappingRepository(db),
-		Attendance:            attendance,
-		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
-		Statistics:            active.NewStatisticsRepository(db),
-		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
-		WorkSession:           active.NewWorkSessionRepository(db, now),
-		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
-		StaffAbsence:          active.NewStaffAbsenceRepository(db),
-		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
-		StaffAbsenceType:      active.NewStaffAbsenceTypeRepository(db),
-		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
-		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
-		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
-		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
+		ActiveGroup:                     active.NewGroupRepository(db),
+		ActiveVisit:                     active.NewVisitRepository(db),
+		GroupSupervisor:                 groupSupervisor,
+		CombinedGroup:                   active.NewCombinedGroupRepository(db),
+		GroupMapping:                    active.NewGroupMappingRepository(db),
+		Attendance:                      attendance,
+		StudentStatusDay:                active.NewStudentStatusDayRepository(db),
+		Statistics:                      active.NewStatisticsRepository(db),
+		ExcusedAbsenceRequest:           active.NewExcusedAbsenceRequestRepository(db),
+		WorkSession:                     active.NewWorkSessionRepository(db, now),
+		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),
+		StaffAbsence:                    active.NewStaffAbsenceRepository(db),
+		StaffAbsenceAudit:               active.NewStaffAbsenceAuditRepository(db),
+		StaffAbsenceType:                active.NewStaffAbsenceTypeRepository(db),
+		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
+		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
+		StaffVacationQuota:              active.NewStaffVacationQuotaRepository(db),
+		StaffVacationOpening:            active.NewStaffVacationOpeningRepository(db),
+		StaffBalanceAdjust:              active.NewStaffBalanceAdjustmentRepository(db),
+		StaffMonthSnapshot:              active.NewStaffMonthBalanceSnapshotRepository(db),
 
-		// Meal plan repositories
-		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),
-
-		// Feedback repositories
-		FeedbackEntry: feedback.NewEntryRepository(db),
+		SessionStartLock: active.NewSessionStartLocker(db),
 
 		// IoT repositories
 		Device:             iot.NewDeviceRepository(db),
@@ -447,27 +514,27 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		WorkTimeModel:     config.NewWorkTimeModelRepository(config.NewRuntime(db)),
 
 		// Audit repositories
-		DataDeletion:                 audit.NewDataDeletionRepository(db),
-		StudentDeletionAudit:         audit.NewStudentDeletionRepository(db),
-		EnrollmentDeletionAudit:      audit.NewEnrollmentDeletionRepository(db),
-		EnrollmentRestorationAudit:   audit.NewEnrollmentRestorationRepository(db),
-		DataAccessLog:                audit.NewDataAccessLogRepository(db),
-		EnrollmentOfferingAdjustment: audit.NewEnrollmentOfferingAdjustmentRepository(db),
-		GuardianChange:               audit.NewGuardianChangeRepository(db),
-		StudentConsentChange:         audit.NewStudentConsentChangeRepository(db),
-		DeviationEvent:               audit.NewDeviationEventRepository(db),
-		AuthEvent:                    audit.NewAuthEventRepository(db),
-		DataImport:                   audit.NewDataImportRepository(db),
-		WorkSessionEdit:              audit.NewWorkSessionEditRepository(db),
-		StudentFieldEdit:             audit.NewStudentFieldEditRepository(db),
-		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
-		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
-		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
-		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
-		GuardianFinancialChange:      audit.NewGuardianFinancialChangeRepository(db),
-		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(db),
-		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
-		BookingConsistency:           audit.NewBookingConsistencyRepository(db),
+		DataDeletion:                 audit.NewDataDeletionRepository(auditRepositoryRuntime),
+		StudentDeletionAudit:         studentDeletionAudit,
+		EnrollmentDeletionAudit:      audit.NewEnrollmentDeletionRepository(auditRepositoryRuntime),
+		EnrollmentRestorationAudit:   audit.NewEnrollmentRestorationRepository(auditRepositoryRuntime),
+		DataAccessLog:                audit.NewDataAccessLogRepository(auditRepositoryRuntime),
+		EnrollmentOfferingAdjustment: enrollmentOfferingAdjustment,
+		GuardianChange:               audit.NewGuardianChangeRepository(auditRepositoryRuntime),
+		StudentConsentChange:         audit.NewStudentConsentChangeRepository(auditRepositoryRuntime),
+		DeviationEvent:               audit.NewDeviationEventRepository(auditRepositoryRuntime),
+		AuthEvent:                    audit.NewAuthEventRepository(auditRepositoryRuntime),
+		DataImport:                   audit.NewDataImportRepository(auditRepositoryRuntime),
+		WorkSessionEdit:              audit.NewWorkSessionEditRepository(auditRepositoryRuntime),
+		StudentFieldEdit:             audit.NewStudentFieldEditRepository(auditRepositoryRuntime),
+		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(auditRepositoryRuntime),
+		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(auditRepositoryRuntime),
+		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(auditRepositoryRuntime),
+		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(auditRepositoryRuntime),
+		GuardianFinancialChange:      audit.NewGuardianFinancialChangeRepository(auditRepositoryRuntime),
+		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(auditRepositoryRuntime),
+		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(auditRepositoryRuntime),
+		BookingConsistency:           audit.NewBookingConsistencyRepository(auditRepositoryRuntime),
 
 		// Platform repositories
 		Organization:             platformRepo.NewOrganizationRepository(db),
@@ -492,7 +559,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		// Enrollment repositories
 		FormSchema:            enrollment.NewFormSchemaRepository(db),
 		Request:               enrollment.NewRequestRepository(db),
-		EnrollmentDeletion:    enrollment.NewDeletionRepository(db),
+		EnrollmentDeletion:    enrollment.NewDeletionRepository(db, enrollmentOfferingAdjustment.CountForDeletion),
 		RequestChild:          enrollment.NewRequestChildRepository(db),
 		RequestGuardian:       enrollment.NewRequestGuardianRepository(db),
 		LateInvite:            enrollment.NewLateInviteRepository(db),

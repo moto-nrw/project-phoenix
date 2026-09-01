@@ -87,7 +87,7 @@ func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	sf, err := services.NewFactory(repos, db, slog.Default())
+	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
@@ -593,7 +593,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	f := newCareFixture(t)
 	// This test actually writes pills (created + status) from the separate staff
 	// account, whose sender_account_id FKs auth.accounts without cascade. Register
-	// the clear LAST so it runs FIRST (LIFO) ahead of CleanupAuthFixtures(staff).
+	// the clear LAST so it runs FIRST (LIFO) before fixture ownership.
 	settings := &toggleSettings{enabled: true}
 	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,

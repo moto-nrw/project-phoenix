@@ -116,8 +116,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Gruppenübergaben' for /substitutions", () => {
-        expect(getPageTitle("/substitutions")).toBe("Gruppenübergaben");
+      it("should return 'Vertretungen' for /substitutions", () => {
+        expect(getPageTitle("/substitutions")).toBe("Vertretungen");
       });
 
       it("titles the three planning areas and their redirect frames", () => {
@@ -126,10 +126,10 @@ describe("breadcrumb-utils", () => {
         // Titel, damit während des Client-Redirects nichts Falsches aufblitzt.
         expect(getPageTitle("/betreuungsplan")).toBe("Betreuungsplan");
         expect(getPageTitle("/dienstplan")).toBe("Dienstplan");
-        expect(getPageTitle("/vertretung")).toBe("Vertretung");
+        expect(getPageTitle("/vertretung")).toBe("Terminvertretungen");
         expect(getPageTitle("/planung")).toBe("Planung");
         expect(getPageTitle("/timetables")).toBe("Betreuungsplan");
-        expect(getPageTitle("/vertretungsplan")).toBe("Vertretung");
+        expect(getPageTitle("/vertretungsplan")).toBe("Terminvertretungen");
         expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
       });
 
@@ -390,7 +390,7 @@ describe("breadcrumb-utils", () => {
           "Dienstplan",
         );
         expect(getSectionBreadcrumb("/vertretung")?.pageLabel).toBe(
-          "Vertretung",
+          "Terminvertretungen",
         );
         expect(getSectionBreadcrumb("/lists")?.pageLabel).toBe("Tageslisten");
         expect(getSectionBreadcrumb("/calendar-periods")?.pageLabel).toBe(
@@ -410,7 +410,7 @@ describe("breadcrumb-utils", () => {
           "Betreuungsplan",
         );
         expect(getSectionBreadcrumb("/vertretungsplan")?.pageLabel).toBe(
-          "Vertretung",
+          "Terminvertretungen",
         );
         expect(getSectionBreadcrumb("/staff/dienstplan")?.pageLabel).toBe(
           "Dienstplan",

@@ -2,8 +2,6 @@ package audit
 
 import (
 	"context"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 const (
@@ -28,8 +26,8 @@ const (
 // retention window for visit data, not the enrollment acknowledgements and
 // voluntary photo consent recorded here.
 type StudentConsentChange struct {
-	base.Model `bun:"schema:audit,table:student_consent_changes"`
-	base.TenantModel
+	Model `bun:"schema:audit,table:student_consent_changes"`
+	TenantModel
 	StudentID      int64  `bun:"student_id,notnull" json:"student_id"`
 	ConsentKey     string `bun:"consent_key,notnull" json:"consent_key"`
 	Action         string `bun:"action,notnull" json:"action"`

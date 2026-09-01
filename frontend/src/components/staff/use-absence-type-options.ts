@@ -32,6 +32,8 @@ export interface AbsenceTypeOption {
    * falling back to something else.
    */
   readonly inactive?: boolean;
+  readonly allowanceEnabled?: boolean;
+  readonly overrunPolicy?: "warn" | "block";
 }
 
 /**
@@ -51,6 +53,14 @@ export interface UseAbsenceTypeOptionsResult {
   readonly create?: (name: string) => Promise<string>;
   readonly rename?: (value: string, name: string) => Promise<void>;
   readonly setActive?: (value: string, isActive: boolean) => Promise<void>;
+  readonly update?: (
+    value: string,
+    changes: {
+      name?: string;
+      allowanceEnabled?: boolean;
+      overrunPolicy?: "warn" | "block";
+    },
+  ) => Promise<void>;
 }
 
 /**
@@ -97,13 +107,17 @@ export function useAbsenceTypeOptions(
   const options = useMemo<AbsenceTypeOption[]>(
     () => [
       ...standardOptions,
-      ...custom.map((type) => ({
-        value: customOptionValue(type.id),
-        label: type.name,
-        inactive: !type.isActive,
-      })),
+      ...custom
+        .filter((type) => canManage || !type.allowanceEnabled)
+        .map((type) => ({
+          value: customOptionValue(type.id),
+          label: type.name,
+          inactive: !type.isActive,
+          allowanceEnabled: type.allowanceEnabled,
+          overrunPolicy: type.overrunPolicy,
+        })),
     ],
-    [standardOptions, custom],
+    [standardOptions, custom, canManage],
   );
 
   const create = useCallback(
@@ -149,5 +163,31 @@ export function useAbsenceTypeOptions(
     [mutate],
   );
 
-  return canManage ? { options, create, rename, setActive } : { options };
+  const update = useCallback(
+    async (
+      value: string,
+      changes: {
+        name?: string;
+        allowanceEnabled?: boolean;
+        overrunPolicy?: "warn" | "block";
+      },
+    ) => {
+      const updated = await withReadableError(
+        absenceTypeService.updateAbsenceType(
+          customIdFromOptionValue(value),
+          changes,
+        ),
+      );
+      await mutate(
+        (previous = []) =>
+          previous.map((type) => (type.id === updated.id ? updated : type)),
+        false,
+      );
+    },
+    [mutate],
+  );
+
+  return canManage
+    ? { options, create, rename, setActive, update }
+    : { options };
 }

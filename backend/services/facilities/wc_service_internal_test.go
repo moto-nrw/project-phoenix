@@ -108,13 +108,9 @@ func TestWCService_ensureWCCategory_PropagatesLookupErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to list activity categories")
 }
 
-// Deliberately NOT parallel: the test calls EnsureInfrastructure with a
-// tenant-less context, so its lookup is unscoped and sees the WC rows every
-// other test in this package creates. It only holds while no WC activity
-// exists anywhere in the clone, which is true for sequential tests (they run
-// before the parked parallel ones resume) and false for a parallel one.
 func TestWCService_EnsureInfrastructure_PropagatesRoomErrors(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	// Use a nil facility service to force ensureWCRoom to fail
 	activityService, err := activitiesSvc.NewService(

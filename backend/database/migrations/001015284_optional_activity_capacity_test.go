@@ -10,10 +10,11 @@ import (
 )
 
 func TestOptionalActivityCapacity(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	ctx := context.Background()
 	require.NoError(t, optionalActivityCapacityDown(ctx, db))

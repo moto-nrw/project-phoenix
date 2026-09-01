@@ -30,6 +30,29 @@ export interface PlannedTimetableInstance {
   canStart?: boolean;
   startAvailableAt?: string;
   startExpiresAt?: string;
+  /**
+   * Live session behind a running block (#2383) — the Tagesplan jumps to
+   * /active-supervisions?session=<id>. Null unless the block is running.
+   */
+  activeGroupId?: string | null;
+  /** Why a cancelled block does not take place (#1840). */
+  cancelReason?: string | null;
+  /**
+   * Planned colour coding (#2383): the planning track of the block's
+   * template. Only delivered in scope=day; null for blocks without a track.
+   */
+  planningTrackName?: string | null;
+  planningTrackColor?: string | null;
+  /** Education group the block's template targets (Zielgruppe). scope=day only. */
+  groupName?: string | null;
+  /** Assigned (non-absent) staff display names. scope=day only. */
+  staffNames?: PlannedInstanceStaffName[];
+}
+
+interface PlannedInstanceStaffName {
+  staffId: string;
+  displayName: string;
+  isSubstitute: boolean;
 }
 
 interface TimetableRosterInstance {
@@ -156,6 +179,16 @@ interface BackendPlannedTimetableInstance {
   can_start?: boolean;
   start_available_at?: string;
   start_expires_at?: string;
+  active_group_id?: number | null;
+  cancel_reason?: string | null;
+  planning_track_name?: string | null;
+  planning_track_color?: string | null;
+  group_name?: string | null;
+  staff_names?: {
+    staff_id: number;
+    display_name: string;
+    is_substitute?: boolean;
+  }[];
 }
 
 interface BackendRosterInstance {
@@ -255,6 +288,16 @@ export function mapPlannedInstance(
     canStart: raw.can_start ?? false,
     startAvailableAt: raw.start_available_at ?? "",
     startExpiresAt: raw.start_expires_at ?? "",
+    activeGroupId: raw.active_group_id?.toString() ?? null,
+    cancelReason: raw.cancel_reason ?? null,
+    planningTrackName: raw.planning_track_name ?? null,
+    planningTrackColor: raw.planning_track_color ?? null,
+    groupName: raw.group_name ?? null,
+    staffNames: (raw.staff_names ?? []).map((entry) => ({
+      staffId: entry.staff_id.toString(),
+      displayName: entry.display_name,
+      isSubstitute: entry.is_substitute ?? false,
+    })),
   };
 }
 

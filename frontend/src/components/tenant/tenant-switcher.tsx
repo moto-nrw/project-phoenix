@@ -10,6 +10,7 @@ import {
   TenantSwitchError,
   type TenantSummary,
 } from "~/lib/tenant-api";
+import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
@@ -57,7 +58,7 @@ export function BrandTenantSwitcher({
   const [schoolPortalUrl, setSchoolPortalUrl] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const currentSlug = useTenantSlugSafe();
-  const { status } = useSession();
+  const { status, data: session, update } = useSession();
 
   // Fetch available tenants once authenticated
   useEffect(() => {
@@ -96,6 +97,12 @@ export function BrandTenantSwitcher({
       setSchoolPortalUrl(null);
 
       try {
+        // Ein Schulwechsel beendet die Mitarbeiter-Vorschau (#2893): erst
+        // die Admin-Sitzung wiederherstellen, dann mit deren Token wechseln
+        // — das Vorschau-Token selbst darf den Wechsel nicht ausführen.
+        if (session?.user?.isPreview) {
+          await performEndStaffPreview(session.user.token, update, mutate);
+        }
         // The backend resolves the switch target by SUBDOMAIN (same as
         // login), so pass targetTenant.subdomain — the slug column can
         // legitimately differ from it (#1975).
@@ -148,7 +155,7 @@ export function BrandTenantSwitcher({
         setIsSwitching(false);
       }
     },
-    [isSwitching, currentSlug],
+    [isSwitching, currentSlug, session, update],
   );
 
   // Single (or unknown) tenant: plain brand link, no dropdown

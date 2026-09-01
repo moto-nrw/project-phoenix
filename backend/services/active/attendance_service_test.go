@@ -9,7 +9,6 @@
 //
 //	ARRANGE: Create test fixtures (real database records)
 //	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
-//	  defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 //
 //	ACT: Perform the operation under test
 //	  result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
@@ -39,7 +38,6 @@ import (
 //
 // Attendance fixtures are provided by testpkg:
 // - testpkg.CreateTestAttendance(t, db, studentID, staffID, deviceID, checkInTime, checkOutTime)
-// - testpkg.CleanupActivityFixtures automatically cleans up attendance records by student_id
 
 // =============================================================================
 // Model Tests (No Database Required)

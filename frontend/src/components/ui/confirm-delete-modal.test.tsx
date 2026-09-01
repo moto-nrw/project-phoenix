@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
@@ -43,6 +43,41 @@ function getOverlay() {
 }
 
 describe("ConfirmDeleteModal", () => {
+  it("exposes a named dialog and closes on Escape", async () => {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+
+    try {
+      render(
+        <ModalProvider>
+          <ConfirmDeleteModal
+            isOpen
+            title="Eintrag löschen"
+            description="Diese Aktion kann nicht rückgängig gemacht werden."
+            gate={{ mode: "twoStep" }}
+            onConfirm={vi.fn()}
+            onClose={onClose}
+            loading={false}
+            error=""
+          />
+        </ModalProvider>,
+      );
+
+      expect(
+        screen.getByRole("dialog", { name: "Eintrag löschen" }),
+      ).toBeInTheDocument();
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders into document.body instead of the card it is declared in", () => {
     const { container } = renderInsideCard();
 

@@ -23,10 +23,10 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -39,8 +39,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// MealPlan is the narrow provider capability used by the parents workflow.
+type MealPlan interface {
+	Available(context.Context) (bool, error)
+	Week(context.Context, mealplanModule.Date) ([]mealplanModule.Entry, error)
+}
+
 // Service is the public contract consumed by HTTP handlers.
 type Service interface {
+	// GuardianAnnouncementTenant reports the school of an announcement whose
+	// attachments this account may download, or 0 when it may not (#2890).
+	GuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64) (int64, error)
+
 	// ListChildrenForAccount returns every child linked to any
 	// guardian profile owned by the account, across every active
 	// tenant mapping. Sorted by school then by name.
@@ -144,7 +154,7 @@ type Service interface {
 	// (parent_portal.access) plus the operations.meal_plan_enabled toggle for
 	// the child's tenant: when the feature is off it returns
 	// ErrMealPlanDisabled so the portal can hide the section.
-	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]*mealplanModels.MealPlanEntry, error)
+	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]mealplanModule.Entry, error)
 
 	// SubmitCareExceptionWithReason requires a
 	// concrete pickup time and stores the parent's explanation with it. Arrival
@@ -462,8 +472,8 @@ type ServiceConfig struct {
 	// request submissions. Best-effort, after-commit only.
 	Emitter *parentmessaging.Emitter
 
-	// Meal plan (Essensplan) read access for the child's school.
-	MealPlanRepo mealplanModels.MealPlanEntryRepository
+	// Meal plan (Essensplan) public capability for the child's school.
+	MealPlan MealPlan
 
 	// Booked care offerings read view (#1665). The offering side is reached
 	// through the approved enrollment behind the child.

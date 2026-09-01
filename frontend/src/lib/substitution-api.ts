@@ -9,8 +9,11 @@ import {
   formatDateForBackend,
   mapSubstitutionResponse,
   mapSubstitutionsResponse,
+  mapRunningSupervision,
+  mapSubstitutionOverview,
   mapScheduleSubstitutionOverview,
   type ScheduleSubstitutionOverview,
+  type SubstitutionOverview,
   prepareSubstitutionForBackend,
   type SubstitutionProxyEnvelope,
   unwrapSubstitutionProxyEnvelope,
@@ -31,6 +34,20 @@ import type {
 } from "./timetable-types";
 
 class SubstitutionService {
+  async fetchOverview(): Promise<SubstitutionOverview> {
+    const response = await sessionFetch("/api/substitutions", {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = new Error("Vertretungen konnten nicht geladen werden.");
+      if (response.status === 403) error.name = "SubstitutionAccessError";
+      throw error;
+    }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    return mapSubstitutionOverview(unwrapSubstitutionProxyEnvelope(envelope));
+  }
+
   async fetchScheduleOverview(
     from: string,
     to: string,
@@ -149,22 +166,7 @@ class SubstitutionService {
     if (!Array.isArray(rows) || rows.length !== 1 || !rows[0]) {
       throw new Error("Ungültige Antwort für die Betreuung.");
     }
-    const row = rows[0];
-    return {
-      id: row.id.toString(),
-      name: row.name,
-      roomName: row.room_name,
-      supervisors: row.supervisors.map((staff) => ({
-        id: staff.id.toString(),
-        fullName: staff.full_name,
-      })),
-      availableTargets: row.available_targets.map((staff) => ({
-        id: staff.id.toString(),
-        fullName: staff.full_name,
-      })),
-      isCurrentUserSupervising: row.is_current_user_supervising,
-      canAssign: row.can_assign,
-    };
+    return mapRunningSupervision(rows[0]);
   }
 
   async addSupervisor(
@@ -215,9 +217,11 @@ class SubstitutionService {
     });
     if (!response.ok) {
       const body = (await response.json()) as { error?: string };
-      throw new Error(
+      const error = new Error(
         body.error ?? "Gruppenübergabe konnte nicht erstellt werden.",
       );
+      error.name = "TransferError";
+      throw error;
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendGroupHandover>;
@@ -236,9 +240,11 @@ class SubstitutionService {
     });
     if (!response.ok) {
       const body = (await response.json()) as { error?: string };
-      throw new Error(
+      const error = new Error(
         body.error ?? "Gruppenübergabe konnte nicht beendet werden.",
       );
+      error.name = "CancelTransferError";
+      throw error;
     }
   }
 }

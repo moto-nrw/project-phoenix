@@ -2,11 +2,16 @@
 // Refactored with extracted sub-components to reduce cognitive complexity
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
+import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
+import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 import {
@@ -41,6 +46,20 @@ import {
   getPageTypeInfo,
   getSectionBreadcrumb,
 } from "./header/breadcrumb-utils";
+
+// Nur oberhalb von lg existiert die Desktop-Seitenleiste; darunter zeigt
+// die App die mobile Bottom-Nav und der Shortcut hätte nichts zu schalten.
+const SIDEBAR_VISIBLE_QUERY = "(min-width: 1024px)";
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
 
 // Seitentitel des Schul-Portals. Beide Schreibweisen eines Pfades führen zum
 // selben Titel: auf dem Schul-Host zeigt die Adresszeile "/" und
@@ -85,8 +104,8 @@ export function Header() {
   } = breadcrumb;
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -96,8 +115,8 @@ export function Header() {
     routingMode,
   );
   const tenantContext = useTenantSafe();
-  // parentNav is available in every shell; only parent-mode branches read it, so
-  // the German staff/operator labels are untouched (they render the de mirror).
+  // parentNav is available in every shell. Staff/operator shells use the de
+  // mirror; the parents portal supplies its active locale.
   const tParentNav = useTranslations("parentNav");
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
   const {
@@ -107,7 +126,37 @@ export function Header() {
     mode,
     homeUrl,
     profileUrl,
+    canStartStaffPreview,
   } = useShellAuth();
+  // Ein-/Ausklappen der Desktop-Seitenleiste (#2825) — nur in den Portalen
+  // mit einklappbarer Leiste; das Eltern- und das Schul-Portal haben eigene
+  // Leisten ohne Klappzustand. Der Zustand syncht über den geteilten
+  // useSidebarCollapsed-Store mit der Seitenleiste selbst.
+  const hasCollapsibleSidebar = mode === "teacher" || mode === "operator";
+  const { collapsed: sidebarCollapsed, toggleCollapsed: toggleSidebar } =
+    useSidebarCollapsed();
+
+  // Cmd+B (Mac) bzw. Strg+B (Windows/Linux) schaltet zusätzlich um — der
+  // etablierte Standard (VS Code, shadcn). In Eingabefeldern und Editoren
+  // bleibt die Tastenkombination unangetastet (dort heißt sie „fett").
+  useEffect(() => {
+    if (!hasCollapsibleSidebar) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "b") return;
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.altKey || event.shiftKey) return;
+      if (isEditableTarget(event.target)) return;
+      if (!globalThis.matchMedia(SIDEBAR_VISIBLE_QUERY).matches) return;
+      event.preventDefault();
+      toggleSidebar();
+    };
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () => globalThis.removeEventListener("keydown", handleKeyDown);
+  }, [hasCollapsibleSidebar, toggleSidebar]);
+
+  const sidebarToggleLabel = sidebarCollapsed
+    ? "Seitenleiste ausklappen"
+    : "Seitenleiste einklappen";
   // getPageTitle() is a pure helper and can't read the locale, so the
   // parent-portal page titles it returns ("Meine Kinder", "Kinderprofil", …)
   // would render German even on a localized portal. Override them here, where
@@ -174,30 +223,6 @@ export function Header() {
     return () => globalThis.window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    if (!isProfileMenuOpen) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (profileMenuRef.current?.contains(target)) return;
-      setIsProfileMenuOpen(false);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsProfileMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isProfileMenuOpen]);
-
   // Get page type information
   const pageTypeInfo = getPageTypeInfo(pathname);
   const referrer = referrerPage ?? "/students/search";
@@ -212,6 +237,7 @@ export function Header() {
   // Use JWT name as single source of truth (avoids flicker from async profile fetch)
   const displayName = userName;
   const displayAvatar = profile?.avatar;
+  const profileMenuLabel = tParentNav("profileMenu", { name: displayName });
   const brandLabel = mode === "teacher" ? tenantContext?.tenant?.name : null;
 
   const isSessionExpired = sessionExpired;
@@ -236,6 +262,34 @@ export function Header() {
               shrink (min-w-0) so long tenant names / breadcrumbs truncate
               instead of pushing the header past the viewport (#2011) */}
           <div className="flex min-w-0 flex-1 items-center space-x-4">
+            {/* Seitenleisten-Toggle (#2825): erstes Element der Kopfzeile,
+                links vom Logo — die Standardposition (Gmail, GitHub) für
+                Layouts mit vollbreiter Topbar. */}
+            {hasCollapsibleSidebar && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                title={sidebarToggleLabel}
+                aria-label={sidebarToggleLabel}
+                aria-expanded={!sidebarCollapsed}
+                aria-keyshortcuts="Control+B Meta+B"
+                // -ml-4 zieht den Button aus dem Header-Padding (lg:px-8)
+                // nach links, sodass die Icon-Mitte (48px Button-Mitte -
+                // 16px = 32px) exakt über der Icon-Spalte der eingeklappten
+                // Seitenleiste (w-16, Mitte 32px) sitzt — der Toggle liest
+                // sich als Kopf der Leiste, nicht als freischwebendes
+                // Header-Element.
+                className="-ml-4 hidden shrink-0 lg:inline-flex"
+              >
+                {sidebarCollapsed ? (
+                  <PanelLeftOpen size={18} aria-hidden="true" />
+                ) : (
+                  <PanelLeftClose size={18} aria-hidden="true" />
+                )}
+              </Button>
+            )}
             {mode === "teacher" ? (
               // Brand doubles as tenant switcher when the account has
               // multiple tenants; renders a plain BrandLink otherwise.
@@ -293,34 +347,53 @@ export function Header() {
 
             {mode === "teacher" ? <RemindersBell /> : null}
             {/* User menu */}
-            <div ref={profileMenuRef} className="relative">
-              <ProfileTrigger
-                displayName={displayName}
-                displayAvatar={displayAvatar}
-                userRole={userRole}
-                isOpen={isProfileMenuOpen}
-                compactOnTablet={mode === "parent"}
-                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-              />
-              <ProfileDropdownMenu
-                isOpen={isProfileMenuOpen}
-                displayName={displayName}
-                displayAvatar={displayAvatar}
-                userEmail={userEmail}
-                profileUrl={profileUrl}
-                profileLabel={
-                  mode === "operator"
-                    ? "Profileinstellungen"
-                    : mode === "parent"
-                      ? tParentNav("settings")
-                      : mode === "school"
-                        ? "Einstellungen"
-                        : undefined
-                }
-                onClose={() => setIsProfileMenuOpen(false)}
-                onLogout={() => setIsLogoutModalOpen(true)}
-              />
-            </div>
+            <AnchoredPopover
+              open={isProfileMenuOpen}
+              onOpenChange={setIsProfileMenuOpen}
+              ariaLabel={profileMenuLabel}
+              preferredWidth={288}
+              align="end"
+              className="border-0 bg-transparent p-0 shadow-none"
+              renderTrigger={({ ref, toggle, panelId }) => (
+                <ProfileTrigger
+                  ref={ref}
+                  menuId={panelId}
+                  ariaLabel={profileMenuLabel}
+                  displayName={displayName}
+                  displayAvatar={displayAvatar}
+                  userRole={userRole}
+                  isOpen={isProfileMenuOpen}
+                  compactOnTablet={mode === "parent"}
+                  onClick={toggle}
+                />
+              )}
+            >
+              {({ close }) => (
+                <ProfileDropdownMenu
+                  isOpen={isProfileMenuOpen}
+                  displayName={displayName}
+                  displayAvatar={displayAvatar}
+                  userEmail={userEmail}
+                  profileUrl={profileUrl}
+                  profileLabel={
+                    mode === "operator"
+                      ? "Profileinstellungen"
+                      : mode === "parent"
+                        ? tParentNav("settings")
+                        : mode === "school"
+                          ? "Einstellungen"
+                          : undefined
+                  }
+                  onClose={close}
+                  onLogout={() => setIsLogoutModalOpen(true)}
+                  onStartPreview={
+                    mode === "teacher" && canStartStaffPreview
+                      ? () => setIsPreviewModalOpen(true)
+                      : undefined
+                  }
+                />
+              )}
+            </AnchoredPopover>
           </div>
         </div>
       </div>
@@ -329,6 +402,12 @@ export function Header() {
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
       />
+      {mode === "teacher" && canStartStaffPreview && (
+        <StaffPreviewModal
+          isOpen={isPreviewModalOpen}
+          onClose={() => setIsPreviewModalOpen(false)}
+        />
+      )}
     </header>
   );
 }

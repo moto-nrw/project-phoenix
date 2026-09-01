@@ -1,14 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
-import { createLogger } from "~/lib/logger";
 import { PersonTags } from "~/components/operator/persons-table";
+import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { SimpleEmptyState } from "../provisioning/provisioning-shared";
 import {
   SkeletonRegion,
@@ -16,8 +16,6 @@ import {
 } from "~/components/ui/page-skeletons";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
-
-const logger = createLogger({ component: "OperatorPersonsPage" });
 
 function OperatorPersonsPageContent() {
   useSetBreadcrumb({ pageTitle: "Personen" });
@@ -32,17 +30,8 @@ function OperatorPersonsPageContent() {
     handleSchoolFilterChange,
   } = useOrgSchoolFilter("/operator/persons");
 
-  const [deletePersonTarget, setDeletePersonTargetRaw] =
+  const [deletePersonTarget, setDeletePersonTarget] =
     useState<OperatorPerson | null>(null);
-  const [deletePersonConfirmInput, setDeletePersonConfirmInput] = useState("");
-  const [deletePersonLoading, setDeletePersonLoading] = useState(false);
-  const [deletePersonError, setDeletePersonError] = useState("");
-
-  const setDeletePersonTarget = useCallback((person: OperatorPerson | null) => {
-    setDeletePersonTargetRaw(person);
-    setDeletePersonConfirmInput("");
-    setDeletePersonError("");
-  }, []);
 
   const {
     data: schoolPersons,
@@ -59,26 +48,6 @@ function OperatorPersonsPageContent() {
       dedupingInterval: 5000,
     },
   );
-
-  const handleDeletePerson = useCallback(async () => {
-    if (!deletePersonTarget) return;
-    setDeletePersonLoading(true);
-    setDeletePersonError("");
-    try {
-      await operatorProvisioningService.softDeletePerson(deletePersonTarget.id);
-      setDeletePersonTarget(null);
-      void mutateSchoolPersons();
-    } catch (err) {
-      logger.error("person_soft_delete_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setDeletePersonError(
-        err instanceof Error ? err.message : "Fehler beim Löschen der Person",
-      );
-    } finally {
-      setDeletePersonLoading(false);
-    }
-  }, [deletePersonTarget, mutateSchoolPersons, setDeletePersonTarget]);
 
   const tabs = useMemo(
     () => ({
@@ -179,86 +148,17 @@ function OperatorPersonsPageContent() {
         </>
       )}
 
-      {deletePersonTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Person löschen
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Möchten Sie{" "}
-              <span className="font-medium">
-                {deletePersonTarget.firstName} {deletePersonTarget.lastName}
-              </span>{" "}
-              von{" "}
-              <span className="font-medium">
-                {deletePersonTarget.schoolName}
-              </span>{" "}
-              wirklich löschen?
-            </p>
-            <div className="bg-moto-amber-soft text-moto-amber-strong mt-3 rounded-lg px-3 py-2 text-sm">
-              <p className="font-medium">
-                Folgende Aktionen werden ausgeführt:
-              </p>
-              <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-                <li>Account wird deaktiviert und Login gesperrt</li>
-                <li>Persönliche Daten werden anonymisiert</li>
-                <li>RFID-Karte wird freigegeben</li>
-                <li>Diese Aktion kann nicht rückgängig gemacht werden</li>
-              </ul>
-            </div>
-
-            <div className="mt-4">
-              <label
-                htmlFor="delete-person-confirm"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Geben Sie den vollständigen Namen ein:
-              </label>
-              <p className="mb-1 text-sm font-medium text-gray-900">
-                {deletePersonTarget.fullName}
-              </p>
-              <input
-                id="delete-person-confirm"
-                type="text"
-                value={deletePersonConfirmInput}
-                onChange={(e) => setDeletePersonConfirmInput(e.target.value)}
-                placeholder={deletePersonTarget.fullName}
-                className="focus:ring-moto-red w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-                autoComplete="off"
-              />
-            </div>
-
-            {deletePersonError && (
-              <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
-                {deletePersonError}
-              </div>
-            )}
-
-            <div className="mt-5 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setDeletePersonTarget(null)}
-                disabled={deletePersonLoading}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDeletePerson()}
-                disabled={
-                  deletePersonLoading ||
-                  deletePersonConfirmInput !== deletePersonTarget.fullName
-                }
-                className="bg-moto-red hover:bg-moto-red-hover rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {deletePersonLoading ? "Wird gelöscht..." : "Endgültig löschen"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeletePersonModal
+        person={deletePersonTarget}
+        onClose={() => setDeletePersonTarget(null)}
+        onDeleted={(deletedPerson) =>
+          mutateSchoolPersons(
+            (persons) =>
+              persons?.filter((person) => person.id !== deletedPerson.id),
+            { revalidate: false },
+          ).then(() => undefined)
+        }
+      />
     </div>
   );
 }

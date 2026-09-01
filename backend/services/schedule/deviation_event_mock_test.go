@@ -3,7 +3,6 @@ package schedule
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 )
 
@@ -23,10 +22,10 @@ func (r *recordingDeviationEventRepo) Create(_ context.Context, event *auditMode
 	return nil
 }
 
-func (r *recordingDeviationEventRepo) ListByRange(_ context.Context, _, _ timezone.Date, _ *int64, _ *string) ([]*auditModel.DeviationEvent, error) {
+func (r *recordingDeviationEventRepo) ListByRange(_ context.Context, _, _ auditModel.Date, _ *int64, _ *string) ([]*auditModel.DeviationEvent, error) {
 	return r.events, nil
 }
 
-func (r *recordingDeviationEventRepo) DeleteOlderThan(_ context.Context, _ timezone.Date) (int64, error) {
+func (r *recordingDeviationEventRepo) DeleteOlderThan(_ context.Context, _ auditModel.Date) (int64, error) {
 	return 0, nil
 }

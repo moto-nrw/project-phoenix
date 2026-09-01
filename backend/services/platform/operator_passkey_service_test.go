@@ -826,13 +826,13 @@ func TestOperatorPasskeyRepositories(t *testing.T) {
 
 	sessionID := "test-operator-passkey-session-" + suffix
 	session := &platformModel.OperatorPasskeySession{
-		ID:             sessionID,
-		OperatorID:     &operator.ID,
-		Purpose:        platformModel.OperatorPasskeySessionPurposeRegistration,
-		RPID:           "operator.localhost",
-		ExpectedOrigin: "http://operator.localhost:3000",
-		SessionJSON:    json.RawMessage(`{"challenge":"abc"}`),
-		ExpiresAt:      time.Now().Add(time.Hour),
+		StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: sessionID},
+		OperatorID:                   &operator.ID,
+		Purpose:                      platformModel.OperatorPasskeySessionPurposeRegistration,
+		RPID:                         "operator.localhost",
+		ExpectedOrigin:               "http://operator.localhost:3000",
+		SessionJSON:                  json.RawMessage(`{"challenge":"abc"}`),
+		ExpiresAt:                    time.Now().Add(time.Hour),
 	}
 	require.NoError(t, repos.OperatorPasskeySession.Create(ctx, session))
 
@@ -844,13 +844,13 @@ func TestOperatorPasskeyRepositories(t *testing.T) {
 
 	expiredID := "test-operator-passkey-expired-" + suffix
 	require.NoError(t, repos.OperatorPasskeySession.Create(ctx, &platformModel.OperatorPasskeySession{
-		ID:             expiredID,
-		OperatorID:     &operator.ID,
-		Purpose:        platformModel.OperatorPasskeySessionPurposeLogin,
-		RPID:           "operator.localhost",
-		ExpectedOrigin: "http://operator.localhost:3000",
-		SessionJSON:    json.RawMessage(`{"challenge":"expired"}`),
-		ExpiresAt:      time.Now().Add(-time.Hour),
+		StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: expiredID},
+		OperatorID:                   &operator.ID,
+		Purpose:                      platformModel.OperatorPasskeySessionPurposeLogin,
+		RPID:                         "operator.localhost",
+		ExpectedOrigin:               "http://operator.localhost:3000",
+		SessionJSON:                  json.RawMessage(`{"challenge":"expired"}`),
+		ExpiresAt:                    time.Now().Add(-time.Hour),
 	}))
 	deleted, err := repos.OperatorPasskeySession.DeleteExpired(ctx, time.Now())
 	require.NoError(t, err)

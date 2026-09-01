@@ -1,6 +1,6 @@
 module github.com/moto-nrw/project-phoenix
 
-go 1.25.12
+go 1.27.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -132,5 +132,6 @@ require (
 tool (
 	github.com/google/go-licenses/v2
 	golang.org/x/tools/cmd/deadcode
+	golang.org/x/tools/cmd/goimports
 	gotest.tools/gotestsum
 )

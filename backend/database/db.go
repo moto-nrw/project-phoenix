@@ -22,7 +22,7 @@ func DBConn() (*bun.DB, error) {
 	return openPool(GetDatabaseDSN(), "database pool configured")
 }
 
-// openPool opens a connection pool for dsn with the shared viper-driven pool
+// openPool opens a connection pool for dsn with the required environment pool
 // sizing and verifies connectivity. logMsg distinguishes the superuser pool
 // from the phoenix_auth serve pool in startup logs.
 func openPool(dsn, logMsg string) (*bun.DB, error) {
@@ -61,27 +61,34 @@ type poolConfig struct {
 }
 
 func poolConfigFromEnv() (poolConfig, error) {
-	maxOpen, err := requiredPositiveInt("DB_MAX_OPEN_CONNS")
+	return poolConfigFrom(os.Getenv)
+}
+
+func poolConfigFrom(getenv func(string) string) (poolConfig, error) {
+	maxOpen, err := requiredPositiveInt(getenv, "DB_MAX_OPEN_CONNS")
 	if err != nil {
 		return poolConfig{}, err
 	}
-	maxIdle, err := requiredPositiveInt("DB_MAX_IDLE_CONNS")
+	maxIdle, err := requiredPositiveInt(getenv, "DB_MAX_IDLE_CONNS")
 	if err != nil {
 		return poolConfig{}, err
 	}
-	maxLifetime, err := requiredPositiveDuration("DB_CONN_MAX_LIFETIME")
+	if maxIdle > maxOpen {
+		return poolConfig{}, fmt.Errorf("DB_MAX_IDLE_CONNS must not exceed DB_MAX_OPEN_CONNS")
+	}
+	maxLifetime, err := requiredPositiveDuration(getenv, "DB_CONN_MAX_LIFETIME")
 	if err != nil {
 		return poolConfig{}, err
 	}
-	maxIdleTime, err := requiredPositiveDuration("DB_CONN_MAX_IDLE_TIME")
+	maxIdleTime, err := requiredPositiveDuration(getenv, "DB_CONN_MAX_IDLE_TIME")
 	if err != nil {
 		return poolConfig{}, err
 	}
 	return poolConfig{maxOpen: maxOpen, maxIdle: maxIdle, maxLifetime: maxLifetime, maxIdleTime: maxIdleTime}, nil
 }
 
-func requiredPositiveInt(name string) (int, error) {
-	raw := os.Getenv(name)
+func requiredPositiveInt(getenv func(string) string, name string) (int, error) {
+	raw := getenv(name)
 	value, err := strconv.Atoi(raw)
 	if raw == "" || err != nil || value <= 0 {
 		return 0, fmt.Errorf("%s must be a positive integer", name)
@@ -89,8 +96,8 @@ func requiredPositiveInt(name string) (int, error) {
 	return value, nil
 }
 
-func requiredPositiveDuration(name string) (time.Duration, error) {
-	raw := os.Getenv(name)
+func requiredPositiveDuration(getenv func(string) string, name string) (time.Duration, error) {
+	raw := getenv(name)
 	value, err := time.ParseDuration(raw)
 	if raw == "" || err != nil || value <= 0 {
 		return 0, fmt.Errorf("%s must be a positive duration", name)

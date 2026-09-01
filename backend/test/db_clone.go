@@ -212,17 +212,11 @@ func openBootstrappedPackageDB(ctx context.Context, clone *testdb.CloneHandle) (
 // the package clone. APP_ENV=test deliberately resolves only test_db_dsn;
 // setting db_dsn would be ignored and would silently send integration tests
 // to the shared template database.
-//
-// Pool budget: one pool per test binary, sized from the binary's OWN
-// parallelism (poolSize), with idle == open so the pool holds what it opens
-// instead of re-dialing per test.
 func applyViperTestConfig() {
 	viper.AutomaticEnv()
 	applyStaticViperTestConfig()
 	viper.Set("test_db_dsn", packageClone.DSN)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
-	viper.Set("db_max_open_conns", poolSize())
-	viper.Set("db_max_idle_conns", poolSize())
 }
 
 func applyStaticViperTestConfig() {
@@ -260,14 +254,10 @@ func poolSize() int {
 	return min(parallelism()+nestedConnHeadroom, poolSizeCap)
 }
 
-// initCloneBootstrap seeds the per-package clone once: sequence offsets, the
-// default tenant (school 1), the default room, and the system staff fixture.
+// initCloneBootstrap seeds the per-package clone once: the default tenant
+// (school 1), the default room, and the system staff fixture.
 // The fixed bootstrap entities disappear with the PR-2 per-test-tenant sweep.
 func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
-	if err := applySequenceOffsets(ctx, db); err != nil {
-		return fmt.Errorf("apply test sequence offsets: %w", err)
-	}
-
 	// Ensure the default tenant (school ID 1) exists in platform.schools.
 	// Legacy fixtures use tenant_id=1, which requires a FK target row.
 	if err := ensureBootstrapTenant(ctx, db); err != nil {

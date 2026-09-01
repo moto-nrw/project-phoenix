@@ -81,6 +81,15 @@ describe("timetable operation mappers", () => {
       is_primary: true,
       is_substitute: false,
       is_absent: false,
+      active_group_id: 910,
+      cancel_reason: null,
+      planning_track_name: "Angebote",
+      planning_track_color: "#5080D8",
+      group_name: "Gruppe Sonne",
+      staff_names: [
+        { staff_id: 320, display_name: "Maria Muster" },
+        { staff_id: 321, display_name: "Vera Vertretung", is_substitute: true },
+      ],
       roster_preview: [
         {
           student_id: 420,
@@ -117,6 +126,15 @@ describe("timetable operation mappers", () => {
       canStart: false,
       startAvailableAt: "",
       startExpiresAt: "",
+      activeGroupId: "910",
+      cancelReason: null,
+      planningTrackName: "Angebote",
+      planningTrackColor: "#5080D8",
+      groupName: "Gruppe Sonne",
+      staffNames: [
+        { staffId: "320", displayName: "Maria Muster", isSubstitute: false },
+        { staffId: "321", displayName: "Vera Vertretung", isSubstitute: true },
+      ],
       rosterPreview: [
         {
           studentId: "420",
@@ -278,6 +296,12 @@ describe("timetable operation mappers", () => {
       canStart: false,
       startAvailableAt: "",
       startExpiresAt: "",
+      activeGroupId: null,
+      cancelReason: null,
+      planningTrackName: null,
+      planningTrackColor: null,
+      groupName: null,
+      staffNames: [],
       rosterPreview: [],
     });
   });

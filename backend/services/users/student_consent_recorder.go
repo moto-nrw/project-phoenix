@@ -6,7 +6,6 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -153,7 +152,7 @@ func (r *studentConsentService) RecordTransitions(
 			eventTime = *field.after
 		}
 		entry := &auditModels.StudentConsentChange{
-			Model: base.Model{
+			Model: auditModels.Model{
 				CreatedAt: eventTime,
 				UpdatedAt: eventTime,
 			},

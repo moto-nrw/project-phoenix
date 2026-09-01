@@ -19,10 +19,8 @@ func (p staticSSEStatsProvider) SnapshotStats() SSEStats {
 	return p.stats
 }
 
-// Deliberately NOT parallel: RegisterSSEStatsProvider installs a
-// process-global provider that MetricsHandler reads on every scrape, so two
-// of these tests overwrite each other's provider.
 func TestRefreshSSEGaugesResetsDisconnectedTenants(t *testing.T) {
+	t.Parallel()
 	RegisterSSEStatsProvider(staticSSEStatsProvider{
 		stats: SSEStats{ClientsByTenant: map[int64]int{101: 2, 202: 1}},
 	})
@@ -135,6 +133,18 @@ func TestRecordUnitOfWorkEvidence(t *testing.T) {
 	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
 }
 
+func TestFeedbackHTTPResponseUsesActualStatusClassAndStableCode(t *testing.T) {
+	t.Parallel()
+	badRequestBefore := testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("iot", "4xx", "invalid_parameters"))
+	serverErrorBefore := testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("staff", "5xx", "internal_error"))
+
+	ObserveFeedbackHTTPResponse("iot", 400, "invalid_parameters")
+	ObserveFeedbackHTTPResponse("staff", 500, "internal_error")
+
+	assert.Equal(t, badRequestBefore+1, testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("iot", "4xx", "invalid_parameters")))
+	assert.Equal(t, serverErrorBefore+1, testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("staff", "5xx", "internal_error")))
+}
+
 func TestRecordWorkerRunEvidence(t *testing.T) {
 	t.Parallel()
 	const jobID = "test-worker-job"
@@ -158,6 +168,34 @@ func TestRecordSettingsEvidence(t *testing.T) {
 	assert.Equal(t, lookupBefore+1, testutil.ToFloat64(settingsLookups.WithLabelValues(key, "hit", "ok")))
 	assert.Equal(t, failureBefore+1, testutil.ToFloat64(settingsSideEffectFailures.WithLabelValues(key)))
 	assert.Equal(t, durationBefore+1, testutil.CollectAndCount(settingsLookupDuration))
+}
+
+func TestObserveMealPlanOperationRecordsStatementDuration(t *testing.T) {
+	t.Parallel()
+
+	before := testutil.CollectAndCount(mealPlanStatementDuration)
+
+	ObserveMealPlanOperation("replace_day", time.Millisecond, 2, 1, 3*time.Millisecond, nil)
+
+	assert.Equal(t, before+1, testutil.CollectAndCount(mealPlanStatementDuration))
+}
+
+func TestObserveAuditAppendRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const eventType = "*audit.AuthEvent"
+	successBefore := testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "success"))
+	errorBefore := testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "error"))
+	rowsBefore := testutil.ToFloat64(auditRows.WithLabelValues(eventType))
+	durationBefore := testutil.CollectAndCount(auditAppendDuration)
+
+	ObserveAuditAppend(eventType, 2*time.Millisecond, 1, nil)
+	ObserveAuditAppend(eventType, time.Millisecond, 0, assert.AnError)
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "success")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "error")))
+	assert.Equal(t, rowsBefore+1, testutil.ToFloat64(auditRows.WithLabelValues(eventType)))
+	assert.Equal(t, durationBefore+1, testutil.CollectAndCount(auditAppendDuration))
 }
 
 func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {

@@ -118,6 +118,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		OperationalOverviewScope:   resolved.overviewScope,
 		ParentRequestReasonPolicy:  resolved.reasonPolicy,
 		ShowTimetableCounts:        resolved.showTimetableCounts,
+		TimetableEnabled:           resolved.timetableEnabled,
 		WaitlistEnabled:            resolved.waitlistEnabled,
 		EmergencyHealthInfoEnabled: resolved.emergencyHealthInfo,
 	}
@@ -134,6 +135,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		overviewScope:          configModel.OverviewScopeOwn,
 		reasonPolicy:           configModel.ReasonPolicyBoth,
 		showTimetableCounts:    true,
+		timetableEnabled:       true,
 		waitlistEnabled:        true,
 		emergencyHealthInfo:    false,
 	}
@@ -150,6 +152,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		configModel.KeyAttendanceWebEnabled,
 		configModel.KeyAttendanceLogEnabled,
 		configModel.KeyTimetableShowExpectedChildrenCount,
+		configModel.KeyTimetableEnabled,
 		configModel.KeyEnrollmentWaitlistEnabled,
 		configModel.KeyGroupMode,
 		configModel.KeyOperationalOverviewScope,
@@ -189,6 +192,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	resolved.attendanceWebEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
 	resolved.attendanceLogEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
+	resolved.timetableEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableEnabled, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.emergencyHealthInfo = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
@@ -238,6 +242,7 @@ func resolveTenantShellSnapshot(
 	resolved.attendanceWebEnabled = resolveBool(configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
 	resolved.attendanceLogEnabled = resolveBool(configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = resolveBool(configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
+	resolved.timetableEnabled = resolveBool(configModel.KeyTimetableEnabled, true, slog.LevelWarn)
 	resolved.waitlistEnabled = resolveBool(configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.parentMessagingEnabled = resolveBool(configModel.KeyParentNotesEnabled, true, slog.LevelWarn)
 	resolved.emergencyHealthInfo = resolveBool(configModel.KeyEmergencyListHealthInfo, false, slog.LevelWarn)

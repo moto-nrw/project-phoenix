@@ -96,6 +96,7 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 }
 
 func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
+	t.Parallel()
 	content, err := os.ReadFile("001015050_timeframes_use_time_without_timezone.go")
 	if err != nil {
 		t.Fatalf("failed to read timeframe clock migration: %v", err)
@@ -115,6 +116,7 @@ func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
 }
 
 func TestOperatorRefreshTokenMigrationUpDown(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

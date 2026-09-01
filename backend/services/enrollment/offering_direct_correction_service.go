@@ -41,7 +41,12 @@ func (s *offeringChangeRequestService) ListDirectCorrections(
 		return nil, nil, fmt.Errorf("offering change: offering adjustment repo not configured")
 	}
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.OfferingAdjustmentRepo.ListDirectForTenant(ctx, probeLimit(filters))
+	probed := probeLimit(filters)
+	rows, err := s.OfferingAdjustmentRepo.ListDirectForTenant(ctx, auditModels.DirectAdjustmentFilter{
+		BeforeInstant: probed.BeforeInstant,
+		BeforeID:      probed.BeforeID,
+		Limit:         probed.Limit,
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list direct corrections: %w", err)
 	}

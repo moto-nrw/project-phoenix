@@ -1,8 +1,9 @@
 // UI-kit drift ratchet (issue #1629).
 //
-// Four rules that stop drift away from the shared UI kit. Generic brand colors
-// and hand-rolled overlays tolerate existing stock via shrink-only baselines;
-// rounded-3xl and unlabeled checkboxes are hard-zero:
+// Five rules that stop drift away from the shared UI kit. Hand-rolled card
+// surfaces tolerate existing stock via a shrink-only baseline; generic brand
+// colors, hand-rolled overlays, rounded-3xl and unlabeled checkboxes are
+// hard-zero:
 //
 //   ui-kit/no-generic-brand-colors  — generic Tailwind hues (bg-green-500 …)
 //                                     used for brand semantics; use the brand
@@ -11,304 +12,149 @@
 //   ui-kit/no-hand-rolled-overlay   — `fixed inset-0` overlays outside
 //                                     src/components/ui/; use Modal / Drawer /
 //                                     OverflowMenu from the kit
+//   ui-kit/no-hand-rolled-surface   — hand-built card surfaces
+//                                     (`rounded-xl/2xl` + `border` + `bg-white`)
+//                                     outside src/components/ui/; use
+//                                     moto-content-surface or a kit surface
+//                                     component (issue #2933)
 //   ui-kit/no-rounded-3xl           — off-scale surface radius; cards are
 //                                     rounded-2xl (moto-content-surface)
 //   ui-kit/require-checkbox-label   — every shared Checkbox is wrapped by a
 //                                     label so its visible box is clickable
 //
-// The baselines below are SHRINK-ONLY: matches may be removed when a file is
-// migrated, but never added. Every baselined utility is tracked by value and
-// count, so those files cannot accumulate more drift. Test/stories files are
-// exempt from the class-string rules.
+// The surface baseline below is SHRINK-ONLY: matches may be removed when a
+// file is migrated, but never added. Test/stories files are exempt from the
+// class-string rules.
 
-const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
-  "src/app/[tenant]/(protected)/active-supervisions/page.tsx",
-  "src/app/[tenant]/(protected)/activities/page.tsx",
-  "src/app/[tenant]/(protected)/dashboard/page.tsx",
-  "src/app/[tenant]/(protected)/database/activities/page.tsx",
-  "src/app/[tenant]/(protected)/database/devices/page.tsx",
-  "src/app/[tenant]/(protected)/database/groups/page.tsx",
-  "src/app/[tenant]/(protected)/database/permissions/page.tsx",
-  "src/app/[tenant]/(protected)/database/personal/import/page.tsx",
-  "src/app/[tenant]/(protected)/database/personal/page.tsx",
-  "src/app/[tenant]/(protected)/database/roles/page.tsx",
-  "src/app/[tenant]/(protected)/database/rooms/page.tsx",
-  "src/app/[tenant]/(protected)/database/students/import/page.tsx",
-  "src/app/[tenant]/(protected)/database/students/page.tsx",
-  "src/app/[tenant]/(protected)/ogs-groups/page.tsx",
-  "src/app/[tenant]/(protected)/rooms/page.tsx",
-  "src/app/[tenant]/(protected)/staff/page.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/page.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx",
-  "src/app/[tenant]/(protected)/students/search/page.tsx",
-  "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-  "src/app/operator/announcements/page.tsx",
-  "src/app/operator/devices/page.tsx",
-  "src/app/operator/email-confirm/email-confirm-content.tsx",
-  "src/app/operator/invite/invite-content.tsx",
-  "src/app/operator/operators/page.tsx",
-  "src/app/operator/persons/page.tsx",
-  "src/app/operator/provisioning/create-account-modal.tsx",
-  "src/app/operator/provisioning/create-device-modal.tsx",
-  "src/app/operator/provisioning/create-organization-modal.tsx",
-  "src/app/operator/provisioning/create-school-modal.tsx",
-  "src/app/operator/provisioning/edit-organization-modal.tsx",
-  "src/app/operator/provisioning/edit-school-modal.tsx",
-  "src/app/operator/provisioning/invite-admin-modal.tsx",
-  "src/app/operator/provisioning/provisioning-shared.tsx",
-  "src/app/operator/provisioning/set-api-key-modal.tsx",
-  "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/app/operator/schools/page.tsx",
-  "src/app/operator/settings/page.tsx",
-  "src/app/page.tsx",
-  "src/components/active-supervisions/states.tsx",
-  "src/components/active/unclaimed-rooms.tsx",
-  "src/components/activities/activity-management-modal.tsx",
-  "src/components/activities/quick-create-modal.tsx",
-  "src/components/admin/guardian-approval-queue.tsx",
-  "src/components/admin/invitation-form.tsx",
-  "src/components/admin/pending-invitations-list.tsx",
-  "src/components/auth/invitation-accept-form.tsx",
-  "src/components/auth/invitation-page-content.tsx",
-  "src/components/auth/mfa-admin-override-modal.tsx",
-  "src/components/auth/reset-password-page-content.tsx",
-  "src/components/auth/role-permission-management-modal.tsx",
-  "src/components/dashboard/header/profile-dropdown.tsx",
-  "src/components/dashboard/header/session-warning.tsx",
-  "src/components/dashboard/sidebar.tsx",
-  "src/components/database/configs/activities.config.tsx",
-  "src/components/database/configs/devices.config.tsx",
-  "src/components/database/configs/groups.config.tsx",
-  "src/components/database/configs/permissions.config.tsx",
-  "src/components/database/configs/roles.config.tsx",
-  "src/components/database/configs/rooms.config.tsx",
-  "src/components/database/configs/students.config.tsx",
-  "src/components/database/configs/teachers.config.tsx",
-  "src/components/database/detail-delete-button.tsx",
-  "src/components/devices/devices-master-detail.tsx",
-  "src/components/guardians/guardian-form-modal.tsx",
-  "src/components/guardians/guardian-list.tsx",
-  "src/components/guardians/guardian-picker-panel.tsx",
-  "src/components/guardians/guardian-relationship-fields.tsx",
-  "src/components/guardians/student-guardian-manager.tsx",
-  "src/components/import/stats-cards.tsx",
-  "src/components/import/student-row-card.tsx",
-  "src/components/import/upload-section.tsx",
-  "src/components/operator/announcement-views-accordion.tsx",
-  "src/components/permissions/permission-selector.tsx",
-  "src/components/roles/roles-master-detail.tsx",
-  "src/components/settings/passkey-settings-section.tsx",
-  "src/components/settings/personalization-tab.tsx",
-  "src/components/settings/settings-field.tsx",
-  "src/components/staff/admin-session-edit-modal.tsx",
-  "src/components/staff/school-overview-section.tsx",
-  "src/components/staff/shift-edit-modal.tsx",
-  "src/components/staff/staff-pending-inbox.tsx",
-  "src/components/staff/staff-session-table.tsx",
-  "src/components/staff/staff-time-accounts-table.tsx",
-  "src/components/students/arrival-day-edit-modal.tsx",
-  "src/components/students/arrival-schedule-form-modal.tsx",
-  "src/components/students/arrival-schedule-manager.tsx",
-  "src/components/students/class-bulk-arrival-modal.tsx",
-  "src/components/students/personal-info-form-modal.tsx",
-  "src/components/students/pickup-day-edit-modal.tsx",
-  "src/components/students/pickup-schedule-form-modal.tsx",
-  "src/components/students/pickup-schedule-manager.tsx",
-  "src/components/students/privacy-consent-section.tsx",
-  "src/components/students/student-card.tsx",
-  "src/components/students/student-checkout-section.tsx",
-  "src/components/students/student-create-modal.tsx",
-  "src/components/students/student-detail-components.tsx",
-  "src/components/students/student-form-fields.tsx",
-  "src/components/students/student-historie-tab.tsx",
-  "src/components/students/student-stammdaten-tab.tsx",
-  "src/components/teachers/caregiver-blocker-resolution-modal.tsx",
-  "src/components/teachers/caregiver-capability-modal.tsx",
-  "src/components/teachers/teacher-form.tsx",
-  "src/components/time-tracking/edit-history-accordion.tsx",
-  "src/components/time-tracking/leave-requests-card.tsx",
-  "src/components/time-tracking/monatskarte.tsx",
-  "src/components/time-tracking/vacation-request-modal.tsx",
-  "src/components/ui/database/accents.ts",
-  "src/components/ui/database/database-form.tsx",
-  "src/components/ui/database/database-select.tsx",
-  "src/components/ui/date-picker.tsx",
-  "src/components/ui/detail-modal-components.tsx",
-  "src/components/ui/forbidden-page.tsx",
-  "src/components/ui/input.tsx",
-  "src/components/ui/page-header/ActiveFilterChips.tsx",
-  "src/components/ui/page-header/DesktopFilters.tsx",
-  "src/components/ui/page-header/FilterPanel.tsx",
-  "src/components/ui/page-header/OverflowMenu.tsx",
-  "src/components/ui/page-header/PageHeaderWithSearch.tsx",
-  "src/components/ui/password-change-modal.tsx",
-  "src/components/ui/textarea.tsx",
-  "src/lib/activity-helpers.ts",
-  "src/lib/dashboard-helpers.ts",
-  "src/lib/database/themes.tsx",
-  "src/lib/iot-helpers.ts",
-  "src/lib/staff-helpers.ts",
-]);
-
-const GENERIC_BRAND_COLOR_BASELINE = parseMatchBaseline(`
-src/app/[tenant]/(protected)/active-supervisions/page.tsx|bg-red-100:2 bg-red-50:2 border-red-200:2 from-blue-50/80 text-red-600:2 to-cyan-100/80
-src/app/[tenant]/(protected)/activities/page.tsx|bg-red-50 border-red-200 text-red-800
-src/app/[tenant]/(protected)/dashboard/page.tsx|bg-red-50 border-red-200 from-amber-50/80 from-blue-50/80 from-emerald-50/80 from-emerald-500 from-green-50/80 from-indigo-50/80 from-indigo-500 from-orange-50/80 from-orange-500 from-purple-50/80:2 from-purple-500 from-red-50/80 from-yellow-400 from-yellow-50/80 ring-amber-200/60 ring-blue-200/60 ring-emerald-200/60 ring-green-200/60 ring-indigo-200/60 ring-indigo-500:2 ring-orange-200/60 ring-purple-200/60:2 ring-red-200/60 ring-yellow-200/60 text-red-800 to-blue-100/80 to-cyan-100/80 to-green-100/80 to-green-600 to-indigo-600 to-lime-100/80 to-orange-100/80 to-orange-600 to-purple-600 to-rose-100/80 to-violet-100/80:2 to-yellow-100/80:2 to-yellow-500
-src/app/[tenant]/(protected)/database/activities/page.tsx|bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-800
-src/app/[tenant]/(protected)/database/devices/page.tsx|bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-800
-src/app/[tenant]/(protected)/database/groups/page.tsx|bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-800
-src/app/[tenant]/(protected)/database/permissions/page.tsx|bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-800
-src/app/[tenant]/(protected)/database/personal/import/page.tsx|bg-amber-100 bg-blue-100 bg-blue-50/30 bg-green-100 bg-red-100 border-blue-100 text-amber-700 text-blue-600:2 text-blue-700 text-green-700 text-red-600:2 text-red-700 text-red-800
-src/app/[tenant]/(protected)/database/personal/page.tsx|bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-800
-src/app/[tenant]/(protected)/database/roles/page.tsx|bg-amber-50 bg-red-50 bg-red-600 bg-red-700 border-amber-200 border-red-200 text-amber-600 text-amber-700 text-amber-800 text-red-800
-src/app/[tenant]/(protected)/database/rooms/page.tsx|bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-800
-src/app/[tenant]/(protected)/database/students/import/page.tsx|bg-blue-50/30 border-blue-100 text-blue-600:2 text-red-600 text-red-800
-src/app/[tenant]/(protected)/database/students/page.tsx|bg-red-100 bg-red-50:2 bg-red-600 bg-red-700 border-red-200:2 text-red-700 text-red-800
-src/app/[tenant]/(protected)/ogs-groups/page.tsx|bg-orange-50:2 border-orange-200:2 from-amber-50/80 from-blue-50/80 from-emerald-50/80 from-fuchsia-50/80 from-red-50/80 text-orange-600:2 text-orange-900 to-cyan-100/80 to-green-100/80 to-pink-100/80 to-rose-100/80 to-yellow-100/80
-src/app/[tenant]/(protected)/rooms/page.tsx|text-blue-400
-src/app/[tenant]/(protected)/staff/page.tsx|bg-red-50 bg-red-500 border-red-200 text-red-800
-src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx|bg-blue-100 bg-blue-200 bg-green-500:3 bg-red-500:3 bg-yellow-400:3 text-blue-800
-src/app/[tenant]/(protected)/students/[id]/page.tsx|bg-blue-100 bg-blue-200 text-amber-600 text-blue-800
-src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx|bg-amber-50:3 bg-blue-50/50:2 border-amber-200 text-amber-700:3 text-amber-800:3 text-amber-900
-src/app/[tenant]/(protected)/students/search/page.tsx|text-red-400
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-amber-600:4 text-red-500 text-red-600 text-red-700
-src/app/operator/announcements/page.tsx|bg-amber-100 bg-red-500 bg-red-600 border-blue-500:3 ring-blue-500:3 text-amber-700
-src/app/operator/devices/page.tsx|bg-red-50 bg-red-600:2 bg-red-700:2 text-red-600:2
-src/app/operator/email-confirm/email-confirm-content.tsx|bg-blue-100 bg-green-100 bg-red-100 text-blue-600 text-green-600 text-red-600
-src/app/operator/invite/invite-content.tsx|bg-red-50:2 border-red-200 text-red-500 text-red-600 text-red-700
-src/app/operator/operators/page.tsx|bg-green-100 bg-red-100 bg-red-200 bg-red-50 bg-red-500 bg-red-600 bg-violet-100 bg-violet-200 border-red-200 border-violet-500:2 ring-violet-500:2 text-green-700 text-red-600:2 text-red-700:2 text-violet-700
-src/app/operator/persons/page.tsx|bg-amber-50 bg-blue-50 bg-green-50 bg-purple-50 bg-red-50:2 bg-red-600 bg-red-700 border-red-500 ring-red-500 text-amber-800 text-blue-700 text-green-700 text-purple-700 text-red-600:2
-src/app/operator/provisioning/create-account-modal.tsx|bg-green-50 border-blue-500 ring-blue-500:2 text-blue-600 text-green-600 text-green-800
-src/app/operator/provisioning/create-device-modal.tsx|bg-green-50 border-blue-500:3 border-green-200 ring-blue-500:3 text-blue-600:2 text-green-700 text-green-800
-src/app/operator/provisioning/create-organization-modal.tsx|border-blue-500:2 ring-blue-500:2
-src/app/operator/provisioning/create-school-modal.tsx|border-blue-500:8 ring-blue-500:8
-src/app/operator/provisioning/edit-organization-modal.tsx|border-blue-500:2 ring-blue-500:2
-src/app/operator/provisioning/edit-school-modal.tsx|border-blue-500:8 ring-blue-500:8
-src/app/operator/provisioning/invite-admin-modal.tsx|bg-green-50 border-blue-500 ring-blue-500:2 text-blue-600 text-green-600 text-green-800 text-red-600
-src/app/operator/provisioning/provisioning-shared.tsx|bg-amber-50 bg-blue-600 bg-green-100:2 bg-red-100 bg-red-50 bg-yellow-100 ring-blue-500 text-amber-700 text-green-700:2 text-red-500 text-red-600 text-red-700 text-yellow-700
-src/app/operator/provisioning/set-api-key-modal.tsx|bg-amber-50 bg-green-50 bg-red-600 bg-red-700 border-amber-200 border-blue-500 border-green-200 ring-blue-500 text-amber-800 text-blue-600:2 text-green-800
-src/app/operator/provisioning/soft-delete-shared.tsx|bg-amber-50 bg-green-100 bg-green-200 bg-red-100 bg-red-50:4 bg-red-50/50 bg-red-600 bg-red-700 border-red-100/50 border-red-500 ring-red-500 text-amber-800 text-green-700 text-red-600:4 text-red-700
-src/app/operator/schools/page.tsx|bg-red-100 bg-red-200 text-red-700
-src/app/operator/settings/page.tsx|bg-red-50 text-red-700
-src/app/page.tsx|bg-red-50 border-red-200 text-red-700
-src/components/active-supervisions/states.tsx|bg-red-50/50 bg-red-600 bg-red-700 border-red-100 text-red-500
-src/components/active/unclaimed-rooms.tsx|bg-amber-100 bg-amber-50/80 bg-red-50 border-amber-200 border-red-200 text-amber-600 text-red-700
-src/components/activities/activity-management-modal.tsx|border-red-200/30 from-red-50/60 text-red-600:2 text-red-700 to-rose-50/60
-src/components/activities/quick-create-modal.tsx|from-blue-100/10 ring-red-400 text-red-600:3 to-indigo-100/10
-src/components/admin/guardian-approval-queue.tsx|bg-red-100 bg-red-200 bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-700:2
-src/components/admin/invitation-form.tsx|bg-red-50/50 border-red-200/50 ring-red-400 text-red-600:2 text-red-700
-src/components/admin/pending-invitations-list.tsx|bg-red-100:2 bg-red-200 bg-red-50:2 bg-red-50/50 bg-red-600 bg-red-700 border-red-200/50 text-red-600 text-red-700:4
-src/components/auth/invitation-accept-form.tsx|bg-red-50/50 border-red-200/50 ring-red-300:4 text-red-600:5 text-red-700
-src/components/auth/invitation-page-content.tsx|bg-red-50 border-red-200 text-red-600 text-red-700
-src/components/auth/mfa-admin-override-modal.tsx|bg-amber-50 bg-red-50:3 border-amber-200 text-amber-900 text-red-700:3
-src/components/auth/reset-password-page-content.tsx|bg-red-50 border-red-200 text-red-600 text-red-700
-src/components/auth/role-permission-management-modal.tsx|bg-purple-50:2 bg-purple-50/30 bg-purple-600:2 bg-purple-700 border-purple-400:2 ring-purple-500:2 text-purple-600:2
-src/components/dashboard/header/profile-dropdown.tsx|bg-red-50 bg-red-600 text-red-600 text-red-700
-src/components/dashboard/header/session-warning.tsx|bg-red-50 border-red-200 text-red-600:2 text-red-800
-src/components/dashboard/sidebar.tsx|text-amber-500 text-indigo-500 text-pink-500 text-sky-500 text-teal-500:2 text-violet-500:2
-src/components/database/configs/activities.config.tsx|bg-blue-100:2 bg-purple-100 bg-purple-50/30 bg-red-100:2 bg-red-50/30 text-blue-700:2 text-purple-700 text-purple-800 text-red-700:2 text-red-800
-src/components/database/configs/devices.config.tsx|bg-blue-100 bg-blue-50 bg-blue-600 bg-blue-700 bg-green-500 bg-yellow-50 bg-yellow-50/30 bg-yellow-600 bg-yellow-700 border-blue-200 border-yellow-200 text-blue-600 text-blue-800:2 text-yellow-700:2 text-yellow-800
-src/components/database/configs/groups.config.tsx|bg-blue-100 bg-blue-400/80 bg-green-100 bg-green-400/80 bg-green-50/30 bg-indigo-400/80 text-blue-700 text-green-700 text-green-800
-src/components/database/configs/permissions.config.tsx|bg-indigo-400/80 bg-pink-50/30 text-indigo-800
-src/components/database/configs/roles.config.tsx|bg-blue-400/80 bg-purple-50/30
-src/components/database/configs/rooms.config.tsx|bg-green-100 bg-indigo-100 bg-indigo-50/30 bg-red-100 text-green-800:2 text-indigo-800 text-red-800
-src/components/database/configs/students.config.tsx|bg-blue-100 bg-blue-50 bg-fuchsia-100 bg-fuchsia-400/80 bg-fuchsia-500 bg-green-100 bg-green-400/80 bg-green-50 bg-green-500 bg-orange-100:2 bg-orange-400/80 bg-orange-500 bg-purple-100 bg-purple-50 bg-red-400/80 bg-yellow-100 bg-yellow-400/80 bg-yellow-50 bg-yellow-500 text-blue-700 text-blue-800 text-fuchsia-800 text-green-800:2 text-orange-700 text-orange-800 text-purple-700 text-purple-800 text-yellow-800:2
-src/components/database/configs/teachers.config.tsx|bg-blue-50 bg-green-50 bg-indigo-50 bg-purple-100 text-blue-800 text-indigo-800 text-purple-800:2
-src/components/database/detail-delete-button.tsx|bg-red-100 bg-red-50 border-red-200 text-red-700
-src/components/devices/devices-master-detail.tsx|bg-yellow-50 border-yellow-200 text-yellow-800
-src/components/guardians/guardian-form-modal.tsx|bg-blue-50/30:4 bg-red-50:4 border-red-200 border-red-400:4 text-blue-600:4 text-red-500:2 text-red-600:6 text-red-800 text-yellow-400 text-yellow-500
-src/components/guardians/guardian-list.tsx|bg-blue-100 bg-green-100 bg-purple-100:2 bg-red-100 decoration-blue-600:2 text-blue-600:2 text-blue-800 text-green-800 text-purple-700 text-purple-800 text-red-800
-src/components/guardians/guardian-picker-panel.tsx|bg-blue-50/40:2 bg-red-50 border-red-200 text-blue-600:2 text-red-800
-src/components/guardians/guardian-relationship-fields.tsx|bg-blue-50/30 bg-red-50 border-red-200 ring-green-600 ring-purple-600 ring-red-600 text-blue-600 text-green-600 text-purple-600 text-red-600:2 text-red-900
-src/components/guardians/student-guardian-manager.tsx|bg-purple-100 bg-red-50 border-red-200 text-purple-600 text-red-700
-src/components/import/stats-cards.tsx|from-blue-50/80 from-green-50/80 from-red-50/80 to-cyan-100/80 to-lime-100/80 to-rose-100/80
-src/components/import/student-row-card.tsx|bg-amber-100 bg-blue-100 bg-green-100 bg-red-100 text-amber-700 text-blue-700 text-green-700 text-red-600 text-red-700
-src/components/import/upload-section.tsx|bg-green-50 border-green-500 ring-green-500 text-green-500 text-green-600:2
-src/components/operator/announcement-views-accordion.tsx|bg-green-100 text-green-500 text-green-600 text-red-500
-src/components/permissions/permission-selector.tsx|text-pink-600
-src/components/roles/roles-master-detail.tsx|bg-amber-50 bg-purple-100 bg-purple-50:2 border-purple-200 text-amber-700 text-purple-700:2
-src/components/settings/passkey-settings-section.tsx|bg-red-50 text-red-700
-src/components/settings/personalization-tab.tsx|bg-green-50 bg-red-50 border-green-500 border-red-200 ring-green-500 text-green-500 text-red-600
-src/components/settings/settings-field.tsx|bg-amber-50 bg-yellow-50 border-amber-200 text-amber-700 text-amber-800 text-red-600:4 text-yellow-700
-src/components/staff/admin-session-edit-modal.tsx|bg-amber-50 bg-red-50 text-amber-800 text-red-700
-src/components/staff/school-overview-section.tsx|bg-amber-500 text-amber-600 text-red-600:2
-src/components/staff/shift-edit-modal.tsx|bg-amber-50:2 bg-red-50 text-amber-800:2 text-red-700
-src/components/staff/staff-pending-inbox.tsx|bg-red-500
-src/components/staff/staff-session-table.tsx|text-amber-600 text-red-600
-src/components/staff/staff-time-accounts-table.tsx|bg-red-50 border-red-200 text-red-600 text-red-800
-src/components/students/arrival-day-edit-modal.tsx|bg-red-50:3 border-red-200 text-red-600:2 text-red-700
-src/components/students/arrival-schedule-form-modal.tsx|bg-red-50 border-red-200 text-red-700
-src/components/students/arrival-schedule-manager.tsx|bg-orange-100:2 bg-red-50 border-red-200 text-orange-600:2 text-red-700
-src/components/students/class-bulk-arrival-modal.tsx|bg-red-50 border-red-300 text-red-600
-src/components/students/personal-info-form-modal.tsx|ring-blue-500:3
-src/components/students/pickup-day-edit-modal.tsx|bg-red-50:3 border-blue-500:3 border-red-200 ring-blue-500:3 text-red-500 text-red-600 text-red-700
-src/components/students/pickup-schedule-form-modal.tsx|bg-red-50 border-blue-500:2 border-red-200 ring-blue-500:2 text-red-700
-src/components/students/pickup-schedule-manager.tsx|bg-orange-100:2 bg-red-50 border-red-200 text-orange-600:2 text-red-700
-src/components/students/privacy-consent-section.tsx|bg-yellow-100 text-green-600 text-red-600 text-yellow-800
-src/components/students/student-card.tsx|text-orange-500
-src/components/students/student-checkout-section.tsx|border-amber-500 text-amber-500
-src/components/students/student-create-modal.tsx|bg-blue-50/30:2 bg-red-50:3 border-red-200 text-blue-600:2 text-red-600:2 text-red-800
-src/components/students/student-detail-components.tsx|bg-orange-400
-src/components/students/student-form-fields.tsx|bg-blue-50/30:6 bg-red-50:2 border-red-300:2 text-blue-600 text-red-500 text-red-600:2
-src/components/students/student-historie-tab.tsx|bg-amber-50 bg-red-50 border-amber-200 border-red-200 text-amber-800 text-red-800
-src/components/students/student-stammdaten-tab.tsx|bg-red-50:2 border-red-200:2 text-red-800:2
-src/components/teachers/caregiver-blocker-resolution-modal.tsx|bg-orange-100 bg-red-50:4 border-red-200:4 text-orange-700 text-red-700:4
-src/components/teachers/caregiver-capability-modal.tsx|bg-amber-100 bg-amber-200 bg-red-50 border-amber-300 border-red-200 text-amber-500 text-amber-800 text-amber-900 text-red-700
-src/components/teachers/teacher-form.tsx|bg-orange-50/30:2 bg-red-50:6 border-red-200 border-red-300:5 text-orange-600:2 text-red-500:6 text-red-600:6 text-red-800
-src/components/time-tracking/edit-history-accordion.tsx|text-red-400:2
-src/components/time-tracking/leave-requests-card.tsx|bg-red-600 bg-red-700 text-amber-600 text-red-600 text-red-700
-src/components/time-tracking/monatskarte.tsx|text-red-600
-src/components/time-tracking/vacation-request-modal.tsx|text-red-600
-src/components/ui/database/accents.ts|border-amber-300 border-amber-500 border-blue-300 border-blue-500 border-green-300 border-green-500 border-indigo-300 border-indigo-500 border-orange-300 border-orange-500 border-pink-300 border-pink-500 border-purple-300 border-purple-500 border-red-300 border-red-500 border-yellow-300 border-yellow-500 from-amber-500 from-amber-600 from-blue-500 from-blue-600 from-green-500 from-green-600 from-indigo-500 from-indigo-600 from-orange-500 from-orange-600 from-pink-500 from-pink-600 from-purple-500 from-purple-600 from-red-500 from-red-600 from-yellow-500 from-yellow-600 ring-amber-500 ring-blue-500 ring-green-500 ring-indigo-500 ring-orange-500 ring-pink-500 ring-purple-500 ring-red-500 ring-yellow-500 text-amber-500 text-amber-600:2 text-blue-500 text-blue-600:2 text-green-500 text-green-600:2 text-indigo-500 text-indigo-600:2 text-orange-500 text-orange-600:2 text-pink-500 text-pink-600:2 text-purple-500 text-purple-600:2 text-red-500 text-red-600:2 text-yellow-500 text-yellow-600:2 to-amber-600 to-amber-700 to-blue-600 to-blue-700 to-green-600 to-green-700 to-indigo-600 to-indigo-700 to-orange-600 to-orange-700 to-purple-600 to-purple-700 to-red-600 to-red-700 to-rose-600 to-rose-700 to-yellow-600 to-yellow-700
-src/components/ui/database/database-form.tsx|bg-blue-100 bg-blue-200 bg-blue-300 border-red-400 text-blue-600 text-blue-700 text-blue-800 text-red-600:2
-src/components/ui/database/database-select.tsx|text-red-600
-src/components/ui/date-picker.tsx|text-blue-600:2
-src/components/ui/detail-modal-components.tsx|bg-amber-50/30 bg-blue-50/30 bg-green-50/30 bg-indigo-50/30 bg-orange-50/30 bg-purple-50/30 bg-red-50/30 text-amber-600 text-blue-600 text-green-600 text-indigo-600 text-orange-600 text-purple-600 text-red-600
-src/components/ui/forbidden-page.tsx|bg-red-50/50 border-red-200/50 text-red-600 text-red-700 text-red-900
-src/components/ui/input.tsx|text-red-600
-src/components/ui/page-header/ActiveFilterChips.tsx|bg-blue-100 text-blue-600 text-blue-700:2 text-blue-900
-src/components/ui/page-header/DesktopFilters.tsx|ring-blue-500
-src/components/ui/page-header/FilterPanel.tsx|bg-blue-50 ring-blue-200 text-blue-500 text-blue-700
-src/components/ui/page-header/OverflowMenu.tsx|ring-blue-500/50 text-red-600
-src/components/ui/page-header/PageHeaderWithSearch.tsx|bg-blue-50:2 ring-blue-200:2 text-blue-700:2
-src/components/ui/password-change-modal.tsx|bg-blue-50 border-blue-200 border-red-400:3 text-red-600:3
-src/components/ui/textarea.tsx|text-red-600
-src/lib/activity-helpers.ts|from-blue-500 from-green-500 from-green-600 from-orange-500 from-pink-500 from-purple-500 from-red-500 from-yellow-500 to-amber-600 to-emerald-600 to-indigo-600 to-orange-600 to-pink-600:2 to-rose-600 to-teal-600
-src/lib/dashboard-helpers.ts|bg-amber-500:2 bg-blue-500 bg-green-500:2 bg-orange-500
-src/lib/database/themes.tsx|bg-amber-50 bg-blue-50 bg-green-50 bg-indigo-50 bg-orange-50 bg-purple-50 border-amber-200 border-blue-200 border-green-200 border-indigo-200 border-orange-200 border-purple-200 from-amber-400 from-amber-500 from-green-400 from-green-500 from-indigo-500:2 from-orange-500 from-pink-500 from-purple-400:2 from-purple-500 from-teal-400 from-teal-500 text-amber-800 text-blue-800 text-green-800 text-indigo-800 text-orange-800 text-purple-800 text-red-800 to-blue-500 to-blue-600 to-emerald-500 to-emerald-600 to-indigo-500:2 to-indigo-600:2 to-orange-600 to-purple-600 to-red-600 to-rose-600 to-yellow-500
-src/lib/iot-helpers.ts|bg-green-100:2 bg-red-100:2 bg-yellow-100 text-green-800:2 text-red-800:2 text-yellow-800
-src/lib/staff-helpers.ts|from-green-50/80 from-red-50/80 from-sky-50/80 to-emerald-100/80 to-rose-100/80 to-sky-100/80
-`);
-
-const OVERLAY_BASELINE_FILES = new Set([
-  "src/app/operator/devices/page.tsx",
-  "src/app/operator/persons/page.tsx",
-  "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/app/operator/unregistered-tags/page.tsx",
-  "src/components/auth/mfa-admin-override-modal.tsx",
-  "src/components/background-wrapper.tsx",
-  "src/components/dashboard/header/profile-dropdown.tsx",
-  "src/components/enrollment/admin-enrollment-detail.tsx",
-  "src/contexts/ToastContext.tsx",
-]);
-
-const OVERLAY_BASELINE = new Map([
-  ["src/app/operator/devices/page.tsx", 1],
+// Filled by the ratchet introduction (issue #2933): per-file count of
+// hand-rolled surfaces existing at rule-introduction time. Shrink-only.
+const SURFACE_BASELINE = new Map([
+  ["src/app/[tenant]/(protected)/activities/page.tsx", 1],
+  ["src/app/[tenant]/(protected)/database/page-skeleton.tsx", 1],
+  ["src/app/[tenant]/(protected)/database/page.tsx", 1],
+  ["src/app/[tenant]/(protected)/database/personal/import/page.tsx", 4],
+  ["src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx", 7],
+  ["src/app/[tenant]/(protected)/database/students/class-list/import/page.tsx", 1],
+  ["src/app/[tenant]/(protected)/database/students/import/page.tsx", 4],
+  ["src/app/[tenant]/(protected)/day-log/page.tsx", 1],
+  ["src/app/[tenant]/(protected)/info-displays/page.tsx", 1],
+  ["src/app/[tenant]/(protected)/lists/page.tsx", 5],
+  ["src/app/[tenant]/(protected)/meal-plan/page.tsx", 1],
+  ["src/app/[tenant]/(protected)/messages/[threadId]/page.tsx", 1],
+  ["src/app/[tenant]/(protected)/messages/page-skeleton.tsx", 1],
+  ["src/app/[tenant]/(protected)/messages/page.tsx", 1],
+  ["src/app/[tenant]/(protected)/reminders/page.tsx", 2],
+  ["src/app/[tenant]/(protected)/rooms/page.tsx", 2],
+  ["src/app/[tenant]/(protected)/staff/page-skeleton.tsx", 1],
+  ["src/app/[tenant]/(protected)/staff/page.tsx", 1],
+  ["src/app/[tenant]/(protected)/students/[id]/page-skeleton.tsx", 1],
+  ["src/app/[tenant]/(protected)/time-tracking/page.tsx", 1],
+  ["src/app/[tenant]/(public)/enroll/page.tsx", 1],
+  ["src/app/help/nfc/erste-schritte/page.tsx", 1],
+  ["src/app/operator/announcements/page.tsx", 1],
+  ["src/app/operator/email-confirm/email-confirm-content.tsx", 3],
+  ["src/app/operator/operators/page.tsx", 3],
+  ["src/app/operator/organizations/[slug]/page.tsx", 1],
+  ["src/app/operator/organizations/[slug]/schools/[schoolSlug]/page.tsx", 2],
+  ["src/app/operator/organizations/page.tsx", 1],
   ["src/app/operator/persons/page.tsx", 1],
-  ["src/app/operator/provisioning/soft-delete-shared.tsx", 1],
-  ["src/app/operator/unregistered-tags/page.tsx", 1],
-  ["src/components/auth/mfa-admin-override-modal.tsx", 1],
-  ["src/components/background-wrapper.tsx", 1],
+  ["src/app/operator/schools/[id]/settings/page.tsx", 1],
+  ["src/app/operator/settings/page.tsx", 2],
+  ["src/app/parents/accept-guardian-invite/[token]/page.tsx", 1],
+  ["src/app/start/page.tsx", 2],
+  ["src/components/active-supervisions/planned-now-section.tsx", 1],
+  ["src/components/active-supervisions/spontaneous-activity-start.tsx", 1],
+  ["src/components/activities/quick-create-modal.tsx", 2],
+  ["src/components/admin/guardian-approval-queue.tsx", 2],
+  ["src/components/admin/invitation-form.tsx", 1],
+  ["src/components/admin/pending-invitations-list.tsx", 2],
+  ["src/components/auth/auth-shell.tsx", 3],
+  ["src/components/auth/role-permission-management-modal.tsx", 1],
+  ["src/components/calendar/personal-calendar.tsx", 1],
+  ["src/components/class-day/student-row.tsx", 1],
   ["src/components/dashboard/header/profile-dropdown.tsx", 1],
-  ["src/components/enrollment/admin-enrollment-detail.tsx", 1],
-  ["src/contexts/ToastContext.tsx", 2],
+  ["src/components/dashboard/header/reminders-bell.tsx", 1],
+  ["src/components/database/grade-transitions/transition-preview-modal.tsx", 3],
+  ["src/components/database/master-detail-layout.tsx", 3],
+  ["src/components/display/activities-panel.tsx", 2],
+  ["src/components/display/pickup-times-panel.tsx", 1],
+  ["src/components/display/room-occupancy-panel.tsx", 1],
+  ["src/components/enrollment/admin-enrollment-deletion-modal.tsx", 1],
+  ["src/components/enrollment/admin-enrollment-phase-detail.tsx", 3],
+  ["src/components/enrollment/admin-enrollments-list.tsx", 1],
+  ["src/components/enrollment/care-offerings-editor.tsx", 1],
+  ["src/components/enrollment/enrollment-form-editor.tsx", 7],
+  ["src/components/enrollment/enrollment-form.tsx", 3],
+  ["src/components/enrollment/enrollment-status-view.tsx", 7],
+  ["src/components/enrollment/phase-enrollment-actions.tsx", 1],
+  ["src/components/enrollment/phases-editor.tsx", 1],
+  ["src/components/enrollment/rollover-form.tsx", 1],
+  ["src/components/groups/group-transfer-modal.tsx", 1],
+  ["src/components/guardians/student-guardian-manager.tsx", 1],
+  ["src/components/help/guide-components.tsx", 8],
+  ["src/components/help/help-search.tsx", 2],
+  ["src/components/import/student-row-card.tsx", 1],
+  ["src/components/import/upload-section.tsx", 1],
+  ["src/components/messaging/team-chat-inbox.tsx", 1],
+  ["src/components/messaging/team-chat-skeletons.tsx", 1],
+  ["src/components/operator/account-tenant-access-modal.tsx", 2],
+  ["src/components/operator/entity-header-card.tsx", 1],
+  ["src/components/parent/child/child-day-card.tsx", 1],
+  ["src/components/parent/child/weekly-schedule-section.tsx", 1],
+  ["src/components/parent/language-switcher.tsx", 1],
+  ["src/components/parent/messages/parent-messages-page.tsx", 1],
+  ["src/components/parent/news/news-components.tsx", 4],
+  ["src/components/parent/news/parent-news-page.tsx", 1],
+  ["src/components/parent/ogs-conversation.tsx", 2],
+  ["src/components/parent/parent-enroll-picker.tsx", 2],
+  ["src/components/parent/parent-page.tsx", 1],
+  ["src/components/parent/start/parent-start-page.tsx", 1],
+  ["src/components/rooms/room-detail-content.tsx", 1],
+  ["src/components/rooms/students-in-room-section.tsx", 3],
+  ["src/components/rooms/transit-students-section.tsx", 3],
+  ["src/components/school/supervisions/supervisions-overview.tsx", 1],
+  ["src/components/settings/settings-field.tsx", 2],
+  ["src/components/settings/trusted-devices-section.tsx", 1],
+  ["src/components/staff/abwesenheiten-tab.tsx", 6],
+  ["src/components/staff/arbeitszeitmodell-tab.tsx", 2],
+  ["src/components/staff/month-close-modal.tsx", 1],
+  ["src/components/staff/staff-export-button.tsx", 1],
+  ["src/components/staff/stundenkonto-panel.tsx", 4],
+  ["src/components/staff/use-absence-type-select.tsx", 1],
+  ["src/components/students/care-exit-modal.tsx", 1],
+  ["src/components/students/care-plan-editor-modal.tsx", 2],
+  ["src/components/students/care-plan-view.tsx", 1],
+  ["src/components/students/care-resume-modal.tsx", 1],
+  ["src/components/students/care-schedule-manager.tsx", 1],
+  ["src/components/students/care-weekly-plan-modal.tsx", 1],
+  ["src/components/students/requests/conflict-decision-group.tsx", 1],
+  ["src/components/students/school-checkin-mode-mobile.tsx", 1],
+  ["src/components/students/student-card-skeleton.tsx", 1],
+  ["src/components/students/student-card.tsx", 1],
+  ["src/components/students/student-deletion-modal.tsx", 1],
+  ["src/components/students/student-export-modal.tsx", 2],
+  ["src/components/students/student-form-fields.tsx", 1],
+  ["src/components/time-tracking/leave-requests-card.tsx", 1],
+  ["src/components/time-tracking/vacation-request-modal.tsx", 4],
+  ["src/components/timetable/betreuungsplan-skeleton.tsx", 2],
+  ["src/components/timetable/bulk-substitution-modal.tsx", 1],
+  ["src/components/timetable/calendar-period-modal.tsx", 1],
+  ["src/components/timetable/event-form/weekday-roster-section.tsx", 1],
+  ["src/components/timetable/staff-pool-slide-over.tsx", 1],
+  ["src/components/timetable/substitution-person-card.tsx", 1],
+  ["src/components/timetable/substitution-slide-over.tsx", 2],
+  ["src/components/timetable/tagesplan-view.tsx", 1],
+  ["src/components/timetable/timetable-style.ts", 3],
+  ["src/components/timetable/weekly-calendar-grid.tsx", 1],
 ]);
 
 const BRAND_COLOR_RE =
-  /\b(?:text|bg|border|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+(?:\/(?:\d+|\[[^\]\s]+\]))?(?![\w-])/g;
+  /\b(?:text|bg|border(?:-[trblxyse])?|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+(?:\/(?:\d+|\[[^\]\s]+\]))?(?![\w-])/g;
 const FIXED_RE = /\bfixed\b/;
 const INSET_0_RE = /\binset-0\b/;
+const SURFACE_ROUNDED_RE = /\brounded-(?:xl|2xl)\b/;
+const SURFACE_BORDER_RE = /\bborder\b/;
+const SURFACE_BG_RE = /\bbg-white\b/;
 const ROUNDED_3XL_RE = /\brounded-3xl\b/g;
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
@@ -320,27 +166,6 @@ function fileKey(context) {
   const posix = raw.replaceAll("\\", "/");
   const idx = posix.lastIndexOf("/src/");
   return idx === -1 ? posix : posix.slice(idx + 1);
-}
-
-/**
- * Parse compact `token[:count]` rows into a per-file match baseline.
- */
-function parseMatchBaseline(source) {
-  return new Map(
-    source
-      .trim()
-      .split("\n")
-      .map((row) => {
-        const [file, encoded] = row.split("|");
-        const matches = new Map(
-          encoded.split(" ").map((entry) => {
-            const parsed = /^(.*?)(?::(\d+))?$/.exec(entry);
-            return [parsed[1], Number(parsed[2] ?? 1)];
-          }),
-        );
-        return [file, matches];
-      }),
-  );
 }
 
 function collectStaticStrings(node, chunks, seen = new WeakSet()) {
@@ -428,28 +253,11 @@ function classCombinations(node, seen = new WeakSet()) {
   return combos;
 }
 
-function consumeBaselineMatch(seenMatches, baseline, key, match) {
-  const nextCount = (seenMatches.get(match) ?? 0) + 1;
-  seenMatches.set(match, nextCount);
-  return nextCount <= (baseline.get(key)?.get(match) ?? 0);
-}
-
-function restrictMatchBaseline(baselineFiles, baseline) {
-  return new Map([...baseline].filter(([file]) => baselineFiles.has(file)));
-}
-
 /**
- * Builds a rule that reports string/template-literal chunks matching `regex`,
- * except for individual legacy matches recorded in the shrink-only baseline.
+ * Builds a hard-zero rule that reports string/template-literal chunks matching
+ * `regex`.
  */
-function makeClassStringRule({
-  regex,
-  baseline,
-  skipUiKit,
-  docs,
-  messageId,
-  message,
-}) {
+function makeClassStringRule({ regex, skipUiKit, docs, messageId, message }) {
   return {
     meta: {
       type: "problem",
@@ -462,14 +270,11 @@ function makeClassStringRule({
       if (!key.startsWith("src/")) return {};
       if (EXEMPT_FILE_RE.test(key)) return {};
       if (skipUiKit && key.startsWith(UI_KIT_DIR)) return {};
-      const seenMatches = new Map();
 
       const check = (node, text) => {
         regex.lastIndex = 0;
         for (const match of text.matchAll(regex)) {
-          if (!consumeBaselineMatch(seenMatches, baseline, key, match[0])) {
-            context.report({ node, messageId, data: { match: match[0] } });
-          }
+          context.report({ node, messageId, data: { match: match[0] } });
         }
       };
 
@@ -489,15 +294,11 @@ function makeClassStringRule({
 
 const noGenericBrandColors = makeClassStringRule({
   regex: BRAND_COLOR_RE,
-  baseline: restrictMatchBaseline(
-    GENERIC_BRAND_COLOR_BASELINE_FILES,
-    GENERIC_BRAND_COLOR_BASELINE,
-  ),
   skipUiKit: false,
   docs: "Disallow generic Tailwind brand-color utilities; brand semantics use the LOCATION_COLORS hexes or a kit component.",
   messageId: "genericBrandColor",
   message:
-    "Generic Tailwind hue '{{match}}…' is not a brand color. Use the hex from LOCATION_COLORS (~/lib/location-helper) via bg-[#…], or a kit component (see .claude/rules/frontend-ui-kit.md). The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only.",
+    "Generic Tailwind hue '{{match}}…' is not a brand color. Use a moto-* semantic token, LOCATION_COLORS (~/lib/location-helper), or a kit component (see .claude/rules/frontend-ui-kit.md).",
 });
 
 const noHandRolledOverlay = {
@@ -509,7 +310,7 @@ const noHandRolledOverlay = {
     },
     messages: {
       handRolledOverlay:
-        "Hand-rolled full-screen overlay ('{{match}}'). Use the kit Modal / Drawer / OverflowMenu instead of a bespoke fixed inset-0 layer. The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only.",
+        "Hand-rolled full-screen overlay ('{{match}}'). Use the kit Modal / Drawer / OverflowMenu instead of a bespoke fixed inset-0 layer.",
     },
     schema: [],
   },
@@ -519,22 +320,13 @@ const noHandRolledOverlay = {
     if (EXEMPT_FILE_RE.test(key)) return {};
     if (key.startsWith(UI_KIT_DIR)) return {};
 
-    const baseline = OVERLAY_BASELINE_FILES.has(key)
-      ? (OVERLAY_BASELINE.get(key) ?? 0)
-      : 0;
-    let seenMatches = 0;
-
     const check = (node, text) => {
       if (!FIXED_RE.test(text) || !INSET_0_RE.test(text)) return;
-
-      seenMatches += 1;
-      if (seenMatches > baseline) {
-        context.report({
-          node,
-          messageId: "handRolledOverlay",
-          data: { match: "fixed … inset-0" },
-        });
-      }
+      context.report({
+        node,
+        messageId: "handRolledOverlay",
+        data: { match: "fixed … inset-0" },
+      });
     };
 
     return {
@@ -570,9 +362,77 @@ const noHandRolledOverlay = {
   },
 };
 
+const isSurfaceCombo = (text) =>
+  SURFACE_ROUNDED_RE.test(text) &&
+  SURFACE_BORDER_RE.test(text) &&
+  SURFACE_BG_RE.test(text);
+
+const noHandRolledSurface = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface or a kit surface component (InfoCard, SectionCard).",
+    },
+    messages: {
+      handRolledSurface:
+        "Hand-rolled card surface ('{{match}}'). Use the moto-content-surface utility or a kit surface component (InfoCard, SectionCard) instead. The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only (issue #2933).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key)) return {};
+    if (key.startsWith(UI_KIT_DIR)) return {};
+
+    const baseline = SURFACE_BASELINE.get(key) ?? 0;
+    let seenMatches = 0;
+
+    const check = (node, text) => {
+      if (!isSurfaceCombo(text)) return;
+
+      seenMatches += 1;
+      if (seenMatches > baseline) {
+        context.report({
+          node,
+          messageId: "handRolledSurface",
+          data: { match: "rounded-xl/2xl … border … bg-white" },
+        });
+      }
+    };
+
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) {
+          check(node, quasi.value.raw);
+        }
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => isSurfaceCombo(chunk))) {
+          return; // already reported by the Literal/TemplateLiteral visitors
+        }
+        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        const rendered = combos.find((combo) => isSurfaceCombo(combo));
+        if (rendered !== undefined) check(node, rendered);
+      },
+    };
+  },
+};
+
 const noRounded3xl = makeClassStringRule({
   regex: ROUNDED_3XL_RE,
-  baseline: new Map(),
   skipUiKit: false,
   docs: "Disallow rounded-3xl surfaces; the canonical card radius is rounded-2xl (moto-content-surface).",
   messageId: "rounded3xl",
@@ -626,6 +486,7 @@ export default {
   rules: {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-hand-rolled-overlay": noHandRolledOverlay,
+    "no-hand-rolled-surface": noHandRolledSurface,
     "no-rounded-3xl": noRounded3xl,
     "require-checkbox-label": requireCheckboxLabel,
   },

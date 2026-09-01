@@ -190,7 +190,7 @@ describe("OverflowMenu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
     const item = screen.getByRole("menuitem", { name: /Löschen/i });
-    expect(item.className).toContain("text-red-600");
+    expect(item.className).toContain("text-moto-red");
   });
 
   it("anchors menu to the left when the trigger sits near the left edge", () => {

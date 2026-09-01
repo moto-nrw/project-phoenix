@@ -111,26 +111,33 @@ func (m *LegacyManifest) appendSorted(line int, entry LegacyEntry) error {
 }
 
 func (e LegacyEntry) Validate() error {
-	if !allowedScopes[string(e.Scope)] {
-		return fmt.Errorf("scope %q is invalid", e.Scope)
-	}
-	if !identifierPattern.MatchString(e.Rule) {
-		return fmt.Errorf("rule %q is invalid", e.Rule)
-	}
-	if err := validateExactLegacyValue("source", e.Source); err != nil {
+	if err := validateLegacyViolationFields(e.Violation); err != nil {
 		return err
-	}
-	if !isCanonicalPackage(e.Source) {
-		return fmt.Errorf("source %q must be an exact Go package path, not a package family or layer", e.Source)
-	}
-	if err := validateExactLegacyValue("target", e.Target); err != nil {
-		return err
-	}
-	if violationTargetsPackage(e.Rule) && !isCanonicalImportTarget(e.Target) {
-		return fmt.Errorf("target %q must be an exact Go package path, not a package family or layer", e.Target)
 	}
 	_, err := ParseGitHubIssue(e.Issue)
 	return err
+}
+
+func validateLegacyViolationFields(violation Violation) error {
+	if !allowedScopes[string(violation.Scope)] {
+		return fmt.Errorf("scope %q is invalid", violation.Scope)
+	}
+	if !identifierPattern.MatchString(violation.Rule) {
+		return fmt.Errorf("rule %q is invalid", violation.Rule)
+	}
+	if err := validateExactLegacyValue("source", violation.Source); err != nil {
+		return err
+	}
+	if !isCanonicalPackage(violation.Source) {
+		return fmt.Errorf("source %q must be an exact Go package path, not a package family or layer", violation.Source)
+	}
+	if err := validateExactLegacyValue("target", violation.Target); err != nil {
+		return err
+	}
+	if violationTargetsPackage(violation.Rule) && !isCanonicalImportTarget(violation.Target) {
+		return fmt.Errorf("target %q must be an exact Go package path, not a package family or layer", violation.Target)
+	}
+	return nil
 }
 
 func isCanonicalPackage(path string) bool {

@@ -36,6 +36,7 @@ func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.Recordi
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
+		SessionStartLock:   repos.SessionStartLock,
 		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
@@ -469,9 +470,8 @@ func assignStudentToEducationGroup(tb testing.TB, db *bun.DB, ctx context.Contex
 
 // checkOutFixturedStudent opens an attendance row for the student and closes it
 // through the real checkout path, so the roomless broadcast under test is the
-// one production emits. Returns nothing — the assertions read the broadcaster.
-// Returns the cleanup to defer.
-func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, studentID int64, label string) func() {
+// one production emits. The package clone owns the fixture rows.
+func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, studentID int64, label string) {
 	t.Helper()
 
 	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "Staff"+label)
@@ -482,7 +482,6 @@ func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, stude
 	_, err := svc.CheckOutStudent(testpkg.Ctx(t), studentID, staff.ID, true)
 	require.NoError(t, err)
 
-	return func() { testpkg.CleanupActivityFixtures(t, db, staff.ID, iotDevice.ID) }
 }
 
 // TestBroadcast_RoomlessCheckoutSendsDashboardCounts covers the scope fallback:
@@ -497,7 +496,7 @@ func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckout", "3a")
 
-	defer checkOutFixturedStudent(t, db, svc, student.ID, "NoGroup")()
+	checkOutFixturedStudent(t, db, svc, student.ID, "NoGroup")
 
 	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, counts, 1, "expected dashboard_counts_changed after the checkout")
@@ -515,7 +514,7 @@ func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "RoomlessCheckoutGrp", "3b")
 	assignStudentToEducationGroup(t, db, context.Background(), student.ID, eduGroup.ID)
 
-	defer checkOutFixturedStudent(t, db, svc, student.ID, "WithGroup")()
+	checkOutFixturedStudent(t, db, svc, student.ID, "WithGroup")
 
 	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
 	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)

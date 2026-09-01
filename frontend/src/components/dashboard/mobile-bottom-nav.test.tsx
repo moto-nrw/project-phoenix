@@ -83,6 +83,10 @@ vi.mock("~/lib/shell-auth-context", () => ({
   })),
 }));
 
+vi.mock("~/lib/hooks/use-change-request-access", () => ({
+  useChangeRequestAccess: vi.fn(),
+}));
+
 vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
@@ -99,6 +103,7 @@ import {
   isCaregiver,
 } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -118,6 +123,7 @@ const mockIsCaregiver = vi.mocked(isCaregiver);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
+const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
@@ -208,6 +214,9 @@ describe("MobileBottomNav", () => {
     mockUseTenantRoutingModeSafe.mockReturnValue("path");
     mockUseTenantSlugSafe.mockReturnValue("test-tenant");
     mockUseStaffMessagingEnabled.mockReturnValue(false);
+    mockUseChangeRequestAccess.mockReturnValue({
+      canOpenRequestsPage: false,
+    } as ReturnType<typeof useChangeRequestAccess>);
   });
 
   describe("rendering", () => {
@@ -298,6 +307,9 @@ describe("MobileBottomNav", () => {
       mockHasPermission.mockImplementation(
         (_session, permission) => permission === "vacation:approve",
       );
+      mockUseChangeRequestAccess.mockReturnValue({
+        canOpenRequestsPage: true,
+      } as ReturnType<typeof useChangeRequestAccess>);
 
       render(<MobileBottomNav />);
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
@@ -306,6 +318,17 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/anfragen",
       );
+    });
+
+    it("hides Anfragen without a current effective review scope", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "users:update",
+      );
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.queryByText("Anfragen")).not.toBeInTheDocument();
     });
 
     it("prefixes the Team-Chat overflow link in path-routing mode", () => {
@@ -437,9 +460,9 @@ describe("MobileBottomNav", () => {
       // Admin-only items should be visible in the drawer
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Vertretung")).toBeInTheDocument();
+      expect(screen.getByText("Terminvertretungen")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
-      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
@@ -506,10 +529,9 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/dienstplan",
       );
-      expect(screen.getByText("Vertretung").closest("a")).toHaveAttribute(
-        "href",
-        "/test-tenant/vertretung",
-      );
+      expect(
+        screen.getByText("Terminvertretungen").closest("a"),
+      ).toHaveAttribute("href", "/test-tenant/vertretung");
     });
 
     it("keeps planning links bare in subdomain mode", () => {
@@ -526,10 +548,9 @@ describe("MobileBottomNav", () => {
         "href",
         "/dienstplan",
       );
-      expect(screen.getByText("Vertretung").closest("a")).toHaveAttribute(
-        "href",
-        "/vertretung",
-      );
+      expect(
+        screen.getByText("Terminvertretungen").closest("a"),
+      ).toHaveAttribute("href", "/vertretung");
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
@@ -680,6 +701,77 @@ describe("MobileBottomNav", () => {
         .map((link) => link.getAttribute("href"));
       expect(hrefs).not.toContain("/activities");
       expect(hrefs).toContain("/ogs-groups");
+    });
+  });
+
+  // #2915: Räume, Aktivitäten und Aufsicht sperrt der BinaryModeGuard — die
+  // mobile Navigation muss sie unter derselben Regel ausblenden wie die
+  // Desktop-Sidebar, sonst führt der Eintrag auf eine 404-Seite.
+  describe("binary presence mode", () => {
+    beforeEach(() => {
+      mockUseNFCEnabled.mockReturnValue(true);
+      mockUsePresenceMode.mockReturnValue("binary");
+    });
+
+    it("hides Aufsicht from the staff main navigation", () => {
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+      expect(
+        screen.queryByRole("link", { name: "Aufsicht" }),
+      ).not.toBeInTheDocument();
+      expect(hrefs).toContain("/ogs-groups");
+    });
+
+    it("hides Aufsicht and Räume from the overflow menu", () => {
+      render(<MobileBottomNav />);
+
+      const moreButton = screen
+        .getAllByRole("button")
+        .find((btn) => !btn.hasAttribute("data-testid"));
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      const drawerHrefs = Array.from(
+        screen.getByTestId("drawer-content").querySelectorAll("a"),
+      ).map((link) => link.getAttribute("href"));
+      expect(drawerHrefs).not.toContain("/active-supervisions");
+      expect(drawerHrefs).not.toContain("/rooms");
+    });
+
+    it("hides the injected admin Aufsicht tab", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: true,
+        supervisedRooms: [{ id: "1", name: "Room A", groupId: "g1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    it("keeps Aufsicht visible in detailed presence mode", () => {
+      mockUsePresenceMode.mockReturnValue("detailed");
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/active-supervisions");
     });
   });
@@ -1147,15 +1239,25 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
     }
 
-    it("hides Gruppenzugriff for open-care tenants", () => {
+    it("keeps Vertretungen for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<MobileBottomNav />);
       openDrawer();
 
-      expect(screen.queryByText("Gruppenübergaben")).not.toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       // Planung-Einträge bleiben sichtbar (timetable.enabled ungesetzt).
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
+    });
+
+    it("shows Vertretungen to staff", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+
+      render(<MobileBottomNav />);
+      openDrawer();
+
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });
 
     it("hides the Gruppe main item for open-care staff (#1544)", () => {
@@ -1208,10 +1310,10 @@ describe("MobileBottomNav", () => {
 
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
-      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });
 
     it("reads timetable.enabled from the tenant-scoped SWR key", () => {

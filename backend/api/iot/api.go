@@ -23,7 +23,6 @@ import (
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	staffclockSvc "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
@@ -43,30 +42,40 @@ func delegateHandler(router chi.Router) http.HandlerFunc {
 
 // ServiceDependencies groups all service dependencies for the IoT resource
 type ServiceDependencies struct {
-	IoTService            iotSvc.Service
-	StaffPINAuthenticator authSvc.StaffPINAuthenticator
-	CheckinService        *checkinSvc.CheckinService
-	StaffClockService     *staffclockSvc.Service
-	UsersService          usersSvc.PersonService
-	ActiveService         activeSvc.Service
-	ActivitiesService     activitiesSvc.ActivityService
-	SettingsService       configSvc.SettingsService
-	FacilityService       facilitiesSvc.Service
-	EducationService      educationSvc.Service
-	FeedbackService       feedbackSvc.Service
-	PickupScheduleService scheduleSvc.PickupScheduleService
-	SchoolService         platformSvc.SchoolService
-	TimetableDataService  *scheduleSvc.TimetableDataService
-	TimetableBridge       *scheduleSvc.TimetableBridgeService
-	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
-	Broadcaster           realtime.Broadcaster
-	Logger                *slog.Logger
-	DB                    *bun.DB
+	IoTService               iotSvc.Service
+	StaffPINAuthenticator    authSvc.StaffPINAuthenticator
+	CheckinService           *checkinSvc.CheckinService
+	StaffClockService        *staffclockSvc.Service
+	UsersService             usersSvc.PersonService
+	ActiveService            activeSvc.Service
+	ActivitiesService        activitiesSvc.ActivityService
+	SettingsService          configSvc.SettingsService
+	FacilityService          facilitiesSvc.Service
+	EducationService         educationSvc.Service
+	FeedbackService          dataAPI.Feedback
+	FeedbackResponseObserver func(int, string)
+	PickupScheduleService    scheduleSvc.PickupScheduleService
+	SchoolService            platformSvc.SchoolService
+	TimetableDataService     *scheduleSvc.TimetableDataService
+	TimetableBridge          *scheduleSvc.TimetableBridgeService
+	UnregisteredTagScans     auditSvc.UnregisteredTagScanService
+	Broadcaster              realtime.Broadcaster
+	Logger                   *slog.Logger
+	DailyCheckoutFallback    string
+	DevicePINFallback        string
+	DB                       *bun.DB
+	DeviceLastSeenDebouncer  *device.LastSeenDebouncer
 }
 
 // Resource defines the IoT API resource
 type Resource struct {
 	ServiceDependencies
+}
+
+// NewDeviceLastSeenDebouncer creates the shared debounce state for device
+// routes mounted by the API composition root.
+func NewDeviceLastSeenDebouncer() *device.LastSeenDebouncer {
+	return device.NewLastSeenDebouncer()
 }
 
 // NewResource creates a new IoT resource
@@ -117,7 +126,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps the handler in a tenant-scoped transaction
 	// so downstream queries run as phoenix_tenant with RLS enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolService))
+		r.Use(device.DeviceOnlyAuthenticatorWithDebouncer(rs.IoTService, rs.SchoolService, rs.DeviceLastSeenDebouncer))
 		r.Use(iotMetricsMiddleware)
 		r.Use(common.TenantTxMiddleware)
 
@@ -137,11 +146,13 @@ func (rs *Resource) Router() chi.Router {
 	// binds staff identity to a verified account PIN. TenantTxMiddleware then
 	// wraps each handler in a tenant-scoped transaction.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(
+		r.Use(device.DeviceAuthenticatorWithDebouncer(
 			rs.IoTService,
 			rs.SchoolService,
 			rs.StaffPINAuthenticator,
 			rs.pinResolver(),
+			rs.DevicePINFallback,
+			rs.DeviceLastSeenDebouncer,
 		))
 		r.Use(iotMetricsMiddleware)
 		r.Use(common.TenantTxMiddleware)
@@ -171,7 +182,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/staff-clock/state", staffClockHandler)
 
 		// Feedback endpoint (device-based feedback submission)
-		feedbackResource := dataAPI.NewFeedbackResource(rs.IoTService, rs.UsersService, rs.FeedbackService, rs.SettingsService)
+		feedbackResource := dataAPI.NewFeedbackResource(rs.UsersService, rs.FeedbackService, rs.FeedbackResponseObserver, rs.getLogger().With(slog.String("sub", "feedback")))
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)

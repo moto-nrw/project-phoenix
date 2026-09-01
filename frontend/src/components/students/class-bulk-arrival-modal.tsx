@@ -291,7 +291,7 @@ export function FilteredBulkArrivalModal({
                 key={day.value}
                 className={cn(
                   "grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5",
-                  invalid && "border-red-300 bg-red-50",
+                  invalid && "border-moto-red/30 bg-moto-red-soft",
                 )}
               >
                 <label
@@ -316,7 +316,7 @@ export function FilteredBulkArrivalModal({
                   className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:ring-2 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                 />
                 {invalid ? (
-                  <span className="col-start-2 text-xs text-red-600">
+                  <span className="text-moto-red col-start-2 text-xs">
                     Format HH:MM
                   </span>
                 ) : value === "" ? (

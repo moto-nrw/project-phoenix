@@ -101,6 +101,13 @@ export interface TenantInfo {
    */
   parentRequestReasonPolicy?: ParentRequestReasonPolicy;
   showTimetableCounts?: boolean;
+  /**
+   * Whether the Betreuungsplan is enabled at this school (timetable.enabled,
+   * #2383). The post-login redirect sends Betreuungskräfte to the Tagesplan
+   * only when the school actually plans; a missing field (older backend)
+   * reads as enabled — the registry default.
+   */
+  timetableEnabled?: boolean;
   waitlistEnabled?: boolean;
   /**
    * Whether the printed Notfallliste carries the children's stored health
@@ -150,6 +157,7 @@ interface TenantResolveResponse {
   operational_overview_scope?: string;
   parent_request_reason_policy?: string;
   show_timetable_counts?: boolean;
+  timetable_enabled?: boolean;
   waitlist_enabled?: boolean;
   emergency_list_health_info_enabled?: boolean;
   grade_level_max: number;
@@ -245,6 +253,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
         data.parent_request_reason_policy,
       ),
       showTimetableCounts: data.show_timetable_counts !== false,
+      timetableEnabled: data.timetable_enabled !== false,
       waitlistEnabled: data.waitlist_enabled !== false,
       emergencyHealthInfoEnabled:
         data.emergency_list_health_info_enabled === true,

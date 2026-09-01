@@ -14,9 +14,10 @@ import (
 )
 
 func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
-	config.ResetRegistry()
-	t.Cleanup(config.ResetRegistry)
-	registerTestSetting("test.multi_tenant", config.FieldText, "default")
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	registry := config.NewRegistry()
+	registerTestSetting(registry, "test.multi_tenant", config.FieldText, "default")
 
 	db := testpkg.SetupTestDB(t)
 	tenantA := testpkg.UniqueTestTenantID(t)
@@ -43,7 +44,7 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 	})
 
 	selectCount := testpkg.CaptureSettingValueSelects(db)
-	service := NewSettingsService(repository, nil, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	service := NewSettingsService(repository, nil, nil, testpkg.SettingsRuntime(t, db), slog.Default(), registry)
 	testpkg.SetTenantRuntime(t, service, db)
 	batch, ok := service.(BatchSettingsService)
 	require.True(t, ok)
@@ -66,9 +67,9 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 }
 
 func TestEnrollmentEnabledForTenantsPreservesOverrideAndDefault(t *testing.T) {
-	config.ResetRegistry()
-	t.Cleanup(config.ResetRegistry)
-	registerTestSetting(config.KeyEnrollmentEnabled, config.FieldBoolean, false)
+	t.Parallel()
+	registry := config.NewRegistry()
+	registerTestSetting(registry, config.KeyEnrollmentEnabled, config.FieldBoolean, false)
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
@@ -81,17 +82,17 @@ func TestEnrollmentEnabledForTenantsPreservesOverrideAndDefault(t *testing.T) {
 	override.SetTenantID(tenantA)
 	require.NoError(t, repository.Upsert(context.Background(), override))
 
-	service := NewSettingsService(repository, nil, nil, testSettingsRuntime{}, slog.Default())
+	service := NewSettingsService(repository, nil, nil, testSettingsRuntime{}, slog.Default(), registry)
 	values, err := service.EnrollmentEnabledForTenants(context.Background(), []int64{tenantA, tenantB})
 	require.NoError(t, err)
 	assert.Equal(t, map[int64]bool{tenantA: true, tenantB: false}, values)
 }
 
 func TestEnrollmentEnabledForTenantsFailsWhenDefinitionIsMissing(t *testing.T) {
-	config.ResetRegistry()
-	t.Cleanup(config.ResetRegistry)
+	t.Parallel()
+	registry := config.NewRegistry()
 
-	service := NewSettingsService(newInMemoryValueRepo(), nil, nil, testSettingsRuntime{}, slog.Default())
+	service := NewSettingsService(newInMemoryValueRepo(), nil, nil, testSettingsRuntime{}, slog.Default(), registry)
 
 	_, err := service.EnrollmentEnabledForTenants(context.Background(), []int64{41})
 	var missing *DefinitionNotFoundError

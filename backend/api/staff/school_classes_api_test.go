@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,7 +70,8 @@ func TestSchoolClassesAPI_UnknownStaff(t *testing.T) {
 	ghostID := ghost.ID
 	// Deleting the staff row is the ARRANGE step: both endpoints must answer
 	// 404 for an ID that no longer exists. Not a teardown (#2419).
-	testpkg.CleanupStaffFixtures(t, ctx.tc.db, ghost.ID)
+	repos := repositories.NewFactory(ctx.tc.db)
+	require.NoError(t, repos.Staff.Delete(testpkg.Ctx(t), ghost.ID))
 	base := fmt.Sprintf("/staff/%d/school-classes", ghostID)
 
 	rec := ctx.get(base, "users:read")

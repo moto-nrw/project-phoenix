@@ -64,7 +64,7 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), func() time.Time {
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
@@ -170,7 +170,7 @@ func (e *sickCascadeEnv) reloadRow(t *testing.T, id int64) *scheduleModels.Insta
 
 func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to timezone.Date, eventType string) []*auditModels.DeviationEvent {
 	t.Helper()
-	events, err := e.repos.DeviationEvent.ListByRange(e.ctx, from, to, nil, nil)
+	events, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(from), auditModels.Date(to), nil, nil)
 	require.NoError(t, err)
 	var filtered []*auditModels.DeviationEvent
 	for _, ev := range events {
@@ -843,7 +843,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, clearableInstance.UnderstaffedAck)
 	assert.Nil(t, clearableInstance.UnderstaffedNote)
-	allEvents, err := e.repos.DeviationEvent.ListByRange(e.ctx, tomorrow, tomorrow, nil, nil)
+	allEvents, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(tomorrow), auditModels.Date(tomorrow), nil, nil)
 	require.NoError(t, err)
 	var unackEvents []*auditModels.DeviationEvent
 	for _, event := range allEvents {

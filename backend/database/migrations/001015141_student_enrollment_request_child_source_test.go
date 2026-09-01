@@ -11,11 +11,12 @@ import (
 )
 
 func TestStudentEnrollmentRequestChildSourceDoesNotBackfillAmbiguousManualRows(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Manual", "Roster", "2a")
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "ManualRoster")
@@ -38,11 +39,12 @@ func TestStudentEnrollmentRequestChildSourceDoesNotBackfillAmbiguousManualRows(t
 }
 
 func TestStudentEnrollmentRequestChildSourceBackfillsUnambiguousApprovalRows(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Legacy", "Roster", "2a")
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "LegacyRoster")

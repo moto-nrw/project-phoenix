@@ -820,14 +820,14 @@ func TestPasskeyRepositories(t *testing.T) {
 
 	sessionID := "test-passkey-session-" + suffix
 	session := &authModel.PasskeySession{
-		ID:             sessionID,
-		AccountID:      &account.ID,
-		TenantID:       &scope.TenantID,
-		Purpose:        authModel.PasskeySessionPurposeRegistration,
-		RPID:           "localhost",
-		ExpectedOrigin: "http://localhost:3000",
-		SessionJSON:    json.RawMessage(`{"challenge":"abc"}`),
-		ExpiresAt:      time.Now().Add(time.Hour),
+		StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: sessionID},
+		AccountID:                    &account.ID,
+		TenantID:                     &scope.TenantID,
+		Purpose:                      authModel.PasskeySessionPurposeRegistration,
+		RPID:                         "localhost",
+		ExpectedOrigin:               "http://localhost:3000",
+		SessionJSON:                  json.RawMessage(`{"challenge":"abc"}`),
+		ExpiresAt:                    time.Now().Add(time.Hour),
 	}
 	require.NoError(t, repos.PasskeySession.Create(ctx, session))
 
@@ -839,14 +839,14 @@ func TestPasskeyRepositories(t *testing.T) {
 
 	expiredID := "test-passkey-expired-" + suffix
 	require.NoError(t, repos.PasskeySession.Create(ctx, &authModel.PasskeySession{
-		ID:             expiredID,
-		AccountID:      &account.ID,
-		TenantID:       &scope.TenantID,
-		Purpose:        authModel.PasskeySessionPurposeLogin,
-		RPID:           "localhost",
-		ExpectedOrigin: "http://localhost:3000",
-		SessionJSON:    json.RawMessage(`{"challenge":"expired"}`),
-		ExpiresAt:      time.Now().Add(-time.Hour),
+		StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: expiredID},
+		AccountID:                    &account.ID,
+		TenantID:                     &scope.TenantID,
+		Purpose:                      authModel.PasskeySessionPurposeLogin,
+		RPID:                         "localhost",
+		ExpectedOrigin:               "http://localhost:3000",
+		SessionJSON:                  json.RawMessage(`{"challenge":"expired"}`),
+		ExpiresAt:                    time.Now().Add(-time.Hour),
 	}))
 	deleted, err := repos.PasskeySession.DeleteExpired(ctx, time.Now())
 	require.NoError(t, err)

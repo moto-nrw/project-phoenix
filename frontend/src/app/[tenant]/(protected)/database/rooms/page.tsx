@@ -391,8 +391,8 @@ function RoomsPageContent() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="border-moto-red/20 bg-moto-red-soft mb-6 rounded-lg border p-4">
+          <p className="text-moto-red-strong text-sm">{error}</p>
         </div>
       )}
 
@@ -446,7 +446,7 @@ function RoomsPageContent() {
           title="Raum löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
+          confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
         >
           <p className="text-sm text-gray-700">
             Möchten Sie den Raum{" "}

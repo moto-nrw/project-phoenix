@@ -136,7 +136,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     icon: LayoutDashboard,
     points: [
       "Alle Kinder, Aufsicht, Räume, Mitarbeiter",
-      "Planung: Betreuungsplan, Dienstplan und Vertretung",
+      "Planung: Betreuungsplan, Dienstplan und Terminvertretungen",
       "Datenverwaltung, Anmeldungen, Einstellungen",
     ],
   },
@@ -845,6 +845,32 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/meine-gruppen.webp",
       },
       {
+        id: "tagesplan",
+        title: "Tagesplan",
+        searchTerms: ["Tages-Betreuungsplan", "Einstieg", "Startseite"],
+        icon: Clock3,
+        summary:
+          "Der Einstieg in den Betreuungstag: alle Betreuungsblöcke von heute in zeitlicher Reihenfolge – vergangene, laufende und kommende. Von hier aus öffnen Sie mit einem Tipp die Kinderliste des laufenden Blocks.",
+        steps: [
+          "Nach dem Anmelden landen Betreuungskräfte direkt auf dem Tagesplan. Er ist Ihre Startseite: `Tagesplan` steht ganz oben in der Seitenleiste, am Handy ist es der erste Reiter unten. Auch ein Tipp auf das Schul-Logo führt hierher.",
+          "Jeder Block zeigt Zeit, Namen, Raum, Zielgruppe und das eingeteilte Personal. Die Farbe am Rand ist die Farbe aus der Planung.",
+          "Die grüne Linie `Jetzt` markiert die aktuelle Uhrzeit. Laufende Blöcke tragen das Etikett `Läuft`.",
+          "Einen laufenden Block antippen: Sie landen in seiner Kinderliste in `Aktuelle Aufsicht` und können dort Kinder an-, ab- und ummelden.",
+          "Einen eigenen, noch nicht gestarteten Block starten Sie mit `Starten`. Danach öffnet sich seine Kinderliste.",
+          "Abgesagte Blöcke tragen `Fällt aus` mit dem Grund. Beendete Blöcke tragen `Beendet`. Beide sind nur zur Ansicht.",
+          "Mit den Pfeilen oben blättern Sie zu anderen Schultagen; `Heute` führt zurück zum aktuellen Tag.",
+          "Über die Zurück-Taste kommen Sie aus einer Kinderliste wieder zum gewählten Tag zurück.",
+        ],
+        callout: {
+          title: "Wer sieht welche Blöcke?",
+          body: "Das entscheidet Ihre Schule mit dem `Sichtbereich für Mitarbeitende` in den Einstellungen: bei `Ganzes Team` sehen Sie alle Blöcke des Tages, bei `Eigene Zuständigkeiten` nur die Termine, für die Sie eingeteilt sind. Nutzt Ihre Schule den Betreuungsplan nicht oder erfasst sie Anwesenheit ohne Raumzuordnung, gibt es den Tagesplan nicht – der bisherige Einstieg bleibt dann bestehen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Tagesplan mit chronologischen Betreuungsblöcken, der grünen Jetzt-Linie und einem laufenden Block mit Etikett Läuft.",
+        image: "/help/screens/tagesplan.webp",
+      },
+      {
         id: "aktuelle-aufsicht",
         title: "Aktuelle Aufsicht",
         icon: Eye,
@@ -995,9 +1021,9 @@ export const appChapters: readonly GuideChapter[] = [
   },
   {
     id: "raeume-team-vertretung",
-    title: "Räume, Team und Gruppenübergaben",
+    title: "Räume, Team und Vertretungen",
     description:
-      "Den Überblick über Angebote, Räume und das Team behalten und Gruppen vorübergehend übergeben.",
+      "Den Überblick über Angebote, Räume und personelle Vertretungen behalten.",
     icon: Building2,
     tone: "blue",
     steps: [
@@ -1157,7 +1183,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Freizeitausgleich eintragen` im Reiter `Abwesenheiten` einen ganzen freien Zeitraum oder einen halben einzelnen Tag direkt für die Person erfassen. Das Stundenkonto sinkt um die ausfallende Sollzeit. Bei einem halben Tag muss die gearbeitete Hälfte als Arbeitszeit erfasst sein; nicht erfasste Zeit bleibt als Minus bestehen. Mitarbeitende können diesen Eintrag nur ansehen, nicht selbst anlegen, ändern oder löschen.",
           "Vor dem Speichern zeigt das Fenster den aktuellen Stand des Stundenkontos, den Abzug für den Eintrag und den Stand danach. Bereits geplanter Freizeitausgleich ist eingerechnet. Fällt das Konto unter null, warnt moto und fragt nach einer Bestätigung per Häkchen. Nach Absprache mit dem Träger ist die Buchung trotzdem möglich, das Konto darf ins Minus laufen.",
           'Eigene Bezeichnungen für Abwesenheiten legt die Leitung direkt im Feld `Art der Abwesenheit` an: den gewünschten Namen eintippen und `„…" hinzufügen` wählen. Die Bezeichnung ist danach sofort ausgewählt und steht für alle weiteren Abwesenheiten dieser Einrichtung zur Verfügung. Über die Symbole neben einem eigenen Eintrag lässt er sich umbenennen oder deaktivieren; bereits eingetragene Abwesenheiten behalten ihre Bezeichnung. Die vier Standardarten (`Urlaub`, `Krank`, `Fortbildung`, `Sonstige`) sowie `Freizeitausgleich` sind fest vorgegeben und lassen sich nicht ändern.',
-          "Eine eigene Bezeichnung ist eine benannte Unterart von `Sonstige` und wird genauso berechnet: Sie verändert weder den Urlaubsanspruch noch die Sollzeit oder das Stundenkonto. Für Urlaubstage bleibt also `Urlaub` die richtige Wahl.",
+          "Eine eigene Abwesenheitsart wird wie `Sonstige` berechnet. Sie kann ein eigenes Jahreskontingent haben. Den Anspruch ändern Sie im Mitarbeiterprofil.",
           "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert reguläre Schichten und markiert Betreuungsblöcke als abwesend. Bereits eingetragene Vertretungsschichten bleiben bestehen und müssen manuell geprüft werden. Ein halber Krankheitstag gilt immer für ein einzelnes Datum und ändert Dienst- und Betreuungsplan nicht automatisch. Beim Löschen der Krankmeldung werden nur Schichten und Blöcke ohne eingetragenen Ersatz automatisch wiederhergestellt.",
         ],
         callout: {
@@ -1168,6 +1194,27 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Mitarbeiterprofil mit Tabs für Übersicht, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten.",
         printCompact: true,
+      },
+      {
+        id: "mitarbeiter-vorschau",
+        title: "Ansicht eines Mitarbeitenden",
+        icon: Eye,
+        summary:
+          "Zeigt Admins moto so, wie eine bestimmte Person Ihrer Schule es sieht — mit deren Menü, Seiten und Daten. In der Vorschau ist nur Lesen möglich.",
+        steps: [
+          "Oben rechts auf Ihr Profil tippen und `Ansicht eines Mitarbeitenden` wählen.",
+          "Die Person auswählen und `Vorschau starten` tippen.",
+          "moto zeigt jetzt die Ansicht dieser Person. Ein orangefarbener Streifen oben nennt die Person und bleibt auf jeder Seite sichtbar.",
+          "In der Vorschau können Sie nichts ändern, anlegen oder löschen. Seiten, die die Person nicht sieht, sehen auch Sie in der Vorschau nicht.",
+          "Über `Vorschau beenden` im Streifen kehren Sie zu Ihrer eigenen Ansicht zurück. Auch ein Schulwechsel oder das Abmelden beendet die Vorschau.",
+        ],
+        callout: {
+          title: "Wofür die Vorschau gedacht ist",
+          body: "Wenn eine Betreuungskraft anruft und etwas nicht findet: Vorschau starten und dieselbe Seite ansehen. So sehen Sie sofort, was die Person sieht, und können am Telefon helfen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Vorschau-Modus mit orangefarbenem Hinweisstreifen oben, der die gewählte Person nennt und die Schaltfläche Vorschau beenden trägt.",
       },
       {
         id: "eroeffnungssalden-import",
@@ -1265,25 +1312,27 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungen",
-        title: "Gruppenübergaben",
+        title: "Vertretungen",
         icon: Repeat,
         summary:
-          "Überträgt die Verantwortung für eine feste OGS-Gruppe vorübergehend an eine andere Betreuungskraft.",
+          "Bündelt Gruppenübergaben, Terminvertretungen und zusätzliche Aufsichten.",
         steps: [
-          "`Gruppenübergaben` öffnen. Admins können alle Gruppen planen. Betreuungskräfte können nur ihre eigene Gruppe und nur den heutigen Tag übergeben.",
-          "Filter `Verfügbar` wählen und eine Person suchen.",
-          "In der Zeile der Person auf `Zuweisen` klicken.",
-          "Admins wählen `Startdatum` und `OGS-Gruppe`. Unter `Dauer` stehen `1 Tag`, `3 Tage`, `1 Woche` und `Individuell` zur Auswahl. Unter der Auswahl steht, bis wann die Übergabe gilt.",
-          "Mit `Zuweisen` speichern.",
-          "Die ursprüngliche Gruppenleitung oder ein Admin kann die Übergabe mit `Beenden` löschen.",
+          "`Vertretungen` öffnen. Die Seite zeigt `Laufende Betreuungen`, `Termine` und `Gruppen` getrennt.",
+          "Unter `Laufende Betreuungen` sehen Sie zuerst die aktuellen Aufsichten. Bei einer eigenen Aufsicht können Sie `Betreuer hinzufügen` wählen.",
+          "Unter `Termine` stehen die heutigen Terminvertretungen. Mit `Vertretung eintragen` öffnen Sie den Termin.",
+          "Unter `Gruppen` wählen Sie `Gruppe übergeben`. Danach wählen Sie die Gruppe und die Betreuungskraft.",
+          "Betreuungskräfte können nur eigene Gruppen für heute übergeben. Admins können den Zeitraum festlegen.",
+          "Mit `Zuweisen` speichern. Eine erlaubte Übergabe können Sie mit `Beenden` beenden.",
+          "Der Sichtbereich filtert Gruppen und laufende Betreuungen. Er erlaubt keine zusätzlichen Aktionen.",
+          "Admins sehen alle drei Bereiche. Ihre Rechte gelten unabhängig vom Sichtbereich.",
         ],
         callout: {
-          title: "Verantwortung statt Datenzugriff",
-          body: "Die Gruppe erscheint für die ausgewählte Betreuungskraft unter `Meine Gruppen`. Die Berechtigung für Kinderdaten ändert sich nicht. Für Personalausfälle in geplanten Betreuungsblöcken nutzen Sie `Planung` -> `Vertretung`. Bei offener Betreuung wird dieser Bereich nicht angezeigt.",
+          title: "Wirkung einer Gruppenübergabe",
+          body: "Die Gruppe erscheint für die ausgewählte Betreuungskraft unter `Meine Gruppen`. Andere Zuständigkeiten bleiben bestehen. Bei offener Betreuung ist keine Gruppenübergabe nötig.",
           tone: "blue",
         },
         screenshot:
-          "Gruppenübergaben mit verfügbaren Fachkräften und dem Dialog `Gruppe übergeben`.",
+          "Vertretungen mit den getrennten Bereichen Laufende Betreuungen, Termine und Gruppen.",
       },
       {
         id: "abrechnung-vorbereiten",
@@ -1383,13 +1432,13 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Zahlen für erwartete und anwesende Kinder werden nur angezeigt, wenn `Erwartete Kinderzahl anzeigen` unter `Einstellungen` -> `Betrieb` aktiviert ist. Die Kinderliste und Planungslogik bleiben auch bei ausgeblendeten Zahlen erhalten.",
           "In der Wochenansicht lässt sich über das kleine Menü `Zeilenhöhe` in der Kontextzeile die Zeilenhöhe des Rasters zwischen `Kompakt`, `Normal` und `Komfortabel` umschalten.",
           "Hinterlegte Schließtage sind in Wochen- und Monatsansicht als graue Spalte bzw. Zelle mit dem Vermerk `Schließtag` und dem Grund erkennbar. Ein Termin lässt sich trotzdem darauf legen (z. B. Ferien- oder Notbetreuung): Der Assistent weist im Formular darauf hin und fragt beim Speichern einmal nach. Bei Regelterminen prüft die Rückfrage alle passenden Termine im gewählten Planungszeitraum.",
-          "Öffnen Sie einen Termin, der eine Abwesenheit oder eine offene Personal-Lücke hat, zeigt der Termin-Editor unten `Vertretung bearbeiten`; der Link springt direkt zur Tagesansicht des Vertretungsplans für diesen Termin.",
+          "Öffnen Sie einen Termin mit einer Abwesenheit oder Personal-Lücke. `Vertretung eintragen` öffnet den passenden Tag im Vertretungsplan.",
           "Über `Drucken` (oben rechts) die angezeigte Woche als PDF drucken oder als PDF- bzw. XLSX-Datei speichern. Der Ausdruck stellt jedes Angebot in eine eigene Zeile, Montag bis Freitag als Spalten, mit Uhrzeit, Raum, eingeteiltem Personal und Kinderzahl. Samstag und Sonntag kommen als Spalten dazu, sobald im gewählten Zeitraum etwas darauf geplant ist. Unter `Zeitraum` lassen sich mehrere Wochen wählen (höchstens acht, je Woche ein Blatt). In der Monats- und in der Serienansicht steht keine Woche im Bild: Der Umschalter heißt dort `Einzelne Woche`, und der Hinweis darunter nennt die Woche, die gedruckt wird. `Aushang` nennt abgesagte Blöcke mit dem Vermerk `entfällt`, aber ohne Grund; `Interne Fassung` ergänzt Gründe, abwesendes Personal und Hinweise.",
           "Über `Person hinzuziehen` im Abschnitt `Personal` der Termin-Detailansicht öffnet sich der Personalpool: Er zeigt für das Zeitfenster des Termins, wer laut Dienstplan frei im Dienst ist, wer zeitgleich auf einem anderen Block eingeplant ist, wer bereits hier zugeordnet ist und wer abwesend ist. Mit `Hierher verschieben` wechselt eine Person in einem Schritt von ihrem bisherigen Block auf diesen Termin (z. B. `Mensa nimmt eine Person vom Schulhof`); mit `Zuweisen` kommt eine freie Person dazu. Entnahme und Zuordnung werden zusammen gespeichert, der Vorgang erscheint als `Person verschoben` im Änderungsprotokoll, und Hinweise zu Unterbesetzung oder fehlender Schichtabdeckung erscheinen direkt nach dem Speichern.",
         ],
         callout: {
           title: "Betreuungsplan bei Bedarf abschalten",
-          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; Betreuungsplan, Dienstplan und Vertretung verschwinden dann aus dem Bereich `Planung` in der Seitenleiste und zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist. Die `Kalenderzeiträume` bleiben erreichbar, weil die Anmeldephasen (Bereich `Anmeldungen`) damit verknüpft werden.",
+          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; Betreuungsplan, Dienstplan und Terminvertretungen verschwinden dann aus dem Bereich `Planung` in der Seitenleiste und zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist. Die `Kalenderzeiträume` bleiben erreichbar, weil die Anmeldephasen (Bereich `Anmeldungen`) damit verknüpft werden.",
           tone: "blue",
         },
         screenshot:
@@ -1398,12 +1447,12 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungsplan",
-        title: "Vertretung",
+        title: "Terminvertretungen",
         icon: Users,
         summary:
           "Zeigt Störungen im Betreuungsplan und erlaubt Abwesenheit und Vertretung für bestimmte Termine oder für alle noch offenen Termine eines Tages (nur für Admins).",
         steps: [
-          "In der Seitenleiste den Bereich `Planung` aufklappen und `Vertretung` öffnen. Die Seite zeigt zunächst den heutigen Tag (am Wochenende den nächsten Montag).",
+          "Unter `Planung` den Bereich `Terminvertretungen` öffnen. Die Seite zeigt zunächst den heutigen Tag. Am Wochenende zeigt sie den nächsten Montag.",
           "Links steht die Störungsliste des Tages: jede betroffene Position mit dem Soll/Ist/Abwesend-Tripel. Darunter steht je abwesender Person `Name abwesend` und blockweit die Zeile `Ersatzkräfte:` mit den Namen oder `keine`. Eine bewusst unbesetzte Position ist mit `bewusst unbesetzt` gekennzeichnet, ein abgesagter Termin mit `abgesagt` und Grund. Rechts zeigt der Tageskalender denselben Tag zur Orientierung; auf schmalen Bildschirmen entfällt die Kalenderspalte, die Liste bleibt allein bedienbar.",
           "Im Kopfbereich steht links die Zeitnavigation (`Zurück`, `Heute`, `Weiter`) und daneben die angezeigte Kalenderwoche. `Heute` ist ausgegraut, solange bereits der heutige Tag gezeigt wird. Darunter steht die Wochenleiste Montag bis Freitag: ein Klick wechselt den Tag, ein orangefarbener Punkt mit Zahl markiert Tage mit offenen Lücken. Rechts daneben zeigen zwei Zähler `Offen` und `Quittiert` die offenen bzw. bewusst unbesetzten Lücken des angezeigten Tages; für vergangene Tage oder bei einem Ladefehler erscheint ein Strich statt einer erfundenen Null.",
           "Mit dem Umschalter `Nur Störungen | Ganzer Tag` über der Liste zwischen der reinen Störungsliste und allen Terminen des Tages wechseln. Ein Tag ohne Störungen zeigt automatisch alle Termine mit dem Hinweis `Keine Störungen an diesem Tag`.",
@@ -1947,7 +1996,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Für Heimwege den Stammdaten-Vorschlag `Erlaubte Heimwege` nutzen: Eltern sehen bei Betreuungsangeboten mit Tagesauswahl nur die gewählten Betreuungstage und wählen pro Betreuungstag mindestens einen Heimweg, zum Beispiel zu Fuß, Bus, Abholung oder mit anderem Kind. Bei `mit anderem Kind` ergänzen Eltern im Pflichtfeld, mit wem das Kind nach Hause geht. Über `Nur ein Heimweg pro Wochentag` lassen sich Jahrgänge eintragen (zum Beispiel `1` für Erstklässler), deren Eltern pro Betreuungstag nur einen Heimweg auswählen dürfen; dafür muss die Abfrage der Klassenstufe in den Einstellungen aktiv sein.",
           "Bei `Abholzeiten` kannst du optional `Feste Auswahlzeiten` hinterlegen. Ohne Zeiten geben Eltern die Uhrzeit frei ein; sobald Zeiten hinterlegt sind, wählen Eltern pro Wochentag nur noch aus dieser Liste.",
           "Den Namen einer Vorlage änderst du entweder beim `Bearbeiten` direkt oben im Editor oder über das Aktionsmenü (`⋮`) -> `Umbenennen`; dort kannst du eine Vorlage auch `Löschen`. Der Name gilt für alle Versionen der Vorlage; bereits abgeschickte Anmeldungen bleiben unverändert.",
-          "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen und Hinweise Eltern sehen: Die Standardblöcke kommen aus den Einstellungen, können je Vorlage per Schalter ein- oder ausgeblendet und über das Stift-Symbol abweichend bearbeitet werden. Bei `AGB / Teilnahmebedingungen` wählst du in der Vorlage wie in den Einstellungen zwischen `Text eingeben` und `PDF-Datei hochladen`; diese Auswahl gilt nur für diese Formularvorlage. Über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",
+          "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen und Hinweise Eltern sehen: Die Standardblöcke kommen aus den Einstellungen, können je Vorlage per Schalter ein- oder ausgeblendet und über das Stift-Symbol abweichend bearbeitet werden. Bei `AGB / Teilnahmebedingungen` wählst du in der Vorlage wie in den Einstellungen zwischen `Text eingeben` und `PDF-Datei hochladen`; diese Auswahl gilt nur für diese Formularvorlage. Über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche. Ohne den Schalter `Muss bestätigt werden` ist die Checkbox eine freiwillige Einwilligung: Eltern können sie leer lassen. Mit dem Schalter wird daraus eine Pflicht-Bestätigung, ohne die die Anmeldung nicht abgeschickt werden kann.",
           "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
           "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",
         ],
@@ -1973,6 +2022,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Kinder` zeigt bei einem Kind direkt dieses Kind, bei mehreren einen Umschalter oben. Der Bereich hat vier Abschnitte: `Heute`, `Gebuchte Betreuung`, `Daten von {Name}` und `Eltern und Abholberechtigte`.",
           "`Kalender` ist eine Terminliste nach `Diese Woche`, `Nächste Woche` und `Später`. Zusagen und Absagen stehen direkt in der Zeile.",
           "Hinter `Mehr` liegen `Elternbriefe`, Essensplan, Einstellungen, eine neue Anmeldung und das Abmelden. Ein ungelesener Elternbrief wird trotzdem sichtbar: sein Zähler liegt auf dem Symbol `Mehr` und der Elternbrief erscheint zusätzlich auf der Startseite. Verbindliche Elternbriefe sind mit `Bestätigung erforderlich` gekennzeichnet – dort zählt nur die Bestätigung im Elternportal, nicht die E-Mail.",
+          "Hat die Schule Dateien angehängt, stehen sie in der geöffneten Nachricht unter `Dateien zu dieser Nachricht`. Ein Tipp auf den Namen öffnet oder speichert die Datei. Es ist immer der Anhang zu genau dieser Nachricht – eine allgemeine Dateiablage für Eltern gibt es nicht.",
         ],
         callout: {
           title: "Was es nicht mehr gibt",
@@ -2049,9 +2099,10 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen und auf `Mitteilung` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail einer Mitteilung enthält nur den Titel und einen Link ins Elternportal – soll der vollständige Text mitgeschickt werden, nutzen Sie stattdessen einen `Elternbrief`.",
+          "Noch im Schritt `Inhalt`: unter `Dateien anhängen` mit `Datei auswählen` bis zu fünf Dateien anhängen (PDF, DOCX, XLSX, PPTX, PNG, JPEG, je bis 25 MB). Die Dateien sehen genau die Eltern, die auch die Mitteilung bekommen. Sie liegen im Elternportal zum Herunterladen bereit und gehen nicht per E-Mail mit; die E-Mail weist nur darauf hin.",
           "Schritt `Empfänger`: Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
           "Mit `Als Entwurf speichern` für später sichern oder mit `Veröffentlichen` direkt an die Eltern geben. Veröffentlichte Mitteilungen erscheinen sofort im Elternportal der erreichten Eltern.",
-          "Entwürfe lassen sich aus der Liste bearbeiten und über `Veröffentlichen` freigeben. Nach dem Veröffentlichen ist keine Bearbeitung mehr möglich; über `Zurückziehen` wird eine Mitteilung wieder zum Entwurf und aus dem Elternportal entfernt.",
+          "Entwürfe lassen sich aus der Liste bearbeiten und über `Veröffentlichen` freigeben. Nach dem Veröffentlichen ist keine Bearbeitung mehr möglich – auch Anhänge lassen sich dann weder hinzufügen noch entfernen; über `Zurückziehen` wird eine Mitteilung wieder zum Entwurf und aus dem Elternportal entfernt. Achtung: Wer nach dem Zurückziehen einen Anhang ändert, setzt damit die Lesebestätigungen zurück – die Eltern bestätigen dann erneut.",
           "Ein Tipp auf eine Mitteilung öffnet die Detailansicht mit dem vollständigen Text und der Statistik: wie viele der erreichten Eltern sie gelesen und (falls verlangt) bestätigt haben, inklusive Liste, welche Bezugsperson noch aussteht.",
         ],
         callout: {
@@ -2072,6 +2123,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen, oben auf `Elternbriefe` wechseln und auf `Elternbrief` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Der Kasten `Beim Veröffentlichen passiert automatisch` zeigt, was fest zum Elternbrief gehört: Portal, E-Mail mit vollem Text und Bestätigung durch die Eltern. Diese drei Punkte lassen sich nicht abwählen.",
           "Unter `Wer erhält die E-Mail?` wählen: `Nur mit Portalzugang` (Standard) schickt die E-Mail ausschließlich an Bezugspersonen mit Elternportal-Zugang. `Alle Bezugspersonen` schickt sie zusätzlich an hinterlegte Bezugspersonen ohne Portalzugang – praktisch für allgemeine Informationen, aber ungeeignet für sensible Angaben.",
+          "Dateien anhängen geht wie bei einer Mitteilung, im Schritt `Inhalt` unter `Dateien anhängen`. Auch beim Elternbrief bleibt die Datei im Elternportal: Der Brieftext geht per E-Mail mit, die Datei nicht. Das gilt besonders bei `Alle Bezugspersonen` – Personen ohne Portalzugang können die Datei nicht öffnen.",
           "Schritt `Empfänger`: Zielgruppe wählen wie bei einer Mitteilung. Eltern mit offener Anmeldung stehen hier nicht zur Verfügung, weil für sie noch kein Kind verknüpft ist.",
           "Nach `Veröffentlichen` öffnet ein Tipp auf den Brief die Statusansicht: oben `x von y Kindern bestätigt`, darunter die Liste der Kinder und die Liste der Empfänger.",
           "In der Empfängerliste stehen E-Mail-Status und moto-Status getrennt nebeneinander. `Versendet` heißt: die E-Mail wurde an den Mailserver übergeben. Ob sie im Postfach angekommen ist, kann moto derzeit nicht bestätigen.",

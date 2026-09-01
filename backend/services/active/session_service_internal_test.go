@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -224,12 +225,60 @@ func newSessionSQLMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 
 type sessionTestSavepoints struct{}
 
+type sessionStartLockerStub struct {
+	lock func(context.Context, int64, int64) error
+}
+
+func (s sessionStartLockerStub) LockSessionStart(ctx context.Context, tenantID, activityID int64) error {
+	return s.lock(ctx, tenantID, activityID)
+}
+
+func TestAcquireActivitySessionLock_UsesRepository(t *testing.T) {
+	t.Parallel()
+	ctx := tenant.WithTenantID(context.Background(), 17)
+	called := false
+	svc := &service{ServiceDependencies: ServiceDependencies{SessionStartLock: sessionStartLockerStub{
+		lock: func(_ context.Context, tenantID, activityID int64) error {
+			called = true
+			assert.Equal(t, int64(17), tenantID)
+			assert.Equal(t, int64(23), activityID)
+			return nil
+		},
+	}}}
+
+	require.NoError(t, svc.acquireActivitySessionLock(ctx, 23, "start"))
+	assert.True(t, called)
+}
+
+func TestAcquireActivitySessionLock_PropagatesRepositoryFailure(t *testing.T) {
+	t.Parallel()
+	expected := errors.New("lock failed")
+	svc := &service{ServiceDependencies: ServiceDependencies{SessionStartLock: sessionStartLockerStub{
+		lock: func(context.Context, int64, int64) error { return expected },
+	}}}
+
+	err := svc.acquireActivitySessionLock(tenant.WithTenantID(context.Background(), 17), 23, "start")
+	require.ErrorIs(t, err, expected)
+}
+
 func (sessionTestSavepoints) exec(ctx context.Context, statement string) error {
-	tx, err := transactionFromContext(ctx)
-	if err != nil {
-		return err
+	raw, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
+		return tenant.ErrRuntimeRequired
 	}
-	_, err = tx.ExecContext(ctx, statement)
+	var tx bun.Tx
+	switch value := raw.(type) {
+	case bun.Tx:
+		tx = value
+	case *bun.Tx:
+		if value == nil {
+			return tenant.ErrRuntimeRequired
+		}
+		tx = *value
+	default:
+		return fmt.Errorf("unsupported transaction type %T", raw)
+	}
+	_, err := tx.ExecContext(ctx, statement)
 	return err
 }
 

@@ -62,6 +62,20 @@ describe("MFAAdminOverrideModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("exposes a named dialog and locks background scrolling", () => {
+    const { unmount } = render(<MFAAdminOverrideModal {...props} />);
+
+    expect(
+      screen.getByRole("dialog", {
+        name: "Zwei-Faktor-Authentifizierung verwalten",
+      }),
+    ).toBeInTheDocument();
+    expect(document.documentElement.style.overflow).toBe("hidden");
+
+    unmount();
+    expect(document.documentElement.style.overflow).toBe("");
+  });
+
   it("blocks submit when reason is shorter than 3 characters", async () => {
     global.fetch = noContent();
     render(<MFAAdminOverrideModal {...props} />);

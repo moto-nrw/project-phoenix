@@ -2445,9 +2445,7 @@ func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recur
 // anchor weekly-recurrence intervals to calendar weeks rather than to 7-day
 // blocks measured from the appointment's start weekday.
 func weekStartMonday(d timezone.Date) timezone.Date {
-	// time.Weekday: Sunday=0 … Saturday=6; days since Monday = (weekday+6)%7.
-	offset := (int(d.Weekday()) + 6) % 7
-	return d.AddDays(-offset)
+	return d.StartOfISOWeek()
 }
 
 func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule) bool {

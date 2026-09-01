@@ -15,11 +15,15 @@ import (
 // enrollment request. Keeping this SQL in one repository makes the service's
 // transaction boundary auditable and prevents partial per-repository cleanup.
 type DeletionRepository struct {
-	db *bun.DB
+	db                    *bun.DB
+	countAuditAdjustments func(context.Context, int64, *int64) (int, error)
 }
 
-func NewDeletionRepository(db *bun.DB) enrollmentModels.DeletionRepository {
-	return &DeletionRepository{db: db}
+func NewDeletionRepository(
+	db *bun.DB,
+	countAuditAdjustments func(context.Context, int64, *int64) (int, error),
+) enrollmentModels.DeletionRepository {
+	return &DeletionRepository{db: db, countAuditAdjustments: countAuditAdjustments}
 }
 
 type requestDeletionCountsRow struct {
@@ -86,7 +90,6 @@ func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64
 			(SELECT COUNT(*) FROM target_changes)::int AS change_requests,
 			(SELECT COUNT(*) FROM enrollment.change_request_messages m JOIN target_changes c ON c.id = m.change_request_id WHERE m.tenant_id = ?)::int AS change_request_messages,
 			(SELECT COUNT(*) FROM enrollment.late_invites l WHERE l.used_request_id = ? AND l.tenant_id = ?)::int AS late_invites,
-			(SELECT COUNT(*) FROM audit.enrollment_offering_adjustments a WHERE a.request_id = ? AND a.tenant_id = ?)::int AS offering_adjustments,
 			(SELECT COUNT(*) FROM platform.email_outbox e WHERE e.related_entity_type = ? AND e.related_entity_id = ? AND e.tenant_id = ?)::int AS email_outbox,
 			(SELECT COUNT(*) FROM enrollment.request_children c WHERE c.rollover_source_child_id IN (SELECT id FROM target_children) AND c.tenant_id = ?)::int AS rollover_links_cleared,
 			(SELECT COUNT(*) FROM activities.student_enrollments se WHERE se.enrollment_request_child_id IN (SELECT id FROM target_children) AND se.tenant_id = ?)::int AS student_source_links_cleared,
@@ -107,10 +110,16 @@ func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64
 		requestID, tenantID,
 		tenantID,
 		requestID, tenantID,
-		requestID, tenantID,
 		platform.EmailRelatedTypeEnrollmentRequest, requestID, tenantID,
 		tenantID, tenantID, tenantID, tenantID,
 	).Scan(ctx, row)
+	if err != nil {
+		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
+	}
+	if r.countAuditAdjustments == nil {
+		return nil, fmt.Errorf("preview enrollment request deletion: audit count capability is required")
+	}
+	row.OfferingAdjustments, err = r.countAuditAdjustments(ctx, requestID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
 	}
@@ -181,10 +190,16 @@ func (r *DeletionRepository) PreviewChild(ctx context.Context, requestID, childI
 			(SELECT COUNT(*) FROM enrollment.request_child_offerings WHERE request_child_id = ? AND tenant_id = ?)::int AS offerings,
 			(SELECT COUNT(*) FROM target_changes)::int AS change_requests,
 			(SELECT COUNT(*) FROM enrollment.change_request_messages m JOIN target_changes c ON c.id = m.change_request_id WHERE m.tenant_id = ?)::int AS change_request_messages,
-			(SELECT COUNT(*) FROM audit.enrollment_offering_adjustments WHERE request_child_id = ? AND tenant_id = ?)::int AS offering_adjustments,
 			(SELECT COUNT(*) FROM enrollment.request_children WHERE rollover_source_child_id = ? AND tenant_id = ?)::int AS rollover_links,
 			(SELECT COUNT(*) FROM activities.student_enrollments WHERE enrollment_request_child_id = ? AND tenant_id = ?)::int AS student_source_links
-	`, requestID, childID, tenantID, childID, tenantID, tenantID, childID, tenantID, childID, tenantID, childID, tenantID).Scan(ctx, &row)
+	`, requestID, childID, tenantID, childID, tenantID, tenantID, childID, tenantID, childID, tenantID).Scan(ctx, &row)
+	if err != nil {
+		return nil, fmt.Errorf("preview enrollment child deletion: %w", err)
+	}
+	if r.countAuditAdjustments == nil {
+		return nil, fmt.Errorf("preview enrollment child deletion: audit count capability is required")
+	}
+	row.OfferingAdjustments, err = r.countAuditAdjustments(ctx, requestID, &childID)
 	if err != nil {
 		return nil, fmt.Errorf("preview enrollment child deletion: %w", err)
 	}

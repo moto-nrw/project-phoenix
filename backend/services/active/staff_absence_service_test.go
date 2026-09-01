@@ -144,6 +144,33 @@ func TestAbsUpdateAbsenceKeepsUnchangedInactiveCustomType(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAbsUpdateAbsenceRejectsManagerControlledCustomType(t *testing.T) {
+	t.Parallel()
+
+	svc, repo, _ := absSetupService()
+	customID := int64(42)
+	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+		Model: base.Model{ID: customID}, Name: "Regenerationstag",
+		BaseType: activeModels.AbsenceTypeOther, IsActive: true, AllowanceEnabled: true,
+	}}}, nil)
+	existing := &activeModels.StaffAbsence{
+		Model: base.Model{ID: 100}, StaffID: 7,
+		AbsenceType: activeModels.AbsenceTypeOther,
+		DateStart:   timezone.NewDate(2026, 8, 20), DateEnd: timezone.NewDate(2026, 8, 20),
+		Status: activeModels.AbsenceStatusReported, CreatedBy: 7,
+	}
+	repo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	repo.updateFunc = func(context.Context, *activeModels.StaffAbsence) error {
+		t.Fatal("self-service must not update into a quota-controlled type")
+		return nil
+	}
+
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		AbsenceTypeID: &customID, AbsenceTypeIDSet: true,
+	})
+	require.ErrorIs(t, err, ErrManagerControlledAbsence)
+}
+
 func TestAbsUpdateAbsenceCanonicalTypeClearsExistingCustomType(t *testing.T) {
 	t.Parallel()
 
@@ -1271,6 +1298,30 @@ func TestAbsDeleteAbsence_OwnershipFails(t *testing.T) {
 	err := svc.DeleteAbsence(context.Background(), 1, 100)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "can only delete own absences")
+}
+
+func TestAbsDeleteAbsenceRejectsManagerControlledCustomType(t *testing.T) {
+	t.Parallel()
+
+	svc, absRepo, _ := absSetupService()
+	staffID, absenceID, customID := int64(100), int64(200), int64(42)
+	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+		Model: base.Model{ID: customID}, Name: "Regenerationstag",
+		BaseType: activeModels.AbsenceTypeOther, IsActive: true, AllowanceEnabled: true,
+	}}}, nil)
+	absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model: base.Model{ID: absenceID}, StaffID: staffID,
+			AbsenceType: activeModels.AbsenceTypeOther, AbsenceTypeID: &customID,
+		}, nil
+	}
+	absRepo.deleteFunc = func(context.Context, any) error {
+		t.Fatal("self-service must not delete a quota-controlled absence")
+		return nil
+	}
+
+	err := svc.DeleteAbsence(context.Background(), staffID, absenceID)
+	require.ErrorIs(t, err, ErrManagerControlledAbsence)
 }
 
 func TestAbsDeleteAbsence_RepoError(t *testing.T) {

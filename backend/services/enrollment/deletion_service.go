@@ -216,13 +216,24 @@ func (s *enrollmentDeletionService) auditDeletion(ctx context.Context, impact *e
 		ActorType:      auditModels.EnrollmentDeletionActorAdmin,
 		Scope:          scope,
 		Reason:         reason,
-		Counts:         impact.Counts,
+		Counts:         auditDeletionCounts(impact.Counts),
 		DeletedAt:      time.Now(),
 	}
 	if err := s.audit.Create(ctx, event); err != nil {
 		return fmt.Errorf("audit enrollment deletion: %w", err)
 	}
 	return nil
+}
+
+func auditDeletionCounts(counts enrollmentModels.DeletionCounts) auditModels.EnrollmentDeletionCounts {
+	return auditModels.EnrollmentDeletionCounts{
+		Requests: counts.Requests, RequestChildren: counts.RequestChildren,
+		RequestChildOfferings: counts.RequestChildOfferings, RequestGuardians: counts.RequestGuardians,
+		ChangeRequests: counts.ChangeRequests, ChangeRequestMessages: counts.ChangeRequestMessages,
+		LateInvites: counts.LateInvites, OfferingAdjustments: counts.OfferingAdjustments,
+		EmailOutbox: counts.EmailOutbox, RolloverLinksCleared: counts.RolloverLinksCleared,
+		StudentSourceLinksCleared: counts.StudentSourceLinksCleared,
+	}
 }
 
 func (s *enrollmentDeletionService) validateConfigured() error {

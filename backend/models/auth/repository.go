@@ -157,10 +157,6 @@ type AccountPermissionRepository interface {
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
-
-	FindByPermissionID(ctx context.Context, permissionID int64) ([]*AccountPermission, error)
-
-	FindByAccountAndPermission(ctx context.Context, accountID, permissionID int64) (*AccountPermission, error)
 }
 
 // TokenRepository defines operations for managing authentication tokens
@@ -184,9 +180,6 @@ type TokenRepository interface {
 
 	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*Token, error)
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
-
-	// Token family tracking methods
-	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens
@@ -247,6 +240,7 @@ type MFAEmailChallengeRepository interface {
 	// owned by the account — the lookup the challenge-token verify path uses so a
 	// code is only ever redeemed against the challenge it was minted for.
 	FindActiveByIDForAccount(ctx context.Context, id, accountID int64) (*MFAEmailChallenge, error)
+	MarkActive(ctx context.Context, id int64) error
 	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
 	// CountRecentByAccountID counts challenges issued at or after `since` (used for rate-limit checks).
 	CountRecentByAccountID(ctx context.Context, accountID int64, since time.Time) (int, error)
@@ -332,11 +326,6 @@ type MFAOverrideRepository interface {
 	// surface so a single account's override picture across tenants is
 	// inspectable.
 	ListByAccount(ctx context.Context, accountID int64) ([]*MFAOverride, error)
-
-	// DeleteAllByAccount wipes every override row when the account is
-	// reset or destroyed. Returns the number of rows removed for the
-	// audit log.
-	DeleteAllByAccount(ctx context.Context, accountID int64) (int64, error)
 }
 
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.

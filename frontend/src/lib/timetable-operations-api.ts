@@ -21,8 +21,11 @@ interface PlannedNowOptions {
   horizonMinutes?: number;
   limit?: number;
   includeRoster?: boolean;
-  /** "past" lists today's finished blocks instead of the upcoming window (#2335). */
-  scope?: "past";
+  /**
+   * "past" lists today's finished blocks instead of the upcoming window
+   * (#2335); "day" lists the whole day in every lifecycle state (#2383).
+   */
+  scope?: "past" | "day";
 }
 
 export interface SpontaneousStartBody {

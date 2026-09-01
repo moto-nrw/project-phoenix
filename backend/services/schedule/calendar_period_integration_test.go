@@ -22,7 +22,7 @@ import (
 func setupCalendarPeriodService(t *testing.T, db *bun.DB) schedule.CalendarPeriodService {
 	t.Helper()
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.CalendarPeriod
 }
@@ -273,7 +273,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	tenantID := int64(600000) + time.Now().UnixNano()%50000
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().

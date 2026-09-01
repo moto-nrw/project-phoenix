@@ -19,6 +19,7 @@ type settingsService struct {
 	schoolStore   SchoolSettingsStore
 	runtime       Runtime
 	logger        *slog.Logger
+	registry      *config.Registry
 	observeLookup SettingsLookupObserver
 	// classRestrictionGuard, when set, reports whether the tenant in
 	// context currently has an active enrollment phase that restricts
@@ -84,14 +85,27 @@ func NewSettingsService(
 	schoolStore SchoolSettingsStore,
 	runtime Runtime,
 	logger *slog.Logger,
+	registries ...*config.Registry,
 ) SettingsService {
+	registry := config.DefaultRegistry()
+	if len(registries) > 0 && registries[0] != nil {
+		registry = registries[0]
+	}
 	return &settingsService{
 		valueRepo:   valueRepo,
 		auditRepo:   auditRepo,
 		schoolStore: schoolStore,
 		runtime:     runtime,
 		logger:      logger.With("service", "settings"),
+		registry:    registry,
 	}
+}
+
+func definitionFor(settings SettingsService, key string) *config.Definition {
+	if service, ok := settings.(*settingsService); ok {
+		return service.registry.GetDefinition(key)
+	}
+	return config.GetDefinition(key)
 }
 
 // Resolve returns the value for a setting: tenant override if it exists,
@@ -133,13 +147,13 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (resul
 	}
 
 	if tenantID <= 0 || len(keys) == 0 {
-		return newSettingsSnapshot(tenantID, keys, nil)
+		return newSettingsSnapshot(s.registry, tenantID, keys, nil)
 	}
 
 	// Validate every key up front so an unknown key fails deterministically
 	// regardless of which keys happen to be cached already.
 	for _, key := range keys {
-		if config.GetDefinition(key) == nil {
+		if s.registry.GetDefinition(key) == nil {
 			return nil, &SettingsError{
 				Op:  "resolve_many",
 				Err: &DefinitionNotFoundError{Key: key},
@@ -153,7 +167,7 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (resul
 		if err != nil {
 			return nil, &SettingsError{Op: "resolve_many", Err: err}
 		}
-		return newSettingsSnapshot(tenantID, keys, stored)
+		return newSettingsSnapshot(s.registry, tenantID, keys, stored)
 	}
 
 	resolved, missing := cache.lookup(tenantID, keys)
@@ -168,7 +182,7 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (resul
 		if err != nil {
 			return nil, &SettingsError{Op: "resolve_many", Err: err}
 		}
-		loaded, err := newSettingsSnapshot(tenantID, missing, stored)
+		loaded, err := newSettingsSnapshot(s.registry, tenantID, missing, stored)
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +223,7 @@ func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int
 		(ctxTenant == 0 || ctxTenant == tenantID) {
 		if cache := requestCacheFromContext(ctx); cache != nil {
 			for _, key := range keys {
-				if config.GetDefinition(key) == nil {
+				if s.registry.GetDefinition(key) == nil {
 					return nil, &SettingsError{
 						Op:  "resolve_many",
 						Err: &DefinitionNotFoundError{Key: key},
@@ -298,7 +312,7 @@ func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs [
 		}
 	}
 	for _, tenantID := range uniqueTenantIDs {
-		snapshot, err := newSettingsSnapshot(tenantID, keys, storedByTenant[tenantID])
+		snapshot, err := newSettingsSnapshot(s.registry, tenantID, keys, storedByTenant[tenantID])
 		if err != nil {
 			return nil, err
 		}
@@ -358,7 +372,7 @@ func (s *settingsService) ResolveStringForTenantInTx(ctx context.Context, tenant
 			Err: fmt.Errorf("resolving %q inside a transaction requires an ambient transaction", key),
 		}
 	}
-	if config.GetDefinition(key) == nil {
+	if s.registry.GetDefinition(key) == nil {
 		return "", &SettingsError{Op: "resolve_in_tx", Err: &DefinitionNotFoundError{Key: key}}
 	}
 
@@ -366,7 +380,7 @@ func (s *settingsService) ResolveStringForTenantInTx(ctx context.Context, tenant
 	if err != nil {
 		return "", &SettingsError{Op: "resolve_in_tx", Err: err}
 	}
-	snapshot, err := newSettingsSnapshot(tenantID, []string{key}, stored)
+	snapshot, err := newSettingsSnapshot(s.registry, tenantID, []string{key}, stored)
 	if err != nil {
 		return "", err
 	}
@@ -507,7 +521,7 @@ func (s *settingsService) tenantID(ctx context.Context) int64 {
 // unknown key yields *DefinitionNotFoundError, an AccessAdminOnly key yields
 // ErrOperatorAdminOnly, everything else is writable.
 func (s *settingsService) CheckOperatorWritable(key string) error {
-	def := config.GetDefinition(key)
+	def := s.registry.GetDefinition(key)
 	if def == nil {
 		return &DefinitionNotFoundError{Key: key}
 	}
@@ -518,7 +532,7 @@ func (s *settingsService) CheckOperatorWritable(key string) error {
 }
 
 func (s *settingsService) SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error {
-	def := config.GetDefinition(key)
+	def := s.registry.GetDefinition(key)
 	if def == nil {
 		return &SettingsError{
 			Op:  "set_value",
@@ -617,7 +631,7 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 
 // ResetValue removes a tenant override, falling back to the registry default.
 func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error {
-	def := config.GetDefinition(key)
+	def := s.registry.GetDefinition(key)
 	if def == nil {
 		return &SettingsError{
 			Op:  "reset_value",

@@ -996,6 +996,41 @@ export async function fetchAnnouncementsUnreadCount(): Promise<number> {
   return result.unread_count ?? 0;
 }
 
+/** One file attached to an announcement (#2890). */
+export interface ParentAnnouncementAttachment {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
+/**
+ * Attachments of one announcement. Loaded when the guardian opens the message,
+ * not with the feed: the file only matters once the message is being read, and
+ * the audience check runs per announcement.
+ *
+ * Returns an empty list for an announcement outside the guardian's audience —
+ * the backend answers 404 there, which is the same answer it gives for an
+ * announcement that does not exist.
+ */
+export async function listAnnouncementAttachments(
+  announcementId: string,
+): Promise<ParentAnnouncementAttachment[]> {
+  const result = await getJson<{
+    attachments: ParentAnnouncementAttachment[];
+  }>(`/api/parent/me/news/${encodeURIComponent(announcementId)}/attachments`);
+  return result.attachments ?? [];
+}
+
+/** Address a guardian downloads an attachment from. */
+export function announcementAttachmentDownloadUrl(
+  announcementId: string,
+  attachmentId: string,
+): string {
+  return `/api/parent/me/news/${encodeURIComponent(announcementId)}/attachments/${encodeURIComponent(attachmentId)}/download`;
+}
+
 /**
  * Marks an announcement read for this guardian (idempotent). `publishedAt` is
  * the version the client loaded; the backend rejects the request (409) if the

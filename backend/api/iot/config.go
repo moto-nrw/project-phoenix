@@ -65,7 +65,7 @@ func (rs *Resource) resolveDeviceConfig(ctx context.Context, tenantID int64) dev
 	}
 
 	settingsCtx, available := rs.deviceConfigSettingsContext(ctx, tenantID)
-	if rawTime := checkinSvc.ResolveRawDailyCheckoutTime(settingsCtx, rs.SettingsService); rawTime != "" {
+	if rawTime := checkinSvc.ResolveRawDailyCheckoutTime(settingsCtx, rs.SettingsService, rs.DailyCheckoutFallback, rs.getLogger()); rawTime != "" {
 		response.Checkout.DailyCheckoutTime = &rawTime
 	}
 	if !available {

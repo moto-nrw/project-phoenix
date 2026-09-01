@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/render"
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,10 +117,10 @@ func TestErrorRenderer_FeedbackErrors(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"ErrEntryNotFound", feedbackSvc.ErrEntryNotFound},
-		{"ErrInvalidEntryData", feedbackSvc.ErrInvalidEntryData},
-		{"ErrStudentNotFound", feedbackSvc.ErrStudentNotFound},
-		{"ErrInvalidDateRange", feedbackSvc.ErrInvalidDateRange},
+		{"ErrEntryNotFound", feedbackModule.ErrEntryNotFound},
+		{"ErrInvalidEntryData", feedbackModule.ErrInvalidEntryData},
+		{"ErrStudentNotFound", feedbackModule.ErrStudentNotFound},
+		{"ErrInvalidDateRange", feedbackModule.ErrInvalidDateRange},
 	}
 
 	for _, tt := range tests {

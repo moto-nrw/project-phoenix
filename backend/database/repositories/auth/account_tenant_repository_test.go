@@ -22,10 +22,6 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "acctenant")
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
-		cleanupAccountRecords(t, db, account.ID)
-	})
 
 	t.Run("creates active mapping", func(t *testing.T) {
 		item := &authModels.AccountTenant{
@@ -97,10 +93,6 @@ func TestAccountTenantRepository_EnsureActive(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "acctenant-reactivate")
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
-		cleanupAccountRecords(t, db, account.ID)
-	})
 
 	deactivatedAt := time.Now().Add(-time.Hour)
 	inactive := &authModels.AccountTenant{
@@ -145,10 +137,6 @@ func TestAccountTenantRepository_Deactivate(t *testing.T) {
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
-		cleanupAccountRecords(t, db, account.ID)
-	})
 
 	for _, tid := range []int64{tenantID, otherTenantID} {
 		require.NoError(t, repo.Create(ctx, &authModels.AccountTenant{
