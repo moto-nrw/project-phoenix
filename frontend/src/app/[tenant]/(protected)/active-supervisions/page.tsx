@@ -465,7 +465,7 @@ function MeinRaumPageContent() {
                 <button
                   type="button"
                   onClick={() => schulhof.setShowReleaseModal(true)}
-                  className="flex h-10 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 text-red-600 transition-colors hover:bg-red-100"
+                  className="border-moto-red/20 bg-moto-red-soft text-moto-red hover:bg-moto-red/15 flex h-10 items-center gap-2 rounded-full border px-4 transition-colors"
                   aria-label="Aufsicht abgeben"
                 >
                   <LogOut className="h-5 w-5" aria-hidden="true" />
@@ -484,7 +484,7 @@ function MeinRaumPageContent() {
                 <button
                   type="button"
                   onClick={() => schulhof.setShowReleaseModal(true)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100"
+                  className="border-moto-red/20 bg-moto-red-soft text-moto-red hover:bg-moto-red/15 flex h-8 w-8 items-center justify-center rounded-full border transition-colors"
                   aria-label="Aufsicht abgeben"
                 >
                   <LogOut className="h-4 w-4" aria-hidden="true" />

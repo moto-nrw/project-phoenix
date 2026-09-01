@@ -158,7 +158,7 @@ func TestMockMailer_Send(t *testing.T) {
 
 	err := mailer.Send(msg)
 
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrDeliveryUnavailable)
 	assert.True(t, mailer.SendInvoked.Load())
 }
 

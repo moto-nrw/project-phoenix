@@ -223,7 +223,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     sections: [
       {
         title: "Grundinformationen",
-        titleColor: "text-red-800",
+        titleColor: "text-moto-red-strong",
         items: [
           {
             label: "Name",
@@ -251,7 +251,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       },
       {
         title: "Betreuer",
-        titleColor: "text-purple-800",
+        titleColor: "text-moto-purple-strong",
         items: [
           {
             label: "Hauptbetreuer",

@@ -1903,6 +1903,8 @@
     {"name": "config.work_time_model_entries", "write_owner": "workforce"},
     {"name": "config.work_time_models", "write_owner": "workforce"},
     {"name": "display.displays", "write_owner": "device-fleet"},
+    {"name": "documents.announcement_attachment_cleanup", "write_owner": "file-storage"},
+    {"name": "documents.announcement_attachments", "write_owner": "file-storage"},
     {"name": "education.class_arrival_times", "write_owner": "timetable-activities"},
     {"name": "education.class_teachers", "write_owner": "school-membership"},
     {"name": "education.grade_transition_class_list_entries", "write_owner": "school-structure"},

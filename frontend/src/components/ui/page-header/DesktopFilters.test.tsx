@@ -213,7 +213,7 @@ describe("DesktopFilters", () => {
 
       // Find the button that contains the text "Raum 101"
       const button = screen.getByText("Raum 101").closest("button");
-      expect(button).toHaveClass("ring-2", "ring-blue-500");
+      expect(button).toHaveClass("ring-2", "ring-moto-blue");
     });
   });
 

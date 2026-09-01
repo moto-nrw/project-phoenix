@@ -157,6 +157,9 @@ type Service interface {
 
 	// --- cancellation notice (#2601) ---
 	CareCancellationPublisher
+
+	// AttachmentSupport is the announcement side of the attachments (#2890).
+	AttachmentSupport
 }
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
@@ -185,6 +188,9 @@ type service struct {
 	preferences notifications.PreferenceService
 	deliveries  DeliveryRecorder
 	parentsURL  string
+	// attachments is the file side of #2890, injected after construction (the
+	// two services point at each other).
+	attachments AttachmentPurger
 	logger      *slog.Logger
 }
 
@@ -392,7 +398,12 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 }
 
 func (s *service) Delete(ctx context.Context, id int64) error {
-	a, err := s.repo.FindByID(ctx, id)
+	// Unter der Zeilensperre laden, nicht nur lesen: der Anhang-Upload nimmt
+	// dieselbe Sperre (#2890). Ohne sie kann ein Upload committen, nachdem
+	// purgeAttachments die Anhänge aufgezählt hat — seine Zeile verschwindet
+	// dann mit dem Cascade, ohne dass je ein Cleanup-Intent für ihre Bytes
+	// geschrieben wurde.
+	a, err := s.repo.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return fmt.Errorf("announcement: load for delete: %w", err)
 	}
@@ -412,6 +423,13 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	// Delivery rows carry the same weak link (related_entity_id, no FK), so they
 	// need the same explicit cleanup.
 	if err := s.dropDeliveryRows(ctx, a.GetTenantID(), id); err != nil {
+		return err
+	}
+	// The attachment rows DO cascade — which is exactly the problem: once they
+	// are gone, nothing points at their bytes any more. Record the cleanup
+	// intents first, in this transaction, so a rollback takes them with it
+	// (#2890).
+	if err := s.purgeAttachments(ctx, id); err != nil {
 		return err
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
@@ -712,6 +730,10 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 				a.ResponseDeadline.Format("02.01.2006"))
 		}
 	}
+	// Every recipient of this path has portal access by construction
+	// (ResolveAudienceEmails is portal-audience only), so the attachment hint
+	// always points somewhere the reader can go.
+	hasAttachment := s.hasAttachments(ctx, a.ID)
 	queued := 0
 	for _, rcpt := range recipients {
 		// Deliberately NO announcement body here: e-mail is the least trusted
@@ -720,16 +742,17 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		if _, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
-				emailPayloadRecipient:   rcpt.Email,
-				emailPayloadFirstName:   rcpt.FirstName,
-				emailPayloadLastName:    rcpt.LastName,
-				emailPayloadTitle:       a.Title,
-				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   s.parentsURL,
-				emailPayloadLogoURL:     logoURL,
-				emailPayloadMotoLogoURL: motoLogoURL,
-				emailPayloadKicker:      kicker,
-				emailPayloadIntro:       intro,
+				emailPayloadRecipient:     rcpt.Email,
+				emailPayloadFirstName:     rcpt.FirstName,
+				emailPayloadLastName:      rcpt.LastName,
+				emailPayloadTitle:         a.Title,
+				emailPayloadSchoolName:    schoolName,
+				emailPayloadPortalURL:     s.parentsURL,
+				emailPayloadLogoURL:       logoURL,
+				emailPayloadMotoLogoURL:   motoLogoURL,
+				emailPayloadKicker:        kicker,
+				emailPayloadIntro:         intro,
+				emailPayloadHasAttachment: hasAttachment,
 			},
 			RelatedEntityType: relatedEntityTypeAnnouncement,
 			RelatedEntityID:   a.ID,

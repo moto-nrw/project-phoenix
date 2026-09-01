@@ -47,6 +47,10 @@ type MealPlan interface {
 
 // Service is the public contract consumed by HTTP handlers.
 type Service interface {
+	// GuardianAnnouncementTenant reports the school of an announcement whose
+	// attachments this account may download, or 0 when it may not (#2890).
+	GuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64) (int64, error)
+
 	// ListChildrenForAccount returns every child linked to any
 	// guardian profile owned by the account, across every active
 	// tenant mapping. Sorted by school then by name.
