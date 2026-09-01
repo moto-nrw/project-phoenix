@@ -178,9 +178,33 @@ case "$tool" in
                             esac
                         done
                         ;;
-                    command|exec|time|nice|nohup|setsid)
+                    command|time|nohup|setsid)
                         shift
                         while [[ ${1:-} == -* ]]; do shift; done
+                        ;;
+                    exec)
+                        shift
+                        while [[ $# -gt 0 ]]; do
+                            next=$(clean_token "$1")
+                            case "$next" in
+                                -a) shift; shift || break ;;
+                                --) shift; break ;;
+                                -*) shift ;;
+                                *) break ;;
+                            esac
+                        done
+                        ;;
+                    nice)
+                        shift
+                        while [[ $# -gt 0 ]]; do
+                            next=$(clean_token "$1")
+                            case "$next" in
+                                -n|--adjustment) shift; shift || break ;;
+                                --) shift; break ;;
+                                -*) shift ;;
+                                *) break ;;
+                            esac
+                        done
                         ;;
                     timeout)
                         shift
@@ -213,6 +237,15 @@ case "$tool" in
                 first=$(clean_token "$1")
             done
             reject_dynamic_executable "$first"
+            while [[ "$first" = "if" || "$first" = "elif" || "$first" = "then" || "$first" = "else" ||
+                "$first" = "while" || "$first" = "until" || "$first" = "do" || "$first" = '!' ||
+                "$first" = '(' || "$first" = '{' ]]; do
+                shift
+                [[ $# -gt 0 ]] || return 0
+                first=$(clean_token "$1")
+                reject_dynamic_executable "$first"
+            done
+            [[ "$first" = */* ]] && vet_script "$first" || [[ "$first" != */* ]] || deny_untracked "$first"
             case "${first##*/}" in
                 cd)
                     # keep resolution honest for `cd backend && ../scripts/x.sh`
@@ -243,6 +276,29 @@ case "$tool" in
                         [[ $# -gt 0 ]] || return 0
                         vet_toolchain_request "$(clean_token "$1")"
                     fi
+                    ;;
+                python | python3 | node | nodejs | ruby | perl)
+                    shift
+                    while [[ ${1:-} == -* ]]; do
+                        case "$1" in
+                            -c|-e|--command|--eval)
+                                deny "Blocked: inline interpreter payloads cannot be inspected by the absolute-rule guard. Write the tracked script path out directly."
+                                ;;
+                            -m|--module)
+                                shift
+                                [[ ${1:-} = venv ]] || deny "Blocked: interpreter modules cannot be inspected by the absolute-rule guard. Write the tracked script path out directly."
+                                return 0
+                                ;;
+                        esac
+                        shift || break
+                    done
+                    [[ $# -gt 0 ]] || return 0
+                    tok=$(clean_token "$1")
+                    reject_dynamic_executable "$tok"
+                    vet_script "$tok" || deny_untracked "$tok"
+                    ;;
+                xargs)
+                    deny "Blocked: xargs builds commands from runtime input and cannot be inspected by the absolute-rule guard. Write the command out directly."
                     ;;
                 *.sh)
                     vet_script "$first" || deny_untracked "$first"
@@ -280,6 +336,12 @@ case "$tool" in
                 if [[ "$ch" = $'\\' ]]; then
                     segment+=$ch$next
                     i=$((i + 2))
+                    continue
+                fi
+                if [[ "$ch" = "'" ]]; then
+                    segment+=$ch
+                    quote="'"
+                    i=$((i + 1))
                     continue
                 fi
                 if [[ "$ch" = '"' ]]; then

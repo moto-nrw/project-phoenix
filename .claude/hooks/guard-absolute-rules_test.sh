@@ -42,6 +42,8 @@ git -C "$repo" commit -qm fixture
 # untracked on purpose: exists, executable, but not vetted
 printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new.sh"
 chmod +x "$repo/scripts/new.sh"
+printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new"
+chmod +x "$repo/scripts/new"
 
 worktree="$fixture/wt"
 git -C "$repo" worktree add -q "$worktree" -b guard-test-wt
@@ -100,10 +102,12 @@ assert_bash allow "$repo" 'git commit -m "fix: x"'
 assert_bash allow "$repo" "rg $prod_host docs/"
 assert_bash allow "$repo" "grep -R 'test-changed.sh' scripts/"
 assert_bash allow "$repo" "scripts/run-go-toolchain.sh grep 'test-changed.sh' scripts/"
+assert_bash allow "$repo" "printf '%s\\n' 'a; scripts/new.sh'"
 
 # --- unvetted execution: denied ---
 assert_bash deny "$repo" './scripts/new.sh'
 assert_bash deny "$repo" 'scripts/new.sh'
+assert_bash deny "$repo" './scripts/new'
 assert_bash deny "$repo" './scripts/does-not-exist.sh'
 assert_bash deny "$repo" 'bash /tmp/definitely-missing-guard-test.sh'
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh /tmp/evil.sh'
@@ -121,6 +125,10 @@ assert_bash deny "$fixture" 'repo/scripts/test-backend.sh' # outside any repo ro
 assert_bash deny "$repo" 'source /tmp/some-env-file'
 assert_bash deny "$repo" 'scripts/outside.sh'
 assert_bash deny "$repo" $'cd backend\n../scripts/new.sh'
+assert_bash deny "$repo" 'nice -n 5 ./scripts/new'
+assert_bash deny "$repo" 'python3 ./scripts/new'
+assert_bash deny "$repo" 'xargs ./scripts/new'
+assert_bash deny "$repo" 'if true; then ./scripts/new; fi'
 
 # --- inline payloads and eval: denied, incl. the -lc flag cluster ---
 assert_bash deny "$repo" "bash -c 'echo hi'"
