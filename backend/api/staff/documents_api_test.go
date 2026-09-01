@@ -79,7 +79,7 @@ func setupDocumentsAPI(t *testing.T) *documentsAPIContext {
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM users.staff_documents WHERE staff_id = ?`, target.ID)
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM audit.staff_master_data_changes WHERE staff_id = ?`, target.ID)
 		if pubDir, err := common.ResolvePublicDir(); err == nil {
-			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "staff-documents"))
+			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "staff-documents", strconv.FormatInt(testpkg.Tenant(t), 10)))
 		}
 	})
 
@@ -133,10 +133,8 @@ func uploadedDocument(t *testing.T, body []byte) (id int64, filename string) {
 	return resp.Data.ID, resp.Data.Filename
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_UploadListDownloadDelete(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	base := fmt.Sprintf("/staff/%d/documents", c.staffID)
 
@@ -175,10 +173,8 @@ func TestStaffDocumentsAPI_UploadListDownloadDelete(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_PermissionMatrix(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	base := fmt.Sprintf("/staff/%d/documents", c.staffID)
 
@@ -215,10 +211,8 @@ func TestStaffDocumentsAPI_PermissionMatrix(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), `"au_bescheinigung"`)
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	const orphanStaffID = int64(987654321)
 	storedName := fmt.Sprintf("orphan-%d.pdf", time.Now().UnixNano())
@@ -255,10 +249,8 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *te
 // The cleanup pass must never delete the bytes of an upload whose metadata
 // transaction is still open: that transaction has already stamped the intent
 // complete and may commit right after, leaving a document row without a file.
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_ScheduledCleanupSkipsUncommittedUpload(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	const orphanStaffID = int64(987654322)
 	storedName := fmt.Sprintf("inflight-%d.pdf", time.Now().UnixNano())
@@ -319,10 +311,8 @@ func containsStoredName(cleanups []*users.StaffDocumentFileCleanup, storedName s
 	return false
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	rec := c.upload(t, "zeugnis", "offboarded.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
@@ -346,10 +336,8 @@ func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_ScheduledCleanupRetriesOffboardedStaffDocument(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	rec := c.upload(t, "zeugnis", "offboarded-scheduled.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
@@ -386,10 +374,8 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesOffboardedStaffDocument(t *tes
 	assert.Equal(t, 0, removed)
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	rec := c.upload(t, "zeugnis", "deleted.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
@@ -411,10 +397,8 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_FileValidation(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 
 	// Executables (and anything else off the allow-list) are rejected by

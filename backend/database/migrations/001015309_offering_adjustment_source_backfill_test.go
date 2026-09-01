@@ -101,6 +101,7 @@ func sourceOf(t *testing.T, db *testpkg.DB, id int64) string {
 // that wrote them. Everything else is the office's own correction and becomes
 // visible in the central history.
 func TestOfferingAdjustmentSourceBackfill(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	f := newBackfillFixture(t, db)
 
@@ -155,6 +156,7 @@ func TestOfferingAdjustmentSourceBackfill(t *testing.T) {
 }
 
 func TestOfferingAdjustmentSourceBackfill_DoesNotCorrelateAnotherChild(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	f := newBackfillFixture(t, db)
 	decidedAt := time.Now().UTC().Add(-72 * time.Hour)

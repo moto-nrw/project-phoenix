@@ -1,6 +1,7 @@
 package applog
 
 import (
+	"io"
 	"log/slog"
 	"os"
 )
@@ -10,13 +11,10 @@ type Config struct {
 	Level  string // "debug", "info", "warn", "error" (default: "info")
 	Format string // "json", "text" (default: "json")
 	Env    string // "development", "test", "production"
+	Output io.Writer
 }
 
-// New creates a configured *slog.Logger, sets it as the global default,
-// and returns it for explicit dependency injection.
-//
-// After calling New, all existing log.Printf/log.Println calls automatically
-// route through the configured slog handler (via slog.SetDefault).
+// New creates a configured logger without changing process-global logging.
 func New(cfg Config) *slog.Logger {
 	level := parseLevel(cfg.Level)
 
@@ -25,11 +23,15 @@ func New(cfg Config) *slog.Logger {
 		AddSource: cfg.Env == "production",
 	}
 
+	output := cfg.Output
+	if output == nil {
+		output = os.Stdout
+	}
 	var handler slog.Handler
 	if cfg.Format == "text" || cfg.Env == "development" {
-		handler = slog.NewTextHandler(os.Stdout, opts)
+		handler = slog.NewTextHandler(output, opts)
 	} else {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
+		handler = slog.NewJSONHandler(output, opts)
 	}
 
 	logger := slog.New(handler)
@@ -39,17 +41,13 @@ func New(cfg Config) *slog.Logger {
 		logger = logger.With(slog.String("env", cfg.Env))
 	}
 
-	// Set as global default — captures existing log.Printf calls.
-	// After this, all log.Printf/log.Println calls route through slog.
-	// They are logged at LevelInfo by default (configurable via SetLogLoggerLevel).
-	// See: https://pkg.go.dev/log/slog#SetDefault
-	slog.SetDefault(logger)
-
-	// Route stdlib log.Printf calls as WARN (not INFO) so they stand out
-	// as "not yet migrated" during the transition period.
-	slog.SetLogLoggerLevel(slog.LevelWarn)
-
 	return logger
+}
+
+// ConfigureDefault installs the application logger at the process composition root.
+func ConfigureDefault(logger *slog.Logger) {
+	slog.SetDefault(logger)
+	slog.SetLogLoggerLevel(slog.LevelWarn)
 }
 
 func parseLevel(s string) slog.Level {

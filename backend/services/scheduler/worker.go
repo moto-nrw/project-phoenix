@@ -25,6 +25,7 @@ import (
 // Construction replaces the former post-construction Set* graph.
 type WorkerDependencies struct {
 	Logger                    *slog.Logger
+	Getenv                    func(string) string
 	DB                        *bun.DB
 	SchoolRepo                platform.SchoolRepository
 	TenantRuntime             *tenant.UnitOfWork

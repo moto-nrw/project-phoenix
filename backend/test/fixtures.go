@@ -3113,3 +3113,45 @@ func CreateTestCoGuardianForStudent(
 		Email:             account.Email,
 	}
 }
+
+// CreateTestParentAnnouncement creates a school-wide Elternmitteilung owned by
+// the test's tenant, so tests that hang something off an announcement (its
+// attachments, #2890) have a real row behind the composite foreign key.
+//
+// It stays a draft: publishing is a service concern, and the callers that need
+// a live announcement publish it themselves.
+func CreateTestParentAnnouncement(tb testing.TB, db *bun.DB, createdBy int64, title string) *users.ParentAnnouncement {
+	tb.Helper()
+	ctx := TenantContext(fixtureTenantID(tb))
+	announcement := &users.ParentAnnouncement{
+		Title:     fmt.Sprintf("%s-%d", title, uniqueFixtureSuffix()),
+		Body:      "Testinhalt.",
+		Priority:  users.ParentAnnouncementPriorityInfo,
+		Active:    true,
+		CreatedBy: createdBy,
+	}
+	announcement.SetTenantID(fixtureTenantID(tb))
+	_, err := db.NewInsert().Model(announcement).
+		ModelTableExpr(`users.parent_announcements AS "parent_announcement"`).
+		Returning("*").Exec(ctx)
+	if err != nil {
+		tb.Fatalf("create test parent announcement: %v", err)
+	}
+	return announcement
+}
+
+// PublishTestParentAnnouncement stamps an announcement as published now, so
+// tests can exercise the rules that only apply once it is out — above all that
+// a published announcement is immutable (#2890).
+func PublishTestParentAnnouncement(tb testing.TB, db *bun.DB, announcementID int64) {
+	tb.Helper()
+	ctx := TenantContext(fixtureTenantID(tb))
+	_, err := db.NewUpdate().
+		TableExpr("users.parent_announcements").
+		Set("published_at = NOW()").
+		Where("id = ?", announcementID).
+		Exec(ctx)
+	if err != nil {
+		tb.Fatalf("publish test parent announcement: %v", err)
+	}
+}

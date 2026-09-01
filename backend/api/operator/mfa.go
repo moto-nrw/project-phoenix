@@ -67,6 +67,8 @@ func mapOperatorMFAError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, ErrConflict("MFA is already enrolled"))
 	case errors.Is(err, authService.ErrMFAPermissionDenied):
 		common.RenderError(w, r, ErrForbidden("Permission denied"))
+	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+		common.RenderError(w, r, ErrServiceUnavailable("MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut."))
 	default:
 		common.RenderError(w, r, ErrInternal("MFA operation failed"))
 	}

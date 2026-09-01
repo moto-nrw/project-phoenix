@@ -8,11 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
+func init() { testutil.SeedTestJWTConfig() }
+
 func TestRouter_RejectsUsersRead(t *testing.T) {
-	testutil.SeedTestJWTConfig()
+	t.Parallel()
 	resource := &Resource{}
 	router := resource.Router()
 	claims := testutil.DefaultTestClaims()

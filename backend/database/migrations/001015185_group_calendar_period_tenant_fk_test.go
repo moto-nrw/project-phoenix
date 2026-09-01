@@ -12,6 +12,7 @@ import (
 )
 
 func TestGroupCalendarPeriodTenantFKRejectsCrossTenantReference(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantA := testpkg.UniqueTestTenantID(t)

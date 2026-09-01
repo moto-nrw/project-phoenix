@@ -94,6 +94,16 @@ func WithPackageTenantRuntime(ctx context.Context) context.Context {
 	return tenant.WithUnitOfWork(ctx, *runtime)
 }
 
+// WithTestTenantRuntime attaches the runtime for tb's disposable clone when
+// present, otherwise the package runtime.
+func WithTestTenantRuntime(tb testing.TB, ctx context.Context) context.Context {
+	tb.Helper()
+	if value, ok := isolatedTestDatabases.Load(topLevelTestName(tb)); ok {
+		return tenant.WithUnitOfWork(ctx, value.(*isolatedTestDatabase).runtime)
+	}
+	return WithPackageTenantRuntime(ctx)
+}
+
 // PackageTenantRuntime returns the runtime bound to this test binary's shared
 // database. It is available after SetupTestDB has initialized the package.
 func PackageTenantRuntime() (tenant.UnitOfWork, bool) {

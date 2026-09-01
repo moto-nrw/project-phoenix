@@ -132,6 +132,7 @@ func loadSchemaFields(t *testing.T, db *testpkg.DB, id int64) []departureTestFie
 }
 
 func TestFormSchemasMigrateLegacyDeparture_PublishesConvertedVersionAndRepointsPhases(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -193,6 +194,7 @@ func TestFormSchemasMigrateLegacyDeparture_PublishesConvertedVersionAndRepointsP
 }
 
 func TestFormSchemasMigrateLegacyDeparture_DropsLegacyWhenModernFieldExists(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -223,6 +225,7 @@ func TestFormSchemasMigrateLegacyDeparture_DropsLegacyWhenModernFieldExists(t *t
 }
 
 func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsRequirednessAndBroadensVisibility(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -254,6 +257,7 @@ func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsRequiredne
 }
 
 func TestFormSchemasMigrateLegacyDeparture_PreservesSharedVisibilityWhenModernFieldExists(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -288,6 +292,7 @@ func TestFormSchemasMigrateLegacyDeparture_PreservesSharedVisibilityWhenModernFi
 }
 
 func TestFormSchemasMigrateLegacyDeparture_DeduplicatesModernDepartureFieldsBeforeValidation(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -324,6 +329,7 @@ func TestFormSchemasMigrateLegacyDeparture_DeduplicatesModernDepartureFieldsBefo
 }
 
 func TestFormSchemasMigrateLegacyDeparture_ClearsDifferingLegacyVisibilityOnReplacement(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -357,6 +363,7 @@ func TestFormSchemasMigrateLegacyDeparture_ClearsDifferingLegacyVisibilityOnRepl
 }
 
 func TestFormSchemasMigrateLegacyDeparture_ClearsDanglingVisibilityDependencies(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -391,6 +398,7 @@ func TestFormSchemasMigrateLegacyDeparture_ClearsDanglingVisibilityDependencies(
 }
 
 func TestFormSchemasMigrateLegacyDeparture_RepointsLegacyPhaseToCleanLatest(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -428,6 +436,7 @@ func TestFormSchemasMigrateLegacyDeparture_RepointsLegacyPhaseToCleanLatest(t *t
 }
 
 func TestFormSchemasMigrateLegacyDeparture_SkipsCleanLineages(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	staffHRPermissionsVersion     = "1.15.359"
+	staffHRPermissionsVersion     = "1.15.360"
 	staffHRPermissionsDescription = "Split staff personnel access out of users:update into staff:stammdaten / staff:documents / staff:manage (#2906)"
 
 	staffStammdatenPermissionName = "staff:stammdaten"
@@ -51,7 +51,7 @@ func init() {
 // untouched; admins keep everything through the admin:* wildcard anyway, the
 // explicit grants exist so the permissions show up in the role management UI.
 func addStaffHRPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.359: Adding staff personnel permissions (#2906)...")
+	fmt.Println("Migration 1.15.360: Adding staff personnel permissions (#2906)...")
 
 	specs := []permissionSpec{
 		{
@@ -80,12 +80,12 @@ func addStaffHRPermissions(ctx context.Context, db *bun.DB) error {
 		}
 	}
 
-	fmt.Println("Migration 1.15.359: Granted staff:stammdaten, staff:documents and staff:manage to the admin role")
+	fmt.Println("Migration 1.15.360: Granted staff:stammdaten, staff:documents and staff:manage to the admin role")
 	return nil
 }
 
 func removeStaffHRPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.359: Removing staff personnel permissions...")
+	fmt.Println("Rolling back migration 1.15.360: Removing staff personnel permissions...")
 
 	for _, name := range []string{
 		staffStammdatenPermissionName,

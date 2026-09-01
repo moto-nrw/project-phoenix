@@ -19,10 +19,8 @@ func (p staticSSEStatsProvider) SnapshotStats() SSEStats {
 	return p.stats
 }
 
-// Deliberately NOT parallel: RegisterSSEStatsProvider installs a
-// process-global provider that MetricsHandler reads on every scrape, so two
-// of these tests overwrite each other's provider.
 func TestRefreshSSEGaugesResetsDisconnectedTenants(t *testing.T) {
+	t.Parallel()
 	RegisterSSEStatsProvider(staticSSEStatsProvider{
 		stats: SSEStats{ClientsByTenant: map[int64]int{101: 2, 202: 1}},
 	})

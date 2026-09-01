@@ -9,6 +9,7 @@ import (
 )
 
 func TestChangeRequestCareOfferingCapabilityMigration_BackfillsLegacyRowsEnabled(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

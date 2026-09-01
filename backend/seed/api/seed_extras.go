@@ -93,6 +93,24 @@ func seedParentLetter(rt *Runtime) error {
 	if err != nil {
 		return fmt.Errorf("parse parent letter response: %w", err)
 	}
+	// Anhang VOR dem Veröffentlichen: danach ist die Mitteilung unveränderlich
+	// und das Backend lehnt jeden weiteren Anhang ab (#2890). Ohne diese Zeile
+	// ist der Anhangsbereich auf jeder Entwicklungsmaschine leer, und genau der
+	// Teil — was die Eltern am Ende herunterladen — lässt sich dann nirgends
+	// ansehen.
+	if _, err := rt.Client.PostFile(
+		fmt.Sprintf("/api/announcement-attachments/%d", id),
+		"file",
+		"Zoobesuch Einverständnis.pdf",
+		demoPDF("Einverständnis Zoobesuch", []string{
+			"Mein Kind darf am Freitag mit in den Zoo.",
+			"Wir sind um 16:00 Uhr zurück an der Schule.",
+			"Bitte geben Sie festes Schuhwerk und eine Regenjacke mit.",
+		}),
+	); err != nil {
+		return fmt.Errorf("attach file to parent letter: %w", err)
+	}
+
 	publishedRaw, err := rt.Client.Post(fmt.Sprintf("/api/parent-announcements/%d/publish", id), nil)
 	if err != nil {
 		return fmt.Errorf("publish parent letter: %w", err)

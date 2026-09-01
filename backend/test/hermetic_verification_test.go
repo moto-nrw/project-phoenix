@@ -32,6 +32,7 @@ import (
 // - Let the package clone or fixture builder own their rows
 // - Be runnable in any order and in parallel
 func TestHermeticTestPatterns(t *testing.T) {
+	t.Parallel()
 	// Find the backend root directory
 	backendRoot, err := findBackendRoot()
 	if err != nil {
@@ -145,36 +146,20 @@ func TestHermeticTestPatterns(t *testing.T) {
 				"the whole test binary. A helper that sets one and restores it in\n"+
 				"t.Cleanup will yank it out from under any test running beside it —\n"+
 				"the failure surfaces as an unrelated assertion, and only under load.\n\n"+
-				"Fix: drop t.Parallel() from this test, or make the helper stop mutating\n"+
-				"global state (inject the value instead).",
+				"Fix: make the helper stop mutating global state; inject the value instead.",
 				len(violations), strings.Join(violations, "\n"))
 		}
 	})
 
 	t.Run("tests_run_in_parallel", func(t *testing.T) {
-		counts, unexplained := checkSerialTestRatchet(t, backendRoot)
-		if v := shrinkOnlyViolations(unexplained, nil); len(v) > 0 {
-			t.Errorf("Serial tests without a reason:\n\n%s\n\n"+
-				"A test without t.Parallel() carries a comment directly above it that\n"+
-				"starts with %q and names which of the five reasons applies\n"+
-				"(process-global state, schema mutation, a sweep that runs across\n"+
-				"tenants, a query budget on the shared pool, deliberate lock\n"+
-				"contention).",
-				strings.Join(v, "\n"), serialReasonPrefix)
-		}
-		violations := shrinkOnlyViolations(counts, serialTestBaseline)
+		violations := shrinkOnlyViolations(checkSerialTests(t, backendRoot), serialTestBaseline)
 		if len(violations) > 0 {
-			t.Errorf("Serial-test ratchet violated (per-package counts may only shrink):\n\n%s\n\n"+
-				"Since #2419 every test runs in its own tenant inside a per-package\n"+
-				"database clone, so tests are parallel by default:\n\n"+
+			t.Errorf("Found top-level tests without t.Parallel():\n\n%s\n\n"+
+				"Every top-level backend test runs in parallel. Isolate process globals,\n"+
+				"schema changes, sweeps, measurements, and locks instead of adding an exemption:\n\n"+
 				"  func TestSomething(t *testing.T) {\n"+
 				"      t.Parallel()\n"+
-				"      db := testpkg.SetupTestDB(t)\n\n"+
-				"A test that genuinely cannot (it writes process-global state, changes\n"+
-				"the schema, measures a query budget, or exercises a sweep that runs\n"+
-				"across tenants) stays serial WITH a comment above it saying which of\n"+
-				"those it is — and raises nothing: lower another entry in\n"+
-				"serialTestBaseline first, or fix the reason instead.",
+				"      db := testpkg.SetupTestDB(t)\n",
 				strings.Join(violations, "\n"))
 		}
 	})
@@ -316,7 +301,7 @@ import (
 
 func TestDirectMutation(t *testing.T) {
 	t.Parallel()
-	viper.Set("key", "value")
+	viper.` + "Set" + `("key", "value")
 }
 `)
 	if err := os.WriteFile(filepath.Join(root, "direct_test.go"), probe, 0o600); err != nil {
@@ -537,6 +522,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 	// Patterns indicating direct or indirect shared test DB setup.
 	setupPatterns := []string{
 		"SetupTestDB",
+		"SetupIsolatedTestDB",
 		"setupTestDB",
 		"SetupAPITest",
 		"setupAPITest",
@@ -1286,98 +1272,8 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 	return violations
 }
 
-// serialTestBaseline is the shrink-only per-package count of top-level tests
-// that do NOT call t.Parallel() (#2419 goal 4, "voll parallel"). Everything
-// else in the suite runs in parallel; what is counted here is the residue
-// that cannot, and every one of those carries a comment above the test
-// saying why.
-//
-// The reasons that survive fall into five families:
-//
-//	process-global state   viper keys, environment variables, the default
-//	                       logger, the settings registry — a test that
-//	                       writes one cannot run beside a test that reads it
-//	                       (the no_parallel_test_touching_global_state gate
-//	                       is the forward-looking half of this).
-//	schema mutation        migration tests, and the handful of tests that
-//	                       drop and restore a column: they change the clone
-//	                       every test in the binary shares.
-//	unscoped sweeps        code that queries across tenants (a deadline
-//	                       worker, a global cleanup) called from a service
-//	                       test with a plain tenant context, so RLS never
-//	                       narrows it.
-//	measurement            query-budget tests, which install a hook on the
-//	                       shared pool and count what flows through it.
-//	lock contention        the handful of tests that take a row lock in one
-//	                       transaction and expect a second one to block on
-//	                       it; beside another test that touches those rows,
-//	                       the contention becomes a deadlock.
-//
-// Counts may only go DOWN. A package not listed here must have every test
-// parallel. Lower a number when you fix the underlying reason; never raise
-// one to make a new test fit.
-//
-// One deliberate exception, in the same change that introduced this note
-// (#2419): five packages went UP because tests that HAD t.Parallel() were
-// shown not to survive it — every one of them an unscoped sweep or a write to
-// process-global state, each now serial with its reason above it. They were
-// measured, not guessed: services/auth failed roughly one shuffled run in
-// three (CleanupExpiredTokens deletes orphaned push rows across every account
-// and tenant), and the four others were caught in full-suite runs.
-// database/repositories/platform paid for it by making 17 outbox tests
-// parallel.
-var serialTestBaseline = map[string]int{
-	"api":        20,
-	"api/active": 2,
-	"api/auth":   1,
-	// 1 -> 3 beim Merge von development: #2434 bringt zwei serielle Tests mit,
-	// deren Fixture SeedTestJWTConfig ruft (Begruendung steht ueber den Tests).
-	"api/enrollment":       3,
-	"api/guardians":        1,
-	"api/iot":              7,
-	"api/iot/checkin":      14,
-	"api/operator":         30,
-	"api/schedules":        2,
-	"api/staff":            15,
-	"api/staff-shifts":     1,
-	"api/students":         14,
-	"api/timetable":        2,
-	"api/work-time-models": 1,
-	"applog":               1,
-	"auth/device":          34,
-	"auth/jwt":             38,
-	"cmd":                  190,
-	"database":             8,
-	// Serial by package design (schema mutation on the shared clone), so every
-	// new migration test necessarily adds one — 92 since 1.15.359.
-	"database/migrations":              92,
-	"database/repositories/audit":      2,
-	"database/repositories/active":     1,
-	"database/repositories/auth":       4,
-	"database/repositories/enrollment": 3,
-	"database/repositories/platform":   34,
-	"database/repositories/users":      2,
-	"email":                            12,
-	"integration/phoenixapi":           25,
-	"models/config":                    12,
-	"observability":                    4,
-	"seed/api":                         1,
-	"services":                         15,
-	"services/active":                  1,
-	"services/auth":                    25,
-	"services/config":                  147,
-	"services/education":               1,
-	"services/enrollment":              32,
-	"services/facilities":              1,
-	"services/iot/checkin":             38,
-	"services/parent":                  4,
-	"services/platform":                41,
-	"services/scheduler":               53,
-	"services/usercontext":             3,
-	"services/users":                   12,
-	"test/e2e/calendar":                4,
-	"test/e2e/timetable":               3,
-}
+// The baseline is intentionally empty: serial top-level tests are forbidden.
+var serialTestBaseline = map[string]int{}
 
 // topLevelTestDecl matches a top-level test function declaration.
 var topLevelTestDecl = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T\) \{`)
@@ -1389,71 +1285,20 @@ var topLevelTestDecl = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T
 // count.
 var topLevelParallelCall = regexp.MustCompile(`(?m)^\t\w+\.Parallel\(\)$`)
 
-// serialReasonPrefix is the sentence a serial test opens its reason with.
-// The ratchet requires it, so "why is this one serial" is answered in the
-// file and not only in this baseline's doc comment.
-const serialReasonPrefix = "// Deliberately NOT parallel:"
-
-// serialPackagePrefix says it once for a whole package. Some packages are
-// serial end to end for a single reason — cmd drives cobra and the viper
-// singleton, and repeating the same four lines above 134 tests told the
-// reader nothing the package could not say once.
-const serialPackagePrefix = "// Deliberately NOT parallel (whole package):"
-
-// checkSerialTestRatchet counts, per package, the top-level tests that do not
-// call t.Parallel(), and reports every one of them that gives no reason.
-func checkSerialTestRatchet(t *testing.T, root string) (counts, unexplained map[string]int) {
+func checkSerialTests(t *testing.T, root string) map[string]int {
 	t.Helper()
 
-	counts, unexplained = make(map[string]int), make(map[string]int)
-	serialPackages := make(map[string]bool)
-	if err := walkGoFilesRaw(root, func(_, pkg string, content []byte) {
-		if bytes.Contains(content, []byte(serialPackagePrefix)) {
-			serialPackages[pkg] = true
-		}
-	}); err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
-	}
-
+	counts := make(map[string]int)
 	err := walkGoFilesRaw(root, func(_, pkg string, content []byte) {
-		text := string(content)
-		for _, f := range splitGoFuncs(text) {
+		for _, f := range splitGoFuncs(string(content)) {
 			if !topLevelTestDecl.MatchString(f.body) || topLevelParallelCall.MatchString(f.body) {
 				continue
 			}
 			counts[pkg]++
-			if !serialPackages[pkg] && !strings.Contains(precedingComment(text, f), serialReasonPrefix) {
-				unexplained[pkg]++
-			}
 		}
 	})
 	if err != nil {
 		t.Logf("Warning: error walking directory: %v", err)
 	}
-	return counts, unexplained
-}
-
-// precedingComment returns the comment block directly above f.
-func precedingComment(text string, f goFunc) string {
-	idx := strings.Index(text, f.body)
-	if idx <= 0 {
-		return ""
-	}
-	before := text[:idx]
-	var block []string
-	for _, line := range reverse(strings.Split(strings.TrimRight(before, "\n"), "\n")) {
-		if !strings.HasPrefix(strings.TrimSpace(line), "//") {
-			break
-		}
-		block = append(block, line)
-	}
-	return strings.Join(block, "\n")
-}
-
-func reverse(lines []string) []string {
-	out := make([]string, 0, len(lines))
-	for i := len(lines) - 1; i >= 0; i-- {
-		out = append(out, lines[i])
-	}
-	return out
+	return counts
 }

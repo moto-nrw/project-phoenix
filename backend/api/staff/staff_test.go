@@ -528,10 +528,9 @@ func createStaffForAccountPerson(t *testing.T, ctx *testContext, personID, accou
 // A Lehrkraft (#1772) holds class_day:read and nothing else. Granting the staff
 // default groups:read would open the tenant-wide group list and every group's
 // student names, far beyond the classes assigned to that Lehrkraft.
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -547,10 +546,9 @@ func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
 
 // The mirror image: a staff account without the Lehrkraft role keeps the
 // existing default, so the guard above cannot quietly disable the grant.
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -599,10 +597,9 @@ func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
 // A Lehrkraft account (#1772) is provisioned without a caregiver profile on
 // purpose. The role-assignment paths refuse the combination from the other
 // direction; staff creation must not be the way around it (#2222 review).
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -877,10 +874,9 @@ func TestGetStaffByRole_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "RoleTeacher")
@@ -910,10 +906,9 @@ func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) 
 	assert.True(t, found, "expected role=teacher response to include legacy teacher staff ID %d", teacher.Staff.ID)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupStaffRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Caregiver")

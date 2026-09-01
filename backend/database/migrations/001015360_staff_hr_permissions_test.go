@@ -22,6 +22,8 @@ var staffHRPermissionNames = []string{
 // `user` (Betreuer) role — which holds users:update for the child-data
 // surfaces — does not.
 func TestStaffHRPermissionsGrantedToAdminOnly(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

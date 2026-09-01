@@ -23,6 +23,8 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+func init() { testutil.SeedTestJWTConfig() }
+
 type trackingSettingValuesCounter struct {
 	count atomic.Int32
 }
@@ -43,12 +45,10 @@ func (*trackingSettingValuesCounter) AfterQuery(context.Context, *bun.QueryEvent
 // way production attaches it) and asserts the four settings the handler reads
 // (toggle + three labels) cost exactly one config.setting_values query
 // (issue #2065).
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
-	testutil.SeedTestJWTConfig()
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)

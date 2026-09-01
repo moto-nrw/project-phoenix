@@ -949,10 +949,9 @@ func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: the rollback check counts grade transitions by
-// academic year alone, with no tenant filter, so it also sees the rows of
-// tests running beside it.
 func TestGradeTransitionService_Create_InvalidMapping(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 

@@ -79,10 +79,11 @@ func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
 		tokenAuth, err := authjwt.NewTokenAuthWithSecret(loginGateJWTSecret)
 		require.NoError(t, err)
 		mfaSvc, err = auth.NewMFAService(auth.MFAServiceConfig{
-			Repos:     repos,
-			TokenAuth: tokenAuth,
-			JWTSecret: loginGateJWTSecret,
-			DB:        db,
+			Repos:      repos,
+			TokenAuth:  tokenAuth,
+			Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
+			JWTSecret:  loginGateJWTSecret,
+			DB:         db,
 		})
 		require.NoError(t, err)
 		testpkg.SetTenantRuntime(t, mfaSvc, db)

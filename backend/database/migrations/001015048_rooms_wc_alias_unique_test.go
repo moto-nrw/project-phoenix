@@ -88,6 +88,7 @@ func roomNameByID(t *testing.T, db *testpkg.DB, id int64) string {
 // tenant has zero or one alias row, migration is a no-op for cleanup but
 // still rebuilds the index.
 func TestRoomsWCAliasUniqueUp_NoDuplicates(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -108,6 +109,7 @@ func TestRoomsWCAliasUniqueUp_NoDuplicates(t *testing.T) {
 // "Toilette" name. This is the scenario where a school manually created
 // "Toilette" first, used it, then somehow ended up with a "WC" duplicate.
 func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -140,6 +142,7 @@ func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
 // TestRoomsWCAliasUniqueUp_PrefersCanonicalWC covers tie-breaker step 2:
 // when active-group counts tie, "WC" wins over "Toilette".
 func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -161,6 +164,7 @@ func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
 // completed successfully is a no-op — important because the deploy framework
 // can re-invoke a migration after a partial failure on the next run.
 func TestRoomsWCAliasUniqueUp_Idempotent(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -191,6 +195,7 @@ func TestRoomsWCAliasUniqueUp_Idempotent(t *testing.T) {
 // when the application-level guard is bypassed (e.g. via the TOCTOU race
 // between two concurrent CreateRoom calls).
 func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -214,6 +219,7 @@ func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
 // TestRoomsWCAliasUniqueUp_TenantIsolation guards against the index being
 // cross-tenant: every tenant must be allowed its own alias.
 func TestRoomsWCAliasUniqueUp_TenantIsolation(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantA := testpkg.UniqueTestTenantID(t)

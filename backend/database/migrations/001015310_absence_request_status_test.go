@@ -11,6 +11,7 @@ import (
 )
 
 func TestAbsenceRequestStatusMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
