@@ -57,15 +57,15 @@ type SwrMutateAll = (
 /**
  * Read which staff member the session `update()` hands back is previewing.
  *
- * `undefined` means "cannot tell" — NextAuth returns the session object, but a
- * caller (or a test double) may hand back nothing. Only a session that really
- * carries a user is evaluated; everything else stays undecided so no correct
- * flow is aborted on a missing return value. `null` means: no preview running.
+ * `null` means: the returned value does not show a running preview — either
+ * because none is running, or because nothing usable came back at all. Both
+ * cases are treated the same way at the start: only a session that names the
+ * requested person proves the swap happened.
  */
-function readPreviewTarget(result: unknown): string | null | undefined {
-  if (typeof result !== "object" || result === null) return undefined;
+function readPreviewTarget(result: unknown): string | null {
+  if (typeof result !== "object" || result === null) return null;
   const user = (result as { user?: unknown }).user;
-  if (typeof user !== "object" || user === null) return undefined;
+  if (typeof user !== "object" || user === null) return null;
   const target = (user as { previewTargetAccountId?: unknown })
     .previewTargetAccountId;
   return typeof target === "string" ? target : null;
@@ -175,9 +175,11 @@ export async function performStartStaffPreview(
     // The session callback refuses a token that is not a genuine read-only
     // preview token, and it refuses a start while a preview is already
     // running. Both are silent on its side, so the session it returns is the
-    // authority here: it must now preview exactly the requested person.
-    const entered = readPreviewTarget(result);
-    if (entered !== undefined && entered !== preview.targetAccountId) {
+    // only proof the swap happened: it must name exactly the requested person.
+    // Anything else — a different person, no preview, no session at all —
+    // fails closed, because the browser would otherwise keep the admin's
+    // session while the backend has already recorded a started preview.
+    if (readPreviewTarget(result) !== preview.targetAccountId) {
       throw new Error("preview session was not entered");
     }
   } catch (err) {

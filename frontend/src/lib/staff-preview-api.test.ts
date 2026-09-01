@@ -89,6 +89,51 @@ describe("performStartStaffPreview", () => {
     );
   });
 
+  it("closes the preview when the session update proves nothing", async () => {
+    mockSessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        access_token: "preview-token",
+        expires_in: 900,
+        target_account_id: "42",
+        target_name: "Anna Beispiel",
+      }),
+    });
+    // update() resolved without handing back a session: nothing proves the
+    // browser swapped onto the preview token.
+    const update = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      performStartStaffPreview("42", update, swrMutate),
+    ).rejects.toThrow("preview session was not entered");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/auth/staff-preview/end",
+      expect.objectContaining({
+        body: JSON.stringify({ preview_token: "preview-token" }),
+      }),
+    );
+  });
+
+  it("closes the preview when the session names another person", async () => {
+    mockSessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        access_token: "preview-token",
+        expires_in: 900,
+        target_account_id: "42",
+        target_name: "Anna Beispiel",
+      }),
+    });
+    const update = vi.fn().mockResolvedValue(previewSession("77"));
+
+    await expect(
+      performStartStaffPreview("42", update, swrMutate),
+    ).rejects.toThrow("preview session was not entered");
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the preview when the session entered it", async () => {
     mockSessionFetch.mockResolvedValue({
       ok: true,
