@@ -766,6 +766,11 @@ func TestStatisticsReport_CourseParticipation(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &scoped))
 	assert.Len(t, scoped.Data.Courses, 1)
 	assert.Empty(t, scoped.Data.Rooms)
+	// … and the attendance section is neither computed nor returned: the
+	// child table belongs to the section that was not asked for.
+	assert.Empty(t, scoped.Data.Students)
+	assert.Empty(t, scoped.Data.Groups)
+	assert.Zero(t, scoped.Data.CareDays)
 
 	req = httptest.NewRequest(http.MethodGet, "/report?section=nope&from="+weekFrom.String()+"&to="+weekTo.String(), nil)
 	rec = authExec(t, tc, req, claims, reportPermissions)

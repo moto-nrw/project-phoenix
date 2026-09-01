@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
@@ -71,17 +72,24 @@ type CourseStudentRow struct {
 // courseSection computes both course views over the already-filtered child
 // population, so the section can never report a child the attendance section
 // does not.
-func (s *service) courseSection(ctx context.Context, filters Filters, students []StudentRow) ([]CourseRow, []CourseStudentRow, CourseRow, error) {
+//
+// from is the window start already clamped to the retention cutoff the screen
+// names (CourseDataFrom): the cleanup job may run late or the tenant may have
+// shortened the window, so the reported cutoff is enforced here rather than
+// trusted to be enforced by deletion.
+func (s *service) courseSection(ctx context.Context, filters Filters, from, to timezone.Date, students []StudentRow) ([]CourseRow, []CourseStudentRow, CourseRow, error) {
 	var totals CourseRow
 	totals.Name = totalsRowName
-	if s.cfg.Courses == nil {
+	if s.cfg.Courses == nil || from.After(to) {
+		// The whole window lies behind the retention cutoff — there is
+		// nothing left to read, and the screen says so.
 		return nil, nil, totals, nil
 	}
-	instances, err := s.cfg.Courses.CourseInstances(ctx, filters.From, filters.To)
+	instances, err := s.cfg.Courses.CourseInstances(ctx, from, to)
 	if err != nil {
 		return nil, nil, totals, fmt.Errorf("load course instances: %w", err)
 	}
-	participation, err := s.cfg.Courses.CourseParticipation(ctx, filters.From, filters.To)
+	participation, err := s.cfg.Courses.CourseParticipation(ctx, from, to)
 	if err != nil {
 		return nil, nil, totals, fmt.Errorf("load course participation: %w", err)
 	}
@@ -137,6 +145,13 @@ func (s *service) courseSection(ctx context.Context, filters Filters, students [
 
 	rows := make([]CourseRow, 0, len(courses))
 	for _, course := range courses {
+		if len(filters.GroupIDs) > 0 && course.StudentCount == 0 {
+			// With a group filter on, the screen shows that group's courses.
+			// A course none of its children attended is not "a course with
+			// zero participation" but a course belonging to somebody else,
+			// and its occurrences must not land in the totals either.
+			continue
+		}
 		course.ParticipationRate = rate(course.PresentDays, course.PresentDays+course.AbsentDays)
 		if course.MaxParticipants > 0 {
 			course.OccupancyPercent = rate(course.StudentCount, course.MaxParticipants)

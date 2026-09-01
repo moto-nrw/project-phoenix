@@ -45,6 +45,12 @@ func courseFixture() courseRepoStub {
 	}
 }
 
+// callCourseSection runs the section over the unclamped filter window; the
+// retention clamp is compute()'s job and has its own test.
+func callCourseSection(svc *service, filters Filters, students []StudentRow) ([]CourseRow, []CourseStudentRow, CourseRow, error) {
+	return svc.courseSection(context.Background(), filters, filters.From, filters.To, students)
+}
+
 func courseStudents() []StudentRow {
 	return []StudentRow{
 		{StudentID: 1, FirstName: "Emma", LastName: "Bauer", SchoolClass: "1a", GroupName: "Bärengruppe"},
@@ -58,7 +64,7 @@ func TestCourseSection_QuotaUsesDecidedSlotsOnly(t *testing.T) {
 	t.Parallel()
 	svc := &service{cfg: Config{Courses: courseFixture(), Now: fixedNow}}
 
-	courses, _, totals, err := svc.courseSection(context.Background(), courseFilters(), courseStudents())
+	courses, _, totals, err := callCourseSection(svc, courseFilters(), courseStudents())
 	require.NoError(t, err)
 	require.Len(t, courses, 2)
 
@@ -91,7 +97,7 @@ func TestCourseSection_OccupancyOnlyWithLimit(t *testing.T) {
 	t.Parallel()
 	svc := &service{cfg: Config{Courses: courseFixture(), Now: fixedNow}}
 
-	courses, _, _, err := svc.courseSection(context.Background(), courseFilters(), courseStudents())
+	courses, _, _, err := callCourseSection(svc, courseFilters(), courseStudents())
 	require.NoError(t, err)
 
 	assert.Nil(t, courses[0].OccupancyPercent, "no Teilnehmergrenze, no Belegung")
@@ -108,7 +114,7 @@ func TestCourseSection_IgnoresChildrenOutsideThePopulation(t *testing.T) {
 		scheduleModels.CourseParticipationRow{CourseID: 10, StudentID: 999, PresentDays: 8})
 	svc := &service{cfg: Config{Courses: fixture, Now: fixedNow}}
 
-	courses, childRows, totals, err := svc.courseSection(context.Background(), courseFilters(), courseStudents())
+	courses, childRows, totals, err := callCourseSection(svc, courseFilters(), courseStudents())
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, courses[1].StudentCount)
@@ -124,7 +130,7 @@ func TestCourseSection_ChildRowsPerCourse(t *testing.T) {
 	t.Parallel()
 	svc := &service{cfg: Config{Courses: courseFixture(), Now: fixedNow}}
 
-	_, childRows, _, err := svc.courseSection(context.Background(), courseFilters(), courseStudents())
+	_, childRows, _, err := callCourseSection(svc, courseFilters(), courseStudents())
 	require.NoError(t, err)
 	require.Len(t, childRows, 3)
 
@@ -144,9 +150,58 @@ func TestCourseSection_RepositoryErrorSurfaces(t *testing.T) {
 	fixture.participErr = errors.New("boom")
 	svc := &service{cfg: Config{Courses: fixture, Now: fixedNow}}
 
-	_, _, _, err := svc.courseSection(context.Background(), courseFilters(), courseStudents())
+	_, _, _, err := callCourseSection(svc, courseFilters(), courseStudents())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "load course participation")
+}
+
+// A group filter narrows the courses, not only the children in them: a course
+// none of the filtered children attended belongs to another group and must
+// leave the table and the totals.
+func TestCourseSection_GroupFilterDropsForeignCourses(t *testing.T) {
+	t.Parallel()
+	fixture := courseFixture()
+	// Only "Fußball" (10) has rows for the filtered children.
+	fixture.participation = []scheduleModels.CourseParticipationRow{
+		{CourseID: 10, StudentID: 1, PresentDays: 6, AbsentDays: 2},
+	}
+	svc := &service{cfg: Config{Courses: fixture, Now: fixedNow}}
+
+	filters := courseFilters()
+	filters.GroupIDs = []int64{7}
+	courses, _, totals, err := callCourseSection(svc, filters, courseStudents())
+	require.NoError(t, err)
+
+	require.Len(t, courses, 1, "the course without a child of this group is gone")
+	assert.Equal(t, "Fußball", courses[0].Name)
+	assert.Equal(t, 8, totals.HeldInstances, "and its 5 occurrences stay out of the totals")
+
+	// Without the filter the same fixture keeps both courses, so the empty
+	// one is dropped for the filter, not for having no participation.
+	all, _, allTotals, err := callCourseSection(svc, courseFilters(), courseStudents())
+	require.NoError(t, err)
+	assert.Len(t, all, 2)
+	assert.Equal(t, 13, allTotals.HeldInstances)
+}
+
+// A window entirely behind the retention cutoff reads nothing at all instead
+// of asking the database for data that must no longer be shown.
+func TestCourseSection_WindowBehindRetentionReadsNothing(t *testing.T) {
+	t.Parallel()
+	fixture := courseFixture()
+	fixture.instanceErr = errors.New("must not be called")
+	fixture.participErr = errors.New("must not be called")
+	svc := &service{cfg: Config{Courses: fixture, Now: fixedNow}}
+
+	filters := courseFilters()
+	courses, childRows, totals, err := svc.courseSection(
+		context.Background(), filters,
+		// clamped from is after to: nothing of the window survives retention
+		filters.To.AddDays(1), filters.To, courseStudents())
+	require.NoError(t, err)
+	assert.Empty(t, courses)
+	assert.Empty(t, childRows)
+	assert.Zero(t, totals.HeldInstances)
 }
 
 // Sections limit what compute() spends time on; empty means everything.

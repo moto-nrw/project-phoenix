@@ -55,10 +55,39 @@ func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, 
 	return rows, nil
 }
 
+// enrolledOnInstanceDate keeps only the attendance rows the child's course
+// enrollment actually covers on that date. A shortened or later-started
+// enrollment leaves its already-materialized rows behind, and counting those
+// would credit a child with days outside the enrollment. The interval is the
+// one every other reader uses: valid_from inclusive, valid_until exclusive.
+//
+// Two shapes survive without a covering interval, and both are real
+// participation rather than a leftover: a walk-in the kiosk recorded
+// (is_unplanned), and a row for a course the child has no enrollment for at
+// all, which no interval can contradict.
+const enrolledOnInstanceDate = `(
+		"attendance".is_unplanned
+		OR EXISTS (
+			SELECT 1 FROM activities.student_enrollments AS "enrollment"
+			WHERE "enrollment".tenant_id = "attendance".tenant_id
+				AND "enrollment".student_id = "attendance".student_id
+				AND "enrollment".activity_group_id = "instance".activity_group_id
+				AND "enrollment".valid_from <= "instance".date
+				AND ("enrollment".valid_until IS NULL OR "enrollment".valid_until > "instance".date)
+		)
+		OR NOT EXISTS (
+			SELECT 1 FROM activities.student_enrollments AS "enrollment"
+			WHERE "enrollment".tenant_id = "attendance".tenant_id
+				AND "enrollment".student_id = "attendance".student_id
+				AND "enrollment".activity_group_id = "instance".activity_group_id
+		)
+	)`
+
 // CourseParticipation aggregates the attendance rows of every child per
 // course. Cancelled occurrences drop out completely — they are neither a
 // participation nor an absence — and so do the rows that only record that the
-// care plan never placed the child in the OGS that day.
+// care plan never placed the child in the OGS that day, and the rows outside
+// the child's enrollment interval (see enrolledOnInstanceDate).
 //
 // The three counters are returned separately instead of a ready-made quota so
 // the service can state the denominator on the screen: present + absent are
@@ -77,6 +106,7 @@ func (r *CourseStatisticsRepository) CourseParticipation(ctx context.Context, fr
 		Where(`"instance".date >= ? AND "instance".date <= ?`, from, to).
 		Where(`"instance".status <> ?`, scheduleModels.InstanceStatusCancelled).
 		Where(`NOT ("attendance".not_scheduled AND "attendance".status = ?)`, scheduleModels.AttendanceStatusExpected).
+		Where(enrolledOnInstanceDate).
 		Where(`"instance".tenant_id = "attendance".tenant_id`).
 		Where(`"template".tenant_id = "attendance".tenant_id`).
 		GroupExpr(courseKeyExpr + `, "attendance".student_id`)

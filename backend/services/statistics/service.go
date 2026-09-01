@@ -303,35 +303,52 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 		return nil, err
 	}
 
-	careDays, excluded, err := s.careDays(ctx, filters.From, filters.To)
-	if err != nil {
-		return nil, err
-	}
-
+	// The child population is shared by all three sections — every one of
+	// them reports children, so it is loaded unconditionally. The care-day
+	// and attendance reads behind it are the attendance section's alone and
+	// stay unread when it was not asked for.
 	students, err := s.cfg.Students.FindOverlappingWithGroups(ctx, filters.From, filters.To, today)
 	if err != nil {
 		return nil, fmt.Errorf("load students: %w", err)
 	}
 	students = filterStudentsByGroup(students, filters.GroupIDs)
 
-	attendance, err := s.cfg.Statistics.AttendanceDays(ctx, filters.From, filters.To)
-	if err != nil {
-		return nil, fmt.Errorf("load attendance days: %w", err)
-	}
-	statusDays, err := s.cfg.Statistics.StatusDays(ctx, filters.From, filters.To)
-	if err != nil {
-		return nil, fmt.Errorf("load status days: %w", err)
+	var (
+		careDays   map[timezone.Date]bool
+		excluded   ExcludedDays
+		attendance []activeModels.AttendanceDayRow
+		statusDays []activeModels.StatusDayRow
+	)
+	if filters.wants(SectionAttendance) {
+		careDays, excluded, err = s.careDays(ctx, filters.From, filters.To)
+		if err != nil {
+			return nil, err
+		}
+		attendance, err = s.cfg.Statistics.AttendanceDays(ctx, filters.From, filters.To)
+		if err != nil {
+			return nil, fmt.Errorf("load attendance days: %w", err)
+		}
+		statusDays, err = s.cfg.Statistics.StatusDays(ctx, filters.From, filters.To)
+		if err != nil {
+			return nil, fmt.Errorf("load status days: %w", err)
+		}
 	}
 
 	report := &Report{
-		From:         filters.From,
-		To:           filters.To,
-		CareDays:     len(careDays),
-		ExcludedDays: excluded,
+		From: filters.From,
+		To:   filters.To,
 	}
-	report.Students = buildStudentRows(students, careDays, attendance, statusDays, today)
-	report.Groups = buildGroupRows(report.Students)
-	report.Totals = buildTotals(report.Students)
+	// Without the attendance section the rows carry identity only (zero care
+	// days, zero counters) and serve as the shared population; they are not
+	// put on the wire, where they would read as "every child was absent".
+	studentRows := buildStudentRows(students, careDays, attendance, statusDays, today)
+	if filters.wants(SectionAttendance) {
+		report.CareDays = len(careDays)
+		report.ExcludedDays = excluded
+		report.Students = studentRows
+		report.Groups = buildGroupRows(studentRows)
+		report.Totals = buildTotals(studentRows)
+	}
 
 	if filters.wants(SectionRooms) {
 		rooms, err := s.roomRows(ctx, filters, today)
@@ -339,7 +356,7 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 			return nil, err
 		}
 		report.Rooms = rooms
-		report.RoomDataDays, err = s.roomRetentionDays(ctx, report.Students)
+		report.RoomDataDays, err = s.roomRetentionDays(ctx, studentRows)
 		if err != nil {
 			return nil, err
 		}
@@ -347,15 +364,21 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 	}
 
 	if filters.wants(SectionCourses) {
-		courses, courseStudents, courseTotals, err := s.courseSection(ctx, filters, report.Students)
+		report.CourseDataDays = s.courseRetentionDays(ctx)
+		report.CourseDataFrom = today.AddDays(-report.CourseDataDays)
+		// Read no further back than the cutoff the screen names, whether or
+		// not the cleanup job has caught up with it yet.
+		courseFrom := filters.From
+		if courseFrom.Before(report.CourseDataFrom) {
+			courseFrom = report.CourseDataFrom
+		}
+		courses, courseStudents, courseTotals, err := s.courseSection(ctx, filters, courseFrom, filters.To, studentRows)
 		if err != nil {
 			return nil, err
 		}
 		report.Courses = courses
 		report.CourseStudents = courseStudents
 		report.CourseTotals = courseTotals
-		report.CourseDataDays = s.courseRetentionDays(ctx)
-		report.CourseDataFrom = today.AddDays(-report.CourseDataDays)
 	}
 	return report, nil
 }
