@@ -46,6 +46,12 @@ func leasedDeliveryOutboxUp(ctx context.Context, db *bun.DB) error {
 		WHERE status = 'sending';
 		UPDATE platform.email_outbox
 		SET status = 'dead_letter',
+			last_error = 'legacy email outbox row has no recipient email',
+			dead_letter_at = COALESCE(updated_at, NOW())
+		WHERE status = 'pending'
+			AND NULLIF(BTRIM(recipient->>'address'), '') IS NULL;
+		UPDATE platform.email_outbox
+		SET status = 'dead_letter',
 			dead_letter_at = COALESCE(updated_at, NOW())
 		WHERE status = 'failed';
 

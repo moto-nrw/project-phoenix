@@ -62,6 +62,61 @@ func TestStoreEnqueueIsIdempotentPerTenant(t *testing.T) {
 	assert.True(t, second.Duplicate)
 }
 
+func TestStoreConcurrentEnqueueReturnsExistingIntent(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	key := "concurrent-intent"
+	firstReady := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	firstDone := make(chan error, 1)
+	secondDone := make(chan struct {
+		result domain.Enqueued
+		err    error
+	}, 1)
+
+	go func() {
+		firstDone <- tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			_, err := store.Enqueue(txCtx, testEmailIntent(testpkg.Tenant(t), key))
+			close(firstReady)
+			if err != nil {
+				return err
+			}
+			<-releaseFirst
+			return nil
+		})
+	}()
+	<-firstReady
+	go func() {
+		var result domain.Enqueued
+		err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			var enqueueErr error
+			result, enqueueErr = store.Enqueue(txCtx, testEmailIntent(testpkg.Tenant(t), key))
+			return enqueueErr
+		})
+		secondDone <- struct {
+			result domain.Enqueued
+			err    error
+		}{result, err}
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	close(releaseFirst)
+	require.NoError(t, <-firstDone)
+	second := <-secondDone
+	require.NoError(t, second.err)
+	assert.True(t, second.result.Duplicate)
+	assert.Positive(t, second.result.ID)
+}
+
+func testEmailIntent(tenantID int64, key string) domain.Intent {
+	return domain.Intent{
+		TenantID: tenantID, Transport: domain.TransportEmail, Template: "welcome", IdempotencyKey: &key,
+		Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{"name":"Ada"}`),
+		Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
+	}
+}
+
 func TestStoreRejectsIdempotencyKeyReuseWithDifferentSnapshot(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

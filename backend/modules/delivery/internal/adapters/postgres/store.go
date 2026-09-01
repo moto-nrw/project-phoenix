@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,6 +61,24 @@ const pushEnqueueSQL = `
 	FROM platform.push_outbox
 	WHERE ? IS NOT NULL AND tenant_id = ? AND idempotency_key = ?
 		AND NOT EXISTS (SELECT 1 FROM inserted)
+	LIMIT 1`
+
+const emailExistingEnqueueSQL = `
+	SELECT id, TRUE AS duplicate,
+		NOT (kind = ? AND recipient = ?::jsonb AND payload = ?::jsonb
+		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
+		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
+	FROM platform.email_outbox
+	WHERE tenant_id = ? AND idempotency_key = ?
+	LIMIT 1`
+
+const pushExistingEnqueueSQL = `
+	SELECT id, TRUE AS duplicate,
+		NOT (kind = ? AND recipient = ?::jsonb AND payload = ?::jsonb
+		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
+		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
+	FROM platform.push_outbox
+	WHERE tenant_id = ? AND idempotency_key = ?
 	LIMIT 1`
 
 const emailClaimSQL = `
@@ -222,8 +241,23 @@ func (s *Store) Enqueue(ctx context.Context, intent domain.Intent) (domain.Enque
 	default:
 		return domain.Enqueued{}, unknownTransport(intent.Transport)
 	}
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return domain.Enqueued{}, fmt.Errorf("delivery postgres: enqueue %s: %w", intent.Transport, err)
+	}
+	if result.ID <= 0 && intent.IdempotencyKey != nil {
+		existingArgs := []any{
+			intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
+			intent.TenantID, intent.IdempotencyKey,
+		}
+		switch intent.Transport {
+		case domain.TransportEmail:
+			err = db.NewRaw(emailExistingEnqueueSQL, existingArgs...).Scan(ctx, &result)
+		case domain.TransportPush:
+			err = db.NewRaw(pushExistingEnqueueSQL, existingArgs...).Scan(ctx, &result)
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return domain.Enqueued{}, fmt.Errorf("delivery postgres: read existing %s intent: %w", intent.Transport, err)
+		}
 	}
 	if result.ID <= 0 {
 		return domain.Enqueued{}, errors.New("delivery postgres: enqueue returned no intent")
