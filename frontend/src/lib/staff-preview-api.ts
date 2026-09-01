@@ -151,17 +151,24 @@ export async function performStartStaffPreview(
  * The preview token travels with that call as proof of which preview is being
  * closed: the backend reads the previewed person from the signed token, so no
  * client can write an audit entry about a preview it never held. It is
- * therefore captured BEFORE the session swaps back to the admin.
+ * therefore captured BEFORE the session swaps back to the admin, and the audit
+ * call runs even when restoring the admin session fails: that call needs no
+ * session, and a preview whose end never reaches the trail would stay open in
+ * the protocol forever.
  */
 export async function performEndStaffPreview(
   previewToken: string | undefined,
   update: SessionUpdate,
   swrMutate: SwrMutateAll,
 ): Promise<void> {
-  await update({ previewEnd: true });
-  clearSessionCache();
-  if (previewToken) {
-    await postPreviewEnd(previewToken);
+  const tokenAtEnd = previewToken;
+  try {
+    await update({ previewEnd: true });
+  } finally {
+    clearSessionCache();
+    if (tokenAtEnd) {
+      await postPreviewEnd(tokenAtEnd);
+    }
   }
   await swrMutate(() => true, undefined, { revalidate: false });
   clearSessionCache();
