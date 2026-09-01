@@ -448,10 +448,10 @@ func newFactory(
 		DefaultFrom: email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress),
 		TemplateDir: "./templates",
 		Logger:      logger.With("service", "email"),
+		AppEnv:      cfg.AppEnv,
 	})
 	if err != nil {
-		logger.Warn("SMTP mailer initialization failed, falling back to mock mailer", "error", err)
-		mailer = email.NewMockMailer()
+		return nil, fmt.Errorf("initialize email transport: %w", err)
 	}
 	if _, ok := mailer.(*email.MockMailer); ok {
 		logger.Warn("SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")

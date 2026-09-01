@@ -194,7 +194,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                           btn.textContent = "Anzeigen";
                         }
                       }}
-                      className="bg-moto-blue hover:bg-moto-blue-hover rounded px-2 py-1 text-xs text-white"
+                      className="bg-moto-blue-strong hover:bg-moto-blue-strong/90 rounded px-2 py-1 text-xs text-white"
                     >
                       Anzeigen
                     </button>
@@ -210,7 +210,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                           btn.textContent = originalText;
                         }, 2000);
                       }}
-                      className="bg-moto-amber hover:bg-moto-amber-strong rounded px-2 py-1 text-xs text-white"
+                      className="bg-moto-amber-strong hover:bg-moto-amber-strong/90 rounded px-2 py-1 text-xs text-white"
                     >
                       Kopieren
                     </button>

@@ -195,12 +195,12 @@ export const studentsConfig = defineEntityConfig<Student>({
         },
         {
           label: "Schulhof",
-          color: "bg-moto-amber-light/80",
+          color: "bg-moto-orange/80",
           showWhen: (student) => isSchoolyardLocation(student.current_location),
         },
         {
           label: "Zuhause",
-          color: "bg-moto-red/80",
+          color: "bg-gray-500/80",
           showWhen: (student) => isHomeLocation(student.current_location),
         },
         {

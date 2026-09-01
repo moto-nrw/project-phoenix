@@ -1,9 +1,12 @@
 package email
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/wneessen/go-mail"
 )
@@ -24,21 +27,32 @@ type MailerConfig struct {
 	DefaultFrom Email
 	TemplateDir string
 	Logger      *slog.Logger
+	AppEnv      string
 }
+
+const smtpShutdownTimeout = time.Second
 
 // NewMailer returns a configured SMTP Mailer.
 func NewMailer(cfg MailerConfig) (Mailer, error) {
-	templates, err := parseTemplates(cfg.TemplateDir)
-	if err != nil {
-		return nil, err
-	}
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	if cfg.Host == "" {
+	appEnv := strings.ToLower(strings.TrimSpace(cfg.AppEnv))
+	if appEnv == "test" {
 		return NewMockMailer(), nil
+	}
+	if cfg.Host == "" {
+		switch appEnv {
+		case "production", "staging":
+			return nil, fmt.Errorf("EMAIL_SMTP_HOST is required when APP_ENV=%s", appEnv)
+		}
+		return NewMockMailer(), nil
+	}
+	templates, err := parseTemplates(cfg.TemplateDir)
+	if err != nil {
+		return nil, err
 	}
 
 	// Configure TLS and auth based on port and credentials
@@ -118,6 +132,11 @@ func (m *SMTPMailer) buildMessage(email Message) (*mail.Msg, error) {
 
 // Send sends the mail via smtp.
 func (m *SMTPMailer) Send(email Message) error {
+	return m.SendContext(context.Background(), email)
+}
+
+// SendContext terminates an in-flight SMTP exchange when the caller cancels.
+func (m *SMTPMailer) SendContext(ctx context.Context, email Message) error {
 	if email.From.Address == "" {
 		email.From = m.defaultFrom
 	}
@@ -131,7 +150,8 @@ func (m *SMTPMailer) Send(email Message) error {
 		slog.String("to", email.To.Address),
 		slog.String("subject", email.Subject),
 		slog.String("template", email.Template))
-	if err := m.client.DialAndSend(msg); err != nil {
+	err = m.sendMessageContext(ctx, msg)
+	if err != nil {
 		m.logger.Error("email send failed",
 			slog.String("to", email.To.Address),
 			slog.Any("error", err),
@@ -142,4 +162,45 @@ func (m *SMTPMailer) Send(email Message) error {
 		slog.String("to", email.To.Address))
 
 	return nil
+}
+
+func (m *SMTPMailer) sendMessageContext(ctx context.Context, msg *mail.Msg) error {
+	client, err := m.client.DialToSMTPClientWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		err := m.client.SendWithSMTPClient(client, msg)
+		if err == nil {
+			// SMTP has accepted the message before QUIT. A failed graceful close
+			// must not turn that acceptance into a retry (and duplicate email).
+			_ = client.UpdateDeadline(smtpShutdownTimeout)
+			if closeErr := m.client.CloseWithSMTPClient(client); closeErr != nil {
+				_ = client.Close()
+			}
+		} else {
+			_ = client.Close()
+		}
+		result <- err
+	}()
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		// Prefer an already-completed SMTP result when cancellation races with
+		// transport completion. Otherwise force-close the socket: go-mail's
+		// graceful QUIT path can itself block while DATA is in progress.
+		select {
+		case err := <-result:
+			return err
+		default:
+		}
+		_ = client.Text.Close()
+		if err := <-result; err == nil {
+			return nil
+		}
+		return ctx.Err()
+	}
 }
