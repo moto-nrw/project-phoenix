@@ -1,8 +1,8 @@
 // UI-kit drift ratchet (issue #1629).
 //
-// Five rules that stop drift away from the shared UI kit. Hand-rolled overlays
-// and hand-rolled card surfaces tolerate existing stock via shrink-only
-// baselines; generic brand colors, rounded-3xl and unlabeled checkboxes are
+// Five rules that stop drift away from the shared UI kit. Hand-rolled card
+// surfaces tolerate existing stock via a shrink-only baseline; generic brand
+// colors, hand-rolled overlays, rounded-3xl and unlabeled checkboxes are
 // hard-zero:
 //
 //   ui-kit/no-generic-brand-colors  — generic Tailwind hues (bg-green-500 …)
@@ -22,33 +22,9 @@
 //   ui-kit/require-checkbox-label   — every shared Checkbox is wrapped by a
 //                                     label so its visible box is clickable
 //
-// The overlay and surface baselines below are SHRINK-ONLY: matches may be
-// removed when a file is migrated, but never added. Test/stories files are
-// exempt from the class-string rules.
-
-const OVERLAY_BASELINE_FILES = new Set([
-  "src/app/operator/devices/page.tsx",
-  "src/app/operator/persons/page.tsx",
-  "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/app/operator/unregistered-tags/page.tsx",
-  "src/components/auth/mfa-admin-override-modal.tsx",
-  "src/components/background-wrapper.tsx",
-  "src/components/dashboard/header/profile-dropdown.tsx",
-  "src/components/enrollment/admin-enrollment-detail.tsx",
-  "src/contexts/ToastContext.tsx",
-]);
-
-const OVERLAY_BASELINE = new Map([
-  ["src/app/operator/devices/page.tsx", 1],
-  ["src/app/operator/persons/page.tsx", 1],
-  ["src/app/operator/provisioning/soft-delete-shared.tsx", 1],
-  ["src/app/operator/unregistered-tags/page.tsx", 1],
-  ["src/components/auth/mfa-admin-override-modal.tsx", 1],
-  ["src/components/background-wrapper.tsx", 1],
-  ["src/components/dashboard/header/profile-dropdown.tsx", 1],
-  ["src/components/enrollment/admin-enrollment-detail.tsx", 1],
-  ["src/contexts/ToastContext.tsx", 2],
-]);
+// The surface baseline below is SHRINK-ONLY: matches may be removed when a
+// file is migrated, but never added. Test/stories files are exempt from the
+// class-string rules.
 
 // Filled by the ratchet introduction (issue #2933): per-file count of
 // hand-rolled surfaces existing at rule-introduction time. Shrink-only.
@@ -334,7 +310,7 @@ const noHandRolledOverlay = {
     },
     messages: {
       handRolledOverlay:
-        "Hand-rolled full-screen overlay ('{{match}}'). Use the kit Modal / Drawer / OverflowMenu instead of a bespoke fixed inset-0 layer. The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only.",
+        "Hand-rolled full-screen overlay ('{{match}}'). Use the kit Modal / Drawer / OverflowMenu instead of a bespoke fixed inset-0 layer.",
     },
     schema: [],
   },
@@ -344,22 +320,13 @@ const noHandRolledOverlay = {
     if (EXEMPT_FILE_RE.test(key)) return {};
     if (key.startsWith(UI_KIT_DIR)) return {};
 
-    const baseline = OVERLAY_BASELINE_FILES.has(key)
-      ? (OVERLAY_BASELINE.get(key) ?? 0)
-      : 0;
-    let seenMatches = 0;
-
     const check = (node, text) => {
       if (!FIXED_RE.test(text) || !INSET_0_RE.test(text)) return;
-
-      seenMatches += 1;
-      if (seenMatches > baseline) {
-        context.report({
-          node,
-          messageId: "handRolledOverlay",
-          data: { match: "fixed … inset-0" },
-        });
-      }
+      context.report({
+        node,
+        messageId: "handRolledOverlay",
+        data: { match: "fixed … inset-0" },
+      });
     };
 
     return {

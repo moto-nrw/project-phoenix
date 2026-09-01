@@ -37,6 +37,7 @@ describe("ToastContext", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    document.documentElement.lang = "de";
   });
 
   describe("useToast hook", () => {
@@ -95,7 +96,7 @@ describe("ToastContext", () => {
       expect(toasts?.length ?? 0).toBe(0);
     });
 
-    it("renders mobile and desktop versions of toasts", async () => {
+    it("renders the desktop toast without an accessibility duplicate", async () => {
       function TestComponent() {
         const toast = useToast();
 
@@ -114,12 +115,129 @@ describe("ToastContext", () => {
 
       await waitFor(
         () => {
-          const messages = screen.getAllByText("Test message");
-          // Should have both mobile and desktop versions
-          expect(messages.length).toBe(2);
+          expect(screen.getAllByText("Test message")).toHaveLength(1);
         },
         { timeout: 3000 },
       );
+    });
+
+    it("renders mobile notifications as an accessible dismissible dialog", async () => {
+      vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
+        matches: query === "(max-width: 767px)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      function TestComponent() {
+        const toast = useToast();
+
+        useEffect(() => {
+          toast.success("Gespeichert", { duration: 0 });
+        }, [toast]);
+
+        return null;
+      }
+
+      render(
+        <ToastProvider>
+          <TestComponent />
+        </ToastProvider>,
+      );
+
+      const dialog = await screen.findByRole("dialog", {
+        name: "Benachrichtigungen",
+      });
+      expect(dialog).toBeInTheDocument();
+      expect(document.documentElement.style.overflow).toBe("hidden");
+
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("dialog", { name: "Benachrichtigungen" }),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("uses the document language for mobile toast labels", async () => {
+      vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
+        matches: query === "(max-width: 767px)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+      document.documentElement.lang = "en";
+
+      function TestComponent() {
+        const toast = useToast();
+
+        useEffect(() => {
+          toast.success("Saved", { duration: 0 });
+        }, [toast]);
+
+        return null;
+      }
+
+      render(
+        <ToastProvider>
+          <TestComponent />
+        </ToastProvider>,
+      );
+
+      expect(
+        await screen.findByRole("dialog", { name: "Notifications" }),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Close")).toBeInTheDocument();
+    });
+
+    it("restarts the dialog animation when the next mobile toast remains", async () => {
+      vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
+        matches: query === "(max-width: 767px)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      function TestComponent() {
+        const toast = useToast();
+
+        useEffect(() => {
+          toast.success("First", { duration: 0 });
+          toast.success("Second", { duration: 0 });
+        }, [toast]);
+
+        return null;
+      }
+
+      render(
+        <ToastProvider>
+          <TestComponent />
+        </ToastProvider>,
+      );
+
+      await screen.findByText("Second");
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      await waitFor(() => {
+        expect(screen.queryByText("Second")).not.toBeInTheDocument();
+        expect(screen.getByText("First")).toBeVisible();
+        expect(
+          screen.getByRole("dialog", { name: "Benachrichtigungen" }),
+        ).toHaveClass("animate-modalEnter");
+      });
     });
 
     it("runs a toast action from the desktop toast", async () => {

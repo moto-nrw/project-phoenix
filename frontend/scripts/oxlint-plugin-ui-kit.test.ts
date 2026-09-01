@@ -2,17 +2,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const temporaryDirectories: string[] = [];
 
-function lintSource(source: string, { underSrc = false } = {}) {
+function lintSource(source: string, relativePath = "probe.tsx") {
   const directory = mkdtempSync(join(tmpdir(), "ui-kit-"));
   temporaryDirectories.push(directory);
-  // The class-string rules only run on repo-relative "src/…" files.
-  const sourceDirectory = underSrc ? join(directory, "src") : directory;
-  if (underSrc) mkdirSync(sourceDirectory);
-  const sourcePath = join(sourceDirectory, "probe.tsx");
+  const sourcePath = join(directory, relativePath);
+  mkdirSync(dirname(sourcePath), { recursive: true });
   writeFileSync(sourcePath, source);
 
   return spawnSync(
@@ -21,6 +19,22 @@ function lintSource(source: string, { underSrc = false } = {}) {
     { encoding: "utf8" },
   );
 }
+
+describe("ui-kit/no-hand-rolled-overlay", () => {
+  it("reports the first hand-rolled overlay in a formerly baselined file", () => {
+    const result = lintSource(
+      `function Probe() {
+        return <div className="fixed inset-0">Overlay</div>;
+      }
+      void Probe;`,
+      "src/components/background-wrapper.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("ui-kit(no-hand-rolled-overlay)");
+  });
+});
 
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
@@ -37,7 +51,7 @@ describe("ui-kit/no-hand-rolled-surface", () => {
       }
       void Probe;
     `,
-      { underSrc: true },
+      "src/probe.tsx",
     );
     const output = `${result.stdout}${result.stderr}`;
 
@@ -57,7 +71,7 @@ describe("ui-kit/no-hand-rolled-surface", () => {
       }
       void Probe;
     `,
-      { underSrc: true },
+      "src/probe.tsx",
     );
     const output = `${result.stdout}${result.stderr}`;
 

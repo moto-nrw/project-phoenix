@@ -154,7 +154,7 @@ const { status, isConnected, error, reconnectAttempts } = useSSE("/api/sse/event
 ## TypeScript & Linting
 
 - `tsconfig`: `strict`, `noUncheckedIndexedAccess`, paths `~/*` and `@/*` → `./src/*`, target ES2022
-- Linting: **oxlint** (`.oxlintrc.json` — plugins react/nextjs/jsx-a11y/import/promise; correctness+perf = error). Disabled rules and their rationale live in `.oxlintrc.json`; custom plugins live in `scripts/oxlint-plugin-date-safety.mjs` and `scripts/oxlint-plugin-ui-kit.mjs` (UI-kit drift ratchet — shrink-only per-match baselines, see `.claude/rules/frontend-ui-kit.md`)
+- Linting: **oxlint** (`.oxlintrc.json` — plugins react/nextjs/jsx-a11y/import/promise; correctness+perf = error). Disabled rules and their rationale live in `.oxlintrc.json`; custom plugins live in `scripts/oxlint-plugin-date-safety.mjs` and `scripts/oxlint-plugin-ui-kit.mjs` (UI-kit drift ratchet — hard-zero rules plus a shrink-only generic-color baseline, see `.claude/rules/frontend-ui-kit.md`)
 - Conventions: `??` over `||` for defaults, `import type` for types, `_` prefix for unused vars, `useSearchParams` needs a Suspense boundary, only server components may be async
 
 @AGENTS.md

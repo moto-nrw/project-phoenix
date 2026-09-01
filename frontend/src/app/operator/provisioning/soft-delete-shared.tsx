@@ -259,82 +259,65 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
   readonly confirmDisabledReason?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-        <h3 className="text-lg font-semibold text-gray-900">
-          {entityLabel} löschen
-        </h3>
-        <p className="mt-2 text-sm text-gray-600">
-          Möchten Sie {entityArticleAccusative}{" "}
-          <span className="font-medium">{target.name}</span> wirklich löschen?
-        </p>
-        {warningBullets.length > 0 && (
-          <div className="bg-moto-amber-soft text-moto-amber-strong mt-3 rounded-lg px-3 py-2 text-sm">
-            <p className="font-medium">{warningTitle}</p>
-            <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-              {warningBullets.map((b) => (
-                <li key={b}>{b}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="mt-4">
-          <label
-            htmlFor={inputId}
-            className="block text-sm font-medium text-gray-700"
-          >
-            {nameLabel}
-          </label>
-          <p className="mb-1 text-sm font-medium text-gray-900">
-            {target.name}
-          </p>
-          <input
-            id={inputId}
-            type="text"
-            value={confirmInput}
-            onChange={(e) => onConfirmInputChange(e.target.value)}
-            placeholder={target.name}
-            className="focus:ring-moto-red w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            autoComplete="off"
-          />
+    <ConfirmationModal
+      isOpen
+      onClose={onCancel}
+      onConfirm={onConfirm}
+      title={`${entityLabel} löschen`}
+      confirmText="Löschen"
+      isConfirmLoading={isProcessing}
+      isConfirmDisabled={confirmInput !== target.name || confirmDisabled}
+      isDismissDisabled={isProcessing}
+      isBackdropDismissDisabled
+      confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+      loadingText="Wird gelöscht..."
+    >
+      <p className="text-sm text-gray-600">
+        Möchten Sie {entityArticleAccusative}{" "}
+        <span className="font-medium">{target.name}</span> wirklich löschen?
+      </p>
+      {warningBullets.length > 0 && (
+        <div className="bg-moto-amber-soft text-moto-amber-strong mt-3 rounded-lg px-3 py-2 text-sm">
+          <p className="font-medium">{warningTitle}</p>
+          <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+            {warningBullets.map((bullet) => (
+              <li key={bullet}>{bullet}</li>
+            ))}
+          </ul>
         </div>
+      )}
 
-        {confirmDisabled && confirmDisabledReason && (
-          <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
-            {confirmDisabledReason}
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
-            {errorMessage}
-          </div>
-        )}
-
-        <div className="mt-5 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isProcessing}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={
-              isProcessing || confirmInput !== target.name || confirmDisabled
-            }
-            title={confirmDisabled ? confirmDisabledReason : undefined}
-            className="bg-moto-red hover:bg-moto-red-hover rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isProcessing ? "Wird gelöscht..." : "Löschen"}
-          </button>
-        </div>
+      <div className="mt-4">
+        <label
+          htmlFor={inputId}
+          className="block text-sm font-medium text-gray-700"
+        >
+          {nameLabel}
+        </label>
+        <p className="mb-1 text-sm font-medium text-gray-900">{target.name}</p>
+        <input
+          id={inputId}
+          type="text"
+          value={confirmInput}
+          onChange={(event) => onConfirmInputChange(event.target.value)}
+          placeholder={target.name}
+          className="focus:ring-moto-red w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+          autoComplete="off"
+        />
       </div>
-    </div>
+
+      {confirmDisabled && confirmDisabledReason && (
+        <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
+          {confirmDisabledReason}
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
+          {errorMessage}
+        </div>
+      )}
+    </ConfirmationModal>
   );
 }
 
