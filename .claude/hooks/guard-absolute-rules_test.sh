@@ -58,6 +58,10 @@ printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new.sh"
 chmod +x "$repo/scripts/new.sh"
 printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new"
 chmod +x "$repo/scripts/new"
+trusted_text="$repo/node_modules/@openai/codex-test/vendor/test/codex-path/rg"
+mkdir -p "$(dirname "$trusted_text")"
+printf 'echo trusted text\n' >"$trusted_text"
+chmod +x "$trusted_text"
 printf 'package main\nfunc main() {}\n' >"$repo/untracked.go"
 mkdir -p "$fixture/bin"
 printf '#!/usr/bin/env bash\necho evil\n' >"$fixture/bin/evil"
@@ -189,11 +193,17 @@ assert_bash deny "$repo" "\"\$CMD\""
 assert_bash deny "$repo" "BASH_ENV=\$CMD bash scripts/env-check.sh"
 assert_bash deny "$repo" "PATH=\$CMD bash scripts/env-check.sh"
 assert_bash deny "$repo" "env BASH_ENV=\$CMD bash scripts/env-check.sh"
+assert_bash deny "$repo" 'LD_PRELOAD=/tmp/evil /usr/bin/true'
+assert_bash deny "$repo" 'LD_LIBRARY_PATH=/tmp /usr/bin/true'
+assert_bash deny "$repo" 'DYLD_INSERT_LIBRARIES=/tmp/evil /usr/bin/true'
+assert_bash deny "$repo" 'cd "$CMD"; scripts/test-backend.sh'
+assert_bash deny "$repo" 'cd "$(pwd)"; scripts/test-backend.sh'
 assert_bash deny "$fixture" 'repo/scripts/test-backend.sh' # outside any repo root
 assert_bash deny "$repo" 'source /tmp/some-env-file'
 assert_bash deny "$repo" 'scripts/outside.sh'
 assert_bash deny "$repo" './env /usr/bin/true'
 assert_bash deny "$repo" "$repo/.devbox/nix/profile/default/bin/cycle-a"
+assert_bash deny "$repo" "$trusted_text"
 assert_bash deny "$repo" $'cd backend\n../scripts/new.sh'
 assert_bash deny "$repo" 'nice -n 5 ./scripts/new'
 assert_bash deny "$repo" 'python3 ./scripts/new'

@@ -112,8 +112,8 @@ case "$tool" in
             deny "Blocked: only git-tracked scripts inside this repository may be executed (got: $1)."
         }
 
-        # System-tool directories may supply compiled tools, but never shell
-        # scripts. Other paths remain subject to repository script vetting.
+        # System-tool directories may supply compiled tools, but never text
+        # files. Other paths remain subject to repository script vetting.
         is_script_file() {
             local first=''
             IFS= read -r first < "$1" || true
@@ -121,7 +121,8 @@ case "$tool" in
         }
 
         vet_trusted_binary() {
-            [[ -x "$1" && ! -d "$1" ]] && ! is_script_file "$1"
+            [[ -x "$1" && ! -d "$1" ]] &&
+                LC_ALL=C file -b "$1" 2>/dev/null | grep -Eq '^(ELF|Mach-O)'
         }
 
         # pnpm is a Node script installed by Homebrew. Its interpreter must
@@ -315,7 +316,7 @@ EOF
                 PATH)
                     deny "Blocked: PATH can change which executable runs. Use the configured toolchain path directly."
                     ;;
-                GO*|CGO_*|CC|CXX|AR|AS|LD|RANLIB|PKG_CONFIG)
+                GO*|CGO_*|CC|CXX|AR|AS|LD|LD_*|DYLD_*|RANLIB|PKG_CONFIG)
                     deny "Blocked: $name can alter Go toolchain execution. Set toolchain configuration only inside a tracked wrapper."
                     ;;
             esac
@@ -463,6 +464,10 @@ EOF
                     # keep resolution honest for `cd backend && ../scripts/x.sh`
                     next=${2:-.}
                     next=$(clean_token "$next")
+                    reject_dynamic_executable "$next"
+                    case "$next" in
+                        -*) deny "Blocked: cd options and directory-stack targets cannot be inspected by the absolute-rule guard. Write the repository path directly." ;;
+                    esac
                     if moved=$(cd -P "$curdir" 2>/dev/null && cd -P "$next" 2>/dev/null && pwd); then
                         curdir=$moved
                     fi
