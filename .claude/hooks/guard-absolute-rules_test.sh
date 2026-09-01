@@ -103,6 +103,7 @@ assert_bash allow "$repo" "rg $prod_host docs/"
 assert_bash allow "$repo" "grep -R 'test-changed.sh' scripts/"
 assert_bash allow "$repo" "scripts/run-go-toolchain.sh grep 'test-changed.sh' scripts/"
 assert_bash allow "$repo" "printf '%s\\n' 'a; scripts/new.sh'"
+assert_bash allow "$repo" '/bin/bash scripts/env-check.sh'
 
 # --- unvetted execution: denied ---
 assert_bash deny "$repo" './scripts/new.sh'
@@ -129,6 +130,9 @@ assert_bash deny "$repo" 'nice -n 5 ./scripts/new'
 assert_bash deny "$repo" 'python3 ./scripts/new'
 assert_bash deny "$repo" 'xargs ./scripts/new'
 assert_bash deny "$repo" 'if true; then ./scripts/new; fi'
+assert_bash deny "$repo" 'PATH=/tmp evil'
+assert_bash deny "$repo" 'foo() { ./scripts/new; }; foo'
+assert_bash deny "$repo" 'cat <(./scripts/new)'
 
 # --- inline payloads and eval: denied, incl. the -lc flag cluster ---
 assert_bash deny "$repo" "bash -c 'echo hi'"

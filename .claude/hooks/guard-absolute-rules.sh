@@ -132,15 +132,14 @@ case "$tool" in
         }
 
         vet_env_assignment() {
-            local assignment=$1 name value
+            local assignment=$1 name
             name=${assignment%%=*}
-            value=${assignment#*=}
             case "$name" in
                 BASH_ENV|ENV|ZDOTDIR)
                     deny "Blocked: $name can source an untracked shell startup file before the executable runs."
                     ;;
                 PATH)
-                    reject_dynamic_executable "$value"
+                    deny "Blocked: PATH can change which executable runs. Use the configured toolchain path directly."
                     ;;
             esac
         }
@@ -245,6 +244,18 @@ case "$tool" in
                 first=$(clean_token "$1")
                 reject_dynamic_executable "$first"
             done
+            case "$first" in
+                function)
+                    deny "Blocked: shell function definitions cannot be inspected by the absolute-rule guard. Write the command out directly."
+                    ;;
+                *'()')
+                    [[ ${2:-} = '{' ]] && deny "Blocked: shell function definitions cannot be inspected by the absolute-rule guard. Write the command out directly."
+                    ;;
+            esac
+            [[ ${2:-} = '()' && ${3:-} = '{' ]] && deny "Blocked: shell function definitions cannot be inspected by the absolute-rule guard. Write the command out directly."
+            case "$first" in
+                /bin/bash|/bin/sh|/bin/zsh) first=${first##*/} ;;
+            esac
             [[ "$first" = */* ]] && vet_script "$first" || [[ "$first" != */* ]] || deny_untracked "$first"
             case "${first##*/}" in
                 cd)
@@ -349,6 +360,9 @@ case "$tool" in
                     if [[ "$quote" = '"' ]]; then quote=''; else quote='"'; fi
                     i=$((i + 1))
                     continue
+                fi
+                if [[ ( "$ch" = '<' || "$ch" = '>' ) && "$next" = '(' ]]; then
+                    deny "Blocked: process substitutions cannot be inspected by the absolute-rule guard. Write the command out directly."
                 fi
                 if [[ "$ch" = '$' && "$next" = '(' ]]; then
                     inner=''
