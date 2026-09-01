@@ -21,6 +21,7 @@ export const Trigger: Story = {
       return (
         <ProfileTrigger
           displayName="Anna Schmidt"
+          ariaLabel="Profilmenü von Anna Schmidt"
           displayAvatar={null}
           userRole="Erzieherin"
           isOpen={isOpen}
@@ -81,6 +82,7 @@ export const Composed: Story = {
         <div className="relative inline-block">
           <ProfileTrigger
             displayName="Anna Schmidt"
+            ariaLabel="Profilmenü von Anna Schmidt"
             displayAvatar={null}
             userRole="Erzieherin"
             isOpen={isOpen}
