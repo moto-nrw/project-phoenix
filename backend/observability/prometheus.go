@@ -216,6 +216,28 @@ var (
 		},
 		[]string{"operation"},
 	)
+	auditAppends = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_appends_total",
+			Help: "Audit append attempts by stable event type and outcome.",
+		},
+		[]string{"event_type", "outcome"},
+	)
+	auditAppendDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_audit_append_duration_seconds",
+			Help:    "Audit append duration by stable event type.",
+			Buckets: []float64{0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"event_type"},
+	)
+	auditRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_rows_total",
+			Help: "Rows appended to Audit ledgers by stable event type.",
+		},
+		[]string{"event_type"},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
@@ -346,6 +368,9 @@ func init() {
 		feedbackQueries,
 		feedbackRowsChanged,
 		feedbackStatementDuration,
+		auditAppends,
+		auditAppendDuration,
+		auditRows,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -452,6 +477,19 @@ func ObserveFeedbackOperation(operation string, duration time.Duration, queries,
 func ObserveFeedbackHTTPResponse(surface string, status int, code string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
 	feedbackHTTPResponses.WithLabelValues(sanitizeLabel(surface), statusClass, sanitizeLabel(code)).Inc()
+}
+
+func ObserveAuditAppend(eventType string, duration time.Duration, rows int, err error) {
+	eventType = sanitizeLabel(eventType)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	auditAppends.WithLabelValues(eventType, outcome).Inc()
+	auditAppendDuration.WithLabelValues(eventType).Observe(duration.Seconds())
+	if rows > 0 {
+		auditRows.WithLabelValues(eventType).Add(float64(rows))
+	}
 }
 
 func ObserveTenantRequest(tenantID int64, scope, method, route string, status int, duration time.Duration, txOutcome string) {

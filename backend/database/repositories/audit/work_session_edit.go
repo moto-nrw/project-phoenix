@@ -2,11 +2,8 @@ package audit
 
 import (
 	"context"
-	"errors"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"fmt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
@@ -18,12 +15,12 @@ const (
 
 // WorkSessionEditRepository implements audit.WorkSessionEditRepository interface
 type WorkSessionEditRepository struct {
-	db *bun.DB
+	runtime Runtime
 }
 
 // NewWorkSessionEditRepository creates a new WorkSessionEditRepository
-func NewWorkSessionEditRepository(db *bun.DB) audit.WorkSessionEditRepository {
-	return &WorkSessionEditRepository{db: db}
+func NewWorkSessionEditRepository(runtime Runtime) audit.WorkSessionEditRepository {
+	return &WorkSessionEditRepository{runtime: requireRuntime(runtime)}
 }
 
 // CreateBatch inserts multiple edit audit records
@@ -32,30 +29,13 @@ func (r *WorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*au
 		return nil
 	}
 
+	appender := NewAppender(r.runtime)
 	for _, edit := range edits {
 		if edit == nil {
-			return &modelBase.DatabaseError{
-				Op:  "create batch",
-				Err: errors.New("edit cannot be nil"),
-			}
+			return fmt.Errorf("edit cannot be nil")
 		}
-		if err := edit.Validate(); err != nil {
-			return &modelBase.DatabaseError{
-				Op:  "validate",
-				Err: base.TranslateNotFound(err),
-			}
-		}
-		base.EnsureTenantID(ctx, edit)
-	}
-
-	_, err := base.GetDB(ctx, r.db).NewInsert().
-		Model(&edits).
-		ModelTableExpr(tableWorkSessionEdits).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create batch",
-			Err: base.TranslateNotFound(err),
+		if err := appender.Append(ctx, edit); err != nil {
+			return wrapDatabase("create batch", err)
 		}
 	}
 
@@ -65,17 +45,14 @@ func (r *WorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*au
 // GetBySessionID returns all edit records for a session, ordered by creation time descending
 func (r *WorkSessionEditRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*audit.WorkSessionEdit, error) {
 	var edits []*audit.WorkSessionEdit
-	err := base.GetDB(ctx, r.db).NewSelect().
+	err := runtimeDB(ctx, r.runtime).NewSelect().
 		Model(&edits).
 		ModelTableExpr(tableWorkSessionEditsAliased).
 		Where(whereSessionIDEquals, sessionID).
 		Order(orderByCreatedAtDesc).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get by session ID",
-			Err: base.TranslateNotFound(err),
-		}
+		return nil, wrapDatabase("get by session ID", err)
 	}
 
 	return edits, nil
@@ -83,16 +60,13 @@ func (r *WorkSessionEditRepository) GetBySessionID(ctx context.Context, sessionI
 
 // CountBySessionID returns the number of edit records for a session
 func (r *WorkSessionEditRepository) CountBySessionID(ctx context.Context, sessionID int64) (int, error) {
-	count, err := base.GetDB(ctx, r.db).NewSelect().
+	count, err := runtimeDB(ctx, r.runtime).NewSelect().
 		Model((*audit.WorkSessionEdit)(nil)).
 		ModelTableExpr(tableWorkSessionEditsAliased).
 		Where(whereSessionIDEquals, sessionID).
 		Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count by session ID",
-			Err: base.TranslateNotFound(err),
-		}
+		return 0, wrapDatabase("count by session ID", err)
 	}
 
 	return count, nil
@@ -110,7 +84,7 @@ func (r *WorkSessionEditRepository) CountBySessionIDs(ctx context.Context, sessi
 	}
 
 	var results []countResult
-	err := base.GetDB(ctx, r.db).NewSelect().
+	err := runtimeDB(ctx, r.runtime).NewSelect().
 		ModelTableExpr(tableWorkSessionEdits).
 		ColumnExpr("session_id").
 		ColumnExpr("COUNT(*) AS count").
@@ -118,10 +92,7 @@ func (r *WorkSessionEditRepository) CountBySessionIDs(ctx context.Context, sessi
 		GroupExpr("session_id").
 		Scan(ctx, &results)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "count by session IDs",
-			Err: base.TranslateNotFound(err),
-		}
+		return nil, wrapDatabase("count by session IDs", err)
 	}
 
 	counts := make(map[int64]int, len(results))
@@ -151,7 +122,7 @@ func (r *WorkSessionEditRepository) CountManualBySessionIDs(ctx context.Context,
 	}
 
 	var results []countResult
-	err := base.GetDB(ctx, r.db).NewSelect().
+	err := runtimeDB(ctx, r.runtime).NewSelect().
 		ModelTableExpr(tableWorkSessionEdits).
 		ColumnExpr("session_id").
 		ColumnExpr("COUNT(*) AS count").
@@ -161,10 +132,7 @@ func (r *WorkSessionEditRepository) CountManualBySessionIDs(ctx context.Context,
 		GroupExpr("session_id").
 		Scan(ctx, &results)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "count manual by session IDs",
-			Err: base.TranslateNotFound(err),
-		}
+		return nil, wrapDatabase("count manual by session IDs", err)
 	}
 
 	counts := make(map[int64]int, len(results))

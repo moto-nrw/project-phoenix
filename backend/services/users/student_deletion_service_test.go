@@ -28,6 +28,10 @@ func (r failingStudentDeletionAudit) Create(context.Context, *auditModels.Studen
 	return r.err
 }
 
+func (failingStudentDeletionAudit) CountStudentReferences(context.Context, int64) (int, error) {
+	return 0, nil
+}
+
 func newStudentDeletionTestService(
 	db *bun.DB,
 	dataAuditRepo auditModels.DataDeletionRepository,

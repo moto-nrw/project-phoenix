@@ -436,7 +436,7 @@ func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
 	ddA := CreateTestDataDeletionForTenant(t, db, tenantA, sA.ID)
 	ddB := CreateTestDataDeletionForTenant(t, db, tenantB, sB.ID)
 
-	repo := repoAudit.NewDataDeletionRepository(db)
+	repo := repoAudit.NewDataDeletionRepository(repoAudit.NewRuntime(db, tenant.FromContext))
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)

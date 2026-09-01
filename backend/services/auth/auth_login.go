@@ -1092,7 +1092,9 @@ func (s *Service) generateAndLogTokens(
 	}
 
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, "")
+		if err := s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, ""); err != nil {
+			return "", "", &AuthError{Op: "audit authentication", Err: err}
+		}
 	}
 
 	return accessToken, refreshToken, nil
@@ -1101,7 +1103,9 @@ func (s *Service) generateAndLogTokens(
 // logFailedLogin logs a failed login attempt if IP address is provided
 func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress, userAgent, reason string) {
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, accountID, audit.EventTypeLogin, false, ipAddress, userAgent, reason)
+		if err := s.logAuthEvent(ctx, accountID, audit.EventTypeLogin, false, ipAddress, userAgent, reason); err != nil {
+			s.getLogger().Error("failed to audit rejected login", slog.Any("error", err))
+		}
 	}
 }
 
@@ -1679,7 +1683,9 @@ func (s *Service) fetchAndValidateAccountForUpdate(ctx context.Context, accountI
 	}
 	if !account.Active {
 		if ipAddress != "" {
-			s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
+			if auditErr := s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive"); auditErr != nil {
+				return nil, &AuthError{Op: "audit rejected refresh", Err: auditErr}
+			}
 		}
 		return nil, &AuthError{Op: "check account status", Err: ErrAccountInactive}
 	}
@@ -2097,7 +2103,9 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 		// Log successful logout
 		if ipAddress != "" {
-			s.logAuthEvent(auditCtx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+			if err := s.logAuthEvent(auditCtx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, ""); err != nil {
+				return &AuthError{Op: "audit logout", Err: err}
+			}
 		}
 
 		revoked = dbToken

@@ -3,8 +3,6 @@ package audit
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Change types for an audited guardian change.
@@ -39,7 +37,7 @@ const (
 // The actor name/email are snapshotted so the trail survives account deletion.
 type GuardianChange struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	StudentID         int64 `bun:"student_id,notnull" json:"student_id"`
 	GuardianProfileID int64 `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	// ActorAccountID is nulled if the acting account is later deleted; the

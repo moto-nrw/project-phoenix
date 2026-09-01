@@ -66,6 +66,69 @@ func uniqueFixtureSuffix() int64 {
 // the collision surfaces on whatever unique index the name happens to hit.
 func UniqueSuffix() int64 { return uniqueFixtureSuffix() }
 
+// InsertAuditTestWorkSession keeps Audit adapter tests on the neutral fixture
+// boundary instead of importing the Bun ORM directly.
+func InsertAuditTestWorkSession(ctx context.Context, db *bun.DB, session any) error {
+	fixture, ok := session.(interface{ PrepareAuditWorkSession(int64) })
+	if !ok {
+		return fmt.Errorf("audit work-session fixture preparation is required")
+	}
+	fixture.PrepareAuditWorkSession(audit.TenantIDFromContext(ctx))
+	_, err := db.NewInsert().Model(session).ModelTableExpr(`active.work_sessions AS "work_session"`).Exec(ctx)
+	return err
+}
+
+// CreateAuditAdjustmentChain creates only the foreign-key chain required by
+// enrollment-offering audit rows and returns phase, request, and child IDs.
+func CreateAuditAdjustmentChain(tb testing.TB, db *bun.DB) (int64, int64, int64) {
+	tb.Helper()
+	phaseID := CreateTestEnrollmentPhase(tb, db).ID
+	tenantID := fixtureTenantID(tb)
+	ctx := TenantContext(tenantID)
+	var requestID int64
+	err := db.NewRaw(`
+		INSERT INTO enrollment.requests (
+			tenant_id, phase_id, guardian_first_name, guardian_last_name,
+			guardian_email, consent_flags, legal_blocks_snapshot, custom_data,
+			source_metadata, status_token, submitted_at
+		) VALUES (?, ?, 'Anna', 'Audit', ?, '{}'::jsonb, '[]'::jsonb,
+			'{}'::jsonb, '{}'::jsonb, ?, NOW())
+		RETURNING id
+	`, tenantID, phaseID,
+		fmt.Sprintf("audit-adjustment-%d@example.test", uniqueFixtureSuffix()),
+		fmt.Sprintf("audit-adjustment-%d", uniqueFixtureSuffix()),
+	).Scan(ctx, &requestID)
+	require.NoError(tb, err)
+	childID := CreateAuditAdjustmentChild(tb, db, requestID)
+	return phaseID, requestID, childID
+}
+
+func CreateAuditAdjustmentChild(tb testing.TB, db *bun.DB, requestID int64) int64 {
+	tb.Helper()
+	tenantID := fixtureTenantID(tb)
+	ctx := TenantContext(tenantID)
+	var childID int64
+	err := db.NewRaw(`
+		INSERT INTO enrollment.request_children (
+			tenant_id, request_id, first_name, last_name, date_of_birth,
+			custom_data, status, activation_mode
+		) VALUES (?, ?, 'Lina', ?, DATE '2018-04-15', '{}'::jsonb, 'approved', 'scheduled')
+		RETURNING id
+	`, tenantID, requestID, fmt.Sprintf("Audit%d", uniqueFixtureSuffix())).Scan(ctx, &childID)
+	require.NoError(tb, err)
+	return childID
+}
+
+func OrganizationIDForSchool(tb testing.TB, db *bun.DB, schoolID int64) int64 {
+	tb.Helper()
+	var organizationID int64
+	require.NoError(tb, db.NewRaw(
+		"SELECT organization_id FROM platform.schools WHERE id = ?", schoolID,
+	).Scan(context.Background(), &organizationID))
+	require.NotZero(tb, organizationID)
+	return organizationID
+}
+
 // cleanupDelete executes a delete query and logs any errors.
 // This provides visibility into cleanup failures without causing test failures.
 func cleanupDelete(tb testing.TB, query *bun.DeleteQuery, table string) {

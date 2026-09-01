@@ -54,10 +54,10 @@ func TestMFAService_RecordAuthEvent_LandsRowWithExplicitTenantID(t *testing.T) {
 		net.ParseIP("203.0.113.42"))
 	require.NoError(t, err)
 
-	// Audit insert is async via goroutine. Poll up to 3s.
+	// Query the synchronously appended audit row.
 	row := waitForAuthEvent(t, db, acc.ID, auditmodel.EventTypeMFAEmailSent, 3*time.Second)
 	require.NotNil(t, row, "mfa_email_sent audit row must land — login-flow audit was the regression")
-	assert.Equal(t, tenantID, row.GetTenantID(),
+	assert.Equal(t, tenantID, row.TenantID,
 		"audit row must be filed under the tenant passed to StartChallenge, not 0")
 	assert.True(t, row.Success, "mfa_email_sent is a success row")
 	assert.Equal(t, "203.0.113.42", row.IPAddress)
@@ -109,7 +109,7 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 
 	row := waitForAuthEvent(t, db, acc.ID, auditmodel.EventTypeMFAFailed, 3*time.Second)
 	require.NotNil(t, row, "mfa_failed row must land even when caller passes nil IP")
-	assert.Equal(t, tenantID, row.GetTenantID(),
+	assert.Equal(t, tenantID, row.TenantID,
 		"audit row must use the tenant from context (VerifyCodeForAccount runs inside tenant tx)")
 	assert.Equal(t, "0.0.0.0", row.IPAddress,
 		"nil IP must be substituted with the project's audit sentinel — matches caregiverCapabilityAuditIP")

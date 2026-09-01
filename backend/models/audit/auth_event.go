@@ -3,14 +3,12 @@ package audit
 import (
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // AuthEvent represents an authentication event for security auditing
 type AuthEvent struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	AccountID    int64                  `bun:"account_id,notnull" json:"account_id"`
 	EventType    string                 `bun:"event_type,notnull" json:"event_type"`
 	Success      bool                   `bun:"success,notnull" json:"success"`
@@ -28,6 +26,7 @@ const (
 	EventTypeTokenRefresh                = "token_refresh"
 	EventTypeTokenExpired                = "token_expired"
 	EventTypeTokenRevoked                = "token_revoked"
+	EventTypeAccountWideWipeCompleted    = "account_wide_wipe_completed"
 	EventTypePasswordReset               = "password_reset"
 	EventTypeAccountLocked               = "account_locked"
 	EventTypeTenantSwitch                = "tenant_switch"
@@ -64,7 +63,7 @@ func (ae *AuthEvent) Validate() error {
 
 	// Validate event type
 	switch ae.EventType {
-	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh, EventTypeTokenRevoked,
+	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh, EventTypeTokenRevoked, EventTypeAccountWideWipeCompleted,
 		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked,
 		EventTypeTenantSwitch, EventTypeCaregiverCapabilityEnabled,
 		EventTypeCaregiverCapabilityDisabled,

@@ -456,6 +456,31 @@ func createGhostRecords(db rawDB) {
 	}
 }
 
+func TestCheckAllowsOwnershipForViewCreatedByUntrackedCandidateMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+`)
+
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_create_ghost_view.go"), `package migrations
+
+func createGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE VIEW ghost.records AS SELECT 1 AS id;`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "1 legacy violation(s) remain") {
+		t.Fatalf("new view ownership with an untracked candidate migration was rejected: %v\n%s", err, output)
+	}
+}
+
 func TestCheckRejectsOwnershipBackfilledThroughModifiedMigration(t *testing.T) {
 	t.Parallel()
 

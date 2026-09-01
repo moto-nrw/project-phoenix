@@ -12,11 +12,20 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 const testJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
+
+type testAuthEventCommand struct {
+	repo auditModels.AuthEventRepository
+}
+
+func (c testAuthEventCommand) Append(ctx context.Context, event any) error {
+	return c.repo.Create(ctx, event.(*auditModels.AuthEvent))
+}
 
 // newTestMFAService wires a real test-DB-backed MFA service. Settings +
 // Dispatcher are intentionally nil so IsRequired falls through to "off"
@@ -35,6 +44,7 @@ func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *b
 		TokenAuth: tokenAuth,
 		JWTSecret: testJWTSecret,
 		DB:        db,
+		Audit:     testAuthEventCommand{repo: repos.AuthEvent},
 	})
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, svc, db)

@@ -15,6 +15,12 @@ type DataDeletionRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*DataDeletion, error)
 }
 
+type RecentDeletionSummary struct {
+	Date           string `bun:"date"`
+	RecordsDeleted int64  `bun:"records_deleted"`
+	StudentCount   int64  `bun:"student_count"`
+}
+
 // AuthEventRepository defines operations for managing authentication event audit records
 type AuthEventRepository interface {
 	Create(ctx context.Context, event *AuthEvent) error
@@ -23,12 +29,13 @@ type AuthEventRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*AuthEvent, error)
 	ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]PendingAccountWideWipe, error)
 	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]PendingAccountWideWipe, error)
-	MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error
 }
 
 // PendingAccountWideWipe is a recorded account-wide revoke that may still
 // need recovery after a failed after-commit wipe.
 type PendingAccountWideWipe struct {
+	EventID   int64     `bun:"event_id"`
+	TenantID  int64     `bun:"tenant_id"`
 	AccountID int64     `bun:"account_id"`
 	Reason    string    `bun:"reason"`
 	CreatedAt time.Time `bun:"created_at"`

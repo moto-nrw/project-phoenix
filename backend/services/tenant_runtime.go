@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"time"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -43,6 +44,10 @@ func BindTenantRuntime(
 	}); ok {
 		runtime = runtime.WithContextAdapters(adapter.ContextWithTenant, adapter.ContextWithTransaction)
 	}
+	runtime = runtime.WithTransactionDetacher(func(ctx context.Context) context.Context {
+		return auditModels.WithTransaction(ctx, nil)
+	})
+	runtime = runtime.WithContextAdapters(auditModels.WithTenantID, auditModels.WithTransaction)
 	return runtime, nil
 }
 

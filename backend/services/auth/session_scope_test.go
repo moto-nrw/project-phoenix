@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -923,7 +924,7 @@ func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
 	require.Equal(t, 1, count)
 }
 
-func TestActivateAccountClearsPendingAccountWideWipe(t *testing.T) {
+func TestActivateAccountCompletesPendingAccountWideWipeWithoutMutatingHistory(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -940,16 +941,33 @@ func TestActivateAccountClearsPendingAccountWideWipe(t *testing.T) {
 	})
 
 	insertPendingAccountWideWipe(t, db, account.ID, tenantID, "account_deactivated", time.Now())
+	var pendingID int64
+	require.NoError(t, db.NewSelect().
+		TableExpr("audit.auth_events").
+		Column("id").
+		Where("account_id = ?", account.ID).
+		Where("event_type = ?", auditModels.EventTypeTokenRevoked).
+		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
+		Scan(context.Background(), &pendingID))
 	require.NoError(t, service.ActivateAccount(ctx, int(account.ID)))
 
-	pending, err := db.NewSelect().
+	history, err := db.NewSelect().
 		TableExpr("audit.auth_events").
 		Where("account_id = ?", account.ID).
-		Where("event_type = ?", "token_revoked").
+		Where("event_type = ?", auditModels.EventTypeTokenRevoked).
 		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
 		Count(context.Background())
 	require.NoError(t, err)
-	require.Zero(t, pending)
+	require.Equal(t, 1, history, "completion must not update or delete the pending event")
+
+	completed, err := db.NewSelect().
+		TableExpr("audit.auth_events").
+		Where("account_id = ?", account.ID).
+		Where("event_type = ?", auditModels.EventTypeAccountWideWipeCompleted).
+		Where(`metadata->>'pending_event_id' = ?`, fmt.Sprint(pendingID)).
+		Count(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, completed)
 }
 
 // Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
