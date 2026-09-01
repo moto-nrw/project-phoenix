@@ -34,6 +34,8 @@ export const actionLabels: Record<string, string> = {
   own: "Eigene",
   apply: "Anwenden",
   financial: "Bank- & Steuerdaten",
+  stammdaten: "Personalstammdaten",
+  documents: "Personalunterlagen",
   "*": "Alle",
 };
 
