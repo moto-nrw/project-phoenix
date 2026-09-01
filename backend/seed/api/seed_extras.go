@@ -267,3 +267,151 @@ func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 	fmt.Printf("  %d planned care exits created\n", created)
 	return nil
 }
+
+// seedCourseParticipationStep records past occurrences of three demo courses
+// with a decided attendance row per child, so the Statistik section "Kurse"
+// (#2891) is not empty on a fresh demo tenant.
+//
+// The occurrences are created through the ordinary instance endpoint with an
+// activity_group_id: that is a real course date, only outside the
+// materialization cycle. One date is cancelled and one child is left
+// undecided on purpose — the screen has to show that cancelled dates count
+// nowhere and that an unfinished block does not drag the quota down.
+type seedCourseParticipationStep struct{}
+
+func (seedCourseParticipationStep) Name() string { return "Seeding course participation" }
+
+// courseDemoWeeks is how many past occurrences each demo course gets.
+const courseDemoWeeks = 4
+
+// courseDemoChildren is how many children take part per course; the fixed
+// seeder enrolls the first five demo children in every activity.
+const courseDemoChildren = 5
+
+func (seedCourseParticipationStep) Run(_ context.Context, rt *Runtime) error {
+	if rt.FixedSeeder == nil {
+		return fmt.Errorf("fixed seeder not available")
+	}
+	dates := pastWeekdays(courseDemoWeeks)
+	instances, cancelled := 0, 0
+
+	for courseIndex, activity := range DemoActivities {
+		if courseIndex >= 3 {
+			break
+		}
+		activityID := rt.FixedSeeder.activityIDs[activity.Name]
+		roomID := rt.FixedSeeder.activityRoomIDs[activityID]
+		if activityID == 0 || roomID == 0 {
+			continue
+		}
+		studentIDs := make([]int64, 0, courseDemoChildren)
+		for i := range courseDemoChildren {
+			if id, ok := rt.FixedSeeder.studentIDByIndex[i]; ok {
+				studentIDs = append(studentIDs, id)
+			}
+		}
+		if len(studentIDs) == 0 {
+			continue
+		}
+
+		for dateIndex, date := range dates {
+			instanceID, err := createCourseOccurrence(rt, activity.Name, date, roomID, activityID, studentIDs)
+			if err != nil {
+				return err
+			}
+			instances++
+
+			// The oldest date of the first course was cancelled.
+			if courseIndex == 0 && dateIndex == 0 {
+				if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/cancel", instanceID), map[string]any{
+					"reason": "Raum war belegt",
+				}); err != nil {
+					return fmt.Errorf("cancel course occurrence: %w", err)
+				}
+				cancelled++
+				continue
+			}
+
+			for studentIndex, studentID := range studentIDs {
+				status := courseAttendanceStatus(courseIndex, dateIndex, studentIndex, len(dates))
+				if status == "" {
+					continue // left undecided: the block was never finished
+				}
+				path := fmt.Sprintf("/api/timetable/instances/%d/students/%d", instanceID, studentID)
+				if _, err := rt.Client.Patch(path, map[string]any{"status": status}); err != nil {
+					return fmt.Errorf("record course attendance: %w", err)
+				}
+			}
+		}
+	}
+
+	fmt.Printf("  %d course occurrences seeded (%d cancelled)\n", instances, cancelled)
+	return nil
+}
+
+// createCourseOccurrence books one past date of a course with its roster and
+// returns the new instance ID.
+func createCourseOccurrence(rt *Runtime, title string, date timezone.Date, roomID, activityID int64, studentIDs []int64) (int64, error) {
+	body := map[string]any{
+		"date":              date.String(),
+		"start_time":        "14:00",
+		"end_time":          "15:00",
+		"title":             title,
+		"room_id":           roomID,
+		"activity_group_id": activityID,
+		"student_ids":       studentIDs,
+	}
+	respBody, err := rt.Client.Post("/api/timetable/instances", body)
+	if err != nil {
+		return 0, fmt.Errorf("create course occurrence %s on %s: %w", title, date, err)
+	}
+	var resp struct {
+		Data struct {
+			ID json.Number `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return 0, fmt.Errorf("parse course occurrence response: %w", err)
+	}
+	id, err := resp.Data.ID.Int64()
+	if err != nil || id == 0 {
+		return 0, fmt.Errorf("course occurrence response carries no id")
+	}
+	return id, nil
+}
+
+// courseAttendanceStatus spreads a plausible pattern over the demo courses:
+// mostly present, a recurring absence for one child, and the newest date of
+// the last course left undecided so the "Offen" column is not always zero.
+// An empty result means "write nothing".
+func courseAttendanceStatus(courseIndex, dateIndex, studentIndex, dateCount int) string {
+	if courseIndex == 2 && dateIndex == dateCount-1 {
+		return ""
+	}
+	if studentIndex == courseIndex+1 && dateIndex%2 == 0 {
+		return "absent"
+	}
+	return "present"
+}
+
+// pastWeekdays returns the last n weekdays before today, oldest first, one
+// per week so the occurrences read as a weekly course.
+func pastWeekdays(n int) []timezone.Date {
+	dates := make([]timezone.Date, 0, n)
+	day := timezone.TodayDate().AddDays(-1)
+	for len(dates) < n {
+		switch day.Weekday() {
+		case time.Saturday, time.Sunday:
+			day = day.AddDays(-1)
+			continue
+		default:
+		}
+		dates = append(dates, day)
+		day = day.AddDays(-7)
+	}
+	// Collected newest first; the demo reads better oldest first.
+	for i, j := 0, len(dates)-1; i < j; i, j = i+1, j-1 {
+		dates[i], dates[j] = dates[j], dates[i]
+	}
+	return dates
+}

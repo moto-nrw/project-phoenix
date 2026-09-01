@@ -22,7 +22,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
   }
 
   const queryParams = new URLSearchParams();
-  for (const key of ["from", "to"] as const) {
+  for (const key of ["from", "to", "section"] as const) {
     const value = request.nextUrl.searchParams.get(key);
     if (value) queryParams.set(key, value);
   }

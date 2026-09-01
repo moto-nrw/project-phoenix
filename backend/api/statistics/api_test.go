@@ -109,6 +109,31 @@ type reportPayload struct {
 			PeakUtilizationPercent *float64 `json:"peak_utilization_percent"`
 		} `json:"rooms"`
 		RoomDataDays int `json:"room_data_days"`
+		Courses      []struct {
+			CourseID           string   `json:"course_id"`
+			Name               string   `json:"name"`
+			CategoryName       string   `json:"category_name"`
+			MaxParticipants    int      `json:"max_participants"`
+			HeldInstances      int      `json:"held_instances"`
+			CancelledInstances int      `json:"cancelled_instances"`
+			StudentCount       int      `json:"student_count"`
+			PresentDays        int      `json:"present_days"`
+			AbsentDays         int      `json:"absent_days"`
+			OpenDays           int      `json:"open_days"`
+			ParticipationRate  *float64 `json:"participation_rate"`
+			OccupancyPercent   *float64 `json:"occupancy_percent"`
+		} `json:"courses"`
+		CourseStudents []struct {
+			StudentID         string   `json:"student_id"`
+			LastName          string   `json:"last_name"`
+			CourseName        string   `json:"course_name"`
+			PresentDays       int      `json:"present_days"`
+			AbsentDays        int      `json:"absent_days"`
+			OpenDays          int      `json:"open_days"`
+			ParticipationRate *float64 `json:"participation_rate"`
+		} `json:"course_students"`
+		CourseDataDays int    `json:"course_data_days"`
+		CourseDataFrom string `json:"course_data_from"`
 	} `json:"data"`
 }
 
@@ -641,4 +666,114 @@ func TestStatisticsExport_RendersAndAudits(t *testing.T) {
 		Scan(ctx, &viewRows))
 	assert.Equal(t, 4, exportRows, "every successful export writes its own audit row")
 	assert.Equal(t, 1, viewRows, "repeated views of the same window collapse into one row")
+}
+
+// TestStatisticsReport_CourseParticipation pins the third section (#2891):
+// cancelled occurrences count nowhere, an undecided slot stays out of the
+// quota, a non-booking is no absence, and the course population is the same
+// one the child table reports.
+func TestStatisticsReport_CourseParticipation(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	tenantID := testpkg.Tenant(t)
+	ctx := testpkg.Ctx(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Kurs", "Tester")
+	claims := claimsFor(t, account.ID)
+
+	anna := testpkg.CreateTestStudent(t, tc.db, "Anna", "Aktiv", "1a")
+	bert := testpkg.CreateTestStudent(t, tc.db, "Bert", "Bummel", "1a")
+	alumnus := testpkg.CreateTestStudent(t, tc.db, "Alma", "Archiv", "1a")
+	_, err := tc.db.NewUpdate().TableExpr("users.students").
+		Set("status = ?", userModels.StudentStatusAlumnus).
+		Where("id = ?", alumnus.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	room := testpkg.CreateTestRoom(t, tc.db, "Turnhalle")
+	course := testpkg.CreateTestActivityGroup(t, tc.db, "Fußball")
+	instanceOpts := func(status string) testpkg.ActivityInstanceOpts {
+		return testpkg.ActivityInstanceOpts{Status: status, ActivityGroupID: &course.ID, Title: "Fußball"}
+	}
+	held1 := testpkg.CreateTestActivityInstance(t, tc.db, timezone.NewDate(2026, 6, 8), room.ID,
+		instanceOpts(scheduleModels.InstanceStatusCompleted))
+	held2 := testpkg.CreateTestActivityInstance(t, tc.db, timezone.NewDate(2026, 6, 10), room.ID,
+		instanceOpts(scheduleModels.InstanceStatusCompleted))
+	cancelled := testpkg.CreateTestActivityInstance(t, tc.db, timezone.NewDate(2026, 6, 11), room.ID,
+		instanceOpts(scheduleModels.InstanceStatusCancelled))
+	outside := testpkg.CreateTestActivityInstance(t, tc.db, timezone.NewDate(2026, 5, 20), room.ID,
+		instanceOpts(scheduleModels.InstanceStatusCompleted))
+
+	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, anna.ID, scheduleModels.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, bert.ID, scheduleModels.AttendanceStatusAbsent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, alumnus.ID, scheduleModels.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, anna.ID, scheduleModels.AttendanceStatusPresent)
+	// Bert was not booked into the OGS that day: no participation, no absence.
+	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, bert.ID, scheduleModels.AttendanceStatusExpected,
+		testpkg.InstanceStudentOpts{NotScheduled: true})
+	// The cancelled date and a date before the window count nowhere.
+	testpkg.CreateTestInstanceStudent(t, tc.db, cancelled.ID, anna.ID, scheduleModels.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, outside.ID, anna.ID, scheduleModels.AttendanceStatusPresent)
+
+	req := httptest.NewRequest(http.MethodGet, "/report?from="+weekFrom.String()+"&to="+weekTo.String(), nil)
+	rec := authExec(t, tc, req, claims, reportPermissions)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var payload reportPayload
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+	require.Len(t, payload.Data.Courses, 1)
+	row := payload.Data.Courses[0]
+
+	assert.Equal(t, "Fußball", row.Name)
+	assert.Equal(t, strconv.FormatInt(course.ID, 10), row.CourseID)
+	assert.Equal(t, 2, row.HeldInstances, "the cancelled date is no occurrence")
+	assert.Equal(t, 1, row.CancelledInstances)
+	assert.Equal(t, 2, row.StudentCount, "the graduated child is out of the section")
+	assert.Equal(t, 2, row.PresentDays)
+	assert.Equal(t, 1, row.AbsentDays)
+	assert.Equal(t, 0, row.OpenDays, "a non-booking is not an open slot")
+	require.NotNil(t, row.ParticipationRate)
+	assert.InDelta(t, 66.7, *row.ParticipationRate, 0.01)
+	require.NotNil(t, row.OccupancyPercent)
+	assert.InDelta(t, 10.0, *row.OccupancyPercent, 0.01, "2 children of 20 seats")
+	assert.Greater(t, payload.Data.CourseDataDays, 0)
+	assert.NotEmpty(t, payload.Data.CourseDataFrom)
+
+	byChild := map[string]int{}
+	for i, child := range payload.Data.CourseStudents {
+		byChild[child.LastName] = i
+	}
+	require.Len(t, payload.Data.CourseStudents, 2)
+	assert.NotContains(t, byChild, "Archiv")
+	annaRow := payload.Data.CourseStudents[byChild["Aktiv"]]
+	assert.Equal(t, "Fußball", annaRow.CourseName)
+	assert.Equal(t, 2, annaRow.PresentDays)
+	require.NotNil(t, annaRow.ParticipationRate)
+	assert.InDelta(t, 100.0, *annaRow.ParticipationRate, 0.01)
+	bertRow := payload.Data.CourseStudents[byChild["Bummel"]]
+	assert.Equal(t, 0, bertRow.PresentDays)
+	assert.Equal(t, 1, bertRow.AbsentDays)
+
+	// section=courses computes only this section — the room table stays empty.
+	req = httptest.NewRequest(http.MethodGet, "/report?section=courses&from="+weekFrom.String()+"&to="+weekTo.String(), nil)
+	rec = authExec(t, tc, req, claims, reportPermissions)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var scoped reportPayload
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &scoped))
+	assert.Len(t, scoped.Data.Courses, 1)
+	assert.Empty(t, scoped.Data.Rooms)
+
+	req = httptest.NewRequest(http.MethodGet, "/report?section=nope&from="+weekFrom.String()+"&to="+weekTo.String(), nil)
+	rec = authExec(t, tc, req, claims, reportPermissions)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	for section, stem := range map[string]string{
+		"courses":         "kurse-2026-06-08-2026-06-12.xlsx",
+		"course-students": "kurse-je-kind-2026-06-08-2026-06-12.xlsx",
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/export?format=xlsx&section="+section+"&from="+weekFrom.String()+"&to="+weekTo.String(), nil)
+		rec := authExec(t, tc, req, claims, reportPermissions)
+		require.Equal(t, http.StatusOK, rec.Code, section)
+		assert.Contains(t, rec.Header().Get("Content-Disposition"), stem)
+		assert.NotEmpty(t, rec.Body.Bytes())
+	}
 }

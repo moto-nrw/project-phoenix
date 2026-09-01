@@ -49,11 +49,39 @@ var (
 	ErrAuditFailed = errors.New("statistics audit write failed")
 )
 
+// Section names the part of the report a caller wants computed.
+type Section string
+
+const (
+	// SectionAttendance is the child and group table.
+	SectionAttendance Section = "attendance"
+	// SectionRooms is the room utilization table.
+	SectionRooms Section = "rooms"
+	// SectionCourses is the course participation table (#2891).
+	SectionCourses Section = "courses"
+)
+
 // Filters selects the report window and an optional group restriction.
 type Filters struct {
 	From     timezone.Date
 	To       timezone.Date
 	GroupIDs []int64
+	// Sections limits what is computed. Empty means the whole report — the
+	// screen loads every section at once so switching tabs costs no request.
+	Sections []Section
+}
+
+// wants reports whether the section has to be computed.
+func (f Filters) wants(section Section) bool {
+	if len(f.Sections) == 0 {
+		return true
+	}
+	for _, s := range f.Sections {
+		if s == section {
+			return true
+		}
+	}
+	return false
 }
 
 // Actor identifies who requests the report for the GDPR access log.
@@ -132,6 +160,16 @@ type Report struct {
 	// RoomDataFrom is the earliest date room data can still exist for.
 	RoomDataFrom timezone.Date
 	Totals       GroupRow
+	// Courses is one row per course, CourseStudents one row per (child,
+	// course) — the two views of the participation section (#2891).
+	Courses        []CourseRow
+	CourseStudents []CourseStudentRow
+	CourseTotals   CourseRow
+	// CourseDataDays is the tenant's Betreuungsplan retention window; finished
+	// occurrences older than that are deleted, so the section cannot reach
+	// behind CourseDataFrom.
+	CourseDataDays int
+	CourseDataFrom timezone.Date
 }
 
 // Service is the statistics use case.
@@ -181,6 +219,7 @@ type retentionSettingsReader interface {
 // Config wires the service dependencies.
 type Config struct {
 	Statistics      activeModels.StatisticsRepository
+	Courses         scheduleModels.CourseStatisticsRepository
 	Holidays        holidayDates
 	ClosingDays     closingDayDates
 	Periods         calendarPeriods
@@ -294,16 +333,30 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 	report.Groups = buildGroupRows(report.Students)
 	report.Totals = buildTotals(report.Students)
 
-	rooms, err := s.roomRows(ctx, filters, today)
-	if err != nil {
-		return nil, err
+	if filters.wants(SectionRooms) {
+		rooms, err := s.roomRows(ctx, filters, today)
+		if err != nil {
+			return nil, err
+		}
+		report.Rooms = rooms
+		report.RoomDataDays, err = s.roomRetentionDays(ctx, report.Students)
+		if err != nil {
+			return nil, err
+		}
+		report.RoomDataFrom = today.AddDays(-report.RoomDataDays)
 	}
-	report.Rooms = rooms
-	report.RoomDataDays, err = s.roomRetentionDays(ctx, report.Students)
-	if err != nil {
-		return nil, err
+
+	if filters.wants(SectionCourses) {
+		courses, courseStudents, courseTotals, err := s.courseSection(ctx, filters, report.Students)
+		if err != nil {
+			return nil, err
+		}
+		report.Courses = courses
+		report.CourseStudents = courseStudents
+		report.CourseTotals = courseTotals
+		report.CourseDataDays = s.courseRetentionDays(ctx)
+		report.CourseDataFrom = today.AddDays(-report.CourseDataDays)
 	}
-	report.RoomDataFrom = today.AddDays(-report.RoomDataDays)
 	return report, nil
 }
 
@@ -457,10 +510,7 @@ func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[
 		rows = append(rows, row)
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
-		if c := strings.Compare(sortKey(rows[i].LastName), sortKey(rows[j].LastName)); c != 0 {
-			return c < 0
-		}
-		if c := strings.Compare(sortKey(rows[i].FirstName), sortKey(rows[j].FirstName)); c != 0 {
+		if c := compareStudentName(rows[i].LastName, rows[i].FirstName, rows[j].LastName, rows[j].FirstName); c != 0 {
 			return c < 0
 		}
 		return rows[i].StudentID < rows[j].StudentID
@@ -520,8 +570,11 @@ func sortKey(s string) string {
 
 var umlautFolder = strings.NewReplacer("ä", "a", "ö", "o", "ü", "u", "ß", "ss")
 
+// totalsRowName labels the aggregate row of every section.
+const totalsRowName = "Gesamt"
+
 func buildTotals(students []StudentRow) GroupRow {
-	total := GroupRow{Name: "Gesamt"}
+	total := GroupRow{Name: totalsRowName}
 	careDays := 0
 	for _, st := range students {
 		total.StudentCount++
@@ -649,6 +702,14 @@ func (s *service) recordAccess(ctx context.Context, filters Filters, actor Actor
 		"from":   filters.From.String(),
 		"to":     filters.To.String(),
 	}
+	if len(filters.Sections) > 0 {
+		sections := make([]string, 0, len(filters.Sections))
+		for _, section := range filters.Sections {
+			sections = append(sections, string(section))
+		}
+		sort.Strings(sections)
+		meta["sections"] = strings.Join(sections, ",")
+	}
 	if len(filters.GroupIDs) > 0 {
 		groupIDs := append([]int64(nil), filters.GroupIDs...)
 		sort.Slice(groupIDs, func(i, j int) bool { return groupIDs[i] < groupIDs[j] })
@@ -678,9 +739,7 @@ func (s *service) recordAccess(ctx context.Context, filters Filters, actor Actor
 	if format != "" {
 		entry.SetMetadata("format", format)
 	}
-	if groupIDs, ok := meta["group_ids"]; ok {
-		entry.SetMetadata("group_ids", groupIDs)
-	}
+
 	if err := s.cfg.AccessLog.Create(ctx, entry); err != nil {
 		s.cfg.Logger.Error("statistics audit write failed",
 			slog.String("action", action),

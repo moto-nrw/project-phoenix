@@ -38,6 +38,38 @@ export interface StatisticsRoomRow {
   peak_utilization_percent: number | null;
 }
 
+/** Kursteilnahme je Kurs (#2891). */
+export interface StatisticsCourseRow {
+  course_id: string;
+  name: string;
+  category_name: string;
+  /** 0 = keine Teilnehmergrenze. */
+  max_participants: number;
+  held_instances: number;
+  cancelled_instances: number;
+  student_count: number;
+  present_days: number;
+  absent_days: number;
+  open_days: number;
+  participation_rate: number | null;
+  occupancy_percent: number | null;
+}
+
+/** Eine Zeile je Kind und Kurs. */
+export interface StatisticsCourseStudentRow {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  group_name: string;
+  course_id: string;
+  course_name: string;
+  present_days: number;
+  absent_days: number;
+  open_days: number;
+  participation_rate: number | null;
+}
+
 export interface StatisticsReport {
   from: string;
   to: string;
@@ -54,6 +86,11 @@ export interface StatisticsReport {
   rooms: StatisticsRoomRow[];
   room_data_days: number;
   room_data_from: string;
+  courses: StatisticsCourseRow[];
+  course_students: StatisticsCourseStudentRow[];
+  course_totals: StatisticsCourseRow;
+  course_data_days: number;
+  course_data_from: string;
 }
 
 export type StatisticsErrorCode = "forbidden" | "invalid_request" | "unknown";
@@ -69,8 +106,21 @@ export class StatisticsError extends Error {
 }
 
 export type StatisticsExportFormat = "pdf" | "xlsx" | "docx";
-/** attendance = children and groups (default), rooms = room utilization. */
-export type StatisticsExportSection = "attendance" | "rooms";
+/**
+ * attendance = children and groups (default), rooms = room utilization,
+ * courses / course-students = the two views of the course participation
+ * section. Each is its own document with its own columns.
+ */
+export type StatisticsExportSection =
+  "attendance" | "rooms" | "courses" | "course-students";
+
+/** Dateiname-Stamm je Bereich, falls der Server keinen Namen mitschickt. */
+export const EXPORT_FILENAME_STEM: Record<StatisticsExportSection, string> = {
+  attendance: "statistik",
+  rooms: "raumauslastung",
+  courses: "kurse",
+  "course-students": "kurse-je-kind",
+};
 
 function buildParams(
   fromISO: string,

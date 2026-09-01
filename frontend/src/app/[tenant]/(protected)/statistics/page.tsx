@@ -37,8 +37,11 @@ import {
   fetchStatisticsReport,
   formatHours,
   formatRate,
+  EXPORT_FILENAME_STEM,
   StatisticsError,
   statisticsExportUrl,
+  type StatisticsCourseRow,
+  type StatisticsCourseStudentRow,
   type StatisticsErrorCode,
   type StatisticsExportFormat,
   type StatisticsExportSection,
@@ -51,12 +54,23 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "StatisticsPage" });
 
-type StatisticsView = "groups" | "students" | "rooms";
+type StatisticsView = "groups" | "students" | "rooms" | "courses";
 
 const VIEW_ITEMS: readonly { value: StatisticsView; label: string }[] = [
   { value: "groups", label: "Gruppen" },
   { value: "students", label: "Kinder" },
   { value: "rooms", label: "Räume" },
+  { value: "courses", label: "Kurse" },
+];
+
+// Der Kursbereich hat zwei Sichten auf dieselben Zahlen. Sie stehen als
+// eigener Umschalter unter dem Bereichswechsel, damit oben vier Bereiche
+// bleiben und die Leiste auf dem Handy lesbar ist.
+type CourseView = "by-course" | "by-child";
+
+const COURSE_VIEW_ITEMS: readonly { value: CourseView; label: string }[] = [
+  { value: "by-course", label: "Je Kurs" },
+  { value: "by-child", label: "Je Kind" },
 ];
 
 const ERROR_MESSAGES: Record<StatisticsErrorCode, string> = {
@@ -87,6 +101,7 @@ export default function StatisticsPage() {
     readonly StatisticsGroupRow[]
   >([]);
   const [view, setView] = useState<StatisticsView>("groups");
+  const [courseView, setCourseView] = useState<CourseView>("by-course");
   const [data, setData] = useState<StatisticsReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorCode, setErrorCode] = useState<StatisticsErrorCode | null>(null);
@@ -153,7 +168,7 @@ export default function StatisticsPage() {
         const disposition = res.headers.get("Content-Disposition") ?? "";
         const filename =
           /filename="([^"]+)"/.exec(disposition)?.[1] ??
-          `${section === "rooms" ? "raumauslastung" : "statistik"}-${fromISO}-${toISO}.${format}`;
+          `${EXPORT_FILENAME_STEM[section]}-${fromISO}-${toISO}.${format}`;
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
@@ -379,6 +394,150 @@ export default function StatisticsPage() {
     },
   ];
 
+  const courseColumns: DataTableColumn<StatisticsCourseRow>[] = [
+    {
+      key: "name",
+      header: "Kurs",
+      render: (row) => (
+        <div>
+          <div className="font-medium text-gray-900">{row.name}</div>
+          {row.category_name && (
+            <div className="text-xs text-gray-500">{row.category_name}</div>
+          )}
+        </div>
+      ),
+      sortValue: (row) => row.name,
+    },
+    {
+      key: "held",
+      header: "Termine",
+      align: "right",
+      render: (row) => row.held_instances,
+      sortValue: (row) => row.held_instances,
+    },
+    {
+      key: "cancelled",
+      header: "Abgesagt",
+      align: "right",
+      render: (row) => row.cancelled_instances,
+      sortValue: (row) => row.cancelled_instances,
+    },
+    {
+      key: "children",
+      header: "Kinder",
+      align: "right",
+      render: (row) => row.student_count,
+      sortValue: (row) => row.student_count,
+    },
+    {
+      key: "seats",
+      header: "Plätze",
+      align: "right",
+      render: (row) =>
+        row.max_participants > 0 ? row.max_participants : "unbegrenzt",
+      sortValue: (row) => row.max_participants,
+    },
+    {
+      key: "present",
+      header: "Teilnahme",
+      align: "right",
+      render: (row) => row.present_days,
+      sortValue: (row) => row.present_days,
+    },
+    {
+      key: "absent",
+      header: "Fehltage",
+      align: "right",
+      render: (row) => row.absent_days,
+      sortValue: (row) => row.absent_days,
+    },
+    {
+      key: "open",
+      header: "Offen",
+      align: "right",
+      render: (row) => row.open_days,
+      sortValue: (row) => row.open_days,
+    },
+    {
+      key: "rate",
+      header: "Quote",
+      align: "right",
+      render: (row) => (
+        <span className="font-medium text-gray-900">
+          {formatRate(row.participation_rate)}
+        </span>
+      ),
+      sortValue: (row) => row.participation_rate ?? -1,
+    },
+    {
+      key: "occupancy",
+      header: "Belegung",
+      align: "right",
+      render: (row) => formatRate(row.occupancy_percent),
+      sortValue: (row) => row.occupancy_percent ?? -1,
+    },
+  ];
+
+  const courseStudentColumns: DataTableColumn<StatisticsCourseStudentRow>[] = [
+    {
+      key: "name",
+      header: "Kind",
+      render: (row) => (
+        <Link
+          href={tenantPath(`/students/${row.student_id}`)}
+          className="font-medium text-gray-900 hover:underline"
+        >
+          {row.last_name}, {row.first_name}
+        </Link>
+      ),
+      sortValue: (row) => `${row.last_name} ${row.first_name}`,
+    },
+    {
+      key: "class",
+      header: "Klasse",
+      render: (row) => row.school_class,
+      sortValue: (row) => row.school_class,
+    },
+    {
+      key: "course",
+      header: "Kurs",
+      render: (row) => row.course_name,
+      sortValue: (row) => row.course_name,
+    },
+    {
+      key: "present",
+      header: "Teilnahme",
+      align: "right",
+      render: (row) => row.present_days,
+      sortValue: (row) => row.present_days,
+    },
+    {
+      key: "absent",
+      header: "Fehltage",
+      align: "right",
+      render: (row) => row.absent_days,
+      sortValue: (row) => row.absent_days,
+    },
+    {
+      key: "open",
+      header: "Offen",
+      align: "right",
+      render: (row) => row.open_days,
+      sortValue: (row) => row.open_days,
+    },
+    {
+      key: "rate",
+      header: "Quote",
+      align: "right",
+      render: (row) => (
+        <span className="font-medium text-gray-900">
+          {formatRate(row.participation_rate)}
+        </span>
+      ),
+      sortValue: (row) => row.participation_rate ?? -1,
+    },
+  ];
+
   // Export trio in the Anmeldungen button idiom: quiet white bordered
   // actions. The child table and the room table are separate documents
   // (different columns), so each section carries its own trio.
@@ -408,6 +567,11 @@ export default function StatisticsPage() {
     ));
   };
 
+  const courseDataStartsInsideWindow =
+    data !== null && fromISO !== null && data.course_data_from > fromISO;
+  const courseDataAllBeforeWindow =
+    data !== null && toISO !== null && data.course_data_from > toISO;
+
   const roomDataStartsInsideWindow =
     data !== null && fromISO !== null && data.room_data_from > fromISO;
   const roomDataAllBeforeWindow =
@@ -424,6 +588,13 @@ export default function StatisticsPage() {
     students: {
       title: "Kinder",
       hint: "Zahlen sind Tage. Ein Klick auf den Namen öffnet die Detailseite des Kindes.",
+    },
+    courses: {
+      title: "Kurse",
+      hint:
+        courseView === "by-course"
+          ? "Eine Zeile je Kurs. Offen sind Termine, die noch nicht abgeschlossen wurden; sie verändern die Quote nicht. Nur zur Information, hier wird nichts geändert."
+          : "Eine Zeile je Kind und Kurs. Offen sind Termine, die noch nicht abgeschlossen wurden. Ein Klick auf den Namen öffnet die Detailseite des Kindes.",
     },
     rooms: {
       title: "Räume",
@@ -442,11 +613,12 @@ export default function StatisticsPage() {
               Statistik
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Anwesenheit und Räume im Zeitraum
+              Anwesenheit, Räume und Kurse im Zeitraum
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne
-              Feiertage, Schließtage und Ferien).
+              {view === "courses"
+                ? "Quote = Teilnahmetage geteilt durch die Termine, für die eine Teilnahme entschieden wurde. Abgesagte Termine zählen nicht mit."
+                : "Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne Feiertage, Schließtage und Ferien)."}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:shrink-0">
@@ -499,51 +671,102 @@ export default function StatisticsPage() {
 
         {!loading && errorCode === null && data && (
           <>
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-              <StatCard
-                variant="tile"
-                label="Betreuungstage"
-                value={data.care_days}
-              />
-              <StatCard
-                variant="tile"
-                label="Tage abgezogen"
-                value={data.excluded_days.total}
-              />
-              <StatCard
-                variant="tile"
-                label="Kinder"
-                value={data.totals.student_count}
-              />
-              <StatCard
-                variant="tile"
-                label="Quote gesamt"
-                value={formatRate(data.totals.attendance_rate)}
-              />
-              <StatCard
-                variant="tile"
-                label="Krank"
-                value={data.totals.sick_days}
-              />
-              <StatCard
-                variant="tile"
-                label="Entschuldigt"
-                value={data.totals.excused_days}
-              />
-              {/* Rot, sobald es offene Fälle gibt: die Zahl ist die einzige
+            {/* Die Kennzahlen wechseln mit dem Bereich: eine Quote über
+                Betreuungstagen neben einer Kurstabelle wäre die falsche Zahl
+                zur falschen Tabelle. */}
+            {view === "courses" ? (
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                <StatCard
+                  variant="tile"
+                  label="Kurse"
+                  value={data.courses.length}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Termine"
+                  value={data.course_totals.held_instances}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Abgesagt"
+                  value={data.course_totals.cancelled_instances}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Kinder"
+                  value={data.course_totals.student_count}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Quote gesamt"
+                  // Ohne entschiedenen Termin gibt es keine Quote. Ein
+                  // Gedankenstrich sagt das; ein leeres Feld sieht kaputt aus.
+                  value={
+                    formatRate(data.course_totals.participation_rate) || "–"
+                  }
+                />
+                <StatCard
+                  variant="tile"
+                  label="Offen"
+                  value={data.course_totals.open_days}
+                />
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                <StatCard
+                  variant="tile"
+                  label="Betreuungstage"
+                  value={data.care_days}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Tage abgezogen"
+                  value={data.excluded_days.total}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Kinder"
+                  value={data.totals.student_count}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Quote gesamt"
+                  value={formatRate(data.totals.attendance_rate)}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Krank"
+                  value={data.totals.sick_days}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Entschuldigt"
+                  value={data.totals.excused_days}
+                />
+                {/* Rot, sobald es offene Fälle gibt: die Zahl ist die einzige
                   auf dem Schirm, der jemand nachgehen muss. */}
-              <StatCard
-                variant="tile"
-                label="Ohne Meldung"
-                value={data.totals.unexplained_days}
-                tone={data.totals.unexplained_days > 0 ? "red" : undefined}
-              />
-            </div>
+                <StatCard
+                  variant="tile"
+                  label="Ohne Meldung"
+                  value={data.totals.unexplained_days}
+                  tone={data.totals.unexplained_days > 0 ? "red" : undefined}
+                />
+              </div>
+            )}
             <p className="mt-2 text-xs leading-5 text-gray-500">
-              {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
-              {data.excluded_days.public_holidays} Feiertage,{" "}
-              {data.excluded_days.closing_days} Schließtage,{" "}
-              {data.excluded_days.holiday_periods} Ferientage
+              {view === "courses" ? (
+                <>
+                  {formatDate(data.from)} bis {formatDate(data.to)} · gezählt
+                  werden nur Termine, die stattgefunden haben
+                </>
+              ) : (
+                <>
+                  {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
+                  {data.excluded_days.public_holidays} Feiertage,{" "}
+                  {data.excluded_days.closing_days} Schließtage,{" "}
+                  {data.excluded_days.holiday_periods} Ferientage
+                </>
+              )}
             </p>
 
             <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -559,6 +782,24 @@ export default function StatisticsPage() {
               {view === "rooms" && !roomDataAllBeforeWindow && (
                 <div className="flex flex-wrap gap-2">
                   {exportButtons("rooms")}
+                </div>
+              )}
+              {view === "courses" && !courseDataAllBeforeWindow && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <SegmentedControl
+                    items={COURSE_VIEW_ITEMS}
+                    value={courseView}
+                    onChange={setCourseView}
+                    variant="pills"
+                    ariaLabel="Kurs-Sicht wählen"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {exportButtons(
+                      courseView === "by-course"
+                        ? "courses"
+                        : "course-students",
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -604,6 +845,58 @@ export default function StatisticsPage() {
                   }
                 />
               )}
+
+              {view === "courses" &&
+                (courseDataAllBeforeWindow ? (
+                  <EmptyState
+                    title="Keine Kurstermine für diesen Zeitraum"
+                    description={`Termine werden ${data.course_data_days} Tage aufbewahrt. Wählen Sie einen Zeitraum ab ${formatDate(data.course_data_from)}.`}
+                  />
+                ) : (
+                  <>
+                    {courseDataStartsInsideWindow && (
+                      <div className="mb-3">
+                        <Alert
+                          type="info"
+                          message={`Kurstermine werden ${data.course_data_days} Tage aufbewahrt. Ältere Termine als ${formatDate(data.course_data_from)} sind nicht mehr gespeichert.`}
+                        />
+                      </div>
+                    )}
+                    {courseView === "by-course" ? (
+                      <DataTable
+                        columns={courseColumns}
+                        rows={data.courses}
+                        getRowKey={(row) => row.course_id}
+                        defaultSortKey="name"
+                        pageSize={25}
+                        paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                        emptyState={
+                          <EmptyState
+                            title="Keine Kurse im Zeitraum"
+                            description="Im gewählten Zeitraum gab es keine Kurstermine. Termine entstehen aus dem Betreuungsplan."
+                          />
+                        }
+                      />
+                    ) : (
+                      <DataTable
+                        columns={courseStudentColumns}
+                        rows={data.course_students}
+                        getRowKey={(row) =>
+                          `${row.student_id}-${row.course_id}`
+                        }
+                        defaultSortKey="name"
+                        pageSize={25}
+                        paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                        emptyState={
+                          <EmptyState
+                            title="Keine Teilnahme im Zeitraum"
+                            description="Für die gewählten Gruppen gibt es keine Kursteilnahme."
+                          />
+                        }
+                      />
+                    )}
+                  </>
+                ))}
 
               {view === "rooms" &&
                 (roomDataAllBeforeWindow ? (

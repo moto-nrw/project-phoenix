@@ -159,6 +159,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			// Aufsicht per NFC ein, und ein Arbeitsblock von heute würde sonst
 			// mit dem heutigen Block der Historie kollidieren.
 			seedStatisticsDemoStep{},
+			seedCourseParticipationStep{},
 			parentEnrollmentSeedStep{seeder: seeder},
 			seedCareWithdrawalsStep{seeder: seeder},
 			buildStateStep{seeder: seeder},

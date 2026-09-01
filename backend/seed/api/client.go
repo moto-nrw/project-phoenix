@@ -165,6 +165,11 @@ func (c *Client) Put(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("PUT", path, body, true, nil)
 }
 
+// Patch makes an authenticated PATCH request
+func (c *Client) Patch(path string, body any) ([]byte, error) {
+	return c.doRequestWithHeaders("PATCH", path, body, true, nil)
+}
+
 func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, headers map[string]string) ([]byte, error) {
 	authRef := phoenixapi.AuthRef{}
 	if auth {
