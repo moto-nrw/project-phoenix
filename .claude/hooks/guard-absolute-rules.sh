@@ -259,6 +259,9 @@ EOF
                 case "$(clean_token "$1")" in
                     -C|-C*) deny "Blocked: go -C changes the executable resolution directory and cannot be inspected by the absolute-rule guard." ;;
                     run) shift; vet_go_run "$@"; return 0 ;;
+                    generate|tool)
+                        deny "Blocked: go $1 can execute commands that cannot be inspected by the absolute-rule guard."
+                        ;;
                     test)
                         shift
                         while [[ $# -gt 0 ]]; do
@@ -571,7 +574,8 @@ EOF
         # separators only outside quotes. This is deliberately a lexer, never
         # an evaluator: the command supplied to the hook is never executed.
         scan_commands() {
-            local text=$1 segment='' quote='' ch next inner inner_quote depth i j len entry_curdir=$curdir
+            local text=$1 segment='' quote='' ch next inner inner_quote depth i j len entry_curdir=$curdir subshell_depth=0
+            local -a subshell_dirs=()
             len=${#text}
             i=0
             while (( i < len )); do
@@ -657,6 +661,21 @@ EOF
                     i=$((j + 1))
                     continue
                 fi
+                if [[ "$ch" = '(' && "$segment" =~ ^[[:space:]]*$ ]]; then
+                    subshell_dirs[${#subshell_dirs[@]}]=$curdir
+                    subshell_depth=$((subshell_depth + 1))
+                    i=$((i + 1))
+                    continue
+                fi
+                if [[ "$ch" = ')' && $subshell_depth -gt 0 ]]; then
+                    scan_segment "$segment"
+                    segment=''
+                    subshell_depth=$((subshell_depth - 1))
+                    curdir=${subshell_dirs[$subshell_depth]}
+                    unset 'subshell_dirs[$subshell_depth]'
+                    i=$((i + 1))
+                    continue
+                fi
                 if [[ "$quote" = '"' ]]; then
                     case "$ch" in
                         ';'|'|'|'&'|$'\n')
@@ -692,6 +711,7 @@ EOF
                 esac
                 i=$((i + 1))
             done
+            (( subshell_depth == 0 )) || deny "Blocked: an unterminated subshell cannot be inspected by the absolute-rule guard."
             scan_segment "$segment"
         }
 

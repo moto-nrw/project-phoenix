@@ -113,6 +113,8 @@ assert_bash_path() {
 
 # --- tracked scripts inside the repo: allowed, in every invocation form ---
 assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go test ./...'
+assert_bash allow "$repo" '(cd backend && ../scripts/run-go-toolchain.sh go test ./...)'
+assert_bash allow "$repo" '(cd backend && ../scripts/test-backend.sh); scripts/test-backend.sh'
 assert_bash allow "$repo" 'scripts/test-backend.sh -run TestFoo ./...'
 assert_bash allow "$repo" './scripts/env-check.sh'
 assert_bash allow "$repo" 'bash scripts/env-check.sh'
@@ -173,6 +175,10 @@ assert_bash deny "$repo" 'scripts/run-go-toolchain.sh /tmp/evil.sh'
 assert_bash deny "$repo" "scripts/run-go-toolchain.sh node -e 'echo evil'"
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh pnpm exec evil'
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh go test -exec ./scripts/new ./...'
+assert_bash deny "$repo" 'go generate ./...'
+assert_bash deny "$repo" 'scripts/run-go-toolchain.sh go generate ./...'
+assert_bash deny "$repo" 'go tool compile ./untracked.go'
+assert_bash deny "$repo" '(cd backend && :); ../scripts/new'
 assert_bash deny "$repo" "scripts/run-go-toolchain.sh \"\$CMD\""
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh <(printf x)'
 assert_bash deny "$repo" 'bash scripts/run-go-toolchain.sh /tmp/evil.sh'
