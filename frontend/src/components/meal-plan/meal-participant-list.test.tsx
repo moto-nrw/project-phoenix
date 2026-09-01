@@ -50,6 +50,10 @@ describe("MealParticipantList", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("Muster, Mia").length).toBeGreaterThan(0);
     expect(screen.getAllByText("2a").length).toBeGreaterThan(0);
+    expect(screen.getByText("Mittagessen am 07.09.2026")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Mittagessen am 2026-09-07"),
+    ).not.toBeInTheDocument();
     expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith("2026-09-07");
   });
 

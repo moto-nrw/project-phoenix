@@ -9,6 +9,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { useToast } from "~/contexts/ToastContext";
+import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   downloadDailyMealParticipants,
@@ -163,7 +164,7 @@ export function MealParticipantList() {
           getRowKey={(row) => row.studentId}
           isLoading={loading}
           stackedOnMobile
-          caption={`Mittagessen am ${date}`}
+          caption={`Mittagessen am ${formatDate(date)}`}
           emptyState={
             <EmptyState
               icon={<Utensils className="h-6 w-6" />}
