@@ -13,6 +13,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,7 @@ func newStudentDeletionTestService(
 	db *bun.DB,
 	dataAuditRepo auditModels.DataDeletionRepository,
 	auditRepo auditModels.StudentDeletionRepository,
+	feedbackCounts ...int,
 ) usersService.StudentDeletionService {
 	repos := repositories.NewFactory(db)
 	studentService := usersService.NewStudentService(
@@ -39,6 +41,10 @@ func newStudentDeletionTestService(
 		repos.StudentCompanion,
 		nil,
 	)
+	feedbackCount := 0
+	if len(feedbackCounts) > 0 {
+		feedbackCount = feedbackCounts[0]
+	}
 	return usersService.NewStudentDeletionService(
 		studentService,
 		repos.Student,
@@ -47,8 +53,66 @@ func newStudentDeletionTestService(
 		repos.GradeTransition,
 		dataAuditRepo,
 		auditRepo,
+		&testpkg.FeedbackEntryCounterMock{Count: feedbackCount},
 		db,
 	)
+}
+
+func TestStudentDeletionPreviewIncludesFeedbackOwnerCount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "Preview", "1a")
+	service := newStudentDeletionTestService(db, nil, nil, 3)
+
+	preview, err := service.Preview(testpkg.Ctx(t), student.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, preview.Counts.OtherRecords)
+}
+
+func TestStudentDeletionWithFeedbackRowsPassesLockedCountRecheck(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "Delete", "1a")
+	actor := testpkg.CreateTestAccount(t, db, "feedback-delete-count@example.com")
+	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit, 2)
+
+	preview, err := service.Preview(testpkg.Ctx(t), student.ID)
+	require.NoError(t, err)
+	require.Equal(t, 2, preview.Counts.OtherRecords)
+
+	result, err := service.Delete(testpkg.Ctx(t), usersService.StudentDeletionInput{
+		StudentID:           student.ID,
+		ActorAccountID:      actor.ID,
+		ExpectedFingerprint: preview.Fingerprint,
+		ConfirmationName:    preview.ConfirmationName,
+		Reason:              usersService.StudentDeletionReasonTestData,
+		Acknowledged:        true,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, preview.Counts, result.Counts)
+}
+
+func TestGraduatePurgeAuditIncludesFeedbackOwnerCount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "Graduate", "1a")
+	actor := testpkg.CreateTestAccount(t, db, "feedback-graduate-count@example.com")
+	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit, 2)
+
+	err := tenant.WithinCurrentTenant(testpkg.Ctx(t), func(ctx context.Context) error {
+		return service.AuditGraduatePurge(ctx, student.ID, actor.ID)
+	})
+	require.NoError(t, err)
+
+	var audit auditModels.StudentDeletion
+	require.NoError(t, db.NewSelect().Model(&audit).
+		Where(`tenant_id = ? AND student_id = ? AND reason = ?`, student.TenantID, student.ID, usersService.StudentDeletionReasonGraduatePurge).
+		Scan(testpkg.Ctx(t)))
+	assert.Equal(t, 2, audit.Counts.OtherRecords)
 }
 
 func tableRowCount(t *testing.T, db *bun.DB, table string, id int64) int {

@@ -11,20 +11,21 @@ Day-to-day run/build/migrate commands are Docker-Compose-first — see the root 
 # postgres-test container if needed, builds the template for this branch's
 # migrations hash (phoenix_test_<hash>, so parallel worktrees never share
 # one), and gives each package binary a run-stamped clone.
-../scripts/test-backend.sh          # Full suite via gotestsum + immediate clone sweep (preferred full run)
-go test ./...                       # All tests (works standalone; each binary drops its own clone at exit)
-PHX_TEST_LEFTOVERS=1 go test -v ./services/active   # Also print the leftovers the allowlist tolerates
-PHX_TEST_LEFTOVERS=test go test -parallel 1 ./services/active  # Name the test that leaked, not the package
-PHX_TEST_KEEP_CLONE=1 go test ./services/active     # Keep the clone for a post-mortem (psql into it)
-go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' phx_test_pkg_* clones manually
-go test -short ./...                # Fast inner loop: skips every DB integration test (SetupTestDB t.Skip). NEVER in CI — guts coverage.
-go test ./services/active/... -v    # Specific package
-go test -race ./...                 # Race detection
-go test ./api/auth -run TestLogin   # Specific test
+../scripts/run-go-toolchain.sh ../scripts/test-backend.sh  # Full suite via gotestsum + immediate clone sweep (preferred full run)
+../scripts/run-go-toolchain.sh go test ./...                # All tests (works standalone; each binary drops its own clone at exit)
+PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -v ./services/active  # Also print tolerated leftovers
+PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -parallel 1 ./services/active  # Name the leaking test
+PHX_TEST_KEEP_CLONE=1 ../scripts/run-go-toolchain.sh go test ./services/active  # Keep the clone for a post-mortem
+../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' clones manually
+../scripts/run-go-toolchain.sh go test -short ./...             # Fast inner loop; NEVER in CI — guts coverage.
+../scripts/run-go-toolchain.sh go test ./services/active/... -v # Specific package
+../scripts/run-go-toolchain.sh go test -race ./...              # Race detection
+../scripts/run-go-toolchain.sh go test ./api/auth -run TestLogin # Specific test
 
 # Code Quality (run before committing!)
-golangci-lint run --timeout 10m
-go fmt ./... && goimports -w . && go mod tidy
+../scripts/run-go-toolchain.sh golangci-lint run --timeout 10m
+../scripts/run-go-toolchain.sh go tool goimports -w .
+../scripts/run-go-toolchain.sh go mod tidy
 
 # CLI (run inside the container via `docker compose run server go run . <cmd>`)
 go run . migrate status|validate|reset
@@ -215,15 +216,16 @@ func TestExample(t *testing.T) {
   when rows are left in SHARED state — rows outside the tenants its own tests
   created. Rows in a test's own tenant are not leftovers. The gate runs from
   `TestMain` via `testpkg.Run(m)` (gate: `db_packages_run_the_leftover_gate`),
-  so a bare `go test ./...` is gated exactly like a wrapper run; it costs the
-  package one query at exit (~30-70ms measured). `PHX_TEST_LEFTOVERS=1 go test
-  -v` also prints the pairs `testdb.LeftoverAllowlist` still tolerates;
-  `PHX_TEST_LEFTOVERS=test go test -parallel 1 ./pkg` checks after every test
+  so `../scripts/run-go-toolchain.sh go test ./...` is gated exactly like a
+  full wrapper run; it costs the package one query at exit (~30-70ms measured).
+  `PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -v` also prints
+  the pairs `testdb.LeftoverAllowlist` still tolerates;
+  `PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -parallel 1 ./pkg` checks after every test
   and names the culprit instead of the package.
 - **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The remaining files where both meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, opt the package into per-test tenants instead.
 - The fixture catalog lives in `test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
-- Run the gate locally before pushing: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`
+- Run the gate locally before pushing: `cd backend && ../scripts/run-go-toolchain.sh go test ./test/ -run TestHermeticTestPatterns -v`
 - Never modify existing tests to make new code pass — see `.claude/rules/no-test-modifications.md`.
 
 ## Seed Coverage (MANDATORY)

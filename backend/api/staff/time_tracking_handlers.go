@@ -542,9 +542,9 @@ func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
 }
 
 // adminAbsenceErrorRules classifies StaffAbsenceService errors for the admin
-// absence endpoints (#1843). The absence service raises message-shaped errors
-// (no sentinels), so most rules match on the message; the sick cascade wraps
-// schedule sentinels, matched via errors.Is.
+// absence endpoints (#1843). Service sentinels and the sick cascade's wrapped
+// schedule sentinel match via errors.Is; legacy message-shaped errors match by
+// message.
 var adminAbsenceErrorRules = []common.ErrorRule{
 	// School-defined Abwesenheitsarten (#2403): a retired or unknown art is a
 	// bad selection, not a server fault.
@@ -552,6 +552,8 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 		return common.ErrorConflictWithCode(err, "absence_type_inactive")
 	}},
 	{Target: activeSvc.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
+	{Target: activeSvc.ErrAbsenceTypeAllowanceInvalid, Render: common.ErrorInvalidRequest},
+	{Target: activeSvc.ErrAbsenceTypeAllowanceExceeded, Render: common.ErrorConflict},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},

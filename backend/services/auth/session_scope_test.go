@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -232,15 +233,16 @@ func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 	email, username := uniqueTestCredentials("switch-cap")
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	testpkg.EnsureTestTenant(t, db, 2)
-	testpkg.MapAccountToTenant(t, db, account.ID, 2)
+	targetTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, targetTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 
 	for range 5 {
 		_, _, err = service.Login(ctx, email, testPassword)
 		require.NoError(t, err)
 	}
-	_, _, err = service.SwitchTenant(ctx, account.ID, "t2")
+	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID))
 	require.NoError(t, err)
 
 	count, err := db.NewSelect().

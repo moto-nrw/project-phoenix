@@ -182,15 +182,16 @@ func (s *operatorPasskeyService) BeginRegistration(ctx context.Context, req Oper
 		return nil, err
 	}
 	operatorID := req.OperatorID
-	if err := s.repos.OperatorPasskeySession.Create(ctx, &platform.OperatorPasskeySession{
-		ID:             sessionID.String(),
+	session := &platform.OperatorPasskeySession{
 		OperatorID:     &operatorID,
 		Purpose:        platform.OperatorPasskeySessionPurposeRegistration,
 		RPID:           rpID,
 		ExpectedOrigin: req.ExpectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
-	}); err != nil {
+	}
+	session.ID = sessionID.String()
+	if err := s.repos.OperatorPasskeySession.Create(ctx, session); err != nil {
 		return nil, err
 	}
 	return &authService.PasskeyCredentialCreation{SessionID: sessionID.String(), Options: creation}, nil
@@ -273,14 +274,15 @@ func (s *operatorPasskeyService) BeginLogin(ctx context.Context, expectedOrigin 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repos.OperatorPasskeySession.Create(ctx, &platform.OperatorPasskeySession{
-		ID:             sessionID.String(),
+	session := &platform.OperatorPasskeySession{
 		Purpose:        platform.OperatorPasskeySessionPurposeLogin,
 		RPID:           rpID,
 		ExpectedOrigin: expectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
-	}); err != nil {
+	}
+	session.ID = sessionID.String()
+	if err := s.repos.OperatorPasskeySession.Create(ctx, session); err != nil {
 		return nil, err
 	}
 	return &authService.PasskeyCredentialAssertion{SessionID: sessionID.String(), Options: assertion}, nil

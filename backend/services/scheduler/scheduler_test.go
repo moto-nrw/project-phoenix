@@ -2388,6 +2388,18 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 	assert.True(t, result)
 }
 
+func TestExecuteCleanupForTenant_ReturnsFalseOnFeedbackFailure(t *testing.T) {
+	t.Parallel()
+	wantErr := errors.New("feedback database unavailable")
+	s := unitScheduler(&Scheduler{
+		cleanupService:  &mockCleanupService{cleanupResult: &activeService.CleanupResult{}},
+		feedbackCleaner: &fakeFeedbackCleaner{err: wantErr},
+		logger:          slog.Default(),
+	})
+
+	assert.False(t, s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t)))
+}
+
 func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 	t.Parallel()
 

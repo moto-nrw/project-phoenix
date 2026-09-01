@@ -133,7 +133,7 @@ func (r *AuthEventRepository) List(ctx context.Context, filters map[string]inter
 // read-then-insert guard cannot cover the second case — both callers read
 // "not ended yet" before either row lands. So uniqueness lives in the
 // database (partial unique index idx_auth_events_staff_preview_end_once,
-// migration 1.15.355) and the conflict is absorbed here: the second writer
+// migration 1.15.357) and the conflict is absorbed here: the second writer
 // simply inserts nothing and gets false.
 func (r *AuthEventRepository) CreateStaffPreviewEndOnce(ctx context.Context, event *audit.AuthEvent) (bool, error) {
 	if event == nil {

@@ -35,7 +35,6 @@ import (
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
@@ -72,6 +71,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
+	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
+	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
@@ -113,23 +115,47 @@ func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, e
 	}
 }
 
-func initializeMealPlanServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (*services.Factory, *mealplanModule.Module, error) {
-	settings := mealplanCompose.NewSettings()
-	module, err := mealplanCompose.New(mealplanCompose.Dependencies{
+func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (*services.Factory, *mealplanModule.Module, *feedbackModule.Module, error) {
+	mealPlanSettings := mealplanCompose.NewSettings()
+	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db,
-		Settings: settings,
+		Settings: mealPlanSettings,
 		Observe: func(observation mealplanCompose.Observation) {
 			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	factory, err := services.NewFactoryWithMealPlan(repoFactory, db, logger, module, settings.Bind)
+	feedbackSettings := feedbackCompose.NewSettings()
+	feedbackCapability, err := feedbackCompose.New(feedbackCompose.Dependencies{
+		DB:       db,
+		Settings: feedbackSettings,
+		Today:    feedbackModule.Today,
+		Observe: func(observation feedbackCompose.Observation) {
+			observability.ObserveFeedbackOperation(
+				observation.Operation,
+				observation.Duration,
+				observation.Stats.Queries,
+				observation.Stats.Rows,
+				observation.Stats.StatementDuration,
+				feedbackModule.ErrorCode(observation.Err),
+				observation.Err,
+			)
+		},
+	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return factory, module, nil
+	factory, err := services.NewFactoryWithModules(
+		repoFactory, db, logger,
+		mealPlan, mealPlanSettings.Bind,
+		feedbackCapability, feedbackSettings.Bind,
+	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return factory, mealPlan, feedbackCapability, nil
 }
 
 var mealPlanErrorRules = []apiCommon.ErrorRule{
@@ -164,6 +190,27 @@ func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI
 	})
 }
 
+func newFeedbackResource(module *feedbackModule.Module, db *bun.DB) *feedbackAPI.Resource {
+	return feedbackAPI.NewResource(module, feedbackAPI.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router, feedbackAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(router, db, register)
+		},
+		Permission: func(permission string) feedbackAPI.Middleware {
+			return apiCommon.RequiresPermission(permission)
+		},
+		Success: apiCommon.Respond,
+		Failure: func(w http.ResponseWriter, r *http.Request, failure feedbackAPI.Failure) {
+			apiCommon.RenderError(w, r, &apiCommon.ErrResponse{
+				Err: failure.Err, HTTPStatusCode: failure.Status,
+				Status: failure.Classification, ErrorText: failure.Err.Error(),
+			})
+		},
+		ObserveResponse: func(status int, code string) {
+			observability.ObserveFeedbackHTTPResponse("staff", status, code)
+		},
+	})
+}
+
 // API represents the API structure
 type API struct {
 	Services           *services.Factory
@@ -175,6 +222,7 @@ type API struct {
 	tracer             *observability.Tracer
 	metricsBearerToken string
 	databaseLogger     *slog.Logger
+	feedback           *feedbackModule.Module
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -288,8 +336,8 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	// Initialize repository factory with DB connection
 	repoFactory := repositories.NewFactory(db)
 
-	// Compose one Meal Plan instance for both staff and parent callers.
-	serviceFactory, mealPlanCapability, err := initializeMealPlanServices(repoFactory, db, logger)
+	// Compose one authoritative instance of each migrated module.
+	serviceFactory, mealPlanCapability, feedbackCapability, err := initializeModuleServices(repoFactory, db, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -344,6 +392,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		tracer:             tracer,
 		metricsBearerToken: metricsBearerToken,
 		databaseLogger:     logger.With("handler", "database"),
+		feedback:           feedbackCapability,
 	}
 
 	// Setup router middleware
@@ -378,6 +427,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
 	api.MealPlan = newMealPlanResource(mealPlanCapability, db)
+	api.Feedback = newFeedbackResource(feedbackCapability, db)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -744,7 +794,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.AbsenceTypes = absencetypesAPI.NewResource(api.Services.StaffAbsenceType, db, logger.With("handler", "absence-types"))
-	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
+	api.AbsenceTypes.SetActorResolver(api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -846,7 +896,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:       api.Services.Settings,
 		FacilityService:       api.Services.Facilities,
 		EducationService:      api.Services.Education,
-		FeedbackService:       api.Services.Feedback,
+		FeedbackService:       api.feedback,
+		FeedbackResponseObserver: func(status int, code string) {
+			observability.ObserveFeedbackHTTPResponse("iot", status, code)
+		},
 		PickupScheduleService: api.Services.PickupSchedule,
 		SchoolService:         api.Services.Schools,
 		TimetableDataService:  api.Services.TimetableData,
@@ -936,6 +989,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
 	})
+}
+
+func (a *API) currentStaffID(ctx context.Context) (int64, error) {
+	staff, err := a.Services.UserContext.GetCurrentStaff(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if staff == nil {
+		return 0, errors.New("current staff member not found")
+	}
+	return staff.ID, nil
 }
 
 // ServeHTTP implements the http.Handler interface for the API
