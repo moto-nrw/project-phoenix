@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
@@ -211,7 +212,7 @@ func (s *staffShiftSeriesService) SetBroadcaster(broadcaster realtime.Broadcaste
 }
 
 func (s *staffShiftSeriesService) broadcastTimeTrackingChanged(ctx context.Context) {
-	realtime.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
+	realtimeevents.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 func (s *staffShiftSeriesService) lockShiftWrites(ctx context.Context, staffID int64) error {

@@ -161,7 +161,7 @@ type intentRow struct {
 }
 
 type emailDeliveryRow struct {
-	bun.BaseModel     `bun:"table:platform.email_delivery"`
+	bun.BaseModel     `bun:"table:platform.delivery_email_deliveries"`
 	ID                int64     `bun:"id,pk,autoincrement"`
 	TenantID          int64     `bun:"tenant_id"`
 	RelatedEntityType string    `bun:"related_entity_type"`
@@ -414,7 +414,7 @@ func (s *Store) ReplaceEmailDeliveries(ctx context.Context, tenantID int64, rela
 		return err
 	}
 	if _, err := db.NewDelete().Model((*emailDeliveryRow)(nil)).
-		ModelTableExpr(`platform.email_delivery AS "email_delivery"`).
+		ModelTableExpr(`platform.delivery_email_deliveries AS "email_delivery"`).
 		Where(`"email_delivery".tenant_id = ?`, tenantID).
 		Where(`"email_delivery".related_entity_type = ?`, relatedType).
 		Where(`"email_delivery".related_entity_id = ?`, relatedID).Exec(ctx); err != nil {
@@ -432,7 +432,7 @@ func (s *Store) ReplaceEmailDeliveries(ctx context.Context, tenantID int64, rela
 		})
 	}
 	if _, err := db.NewInsert().Model(&values).
-		ModelTableExpr(`platform.email_delivery AS "email_delivery"`).Exec(ctx); err != nil {
+		ModelTableExpr(`platform.delivery_email_deliveries AS "email_delivery"`).Exec(ctx); err != nil {
 		return fmt.Errorf("delivery postgres: replace email deliveries insert: %w", err)
 	}
 	return nil
@@ -444,7 +444,7 @@ func (s *Store) DeleteEmailDeliveries(ctx context.Context, tenantID int64, relat
 		return 0, err
 	}
 	result, err := db.NewDelete().Model((*emailDeliveryRow)(nil)).
-		ModelTableExpr(`platform.email_delivery AS "email_delivery"`).
+		ModelTableExpr(`platform.delivery_email_deliveries AS "email_delivery"`).
 		Where(`"email_delivery".tenant_id = ?`, tenantID).
 		Where(`"email_delivery".related_entity_type = ?`, relatedType).
 		Where(`"email_delivery".related_entity_id = ?`, relatedID).Exec(ctx)
@@ -464,7 +464,7 @@ func (s *Store) AttachEmailOutbox(ctx context.Context, tenantID, deliveryID, out
 		return err
 	}
 	result, err := db.NewUpdate().Model((*emailDeliveryRow)(nil)).
-		ModelTableExpr(`platform.email_delivery AS "email_delivery"`).
+		ModelTableExpr(`platform.delivery_email_deliveries AS "email_delivery"`).
 		Set("outbox_id = ?", outboxID).Set("updated_at = NOW()").
 		Where(`"email_delivery".tenant_id = ?`, tenantID).
 		Where(`"email_delivery".id = ?`, deliveryID).Exec(ctx)
@@ -487,7 +487,7 @@ func (s *Store) ClaimFailedEmailDelivery(ctx context.Context, tenantID, delivery
 		return false, err
 	}
 	result, err := db.NewRaw(`
-		UPDATE platform.email_delivery AS delivery
+		UPDATE platform.delivery_email_deliveries AS delivery
 		SET outbox_id = NULL, updated_at = NOW()
 		FROM platform.email_outbox AS outbox
 		WHERE delivery.tenant_id = ? AND delivery.id = ?
@@ -519,7 +519,7 @@ func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relat
 				ELSE 'pending'
 			END AS email_status,
 			outbox.last_error, outbox.sent_at, COALESCE(outbox.attempts, 0) AS attempts
-		FROM platform.email_delivery AS delivery
+		FROM platform.delivery_email_deliveries AS delivery
 		LEFT JOIN platform.email_outbox AS outbox ON outbox.id = delivery.outbox_id
 		WHERE delivery.tenant_id = ? AND delivery.related_entity_type = ?
 			AND delivery.related_entity_id = ?

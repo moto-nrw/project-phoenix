@@ -28,7 +28,7 @@ type SSEStats struct {
 }
 
 type SSEStatsProvider interface {
-	SnapshotStats() SSEStats
+	SnapshotSSEClientsByTenant() map[int64]int
 }
 
 // PWAUsageStat is one (tenant, portal) bucket of PWA standalone-usage
@@ -754,7 +754,7 @@ func refreshSSEGauges() {
 	if provider == nil {
 		return
 	}
-	stats := provider.SnapshotStats()
+	stats := SSEStats{ClientsByTenant: provider.SnapshotSSEClientsByTenant()}
 	currentTenants := make(map[string]struct{}, len(stats.ClientsByTenant))
 	sseGaugeMu.Lock()
 	defer sseGaugeMu.Unlock()

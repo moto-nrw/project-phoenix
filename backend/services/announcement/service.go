@@ -18,9 +18,9 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/emailbranding"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 

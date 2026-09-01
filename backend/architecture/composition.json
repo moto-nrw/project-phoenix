@@ -561,12 +561,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 413,
+          "line": 414,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 432,
+          "line": 433,
           "declaration": "newFactory"
         },
         {
@@ -17235,26 +17235,6 @@
     },
     {
       "scope": "test",
-      "file": "api/sse/sse_events_internal_test.go",
-      "declaration": "setupEventsModule",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        53
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/sse/sse_test.go",
-      "declaration": "setupSSERoute",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        32
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/staff/absence_admin_test.go",
       "declaration": "TestAdminCreateStaffAbsence_CompTimeAllowedForManager",
       "target": "database/repositories.NewFactory",
@@ -27954,20 +27934,6 @@
         164
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/notifications/preferences_guardian_test.go",
-      "declaration": "TestGuardianPreferencesAcrossSchools",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        31
-      ],
-      "tables": [
-        "auth.account_roles",
-        "auth.roles",
-        "users.notification_preferences"
-      ]
     },
     {
       "scope": "test",

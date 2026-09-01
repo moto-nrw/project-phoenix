@@ -28,6 +28,9 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/absence"
@@ -53,13 +56,11 @@ import (
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
 	"github.com/moto-nrw/project-phoenix/services/platform"
-	"github.com/moto-nrw/project-phoenix/services/pwa"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
@@ -565,7 +566,7 @@ func newFactory(
 	passwordResetTokenExpiry := time.Duration(passwordResetExpiryMinutes) * time.Minute
 
 	// Create realtime hub for SSE broadcasting (single shared instance)
-	realtimeHub := realtime.NewHub(logger.With("component", "sse-hub"))
+	realtimeHub := deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
 
 	// Product analytics (PostHog) — no-op when POSTHOG_API_KEY is unset
 	tracker, err := analytics.New(
@@ -1577,7 +1578,10 @@ func newFactory(
 		People: guardianDisplayResolver{query: guardianService},
 		Provider: &deliveryProvider{
 			registry: emailTemplateRegistry, mailer: mailer, mailIdentity: tenantMailIdentity,
-			vapid: vapidConfig, client: newDeliveryHTTPClient(), logger: logger.With("service", "delivery"), db: db,
+			push: deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{
+				Subscriber: vapidConfig.Subscriber, PublicKey: vapidConfig.PublicKey, PrivateKey: vapidConfig.PrivateKey,
+			}),
+			logger: logger.With("service", "delivery"), db: db,
 		},
 		Observe: func(observation deliveryModule.Observation) {
 			observeDurableDelivery(string(observation.Transport), observation.Template, observation.Operation, observation.Duration, observation.Count, observation.Err)
@@ -2777,7 +2781,7 @@ func newFactory(
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
 	workTimeModelService.SetChangeNotifier(func(ctx context.Context) {
-		realtime.QueueStaffTimeTrackingChanged(ctx, realtimeHub, nil)
+		realtimeevents.QueueStaffTimeTrackingChanged(ctx, realtimeHub, nil)
 	})
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,

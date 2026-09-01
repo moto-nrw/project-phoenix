@@ -63,11 +63,12 @@ func enqueueTestEnrollmentEmail(t *testing.T, db *orm.DB, tenantID, requestID in
 	encoded, err := json.Marshal(payload)
 	require.NoError(t, err)
 	var result delivery.Enqueued
-	testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ orm.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ orm.Tx) error {
 		var enqueueErr error
 		result, enqueueErr = enqueueTestEnrollmentEmailInContext(ctx, capability, tenantID, requestID, key, encoded)
 		return enqueueErr
 	})
+	require.NoError(t, err)
 	return result
 }
 

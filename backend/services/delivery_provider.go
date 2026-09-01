@@ -5,17 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
-	"time"
 
-	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/announcement"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -26,8 +22,7 @@ type deliveryProvider struct {
 	registry     *platform.TemplateRegistry
 	mailer       email.Mailer
 	mailIdentity email.ReplyToResolver
-	vapid        notifications.VAPIDConfig
-	client       *http.Client
+	push         delivery.PushSender
 	logger       *slog.Logger
 	db           *bun.DB
 }
@@ -186,7 +181,7 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 	if err := sendRenderedEmail(ctx, p.mailer, intent.EmailRecipient, message); err != nil {
 		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: send email: %w", err)
 	}
-	return delivery.ProviderResult{StatusCode: http.StatusAccepted}, nil
+	return delivery.ProviderResult{StatusCode: delivery.ProviderAcceptedStatusCode}, nil
 }
 
 func sendRenderedEmail(ctx context.Context, mailer email.Mailer, recipient delivery.EmailRecipient, message *email.Message) error {
@@ -207,7 +202,10 @@ func (p *deliveryProvider) applyReplyTo(ctx context.Context, intent delivery.Cla
 	}
 	identity, err := p.mailIdentity.ResolveReplyTo(ctx, intent.TenantID)
 	if err != nil {
-		p.logger.Warn("delivery: reply-to lookup failed", slog.Int64("intent_id", intent.ID), slog.String("error", err.Error()))
+		p.logger.Warn("delivery: reply-to lookup failed",
+			slog.Int64("intent_id", intent.ID),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 	if !identity.IsZero() {
@@ -216,34 +214,5 @@ func (p *deliveryProvider) applyReplyTo(ctx context.Context, intent delivery.Cla
 }
 
 func (p *deliveryProvider) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	if !p.vapid.Configured() {
-		return delivery.ProviderResult{}, errors.New("delivery provider: web push is not configured")
-	}
-	payload, err := json.Marshal(intent.PushPayload)
-	if err != nil {
-		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: encode push payload: %w", err)
-	}
-	response, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{
-		Endpoint: intent.PushRecipient.Endpoint,
-		Keys:     webpush.Keys{P256dh: intent.PushRecipient.P256DH, Auth: intent.PushRecipient.Auth},
-	}, &webpush.Options{
-		Subscriber: p.vapid.Subscriber, VAPIDPublicKey: p.vapid.PublicKey,
-		VAPIDPrivateKey: p.vapid.PrivateKey, TTL: 300, HTTPClient: p.client,
-	})
-	if err != nil {
-		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: send push: %w", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	_, _ = io.Copy(io.Discard, response.Body)
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return delivery.ProviderResult{StatusCode: response.StatusCode}, fmt.Errorf("delivery provider: push service returned %s", response.Status)
-	}
-	return delivery.ProviderResult{StatusCode: response.StatusCode}, nil
-}
-
-func newDeliveryHTTPClient() *http.Client {
-	return &http.Client{
-		Timeout:       10 * time.Second,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
+	return p.push.SendPush(ctx, intent)
 }

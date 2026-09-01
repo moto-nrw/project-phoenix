@@ -7,11 +7,27 @@ import (
 	"time"
 )
 
+type WebPushConfig struct {
+	Subscriber string
+	PublicKey  string
+	PrivateKey string
+}
+
+func (c WebPushConfig) Configured() bool {
+	return c.Subscriber != "" && c.PublicKey != "" && c.PrivateKey != ""
+}
+
+type PushSender interface {
+	SendPush(context.Context, ClaimedIntent) (ProviderResult, error)
+}
+
 type ProviderResult struct {
 	MessageID  string          `json:"message_id,omitempty"`
 	StatusCode int             `json:"status_code,omitempty"`
 	Details    json.RawMessage `json:"details,omitempty"`
 }
+
+const ProviderAcceptedStatusCode = 202
 
 type ClaimedIntent struct {
 	ID             int64

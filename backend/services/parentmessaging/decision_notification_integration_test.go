@@ -15,7 +15,7 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -212,7 +212,7 @@ func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 
-	emitWith := func(t *testing.T, notifier *capturingNotifier, prefs decisionPreferences, refID int64) (error, int) {
+	emitWith := func(t *testing.T, notifier *capturingNotifier, prefs decisionPreferences, refID int64) (int, error) {
 		t.Helper()
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -227,32 +227,32 @@ func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 		}
 
 		_, msgs := threadPills(t, db, repos, chain)
-		return err, countEventType(msgs, usersModels.ParentMessageEventRequestStatus)
+		return countEventType(msgs, usersModels.ParentMessageEventRequestStatus), err
 	}
 
 	t.Run("an unavailable consent store aborts", func(t *testing.T) {
-		err, pills := emitWith(t, &capturingNotifier{}, decisionPreferences{err: errors.New("preferences unavailable")}, 305)
+		pills, err := emitWith(t, &capturingNotifier{}, decisionPreferences{err: errors.New("preferences unavailable")}, 305)
 		assert.ErrorContains(t, err, "preferences unavailable")
 		assert.Zero(t, pills)
 	})
 
 	t.Run("a school with notifications switched off remains a closed gate", func(t *testing.T) {
 		notifier := &capturingNotifier{err: notifications.ErrDisabled}
-		err, pills := emitWith(t, notifier, decisionPreferences{optedIn: true}, 306)
+		pills, err := emitWith(t, notifier, decisionPreferences{optedIn: true}, 306)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, pills)
 	})
 
 	t.Run("a push outside the school's delivery window is not a failure", func(t *testing.T) {
 		notifier := &capturingNotifier{err: notifications.ErrOutsideActiveWindow}
-		err, pills := emitWith(t, notifier, decisionPreferences{optedIn: true}, 307)
+		pills, err := emitWith(t, notifier, decisionPreferences{optedIn: true}, 307)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, pills)
 	})
 
 	t.Run("a genuine enqueue failure aborts", func(t *testing.T) {
 		notifier := &capturingNotifier{err: errors.New("push service unreachable")}
-		err, pills := emitWith(t, notifier, decisionPreferences{optedIn: true}, 308)
+		pills, err := emitWith(t, notifier, decisionPreferences{optedIn: true}, 308)
 		assert.ErrorContains(t, err, "push service unreachable")
 		assert.Zero(t, pills)
 	})

@@ -5,7 +5,7 @@ import (
 
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/services/pwa"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 )
 
 // Type aliases keep existing service callers (e.g. api/operator) referencing

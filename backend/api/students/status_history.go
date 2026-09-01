@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
 func boolPtrValue(v *bool) bool {
