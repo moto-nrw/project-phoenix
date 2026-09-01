@@ -630,7 +630,9 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		return "", ErrMFAStatusUnavailable
 	}
 	if err := s.Repos.MFAEmailChallenge.MarkActive(ctx, challenge.ID); err != nil {
-		s.Logger.Error("failed to activate delivered mfa challenge", slog.Int64("challenge_id", challenge.ID), slog.String("error", err.Error()))
+		s.Logger.Error("failed to activate delivered mfa challenge",
+			slog.Int64("challenge_id", challenge.ID),
+			slog.String("error", err.Error()))
 		return "", ErrMFAStatusUnavailable
 	}
 	s.recordAuthEvent(ctx, accountID, tenantID, audit.EventTypeMFAEmailSent, true, ip, "", map[string]any{

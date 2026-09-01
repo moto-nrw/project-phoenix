@@ -204,7 +204,9 @@ func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int6
 		return "", authService.ErrMFAStatusUnavailable
 	}
 	if err := s.Repos.OperatorMFAEmailChallenge.MarkActive(ctx, challenge.ID); err != nil {
-		s.Logger.Error("failed to activate delivered operator mfa challenge", slog.Int64("challenge_id", challenge.ID), slog.String("error", err.Error()))
+		s.Logger.Error("failed to activate delivered operator mfa challenge",
+			slog.Int64("challenge_id", challenge.ID),
+			slog.String("error", err.Error()))
 		return "", authService.ErrMFAStatusUnavailable
 	}
 	s.recordAudit(ctx, operatorID, platform.ActionMFAEmailSent, ip, &challenge.ID, nil)
