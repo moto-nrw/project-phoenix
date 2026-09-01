@@ -18,6 +18,37 @@ import (
 // then the acknowledgement notice for recipients who can use the parent portal.
 const letterIntro = "die folgende Mitteilung ist ein Elternbrief. Den vollständigen Text finden Sie unten."
 
+const (
+	reachabilityOK       = "ok"
+	reachabilityNoEmail  = "no_email"
+	reachabilityNoPortal = "no_portal"
+	reachabilityExcluded = "excluded"
+)
+
+type EmailDelivery struct {
+	OutboxID          *int64
+	GuardianProfileID *int64
+	AccountID         *int64
+	RecipientEmail    *string
+	Reachability      string
+}
+
+func (d EmailDelivery) Queued() bool { return d.OutboxID != nil }
+
+type EmailDeliveryStatus struct {
+	DeliveryID        int64      `json:"delivery_id"`
+	GuardianProfileID *int64     `json:"guardian_profile_id,omitempty"`
+	AccountID         *int64     `json:"account_id,omitempty"`
+	FirstName         string     `json:"first_name"`
+	LastName          string     `json:"last_name"`
+	RecipientEmail    *string    `json:"recipient_email,omitempty"`
+	Reachability      string     `json:"reachability"`
+	EmailStatus       string     `json:"email_status"`
+	LastError         *string    `json:"last_error,omitempty"`
+	SentAt            *time.Time `json:"sent_at,omitempty"`
+	Attempts          int        `json:"attempts"`
+}
+
 // needsDeliveryTracking reports whether publishing this announcement must go
 // through the tracked path: an Elternbrief (its recipient matrix is the whole
 // point of #2384) or any announcement whose e-mail deliberately reaches beyond
@@ -73,9 +104,9 @@ func (s *service) enqueueTrackedEmails(ctx context.Context, a *usersModels.Paren
 			slog.Int64("announcement_id", a.ID))
 		return nil
 	}
-	rows := make([]*platformModels.EmailDelivery, 0, len(recipients))
+	rows := make([]EmailDelivery, 0, len(recipients))
 	for _, r := range recipients {
-		row := &platformModels.EmailDelivery{
+		row := EmailDelivery{
 			GuardianProfileID: &r.src.GuardianProfileID,
 			AccountID:         r.src.AccountID,
 			Reachability:      r.reachability,
@@ -102,12 +133,12 @@ func (s *service) enqueueTrackedEmails(ctx context.Context, a *usersModels.Paren
 // still records that they cannot acknowledge in moto.
 func classifyReachability(r *usersModels.AnnouncementDeliveryRecipient, a *usersModels.ParentAnnouncement) string {
 	if r.Email == "" {
-		return platformModels.ReachabilityNoEmail
+		return reachabilityNoEmail
 	}
 	if !r.HasPortalAccess {
-		return platformModels.ReachabilityNoPortal
+		return reachabilityNoPortal
 	}
-	return platformModels.ReachabilityOK
+	return reachabilityOK
 }
 
 func canQueueLetterMail(r *letterRecipient, a *usersModels.ParentAnnouncement) bool {
@@ -151,7 +182,7 @@ func (s *service) applyEmailOptOuts(ctx context.Context, a *usersModels.ParentAn
 			continue
 		}
 		if _, ok := allowed[*r.src.AccountID]; !ok {
-			r.reachability = platformModels.ReachabilityExcluded
+			r.reachability = reachabilityExcluded
 			excluded++
 		}
 	}
@@ -194,7 +225,7 @@ func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnn
 	byAddress := make(map[string]*int64, len(recipients))
 	portalAccessByAddress := make(map[string]bool, len(recipients))
 	for _, r := range recipients {
-		if !canQueueLetterMail(r, a) || r.reachability == platformModels.ReachabilityExcluded {
+		if !canQueueLetterMail(r, a) || r.reachability == reachabilityExcluded {
 			continue
 		}
 		address := strings.ToLower(strings.TrimSpace(r.src.Email))
@@ -202,7 +233,7 @@ func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnn
 	}
 	queued := 0
 	for _, r := range recipients {
-		if !canQueueLetterMail(r, a) || r.reachability == platformModels.ReachabilityExcluded {
+		if !canQueueLetterMail(r, a) || r.reachability == reachabilityExcluded {
 			continue
 		}
 		address := strings.ToLower(strings.TrimSpace(r.src.Email))
@@ -283,7 +314,7 @@ func letterIdempotencyKey(a *usersModels.ParentAnnouncement, address string) str
 // per addressed person with the two channels reported separately, one row per
 // child with the derived fulfilment, and the counts that drive the summary.
 type LetterStatus struct {
-	Recipients []*platformModels.EmailDeliveryStatus        `json:"recipients"`
+	Recipients []EmailDeliveryStatus                        `json:"recipients"`
 	Children   []*usersModels.AnnouncementLetterChildStatus `json:"children"`
 	Summary    LetterSummary                                `json:"summary"`
 }
@@ -329,7 +360,7 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 	if err != nil {
 		return nil, fmt.Errorf("announcement: letter child statuses: %w", err)
 	}
-	var recipients []*platformModels.EmailDeliveryStatus
+	var recipients []EmailDeliveryStatus
 	if s.deliveries != nil {
 		recipients, err = s.deliveries.ListForEntity(ctx, tenantID, relatedEntityTypeAnnouncement, id)
 		if err != nil {
@@ -362,9 +393,9 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 			out.Summary.EmailsFailed++
 		}
 		switch r.Reachability {
-		case platformModels.ReachabilityNoEmail:
+		case reachabilityNoEmail:
 			out.Summary.WithoutEmail++
-		case platformModels.ReachabilityNoPortal:
+		case reachabilityNoPortal:
 			out.Summary.WithoutPortal++
 		}
 	}
@@ -495,7 +526,7 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 	byAddress := make(map[string]*platformModels.EmailOutbox)
 	portalAccessByAddress := make(map[string]bool, len(rows))
 	for _, row := range rows {
-		if row.RecipientEmail != nil && row.Reachability == platformModels.ReachabilityOK {
+		if row.RecipientEmail != nil && row.Reachability == reachabilityOK {
 			address := strings.ToLower(strings.TrimSpace(*row.RecipientEmail))
 			portalAccessByAddress[address] = true
 		}

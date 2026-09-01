@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -61,7 +61,7 @@ type PushSubscriptionService interface {
 
 type pushSubscriptionService struct {
 	db             *bun.DB
-	repo           iot.PushSubscriptionRepository
+	repo           deliveryModels.PushSubscriptionRepository
 	accountTenants authModels.AccountTenantRepository
 	vapid          VAPIDConfig
 	logger         *slog.Logger
@@ -82,7 +82,7 @@ func (s *pushSubscriptionService) withTenantRuntime(ctx context.Context) context
 // NewPushSubscriptionService builds the push subscription service.
 func NewPushSubscriptionService(
 	db *bun.DB,
-	repo iot.PushSubscriptionRepository,
+	repo deliveryModels.PushSubscriptionRepository,
 	accountTenants authModels.AccountTenantRepository,
 	vapid VAPIDConfig,
 	logger *slog.Logger,
@@ -97,8 +97,8 @@ func (s *pushSubscriptionService) PublicKey() (string, error) {
 	return s.vapid.PublicKey, nil
 }
 
-func (s *pushSubscriptionService) buildSubscription(accountID int64, portal string, input PushSubscriptionInput) (*iot.PushSubscription, error) {
-	sub := &iot.PushSubscription{
+func (s *pushSubscriptionService) buildSubscription(accountID int64, portal string, input PushSubscriptionInput) (*deliveryModels.PushSubscription, error) {
+	sub := &deliveryModels.PushSubscription{
 		AccountID:     accountID,
 		Portal:        portal,
 		Endpoint:      input.Endpoint,
@@ -118,7 +118,7 @@ func (s *pushSubscriptionService) Subscribe(ctx context.Context, accountID int64
 	if !s.vapid.Configured() {
 		return ErrWebPushNotConfigured
 	}
-	sub, err := s.buildSubscription(accountID, iot.PushPortalStaff, input)
+	sub, err := s.buildSubscription(accountID, deliveryModels.PushPortalStaff, input)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (s *pushSubscriptionService) SubscribeSchool(ctx context.Context, accountID
 	if !s.vapid.Configured() {
 		return ErrWebPushNotConfigured
 	}
-	sub, err := s.buildSubscription(accountID, iot.PushPortalSchool, input)
+	sub, err := s.buildSubscription(accountID, deliveryModels.PushPortalSchool, input)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 	if !s.vapid.Configured() {
 		return ErrWebPushNotConfigured
 	}
-	prototype, err := s.buildSubscription(accountID, iot.PushPortalParent, input)
+	prototype, err := s.buildSubscription(accountID, deliveryModels.PushPortalParent, input)
 	if err != nil {
 		return err
 	}

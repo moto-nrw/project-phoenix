@@ -7,24 +7,22 @@ package platform
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Renderer turns an outbox row into a concrete email message ready for
 // dispatch. The worker calls Render with a tenant-scoped context, so
 // renderers can read tenant-scoped settings or repos as needed.
 //
-// Returning an error from Render counts as a delivery failure — the
-// worker treats it as a retryable error subject to the same backoff
-// schedule as a transient SMTP failure. If a renderer is permanently
-// broken (e.g., template missing), it should still return an error;
-// the worker's MaxAttempts limit will eventually move the row to
-// 'failed'.
+// Returning an error from Render counts as a delivery failure. Delivery
+// retries it with backoff and eventually moves it to dead_letter.
 type Renderer interface {
 	Render(ctx context.Context, row *platformModels.EmailOutbox) (*email.Message, error)
 }
@@ -34,8 +32,8 @@ type Renderer interface {
 // returns it (wrapped, with a reason) when the fact that authorized the mail no
 // longer holds at the moment of sending — a guardian whose access to the child
 // an appointment concerns was revoked while the mail waited in the outbox. The
-// worker retires such a row immediately instead of burning the retry budget on
-// something it must never deliver.
+// Delivery maps it to a token-fenced cancelled finalization instead of retrying
+// something it must never send.
 var ErrRenderCancelled = errors.New("render cancelled")
 
 // RendererFunc adapts a plain function to the Renderer interface for
@@ -98,19 +96,36 @@ func (r *TemplateRegistry) Kinds() []string {
 	return out
 }
 
-// OutboxService wraps the EmailOutboxRepository with a tenant-aware
-// Enqueue helper. The worker pickup path doesn't need this service —
-// it talks to the repository directly through phoenix_admin to bypass
-// RLS. The service exists so feature code (e.g., enrollment submit
-// handler, decision service, guardian invitation service) has a single
-// call site for "enqueue this email".
+// OutboxService is the tenant-aware compatibility facade over Delivery. It
+// keeps existing feature producers on one enqueue contract while Delivery owns
+// persistence and worker state.
 type OutboxService struct {
-	repo platformModels.EmailOutboxRepository
+	delivery DurableEmailPort
 }
 
-// NewOutboxService builds the service.
-func NewOutboxService(repo platformModels.EmailOutboxRepository) *OutboxService {
-	return &OutboxService{repo: repo}
+type DurableEmail struct {
+	TenantID       int64
+	Template       string
+	Recipient      string
+	Payload        json.RawMessage
+	RelatedType    string
+	RelatedID      int64
+	IdempotencyKey string
+}
+
+type DurableEmailResult struct {
+	ID        int64
+	Duplicate bool
+}
+
+type DurableEmailPort interface {
+	EnqueueEmail(context.Context, DurableEmail) (DurableEmailResult, error)
+	CancelEmail(context.Context, int64, string, int64, string) (int64, error)
+}
+
+// NewOutboxService builds the compatibility facade used by feature producers.
+func NewOutboxService(delivery DurableEmailPort) *OutboxService {
+	return &OutboxService{delivery: delivery}
 }
 
 // EnqueueRequest is the payload Enqueue accepts. Builder fields stay
@@ -142,55 +157,49 @@ func (s *OutboxService) EnqueueOutbox(ctx context.Context, req platformModels.Ou
 }
 
 func (s *OutboxService) Enqueue(ctx context.Context, req EnqueueRequest) (*platformModels.EmailOutbox, error) {
-	if s == nil || s.repo == nil {
+	if s == nil || s.delivery == nil {
 		return nil, errors.New("outbox service not wired")
 	}
 	if req.Kind == "" {
 		return nil, errors.New("outbox kind is required")
 	}
 	if req.Payload == nil {
-		req.Payload = map[string]any{}
+		return nil, errors.New("outbox payload is required")
 	}
-
-	row := &platformModels.EmailOutbox{
-		Kind:    req.Kind,
-		Payload: req.Payload,
-		Status:  platformModels.EmailOutboxStatusPending,
+	recipient, ok := req.Payload["recipient_email"].(string)
+	if !ok || recipient == "" {
+		return nil, errors.New("outbox recipient_email is required")
 	}
-	if req.IdempotencyKey != "" {
-		key := req.IdempotencyKey
-		row.IdempotencyKey = &key
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("enqueue email outbox row: tenant is required: %w", err)
 	}
-	if req.RelatedEntityType != "" {
-		t := req.RelatedEntityType
-		row.RelatedEntityType = &t
+	payload, err := json.Marshal(req.Payload)
+	if err != nil {
+		return nil, fmt.Errorf("enqueue email outbox row: encode payload: %w", err)
 	}
-	if req.RelatedEntityID > 0 {
-		id := req.RelatedEntityID
-		row.RelatedEntityID = &id
-	}
-	if err := s.repo.Create(ctx, row); err != nil {
+	stored, err := s.delivery.EnqueueEmail(ctx, DurableEmail{
+		TenantID: tenantID.Int64(), Template: req.Kind, Recipient: recipient, Payload: payload,
+		RelatedType: req.RelatedEntityType, RelatedID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey,
+	})
+	if err != nil {
 		return nil, fmt.Errorf("enqueue email outbox row: %w", err)
 	}
+	row := &platformModels.EmailOutbox{Kind: req.Kind, Payload: req.Payload, Status: platformModels.EmailOutboxStatusPending}
+	row.ID = stored.ID
 	return row, nil
 }
 
-// CancelPendingByRelatedEntity marks every still-pending outbox row for a
-// related entity as failed so the worker never sends it — used when the
-// triggering entity is retracted before the async send. Tenant-scoped; must run
-// inside the caller's tenant tx. Returns the number of rows cancelled.
+// CancelPendingByRelatedEntity cancels unsent outbox rows for a related entity.
+// It runs in the caller's tenant transaction and retains rows for audit and
+// status reads.
 func (s *OutboxService) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {
-	if s == nil || s.repo == nil {
+	if s == nil || s.delivery == nil {
 		return 0, errors.New("outbox service not wired")
 	}
-	return s.repo.CancelPendingByRelatedEntity(ctx, relatedType, relatedID, reason)
-}
-
-// FindByRelatedEntity surfaces the per-feature lookup so admin UIs can
-// show "all email rows for this enrollment request". Tenant-scoped.
-func (s *OutboxService) FindByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) ([]*platformModels.EmailOutbox, error) {
-	if s == nil || s.repo == nil {
-		return nil, errors.New("outbox service not wired")
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("cancel email outbox rows: tenant is required: %w", err)
 	}
-	return s.repo.FindByRelatedEntity(ctx, relatedType, relatedID)
+	return s.delivery.CancelEmail(ctx, tenantID.Int64(), relatedType, relatedID, reason)
 }

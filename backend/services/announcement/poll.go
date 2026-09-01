@@ -252,7 +252,9 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 	for locale, group := range groups {
 		title, body := notifications.ParentAnnouncementCopy(locale, notifications.ParentPollReminder)
 		err := s.notifier.Notify(ctx, notifications.Event{
-			Type:     parentAnnouncementNotificationType,
+			Type:           parentAnnouncementNotificationType,
+			IdempotencyKey: fmt.Sprintf("parent-poll-reminder:%d:%d", a.ID, a.UpdatedAt.UTC().UnixNano()),
+			RelatedType:    relatedEntityTypePollReminder, RelatedID: a.ID,
 			Title:    title,
 			Body:     body,
 			DeepLink: "/",

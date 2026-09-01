@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"slices"
 	"sync"
 	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -56,13 +55,12 @@ const (
 // notification because VAPID is unavailable or the audience has no devices.
 var ErrNoWebPushSubscribers = errors.New("no web push subscribers are available")
 
-// webPushChannel delivers notifications as Web Push messages (#2003) to the
-// devices registered in iot.push_subscriptions. Delivery is fire-and-forget:
-// per-subscription failures are logged, expired subscriptions (HTTP 404/410)
-// are pruned, and Deliver only returns an error for whole-audience failures.
+// webPushChannel snapshots notifications into the durable Delivery outbox.
+// DeliverSynchronously is the explicit fail-closed exception used by producers
+// that must know whether a push service accepted the message before returning.
 type webPushChannel struct {
 	db            *bun.DB
-	repo          iot.PushSubscriptionRepository
+	repo          deliveryModels.PushSubscriptionRepository
 	vapid         VAPIDConfig
 	sender        pushSender
 	logger        *slog.Logger
@@ -70,6 +68,29 @@ type webPushChannel struct {
 	// Shared across deliveries so concurrent notification batches cannot each
 	// consume maxConcurrentPushSends outbound connections.
 	sendSlots chan struct{}
+	outbox    PushOutbox
+}
+
+type PushIntent struct {
+	TenantID       int64
+	Template       string
+	IdempotencyKey string
+	RelatedType    string
+	RelatedID      int64
+	SubscriptionID int64
+	Endpoint       string
+	P256DH         string
+	Auth           string
+	Portal         string
+	Title          string
+	Body           string
+	DeepLink       string
+	Type           string
+	Priority       string
+}
+
+type PushOutbox interface {
+	EnqueuePush(context.Context, PushIntent) (bool, error)
 }
 
 func (c *webPushChannel) SetTenantRuntime(runtime tenant.UnitOfWork) {
@@ -86,7 +107,7 @@ func (c *webPushChannel) withTenantRuntime(ctx context.Context) context.Context 
 // NewWebPushChannel returns the Web Push channel. With unset VAPID keys the
 // channel stays inert (no-op Deliver) so environments without push keep
 // today's behavior.
-func NewWebPushChannel(db *bun.DB, repo iot.PushSubscriptionRepository, vapid VAPIDConfig, logger *slog.Logger) Channel {
+func NewWebPushChannel(db *bun.DB, repo deliveryModels.PushSubscriptionRepository, vapid VAPIDConfig, logger *slog.Logger) Channel {
 	return &webPushChannel{
 		db:        db,
 		repo:      repo,
@@ -96,6 +117,14 @@ func NewWebPushChannel(db *bun.DB, repo iot.PushSubscriptionRepository, vapid VA
 		sendSlots: make(chan struct{}, maxConcurrentPushSends),
 	}
 }
+
+func NewDurableWebPushChannel(db *bun.DB, repo deliveryModels.PushSubscriptionRepository, vapid VAPIDConfig, outbox PushOutbox, logger *slog.Logger) Channel {
+	channel := NewWebPushChannel(db, repo, vapid, logger).(*webPushChannel)
+	channel.outbox = outbox
+	return channel
+}
+
+func (c *webPushChannel) durableChannel() {}
 
 func (c *webPushChannel) Name() string { return "web_push" }
 
@@ -124,35 +153,51 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 		)
 		return nil
 	}
-
-	payload, err := marshalPushPayload(event)
-	if err != nil {
+	if _, err := marshalPushPayload(event); err != nil {
 		return err
 	}
 
-	// Read subscriptions under RLS, then commit before any network request.
-	// The bounded send batch runs asynchronously so push-service latency never
-	// delays the request that produced the notification.
-	var subs []*iot.PushSubscription
-	err = tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		resolved, err := c.resolveEventSubscriptions(txCtx, event)
+	if c.outbox == nil {
+		return errors.New("web push durable outbox is not configured")
+	}
+	if event.IdempotencyKey == "" {
+		return errors.New("web push event requires an idempotency key")
+	}
+	enqueue := func(txCtx context.Context) error {
+		subs, err := c.resolveEventSubscriptions(txCtx, event)
 		if err != nil {
 			return err
 		}
-		subs = resolved
+		for _, sub := range subs {
+			deepLink := event.DeepLink
+			if sub.Portal == deliveryModels.PushPortalSchool {
+				if _, err := schoolPushPayload(event); err != nil {
+					return err
+				}
+				deepLink = event.SchoolDeepLink
+				if deepLink == "" {
+					deepLink = "/school"
+				}
+			}
+			_, err := c.outbox.EnqueuePush(txCtx, PushIntent{
+				TenantID: event.Audience.TenantID, Template: event.Type,
+				IdempotencyKey: fmt.Sprintf("%s:subscription:%d", event.IdempotencyKey, sub.ID),
+				RelatedType:    event.RelatedType, RelatedID: event.RelatedID,
+				SubscriptionID: sub.ID, Endpoint: sub.Endpoint, P256DH: sub.P256dh, Auth: sub.Auth, Portal: sub.Portal,
+				Title: event.Title, Body: event.Body, DeepLink: deepLink, Type: event.Type, Priority: event.Priority,
+			})
+			if err != nil {
+				return err
+			}
+		}
 		return nil
-	})
-	if err != nil || len(subs) == 0 {
-		return err
 	}
-
-	dispatchCtx := context.WithoutCancel(ctx)
-	dispatchCtx = tenant.ContextWithoutTransaction(dispatchCtx)
-	dispatchCtx = tenant.ContextWithoutAfterCommitHooks(dispatchCtx)
-	go func() {
-		c.sendAll(dispatchCtx, event, payload, subs)
-	}()
-	return nil
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return enqueue(ctx)
+	}
+	return tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return enqueue(txCtx)
+	})
 }
 
 // DeliverSynchronously waits for the push service to accept every current
@@ -167,7 +212,7 @@ func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) 
 	if err != nil {
 		return err
 	}
-	var subs []*iot.PushSubscription
+	var subs []*deliveryModels.PushSubscription
 	err = tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var resolveErr error
 		subs, resolveErr = c.resolveEventSubscriptions(txCtx, event)
@@ -180,120 +225,6 @@ func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) 
 		return ErrNoWebPushSubscribers
 	}
 	return c.sendAllSynchronously(ctx, event, payload, subs)
-}
-
-// DeliverBatch resolves the devices of every recipient in ONE transaction and
-// then sends each recipient their own payload.
-//
-// Looping Deliver would open one tenant transaction per event, each with its
-// own SET LOCAL ROLE round trip. With a per-minute tick addressing every staff
-// member of a school that is the difference between a handful of transactions
-// and one per person.
-//
-// Only staff-scoped events are grouped; anything else falls back to Deliver,
-// because the other scopes resolve their devices from the scope alone and gain
-// nothing from batching.
-func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error {
-	ctx = c.withTenantRuntime(ctx)
-	if !c.vapid.Configured() || len(events) == 0 {
-		return nil
-	}
-
-	staffEvents := make([]Event, 0, len(events))
-	for _, event := range events {
-		if event.Audience.Scope == ScopeStaff {
-			staffEvents = append(staffEvents, event)
-			continue
-		}
-		if err := c.Deliver(ctx, event); err != nil {
-			c.getLogger().Error("web push delivery failed inside batch",
-				"notification_type", event.Type,
-				"tenant_id", event.Audience.TenantID,
-				"error", err.Error(),
-			)
-		}
-	}
-	if len(staffEvents) == 0 {
-		return nil
-	}
-
-	tenantID := staffEvents[0].Audience.TenantID
-	recipientSet := make(map[int64]struct{})
-	for _, event := range staffEvents {
-		for _, accountID := range event.Audience.StaffAccountIDs {
-			recipientSet[accountID] = struct{}{}
-		}
-	}
-	recipients := make([]int64, 0, len(recipientSet))
-	for accountID := range recipientSet {
-		recipients = append(recipients, accountID)
-	}
-
-	// Read under RLS, then commit before any network request — the same
-	// ordering Deliver keeps, for the same reason.
-	var staffSubs, schoolSubs []*iot.PushSubscription
-	err := tenant.WithTenantTx(ctx, c.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if slices.ContainsFunc(staffEvents, deliversToStaffPortal) {
-			resolved, err := c.repo.FindForStaffAccounts(txCtx, recipients)
-			if err != nil {
-				return err
-			}
-			staffSubs = resolved
-		}
-		if slices.ContainsFunc(staffEvents, deliversToSchoolPortal) {
-			resolved, err := c.repo.FindForSchoolAccounts(txCtx, recipients)
-			if err != nil {
-				return err
-			}
-			schoolSubs = resolved
-		}
-		return nil
-	})
-	if err != nil || (len(staffSubs) == 0 && len(schoolSubs) == 0) {
-		return err
-	}
-
-	staffByAccount := make(map[int64][]*iot.PushSubscription, len(recipients))
-	for _, sub := range staffSubs {
-		staffByAccount[sub.AccountID] = append(staffByAccount[sub.AccountID], sub)
-	}
-	schoolByAccount := make(map[int64][]*iot.PushSubscription, len(recipients))
-	for _, sub := range schoolSubs {
-		schoolByAccount[sub.AccountID] = append(schoolByAccount[sub.AccountID], sub)
-	}
-
-	dispatchCtx := context.WithoutCancel(ctx)
-	dispatchCtx = tenant.ContextWithoutTransaction(dispatchCtx)
-	dispatchCtx = tenant.ContextWithoutAfterCommitHooks(dispatchCtx)
-	for _, event := range staffEvents {
-		targets := make([]*iot.PushSubscription, 0, len(event.Audience.StaffAccountIDs))
-		toStaff, toSchool := deliversToStaffPortal(event), deliversToSchoolPortal(event)
-		for _, accountID := range event.Audience.StaffAccountIDs {
-			if toStaff {
-				targets = append(targets, staffByAccount[accountID]...)
-			}
-			if toSchool {
-				targets = append(targets, schoolByAccount[accountID]...)
-			}
-		}
-		targets = dedupeSubscriptionsByEndpoint(targets)
-		if len(targets) == 0 {
-			continue
-		}
-		payload, marshalErr := marshalPushPayload(event)
-		if marshalErr != nil {
-			c.getLogger().Error("skipping web push event with unusable payload",
-				"notification_type", event.Type,
-				"tenant_id", event.Audience.TenantID,
-				"error", marshalErr.Error(),
-			)
-			continue
-		}
-		go func(event Event, payload []byte, targets []*iot.PushSubscription) {
-			c.sendAll(dispatchCtx, event, payload, targets)
-		}(event, payload, targets)
-	}
-	return nil
 }
 
 // marshalPushPayload renders one event into the wire payload and enforces the
@@ -339,8 +270,8 @@ type portalPayloads struct {
 	once   sync.Once
 }
 
-func (p *portalPayloads) forSubscription(sub *iot.PushSubscription) ([]byte, error) {
-	if sub.Portal != iot.PushPortalSchool {
+func (p *portalPayloads) forSubscription(sub *deliveryModels.PushSubscription) ([]byte, error) {
+	if sub.Portal != deliveryModels.PushPortalSchool {
 		return p.base, nil
 	}
 	p.once.Do(func() {
@@ -353,7 +284,7 @@ func (p *portalPayloads) forSubscription(sub *iot.PushSubscription) ([]byte, err
 // ScopeGroup is deliberately unsupported: unlike SSE there is no persisted
 // device-to-group membership, and no producer targets groups with
 // push-worthy events yet. Documented follow-up in docs/notifications.md.
-func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Event) ([]*iot.PushSubscription, error) {
+func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Event) ([]*deliveryModels.PushSubscription, error) {
 	audience := event.Audience
 	switch audience.Scope {
 	case ScopeTenant:
@@ -370,7 +301,7 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 		// Eligibility is re-checked here rather than trusted from the recipient
 		// list: that list was assembled in an earlier transaction, and an
 		// account can be deactivated or unmapped from the school in between.
-		var subs []*iot.PushSubscription
+		var subs []*deliveryModels.PushSubscription
 		if deliversToStaffPortal(event) {
 			staffSubs, err := c.repo.FindForStaffAccounts(ctx, staffAccountIDs(audience))
 			if err != nil {
@@ -421,9 +352,9 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 // one of two real devices. A missing notification is the worse failure, so a
 // dual-role account that keeps both portals subscribed is notified in both and
 // can switch the notification off in the portal it does not use.
-func dedupeSubscriptionsByEndpoint(subs []*iot.PushSubscription) []*iot.PushSubscription {
+func dedupeSubscriptionsByEndpoint(subs []*deliveryModels.PushSubscription) []*deliveryModels.PushSubscription {
 	position := make(map[string]int, len(subs))
-	deduped := make([]*iot.PushSubscription, 0, len(subs))
+	deduped := make([]*deliveryModels.PushSubscription, 0, len(subs))
 	for _, sub := range subs {
 		if sub == nil {
 			continue
@@ -445,7 +376,7 @@ func dedupeSubscriptionsByEndpoint(subs []*iot.PushSubscription) []*iot.PushSubs
 // written. Rows stamped in the same transaction fall back to the row id, so
 // the surviving portal is stable across deliveries instead of following map
 // iteration order.
-func newerRegistration(candidate, incumbent *iot.PushSubscription) bool {
+func newerRegistration(candidate, incumbent *deliveryModels.PushSubscription) bool {
 	if candidate.UpdatedAt.After(incumbent.UpdatedAt) {
 		return true
 	}
@@ -482,41 +413,7 @@ func deliversToSchoolPortal(event Event) bool {
 	return ok && OfferedInPortal(def, PortalSchool)
 }
 
-// sendAll pushes the payload to every subscription. Per-subscription errors
-// never abort the loop; 404/410 responses prune the dead subscription.
-func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) {
-	ttl, urgency := pushOptionsForPriority(event.Priority)
-	payloads := &portalPayloads{event: event, base: payload}
-	var wg sync.WaitGroup
-
-	for _, sub := range subs {
-		wire, err := payloads.forSubscription(sub)
-		if err != nil {
-			c.getLogger().Error("skipping web push with unusable school payload",
-				"notification_type", event.Type,
-				"tenant_id", event.Audience.TenantID,
-				"error", err.Error(),
-			)
-			continue
-		}
-		select {
-		case c.sendSlots <- struct{}{}:
-		case <-ctx.Done():
-			wg.Wait()
-			return
-		}
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer func() { <-c.sendSlots }()
-			c.sendOne(ctx, event, wire, sub, ttl, urgency)
-		}()
-	}
-	wg.Wait()
-}
-
-func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) error {
+func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, payload []byte, subs []*deliveryModels.PushSubscription) error {
 	ttl, urgency := pushOptionsForPriority(event.Priority)
 	payloads := &portalPayloads{event: event, base: payload}
 	var wg sync.WaitGroup
@@ -545,7 +442,7 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 		}
 
 		wg.Add(1)
-		go func(sub *iot.PushSubscription) {
+		go func(sub *deliveryModels.PushSubscription) {
 			defer wg.Done()
 			defer func() { <-c.sendSlots }()
 			if err := c.sendOneSynchronously(ctx, event, wire, sub, ttl, urgency); err != nil {
@@ -572,8 +469,8 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 	return errors.Join(errs...)
 }
 
-func (c *webPushChannel) sendOneSynchronously(ctx context.Context, event Event, payload []byte, sub *iot.PushSubscription, ttl int, urgency webpush.Urgency) error {
-	if err := iot.ValidatePushEndpoint(sub.Endpoint); err != nil {
+func (c *webPushChannel) sendOneSynchronously(ctx context.Context, event Event, payload []byte, sub *deliveryModels.PushSubscription, ttl int, urgency webpush.Urgency) error {
+	if err := deliveryModels.ValidatePushEndpoint(sub.Endpoint); err != nil {
 		return err
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, pushSendTimeout)
@@ -598,92 +495,7 @@ func (c *webPushChannel) sendOneSynchronously(ctx context.Context, event Event, 
 	return fmt.Errorf("web push service rejected notification with status %d", resp.StatusCode)
 }
 
-func (c *webPushChannel) sendOne(
-	ctx context.Context,
-	event Event,
-	payload []byte,
-	sub *iot.PushSubscription,
-	ttl int,
-	urgency webpush.Urgency,
-) {
-	if err := iot.ValidatePushEndpoint(sub.Endpoint); err != nil {
-		c.getLogger().Warn("refusing untrusted web push endpoint",
-			"tenant_id", sub.TenantID,
-			"subscription_id", sub.ID,
-			"error", err.Error(),
-		)
-		return
-	}
-
-	sendCtx, cancel := context.WithTimeout(ctx, pushSendTimeout)
-	defer cancel()
-
-	resp, err := c.sender.Send(sendCtx, &webpush.Subscription{
-		Endpoint: sub.Endpoint,
-		Keys:     webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth},
-	}, payload, &webpush.Options{
-		Subscriber:      c.vapid.webPushSubscriber(),
-		VAPIDPublicKey:  c.vapid.PublicKey,
-		VAPIDPrivateKey: c.vapid.PrivateKey,
-		TTL:             ttl,
-		Urgency:         urgency,
-	})
-	if err != nil {
-		c.getLogger().Warn("web push send failed",
-			"notification_type", event.Type,
-			"tenant_id", sub.TenantID,
-			"subscription_id", sub.ID,
-			"error", err.Error(),
-		)
-		return
-	}
-	c.handleResponse(ctx, event, sub, resp)
-}
-
-func (c *webPushChannel) handleResponse(ctx context.Context, event Event, sub *iot.PushSubscription, resp *http.Response) {
-	if resp == nil {
-		return
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	switch {
-	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		return
-	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
-		// The push service says this subscription no longer exists — prune it.
-		deleted, err := c.deleteExpiredSubscription(ctx, sub)
-		if err != nil {
-			c.getLogger().Warn("failed to prune expired push subscription",
-				"subscription_id", sub.ID,
-				"tenant_id", sub.TenantID,
-				"error", err.Error(),
-			)
-			return
-		}
-		if !deleted {
-			c.getLogger().Debug("kept refreshed push subscription after stale expiry response",
-				"subscription_id", sub.ID,
-				"tenant_id", sub.TenantID,
-				"status", resp.StatusCode,
-			)
-			return
-		}
-		c.getLogger().Info("pruned expired push subscription",
-			"subscription_id", sub.ID,
-			"tenant_id", sub.TenantID,
-			"status", resp.StatusCode,
-		)
-	default:
-		c.getLogger().Warn("web push service rejected notification",
-			"notification_type", event.Type,
-			"subscription_id", sub.ID,
-			"tenant_id", sub.TenantID,
-			"status", resp.StatusCode,
-		)
-	}
-}
-
-func (c *webPushChannel) deleteExpiredSubscription(ctx context.Context, sub *iot.PushSubscription) (bool, error) {
+func (c *webPushChannel) deleteExpiredSubscription(ctx context.Context, sub *deliveryModels.PushSubscription) (bool, error) {
 	// Unit tests use repository fakes without a database. Production always
 	// opens a short tenant transaction so RLS applies to the cleanup.
 	if c.db == nil {

@@ -9,7 +9,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -21,8 +21,8 @@ import (
 var errPushRepository = errors.New("push repository failed")
 
 type recordingPushRepository struct {
-	iot.PushSubscriptionRepository
-	upserted        []*iot.PushSubscription
+	deliveryModels.PushSubscriptionRepository
+	upserted        []*deliveryModels.PushSubscription
 	deletedAccount  int64
 	deletedEndpoint string
 	deletedTenants  []int64
@@ -35,7 +35,7 @@ type recordingPushRepository struct {
 	deleteFailAfter int
 }
 
-func (r *recordingPushRepository) Upsert(_ context.Context, sub *iot.PushSubscription) error {
+func (r *recordingPushRepository) Upsert(_ context.Context, sub *deliveryModels.PushSubscription) error {
 	r.upserted = append(r.upserted, sub)
 	r.operations = append(r.operations, fmt.Sprintf("upsert:%d", sub.TenantID))
 	if r.failAfter > 0 && len(r.upserted) < r.failAfter {
@@ -135,7 +135,7 @@ func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 		require.NoError(t, service.Subscribe(ctx, 42, input))
 		require.Len(t, repo.upserted, 1)
 		assert.Equal(t, int64(42), repo.upserted[0].AccountID)
-		assert.Equal(t, iot.PushPortalStaff, repo.upserted[0].Portal)
+		assert.Equal(t, deliveryModels.PushPortalStaff, repo.upserted[0].Portal)
 		assert.Equal(t, "test-agent", repo.upserted[0].UserAgent)
 		assert.Equal(t, "family-1", repo.upserted[0].TokenFamilyID)
 
@@ -200,7 +200,7 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 		require.NoError(t, service.SubscribeParent(context.Background(), 42, validPushInput()))
 		require.Len(t, repo.upserted, 1)
 		assert.Equal(t, tenantID, repo.upserted[0].TenantID)
-		assert.Equal(t, iot.PushPortalParent, repo.upserted[0].Portal)
+		assert.Equal(t, deliveryModels.PushPortalParent, repo.upserted[0].Portal)
 		assert.Equal(t, validPushInput().Endpoint, repo.reboundEndpoint)
 		assert.Equal(t, []string{"clear", fmt.Sprintf("upsert:%d", tenantID)}, repo.operations)
 

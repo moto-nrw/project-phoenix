@@ -57,10 +57,7 @@ type AbsenceReport struct {
 // AbsenceNotifier turns a recorded absence into a notification for the people
 // responsible for that child.
 type AbsenceNotifier interface {
-	// NotifyAbsenceReported is fire-and-forget by contract: it is called from
-	// after-commit hooks, and a failure must never roll back the absence that
-	// was already recorded. Errors are logged, not returned.
-	NotifyAbsenceReported(ctx context.Context, report AbsenceReport)
+	NotifyAbsenceReported(ctx context.Context, report AbsenceReport) error
 }
 
 type absenceNotifier struct {
@@ -97,35 +94,39 @@ func (n *absenceNotifier) getLogger() *slog.Logger {
 	return n.logger
 }
 
-func (n *absenceNotifier) NotifyAbsenceReported(ctx context.Context, report AbsenceReport) {
+func (n *absenceNotifier) NotifyAbsenceReported(ctx context.Context, report AbsenceReport) error {
 	if report.TenantID <= 0 {
-		return
+		return nil
 	}
 
 	var err error
 	if n.db == nil {
 		err = n.notify(ctx, report)
+	} else if _, active := tenant.TransactionFromContext(ctx); active {
+		err = n.notify(ctx, report)
 	} else {
 		if n.tenantRuntime != nil {
 			ctx = tenant.WithUnitOfWork(ctx, *n.tenantRuntime)
 		}
-		// Every caller invokes the producer after the write transaction has
-		// committed. Open a new tenant transaction so all recipient, consent and
-		// delivery reads carry the PostgreSQL RLS context they require.
+		// Compatibility path for callers that do not already own a transaction.
+		// Domain write paths pass their ambient transaction so the delivery intent
+		// commits atomically with the decision that produced it.
 		err = tenant.WithTenantTx(ctx, n.db, report.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 			return n.notify(txCtx, report)
 		})
 	}
 	if err != nil {
 		if errors.Is(err, ErrDisabled) || errors.Is(err, ErrOutsideActiveWindow) {
-			return
+			return nil
 		}
 		n.getLogger().Warn("absence notification failed",
 			slog.Int64("tenant_id", report.TenantID),
 			slog.Int("student_count", len(report.StudentIDs)),
 			slog.String("error", err.Error()),
 		)
+		return err
 	}
+	return nil
 }
 
 func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) error {
@@ -157,12 +158,18 @@ func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) erro
 	for _, delivery := range deliveries {
 		scopedReport := report
 		scopedReport.StudentIDs = delivery.studentIDs
+		if len(scopedReport.StudentIDs) == 0 {
+			continue
+		}
 		events = append(events, Event{
-			Type:     TypeStudentAbsenceReported,
-			Priority: PriorityNormal,
-			Title:    absenceReportedTitle,
-			Body:     absenceBody(scopedReport),
-			DeepLink: absenceDeepLink(scopedReport),
+			Type:           TypeStudentAbsenceReported,
+			IdempotencyKey: absenceEventKey(scopedReport, delivery.accountIDs),
+			RelatedType:    "student_absence",
+			RelatedID:      scopedReport.StudentIDs[0],
+			Priority:       PriorityNormal,
+			Title:          absenceReportedTitle,
+			Body:           absenceBody(scopedReport),
+			DeepLink:       absenceDeepLink(scopedReport),
 			Audience: Audience{
 				TenantID:        report.TenantID,
 				Scope:           ScopeStaff,
@@ -179,6 +186,16 @@ func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) erro
 		}
 	}
 	return nil
+}
+
+func absenceEventKey(report AbsenceReport, accountIDs []int64) string {
+	studentIDs := append([]int64(nil), report.StudentIDs...)
+	accounts := append([]int64(nil), accountIDs...)
+	sort.Slice(studentIDs, func(i, j int) bool { return studentIDs[i] < studentIDs[j] })
+	sort.Slice(accounts, func(i, j int) bool { return accounts[i] < accounts[j] })
+	dates := append([]timezone.Date(nil), report.Dates...)
+	sort.Slice(dates, func(i, j int) bool { return dates[i].Before(dates[j]) })
+	return fmt.Sprintf("student-absence:%d:%s:%t:%d:%v:%v:%v", report.TenantID, report.Status, report.FromParent, report.ActorAccountID, studentIDs, dates, accounts)
 }
 
 type absenceDelivery struct {

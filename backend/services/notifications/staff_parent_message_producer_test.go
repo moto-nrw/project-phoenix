@@ -47,6 +47,7 @@ func TestStaffParentMessageNotifierAddressesResponsibleStaff(t *testing.T) {
 	producer.NotifyStaffParentMessage(context.Background(), notifications.StaffParentMessageReport{
 		TenantID:       absenceTenant,
 		ThreadID:       901,
+		MessageID:      902,
 		StudentID:      absenceStudentA,
 		ActorAccountID: absenceActorAcct,
 	})
@@ -84,6 +85,7 @@ func TestStaffParentMessageNotifierSuppressesUnclaimedThread(t *testing.T) {
 	producer.NotifyStaffParentMessage(context.Background(), notifications.StaffParentMessageReport{
 		TenantID:  absenceTenant,
 		ThreadID:  901,
+		MessageID: 902,
 		StudentID: absenceStudentA,
 	})
 

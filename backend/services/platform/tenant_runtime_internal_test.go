@@ -13,12 +13,3 @@ func newMockTenantRuntimePtr(t testing.TB, db *bun.DB) *tenant.UnitOfWork {
 	runtime := testpkg.TenantRuntime(t, db)
 	return &runtime
 }
-
-func newMockOutboxWorker(t testing.TB, cfg OutboxWorkerConfig) *OutboxWorker {
-	t.Helper()
-	worker := NewOutboxWorker(cfg)
-	if cfg.DB != nil {
-		worker.SetTenantRuntime(*newMockTenantRuntimePtr(t, cfg.DB))
-	}
-	return worker
-}

@@ -87,11 +87,11 @@ func (rs *Resource) logStatusHistoryError(studentID int64, err error) {
 	)
 }
 
-func (rs *Resource) notifyAbsenceReported(tenantID int64, studentIDs []int64, status string, dates []timezone.Date, fromParent bool, actorAccountID int64) {
+func (rs *Resource) notifyAbsenceReported(ctx context.Context, tenantID int64, studentIDs []int64, status string, dates []timezone.Date, fromParent bool, actorAccountID int64) error {
 	if rs.AbsenceNotifier == nil {
-		return
+		return nil
 	}
-	rs.AbsenceNotifier.NotifyAbsenceReported(context.Background(), notificationsService.AbsenceReport{
+	return rs.AbsenceNotifier.NotifyAbsenceReported(ctx, notificationsService.AbsenceReport{
 		TenantID:       tenantID,
 		StudentIDs:     studentIDs,
 		Status:         status,

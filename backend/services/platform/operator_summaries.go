@@ -3,7 +3,7 @@ package platform
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/pwa"
 )
@@ -110,9 +110,9 @@ func (s *operatorProvisioningService) GetSchoolPWAUsage(ctx context.Context, sch
 		for _, row := range rows {
 			portalUsage := PWAPortalUsage{StandaloneUsers: row.StandaloneUsers, EligibleUsers: row.EligibleUsers}
 			switch row.Portal {
-			case iot.PushPortalStaff:
+			case deliveryModels.PushPortalStaff:
 				usage.Staff = portalUsage
-			case iot.PushPortalParent:
+			case deliveryModels.PushPortalParent:
 				usage.Parent = portalUsage
 			}
 		}

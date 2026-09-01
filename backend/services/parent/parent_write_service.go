@@ -360,6 +360,14 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		capturedTenant := child.tenantID
 		pillBody := sickNoteEventBody(status, dates)
 		pillRefID := firstStatusID(filtered)
+		if notifyAbsence && s.AbsenceNotifier != nil {
+			if err := s.AbsenceNotifier.NotifyAbsenceReported(txCtx, notificationsSvc.AbsenceReport{
+				TenantID: capturedTenant, StudentIDs: []int64{studentID}, Status: status, Dates: dates,
+				FromParent: true, ActorAccountID: accountID,
+			}); err != nil {
+				return err
+			}
+		}
 		tenant.RegisterAfterCommit(txCtx, func() {
 			s.emitSelfServicePill(capturedTenant, studentID, accountID, "sick_note", pillBody, "active.student_status_days", pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
@@ -367,21 +375,6 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			// just the acting guardian's thread; fan out to EVERY guardian so a
 			// co-guardian's open tab drops the stale presence too (#1725 review).
 			s.wakeChildGuardians(capturedTenant, studentID)
-			// The child's group and the office learn that the family reported
-			// an absence. Hooked here rather than in the repository: the
-			// check-in path also writes a status row before immediately
-			// clearing it, and a repository hook would announce a sick note
-			// exactly when the child walks in.
-			if notifyAbsence && s.AbsenceNotifier != nil {
-				s.AbsenceNotifier.NotifyAbsenceReported(context.Background(), notificationsSvc.AbsenceReport{
-					TenantID:       capturedTenant,
-					StudentIDs:     []int64{studentID},
-					Status:         status,
-					Dates:          dates,
-					FromParent:     true,
-					ActorAccountID: accountID,
-				})
-			}
 		})
 		return nil
 	})

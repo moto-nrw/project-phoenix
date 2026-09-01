@@ -20,6 +20,7 @@ const staffParentMessageCooldown = time.Minute
 type StaffParentMessageReport struct {
 	TenantID       int64
 	ThreadID       int64
+	MessageID      int64
 	StudentID      int64
 	ActorAccountID int64
 }
@@ -27,9 +28,10 @@ type StaffParentMessageReport struct {
 // StaffParentMessageNotifier tells responsible staff that a guardian wrote in
 // a child-related thread.
 type StaffParentMessageNotifier interface {
-	// NotifyStaffParentMessage is fire-and-forget. The message is already
-	// committed when callers invoke it, so notification failures are only logged.
-	NotifyStaffParentMessage(ctx context.Context, report StaffParentMessageReport)
+	// NotifyStaffParentMessage enqueues the delivery in the caller's transaction.
+	// A caller without an ambient transaction gets a narrow compatibility
+	// transaction around recipient resolution and enqueue.
+	NotifyStaffParentMessage(ctx context.Context, report StaffParentMessageReport) error
 }
 
 type staffParentMessageNotifier struct {
@@ -64,13 +66,15 @@ func (n *staffParentMessageNotifier) getLogger() *slog.Logger {
 	return n.logger
 }
 
-func (n *staffParentMessageNotifier) NotifyStaffParentMessage(ctx context.Context, report StaffParentMessageReport) {
+func (n *staffParentMessageNotifier) NotifyStaffParentMessage(ctx context.Context, report StaffParentMessageReport) error {
 	if report.TenantID <= 0 {
-		return
+		return nil
 	}
 
 	var err error
 	if n.db == nil {
+		err = n.notify(ctx, report)
+	} else if _, active := tenant.TransactionFromContext(ctx); active {
 		err = n.notify(ctx, report)
 	} else {
 		err = tenant.WithTenantTx(ctx, n.db, report.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -78,20 +82,21 @@ func (n *staffParentMessageNotifier) NotifyStaffParentMessage(ctx context.Contex
 		})
 	}
 	if err == nil || errors.Is(err, ErrDisabled) || errors.Is(err, ErrOutsideActiveWindow) {
-		return
+		return nil
 	}
 	n.getLogger().Warn("staff parent-message notification failed",
 		slog.Int64("tenant_id", report.TenantID),
 		slog.Int64("thread_id", report.ThreadID),
 		slog.String("error", err.Error()),
 	)
+	return err
 }
 
 func (n *staffParentMessageNotifier) notify(ctx context.Context, report StaffParentMessageReport) error {
 	if n.notifier == nil || n.recipients == nil || n.threads == nil {
 		return nil
 	}
-	if report.ThreadID <= 0 || report.StudentID <= 0 {
+	if report.ThreadID <= 0 || report.MessageID <= 0 || report.StudentID <= 0 {
 		return nil
 	}
 
@@ -124,11 +129,14 @@ func (n *staffParentMessageNotifier) resolveAccountIDs(ctx context.Context, repo
 
 func staffParentMessageEvent(report StaffParentMessageReport, accountIDs []int64) Event {
 	return Event{
-		Type:     TypeStaffParentMessage,
-		Title:    "Neue Nachricht von Eltern",
-		Body:     "Eltern haben der OGS eine neue Nachricht geschrieben.",
-		DeepLink: fmt.Sprintf("/messages/%d", report.ThreadID),
-		Priority: PriorityNormal,
+		Type:           TypeStaffParentMessage,
+		IdempotencyKey: fmt.Sprintf("staff-parent-message:%d:%d", report.ThreadID, report.MessageID),
+		RelatedType:    "parent_message_thread",
+		RelatedID:      report.ThreadID,
+		Title:          "Neue Nachricht von Eltern",
+		Body:           "Eltern haben der OGS eine neue Nachricht geschrieben.",
+		DeepLink:       fmt.Sprintf("/messages/%d", report.ThreadID),
+		Priority:       PriorityNormal,
 		Audience: Audience{
 			TenantID:        report.TenantID,
 			Scope:           ScopeStaff,

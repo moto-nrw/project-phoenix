@@ -9,7 +9,7 @@ import (
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -90,7 +90,7 @@ func TestUsageServiceReportStaff(t *testing.T) {
 	require.NoError(t, service.ReportStaff(context.Background(), 42))
 	require.Len(t, repo.recorded, 1)
 	assert.Equal(t, int64(42), repo.recorded[0].accountID)
-	assert.Equal(t, iot.PushPortalStaff, repo.recorded[0].portal)
+	assert.Equal(t, deliveryModels.PushPortalStaff, repo.recorded[0].portal)
 
 	require.Error(t, service.ReportStaff(context.Background(), 0), "invalid account must not reach the repository")
 	require.Len(t, repo.recorded, 1)
@@ -112,7 +112,7 @@ func TestUsageServiceReportParent(t *testing.T) {
 		assert.Equal(t, int64(11), repo.recorded[0].tenantID)
 		assert.Equal(t, int64(12), repo.recorded[1].tenantID)
 		for _, usage := range repo.recorded {
-			assert.Equal(t, iot.PushPortalParent, usage.portal)
+			assert.Equal(t, deliveryModels.PushPortalParent, usage.portal)
 			assert.Equal(t, int64(42), usage.accountID)
 		}
 	})

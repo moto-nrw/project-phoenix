@@ -67,8 +67,9 @@ type recordingStaffParentMessageNotifier struct {
 	reports []notificationsSvc.StaffParentMessageReport
 }
 
-func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context.Context, report notificationsSvc.StaffParentMessageReport) {
+func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context.Context, report notificationsSvc.StaffParentMessageReport) error {
 	n.reports = append(n.reports, report)
+	return nil
 }
 
 // seedStaffReply inserts a staff-authored message into the guardian's child
@@ -291,6 +292,7 @@ func TestPostChildMessage_NotifiesStaffAfterCommit(t *testing.T) {
 	assert.Equal(t, notificationsSvc.StaffParentMessageReport{
 		TenantID:       chain.TenantID,
 		ThreadID:       view.ThreadID,
+		MessageID:      view.Messages[0].ID,
 		StudentID:      chain.StudentID,
 		ActorAccountID: chain.AccountID,
 	}, notifier.reports[0])

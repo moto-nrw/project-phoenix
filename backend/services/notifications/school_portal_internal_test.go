@@ -12,7 +12,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -55,7 +55,7 @@ func TestSubscribeSchoolRebindsTheEndpoint(t *testing.T) {
 
 	require.NoError(t, service.SubscribeSchool(ctx, 42, validPushInput()))
 	require.Len(t, repo.upserted, 1)
-	assert.Equal(t, iot.PushPortalSchool, repo.upserted[0].Portal)
+	assert.Equal(t, deliveryModels.PushPortalSchool, repo.upserted[0].Portal)
 	assert.Equal(t, int64(41), repo.upserted[0].TenantID)
 	assert.Equal(t, validPushInput().Endpoint, repo.reboundEndpoint)
 	assert.Equal(t, []string{"clear-school", "upsert:41"}, repo.operations)
@@ -113,16 +113,16 @@ func TestPortalPayloadsPickTheSchoolDeepLink(t *testing.T) {
 	require.NoError(t, err)
 	payloads := &portalPayloads{event: event, base: base}
 
-	staffWire, err := payloads.forSubscription(&iot.PushSubscription{Portal: iot.PushPortalStaff})
+	staffWire, err := payloads.forSubscription(&deliveryModels.PushSubscription{Portal: deliveryModels.PushPortalStaff})
 	require.NoError(t, err)
 	assert.Equal(t, "/team-chat/7", deepLinkOf(t, staffWire))
 
-	schoolWire, err := payloads.forSubscription(&iot.PushSubscription{Portal: iot.PushPortalSchool})
+	schoolWire, err := payloads.forSubscription(&deliveryModels.PushSubscription{Portal: deliveryModels.PushPortalSchool})
 	require.NoError(t, err)
 	assert.Equal(t, "/school/nachrichten/7", deepLinkOf(t, schoolWire))
 
 	noSchool := &portalPayloads{event: Event{Type: "test", Title: "t", DeepLink: "/dashboard"}, base: base}
-	wire, err := noSchool.forSubscription(&iot.PushSubscription{Portal: iot.PushPortalSchool})
+	wire, err := noSchool.forSubscription(&deliveryModels.PushSubscription{Portal: deliveryModels.PushPortalSchool})
 	require.NoError(t, err)
 	assert.Equal(t, "/school", deepLinkOf(t, wire))
 }
@@ -134,10 +134,10 @@ func TestSchoolPushDeliveryIsLimitedToSupportedTypes(t *testing.T) {
 	staffSub.AccountID = 42
 	schoolSub := testSub(2, 41, "https://fcm.googleapis.com/school")
 	schoolSub.AccountID = 42
-	schoolSub.Portal = iot.PushPortalSchool
+	schoolSub.Portal = deliveryModels.PushPortalSchool
 	channel := testChannel(&fakePushRepo{
-		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
-		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+		staffAccounts:  map[int64][]*deliveryModels.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*deliveryModels.PushSubscription{42: {schoolSub}},
 	}, &fakeSender{})
 
 	unsupported, err := channel.resolveEventSubscriptions(context.Background(), Event{
@@ -145,14 +145,14 @@ func TestSchoolPushDeliveryIsLimitedToSupportedTypes(t *testing.T) {
 		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []*iot.PushSubscription{staffSub}, unsupported)
+	assert.Equal(t, []*deliveryModels.PushSubscription{staffSub}, unsupported)
 
 	supported, err := channel.resolveEventSubscriptions(context.Background(), Event{
 		Type:     TypeStaffMessage,
 		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
 	})
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []*iot.PushSubscription{staffSub, schoolSub}, supported)
+	assert.ElementsMatch(t, []*deliveryModels.PushSubscription{staffSub, schoolSub}, supported)
 }
 
 // The same split holds for the devices: a test fired in moto schule reaches
@@ -165,10 +165,10 @@ func TestTestPushStaysInTheRequestingPortal(t *testing.T) {
 	staffSub.AccountID = 42
 	schoolSub := testSub(2, 41, "https://fcm.googleapis.com/school")
 	schoolSub.AccountID = 42
-	schoolSub.Portal = iot.PushPortalSchool
+	schoolSub.Portal = deliveryModels.PushPortalSchool
 	channel := testChannel(&fakePushRepo{
-		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
-		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+		staffAccounts:  map[int64][]*deliveryModels.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*deliveryModels.PushSubscription{42: {schoolSub}},
 	}, &fakeSender{})
 
 	audience := Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}}
@@ -179,14 +179,14 @@ func TestTestPushStaysInTheRequestingPortal(t *testing.T) {
 		Audience: audience,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []*iot.PushSubscription{schoolSub}, fromSchool)
+	assert.Equal(t, []*deliveryModels.PushSubscription{schoolSub}, fromSchool)
 
 	fromStaff, err := channel.resolveEventSubscriptions(context.Background(), Event{
 		Type:     TypeTest,
 		Audience: audience,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []*iot.PushSubscription{staffSub}, fromStaff)
+	assert.Equal(t, []*deliveryModels.PushSubscription{staffSub}, fromStaff)
 }
 
 // One browser can be registered in both staff portals: the rows differ by
@@ -203,11 +203,11 @@ func TestSchoolPushDoesNotDuplicateASharedEndpoint(t *testing.T) {
 	staffSub.UpdatedAt = time.Now().Add(-time.Hour)
 	schoolSub := testSub(2, 41, sharedEndpoint)
 	schoolSub.AccountID = 42
-	schoolSub.Portal = iot.PushPortalSchool
+	schoolSub.Portal = deliveryModels.PushPortalSchool
 	schoolSub.UpdatedAt = time.Now()
 	repo := &fakePushRepo{
-		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
-		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+		staffAccounts:  map[int64][]*deliveryModels.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*deliveryModels.PushSubscription{42: {schoolSub}},
 	}
 	sender := &fakeSender{}
 	channel := testChannel(repo, sender)
@@ -217,31 +217,26 @@ func TestSchoolPushDoesNotDuplicateASharedEndpoint(t *testing.T) {
 		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []*iot.PushSubscription{schoolSub}, resolved,
+	assert.Equal(t, []*deliveryModels.PushSubscription{schoolSub}, resolved,
 		"the shared endpoint is pushed to once, through its current registration")
 
 	db, mock := mockTenantTx(t)
 	channel.db = db
 	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
-	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{{
+	require.NoError(t, channel.Deliver(context.Background(), Event{
 		Type:           TypeStaffMessage,
+		IdempotencyKey: "staff-message:7",
 		Audience:       Audience{TenantID: 41, Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
 		Priority:       PriorityNormal,
 		Title:          "Neue Nachricht aus dem Team",
 		DeepLink:       "/team-chat/7",
 		SchoolDeepLink: "/school/nachrichten/7",
-	}}))
-	require.Eventually(t, func() bool {
-		sender.mu.Lock()
-		defer sender.mu.Unlock()
-		return len(sender.sent) == 1
-	}, time.Second, 10*time.Millisecond)
-	sender.mu.Lock()
-	sent := append([]sentPush(nil), sender.sent...)
-	sender.mu.Unlock()
-	require.Len(t, sent, 1, "the batched path deduplicates the same endpoint too")
-	assert.Equal(t, "/school/nachrichten/7", deepLinkOf(t, sent[0].payload),
+	}))
+	intents := channel.outbox.(*fakePushOutbox).intents
+	require.Len(t, intents, 1, "durable snapshotting deduplicates the same endpoint too")
+	assert.Equal(t, "/school/nachrichten/7", intents[0].DeepLink,
 		"the surviving school row carries the link that exists in moto schule")
+	assert.Empty(t, sender.sent)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -256,11 +251,11 @@ func TestSharedEndpointKeepsTheCurrentStaffRegistration(t *testing.T) {
 	staffSub.UpdatedAt = time.Now()
 	schoolSub := testSub(2, 41, sharedEndpoint)
 	schoolSub.AccountID = 42
-	schoolSub.Portal = iot.PushPortalSchool
+	schoolSub.Portal = deliveryModels.PushPortalSchool
 	schoolSub.UpdatedAt = time.Now().Add(-time.Hour)
 	channel := testChannel(&fakePushRepo{
-		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
-		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+		staffAccounts:  map[int64][]*deliveryModels.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*deliveryModels.PushSubscription{42: {schoolSub}},
 	}, &fakeSender{})
 
 	resolved, err := channel.resolveEventSubscriptions(context.Background(), Event{
@@ -268,7 +263,7 @@ func TestSharedEndpointKeepsTheCurrentStaffRegistration(t *testing.T) {
 		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []*iot.PushSubscription{staffSub}, resolved)
+	assert.Equal(t, []*deliveryModels.PushSubscription{staffSub}, resolved)
 }
 
 // Two portals on one browser are two origins, so the same device holds two
@@ -287,14 +282,14 @@ func TestBothPortalRegistrationsOfOneAccountAreDelivered(t *testing.T) {
 	staffSub.UpdatedAt = time.Now().Add(-time.Hour)
 	schoolSub := testSub(2, 41, "https://fcm.googleapis.com/school-origin")
 	schoolSub.AccountID = 42
-	schoolSub.Portal = iot.PushPortalSchool
+	schoolSub.Portal = deliveryModels.PushPortalSchool
 	schoolSub.UserAgent = browser
 	schoolSub.UpdatedAt = time.Now()
 
 	sender := &fakeSender{}
 	channel := testChannel(&fakePushRepo{
-		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
-		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+		staffAccounts:  map[int64][]*deliveryModels.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*deliveryModels.PushSubscription{42: {schoolSub}},
 	}, sender)
 
 	resolved, err := channel.resolveEventSubscriptions(context.Background(), Event{
@@ -302,32 +297,27 @@ func TestBothPortalRegistrationsOfOneAccountAreDelivered(t *testing.T) {
 		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []*iot.PushSubscription{staffSub, schoolSub}, resolved,
+	assert.Equal(t, []*deliveryModels.PushSubscription{staffSub, schoolSub}, resolved,
 		"a shared User-Agent is not a device identity, so neither row is dropped")
 
 	db, mock := mockTenantTx(t)
 	channel.db = db
 	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
-	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{{
+	require.NoError(t, channel.Deliver(context.Background(), Event{
 		Type:           TypeStaffMessage,
+		IdempotencyKey: "staff-message:7",
 		Audience:       Audience{TenantID: 41, Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
 		Priority:       PriorityNormal,
 		Title:          "Neue Nachricht aus dem Team",
 		DeepLink:       "/team-chat/7",
 		SchoolDeepLink: "/school/nachrichten/7",
-	}}))
-	require.Eventually(t, func() bool {
-		sender.mu.Lock()
-		defer sender.mu.Unlock()
-		return len(sender.sent) == 2
-	}, time.Second, 10*time.Millisecond)
-	sender.mu.Lock()
-	sent := append([]sentPush(nil), sender.sent...)
-	sender.mu.Unlock()
-	require.Len(t, sent, 2)
-	links := []string{deepLinkOf(t, sent[0].payload), deepLinkOf(t, sent[1].payload)}
+	}))
+	intents := channel.outbox.(*fakePushOutbox).intents
+	require.Len(t, intents, 2)
+	links := []string{intents[0].DeepLink, intents[1].DeepLink}
 	assert.ElementsMatch(t, []string{"/team-chat/7", "/school/nachrichten/7"}, links,
 		"every registration keeps the deep link that resolves in its own portal")
+	assert.Empty(t, sender.sent)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

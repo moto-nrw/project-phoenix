@@ -251,8 +251,8 @@ func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissi
 	writeContext := rs.newStatusDayWriteContext(r, userPermissions)
 	tenantID := tenant.FromContext(r.Context())
 	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	writeContext.AfterCreateCommit = func(studentIDs []int64) {
-		rs.notifyAbsenceReported(tenantID, studentIDs, status, dates, false, actorAccountID)
+	writeContext.AfterCreate = func(ctx context.Context, studentIDs []int64) error {
+		return rs.notifyAbsenceReported(ctx, tenantID, studentIDs, status, dates, false, actorAccountID)
 	}
 	return writeContext
 }

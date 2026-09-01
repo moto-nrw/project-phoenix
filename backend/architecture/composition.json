@@ -446,12 +446,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 221,
+          "line": 222,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 706,
+          "line": 707,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +461,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 342,
+          "line": 343,
           "declaration": "New"
         }
       ]
@@ -476,7 +476,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 218,
+          "line": 219,
           "declaration": "type API"
         }
       ]
@@ -561,12 +561,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 411,
+          "line": 413,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 429,
+          "line": 432,
           "declaration": "newFactory"
         },
         {
@@ -16614,7 +16614,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        342
+        343
       ],
       "tables": []
     },
@@ -17558,7 +17558,7 @@
       "declaration": "newStatusDayTestResource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        688
+        689
       ],
       "tables": []
     },
@@ -26824,7 +26824,7 @@
       "declaration": "newDeletionTestFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        36
       ],
       "tables": []
     },
@@ -27073,7 +27073,8 @@
       ],
       "tables": [
         "enrollment.request_children",
-        "enrollment.requests"
+        "enrollment.requests",
+        "platform.email_outbox"
       ]
     },
     {
@@ -27082,7 +27083,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        204
+        186
       ],
       "tables": [
         "enrollment.late_invites",
@@ -28733,7 +28734,7 @@
       "declaration": "TestListSickDays_ExcludesStaffCreatedExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        832
+        833
       ],
       "tables": []
     },
@@ -28743,7 +28744,7 @@
       "declaration": "TestSubmitSickNote_ClearsClassTripForSubmittedDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        560
+        561
       ],
       "tables": []
     },
@@ -28753,7 +28754,7 @@
       "declaration": "TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        392
+        393
       ],
       "tables": []
     },
@@ -28763,7 +28764,7 @@
       "declaration": "TestSubmitSickNote_NonContiguousExcludesUnrelatedRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        703
+        704
       ],
       "tables": []
     },
@@ -28773,7 +28774,7 @@
       "declaration": "TestSubmitSickNote_RefusesPartialAbsenceConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        354
+        355
       ],
       "tables": []
     },
@@ -28783,7 +28784,7 @@
       "declaration": "buildMessagingWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        111
+        112
       ],
       "tables": []
     },
@@ -28793,7 +28794,7 @@
       "declaration": "buildWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        84
+        85
       ],
       "tables": []
     },
@@ -28842,30 +28843,10 @@
     {
       "scope": "test",
       "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestEmitChildEvent_DecisionPushFailuresAreNotFatal",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        202
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestEmitChildEvent_DecisionPushRechecksChildAccess",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        126
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
       "declaration": "TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape",
       "target": "database/repositories.NewFactory",
       "lines": [
-        149
+        159
       ],
       "tables": []
     },
@@ -28875,11 +28856,31 @@
       "declaration": "TestEmitChildEvent_PushesDecisionToSubmittingGuardian",
       "target": "database/repositories.NewFactory",
       "lines": [
-        71
+        86
       ],
       "tables": [
         "users.guardian_profiles"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "services/parentmessaging/decision_notification_integration_test.go",
+      "declaration": "TestRequestDecisionEnqueueAndPillBothCheckChildAccess",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        135
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/parentmessaging/decision_notification_integration_test.go",
+      "declaration": "TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        213
+      ],
+      "tables": []
     },
     {
       "scope": "test",

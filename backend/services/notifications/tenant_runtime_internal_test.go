@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,7 +36,7 @@ func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.UnitOfWork {
 func newMockPushSubscriptionService(
 	t testing.TB,
 	db *bun.DB,
-	repo iot.PushSubscriptionRepository,
+	repo deliveryModels.PushSubscriptionRepository,
 	accountTenants authModels.AccountTenantRepository,
 	vapid VAPIDConfig,
 	logger *slog.Logger,

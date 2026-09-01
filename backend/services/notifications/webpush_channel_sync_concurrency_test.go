@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +38,7 @@ func TestWebPushSynchronousDispatchBoundsWorkers(t *testing.T) {
 		mu.Unlock()
 	}}
 	channel := testChannel(&fakePushRepo{}, sender)
-	subs := make([]*iot.PushSubscription, 0, maxConcurrentPushSends+3)
+	subs := make([]*deliveryModels.PushSubscription, 0, maxConcurrentPushSends+3)
 	for id := range maxConcurrentPushSends + 3 {
 		subs = append(subs, testSub(int64(id+1), 41, fmt.Sprintf("https://fcm.googleapis.com/%d", id)))
 	}

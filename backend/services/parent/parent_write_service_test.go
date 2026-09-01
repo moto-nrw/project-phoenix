@@ -74,8 +74,9 @@ func (s *signalingStudentService) GetByIDForUpdate(ctx context.Context, id int64
 func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
 	_ context.Context,
 	report notificationsService.AbsenceReport,
-) {
+) error {
 	n.reports = append(n.reports, report)
+	return nil
 }
 
 func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {

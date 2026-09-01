@@ -7,7 +7,9 @@ package notifications
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -137,7 +139,7 @@ func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request)
 	}
 
 	err := rs.NotificationsService.Notify(ctx, notificationsService.Event{
-		Type: "test",
+		Type: "test", IdempotencyKey: fmt.Sprintf("notification-test:%d", time.Now().UTC().UnixNano()),
 		Audience: notificationsService.Audience{
 			TenantID:        tenantID,
 			Scope:           notificationsService.ScopeStaff,

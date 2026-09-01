@@ -404,11 +404,12 @@ type recordingAbsenceNotifier struct {
 	reports []notificationsSvc.AbsenceReport
 }
 
-func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsSvc.AbsenceReport) {
+func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsSvc.AbsenceReport) error {
 	n.reports = append(n.reports, report)
+	return nil
 }
 
-func TestDecide_ApprovalNotifiesAfterCommit(t *testing.T) {
+func TestDecide_ApprovalEnqueuesBeforeCommit(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -450,7 +451,7 @@ func TestDecide_ApprovalNotifiesAfterCommit(t *testing.T) {
 		ReviewedBy: reviewer,
 	})
 	require.NoError(t, err)
-	assert.Empty(t, notifier.reports, "the notification must not run before the decision commits")
+	require.Len(t, notifier.reports, 1, "the durable intent must be enqueued in the decision transaction")
 
 	commit()
 	require.Len(t, notifier.reports, 1)

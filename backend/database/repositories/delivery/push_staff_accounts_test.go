@@ -1,4 +1,4 @@
-package iot_test
+package delivery_test
 
 import (
 	"context"
@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
+	deliveryRepo "github.com/moto-nrw/project-phoenix/database/repositories/delivery"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +23,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := iotRepo.NewPushSubscriptionRepository(db)
+	repo := deliveryRepo.NewPushSubscriptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()
@@ -41,9 +41,9 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	bystanderEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/bystander-%d", suffix)
 	schoolEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/school-%d", suffix)
 
-	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, iotModels.PushPortalStaff, addressedEndpoint)))
-	require.NoError(t, repo.Upsert(ctx, newSubscription(t, bystander.ID, iotModels.PushPortalStaff, bystanderEndpoint)))
-	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, iotModels.PushPortalSchool, schoolEndpoint)))
+	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, deliveryModels.PushPortalStaff, addressedEndpoint)))
+	require.NoError(t, repo.Upsert(ctx, newSubscription(t, bystander.ID, deliveryModels.PushPortalStaff, bystanderEndpoint)))
+	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, deliveryModels.PushPortalSchool, schoolEndpoint)))
 
 	t.Run("returns only the addressed account's devices", func(t *testing.T) {
 		subs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})

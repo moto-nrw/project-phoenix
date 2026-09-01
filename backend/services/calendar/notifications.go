@@ -483,7 +483,9 @@ func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, a
 	}
 
 	err = s.cfg.Notifier.Notify(ctx, notifications.Event{
-		Type:     notificationType,
+		Type:           notificationType,
+		IdempotencyKey: fmt.Sprintf("appointment:%d:%d:%s", appointment.ID, appointment.Revision, kind),
+		RelatedType:    "appointment", RelatedID: appointment.ID,
 		Title:    title,
 		Body:     body,
 		DeepLink: parentCalendarDeepLink,

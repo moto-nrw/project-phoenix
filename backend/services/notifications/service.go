@@ -103,12 +103,15 @@ type Audience struct {
 // display-safe by contract (see the package comment); Data carries additional
 // non-sensitive values (opaque IDs) for client-side routing.
 type Event struct {
-	Type     string // e.g. "test", later "pickup_upcoming" (#669)
-	Audience Audience
-	Priority string // PriorityLow/Normal/High; empty defaults to normal
-	Title    string
-	Body     string
-	DeepLink string // app-relative path ("/reminders"); never an absolute URL
+	Type           string // e.g. "test", later "pickup_upcoming" (#669)
+	IdempotencyKey string
+	RelatedType    string
+	RelatedID      int64
+	Audience       Audience
+	Priority       string // PriorityLow/Normal/High; empty defaults to normal
+	Title          string
+	Body           string
+	DeepLink       string // app-relative path ("/reminders"); never an absolute URL
 	// SchoolDeepLink is the same destination on the school portal (#2208),
 	// as an app-relative /school/... path. Empty means "this notification has
 	// no place in moto schule"; a school device then opens the portal root.
@@ -138,6 +141,11 @@ var ErrOutsideActiveWindow = errors.New("outside the tenant's notification windo
 type Channel interface {
 	Name() string
 	Deliver(ctx context.Context, event Event) error
+}
+
+type durableChannel interface {
+	Channel
+	durableChannel()
 }
 
 // synchronousChannel reports Web Push acceptance to a producer that must not
@@ -180,11 +188,9 @@ type SynchronousService interface {
 
 // Service is the entry point features use to trigger notifications.
 type Service interface {
-	// Notify validates the event, checks the tenant feature flag, and fans
-	// the event out to all registered channels after the surrounding tenant
-	// transaction commits. Returns ErrDisabled when the flag is off and a
-	// validation error for malformed events; channel delivery failures are
-	// logged, not returned.
+	// Notify validates the event, checks the tenant feature flag, and writes
+	// durable channel intents in the caller's transaction. Enqueue failures are
+	// returned. Ephemeral channels run best-effort after commit.
 	Notify(ctx context.Context, event Event) error
 }
 
@@ -342,7 +348,16 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 		}
 	}
 
-	// Channels run after commit, so they must not inherit the closed transaction.
+	for _, channel := range r.channels {
+		if _, durable := channel.(durableChannel); !durable {
+			continue
+		}
+		if err := channel.Deliver(ctx, event); err != nil {
+			return fmt.Errorf("enqueue durable notification channel %s: %w", channel.Name(), err)
+		}
+	}
+
+	// Ephemeral channels run after commit, so they must not inherit the closed transaction.
 	// Snapshot the mutable payload before the callback outlives this call.
 	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	event.Data = maps.Clone(event.Data)
@@ -388,6 +403,9 @@ func (r *router) NotifySynchronously(ctx context.Context, event Event) error {
 	// Push acceptance decides whether the producer may mark the delivery done.
 	// They run first so a push failure cannot skip them.
 	for _, ch := range r.channels {
+		if _, durable := ch.(durableChannel); durable {
+			continue
+		}
 		if _, ok := ch.(synchronousChannel); ok {
 			continue
 		}
@@ -468,6 +486,16 @@ func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
 		}
 		if !within {
 			return ErrOutsideActiveWindow
+		}
+	}
+	for _, channel := range r.channels {
+		if _, durable := channel.(durableChannel); !durable {
+			continue
+		}
+		for _, event := range prepared {
+			if err := channel.Deliver(ctx, event); err != nil {
+				return fmt.Errorf("enqueue durable notification channel %s: %w", channel.Name(), err)
+			}
 		}
 	}
 
@@ -561,6 +589,9 @@ func (r *router) resolveWindowBound(ctx context.Context, tenantID int64, key str
 // falls back to one Deliver per event for the others.
 func (r *router) deliverBatch(ctx context.Context, events []Event) {
 	for _, ch := range r.channels {
+		if _, durable := ch.(durableChannel); durable {
+			continue
+		}
 		if batch, ok := ch.(BatchChannel); ok {
 			if err := batch.DeliverBatch(ctx, events); err != nil {
 				r.getLogger().Error("notification channel batch delivery failed",
@@ -586,6 +617,9 @@ func (r *router) deliverBatch(ctx context.Context, events []Event) {
 
 func (r *router) deliver(ctx context.Context, event Event) {
 	for _, ch := range r.channels {
+		if _, durable := ch.(durableChannel); durable {
+			continue
+		}
 		if err := ch.Deliver(ctx, event); err != nil {
 			// Fire-and-forget per channel: one failing channel must neither
 			// block the caller nor the remaining channels.

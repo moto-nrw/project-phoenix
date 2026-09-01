@@ -11,7 +11,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	webpush "github.com/SherClockHolmes/webpush-go"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -102,8 +102,8 @@ func TestWebPushDeliverSynchronouslySendsToRegisteredDevices(t *testing.T) {
 
 	db, mock := mockTenantTx(t)
 	guardian := testSub(3, 41, "https://fcm.googleapis.com/g")
-	guardian.Portal = iot.PushPortalParent
-	repo := &fakePushRepo{guardians: map[int64][]*iot.PushSubscription{77: {guardian}}}
+	guardian.Portal = deliveryModels.PushPortalParent
+	repo := &fakePushRepo{guardians: map[int64][]*deliveryModels.PushSubscription{77: {guardian}}}
 	sender := &fakeSender{}
 	channel := testChannel(repo, sender)
 	channel.db = db
@@ -130,7 +130,7 @@ func TestWebPushSynchronousDispatchSucceedsIfAnyDeviceAccepts(t *testing.T) {
 	channel := testChannel(&fakePushRepo{}, sender)
 
 	err := channel.sendAllSynchronously(context.Background(), guardianSyncEvent(), []byte(`{}`),
-		[]*iot.PushSubscription{good, bad})
+		[]*deliveryModels.PushSubscription{good, bad})
 
 	require.NoError(t, err)
 }
@@ -148,7 +148,7 @@ func TestWebPushSynchronousDispatchReportsWhenEveryDeviceFails(t *testing.T) {
 	channel := testChannel(&fakePushRepo{}, sender)
 
 	err := channel.sendAllSynchronously(context.Background(), guardianSyncEvent(), []byte(`{}`),
-		[]*iot.PushSubscription{first, second})
+		[]*deliveryModels.PushSubscription{first, second})
 
 	require.ErrorIs(t, err, sendErr)
 }
@@ -171,7 +171,7 @@ func TestWebPushSynchronousDispatchHandlesCancellation(t *testing.T) {
 		cancel()
 
 		err := channel.sendAllSynchronously(ctx, guardianSyncEvent(), []byte(`{}`),
-			[]*iot.PushSubscription{testSub(1, 41, "https://fcm.googleapis.com/a")})
+			[]*deliveryModels.PushSubscription{testSub(1, 41, "https://fcm.googleapis.com/a")})
 
 		require.ErrorIs(t, err, context.Canceled)
 	})
@@ -205,7 +205,7 @@ func TestWebPushSynchronousDispatchHandlesCancellation(t *testing.T) {
 
 		done := make(chan error, 1)
 		go func() {
-			done <- channel.sendAllSynchronously(ctx, guardianSyncEvent(), []byte(`{}`), []*iot.PushSubscription{
+			done <- channel.sendAllSynchronously(ctx, guardianSyncEvent(), []byte(`{}`), []*deliveryModels.PushSubscription{
 				testSub(1, 41, "https://fcm.googleapis.com/a"),
 				testSub(2, 41, "https://fcm.googleapis.com/b"),
 			})

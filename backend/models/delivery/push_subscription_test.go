@@ -1,4 +1,4 @@
-package iot
+package delivery
 
 import (
 	"testing"

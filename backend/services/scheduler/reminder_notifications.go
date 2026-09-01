@@ -585,7 +585,9 @@ func buildPersonalReminderEvent(tenantID, accountID int64, notificationType stri
 	}
 
 	return notifications.Event{
-		Type: notificationType,
+		Type:           notificationType,
+		IdempotencyKey: fmt.Sprintf("personal-reminder:%d:%d:%s:%s:%d", tenantID, accountID, notificationType, timezone.DateFromTime(timezone.Now()).String(), count),
+		RelatedType:    "personal_reminder", RelatedID: accountID,
 		Audience: notifications.Audience{
 			TenantID:        tenantID,
 			Scope:           notifications.ScopeStaff,

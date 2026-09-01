@@ -14,7 +14,7 @@ import (
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -104,14 +104,14 @@ func NewUsageService(
 }
 
 func (s *usageService) ReportStaff(ctx context.Context, accountID int64) error {
-	if err := validateUsage(accountID, iot.PushPortalStaff); err != nil {
+	if err := validateUsage(accountID, deliveryModels.PushPortalStaff); err != nil {
 		return err
 	}
-	return s.repo.RecordSeen(ctx, tenant.FromContext(ctx), accountID, iot.PushPortalStaff)
+	return s.repo.RecordSeen(ctx, tenant.FromContext(ctx), accountID, deliveryModels.PushPortalStaff)
 }
 
 func (s *usageService) ReportParent(ctx context.Context, accountID int64) error {
-	if err := validateUsage(accountID, iot.PushPortalParent); err != nil {
+	if err := validateUsage(accountID, deliveryModels.PushPortalParent); err != nil {
 		return err
 	}
 	if s.tenantRuntime != nil {
@@ -140,7 +140,7 @@ func (s *usageService) ReportParent(ctx context.Context, accountID int64) error 
 			if err := validateTenantWriteContext(txCtx, mapping.TenantID); err != nil {
 				return err
 			}
-			return s.repo.RecordSeen(txCtx, mapping.TenantID, accountID, iot.PushPortalParent)
+			return s.repo.RecordSeen(txCtx, mapping.TenantID, accountID, deliveryModels.PushPortalParent)
 		}); err != nil {
 			return fmt.Errorf("recording pwa usage for tenant %d: %w", mapping.TenantID, err)
 		}
@@ -186,7 +186,7 @@ func validateUsage(accountID int64, portal string) error {
 	if accountID <= 0 {
 		return errors.New("account_id is required")
 	}
-	if portal != iot.PushPortalStaff && portal != iot.PushPortalParent {
+	if portal != deliveryModels.PushPortalStaff && portal != deliveryModels.PushPortalParent {
 		return errors.New("portal must be 'staff' or 'parent'")
 	}
 	return nil

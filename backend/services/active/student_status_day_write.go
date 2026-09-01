@@ -73,18 +73,19 @@ func (e *StudentStatusDayConflictError) SampleConflicts() []*activeModels.Studen
 // orchestration needs but the StudentStatusDayService is not constructed with,
 // keeping the repo-only constructor stable. The authorize callback keeps the
 // JWT-permission decision at the HTTP boundary while the transaction
-// composition lives in the service; after-commit runs the SSE fan-out.
+// composition lives in the service. Durable notifications run inside the
+// transaction; after-commit runs only the ephemeral SSE fan-out.
 type StatusDayWriteContext struct {
 	DB             *bun.DB
 	TenantID       int64
 	StudentService users.StudentService
 	Authorize      func(ctx context.Context, student *userModels.Student) bool
 	AfterCommit    func(studentID int64)
-	// AfterCreateCommit receives the students whose current-day status newly
-	// became a reportable absence, once after commit. It is separate from
+	// AfterCreate receives the students whose current-day status newly became a
+	// reportable absence inside the write transaction. It is separate from
 	// AfterCommit so bulk writes can emit one aggregate absence notification
 	// while retaining the per-student SSE fan-out.
-	AfterCreateCommit func(studentIDs []int64)
+	AfterCreate func(context.Context, []int64) error
 }
 
 // CreateForDates records the reported status for one student across the given
@@ -127,8 +128,10 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 			return err
 		}
 		tenant.RegisterAfterCommit(ctx, func() { wc.AfterCommit(studentID) })
-		if notifyAbsence && wc.AfterCreateCommit != nil {
-			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCreateCommit([]int64{studentID}) })
+		if notifyAbsence && wc.AfterCreate != nil {
+			if err := wc.AfterCreate(ctx, []int64{studentID}); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -212,8 +215,10 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 			studentID := studentID
 			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCommit(studentID) })
 		}
-		if len(absenceStudentIDs) > 0 && wc.AfterCreateCommit != nil {
-			tenant.RegisterAfterCommit(ctx, func() { wc.AfterCreateCommit(absenceStudentIDs) })
+		if len(absenceStudentIDs) > 0 && wc.AfterCreate != nil {
+			if err := wc.AfterCreate(ctx, absenceStudentIDs); err != nil {
+				return err
+			}
 		}
 		return nil
 	})

@@ -20,7 +20,7 @@ func (s *Service) notifyAfterCommit(ctx context.Context, thread *usersModels.Sta
 		return
 	}
 	s.broadcastAfterCommit(ctx, thread, senderAccountID)
-	s.notifyRecipients(ctx, thread, senderAccountID)
+	s.notifyRecipients(ctx, thread, message.ID, senderAccountID)
 }
 
 // broadcastAfterCommit queues the SSE wake-up to fire only AFTER the request
@@ -75,7 +75,7 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 // The copy names neither the sender nor the message. A push payload leaves the
 // backend and is rendered on a lock screen; the conversation behind the deep
 // link is authenticated, and that is where the content belongs.
-func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.StaffMessageThread, senderAccountID int64) {
+func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.StaffMessageThread, messageID, senderAccountID int64) {
 	if s.Notifier == nil || s.Preferences == nil {
 		return
 	}
@@ -130,7 +130,9 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 	}
 
 	err = s.Notifier.Notify(ctx, notifications.Event{
-		Type:     notifications.TypeStaffMessage,
+		Type:           notifications.TypeStaffMessage,
+		IdempotencyKey: fmt.Sprintf("staff-message:%d:%d", thread.ID, messageID),
+		RelatedType:    "staff_message_thread", RelatedID: thread.ID,
 		Title:    "Neue Nachricht aus dem Team",
 		Body:     "Jemand aus dem Team hat Ihnen geschrieben.",
 		DeepLink: fmt.Sprintf("/team-chat/%d", thread.ID),
