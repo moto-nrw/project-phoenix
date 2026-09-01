@@ -2871,7 +2871,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 }
 
 // CreateTestEnrollmentPhase creates a minimal active enrollment phase for
-// tenant 1 covering the current school year, with cleanup registered.
+// the current test tenant covering the current school year.
 func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
 	tb.Helper()
 	ctx := TenantContext(fixtureTenantID(tb))
@@ -2889,15 +2889,11 @@ func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
 	if err != nil {
 		tb.Fatalf("create test enrollment phase: %v", err)
 	}
-	tb.Cleanup(func() {
-		_, err := db.NewDelete().TableExpr("enrollment.phases").Where("id = ?", phase.ID).Exec(context.Background())
-		require.NoError(tb, err)
-	})
 	return phase
 }
 
 // CreateTestCareOffering creates a minimal active care offering in the given
-// phase (fixed Mo-Fr), with cleanup registered.
+// phase (fixed Mo-Fr).
 func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name string) *enrollment.CareOffering {
 	tb.Helper()
 	ctx := TenantContext(fixtureTenantID(tb))
@@ -2915,10 +2911,6 @@ func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name strin
 	if err != nil {
 		tb.Fatalf("create test care offering: %v", err)
 	}
-	tb.Cleanup(func() {
-		_, err := db.NewDelete().TableExpr("enrollment.care_offerings").Where("id = ?", offering.ID).Exec(context.Background())
-		require.NoError(tb, err)
-	})
 	return offering
 }
 
