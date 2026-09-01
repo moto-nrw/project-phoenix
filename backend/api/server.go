@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +166,7 @@ func newWorker(api *API, logger *slog.Logger) (*scheduler.Scheduler, error) {
 func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDependencies {
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
+		Getenv:                 os.Getenv,
 		DB:                     api.db,
 		SchoolRepo:             api.repos.School,
 		TenantRuntime:          &api.tenantRuntime,

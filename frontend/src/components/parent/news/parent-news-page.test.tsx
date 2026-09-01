@@ -17,6 +17,10 @@ vi.mock("~/lib/parent-api", () => ({
   markAnnouncementRead: vi.fn(),
   acknowledgeAnnouncement: vi.fn(),
   respondToAnnouncement: vi.fn(),
+  // Anhänge (#2890): the detail view asks for them on open. No attachments in
+  // these fixtures, so the section renders nothing.
+  listAnnouncementAttachments: vi.fn(() => Promise.resolve([])),
+  announcementAttachmentDownloadUrl: vi.fn(() => "/download"),
   ParentApiError: class extends Error {},
 }));
 

@@ -493,10 +493,9 @@ func (h *queryCounter) count() int {
 // TestOGSGroupLive_QueryBudget guards the aggregate against per-student N+1
 // regressions: the query count must not grow with group size, and the total
 // per request stays under a fixed budget.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestOGSGroupLive_QueryBudget(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSBudget", "Leader")

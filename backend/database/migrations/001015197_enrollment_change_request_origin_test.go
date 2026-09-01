@@ -24,6 +24,7 @@ func enrollmentChangeRequestOriginColumnExists(t *testing.T, db *testpkg.DB) boo
 }
 
 func TestEnrollmentChangeRequestOriginMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	if !enrollmentChangeRequestOriginColumnExists(t, db) {

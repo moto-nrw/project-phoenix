@@ -99,6 +99,7 @@ func assertWissingenPickupStatus(t *testing.T, expected string, actual *string) 
 }
 
 func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlans(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	require.NoError(t, studentsDepartureAccompaniedUp(ctx, db))

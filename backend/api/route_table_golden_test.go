@@ -89,8 +89,8 @@ func newGoldenAPI(t *testing.T) *API {
 	return goldenAPI
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestRouteTableGolden(t *testing.T) {
+	t.Parallel()
 	apiInstance := newGoldenAPI(t)
 
 	var routes, middlewareRoutes []string
@@ -227,8 +227,8 @@ func stableMiddlewareTable(table string) string {
 // ones like {id:[0-9]+}) for probe-URL substitution.
 var chiParamPattern = regexp.MustCompile(`\{[^}]+\}`)
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIoTAuthMatrixGolden(t *testing.T) {
+	t.Parallel()
 	apiInstance := newGoldenAPI(t)
 
 	var iotRoutes []string

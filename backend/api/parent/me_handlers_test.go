@@ -98,6 +98,12 @@ func (f *fakeParentService) UpdatePortalLocale(_ context.Context, _ int64, local
 func (f *fakeParentService) ListChildrenForAccount(context.Context, int64) ([]*parentModels.ChildSummary, error) {
 	return nil, nil
 }
+
+// GuardianAnnouncementTenant is the attachment audience port (#2890). 0 means
+// "not in the audience", which is what these enrollment tests want.
+func (f *fakeParentService) GuardianAnnouncementTenant(context.Context, int64, int64) (int64, error) {
+	return 0, nil
+}
 func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]*parentModels.EnrollablePhase, error) {
 	return nil, nil
 }

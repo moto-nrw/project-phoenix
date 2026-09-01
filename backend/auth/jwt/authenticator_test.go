@@ -1,8 +1,3 @@
-// Deliberately NOT parallel (whole package): these tests configure JWT
-// lifetimes and secrets through the viper singleton (auth_jwt_expiry,
-// auth_jwt_refresh_expiry, auth_jwt_secret) and then assert on tokens minted
-// from it. A parallel neighbour changing an expiry changes what this test
-// mints. Said once here instead of above each of the ~38 tests (#2419).
 package jwt
 
 import (
@@ -14,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -217,10 +211,9 @@ func TestExtractBearerToken_ExtraSpaces(t *testing.T) {
 // =============================================================================
 
 func TestAuthenticator_ValidToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	// Create a valid token
@@ -260,10 +253,9 @@ func TestAuthenticator_ValidToken(t *testing.T) {
 }
 
 func TestAuthenticator_NoToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
@@ -282,10 +274,9 @@ func TestAuthenticator_NoToken(t *testing.T) {
 }
 
 func TestAuthenticator_InvalidToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
@@ -304,11 +295,10 @@ func TestAuthenticator_InvalidToken(t *testing.T) {
 }
 
 func TestAuthenticator_ExpiredToken(t *testing.T) {
+	t.Parallel()
 	// Set very short expiry
-	viper.Set("auth_jwt_expiry", 1*time.Millisecond)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret, time.Millisecond, 24*time.Hour)
 	require.NoError(t, err)
 
 	// Create token
@@ -339,11 +329,10 @@ func TestAuthenticator_ExpiredToken(t *testing.T) {
 }
 
 func TestAuthenticator_WrongSignature(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
 	// Create token with different secret
-	auth1, err := NewTokenAuthWithSecret("different-secret-32-chars!!!!!!!")
+	auth1, err := newTestTokenAuth(t, "different-secret-32-chars!!!!!!!")
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -355,7 +344,7 @@ func TestAuthenticator_WrongSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify with different secret
-	auth2, err := NewTokenAuthWithSecret(testSecret)
+	auth2, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
@@ -374,10 +363,9 @@ func TestAuthenticator_WrongSignature(t *testing.T) {
 }
 
 func TestAuthenticator_MalformedClaims(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	// Create a token with invalid claims structure (missing required fields)
@@ -409,10 +397,9 @@ func TestAuthenticator_MalformedClaims(t *testing.T) {
 // =============================================================================
 
 func TestAuthenticateRefreshJWT_ValidToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	// Create a valid refresh token
@@ -442,10 +429,9 @@ func TestAuthenticateRefreshJWT_ValidToken(t *testing.T) {
 }
 
 func TestAuthenticateRefreshJWT_NoToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
@@ -463,10 +449,9 @@ func TestAuthenticateRefreshJWT_NoToken(t *testing.T) {
 }
 
 func TestAuthenticateRefreshJWT_InvalidToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
@@ -485,10 +470,9 @@ func TestAuthenticateRefreshJWT_InvalidToken(t *testing.T) {
 }
 
 func TestAuthenticateRefreshJWT_MalformedClaims(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	// Create token with missing claims
@@ -532,10 +516,9 @@ func TestCtxKey_DistinctValues(t *testing.T) {
 // =============================================================================
 
 func TestFullRequestLifecycle_AccessToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	// Create claims
@@ -679,10 +662,9 @@ func TestContextValueIsolation(t *testing.T) {
 // =============================================================================
 
 func TestMiddlewareChain_VerifierThenAuthenticator(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -727,11 +709,10 @@ func TestMiddlewareChain_VerifierThenAuthenticator(t *testing.T) {
 // =============================================================================
 
 func TestAuthenticateRefreshJWT_ExpiredToken(t *testing.T) {
+	t.Parallel()
 	// Set very short expiry for refresh token
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 1*time.Millisecond)
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret, 15*time.Minute, time.Millisecond)
 	require.NoError(t, err)
 
 	// Create refresh token

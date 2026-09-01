@@ -26,6 +26,7 @@ func groupNotesColumnExists(t *testing.T, db *testpkg.DB) bool {
 // activities.groups.notes column (Wochennotiz), Down removes it, and the
 // round-trip is idempotent (#1837 follow-up).
 func TestGroupNotesMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

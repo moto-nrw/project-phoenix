@@ -23,7 +23,6 @@ import (
 
 func setupPersonalCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-	testutil.SeedTestJWTConfig()
 	db, serviceFactory := testutil.SetupAPITest(t)
 	resource := calendarAPI.NewResource(serviceFactory.Calendar, db, slog.Default())
 	router := chi.NewRouter()
@@ -87,10 +86,8 @@ type calendarListE2EResponse struct {
 	} `json:"data"`
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
+	t.Parallel()
 	db, router := setupPersonalCalendarRoute(t)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Organizer")
@@ -144,10 +141,8 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 
 // TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS drives the full lifecycle
 // (create → edit → .ics export → cancel → delete) through the real router.
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
+	t.Parallel()
 	db, router := setupPersonalCalendarRoute(t)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleOrg")
@@ -220,10 +215,8 @@ func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 
 // TestPersonalCalendarHTTPFlow_ForbiddenEdit confirms a non-organizer cannot
 // edit or delete someone else's appointment through the HTTP layer.
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPersonalCalendarHTTPFlow_ForbiddenEdit(t *testing.T) {
+	t.Parallel()
 	db, router := setupPersonalCalendarRoute(t)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OwnerOrg")

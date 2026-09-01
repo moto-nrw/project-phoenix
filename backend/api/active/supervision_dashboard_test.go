@@ -259,10 +259,9 @@ func (h *dashboardQueryCounter) count() int {
 // per-student N+1 regressions: the query count must not grow with the number
 // of checked-in students, and the total per request stays under a fixed
 // budget.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestSupervisionDashboard_QueryBudget(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashBudget", "Leader")

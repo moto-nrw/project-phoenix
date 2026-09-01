@@ -9,7 +9,6 @@ package checkin
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -149,12 +148,8 @@ func newMockErrorSettingsService() *configtest.Mock {
 // studentDailyCheckoutTime TESTS
 // =============================================================================
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestStudentDailyCheckoutTime_NoConfig_ReturnsNil(t *testing.T) {
-	// Clear any existing env var
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+	t.Parallel()
 
 	s := &CheckinService{}
 	checkoutTime, err := s.studentDailyCheckoutTime(context.Background())
@@ -164,12 +159,10 @@ func TestStudentDailyCheckoutTime_NoConfig_ReturnsNil(t *testing.T) {
 	assert.Nil(t, checkoutTime, "should return nil when no checkout time is configured")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_CustomValid(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:30"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
-	s := &CheckinService{}
+	s := &CheckinService{dailyCheckoutFallback: "14:30"}
 	checkoutTime, err := s.studentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, checkoutTime)
@@ -178,63 +171,53 @@ func TestStudentDailyCheckoutTime_CustomValid(t *testing.T) {
 	assert.Equal(t, 30, checkoutTime.Minute())
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_InvalidFormat(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "invalid"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
-	s := &CheckinService{}
+	s := &CheckinService{dailyCheckoutFallback: "invalid"}
 	_, err := s.studentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid checkout time format")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_InvalidHour(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "25:00"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
-	s := &CheckinService{}
+	s := &CheckinService{dailyCheckoutFallback: "25:00"}
 	_, err := s.studentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_InvalidMinute(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:99"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
-	s := &CheckinService{}
+	s := &CheckinService{dailyCheckoutFallback: "12:99"}
 	_, err := s.studentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_NegativeHour(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "-1:00"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
-	s := &CheckinService{}
+	s := &CheckinService{dailyCheckoutFallback: "-1:00"}
 	_, err := s.studentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid hour")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_NegativeMinute(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:-5"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
-	s := &CheckinService{}
+	s := &CheckinService{dailyCheckoutFallback: "12:-5"}
 	_, err := s.studentDailyCheckoutTime(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid minute")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		envVar  string
@@ -249,10 +232,9 @@ func TestStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", tt.envVar))
-			defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+			t.Parallel()
 
-			s := &CheckinService{}
+			s := &CheckinService{dailyCheckoutFallback: tt.envVar}
 			checkoutTime, err := s.studentDailyCheckoutTime(context.Background())
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -266,12 +248,8 @@ func TestStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 	}
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
-	// Clear env var so only the settings service provides the value
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+	t.Parallel()
 
 	s := &CheckinService{
 		settings: newMockSettingsService(map[string]string{
@@ -286,14 +264,13 @@ func TestStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
 	assert.Equal(t, 45, checkoutTime.Minute())
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_SettingsServiceFallsBackToEnv(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "13:15"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
 	// Settings service returns empty — should fall back to env var
 	s := &CheckinService{
-		settings: newMockSettingsService(map[string]string{}, nil, nil),
+		settings:              newMockSettingsService(map[string]string{}, nil, nil),
+		dailyCheckoutFallback: "13:15",
 	}
 
 	checkoutTime, err := s.studentDailyCheckoutTime(context.Background())
@@ -303,13 +280,11 @@ func TestStudentDailyCheckoutTime_SettingsServiceFallsBackToEnv(t *testing.T) {
 	assert.Equal(t, 15, checkoutTime.Minute())
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_NilSettingsServiceUsesEnv(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "17:00"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
 	s := &CheckinService{
-		settings: nil,
+		dailyCheckoutFallback: "17:00",
 	}
 
 	checkoutTime, err := s.studentDailyCheckoutTime(context.Background())
@@ -319,11 +294,8 @@ func TestStudentDailyCheckoutTime_NilSettingsServiceUsesEnv(t *testing.T) {
 	assert.Equal(t, 0, checkoutTime.Minute())
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestStudentDailyCheckoutTime_NoConfigAnywhere_ReturnsNil(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+	t.Parallel()
 
 	// Settings service exists but has no override
 	s := &CheckinService{
@@ -335,11 +307,8 @@ func TestStudentDailyCheckoutTime_NoConfigAnywhere_ReturnsNil(t *testing.T) {
 	assert.Nil(t, checkoutTime, "should return nil when no time is configured anywhere")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestStudentDailyCheckoutTime_HasTenantOverrideError(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+	t.Parallel()
 
 	s := &CheckinService{
 		settings: newMockErrorSettingsService(),
@@ -351,13 +320,12 @@ func TestStudentDailyCheckoutTime_HasTenantOverrideError(t *testing.T) {
 	assert.Nil(t, checkoutTime, "should return nil when HasTenantOverride errors and no env var")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestStudentDailyCheckoutTime_HasTenantOverrideError_FallsBackToEnv(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "15:00"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
 	s := &CheckinService{
-		settings: newMockErrorSettingsService(),
+		settings:              newMockErrorSettingsService(),
+		dailyCheckoutFallback: "15:00",
 	}
 
 	checkoutTime, err := s.studentDailyCheckoutTime(context.Background())
@@ -411,13 +379,9 @@ func TestShouldUpgradeToDailyCheckout_NilActiveGroup(t *testing.T) {
 	assert.False(t, result)
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldUpgradeToDailyCheckout_CheckedOut_NoTimeGate(t *testing.T) {
+	t.Parallel()
 	// No checkout time configured → time check should pass
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
 	s := &CheckinService{
 		settings:  newMockSettingsService(map[string]string{}, nil, nil),
 		education: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}}},
@@ -464,13 +428,11 @@ func TestShouldShowDailyCheckoutWithGroup_NilActiveGroup(t *testing.T) {
 	assert.False(t, result)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestShouldShowDailyCheckoutWithGroup_BeforeCheckoutTime(t *testing.T) {
+	t.Parallel()
 	// Set checkout time far in the future so we're always before it
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "23:59"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	s := &CheckinService{}
+	s := &CheckinService{dailyCheckoutFallback: "23:59"}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
 	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
@@ -478,13 +440,9 @@ func TestShouldShowDailyCheckoutWithGroup_BeforeCheckoutTime(t *testing.T) {
 	assert.False(t, result, "Should return false before daily checkout time")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_AlwaysAvailable(t *testing.T) {
+	t.Parallel()
 	// No env var, no settings override → nil checkout time → time check skipped
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
 	// Education group has no room → daily checkout available from any room
 	s := &CheckinService{
 		settings:  newMockSettingsService(map[string]string{}, nil, nil),
@@ -497,12 +455,8 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_AlwaysAvailable(t *tes
 	assert.True(t, result, "Should return true when no checkout time is configured and group has no room")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_MatchingRoom(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	roomID := int64(42)
 	s := &CheckinService{
 		settings:  newMockSettingsService(map[string]string{}, nil, nil),
@@ -515,12 +469,8 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_MatchingRoom(t *testin
 	assert.True(t, result, "Should return true when rooms match and no time gate")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_DifferentRoom(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	roomID := int64(42)
 	s := &CheckinService{
 		settings:  newMockSettingsService(map[string]string{}, nil, nil),
@@ -533,13 +483,11 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_DifferentRoom(t *testi
 	assert.False(t, result, "Should return false when student is in wrong room")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestShouldShowDailyCheckoutWithGroup_GetCheckoutTimeError(t *testing.T) {
+	t.Parallel()
 	// Set an invalid time format to trigger a parse error
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "not-a-time"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	s := &CheckinService{}
+	s := &CheckinService{dailyCheckoutFallback: "not-a-time"}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
 	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
@@ -547,12 +495,8 @@ func TestShouldShowDailyCheckoutWithGroup_GetCheckoutTimeError(t *testing.T) {
 	assert.False(t, result, "Should return false when checkout time parse fails")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldShowDailyCheckoutWithGroup_EducationServiceError(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	s := &CheckinService{
 		settings:  newMockSettingsService(map[string]string{}, nil, nil),
 		education: &mockEducationService{err: fmt.Errorf("db error")},
@@ -577,7 +521,6 @@ func TestShouldShowDailyCheckoutWithGroup_EducationServiceError(t *testing.T) {
 // room, and the visit being closed happened in the Schulhof room instead.
 func newSchulhofScenario(t *testing.T) (*CheckinService, *users.Student, *active.Visit) {
 	t.Helper()
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	const groupRoomID, schulhofRoomID = int64(42), int64(7)
 	groupRoom := groupRoomID
@@ -593,20 +536,16 @@ func newSchulhofScenario(t *testing.T) (*CheckinService, *users.Student, *active
 	return s, student, visit
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldShowDailyCheckoutWithGroup_SchulhofRoom_Offered(t *testing.T) {
+	t.Parallel()
 	s, student, visit := newSchulhofScenario(t)
 
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.True(t, result, "nach Hause must be offered when checking out from the Schulhof")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldUpgradeToDailyCheckout_SchulhofRoom_NoAutoUpgrade(t *testing.T) {
+	t.Parallel()
 	s, student, visit := newSchulhofScenario(t)
 
 	result := s.ShouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
@@ -614,22 +553,19 @@ func TestShouldUpgradeToDailyCheckout_SchulhofRoom_NoAutoUpgrade(t *testing.T) {
 		"the Schulhof must not auto-send the child home — the action has to stay checked_out so PyrePortal renders the destination modal")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestShouldShowDailyCheckoutWithGroup_SchulhofRoom_BeforeCheckoutTime(t *testing.T) {
+	t.Parallel()
 	s, student, visit := newSchulhofScenario(t)
 	// A configured time in the future must still suppress the offer: the
 	// Schulhof relaxes the ROOM gate, never the time gate.
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "23:59"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	s.dailyCheckoutFallback = "23:59"
 
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "the time gate still applies at the Schulhof")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldShowDailyCheckoutWithGroup_OrdinaryRoom_NotOffered(t *testing.T) {
+	t.Parallel()
 	s, student, _ := newSchulhofScenario(t)
 	// Same school, but the child left an ordinary room that is neither their
 	// group room nor the yard.
@@ -662,10 +598,8 @@ func TestShouldShowDailyCheckoutWithGroup_OrdinaryRoom_OfferedWhenEnabled(t *tes
 	assert.True(t, result, "an ordinary room must offer nach Hause when the tenant setting is enabled")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldShowDailyCheckoutWithGroup_NoSchulhofRoomProvisioned(t *testing.T) {
+	t.Parallel()
 	s, student, visit := newSchulhofScenario(t)
 	// A school that never enabled the yard has no Schulhof room; the lookup
 	// failing must not make the scan fail.
@@ -677,10 +611,8 @@ func TestShouldShowDailyCheckoutWithGroup_NoSchulhofRoomProvisioned(t *testing.T
 	assert.False(t, result, "a missing Schulhof room means not offered, not an error")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldShowDailyCheckoutWithGroup_NonCanonicalSchulhofRoom(t *testing.T) {
+	t.Parallel()
 	s, student, visit := newSchulhofScenario(t)
 	// An unprotected room that merely matches case-insensitively must not be
 	// adopted as the yard (FindCanonicalSchulhofRoom rejects it).
@@ -696,10 +628,8 @@ func TestShouldShowDailyCheckoutWithGroup_NonCanonicalSchulhofRoom(t *testing.T)
 	assert.False(t, result, "a non-system room named Schulhof must not unlock nach Hause")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldShowDailyCheckoutWithGroup_NilFacilitiesService(t *testing.T) {
+	t.Parallel()
 	s, student, visit := newSchulhofScenario(t)
 	s.facilities = nil
 
@@ -707,10 +637,8 @@ func TestShouldShowDailyCheckoutWithGroup_NilFacilitiesService(t *testing.T) {
 	assert.False(t, result, "a nil facilities service must not panic the checkout gate")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShouldUpgradeToDailyCheckout_OwnGroupRoom_StillUpgrades(t *testing.T) {
+	t.Parallel()
 	s, student, _ := newSchulhofScenario(t)
 	// Leaving the child's OWN group room keeps the pre-existing automatic
 	// daily checkout — this fix must not change that path.
@@ -724,13 +652,9 @@ func TestShouldUpgradeToDailyCheckout_OwnGroupRoom_StillUpgrades(t *testing.T) {
 // IsAfterCheckoutTimeGate TESTS
 // =============================================================================
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestIsAfterCheckoutTimeGate_PerStudentDisabled_FallsBackToGlobal(t *testing.T) {
+	t.Parallel()
 	// Per-student disabled (default) → should use global checkout time
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
 	s := &CheckinService{
 		settings: newMockSettingsService(map[string]string{}, nil, nil),
 	}
@@ -741,14 +665,13 @@ func TestIsAfterCheckoutTimeGate_PerStudentDisabled_FallsBackToGlobal(t *testing
 	assert.True(t, result, "should return true when per-student disabled and no global time")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIsAfterCheckoutTimeGate_PerStudentDisabled_GlobalTimeInFuture(t *testing.T) {
+	t.Parallel()
 	// Set a global time far in the future
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "23:59"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
 	s := &CheckinService{
-		settings: newMockSettingsService(map[string]string{}, nil, nil),
+		settings:              newMockSettingsService(map[string]string{}, nil, nil),
+		dailyCheckoutFallback: "23:59",
 	}
 	student := &users.Student{Model: base.Model{ID: 1}}
 
@@ -756,12 +679,8 @@ func TestIsAfterCheckoutTimeGate_PerStudentDisabled_GlobalTimeInFuture(t *testin
 	assert.False(t, result, "should return false when per-student disabled and global time is in future")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_BeforeDelta(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	// Pin "now" to a deterministic midday so the +2h pickup offset never
 	// wraps past midnight. The function projects pickup onto today's date,
 	// so a wrapped hour would otherwise land in the past and flip the
@@ -788,12 +707,8 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_BeforeDelta(t *testing.T) {
 	assert.False(t, result, "should return false when current time is before pickup_time - delta")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_AfterDelta(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	// Pickup time 5 minutes from now, delta 15 min → already past threshold
 	now := time.Now()
 	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+5, 0, 0, now.Location())
@@ -814,12 +729,8 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_AfterDelta(t *testing.T) {
 	assert.True(t, result, "should return true when current time is after pickup_time - delta")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NoPickupTime_FallsBackToGlobal(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	// Per-student enabled but student has no pickup time → fall back to global (no global = always available)
 	s := &CheckinService{
 		settings: newMockSettingsService(
@@ -837,12 +748,8 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NoPickupTime_FallsBackToGloba
 	assert.True(t, result, "should fall back to global (no global = always available) when student has no pickup time")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_PickupServiceError_FallsBackToGlobal(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	s := &CheckinService{
 		settings: newMockSettingsService(
 			map[string]string{},
@@ -859,12 +766,8 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_PickupServiceError_FallsBackT
 	assert.True(t, result, "should fall back to global when pickup service errors")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NilPickupService_FallsBackToGlobal(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	s := &CheckinService{
 		settings: newMockSettingsService(
 			map[string]string{},
@@ -879,12 +782,8 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NilPickupService_FallsBackToG
 	assert.True(t, result, "should fall back to global when PickupScheduleService is nil")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_DeltaZero(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	// Pickup time 1 minute from now, delta 0 → not yet
 	now := time.Now()
 	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+1, 0, 0, now.Location())
@@ -905,12 +804,8 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_DeltaZero(t *testing.T) {
 	assert.False(t, result, "should return false when delta is 0 and current time is before pickup time")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestIsAfterCheckoutTimeGate_NilSettingsService(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
-
+	t.Parallel()
 	s := &CheckinService{}
 	student := &users.Student{Model: base.Model{ID: 1}}
 

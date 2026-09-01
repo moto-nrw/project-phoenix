@@ -701,6 +701,77 @@ describe("MobileBottomNav", () => {
         .map((link) => link.getAttribute("href"));
       expect(hrefs).not.toContain("/activities");
       expect(hrefs).toContain("/ogs-groups");
+    });
+  });
+
+  // #2915: Räume, Aktivitäten und Aufsicht sperrt der BinaryModeGuard — die
+  // mobile Navigation muss sie unter derselben Regel ausblenden wie die
+  // Desktop-Sidebar, sonst führt der Eintrag auf eine 404-Seite.
+  describe("binary presence mode", () => {
+    beforeEach(() => {
+      mockUseNFCEnabled.mockReturnValue(true);
+      mockUsePresenceMode.mockReturnValue("binary");
+    });
+
+    it("hides Aufsicht from the staff main navigation", () => {
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+      expect(
+        screen.queryByRole("link", { name: "Aufsicht" }),
+      ).not.toBeInTheDocument();
+      expect(hrefs).toContain("/ogs-groups");
+    });
+
+    it("hides Aufsicht and Räume from the overflow menu", () => {
+      render(<MobileBottomNav />);
+
+      const moreButton = screen
+        .getAllByRole("button")
+        .find((btn) => !btn.hasAttribute("data-testid"));
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      const drawerHrefs = Array.from(
+        screen.getByTestId("drawer-content").querySelectorAll("a"),
+      ).map((link) => link.getAttribute("href"));
+      expect(drawerHrefs).not.toContain("/active-supervisions");
+      expect(drawerHrefs).not.toContain("/rooms");
+    });
+
+    it("hides the injected admin Aufsicht tab", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: true,
+        supervisedRooms: [{ id: "1", name: "Room A", groupId: "g1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    it("keeps Aufsicht visible in detailed presence mode", () => {
+      mockUsePresenceMode.mockReturnValue("detailed");
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/active-supervisions");
     });
   });

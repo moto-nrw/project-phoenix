@@ -172,9 +172,9 @@ func TestPasswordResetRateLimitRepository_IncrementAttempts_WindowReset(t *testi
 // CleanupExpired Tests
 // ============================================================================
 
-// Deliberately NOT parallel: unscoped sweep — the delete runs across all
-// tenants, so beside a parallel test it removes that test's rows too.
 func TestPasswordResetRateLimitRepository_CleanupExpired_Success(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit

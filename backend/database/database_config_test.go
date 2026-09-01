@@ -8,26 +8,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func clearDatabaseEnv(t *testing.T) {
-	t.Helper()
-	t.Setenv("APP_ENV", "")
-	t.Setenv("DB_DSN", "")
-	t.Setenv("TEST_DB_DSN", "")
+type testEnvironment map[string]string
+
+func (e testEnvironment) getenv(key string) string { return e[key] }
+
+func validPoolEnvironment() testEnvironment {
+	return testEnvironment{
+		"DB_MAX_OPEN_CONNS":     "40",
+		"DB_MAX_IDLE_CONNS":     "20",
+		"DB_CONN_MAX_LIFETIME":  "30m",
+		"DB_CONN_MAX_IDLE_TIME": "10m",
+	}
 }
 
 func testPoolConfigFromEnv(t *testing.T) {
-	setValidPoolConfig := func(t *testing.T) {
-		t.Helper()
-		t.Setenv("DB_MAX_OPEN_CONNS", "40")
-		t.Setenv("DB_MAX_IDLE_CONNS", "20")
-		t.Setenv("DB_CONN_MAX_LIFETIME", "30m")
-		t.Setenv("DB_CONN_MAX_IDLE_TIME", "10m")
-	}
-
 	t.Run("accepts explicit values", func(t *testing.T) {
-		setValidPoolConfig(t)
+		env := validPoolEnvironment()
 
-		config, err := poolConfigFromEnv()
+		config, err := poolConfigFrom(env.getenv)
 
 		require.NoError(t, err)
 		assert.Equal(t, 40, config.maxOpen)
@@ -50,10 +48,10 @@ func testPoolConfigFromEnv(t *testing.T) {
 			{name: "invalid idle time", key: "DB_CONN_MAX_IDLE_TIME", value: "later", want: "DB_CONN_MAX_IDLE_TIME"},
 		} {
 			t.Run(test.name, func(t *testing.T) {
-				setValidPoolConfig(t)
-				t.Setenv(test.key, test.value)
+				env := validPoolEnvironment()
+				env[test.key] = test.value
 
-				_, err := poolConfigFromEnv()
+				_, err := poolConfigFrom(env.getenv)
 
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.want)
@@ -63,41 +61,41 @@ func testPoolConfigFromEnv(t *testing.T) {
 }
 
 // TestGetDatabaseDSN_ExplicitDSN verifies that an explicit DB_DSN is returned when set
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_ExplicitDSN(t *testing.T) {
-	clearDatabaseEnv(t)
+	t.Parallel()
+	env := testEnvironment{}
 
 	customDSN := "postgres://user:pass@custom-host:5555/custom_db?sslmode=verify-full"
-	t.Setenv("DB_DSN", customDSN)
+	env["DB_DSN"] = customDSN
 
-	result, err := resolveDatabaseDSN()
+	result, err := resolveDatabaseDSNFrom(env.getenv)
 
 	require.NoError(t, err)
 	assert.Equal(t, customDSN, result, "Explicit db_dsn should be returned")
 }
 
 // TestGetDatabaseDSN_TestEnv verifies that APP_ENV=test requires an explicit test database DSN.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestEnv(t *testing.T) {
-	clearDatabaseEnv(t)
+	t.Parallel()
+	env := testEnvironment{}
 
 	testDSN := "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable"
-	t.Setenv("APP_ENV", "test")
-	t.Setenv("TEST_DB_DSN", testDSN)
+	env["APP_ENV"] = "test"
+	env["TEST_DB_DSN"] = testDSN
 
-	result, err := resolveDatabaseDSN()
+	result, err := resolveDatabaseDSNFrom(env.getenv)
 
 	require.NoError(t, err)
 	assert.Equal(t, testDSN, result, "APP_ENV=test should return explicit test_db_dsn")
 }
 
 // TestGetDatabaseDSN_DevelopmentEnvRequiresDSN verifies that development no longer invents a localhost DSN.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_DevelopmentEnvRequiresDSN(t *testing.T) {
-	clearDatabaseEnv(t)
-	t.Setenv("APP_ENV", "development")
+	t.Parallel()
+	env := testEnvironment{}
+	env["APP_ENV"] = "development"
 
-	result, err := resolveDatabaseDSN()
+	result, err := resolveDatabaseDSNFrom(env.getenv)
 
 	require.Error(t, err)
 	assert.Empty(t, result)
@@ -105,14 +103,14 @@ func TestGetDatabaseDSN_DevelopmentEnvRequiresDSN(t *testing.T) {
 }
 
 // TestGetDatabaseDSN_TestDSNRequiresTestEnv verifies that TEST_DB_DSN is not a fallback outside test mode.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestDSNRequiresTestEnv(t *testing.T) {
-	clearDatabaseEnv(t)
+	t.Parallel()
+	env := testEnvironment{}
 
 	legacyDSN := "postgres://legacy:legacy@legacy-host:6543/legacy_test?sslmode=disable"
-	t.Setenv("TEST_DB_DSN", legacyDSN)
+	env["TEST_DB_DSN"] = legacyDSN
 
-	result, err := resolveDatabaseDSN()
+	result, err := resolveDatabaseDSNFrom(env.getenv)
 
 	require.Error(t, err)
 	assert.Empty(t, result)
@@ -120,11 +118,11 @@ func TestGetDatabaseDSN_TestDSNRequiresTestEnv(t *testing.T) {
 }
 
 // TestGetDatabaseDSN_MissingConfigFails verifies that no localhost fallback is returned.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_MissingConfigFails(t *testing.T) {
-	clearDatabaseEnv(t)
+	t.Parallel()
+	env := testEnvironment{}
 
-	result, err := resolveDatabaseDSN()
+	result, err := resolveDatabaseDSNFrom(env.getenv)
 
 	require.Error(t, err)
 	assert.Empty(t, result)
@@ -136,31 +134,31 @@ func TestGetDatabaseDSN_MissingConfigFails(t *testing.T) {
 // TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN proves the documented
 // APP_ENV=test migration command cannot reset the development database merely
 // because dev.env also contains DB_DSN.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN(t *testing.T) {
-	clearDatabaseEnv(t)
+	t.Parallel()
+	env := testEnvironment{}
 
 	developmentDSN := "postgres://development:development@localhost:5432/phoenix?sslmode=disable"
 	testDSN := "postgres://test:test@localhost:5433/phoenix_test?sslmode=disable"
-	t.Setenv("DB_DSN", developmentDSN)
-	t.Setenv("TEST_DB_DSN", testDSN)
-	t.Setenv("APP_ENV", "test")
+	env["DB_DSN"] = developmentDSN
+	env["TEST_DB_DSN"] = testDSN
+	env["APP_ENV"] = "test"
 
-	result, err := resolveDatabaseDSN()
+	result, err := resolveDatabaseDSNFrom(env.getenv)
 
 	require.NoError(t, err)
 	assert.Equal(t, testDSN, result)
 	assert.NotEqual(t, developmentDSN, result)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestEnvWithoutTestDSNFailsEvenWhenDevelopmentDSNExists(t *testing.T) {
-	clearDatabaseEnv(t)
+	t.Parallel()
+	env := testEnvironment{}
 
-	t.Setenv("DB_DSN", "postgres://development:development@localhost:5432/phoenix?sslmode=disable")
-	t.Setenv("APP_ENV", "test")
+	env["DB_DSN"] = "postgres://development:development@localhost:5432/phoenix?sslmode=disable"
+	env["APP_ENV"] = "test"
 
-	result, err := resolveDatabaseDSN()
+	result, err := resolveDatabaseDSNFrom(env.getenv)
 
 	require.Error(t, err)
 	assert.Empty(t, result)
@@ -168,16 +166,16 @@ func TestGetDatabaseDSN_TestEnvWithoutTestDSNFailsEvenWhenDevelopmentDSNExists(t
 }
 
 // TestGetDatabaseDSN_ExplicitDSN_OverridesLegacy verifies that explicit DB_DSN takes precedence over TEST_DB_DSN
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_ExplicitDSN_OverridesLegacy(t *testing.T) {
-	clearDatabaseEnv(t)
+	t.Parallel()
+	env := testEnvironment{}
 
 	customDSN := "postgres://explicit:explicit@explicit-host:8888/explicit_db?sslmode=require"
 	legacyDSN := "postgres://legacy:legacy@legacy-host:6543/legacy_test?sslmode=disable"
-	t.Setenv("DB_DSN", customDSN)
-	t.Setenv("TEST_DB_DSN", legacyDSN) // Should be ignored
+	env["DB_DSN"] = customDSN
+	env["TEST_DB_DSN"] = legacyDSN // Should be ignored
 
-	result, err := resolveDatabaseDSN()
+	result, err := resolveDatabaseDSNFrom(env.getenv)
 
 	require.NoError(t, err)
 	assert.Equal(t, customDSN, result, "Explicit db_dsn should override legacy test_db_dsn")

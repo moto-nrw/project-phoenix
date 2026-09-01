@@ -48,7 +48,7 @@ func (o *TenantOperations) Schema(ctx context.Context, permissions []string) (an
 }
 
 func (o *TenantOperations) Reveal(ctx context.Context, key string, permissions []string) (any, error) {
-	def, err := tenantDefinition(key)
+	def, err := tenantDefinition(o.settings, key)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (o *TenantOperations) SetValue(ctx context.Context, tenantID, accountID int
 	if o == nil || o.settings == nil || o.runtime == nil {
 		return ErrRuntimeUnavailable
 	}
-	if _, err := tenantWritableDefinition(key); err != nil {
+	if _, err := tenantWritableDefinition(o.settings, key); err != nil {
 		return err
 	}
 	return o.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
@@ -82,7 +82,7 @@ func (o *TenantOperations) ResetValue(ctx context.Context, tenantID, accountID i
 	if o == nil || o.settings == nil || o.runtime == nil {
 		return ErrRuntimeUnavailable
 	}
-	def, err := tenantWritableDefinition(key)
+	def, err := tenantWritableDefinition(o.settings, key)
 	if err != nil {
 		return err
 	}
@@ -203,8 +203,8 @@ func (*TenantOperations) ClassifyError(err error) string {
 	return "internal"
 }
 
-func tenantDefinition(key string) (*configModel.Definition, error) {
-	def := configModel.GetDefinition(key)
+func tenantDefinition(settings SettingsService, key string) (*configModel.Definition, error) {
+	def := definitionFor(settings, key)
 	if def == nil {
 		return nil, &SettingsError{Op: "tenant_access", Err: &DefinitionNotFoundError{Key: key}}
 	}
@@ -214,8 +214,8 @@ func tenantDefinition(key string) (*configModel.Definition, error) {
 	return def, nil
 }
 
-func tenantWritableDefinition(key string) (*configModel.Definition, error) {
-	def, err := tenantDefinition(key)
+func tenantWritableDefinition(settings SettingsService, key string) (*configModel.Definition, error) {
+	def, err := tenantDefinition(settings, key)
 	if err != nil {
 		return nil, err
 	}

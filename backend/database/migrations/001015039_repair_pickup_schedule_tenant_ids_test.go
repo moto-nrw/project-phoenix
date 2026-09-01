@@ -11,6 +11,7 @@ import (
 )
 
 func TestRepairPickupScheduleTenantIDs(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -36,6 +37,7 @@ func TestRepairPickupScheduleTenantIDs(t *testing.T) {
 }
 
 func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -56,6 +58,7 @@ func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
 }
 
 func TestRepairPickupScheduleTenantIDsRejectsUniqueConflicts(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
