@@ -218,6 +218,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		createdByCopy := createdBy
 		createdByPtr = &createdByCopy
 	}
+	isSpontaneous := req.ActivityGroupID == nil
 
 	inst, err := rs.InstanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
 		Date:             parsed.date,
@@ -231,6 +232,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		ListKind:         listKind,
 		StaffIDs:         req.StaffIDs,
 		StudentIDs:       req.StudentIDs,
+		IsSpontaneous:    &isSpontaneous,
 		CreatedByStaffID: createdByPtr,
 		IdempotencyKey:   idempotencyKey,
 		RequiredStaff:    normalizeRequiredStaff(req.RequiredStaff),

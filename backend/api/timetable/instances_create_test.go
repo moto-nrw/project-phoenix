@@ -157,6 +157,8 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 	assert.Equal(t, "Spontane Bastelstunde", s.mock.lastCreate.Title)
 	assert.Equal(t, s.roomID, s.mock.lastCreate.RoomID)
 	assert.Nil(t, s.mock.lastCreate.ActivityGroupID, "spontaneous ⇒ no template")
+	require.NotNil(t, s.mock.lastCreate.IsSpontaneous)
+	assert.True(t, *s.mock.lastCreate.IsSpontaneous, "missing template marks the persisted instance as spontaneous")
 }
 
 func TestCreateInstance_Validation(t *testing.T) {
