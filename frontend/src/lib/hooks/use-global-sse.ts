@@ -1181,9 +1181,47 @@ export function useGlobalSSE(): SSEHookState {
     groupAccessRevision === 0
       ? tenantID
       : `${tenantID ?? ""}:${groupAccessRevision}`;
-  return useSSE("/api/sse/events", {
+  const sseState = useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
     enabled: isAuthenticated,
     reconnectKey,
   });
+
+  // SSE has no replay buffer. If the connection drops exactly while a
+  // colleague changes live supervision state, that event is gone even after
+  // EventSource reconnects. Reconcile the aggregate once after a previously
+  // connected stream comes back so an open "Aktuelle Aufsicht" page cannot
+  // remain on the pre-disconnect snapshot until its safety poll runs.
+  const connectedTenantRef = useRef<number | undefined>(tenantID);
+  const connectedReconnectKeyRef = useRef(reconnectKey);
+  const hasConnectedRef = useRef(false);
+  const missedEventsPossibleRef = useRef(false);
+  useEffect(() => {
+    if (connectedTenantRef.current !== tenantID) {
+      connectedTenantRef.current = tenantID;
+      hasConnectedRef.current = false;
+      missedEventsPossibleRef.current = false;
+    }
+    if (connectedReconnectKeyRef.current !== reconnectKey) {
+      connectedReconnectKeyRef.current = reconnectKey;
+      if (hasConnectedRef.current) missedEventsPossibleRef.current = true;
+      return;
+    }
+    if (!isAuthenticated) {
+      hasConnectedRef.current = false;
+      missedEventsPossibleRef.current = false;
+      return;
+    }
+    if (sseState.status === "connected") {
+      if (hasConnectedRef.current && missedEventsPossibleRef.current) {
+        revalidateKeyParts(["active-supervision-dashboard-"], "sse_reconnect");
+      }
+      hasConnectedRef.current = true;
+      missedEventsPossibleRef.current = false;
+      return;
+    }
+    if (hasConnectedRef.current) missedEventsPossibleRef.current = true;
+  }, [isAuthenticated, reconnectKey, sseState.status, tenantID]);
+
+  return sseState;
 }

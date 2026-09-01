@@ -159,12 +159,12 @@ export default function GuardianPickerPanel({
   return (
     <div
       data-testid="guardian-picker-panel"
-      className="border-moto-blue/40 space-y-3 rounded-xl border bg-blue-50/40 p-3 md:p-4"
+      className="border-moto-blue/40 bg-moto-blue-soft/40 space-y-3 rounded-xl border p-3 md:p-4"
     >
       {/* Panel header */}
       <div className="flex items-center justify-between">
         <h4 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-          <Search className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4" />
+          <Search className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4" />
           Vorhandene/n suchen
         </h4>
         <button
@@ -253,8 +253,8 @@ export default function GuardianPickerPanel({
           </div>
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">
-              <p className="text-xs text-red-800 md:text-sm">{error}</p>
+            <div className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-2 md:p-3">
+              <p className="text-moto-red-strong text-xs md:text-sm">{error}</p>
             </div>
           )}
 
@@ -298,7 +298,7 @@ export default function GuardianPickerPanel({
                   className={`flex w-full items-start gap-2 rounded-lg border p-2 text-left transition-colors md:p-3 ${
                     isExcluded
                       ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
-                      : "hover:border-moto-blue border-gray-100 bg-white hover:bg-blue-50/40"
+                      : "hover:border-moto-blue hover:bg-moto-blue-soft/40 border-gray-100 bg-white"
                   }`}
                 >
                   <MotoConceptIcon

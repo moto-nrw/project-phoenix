@@ -45,9 +45,9 @@ describe("SessionWarning", () => {
       <SessionWarning isExpired={true} variant="desktop" />,
     );
 
-    const warning = container.querySelector(".border-red-200");
+    const warning = container.querySelector('[class~="border-moto-red/20"]');
     expect(warning).toBeInTheDocument();
-    expect(warning).toHaveClass("bg-red-50");
+    expect(warning).toHaveClass("bg-moto-red-soft");
   });
 
   it("mobile variant has proper icon color", () => {
@@ -55,7 +55,7 @@ describe("SessionWarning", () => {
       <SessionWarning isExpired={true} variant="mobile" />,
     );
 
-    const iconContainer = container.querySelector(".text-red-600");
+    const iconContainer = container.querySelector(".text-moto-red");
     expect(iconContainer).toBeInTheDocument();
   });
 });

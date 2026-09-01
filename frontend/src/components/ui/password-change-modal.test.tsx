@@ -574,7 +574,7 @@ describe("PasswordChangeModal", () => {
       });
 
       const currentPasswordLabel = screen.getByText(/Aktuelles Passwort/i);
-      expect(currentPasswordLabel.className).toContain("text-red-600");
+      expect(currentPasswordLabel.className).toContain("text-moto-red");
     });
   });
 });
