@@ -26975,7 +26975,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2307
+        2308
       ],
       "tables": []
     },
@@ -26995,7 +26995,7 @@
       "declaration": "createBoundedTemplateSchedule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1456
+        1457
       ],
       "tables": []
     },
@@ -27015,7 +27015,7 @@
       "declaration": "createSourcedTemplateSegment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1476
+        1477
       ],
       "tables": []
     },

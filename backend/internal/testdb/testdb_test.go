@@ -2,6 +2,7 @@ package testdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -87,11 +88,27 @@ func TestConfigDerivesDSNs(t *testing.T) {
 
 	assert.Equal(t, "phoenix_test", cfg.TemplateName())
 	assert.Equal(t,
-		"postgres://user:pass@localhost:5433/postgres?sslmode=disable&application_name=tests",
+		"postgres://user:pass@localhost:5433/postgres?application_name=tests&read_timeout=1m0s&sslmode=disable&timezone=Europe%2FBerlin",
 		cfg.MaintenanceDSN())
 	assert.Equal(t,
-		"postgres://user:pass@localhost:5433/phx_test_pkg_abc?sslmode=disable&application_name=tests",
+		"postgres://user:pass@localhost:5433/phx_test_pkg_abc?application_name=tests&read_timeout=1m0s&sslmode=disable&timezone=Europe%2FBerlin",
 		cfg.DatabaseDSN("phx_test_pkg_abc"))
+	assert.Equal(t, "Europe/Berlin", cfg.templateURL.Query().Get("timezone"))
+}
+
+func TestConfigExtendsTestConnectionReadTimeout(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := NewConfig("postgres://user:pass@localhost:5433/phoenix_test?sslmode=disable&read_timeout=2s")
+	require.NoError(t, err)
+	assert.Equal(t, "1m0s", cfg.templateURL.Query().Get("read_timeout"))
+}
+
+func TestLifecycleConnectorUsesCallerReadDeadline(t *testing.T) {
+	t.Parallel()
+
+	connector := newLifecycleConnector("postgres://user:pass@127.0.0.1:5433/postgres?sslmode=disable")
+	assert.Zero(t, connector.Config().ReadTimeout)
 }
 
 func TestEnsureServerStartsContainerForRefusedConnection(t *testing.T) {
@@ -135,7 +152,95 @@ func TestTestContainerCommandUsesDSNConnectionSettings(t *testing.T) {
 	}
 	assert.Equal(t, "6543", environment["TEST_DB_PORT"])
 	assert.Equal(t, "pa'ss", environment["POSTGRES_PASSWORD"])
+	assert.Contains(t, cmd.Args, "project-phoenix-testdb-6543")
 	assert.NotContains(t, strings.Join(cmd.Args, " "), "pa'ss", "the password must not be exposed in process arguments")
+}
+
+func TestComposeProjectSeparatesConfiguredPorts(t *testing.T) {
+	t.Parallel()
+
+	first, err := NewConfig("postgres://postgres:test@localhost:5433/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+	second, err := NewConfig("postgres://postgres:test@localhost:6543/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+
+	assert.Equal(t, "project-phoenix-testdb-5433", composeProjectFor(first))
+	assert.Equal(t, "project-phoenix-testdb-6543", composeProjectFor(second))
+}
+
+func TestStartTestContainerKeepsRunningServiceOnConfiguredPort(t *testing.T) {
+	cfg, err := NewConfig("postgres://postgres:test@localhost:5433/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+
+	calls := 0
+	runner := func(_ context.Context, _ string, _ io.Reader, args ...string) ([]byte, error) {
+		calls++
+		switch calls {
+		case 1:
+			assert.Equal(t, []string{"ps", "--status", "running", "--quiet", "postgres-test"}, args[len(args)-5:])
+			return []byte("container-id\n"), nil
+		case 2:
+			assert.Equal(t, []string{"port", "postgres-test", "5432"}, args[len(args)-3:])
+			return []byte("0.0.0.0:5433\n[::]:5433\n"), nil
+		default:
+			t.Fatalf("unexpected inspection command %d", calls)
+			return nil, nil
+		}
+	}
+	starter := func(context.Context, *Config) error {
+		t.Fatal("a running service on the configured port must not be recreated")
+		return nil
+	}
+
+	require.NoError(t, startTestContainerWithRunner(context.Background(), cfg, runner, starter))
+	assert.Equal(t, 2, calls)
+}
+
+func TestStartTestContainerCorrectsWrongPublishedPort(t *testing.T) {
+	cfg, err := NewConfig("postgres://postgres:test@localhost:5433/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+
+	calls := 0
+	runner := func(_ context.Context, _ string, _ io.Reader, args ...string) ([]byte, error) {
+		calls++
+		if calls == 1 {
+			return []byte("container-id\n"), nil
+		}
+		assert.Equal(t, []string{"port", "postgres-test", "5432"}, args[len(args)-3:])
+		return []byte("0.0.0.0:56138\n[::]:56138\n"), nil
+	}
+	starts := 0
+	starter := func(context.Context, *Config) error {
+		starts++
+		return nil
+	}
+
+	require.NoError(t, startTestContainerWithRunner(context.Background(), cfg, runner, starter))
+	assert.Equal(t, 2, calls)
+	assert.Equal(t, 1, starts)
+}
+
+func TestStartTestContainerConvergesWhilePublishedPortIsUnavailable(t *testing.T) {
+	cfg, err := NewConfig("postgres://postgres:test@localhost:5433/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+
+	calls := 0
+	runner := func(_ context.Context, _ string, _ io.Reader, _ ...string) ([]byte, error) {
+		calls++
+		if calls == 1 {
+			return []byte("container-id\n"), nil
+		}
+		return nil, errors.New("container is still being created")
+	}
+	starts := 0
+	starter := func(context.Context, *Config) error {
+		starts++
+		return nil
+	}
+
+	require.NoError(t, startTestContainerWithRunner(context.Background(), cfg, runner, starter))
+	assert.Equal(t, 2, calls)
+	assert.Equal(t, 1, starts)
 }
 
 func TestSyncLocalSuperuserPasswordUsesMatchingComposeService(t *testing.T) {
@@ -918,7 +1023,7 @@ func TestConfigForMigrationsScopesTemplateOnly(t *testing.T) {
 	assert.Equal(t, "phoenix_test", scoped.BaseTemplateName())
 	assert.Equal(t, "phoenix_test_aaaaaaaaaaaa", scoped.TemplateName())
 	assert.Equal(t,
-		"postgres://user:pass@localhost:5433/phoenix_test_aaaaaaaaaaaa?sslmode=disable",
+		"postgres://user:pass@localhost:5433/phoenix_test_aaaaaaaaaaaa?read_timeout=1m0s&sslmode=disable&timezone=Europe%2FBerlin",
 		scoped.TemplateDSN())
 	assert.Equal(t, "phoenix_test", base.TemplateName(), "the source config stays untouched")
 }

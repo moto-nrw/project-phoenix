@@ -169,7 +169,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 			slog.Default(),
 		),
 		Logger: slog.Default(),
-		Today:  func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
+		Today:  func() timezone.Date { return decisionTestToday },
 	})
 }
 
@@ -4495,3 +4495,5 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
 	return offering
 }
+
+var decisionTestToday = timezone.NewDate(2026, 8, 24)
