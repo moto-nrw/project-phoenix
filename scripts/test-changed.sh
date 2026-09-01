@@ -54,18 +54,8 @@ if [ "${#affected[@]}" -gt 0 ]; then
   fi
 
   echo "==> go test (${#affected[@]} affected packages; -p $package_workers, -parallel 8)"
-  # Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im
-  # Helper. Das Lock raeumt der backend_sweep-Trap unten wieder weg.
-  # shellcheck source=scripts/test-run-id.sh
-  source "$repo_root/scripts/test-run-id.sh"
-  # Handshake einmal pro Lauf statt einmal pro Binary. Jedes Binary liest
-  # PHX_TEST_TEMPLATE, die Variable ist Teil des Go-Test-Cache-Keys und muss
-  # deshalb zwischen beiden Wrappern uebereinstimmen (test-backend.sh setzt
-  # sie genauso).
-  PHX_TEST_TEMPLATE=$(cd backend && go run ./internal/testdb/cmd/bootstrap)
-  export PHX_TEST_TEMPLATE
-  backend_go_phase=1
-  backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
+  backend_go_phase=0
+  backend_go_log=
   summarize_backend_go_failure() {
     echo "==> go test failure summary" >&2
     summary=$(grep -E '^(FAIL$|FAIL[[:space:]]|--- FAIL:)|panic:|Error Trace:|Received unexpected error|Not equal:|Should be' "$backend_go_log" | tail -200 || true)
@@ -88,7 +78,20 @@ if [ "${#affected[@]}" -gt 0 ]; then
     rm -f "$backend_go_log"
     return "$status"
   }
+  # Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im
+  # Helper. Der Trap muss vor dem Bootstrap stehen, damit dessen Fehlschlag
+  # das gerade erworbene Lock ebenfalls aufräumt.
+  # shellcheck source=scripts/test-run-id.sh
+  source "$repo_root/scripts/test-run-id.sh"
   trap backend_sweep EXIT
+  # Handshake einmal pro Lauf statt einmal pro Binary. Jedes Binary liest
+  # PHX_TEST_TEMPLATE, die Variable ist Teil des Go-Test-Cache-Keys und muss
+  # deshalb zwischen beiden Wrappern uebereinstimmen (test-backend.sh setzt
+  # sie genauso).
+  PHX_TEST_TEMPLATE=$(cd backend && go run ./internal/testdb/cmd/bootstrap)
+  export PHX_TEST_TEMPLATE
+  backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
+  backend_go_phase=1
   (cd backend && go test \
     -p "$package_workers" -parallel 8 "${affected[@]}") 2>&1 | tee "$backend_go_log"
   backend_go_phase=0

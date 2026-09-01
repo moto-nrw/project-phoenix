@@ -17,18 +17,6 @@ set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root/backend"
 
-# Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im
-# Helper. Das Lock raeumt der sweep-Trap unten wieder weg.
-# shellcheck source=scripts/test-run-id.sh
-source "$repo_root/scripts/test-run-id.sh"
-
-# Handshake once per run instead of once per test binary: server erreichbar,
-# Template zum Migrations-Hash gebaut. Die Binaries bekommen das Ergebnis
-# ueber PHX_TEST_TEMPLATE und ueberspringen beide Schritte (#2419). Ein
-# nacktes `go test ./...` ohne diese Zeile macht sie weiterhin selbst.
-PHX_TEST_TEMPLATE=$(go run ./internal/testdb/cmd/bootstrap)
-export PHX_TEST_TEMPLATE
-
 sweep() {
   status=$?
   if ! go run ./internal/testdb/cmd/sweep && [ "$status" -eq 0 ]; then
@@ -37,7 +25,19 @@ sweep() {
   [ -n "${PHX_TEST_RUN_LOCK:-}" ] && rm -rf "$PHX_TEST_RUN_LOCK"
   return "$status"
 }
+# Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im
+# Helper. Der Trap muss vor dem Bootstrap stehen, damit dessen Fehlschlag das
+# gerade erworbene Lock ebenfalls aufräumt.
+# shellcheck source=scripts/test-run-id.sh
+source "$repo_root/scripts/test-run-id.sh"
 trap sweep EXIT
+
+# Handshake once per run instead of once per test binary: server erreichbar,
+# Template zum Migrations-Hash gebaut. Die Binaries bekommen das Ergebnis
+# ueber PHX_TEST_TEMPLATE und ueberspringen beide Schritte (#2419). Ein
+# nacktes `go test ./...` ohne diese Zeile macht sie weiterhin selbst.
+PHX_TEST_TEMPLATE=$(go run ./internal/testdb/cmd/bootstrap)
+export PHX_TEST_TEMPLATE
 
 if [ "$#" -eq 0 ]; then
   set -- ./...

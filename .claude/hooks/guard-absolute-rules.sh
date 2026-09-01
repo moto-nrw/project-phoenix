@@ -71,21 +71,38 @@ case "$tool" in
             root=$(cd -P "$root" 2>/dev/null && pwd) || root=""
         fi
 
+        # resolve_script PATH: resolve the final symlink target without relying
+        # on GNU readlink -f (unavailable on macOS).
+        resolve_script() {
+            local path=$1 link dir
+            while [[ -L "$path" ]]; do
+                link=$(readlink "$path") || return 1
+                case "$link" in
+                    /*) path=$link ;;
+                    *) path=$(dirname "$path")/$link ;;
+                esac
+            done
+            dir=$(cd -P "$(dirname "$path")" 2>/dev/null && pwd) || return 1
+            printf '%s/%s' "$dir" "$(basename "$path")"
+        }
+
         # vet_script TOKEN: true iff TOKEN resolves to a git-tracked file
-        # inside $root. cd -P normalizes .., . and symlinks without realpath.
+        # inside $root. Resolve the final target too: a tracked symlink must
+        # not make an untracked or out-of-repository program executable.
         vet_script() {
-            local tok=$1 dir base abs rel
+            local tok=$1 dir base abs target rel
             [[ -n "$root" ]] || return 1
             case "$tok" in
                 */*) dir=${tok%/*} base=${tok##*/} ;;
                 *) dir=. base=$tok ;;
             esac
             abs=$(cd -P "$curdir" 2>/dev/null && cd -P "$dir" 2>/dev/null && printf '%s/%s' "$PWD" "$base") || return 1
-            case "$abs" in
-                "$root"/*) rel=${abs#"$root"/} ;;
+            [[ -f "$abs" ]] || return 1
+            target=$(resolve_script "$abs") || return 1
+            case "$target" in
+                "$root"/*) rel=${target#"$root"/} ;;
                 *) return 1 ;;
             esac
-            [[ -f "$abs" ]] || return 1
             git -C "$root" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1
         }
 
@@ -93,29 +110,87 @@ case "$tool" in
             deny "Blocked: only git-tracked scripts inside this repository may be executed (got: $1)."
         }
 
-        set -f # word-split segments without globbing
-        while IFS= read -r segment; do
+        clean_token() {
+            local tok=$1
+            tok=${tok//\"/}
+            printf '%s' "${tok//\'/}"
+        }
+
+        scan_segment() {
+            local segment=$1 first next tok
             # shellcheck disable=SC2086
             set -- $segment
-            [[ $# -gt 0 ]] || continue
+            [[ $# -gt 0 ]] || return 0
             # skip FOO=1 env-assignment prefixes
             while [[ ${1:-} == *=* && ${1%%=*} != */* ]]; do
                 shift || break
             done
-            [[ $# -gt 0 ]] || continue
-            first=${1:-}
-            first=${first//\"/}
-            first=${first//\'/}
+            [[ $# -gt 0 ]] || return 0
+            first=$(clean_token "$1")
+
+            # These launchers leave the actual executable in their argument
+            # list. Peel them before checking shell options or script paths.
+            while :; do
+                case "${first##*/}" in
+                    env)
+                        shift
+                        while [[ $# -gt 0 ]]; do
+                            next=$(clean_token "$1")
+                            case "$next" in
+                                -S|--split-string)
+                                    deny "Blocked: env -S builds a command at runtime and cannot be inspected by the absolute-rule guard. Write the command out directly."
+                                    ;;
+                                -u|--unset) shift; shift || break ;;
+                                --) shift; break ;;
+                                -*) shift ;;
+                                *=*) shift ;;
+                                *) break ;;
+                            esac
+                        done
+                        ;;
+                    command|exec|time|nice|nohup|setsid)
+                        shift
+                        while [[ ${1:-} == -* ]]; do shift; done
+                        ;;
+                    timeout)
+                        shift
+                        while [[ $# -gt 0 ]]; do
+                            next=$(clean_token "$1")
+                            case "$next" in
+                                -k|--kill-after) shift; shift || break ;;
+                                --) shift; break ;;
+                                -*) shift ;;
+                                *) shift; break ;;
+                            esac
+                        done
+                        ;;
+                    sudo)
+                        shift
+                        while [[ $# -gt 0 ]]; do
+                            next=$(clean_token "$1")
+                            case "$next" in
+                                -u|-g|-h|-p|-r|-t|-C|-c|--user|--group|--host|--prompt|--role|--type|--closefrom)
+                                    shift; shift || break ;;
+                                --) shift; break ;;
+                                -*) shift ;;
+                                *) break ;;
+                            esac
+                        done
+                        ;;
+                    *) break ;;
+                esac
+                [[ $# -gt 0 ]] || return 0
+                first=$(clean_token "$1")
+            done
             case "${first##*/}" in
                 cd)
                     # keep resolution honest for `cd backend && ../scripts/x.sh`
                     next=${2:-.}
-                    next=${next//\"/}
-                    next=${next//\'/}
+                    next=$(clean_token "$next")
                     if moved=$(cd -P "$curdir" 2>/dev/null && cd -P "$next" 2>/dev/null && pwd); then
                         curdir=$moved
                     fi
-                    continue
+                    return 0
                     ;;
                 eval)
                     deny "Blocked: eval builds its command at runtime and cannot be inspected by the absolute-rule guard. Write the command out directly."
@@ -128,29 +203,115 @@ case "$tool" in
                         esac
                         shift || break
                     done
-                    [[ $# -gt 0 ]] || continue
-                    tok=${1//\"/}
-                    tok=${tok//\'/}
+                    [[ $# -gt 0 ]] || return 0
+                    tok=$(clean_token "$1")
                     vet_script "$tok" || deny_untracked "$tok"
                     ;;
                 *.sh)
                     vet_script "$first" || deny_untracked "$first"
                     ;;
                 *)
-                    continue
+                    return 0
                     ;;
             esac
-            # a vetted wrapper (run-go-toolchain.sh) may only pass vetted scripts on
-            for tok in "$@"; do
-                tok=${tok//\"/}
-                tok=${tok//\'/}
-                case "$tok" in
-                    *.sh) vet_script "$tok" || deny_untracked "$tok" ;;
+
+            # run-go-toolchain executes a slash-containing requested command;
+            # vet that executable position, not arbitrary .sh-looking input.
+            if [[ "${first##*/}" = run-go-toolchain.sh ]]; then
+                shift
+                [[ $# -gt 0 ]] || return 0
+                tok=$(clean_token "$1")
+                [[ "$tok" = */* ]] && vet_script "$tok" || [[ "$tok" != */* ]] || deny_untracked "$tok"
+            fi
+        }
+
+        # Recursively visit shell command substitutions, while processing
+        # separators only outside quotes. This is deliberately a lexer, never
+        # an evaluator: the command supplied to the hook is never executed.
+        scan_commands() {
+            local text=$1 segment='' quote='' ch next inner inner_quote depth i j len
+            len=${#text}
+            i=0
+            while (( i < len )); do
+                ch=${text:i:1}
+                next=${text:i+1:1}
+                if [[ "$quote" = "'" ]]; then
+                    segment+=$ch
+                    [[ "$ch" = "'" ]] && quote=''
+                    i=$((i + 1))
+                    continue
+                fi
+                if [[ "$ch" = $'\\' ]]; then
+                    segment+=$ch$next
+                    i=$((i + 2))
+                    continue
+                fi
+                if [[ "$ch" = '"' ]]; then
+                    segment+=$ch
+                    if [[ "$quote" = '"' ]]; then quote=''; else quote='"'; fi
+                    i=$((i + 1))
+                    continue
+                fi
+                if [[ "$ch" = '$' && "$next" = '(' ]]; then
+                    inner=''
+                    inner_quote=''
+                    depth=1
+                    j=$((i + 2))
+                    while (( j < len && depth > 0 )); do
+                        ch=${text:j:1}
+                        if [[ -n "$inner_quote" ]]; then
+                            inner+=$ch
+                            [[ "$ch" = "$inner_quote" ]] && inner_quote=''
+                        elif [[ "$ch" = $'\\' ]]; then
+                            inner+=$ch${text:j+1:1}
+                            j=$((j + 1))
+                        elif [[ "$ch" = "'" || "$ch" = '"' ]]; then
+                            inner+=$ch
+                            inner_quote=$ch
+                        elif [[ "$ch" = '(' ]]; then
+                            inner+=$ch
+                            depth=$((depth + 1))
+                        elif [[ "$ch" = ')' ]]; then
+                            depth=$((depth - 1))
+                            if (( depth > 0 )); then inner+=$ch; fi
+                        else
+                            inner+=$ch
+                        fi
+                        j=$((j + 1))
+                    done
+                    (( depth == 0 )) || deny "Blocked: an unterminated command substitution cannot be inspected by the absolute-rule guard."
+                    scan_commands "$inner"
+                    segment+='__guard_substitution__'
+                    i=$j
+                    continue
+                fi
+                if [[ "$ch" = '`' ]]; then
+                    inner=''
+                    j=$((i + 1))
+                    while (( j < len )) && [[ ${text:j:1} != '`' ]]; do
+                        inner+=${text:j:1}
+                        j=$((j + 1))
+                    done
+                    (( j < len )) || deny "Blocked: an unterminated command substitution cannot be inspected by the absolute-rule guard."
+                    scan_commands "$inner"
+                    segment+='__guard_substitution__'
+                    i=$((j + 1))
+                    continue
+                fi
+                case "$ch" in
+                    ';'|'|'|'&'|$'\n')
+                        scan_segment "$segment"
+                        segment=''
+                        ;;
+                    *) segment+=$ch ;;
                 esac
+                i=$((i + 1))
             done
-        done <<EOF
-$(printf '%s' "$cmd" | tr ';|&' '\n')
-EOF
+            scan_segment "$segment"
+        }
+
+        set -f # word-split segments without globbing
+        scan_commands "$cmd"
         set +f
         if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(curl|wget|xh|httpie|https?|nc|ncat|wscat|fetch)([[:space:]]|$)' &&
             printf '%s' "$cmd" | grep -Eq '\$[({[:alpha:]_]|<\(|`'; then

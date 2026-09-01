@@ -29,11 +29,14 @@ mkdir -p "$repo/scripts" "$repo/backend" "$repo/environments"
 git -C "$fixture" init -q -b main repo
 git -C "$repo" config user.email guard-test@example.invalid
 git -C "$repo" config user.name "Guard Test"
+git -C "$repo" config commit.gpgsign false
 printf '#!/usr/bin/env bash\necho toolchain "$@"\n' >"$repo/scripts/run-go-toolchain.sh"
 printf '#!/usr/bin/env bash\necho backend tests\n' >"$repo/scripts/test-backend.sh"
 printf '#!/usr/bin/env bash\necho env check\n' >"$repo/scripts/env-check.sh"
+printf '#!/usr/bin/env bash\necho outside\n' >"$fixture/outside.sh"
+ln -s "$fixture/outside.sh" "$repo/scripts/outside.sh"
 printf 'package backend\n' >"$repo/backend/doc.go"
-chmod +x "$repo"/scripts/*.sh
+chmod +x "$repo/scripts/run-go-toolchain.sh" "$repo/scripts/test-backend.sh" "$repo/scripts/env-check.sh"
 git -C "$repo" add -A
 git -C "$repo" commit -qm fixture
 # untracked on purpose: exists, executable, but not vetted
@@ -95,6 +98,8 @@ assert_bash allow "$repo" 'node --version'
 assert_bash allow "$repo" 'python3 -m venv .venv'
 assert_bash allow "$repo" 'git commit -m "fix: x"'
 assert_bash allow "$repo" "rg $prod_host docs/"
+assert_bash allow "$repo" "grep -R 'test-changed.sh' scripts/"
+assert_bash allow "$repo" "scripts/run-go-toolchain.sh grep 'test-changed.sh' scripts/"
 
 # --- unvetted execution: denied ---
 assert_bash deny "$repo" './scripts/new.sh'
@@ -104,12 +109,20 @@ assert_bash deny "$repo" 'bash /tmp/definitely-missing-guard-test.sh'
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh /tmp/evil.sh'
 assert_bash deny "$fixture" 'repo/scripts/test-backend.sh' # outside any repo root
 assert_bash deny "$repo" 'source /tmp/some-env-file'
+assert_bash deny "$repo" 'scripts/outside.sh'
+assert_bash deny "$repo" $'cd backend\n../scripts/new.sh'
 
 # --- inline payloads and eval: denied, incl. the -lc flag cluster ---
 assert_bash deny "$repo" "bash -c 'echo hi'"
 assert_bash deny "$repo" "bash -lc 'echo hi'"
 assert_bash deny "$repo" "sh -c 'echo hi'"
-assert_bash deny "$repo" 'eval "$(cat somefile)"'
+assert_bash deny "$repo" "env bash -c 'echo hi'"
+assert_bash deny "$repo" "command sh -c 'echo hi'"
+assert_bash deny "$repo" "timeout 10 bash -c 'echo hi'"
+assert_bash deny "$repo" "sudo bash -c 'echo hi'"
+assert_bash deny "$repo" "eval \"\$(cat somefile)\""
+assert_bash deny "$repo" "echo \"\$(./scripts/new.sh)\""
+assert_bash deny "$repo" "echo \`./scripts/new.sh\`"
 
 # --- rule 1: production hosts ---
 assert_bash deny "$repo" "curl https://$prod_host/health"
