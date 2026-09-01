@@ -173,7 +173,6 @@ var tenantIdentityTables = map[string]string{
 // mappedTenantTables reach their tenant through a join table.
 var mappedTenantTables = map[string]struct{ mappingTable, foreignKey, ownerColumn string }{
 	"audit.auth_events":          {"auth.account_tenants", "account_id", "account_id"},
-	"auth.account_tenants":       {"auth.account_tenants", "account_id", "account_id"},
 	"auth.accounts":              {"auth.account_tenants", "account_id", "id"},
 	"auth.mfa_credentials":       {"auth.account_tenants", "account_id", "account_id"},
 	"auth.mfa_email_challenges":  {"auth.account_tenants", "account_id", "account_id"},

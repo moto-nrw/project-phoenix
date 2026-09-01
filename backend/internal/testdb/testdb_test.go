@@ -28,7 +28,6 @@ func TestSharedRowPredicateFollowsAccountOwnership(t *testing.T) {
 	)
 	for _, table := range []string{
 		"audit.auth_events",
-		"auth.account_tenants",
 		"auth.mfa_credentials",
 		"auth.mfa_email_challenges",
 		"auth.mfa_overrides",
@@ -42,6 +41,11 @@ func TestSharedRowPredicateFollowsAccountOwnership(t *testing.T) {
 			table,
 		)
 	}
+	assert.Equal(t,
+		fmt.Sprintf("t.tenant_id IS NULL OR t.tenant_id < %d", TenantIDBase),
+		sharedRowPredicate("auth.account_tenants", true),
+		"each account mapping is owned by its own tenant",
+	)
 
 	assert.Empty(t, sharedRowPredicate("auth.password_reset_rate_limits", false),
 		"email-only rows cannot safely inherit ownership from an account")

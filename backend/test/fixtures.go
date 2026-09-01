@@ -2266,6 +2266,14 @@ func cleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 			Scan(ctx, &accountIDs); err != nil {
 			return err
 		}
+		var organizationIDs []int64
+		if err := tx.NewSelect().
+			TableExpr("platform.schools").
+			Column("organization_id").
+			Where("id IN (?)", bun.List(tenantIDs)).
+			Scan(ctx, &organizationIDs); err != nil {
+			return err
+		}
 
 		// Delete tenantless rows that depend on tenant-owned parents before FK
 		// enforcement is suspended. Examples are auth.role_permissions and
@@ -2300,6 +2308,21 @@ func cleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 				Where("tenant_id IN (?)", bun.List(tenantIDs)).
 				Exec(ctx); err != nil {
 				return fmt.Errorf("cleanup %s for tenants %v: %w", table, tenantIDs, err)
+			}
+		}
+		if _, err := tx.NewDelete().
+			TableExpr("platform.schools").
+			Where("id IN (?)", bun.List(tenantIDs)).
+			Exec(ctx); err != nil {
+			return fmt.Errorf("cleanup platform.schools %v: %w", tenantIDs, err)
+		}
+		if len(organizationIDs) > 0 {
+			if _, err := tx.NewDelete().
+				TableExpr("platform.organizations").
+				Where("id IN (?)", bun.List(organizationIDs)).
+				Where("NOT EXISTS (SELECT 1 FROM platform.schools WHERE organization_id = platform.organizations.id)").
+				Exec(ctx); err != nil {
+				return fmt.Errorf("cleanup platform.organizations %v: %w", organizationIDs, err)
 			}
 		}
 		if len(accountIDs) == 0 {
