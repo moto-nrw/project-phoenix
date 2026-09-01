@@ -16,13 +16,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
+var bookingAuditMonday = timezone.NewDate(2026, time.January, 5)
+
 // Raw arrival rows on unbooked days and broad class rosters are deliberate in
 // booking-led care. This fixture includes both and pins that only actionable
 // pickup/offering violations contribute to the report.
 func verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T, db *bun.DB, repository any) {
 	ctx := Ctx(t)
 	repo := repository.(auditModel.BookingConsistencyRepository)
-	auditDate := nextBookingAuditMonday(timezone.TodayDate())
+	auditDate := bookingAuditMonday
 
 	bookedStudent := CreateTestStudent(t, db, "Gebucht", "Audit", "1a")
 	bookedChild := createApprovedBookingAuditChild(t, ctx, db, auditDate, bookedStudent.ID,
@@ -105,7 +107,7 @@ func verifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, repository
 func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, db *bun.DB, repository any) {
 	ctx := Ctx(t)
 	repo := repository.(auditModel.BookingConsistencyRepository)
-	auditDate := nextBookingAuditMonday(timezone.TodayDate())
+	auditDate := bookingAuditMonday
 	staff := CreateTestStaff(t, db, "Audit", "Ausnahme")
 
 	withArrivalException := CreateTestStudent(t, db, "Ankunft", "Ausnahme", "1a")
@@ -147,7 +149,7 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 func verifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T, db *bun.DB, repository any) {
 	ctx := Ctx(t)
 	repo := repository.(auditModel.BookingConsistencyRepository)
-	auditDate := nextBookingAuditMonday(timezone.TodayDate())
+	auditDate := bookingAuditMonday
 	staff := CreateTestStaff(t, db, "Audit", "Split")
 	student := CreateTestStudent(t, db, "Geteilt", "Audit", "1a")
 	child := createApprovedBookingAuditChild(t, ctx, db, auditDate, student.ID,
@@ -287,11 +289,6 @@ func auditFixtureTable(model any) string {
 	default:
 		panic(fmt.Sprintf("unsupported Audit fixture model %T", model))
 	}
-}
-
-func nextBookingAuditMonday(date timezone.Date) timezone.Date {
-	delta := (int(time.Monday) - int(date.Weekday()) + 7) % 7
-	return date.AddDays(delta)
 }
 
 func bookingAuditWallClock(hour, minute int) time.Time {

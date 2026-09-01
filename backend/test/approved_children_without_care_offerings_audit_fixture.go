@@ -103,7 +103,7 @@ func createApprovedWithoutOfferingPhase(
 	t.Helper()
 	phase := &enrollmentModels.Phase{
 		Name: "Other tenant audit", Kind: enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.TodayDate().AddDays(-30), ServiceEndDate: timezone.TodayDate().AddDays(300),
+		ServiceStartDate: timezone.NewDate(2025, time.December, 6), ServiceEndDate: timezone.NewDate(2026, time.November, 1),
 		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
 		CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional, IsActive: true,
 	}
