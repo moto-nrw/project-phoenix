@@ -116,6 +116,35 @@ case "$tool" in
             printf '%s' "${tok//\'/}"
         }
 
+        reject_dynamic_executable() {
+            # shellcheck disable=SC2016 # match literal shell-expansion syntax
+            case "$1" in
+                *'${'*|*'$'*|*'`'*|*'<('*|*'>('*|*__guard_substitution__*)
+                    deny "Blocked: executable paths expanded by the shell cannot be inspected by the absolute-rule guard. Write the tracked path out directly."
+                    ;;
+            esac
+        }
+
+        vet_toolchain_request() {
+            local tok=$1
+            reject_dynamic_executable "$tok"
+            [[ "$tok" = */* ]] && vet_script "$tok" || [[ "$tok" != */* ]] || deny_untracked "$tok"
+        }
+
+        vet_env_assignment() {
+            local assignment=$1 name value
+            name=${assignment%%=*}
+            value=${assignment#*=}
+            case "$name" in
+                BASH_ENV|ENV|ZDOTDIR)
+                    deny "Blocked: $name can source an untracked shell startup file before the executable runs."
+                    ;;
+                PATH)
+                    reject_dynamic_executable "$value"
+                    ;;
+            esac
+        }
+
         scan_segment() {
             local segment=$1 first next tok
             # shellcheck disable=SC2086
@@ -123,6 +152,7 @@ case "$tool" in
             [[ $# -gt 0 ]] || return 0
             # skip FOO=1 env-assignment prefixes
             while [[ ${1:-} == *=* && ${1%%=*} != */* ]]; do
+                vet_env_assignment "$(clean_token "$1")"
                 shift || break
             done
             [[ $# -gt 0 ]] || return 0
@@ -143,7 +173,7 @@ case "$tool" in
                                 -u|--unset) shift; shift || break ;;
                                 --) shift; break ;;
                                 -*) shift ;;
-                                *=*) shift ;;
+                                *=*) vet_env_assignment "$next"; shift ;;
                                 *) break ;;
                             esac
                         done
@@ -182,6 +212,7 @@ case "$tool" in
                 [[ $# -gt 0 ]] || return 0
                 first=$(clean_token "$1")
             done
+            reject_dynamic_executable "$first"
             case "${first##*/}" in
                 cd)
                     # keep resolution honest for `cd backend && ../scripts/x.sh`
@@ -205,7 +236,13 @@ case "$tool" in
                     done
                     [[ $# -gt 0 ]] || return 0
                     tok=$(clean_token "$1")
+                    reject_dynamic_executable "$tok"
                     vet_script "$tok" || deny_untracked "$tok"
+                    if [[ "${tok##*/}" = run-go-toolchain.sh ]]; then
+                        shift
+                        [[ $# -gt 0 ]] || return 0
+                        vet_toolchain_request "$(clean_token "$1")"
+                    fi
                     ;;
                 *.sh)
                     vet_script "$first" || deny_untracked "$first"
@@ -220,8 +257,7 @@ case "$tool" in
             if [[ "${first##*/}" = run-go-toolchain.sh ]]; then
                 shift
                 [[ $# -gt 0 ]] || return 0
-                tok=$(clean_token "$1")
-                [[ "$tok" = */* ]] && vet_script "$tok" || [[ "$tok" != */* ]] || deny_untracked "$tok"
+                vet_toolchain_request "$(clean_token "$1")"
             fi
         }
 

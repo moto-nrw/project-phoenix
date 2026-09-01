@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"testing"
 )
 
 // sourceFile is one Go file under the backend root, read once for every
@@ -58,4 +59,13 @@ func goSourceIndex(root string) ([]sourceFile, error) {
 		})
 	})
 	return idx.files, idx.err
+}
+
+func TestGoSourceIndexReportsWalkErrors(t *testing.T) {
+	t.Parallel()
+
+	_, err := goSourceIndex(filepath.Join(t.TempDir(), "missing"))
+	if err == nil {
+		t.Fatal("goSourceIndex succeeded for a missing root")
+	}
 }

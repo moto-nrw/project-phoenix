@@ -427,8 +427,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 
 	files, err := goSourceIndex(root)
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
-		return violations
+		t.Fatalf("walk source files: %v", err)
 	}
 	for _, f := range files {
 		// Only check test files
@@ -550,8 +549,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 	files, err := goSourceIndex(root)
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
-		return violations
+		t.Fatalf("walk source files: %v", err)
 	}
 	for _, f := range files {
 		if !strings.HasSuffix(f.rel, "_test.go") {
@@ -891,7 +889,7 @@ func checkBootstrapTenantRatchet(t *testing.T, root string) []string {
 	// purpose as the value the per-test rebase maps away from.
 	current, err := countMatchesPerPackage(root, re, true)
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
+		t.Fatalf("walk source files: %v", err)
 	}
 	return shrinkOnlyViolations(current, tenantContext1Baseline)
 }
@@ -981,7 +979,7 @@ func checkParallelGlobalState(t *testing.T, root string) []string {
 		pkgFiles[pkg] = append(pkgFiles[pkg], globalStateFile{rel: rel, text: text})
 	})
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
+		t.Fatalf("walk source files: %v", err)
 	}
 
 	var violations []string
@@ -1064,7 +1062,7 @@ func checkSharedPoolClose(t *testing.T, root string) []string {
 		}
 	})
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
+		t.Fatalf("walk source files: %v", err)
 	}
 	return violations
 }
@@ -1110,8 +1108,7 @@ func checkBrokenCleanupPattern(t *testing.T, root string) []string {
 	// like Model((*MyStruct)(nil)) which is valid.
 	files, err := goSourceIndex(root)
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
-		return violations
+		t.Fatalf("walk source files: %v", err)
 	}
 	for _, f := range files {
 		if !strings.HasPrefix(f.rel, "test/") {
@@ -1173,7 +1170,7 @@ func checkLeftoverGateOptIn(t *testing.T, root string) []string {
 		}
 	})
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
+		t.Fatalf("walk source files: %v", err)
 	}
 
 	var violations []string
@@ -1205,7 +1202,7 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 		}
 	})
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
+		t.Fatalf("walk source files: %v", err)
 	}
 
 	var violations []string
@@ -1248,7 +1245,7 @@ func checkSerialTests(t *testing.T, root string) map[string]int {
 		}
 	})
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
+		t.Fatalf("walk source files: %v", err)
 	}
 	return counts
 }

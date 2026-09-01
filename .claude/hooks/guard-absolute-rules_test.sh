@@ -107,6 +107,16 @@ assert_bash deny "$repo" 'scripts/new.sh'
 assert_bash deny "$repo" './scripts/does-not-exist.sh'
 assert_bash deny "$repo" 'bash /tmp/definitely-missing-guard-test.sh'
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh /tmp/evil.sh'
+assert_bash deny "$repo" "scripts/run-go-toolchain.sh \"\$CMD\""
+assert_bash deny "$repo" 'scripts/run-go-toolchain.sh <(printf x)'
+assert_bash deny "$repo" 'bash scripts/run-go-toolchain.sh /tmp/evil.sh'
+assert_bash deny "$repo" "sh scripts/run-go-toolchain.sh \"\$CMD\""
+assert_bash deny "$repo" 'env bash scripts/run-go-toolchain.sh /tmp/evil.sh'
+assert_bash deny "$repo" 'source scripts/run-go-toolchain.sh /tmp/evil.sh'
+assert_bash deny "$repo" "\"\$CMD\""
+assert_bash deny "$repo" "BASH_ENV=\$CMD bash scripts/env-check.sh"
+assert_bash deny "$repo" "PATH=\$CMD bash scripts/env-check.sh"
+assert_bash deny "$repo" "env BASH_ENV=\$CMD bash scripts/env-check.sh"
 assert_bash deny "$fixture" 'repo/scripts/test-backend.sh' # outside any repo root
 assert_bash deny "$repo" 'source /tmp/some-env-file'
 assert_bash deny "$repo" 'scripts/outside.sh'
