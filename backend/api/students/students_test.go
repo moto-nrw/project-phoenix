@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -563,7 +562,7 @@ func TestGetStudentIncludesConsentWithdrawalForStaff(t *testing.T) {
 	require.NoError(t, err)
 
 	change := &auditModel.StudentConsentChange{
-		Model:      base.Model{CreatedAt: withdrawnAt, UpdatedAt: withdrawnAt},
+		Model:      auditModel.Model{CreatedAt: withdrawnAt, UpdatedAt: withdrawnAt},
 		StudentID:  student.ID,
 		ConsentKey: auditModel.StudentConsentPhoto,
 		Action:     auditModel.StudentConsentWithdrawn,
