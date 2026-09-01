@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -28,12 +29,17 @@ func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, i
 	repos := repositories.NewFactory(db)
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
 	require.NoError(t, err)
+	mailer := testpkg.NewCapturingMailer()
+	dispatcher := email.NewDispatcher(mailer, slog.Default())
+	dispatcher.SetDefaults(1, []time.Duration{time.Millisecond})
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:      repos,
-		TokenAuth:  tokenAuth,
-		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
-		JWTSecret:  extraJWTSecret,
-		DB:         db,
+		Repos:       repos,
+		TokenAuth:   tokenAuth,
+		Dispatcher:  dispatcher,
+		DefaultFrom: email.NewEmail("Moto Tests", "tests@example.test"),
+		FrontendURL: "https://moto.test/",
+		JWTSecret:   extraJWTSecret,
+		DB:          db,
 	})
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, svc, db)

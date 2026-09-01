@@ -376,7 +376,7 @@ function AbsenceRequestItem({
               variant="ghost"
               size="compact"
               onClick={() => onCancel(absence)}
-              className="px-0 text-red-600 hover:bg-transparent hover:text-red-700"
+              className="text-moto-red hover:text-moto-red-strong px-0 hover:bg-transparent"
             >
               Stornieren
             </Button>

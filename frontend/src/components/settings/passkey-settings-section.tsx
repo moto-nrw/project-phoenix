@@ -296,7 +296,7 @@ export function PasskeySettingsSection({
                 aria-label="Passkey entfernen"
                 disabled={busy}
                 onClick={() => void revoke(credential.id)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                className="hover:bg-moto-red-soft hover:text-moto-red-strong inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
               </button>

@@ -78,6 +78,9 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	})
 
 	cleanup := func() {
+		require.Eventually(t, func() bool {
+			return sqlDB.Stats().InUse == 0
+		}, time.Second, time.Millisecond)
 		mock.ExpectClose()
 		require.NoError(t, bunDB.Close())
 		require.NoError(t, sqlDB.Close())

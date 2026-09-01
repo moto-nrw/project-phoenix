@@ -542,7 +542,7 @@ function TodayTimeStatusInlineRow({
         {note && <span className="ml-1 text-gray-500">({note})</span>}
         {isException && (
           <span
-            className="ml-1.5 inline-flex h-2 w-2 rounded-full bg-orange-400"
+            className="bg-moto-orange ml-1.5 inline-flex h-2 w-2 rounded-full"
             title="Ausnahme"
           />
         )}

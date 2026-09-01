@@ -36,7 +36,7 @@ const LOCATION_COLORS: Record<string, LocationColorConfig> = {
   // Literal wuerde das Badge nach einer Palettenaenderung stumm auf den
   // generischen Fallback zurueckfallen.
   Homeoffice: [
-    "from-sky-50/80 to-sky-100/80",
+    "from-moto-time-tracking-soft/40 to-moto-time-tracking-soft/80",
     MOTO_COLOR_PALETTE.timeTracking.base,
     "14, 165, 233",
   ],

@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -28,8 +29,8 @@ func (c testAuthEventCommand) Append(ctx context.Context, event any) error {
 	return c.repo.Create(ctx, event.(*auditModels.AuthEvent))
 }
 
-// newTestMFAService wires a real test-DB-backed MFA service. Settings is nil so
-// IsRequired falls through to "off"; Delivery uses the shared capture adapter.
+// newTestMFAService wires a real test-DB-backed MFA service with a successful
+// capturing dispatcher so StartChallenge exercises the delivered-code path.
 func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -37,14 +38,19 @@ func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *b
 	repos := repositories.NewFactory(db)
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(testJWTSecret)
 	require.NoError(t, err)
+	mailer := testpkg.NewCapturingMailer()
+	dispatcher := email.NewDispatcher(mailer, slog.Default())
+	dispatcher.SetDefaults(1, []time.Duration{time.Millisecond})
 
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:      repos,
-		TokenAuth:  tokenAuth,
-		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
-		JWTSecret:  testJWTSecret,
-		DB:         db,
-		Audit:      testAuthEventCommand{repo: repos.AuthEvent},
+		Repos:       repos,
+		TokenAuth:   tokenAuth,
+		Dispatcher:  dispatcher,
+		DefaultFrom: email.NewEmail("Moto Tests", "tests@example.test"),
+		FrontendURL: "https://moto.test/",
+		JWTSecret:   testJWTSecret,
+		DB:          db,
+		Audit:       testAuthEventCommand{repo: repos.AuthEvent},
 	})
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, svc, db)

@@ -20,7 +20,7 @@ import {
   hasRole,
   isCaregiver,
 } from "~/lib/auth-utils";
-import { canOpenRequestsPage } from "~/lib/change-request-access";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -532,6 +532,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Get session for role checking
   const { data: session } = useSession();
+  const changeRequestAccess = useChangeRequestAccess();
 
   // Get supervision state
   const {
@@ -709,9 +710,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
-    // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
-    // change-request-access.
-    if (item.href === "/anfragen") return canOpenRequestsPage(session);
+    // Anfragen (#2429/#2911): dieselbe effektive Regel wie in Sidebar,
+    // Seiten-Guard und Badge.
+    if (item.href === "/anfragen") {
+      return changeRequestAccess.canOpenRequestsPage;
+    }
     if (
       item.href === "/ogs-groups" &&
       !userIsCaregiver &&
