@@ -84,13 +84,12 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 // buildUnreadArgs returns the fixed-size positional args shared by the FROM + WHERE
 // in the unread announcement query.
 // Arg order: userID (account JOIN), tenantID (membership JOIN), orgID (school JOIN),
-// now, now, pgArray(userRoles) — 6 args.
+// pgArray(userRoles) — 4 args. Publication and expiry use the database clock.
 func buildUnreadArgs(userID int64, userRoles []string, tenantID int64, orgID int64) []any {
-	now := time.Now()
 	if userRoles == nil {
 		userRoles = []string{}
 	}
-	return []any{userID, tenantID, orgID, now, now, pgdialect.Array(userRoles)}
+	return []any{userID, tenantID, orgID, pgdialect.Array(userRoles)}
 }
 
 // unreadWhereClause is the shared SQL fragment used by both GetUnreadForUser
@@ -105,8 +104,8 @@ func buildUnreadArgs(userID int64, userRoles []string, tenantID int64, orgID int
 const unreadWhereClause = `
 	WHERE a.active = true
 		AND a.published_at IS NOT NULL
-		AND a.published_at <= ?
-		AND (a.expires_at IS NULL OR a.expires_at > ?)
+		AND a.published_at <= ` + databaseCurrentTimestampSQL + `
+		AND (a.expires_at IS NULL OR a.expires_at > ` + databaseCurrentTimestampSQL + `)
 		AND a.published_at >= GREATEST(
 			s.created_at,
 			COALESCE(at.invited_at, at.created_at),
