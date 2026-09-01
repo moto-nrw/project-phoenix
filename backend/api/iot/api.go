@@ -71,6 +71,12 @@ type Resource struct {
 	ServiceDependencies
 }
 
+// NewDeviceLastSeenDebouncer creates the shared debounce state for device
+// routes mounted by the API composition root.
+func NewDeviceLastSeenDebouncer() *device.LastSeenDebouncer {
+	return device.NewLastSeenDebouncer()
+}
+
 // NewResource creates a new IoT resource
 func NewResource(deps ServiceDependencies) *Resource {
 	return &Resource{ServiceDependencies: deps}

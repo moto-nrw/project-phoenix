@@ -451,7 +451,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 701,
+          "line": 705,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +461,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 338,
+          "line": 341,
           "declaration": "New"
         }
       ]
@@ -506,12 +506,12 @@
       "locations": [
         {
           "file": "services/auth/auth_service.go",
-          "line": 75,
+          "line": 77,
           "declaration": "type Service"
         },
         {
           "file": "services/auth/auth_service.go",
-          "line": 122,
+          "line": 125,
           "declaration": "NewService"
         },
         {
@@ -561,12 +561,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 344,
+          "line": 409,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 361,
+          "line": 426,
           "declaration": "newFactory"
         },
         {
@@ -576,7 +576,12 @@
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 21,
+          "line": 18,
+          "declaration": "NewFactoryForTestsWithConfig"
+        },
+        {
+          "file": "services/factory_test_helpers.go",
+          "line": 25,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
@@ -16609,7 +16614,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        342
+        341
       ],
       "tables": []
     },
@@ -25850,7 +25855,7 @@
       "declaration": "TestLogoutRevokesTokensWhenAuditFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        76
+        77
       ],
       "tables": [
         "auth.tokens"
@@ -25862,7 +25867,7 @@
       "declaration": "TestRevocationAuditFailureRollsBackAndRetryIsIdempotent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        104
+        107
       ],
       "tables": [
         "audit.auth_events",

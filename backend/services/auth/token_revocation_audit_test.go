@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	emailPkg "github.com/moto-nrw/project-phoenix/email"
@@ -75,6 +76,8 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 
 	repoFactory := repositories.NewFactory(db)
 	config, err := authService.NewServiceConfig(nil, emailPkg.Email{}, "http://localhost:3000", time.Hour)
+	require.NoError(t, err)
+	config.TokenAuth, err = authjwt.NewTokenAuthWithSecret(authTestFactoryConfig(false).JWTSecret)
 	require.NoError(t, err)
 	config.Audit = failingAuditCommand{}
 	service, err := authService.NewService(repoFactory, config, db, nil)
