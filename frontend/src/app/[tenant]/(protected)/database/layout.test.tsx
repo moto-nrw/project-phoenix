@@ -92,6 +92,51 @@ describe("DatabaseLayout", () => {
     expect(screen.getByTestId("database-content")).toBeInTheDocument();
   });
 
+  it("lets time_tracking:manage reach the opening-balance import (#2906)", () => {
+    mockPathname.mockReturnValue(
+      "/test-tenant/database/personal/opening-balances",
+    );
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          isAdmin: false,
+          token: "tok",
+          permissions: ["staff:manage", "time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByTestId("database-content")).toBeInTheDocument();
+  });
+
+  it("keeps the opening-balance import closed without time_tracking:manage (#2906)", () => {
+    mockPathname.mockReturnValue(
+      "/test-tenant/database/personal/opening-balances",
+    );
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { isAdmin: false, token: "tok", permissions: ["staff:manage"] },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(screen.queryByTestId("database-content")).not.toBeInTheDocument();
+  });
+
   it("keeps the rest of the database area closed for staff:manage (#2906)", () => {
     mockPathname.mockReturnValue("/test-tenant/database/students");
     mockUseSession.mockReturnValue({
