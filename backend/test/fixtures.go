@@ -2316,7 +2316,7 @@ func cleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {

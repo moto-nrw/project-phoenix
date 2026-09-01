@@ -26789,7 +26789,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3802
+        3804
       ],
       "tables": []
     },
@@ -26799,7 +26799,7 @@
       "declaration": "newDecisionServiceForTestWithCareWithdrawal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        113
+        115
       ],
       "tables": []
     },
@@ -26980,7 +26980,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2307
+        2309
       ],
       "tables": []
     },
@@ -27000,7 +27000,7 @@
       "declaration": "createBoundedTemplateSchedule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1456
+        1457
       ],
       "tables": []
     },
@@ -27020,7 +27020,7 @@
       "declaration": "createSourcedTemplateSegment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1476
+        1477
       ],
       "tables": []
     },

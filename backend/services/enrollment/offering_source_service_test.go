@@ -236,7 +236,7 @@ func TestResyncTemplateOfferingRoster_SeedsExistingApprovedChildren(t *testing.T
 			OfferingIDs:      []int64{offering.ID},
 			GradeLevels:      []int{2},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		},
 	))
 
@@ -266,7 +266,7 @@ func TestResyncTemplateOfferingRoster_EmptyFilterSeedsAllAndIsIdempotent(t *test
 		TemplateID:       template.ID,
 		OfferingIDs:      []int64{offering.ID},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}
 	resyncer := offeringResyncer(t, env)
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(testpkg.Ctx(t), input))
@@ -298,7 +298,7 @@ func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T)
 		OfferingIDs:      []int64{offering.ID},
 		GradeLevels:      []int{1},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}))
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
@@ -311,7 +311,7 @@ func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T)
 		OfferingIDs:      []int64{offering.ID},
 		GradeLevels:      []int{2},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}))
 	rows = loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
@@ -321,7 +321,7 @@ func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T)
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
 		TemplateID:    template.ID,
 		OfferingIDs:   nil,
-		EffectiveFrom: timezone.TodayDate(),
+		EffectiveFrom: decisionTestDate,
 	}))
 	assert.Empty(t, loadTemplateEnrollments(t, env, template.ID))
 }
@@ -354,7 +354,7 @@ func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testin
 			OfferingIDs:      []int64{offering.ID},
 			GradeLevels:      []int{2},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		},
 	))
 
@@ -390,7 +390,7 @@ func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 			OfferingIDs:      []int64{offering.ID},
 			GradeLevels:      []int{2},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		},
 	))
 
@@ -425,7 +425,7 @@ func TestResyncTemplateOfferingRoster_ProtectsLegacyLinkedRows(t *testing.T) {
 			TemplateID:       legacyTemplate.ID,
 			OfferingIDs:      []int64{otherOffering.ID},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		},
 	))
 	rows := loadTemplateEnrollments(t, env, legacyTemplate.ID)
@@ -485,7 +485,7 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 		testpkg.Ctx(t),
 		scheduleService.OfferingRosterResyncInput{
 			TemplateID:    successor.ID,
-			EffectiveFrom: timezone.TodayDate(),
+			EffectiveFrom: decisionTestDate,
 		},
 	))
 
@@ -518,7 +518,7 @@ func TestResyncTemplateOfferingRoster_VanishedOfferingIsDropped(t *testing.T) {
 			TemplateID:       template.ID,
 			OfferingIDs:      []int64{missing, offering.ID},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		}))
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1, "the surviving source must still seed its children")
@@ -531,7 +531,7 @@ func TestResyncTemplateOfferingRoster_VanishedOfferingIsDropped(t *testing.T) {
 			TemplateID:       template.ID,
 			OfferingIDs:      []int64{missing},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		}))
 	assert.Empty(t, loadTemplateEnrollments(t, env, template.ID),
 		"with no surviving source the resync must retire the sourced rows")
@@ -557,7 +557,7 @@ func TestResyncTemplateOfferingRoster_CapsSourceCount(t *testing.T) {
 		scheduleService.OfferingRosterResyncInput{
 			TemplateID:    template.ID,
 			OfferingIDs:   ids,
-			EffectiveFrom: timezone.TodayDate(),
+			EffectiveFrom: decisionTestDate,
 		},
 	)
 	require.Error(t, err)
@@ -598,7 +598,7 @@ func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T
 			OfferingIDs:      []int64{offering.ID},
 			GradeLevels:      []int{2},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		},
 	))
 
@@ -634,7 +634,7 @@ func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) 
 		OfferingIDs:      []int64{offering.ID},
 		GradeLevels:      []int{2},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}
 	resyncer := offeringResyncer(t, env)
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
@@ -678,7 +678,7 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 		OfferingIDs:      []int64{offeringA.ID},
 		GradeLevels:      []int{2},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}))
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
@@ -698,7 +698,7 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 		OfferingIDs:      []int64{offeringB.ID},
 		GradeLevels:      []int{2},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}))
 
 	rows = loadTemplateEnrollments(t, env, template.ID)
@@ -740,7 +740,7 @@ func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
 	})
 	require.True(t, ok, "decision service must implement the tenant-wide offering resync")
-	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()))
+	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, decisionTestDate))
 
 	assert.Empty(t, loadTemplateEnrollments(t, env, templateGrade2.ID),
 		"the promoted child must leave the Jahrgang-2 Termin")
@@ -873,7 +873,7 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 
 	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the sourced-template detach contract")
-	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offering.ID, timezone.TodayDate()))
+	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offering.ID, decisionTestDate))
 
 	_, err := env.db.NewDelete().
 		TableExpr("enrollment.care_offerings").
@@ -938,14 +938,14 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 			TemplateID:       template.ID,
 			OfferingIDs:      []int64{offeringA.ID, offeringB.ID},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		}))
 	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 2,
 		"both offerings' children must be planned before the detach")
 
 	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok)
-	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, timezone.TodayDate()))
+	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, decisionTestDate))
 
 	kept, err := repositories.NewFactory(env.db).ActivityGroup.FindByID(ctx, template.ID)
 	require.NoError(t, err)
@@ -1019,7 +1019,7 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 			OfferingIDs:      []int64{offeringA.ID, offeringB.ID},
 			GradeLevels:      []int{2},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		}))
 	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 2,
 		"both offerings' children must be planned before the drift")
@@ -1034,7 +1034,7 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 
 	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok)
-	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, timezone.TodayDate()))
+	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, decisionTestDate))
 
 	kept, err := repositories.NewFactory(env.db).ActivityGroup.FindByID(ctx, template.ID)
 	require.NoError(t, err)
@@ -1110,7 +1110,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 			TemplateID:       template.ID,
 			OfferingIDs:      []int64{offeringA.ID, offeringB.ID},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		}))
 
 	rows := loadTemplateEnrollments(t, env, template.ID)
@@ -1130,7 +1130,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 			TemplateID:       template.ID,
 			OfferingIDs:      []int64{offeringA.ID, offeringB.ID},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		}))
 	assert.Len(t, loadTemplateEnrollments(t, env, template.ID), 2,
 		"the union resync must be idempotent")
@@ -1244,7 +1244,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 
 	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok)
-	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, timezone.TodayDate()))
+	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, decisionTestDate))
 
 	kept, err := repositories.NewFactory(env.db).ActivityGroup.FindByID(ctx, template.ID)
 	require.NoError(t, err)
@@ -1388,7 +1388,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 			TemplateID:       template.ID,
 			OfferingIDs:      []int64{offering.ID},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		},
 	))
 	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 1)
@@ -1411,6 +1411,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 		FormSchemaRepo:         repoFactory.FormSchema,
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		DB:                     env.db,
+		Today:                  func() timezone.Date { return decisionTestDate },
 	})
 	binder, ok := phaseSvc.(enrollmentService.CareOfferingSourceResyncBinder)
 	require.True(t, ok, "phase service must accept the sourced-template resyncer")
@@ -1534,7 +1535,7 @@ func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing
 		OfferingIDs:      []int64{offering.ID},
 		GradeLevels:      []int{2},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}
 	resyncer := offeringResyncer(t, env)
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
@@ -1576,7 +1577,7 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 		OfferingIDs:      []int64{offering.ID},
 		GradeLevels:      []int{1},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}
 	resyncer := offeringResyncer(t, env)
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
@@ -1658,7 +1659,7 @@ func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testin
 		OfferingIDs:      []int64{offering.ID},
 		GradeLevels:      []int{2},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}
 	resyncer := offeringResyncer(t, env)
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
@@ -1991,7 +1992,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 		TemplateID:       legacyTemplate.ID,
 		OfferingIDs:      []int64{sourceOffering.ID},
 		CalendarPeriodID: &period.ID,
-		EffectiveFrom:    timezone.TodayDate(),
+		EffectiveFrom:    decisionTestDate,
 	}))
 	rows = loadTemplateEnrollments(t, env, legacyTemplate.ID)
 	require.Len(t, rows, 2, "the source contributes its non-overlapping weekday next to the legacy row")
@@ -2006,7 +2007,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
 		TemplateID:    legacyTemplate.ID,
 		OfferingIDs:   nil,
-		EffectiveFrom: timezone.TodayDate(),
+		EffectiveFrom: decisionTestDate,
 	}))
 	rows = loadTemplateEnrollments(t, env, legacyTemplate.ID)
 	require.Len(t, rows, 1, "the source-shaped row must be reconciled away")
@@ -2050,7 +2051,7 @@ func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSour
 			OfferingIDs:      []int64{sourceOffering.ID},
 			GradeLevels:      []int{2},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		},
 	))
 
@@ -2086,7 +2087,7 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 			OfferingIDs:      []int64{offering.ID},
 			GradeLevels:      []int{2},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		},
 	))
 	rows := loadTemplateEnrollments(t, env, template.ID)
@@ -2102,6 +2103,7 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 		TimeframeRepo:            env.repos.Timeframe,
 		ActivityExceptionRepo:    env.repos.ActivityException,
 		PhaseRepo:                env.repos.Phase,
+		Today:                    func() timezone.Date { return decisionTestDate },
 	})
 	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
 	require.True(t, ok, "care offering service must accept the sourced-template resyncer")
@@ -2148,12 +2150,12 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
 	})
 	require.True(t, ok, "decision service must implement the tenant-wide resync")
-	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()),
+	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, decisionTestDate),
 		"the tenant-wide resync must skip a drifted-invalid template with a warning")
 
 	scoped, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-scoped resync")
-	err := scoped.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, timezone.TodayDate())
+	err := scoped.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, decisionTestDate)
 	require.ErrorIs(t, err, scheduleService.ErrOfferingSourceInvalid,
 		"the offering-scoped resync must surface the incompatibility so phase/offering edits are rejected")
 }
@@ -2299,7 +2301,7 @@ func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
 			OfferingIDs:      []int64{offering.ID},
 			GradeLevels:      []int{2},
 			CalendarPeriodID: &period.ID,
-			EffectiveFrom:    timezone.TodayDate(),
+			EffectiveFrom:    decisionTestDate,
 		},
 	))
 

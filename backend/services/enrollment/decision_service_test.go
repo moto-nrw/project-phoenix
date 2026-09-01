@@ -47,6 +47,8 @@ type decisionTestEnv struct {
 	decision enrollmentService.DecisionService
 }
 
+var decisionTestDate = timezone.NewDate(2026, 8, 24)
+
 // stubActivationSettings is a fake DecisionSettingsResolver returning a
 // fixed enrollment.default_activation_mode, so the immediate/scheduled
 // approval paths can be exercised without writing config.setting_values
@@ -169,7 +171,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 			slog.Default(),
 		),
 		Logger: slog.Default(),
-		Today:  func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
+		Today:  func() timezone.Date { return decisionTestDate },
 	})
 }
 

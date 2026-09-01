@@ -103,6 +103,7 @@ type PhaseServiceConfig struct {
 	Settings PhaseSettingsResolver
 	DB       *bun.DB
 	Logger   *slog.Logger
+	Today    func() timezone.Date
 }
 
 type phaseService struct {
@@ -122,6 +123,7 @@ type phaseService struct {
 	settings                PhaseSettingsResolver
 	txHandler               *tenant.TransactionRunner
 	logger                  *slog.Logger
+	today                   func() timezone.Date
 }
 
 // SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
@@ -138,6 +140,10 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 	if cfg.DB != nil {
 		txHandler = tenant.NewTransactionRunner()
 	}
+	today := cfg.Today
+	if today == nil {
+		today = timezone.TodayDate
+	}
 	return &phaseService{
 		repo:                            cfg.Repo,
 		requestRepo:                     cfg.RequestRepo,
@@ -150,6 +156,7 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		settings:                        cfg.Settings,
 		txHandler:                       txHandler,
 		logger:                          logger,
+		today:                           today,
 	}
 }
 
@@ -522,7 +529,7 @@ func (s *phaseService) resyncPhaseSourcedTemplates(ctx context.Context, phaseID 
 	if err != nil {
 		return fmt.Errorf("phase update: list care offerings for sourced-template resync: %w", err)
 	}
-	today := timezone.TodayDate()
+	today := s.today()
 	for _, offering := range offerings {
 		if offering == nil {
 			continue
@@ -565,7 +572,7 @@ func (s *phaseService) detachPhaseSourcedTemplates(ctx context.Context, phaseID 
 	if err != nil {
 		return fmt.Errorf("phase delete: list care offerings for sourced-template detach: %w", err)
 	}
-	today := timezone.TodayDate()
+	today := s.today()
 	for _, offering := range offerings {
 		if offering == nil {
 			continue
