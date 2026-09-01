@@ -175,6 +175,7 @@ type OperatorMFAEmailChallengeRepository interface {
 	Create(ctx context.Context, challenge *OperatorMFAEmailChallenge) error
 	FindByID(ctx context.Context, id interface{}) (*OperatorMFAEmailChallenge, error)
 	FindActiveByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFAEmailChallenge, error)
+	MarkActive(ctx context.Context, id int64) error
 	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
 	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
 	DeleteExpired(ctx context.Context) (int, error)

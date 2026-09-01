@@ -12,6 +12,7 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,10 +28,8 @@ func (c testAuthEventCommand) Append(ctx context.Context, event any) error {
 	return c.repo.Create(ctx, event.(*auditModels.AuthEvent))
 }
 
-// newTestMFAService wires a real test-DB-backed MFA service. Settings +
-// Dispatcher are intentionally nil so IsRequired falls through to "off"
-// and StartChallenge logs-and-skips email send (proper template lands
-// in Phase 4).
+// newTestMFAService wires a real test-DB-backed MFA service. Settings is nil so
+// IsRequired falls through to "off"; Delivery uses the shared capture adapter.
 func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -40,11 +39,12 @@ func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *b
 	require.NoError(t, err)
 
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:     repos,
-		TokenAuth: tokenAuth,
-		JWTSecret: testJWTSecret,
-		DB:        db,
-		Audit:     testAuthEventCommand{repo: repos.AuthEvent},
+		Repos:      repos,
+		TokenAuth:  tokenAuth,
+		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
+		JWTSecret:  testJWTSecret,
+		DB:         db,
+		Audit:      testAuthEventCommand{repo: repos.AuthEvent},
 	})
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, svc, db)
