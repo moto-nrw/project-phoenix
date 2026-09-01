@@ -217,7 +217,7 @@ function MobileTabDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 z-50 mt-1 min-w-48 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+        <div className="moto-popover-surface absolute top-full left-0 z-50 mt-1 min-w-48 overflow-hidden rounded-xl border py-1">
           {items.map((item) => {
             const isActive = item.id === activeTab;
             return (
