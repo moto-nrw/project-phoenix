@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     mealParticipationVersion,
 		Description: mealParticipationDescription,
-		DependsOn:   []string{announcementAttachmentsVersion},
+		DependsOn:   []string{leasedDeliveryOutboxVersion},
 	})
 	Migrations.MustRegister(mealParticipationUp, mealParticipationDown)
 }
