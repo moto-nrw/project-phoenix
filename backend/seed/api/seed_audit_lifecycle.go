@@ -28,7 +28,51 @@ func (seedAuditLifecycleStep) Run(_ context.Context, rt *Runtime) error {
 	if err := deleteDisposableStudent(rt, studentID); err != nil {
 		return err
 	}
-	fmt.Println("  1 student deletion and 1 guardian change audited")
+	if err := seedAttendanceCorrection(rt); err != nil {
+		return err
+	}
+	fmt.Println("  1 student deletion, 1 guardian change and 1 attendance correction audited")
+	return nil
+}
+
+func seedAttendanceCorrection(rt *Runtime) error {
+	studentIDs := orderedSeedStudentIDs(rt.FixedSeeder)
+	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
+	roomID := rt.FixedSeeder.roomIDs["OGS-Raum 1"]
+	if len(studentIDs) == 0 || len(staffIDs) == 0 || roomID == 0 {
+		return fmt.Errorf("attendance correction references not available")
+	}
+
+	instanceRaw, err := rt.Client.Post("/api/timetable/instances", map[string]any{
+		"date":        todaySeedDate().String(),
+		"start_time":  "11:00",
+		"end_time":    "12:00",
+		"title":       "Korrekturbeispiel",
+		"room_id":     roomID,
+		"staff_ids":   []int64{staffIDs[0]},
+		"student_ids": []int64{studentIDs[0]},
+	})
+	if err != nil {
+		return fmt.Errorf("create attendance correction instance: %w", err)
+	}
+	instanceID, err := parseEnvelopeStringID(instanceRaw)
+	if err != nil {
+		return fmt.Errorf("parse attendance correction instance: %w", err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/start", instanceID), nil); err != nil {
+		return fmt.Errorf("start attendance correction instance: %w", err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/complete", instanceID), map[string]any{
+		"confirmed_present_student_ids": []int64{studentIDs[0]},
+	}); err != nil {
+		return fmt.Errorf("complete attendance correction instance: %w", err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/students/%d/correction", instanceID, studentIDs[0]), map[string]any{
+		"note":   "Nachträglich ergänzt.",
+		"reason": "Dokumentation vervollständigt",
+	}); err != nil {
+		return fmt.Errorf("seed attendance correction: %w", err)
+	}
 	return nil
 }
 
