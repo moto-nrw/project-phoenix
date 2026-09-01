@@ -34,8 +34,8 @@ func TestStudentsAllowedDepartureModesMigration_BackfillsFromLegacyMaps(t *testi
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 		if !allowedDepartureModesColumnExists(t, db) {
 			require.NoError(t, studentsAllowedDepartureModesUp(ctx, db))
 		}

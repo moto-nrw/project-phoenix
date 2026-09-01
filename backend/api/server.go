@@ -189,7 +189,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.WorkSessionCleanup = services.WorkSession
 	deps.BreakAutoEnder = services.WorkSession
 	deps.AutoCheckouter = services.WorkSession
-	deps.FeedbackCleaner = services.Feedback
+	deps.FeedbackCleaner = api.feedback
 	deps.UnregisteredScanCleaner = services.UnregisteredTagScans
 	deps.Materializer = services.Materialization
 	deps.TimetableCleanup = services.TimetableCleanup

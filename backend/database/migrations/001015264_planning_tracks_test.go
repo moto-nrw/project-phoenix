@@ -13,7 +13,7 @@ func TestPlanningTracksSchemaRejectsCrossTenantTemplateReference(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, db, "PlanningTrackTenantFK")
 
 	otherScope := testpkg.NewTenantScope(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, otherScope.TenantID)
+	testpkg.OwnTenantRows(t, db, otherScope.TenantID)
 	var trackID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO schedule.planning_tracks (tenant_id, name, color, sort_order)
@@ -31,7 +31,7 @@ func TestPlanningTracksSchemaRejectsCrossTenantTemplateReference(t *testing.T) {
 func TestPlanningTracksSchemaEnforcesActiveNameAndColor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
+	testpkg.OwnTenantRows(t, db, scope.TenantID)
 	ctx := context.Background()
 
 	insert := func(name, color string) error {

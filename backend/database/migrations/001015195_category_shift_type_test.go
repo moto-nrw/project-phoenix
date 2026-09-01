@@ -87,10 +87,10 @@ func TestCategoryShiftTypeFKEnforcesTenantIsolation(t *testing.T) {
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.OwnTenantRows(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
+	testpkg.OwnTenantRows(t, db, tenantB)
 	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantA)
-		testpkg.CleanupTenantTestData(t, db, tenantB)
 		_, _ = db.NewDelete().TableExpr("schedule.shift_types").Where("tenant_id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
 		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
 		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)

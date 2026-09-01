@@ -254,14 +254,10 @@ func poolSize() int {
 	return min(parallelism()+nestedConnHeadroom, poolSizeCap)
 }
 
-// initCloneBootstrap seeds the per-package clone once: sequence offsets, the
-// default tenant (school 1), the default room, and the system staff fixture.
+// initCloneBootstrap seeds the per-package clone once: the default tenant
+// (school 1), the default room, and the system staff fixture.
 // The fixed bootstrap entities disappear with the PR-2 per-test-tenant sweep.
 func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
-	if err := applySequenceOffsets(ctx, db); err != nil {
-		return fmt.Errorf("apply test sequence offsets: %w", err)
-	}
-
 	// Ensure the default tenant (school ID 1) exists in platform.schools.
 	// Legacy fixtures use tenant_id=1, which requires a FK target row.
 	if err := ensureBootstrapTenant(ctx, db); err != nil {

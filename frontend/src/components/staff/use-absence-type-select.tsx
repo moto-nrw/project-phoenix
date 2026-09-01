@@ -26,6 +26,8 @@ import {
   type AbsenceTypeOption,
 } from "./use-absence-type-options";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+import { Checkbox } from "~/components/ui/checkbox";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
 type ListboxProps = ComponentProps<typeof ListboxDropdown<string>>;
@@ -90,6 +92,7 @@ export function useAbsenceTypeSelect({
     create: onCreate,
     rename: onRename,
     setActive: onSetActive,
+    update: onUpdate,
   } = useAbsenceTypeOptions(canManage);
 
   const [open, setOpen] = useState(false);
@@ -98,6 +101,8 @@ export function useAbsenceTypeSelect({
   const [error, setError] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [editingAllowance, setEditingAllowance] = useState(false);
+  const [editingPolicy, setEditingPolicy] = useState<"warn" | "block">("warn");
   const editRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -173,13 +178,21 @@ export function useAbsenceTypeSelect({
   };
 
   const runRename = async () => {
-    if (!onRename || !editingValue) return;
+    if ((!onRename && !onUpdate) || !editingValue) return;
     const name = editingName.trim();
     if (name === "") return;
     setBusy(true);
     setError(null);
     try {
-      await onRename(editingValue, name);
+      if (onUpdate) {
+        await onUpdate(editingValue, {
+          name,
+          allowanceEnabled: editingAllowance,
+          overrunPolicy: editingPolicy,
+        });
+      } else if (onRename) {
+        await onRename(editingValue, name);
+      }
       setEditingValue(null);
     } catch (err) {
       setError(messageOf(err, "Name konnte nicht geändert werden."));
@@ -250,6 +263,34 @@ export function useAbsenceTypeSelect({
               <X aria-hidden="true" className="h-4 w-4" />
             </button>
           </div>
+          <label
+            htmlFor="absence-type-allowance-enabled"
+            className="mt-2 flex items-center gap-2 text-xs text-gray-700"
+          >
+            <Checkbox
+              id="absence-type-allowance-enabled"
+              checked={editingAllowance}
+              onChange={(event) => setEditingAllowance(event.target.checked)}
+            />
+            Eigenes Jahreskontingent
+          </label>
+          {editingAllowance ? (
+            <div className="mt-2 flex items-center justify-between gap-2 text-xs text-gray-700">
+              <span>Wenn Tage fehlen</span>
+              <CustomSelect
+                ariaLabel="Verhalten bei fehlenden Tagen"
+                value={editingPolicy}
+                onChange={(value) =>
+                  setEditingPolicy(value as "warn" | "block")
+                }
+                options={[
+                  { value: "warn", label: "Warnen" },
+                  { value: "block", label: "Buchung verhindern" },
+                ]}
+                triggerClassName="moto-content-surface h-8 min-w-40"
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -333,6 +374,8 @@ export function useAbsenceTypeSelect({
               onClick={() => {
                 setEditingValue(option.value);
                 setEditingName(option.label);
+                setEditingAllowance(Boolean(option.allowanceEnabled));
+                setEditingPolicy(option.overrunPolicy ?? "warn");
               }}
               aria-label={`${option.label} umbenennen`}
               title="Umbenennen"

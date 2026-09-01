@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 )
 
@@ -49,7 +49,7 @@ func ErrorRenderer(err error) render.Renderer {
 		return handleActiveServiceError(activeErr)
 	}
 
-	if feedbackErr, ok := err.(*feedbackSvc.InvalidEntryDataError); ok {
+	if feedbackErr, ok := err.(*feedbackModule.InvalidEntryDataError); ok {
 		return common.ErrorInvalidRequest(feedbackErr)
 	}
 
@@ -179,13 +179,13 @@ func isActiveValidationError(err error) bool {
 // handleFeedbackServiceError maps Feedback service errors to HTTP responses
 func handleFeedbackServiceError(err error) render.Renderer {
 	switch {
-	case errors.Is(err, feedbackSvc.ErrEntryNotFound):
+	case errors.Is(err, feedbackModule.ErrEntryNotFound):
 		return common.ErrorNotFound(err)
-	case errors.Is(err, feedbackSvc.ErrInvalidEntryData):
+	case errors.Is(err, feedbackModule.ErrInvalidEntryData):
 		return common.ErrorInvalidRequest(err)
-	case errors.Is(err, feedbackSvc.ErrStudentNotFound):
+	case errors.Is(err, feedbackModule.ErrStudentNotFound):
 		return common.ErrorNotFound(err)
-	case errors.Is(err, feedbackSvc.ErrInvalidDateRange):
+	case errors.Is(err, feedbackModule.ErrInvalidDateRange):
 		return common.ErrorInvalidRequest(err)
 	default:
 		return nil // Not a feedback error

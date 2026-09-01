@@ -54,18 +54,6 @@ type GuardianChange struct {
 	ChangedAt          time.Time `bun:"changed_at,notnull,default:now()" json:"changed_at"`
 }
 
-func (e *GuardianChange) GetID() interface{} {
-	return e.ID
-}
-
-func (e *GuardianChange) GetCreatedAt() time.Time {
-	return e.ChangedAt
-}
-
-func (e *GuardianChange) GetUpdatedAt() time.Time {
-	return e.ChangedAt
-}
-
 type GuardianChangeRepository interface {
 	Create(ctx context.Context, entry *GuardianChange) error
 	ListByStudentID(ctx context.Context, studentID int64) ([]*GuardianChange, error)

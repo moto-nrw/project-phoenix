@@ -87,7 +87,6 @@ func TestNewFactory(t *testing.T) {
 
 	// Verify feedback repositories are initialized
 	t.Run("feedback repositories", func(t *testing.T) {
-		assert.NotNil(t, factory.FeedbackEntry)
 	})
 
 	// Verify IoT repositories are initialized

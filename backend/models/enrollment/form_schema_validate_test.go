@@ -255,6 +255,11 @@ func TestFormSchema_Validate_RejectsInvalidLegalBlockShape(t *testing.T) {
 			want:  "cannot be required",
 		},
 		{
+			name:  "consent cannot be required",
+			block: FormLegalBlock{Key: "custom_pool", Kind: LegalBlockKindConsent, Title: "T", Label: "L", Required: true, Enabled: true},
+			want:  "cannot be required",
+		},
+		{
 			name:  "pdf mode only allowed for agb",
 			block: FormLegalBlock{Key: ConsentKeyPhoto, Kind: LegalBlockKindConsent, Title: "T", Label: "L", Enabled: true, Source: LegalBlockSourceStandard, DisplayMode: LegalBlockDisplayModePDF, DocumentURL: "/uploads/enrollment-legal-documents/1_terms.pdf"},
 			want:  "cannot use PDF display mode",

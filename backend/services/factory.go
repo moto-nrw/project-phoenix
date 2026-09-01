@@ -44,7 +44,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
-	"github.com/moto-nrw/project-phoenix/services/feedback"
 	"github.com/moto-nrw/project-phoenix/services/filestore"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
@@ -130,7 +129,6 @@ type Factory struct {
 	WC                        facilities.WCService
 	Invitation                auth.InvitationService
 	GuardianInvitation        auth.GuardianInvitationService
-	Feedback                  feedback.Service
 	IoT                       iot.Service
 	Checkin                   *iotcheckin.CheckinService
 	StaffClock                *staffclock.Service
@@ -309,16 +307,39 @@ func (f *Factory) SetSettingsObservers(
 
 type MealPlanSettingsBinder func(func(context.Context) (bool, error))
 
-// NewFactoryWithMealPlan builds the production graph with the one authoritative
-// Meal Plan facade shared by staff and parent callers.
-func NewFactoryWithMealPlan(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, mealPlan parent.MealPlan, bindSettings MealPlanSettingsBinder, clocks ...func() time.Time) (*Factory, error) {
-	if mealPlan == nil || bindSettings == nil {
-		return nil, errors.New("meal plan capability and settings binder are required")
+type FeedbackSettingsBinder func(
+	func(context.Context) (bool, error),
+	func(context.Context) (int, error),
+)
+
+// NewFactoryWithModules builds the legacy service graph around the migrated
+// module capabilities it still consumes.
+func NewFactoryWithModules(
+	repos *repositories.Factory,
+	db *bun.DB,
+	logger *slog.Logger,
+	mealPlan parent.MealPlan,
+	bindMealPlanSettings MealPlanSettingsBinder,
+	feedbackCounter users.FeedbackEntryCounter,
+	bindFeedbackSettings FeedbackSettingsBinder,
+	clocks ...func() time.Time,
+) (*Factory, error) {
+	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil {
+		return nil, errors.New("meal plan and feedback capabilities with settings binders are required")
 	}
-	return newFactory(repos, db, logger, mealPlan, bindSettings, clocks...)
+	return newFactory(repos, db, logger, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, clocks...)
 }
 
-func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, mealPlan parent.MealPlan, bindMealPlanSettings MealPlanSettingsBinder, clocks ...func() time.Time) (*Factory, error) {
+func newFactory(
+	repos *repositories.Factory,
+	db *bun.DB,
+	logger *slog.Logger,
+	mealPlan parent.MealPlan,
+	bindMealPlanSettings MealPlanSettingsBinder,
+	feedbackCounter users.FeedbackEntryCounter,
+	bindFeedbackSettings FeedbackSettingsBinder,
+	clocks ...func() time.Time,
+) (*Factory, error) {
 	now := optionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	settingsRuntime := newSettingsRuntime(db, nil)
@@ -475,6 +496,16 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		bindMealPlanSettings(func(ctx context.Context) (bool, error) {
 			return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
 		})
+	}
+	if bindFeedbackSettings != nil {
+		bindFeedbackSettings(
+			func(ctx context.Context) (bool, error) {
+				return settingsService.ResolveBool(ctx, configModels.KeyFeedbackEnabled)
+			},
+			func(ctx context.Context) (int, error) {
+				return settingsService.ResolveInt(ctx, configModels.KeyFeedbackDataRetentionDays)
+			},
+		)
 	}
 	// Wire the enrollment class-restriction probe so the settings service can
 	// refuse disabling concrete-class collection while an active phase
@@ -643,6 +674,19 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	// service so it can be injected there and resolve custom names on both the
 	// write path (which base type an art inherits) and the read paths.
 	staffAbsenceTypeService := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, activeLogger)
+	if allowanceAware, ok := staffAbsenceTypeService.(interface {
+		SetAllowanceRepositories(
+			activeModels.StaffAbsenceTypeAllowanceRepository,
+			activeModels.StaffAbsenceTypeAllowanceChangeRepository,
+			activeModels.StaffAbsenceRepository,
+		)
+	}); ok {
+		allowanceAware.SetAllowanceRepositories(
+			repos.StaffAbsenceTypeAllowance,
+			repos.StaffAbsenceTypeAllowanceChange,
+			repos.StaffAbsence,
+		)
+	}
 	if typeAware, ok := workSessionService.(interface {
 		SetAbsenceTypeService(active.StaffAbsenceTypeService)
 	}); ok {
@@ -873,11 +917,6 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		Logger:                   activeLogger,
 		Now:                      now,
 	})
-
-	// Initialize feedback service
-	feedbackService := feedback.NewService(
-		repos.FeedbackEntry,
-	)
 
 	// Initialize IoT service
 	iotService := iot.NewService(
@@ -2046,6 +2085,7 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		feedbackCounter,
 		db,
 	)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
@@ -2712,7 +2752,6 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		Facilities:              facilitiesService,
 		Schulhof:                schulhofService,
 		WC:                      wcService,
-		Feedback:                feedbackService,
 		IoT:                     iotService,
 		Checkin:                 checkinService,
 		StaffClock:              staffClockService,
