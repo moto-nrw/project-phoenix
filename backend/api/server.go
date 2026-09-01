@@ -248,6 +248,17 @@ func workerTracer(api *API) scheduler.WorkerTracer {
 		Run: func(jobID scheduler.JobID, outcome string, duration time.Duration) {
 			observability.RecordWorkerRunEvent(string(jobID), outcome, duration)
 		},
+		Batch: func(event scheduler.TenantBatchEvidence) {
+			observability.RecordWorkerTenantBatchEvent(
+				string(event.JobID),
+				event.Duration,
+				event.Processed,
+				event.Failed,
+				event.Retries,
+				event.Backlog,
+				event.PoolWait,
+			)
+		},
 	}
 }
 

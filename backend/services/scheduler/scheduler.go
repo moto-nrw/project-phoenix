@@ -56,6 +56,19 @@ type WorkerTracer struct {
 	Logger   func(context.Context) *slog.Logger
 	Failure  func(context.Context, string, string, error)
 	Run      func(JobID, string, time.Duration)
+	Batch    func(TenantBatchEvidence)
+}
+
+// TenantBatchEvidence is the bounded, low-cardinality runtime record emitted
+// after each tenant batch.
+type TenantBatchEvidence struct {
+	JobID     JobID
+	Duration  time.Duration
+	Processed int
+	Failed    int
+	Retries   int
+	Backlog   int
+	PoolWait  time.Duration
 }
 
 var errWorkerTraceStart = errors.New("start worker trace")
@@ -158,6 +171,7 @@ type Scheduler struct {
 	tenantRuntimeObserver      func(entryPoint, outcome string)
 	unitOfWorkObserver         func(entryPoint, kind, result string, duration time.Duration, retries int)
 	workerTracer               WorkerTracer
+	tenantBatchCursors         sync.Map // job ID → last successful tenant ID
 	minuteSnapshotMu           sync.Mutex
 	minuteSnapshotLoad         *schedulerMinuteSnapshotLoad
 	minuteSnapshotNow          func() time.Time
@@ -387,11 +401,17 @@ func (s *Scheduler) observeWorkerRun(jobID JobID, outcome string, duration time.
 
 func (s *Scheduler) withUnitOfWork(ctx context.Context) context.Context {
 	ctx = tenant.WithUnitOfWork(ctx, s.tenantRuntime)
-	if s.unitOfWorkObserver == nil {
+	batchEvidence, _ := ctx.Value(batchRuntimeEvidenceKey{}).(*batchRuntimeEvidence)
+	if s.unitOfWorkObserver == nil && batchEvidence == nil {
 		return ctx
 	}
 	return tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
-		s.unitOfWorkObserver("worker", string(event.Kind), string(event.Result), event.Duration, event.Retries)
+		if batchEvidence != nil {
+			batchEvidence.observe(event)
+		}
+		if s.unitOfWorkObserver != nil {
+			s.unitOfWorkObserver("worker", string(event.Kind), string(event.Result), event.Duration, event.Retries)
+		}
 	})
 }
 
@@ -415,19 +435,22 @@ type TimetableBridgeCompleter interface {
 // concurrent polling goroutines do not repeat the platform.schools query.
 func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
 	if !s.tenantRuntimeConfigured || (s.minuteSnapshotLoader == nil && (s.db == nil || s.schoolRepo == nil)) {
+		err := fmt.Errorf("tenant runtime is not configured for %s: %w", opName, tenant.ErrRuntimeRequired)
+		recordJobCommandFailure(ctx, err)
 		s.observeTenantRuntime("missing_tenant")
-		return fmt.Errorf("tenant runtime is not configured for %s", opName)
+		return err
 	}
 
 	minuteSnapshot, err := s.getMinuteSnapshot(ctx)
 	if err != nil && (minuteSnapshot == nil || len(minuteSnapshot.tenantIDs) == 0) {
+		recordJobCommandFailure(ctx, err)
 		s.observeTenantRuntime("transaction_failure")
 		return fmt.Errorf("load active tenants for %s: %w", opName, err)
 	}
-	s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, _ int64) error {
+	result := s.runTenantBatches(ctx, minuteSnapshot.tenantIDs, opName, adaptTenantCommand(func(txCtx context.Context, _ int64) error {
 		return fn(txCtx)
-	})
-	return nil
+	}))
+	return result.Err
 }
 
 // forEachTenantIncludingInactive runs a maintenance operation for every
@@ -435,8 +458,10 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 // after a school has been deactivated.
 func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
 	if !s.tenantRuntimeConfigured || (s.allTenantIDsLoader == nil && (s.db == nil || s.schoolRepo == nil)) {
+		err := fmt.Errorf("tenant runtime is not configured for %s: %w", opName, tenant.ErrRuntimeRequired)
+		recordJobCommandFailure(ctx, err)
 		s.observeTenantRuntime("missing_tenant")
-		return fmt.Errorf("tenant runtime is not configured for %s", opName)
+		return err
 	}
 
 	ctx = s.withUnitOfWork(ctx)
@@ -445,6 +470,7 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 		var err error
 		tenantIDs, err = s.allTenantIDsLoader(ctx)
 		if err != nil {
+			recordJobCommandFailure(ctx, err)
 			s.observeTenantRuntime("transaction_failure")
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
 		}
@@ -455,6 +481,7 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 			schools, listErr = s.schoolRepo.ListNonDeleted(txCtx)
 			return listErr
 		}); err != nil {
+			recordJobCommandFailure(ctx, err)
 			s.observeTenantRuntime("transaction_failure")
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
 		}
@@ -463,10 +490,10 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 			tenantIDs = append(tenantIDs, school.ID)
 		}
 	}
-	s.forEachKnownTenant(ctx, tenantIDs, opName, func(txCtx context.Context, _ int64) error {
+	result := s.runTenantBatches(ctx, tenantIDs, opName, adaptTenantCommand(func(txCtx context.Context, _ int64) error {
 		return fn(txCtx)
-	})
-	return nil
+	}))
+	return result.Err
 }
 
 // forEachTenantSettings executes fn for each active tenant, passing tenant ID for settings resolution.
@@ -474,6 +501,7 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 // Production jobs share one cross-tenant settings snapshot per minute.
 func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) []int64 {
 	if !s.tenantRuntimeConfigured || (s.minuteSnapshotLoader == nil && (s.db == nil || s.schoolRepo == nil)) {
+		recordJobCommandFailure(ctx, fmt.Errorf("%w for %s", tenant.ErrRuntimeRequired, opName))
 		s.observeTenantRuntime("missing_tenant")
 		s.getLogger().Error("tenant runtime is not configured",
 			slog.String("entry_point", "worker"),
@@ -489,6 +517,7 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 		if errors.Is(err, errSchedulerSettingsBatchUnsupported) && minuteSnapshot != nil {
 			return s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, fn)
 		}
+		recordJobCommandFailure(ctx, err)
 		s.observeTenantRuntime("transaction_failure")
 		s.getLogger().Error("scheduler settings snapshot unavailable",
 			slog.String("operation", opName),
@@ -652,6 +681,9 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			slog.String("error", err.Error()),
 		)
 	}
+	failures := &jobCommandFailures{}
+	ctx = context.WithValue(ctx, jobCommandFailuresKey{}, failures)
+	ctx = context.WithValue(ctx, workerJobIDKey{}, JobID(task.Name))
 	started := time.Now()
 	defer func() {
 		duration := time.Since(started)
@@ -664,6 +696,16 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 				slog.Duration("duration", duration),
 			)
 			panic(recovered)
+		}
+		if commandErr := failures.result(); commandErr != nil {
+			s.observeWorkerRun(JobID(task.Name), "failed", duration)
+			s.traceWorkerFailure(ctx, task.Name, "command_failure", commandErr)
+			s.workerLogger(ctx).ErrorContext(ctx, "worker job command failed",
+				slog.String("job_id", task.Name),
+				slog.Duration("duration", duration),
+				slog.String("error", commandErr.Error()),
+			)
+			return
 		}
 		s.observeWorkerRun(JobID(task.Name), "completed", duration)
 		s.workerLogger(ctx).DebugContext(ctx, "worker job run completed",
@@ -987,7 +1029,9 @@ func (s *Scheduler) executeTokenCleanup(ctx context.Context, task *ScheduledTask
 		task.mu.Unlock()
 	}()
 
-	_ = s.runCleanupJobs(ctx)
+	if err := s.runCleanupJobs(ctx); err != nil {
+		recordJobCommandFailure(ctx, err)
+	}
 }
 
 // RunCleanupJobs executes all token-related cleanup tasks in sequence.

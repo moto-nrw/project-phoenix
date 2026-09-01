@@ -143,6 +143,50 @@ var (
 		},
 		[]string{"job_id", "outcome"},
 	)
+	workerJobMaxDuration = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_worker_job_max_duration_seconds",
+			Help: "Longest observed embedded Worker job run by stable job ID.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_tenant_batch_duration_seconds",
+			Help:    "Bounded tenant batch duration by stable job ID.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchTenants = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_worker_tenant_batch_tenants_total",
+			Help: "Tenants processed by bounded Worker batches, split by result.",
+		},
+		[]string{"job_id", "result"},
+	)
+	workerTenantBatchRetries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_worker_tenant_batch_retries_total",
+			Help: "Deadlock and serialization retries within bounded tenant batches.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchBacklog = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_worker_tenant_batch_backlog",
+			Help: "Tenants not yet attempted in the current Worker job run.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchPoolWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_tenant_batch_pool_wait_seconds",
+			Help:    "Database-pool wait attributed to a bounded tenant batch.",
+			Buckets: []float64{0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"job_id"},
+	)
 	settingsLookups = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_settings_lookups_total",
@@ -386,6 +430,8 @@ var (
 	pwaStatsProvider PWAUsageStatsProvider
 	pwaGaugeMu       sync.Mutex
 	pwaGaugeLabels   = make(map[[2]string]struct{})
+	workerJobMaxMu   sync.Mutex
+	workerJobMax     = make(map[string]time.Duration)
 
 	dbOpenConnectionsDesc      = prometheus.NewDesc("phoenix_db_open_connections", "Open DB connections.", nil, nil)
 	dbInUseConnectionsDesc     = prometheus.NewDesc("phoenix_db_in_use_connections", "DB connections currently in use.", nil, nil)
@@ -411,6 +457,12 @@ func init() {
 		unitOfWorkPoolWait,
 		unitOfWorkLockWait,
 		workerJobDuration,
+		workerJobMaxDuration,
+		workerTenantBatchDuration,
+		workerTenantBatchTenants,
+		workerTenantBatchRetries,
+		workerTenantBatchBacklog,
+		workerTenantBatchPoolWait,
 		settingsLookups,
 		settingsLookupDuration,
 		settingsSideEffectFailures,
@@ -669,7 +721,26 @@ func RecordUnitOfWorkEvent(entryPoint, kind, result string, duration time.Durati
 
 // RecordWorkerRunEvent records one bounded embedded-job outcome.
 func RecordWorkerRunEvent(jobID, outcome string, duration time.Duration) {
-	workerJobDuration.WithLabelValues(sanitizeLabel(jobID), sanitizeLabel(outcome)).Observe(duration.Seconds())
+	jobID = sanitizeLabel(jobID)
+	workerJobDuration.WithLabelValues(jobID, sanitizeLabel(outcome)).Observe(duration.Seconds())
+	workerJobMaxMu.Lock()
+	if duration > workerJobMax[jobID] {
+		workerJobMax[jobID] = duration
+		workerJobMaxDuration.WithLabelValues(jobID).Set(duration.Seconds())
+	}
+	workerJobMaxMu.Unlock()
+}
+
+// RecordWorkerTenantBatchEvent records one bounded group of isolated tenant
+// commands. Labels contain only the registered job ID and fixed outcomes.
+func RecordWorkerTenantBatchEvent(jobID string, duration time.Duration, processed, failed, retries, backlog int, poolWait time.Duration) {
+	jobID = sanitizeLabel(jobID)
+	workerTenantBatchDuration.WithLabelValues(jobID).Observe(duration.Seconds())
+	workerTenantBatchTenants.WithLabelValues(jobID, "success").Add(float64(processed - failed))
+	workerTenantBatchTenants.WithLabelValues(jobID, "failure").Add(float64(failed))
+	workerTenantBatchRetries.WithLabelValues(jobID).Add(float64(retries))
+	workerTenantBatchBacklog.WithLabelValues(jobID).Set(float64(backlog))
+	workerTenantBatchPoolWait.WithLabelValues(jobID).Observe(poolWait.Seconds())
 }
 
 func ObserveSettingsLookup(key, cache, outcome string, duration time.Duration) {
