@@ -276,6 +276,8 @@ function DialogModal({
       setIsExiting(false);
       return;
     }
+    setIsAnimating(false);
+    setIsExiting(false);
 
     // Ignore the Escape that is already dispatching when this listener is
     // attached: a Vaul drawer closes synchronously DURING the keydown, so a

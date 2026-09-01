@@ -234,6 +234,9 @@ describe("ToastContext", () => {
       await waitFor(() => {
         expect(screen.queryByText("Second")).not.toBeInTheDocument();
         expect(screen.getByText("First")).toBeVisible();
+        expect(
+          screen.getByRole("dialog", { name: "Benachrichtigungen" }),
+        ).toHaveClass("animate-modalEnter");
       });
     });
 
