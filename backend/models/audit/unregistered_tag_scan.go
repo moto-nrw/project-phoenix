@@ -1,16 +1,12 @@
 package audit
 
-import (
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-)
+import "time"
 
 // UnregisteredTagScan records an RFID tag UID that was scanned by an IoT
 // device but was not assigned to any person at scan time.
 type UnregisteredTagScan struct {
-	base.Model
-	base.TenantModel
+	Model
+	TenantModel
 	TagUID               string     `bun:"tag_uid,notnull" json:"tag_uid"`
 	DeviceID             *int64     `bun:"device_id" json:"device_id,omitempty"`
 	ScannedAt            time.Time  `bun:"scanned_at,notnull,default:now()" json:"scanned_at"`

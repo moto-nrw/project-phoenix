@@ -53,8 +53,13 @@ func TestSeedParentLetterMarksLetterReadByParent(t *testing.T) {
 		Parents: []ParentCredentials{{Email: "parent@example.test", Password: "Parent1234%"}},
 	}
 	require.NoError(t, seedParentLetter(rt))
+	// The attachment upload sits between create and publish on purpose
+	// (#2890): a published announcement is immutable, so an upload after the
+	// publish call would be refused with 409 and the demo letter would ship
+	// without its file.
 	assert.Equal(t, []string{
-		"/api/parent-announcements/", "/api/parent-announcements/71/publish",
+		"/api/parent-announcements/", "/api/announcement-attachments/71",
+		"/api/parent-announcements/71/publish",
 		"/parent/auth/login", "/parent/me/news/71/read",
 	}, paths)
 }

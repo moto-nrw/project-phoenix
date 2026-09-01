@@ -375,7 +375,7 @@ export function MFAAdminOverrideModal({
               {error && (
                 <div
                   role="alert"
-                  className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                  className="bg-moto-red-soft text-moto-red-strong rounded-lg p-3 text-sm"
                 >
                   {error}
                 </div>
@@ -406,7 +406,7 @@ export function MFAAdminOverrideModal({
                 oder deaktiviert wird — z. B. wenn der Mitarbeiter keinen
                 Zugriff auf sein E-Mail-Postfach hat.
               </p>
-              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <div className="border-moto-amber/20 bg-moto-amber-soft text-moto-amber-strong mb-3 rounded-md border p-3 text-xs">
                 <strong className="font-semibold">Wichtig:</strong> Diese
                 Einstellung gilt nur für diese Schule. Wenn der Mitarbeiter an
                 weiteren Schulen aktiv ist, bleibt 2FA dort unverändert.
@@ -496,7 +496,7 @@ export function MFAAdminOverrideModal({
               {overrideError && (
                 <div
                   role="alert"
-                  className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                  className="bg-moto-red-soft text-moto-red-strong mt-3 rounded-lg p-3 text-sm"
                 >
                   {overrideError}
                 </div>
@@ -614,7 +614,7 @@ export function MFAAdminOverrideModal({
               {globalError && (
                 <div
                   role="alert"
-                  className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                  className="bg-moto-red-soft text-moto-red-strong mt-3 rounded-lg p-3 text-sm"
                 >
                   {globalError}
                 </div>

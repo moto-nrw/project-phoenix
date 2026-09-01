@@ -142,7 +142,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
       badges: [
         {
           label: (p: Permission) => p.name || "Systemberechtigung",
-          color: "bg-indigo-400/80",
+          color: "bg-moto-indigo-light/80",
           showWhen: () => true,
         },
       ],
@@ -150,7 +150,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
     sections: [
       {
         title: "Technische Daten",
-        titleColor: "text-indigo-800",
+        titleColor: "text-moto-indigo-strong",
         items: [
           {
             label: "Ressource",

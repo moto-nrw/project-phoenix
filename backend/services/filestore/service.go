@@ -150,15 +150,25 @@ type Service interface {
 	MarkQueuedCleanupComplete(ctx context.Context, cleanupID int64) error
 	MarkQueuedCleanupCompleteByFilename(ctx context.Context, storedName string) error
 	ActivateQueuedCleanup(ctx context.Context, storedName string) error
+
+	// Anhänge an Elternmitteilungen (#2890) teilen sich mit der Dateiablage
+	// alles außer der Frage, wer sie sehen darf.
+	AttachmentService
 }
 
 type service struct {
-	db       *bun.DB
-	folders  filestore.FolderRepository
-	files    filestore.FileRepository
-	events   auditModels.FileEventRepository
-	settings configSvc.SettingsService
-	logger   *slog.Logger
+	db          *bun.DB
+	folders     filestore.FolderRepository
+	files       filestore.FileRepository
+	attachments filestore.AnnouncementAttachmentRepository
+	events      auditModels.FileEventRepository
+	settings    configSvc.SettingsService
+	// announcements and audience are the announcement-side ports (#2890). They
+	// stay nil in setups that do not serve attachments; every path that needs
+	// them refuses loudly rather than deciding on its own.
+	announcements AnnouncementGuard
+	audience      AnnouncementAudience
+	logger        *slog.Logger
 }
 
 // NewService wires the file storage service.
@@ -166,18 +176,36 @@ func NewService(
 	db *bun.DB,
 	folders filestore.FolderRepository,
 	files filestore.FileRepository,
+	attachments filestore.AnnouncementAttachmentRepository,
 	events auditModels.FileEventRepository,
 	settings configSvc.SettingsService,
 	logger *slog.Logger,
 ) Service {
 	return &service{
-		db:       db,
-		folders:  folders,
-		files:    files,
-		events:   events,
-		settings: settings,
-		logger:   logger,
+		db:          db,
+		folders:     folders,
+		files:       files,
+		attachments: attachments,
+		events:      events,
+		settings:    settings,
+		logger:      logger,
 	}
+}
+
+// SetAnnouncementPorts injects the announcement-side questions the file
+// storage cannot answer itself (#2890). It is a setter rather than a
+// constructor argument because the announcement services are built after this
+// one in the composition root, and one of them needs a purger pointing back
+// here — passing both ways round at construction time is not possible.
+func (s *service) SetAnnouncementPorts(guard AnnouncementGuard, audience AnnouncementAudience) {
+	s.announcements = guard
+	s.audience = audience
+}
+
+// AnnouncementPortSetter is what the composition root needs to complete the
+// wiring after both sides exist.
+type AnnouncementPortSetter interface {
+	SetAnnouncementPorts(guard AnnouncementGuard, audience AnnouncementAudience)
 }
 
 func (s *service) getLogger() *slog.Logger {

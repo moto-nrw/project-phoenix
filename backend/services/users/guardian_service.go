@@ -263,6 +263,12 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 // Use this only for guardians with no remaining links; for the deliberate
 // full delete use DeleteGuardianWithLinks.
 func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.deleteGuardian(txCtx, id, changedByAccountID)
+	})
+}
+
+func (s *GuardianService) deleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
@@ -281,8 +287,15 @@ func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccou
 //
 // This is the "Komplett löschen" path from #819 and is gated to admins at the
 // handler, because it reaches across every linked student — including siblings
-// in groups the caller may not supervise.
+// in groups the caller may not supervise. The service owns the transaction;
+// an ambient handler transaction is joined rather than nested.
 func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.deleteGuardianWithLinks(txCtx, id, expectedLinkIDs, changedByAccountID)
+	})
+}
+
+func (s *GuardianService) deleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
@@ -1048,6 +1061,12 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 // relationship stays intact. The check runs under the student lock so a payer
 // assigned concurrently cannot slip past it.
 func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.removeGuardianFromStudent(txCtx, studentID, guardianProfileID, changedByAccountID, mayClearPayer)
+	})
+}
+
+func (s *GuardianService) removeGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
 	// The student row serializes this deletion with SetStudentPayer, which
 	// takes the same lock before it reads a relationship's is_payer state.
 	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {

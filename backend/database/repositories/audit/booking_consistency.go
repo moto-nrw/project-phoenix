@@ -5,21 +5,17 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 var errBookingConsistencyTenantRequired = errors.New("booking consistency audit requires a tenant context")
 
 type bookingConsistencyRepository struct {
-	db *bun.DB
+	runtime Runtime
 }
 
-func NewBookingConsistencyRepository(db *bun.DB) auditModel.BookingConsistencyRepository {
-	return &bookingConsistencyRepository{db: db}
+func NewBookingConsistencyRepository(runtime Runtime) auditModel.BookingConsistencyRepository {
+	return &bookingConsistencyRepository{runtime: requireRuntime(runtime)}
 }
 
 // Audit checks approved booking windows for missing pickup projections and
@@ -28,31 +24,24 @@ func NewBookingConsistencyRepository(db *bun.DB) auditModel.BookingConsistencyRe
 // unbooked days and marks the latter not scheduled at read time.
 func (r *bookingConsistencyRepository) Audit(
 	ctx context.Context,
-	auditDate timezone.Date,
+	auditDate auditModel.Date,
 ) (*auditModel.BookingConsistencyReport, error) {
 	if auditDate.IsZero() {
 		return nil, errors.New("booking consistency audit date is required")
 	}
-	tenantID := tenant.FromContext(ctx)
+	tenantID := runtimeTenantID(ctx, r.runtime)
 	if tenantID <= 0 {
 		return nil, errBookingConsistencyTenantRequired
 	}
 
 	report := &auditModel.BookingConsistencyReport{}
-	err := base.GetDB(ctx, r.db).NewRaw(bookingConsistencyQuery, tenantID, auditDate).Scan(ctx, report)
-	if err != nil {
-		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
-	}
-	return report, nil
-}
-
-const bookingConsistencyQuery = `
+	err := runtimeDB(ctx, r.runtime).NewRaw(`
 WITH params AS (
 	SELECT ?::bigint AS tenant_id, ?::date AS audit_date
 ), audit_dates AS (
 	SELECT (params.audit_date + day_offset.day)::date AS date
 	FROM params
-	CROSS JOIN generate_series(0, 6) AS day_offset(day)
+	CROSS JOIN (VALUES (0), (1), (2), (3), (4), (5), (6)) AS day_offset(day)
 ), approved_students AS (
 	SELECT
 		request_child.id AS request_child_id,
@@ -89,7 +78,7 @@ WITH params AS (
 		AND care_offering.phase_id = approved_students.phase_id
 	CROSS JOIN audit_dates
 	CROSS JOIN LATERAL (
-		VALUES (CASE EXTRACT(ISODOW FROM audit_dates.date)::int
+		VALUES (CASE date_part('isodow', audit_dates.date)::int
 			WHEN 1 THEN 'mon'
 			WHEN 2 THEN 'tue'
 			WHEN 3 THEN 'wed'
@@ -103,17 +92,19 @@ WITH params AS (
 		AND care_offering.counts_as_care = TRUE
 		AND audit_dates.date >= approved_students.service_start_date
 		AND audit_dates.date <= approved_students.service_end_date
-		AND EXTRACT(ISODOW FROM audit_dates.date)::int <= 5
+		AND date_part('isodow', audit_dates.date)::int <= 5
 		AND (link.valid_from IS NULL OR link.valid_from <= audit_dates.date)
 		AND (link.valid_until IS NULL OR link.valid_until > audit_dates.date)
 		AND EXISTS (
 			SELECT 1
-			FROM jsonb_array_elements_text(CASE
-				WHEN COALESCE(jsonb_array_length(link.selected_days), 0) > 0
-					OR care_offering.days_of_week_mode <> 'fixed'
-					THEN COALESCE(link.selected_days, '[]'::jsonb)
-				ELSE COALESCE(care_offering.available_days, '[]'::jsonb)
-			END) AS selected_day(value)
+			FROM (
+				SELECT jsonb_array_elements_text(CASE
+					WHEN COALESCE(jsonb_array_length(link.selected_days), 0) > 0
+						OR care_offering.days_of_week_mode <> 'fixed'
+						THEN COALESCE(link.selected_days, '[]'::jsonb)
+					ELSE COALESCE(care_offering.available_days, '[]'::jsonb)
+				END) AS value
+			) AS selected_day
 			WHERE LOWER(BTRIM(selected_day.value)) = day_code.value
 		)
 ), care_days AS (
@@ -206,4 +197,9 @@ SELECT
 			AND NOT missing_required_offering
 			AND NOT has_choosable_offering)::int AS approved_without_optional_offering
 FROM params
-`
+`, tenantID, auditDate).Scan(ctx, report)
+	if err != nil {
+		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
+	}
+	return report, nil
+}

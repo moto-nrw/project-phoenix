@@ -112,6 +112,13 @@ func TestDateColumnTypes(t *testing.T) {
 				switch f.goType {
 				case "timezone.Date", "*timezone.Date":
 					// migrated — ok
+				case "Date", "*Date":
+					// Audit owns the same ISO calendar-date value shape without
+					// importing the legacy shared timezone package.
+					if !strings.HasPrefix(f.file, "models/audit/") {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" uses Date outside models/audit — use timezone.Date"))
+					}
 				case "CalendarDate", "*CalendarDate":
 					// models/config is being detached from the legacy timezone
 					// package by #2646. CalendarDate is an ISO string value, so

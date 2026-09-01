@@ -436,6 +436,15 @@ func (m *mockAuthService) GetActiveTokens(context.Context, int) ([]*authModels.T
 func (m *mockAuthService) SwitchTenant(context.Context, int64, string) (string, string, error) {
 	return "", "", nil
 }
+func (m *mockAuthService) StartStaffPreview(context.Context, int64, int64, int64, string, string, string) (*authSvc.StaffPreviewSession, error) {
+	return nil, nil
+}
+func (m *mockAuthService) EndStaffPreview(context.Context, string, string, string) (int64, error) {
+	return 0, nil
+}
+func (m *mockAuthService) ListStaffPreviewCandidates(context.Context, int64, int64) ([]authSvc.StaffPreviewCandidate, error) {
+	return nil, nil
+}
 func (m *mockAuthService) LinkAccountToTenant(context.Context, string, *int64, int64) (*authModels.Account, error) {
 	return nil, nil
 }

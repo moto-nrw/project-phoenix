@@ -2,8 +2,6 @@ package audit
 
 import (
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ResourceType constants for DataAccessLog.ResourceType.
@@ -87,7 +85,7 @@ const (
 // existing convention for other tables in the audit schema.
 type DataAccessLog struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	ActorAccountID int64     `bun:"actor_account_id,notnull" json:"actor_account_id"`
 	ActorRole      string    `bun:"actor_role,notnull" json:"actor_role"`
 	ResourceType   string    `bun:"resource_type,notnull" json:"resource_type"`

@@ -3,25 +3,24 @@ package auth_test
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"testing"
 	"time"
 
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	emailPkg "github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/services"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type failingAuthEventRepository struct {
-	auditModels.AuthEventRepository
-}
+type failingAuditCommand struct{}
 
-func (failingAuthEventRepository) Create(context.Context, *auditModels.AuthEvent) error {
+func (failingAuditCommand) Append(context.Context, any) error {
 	return errors.New("forced audit failure")
 }
 
@@ -36,10 +35,6 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -65,7 +60,37 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 	assert.NotContains(t, event.Metadata["family_fingerprint"], persisted.FamilyID)
 }
 
-func TestRevocationRollsBackWhenAuditInsertFails(t *testing.T) {
+func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	workingService := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("logout-audit-failure")
+	account, err := workingService.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	_, refreshToken, err := workingService.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	repoFactory := repositories.NewFactory(db)
+	config, err := authService.NewServiceConfig(nil, emailPkg.Email{}, "http://localhost:3000", time.Hour)
+	require.NoError(t, err)
+	config.TokenAuth, err = authjwt.NewTokenAuthWithSecret(authTestFactoryConfig(false).JWTSecret)
+	require.NoError(t, err)
+	config.Audit = failingAuditCommand{}
+	service, err := authService.NewService(repoFactory, config, db, nil)
+	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, service, db)
+
+	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "logout-test"))
+	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, count, "logout must revoke tokens even when audit append fails")
+}
+
+func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -76,25 +101,40 @@ func TestRevocationRollsBackWhenAuditInsertFails(t *testing.T) {
 	account, err := workingService.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 	_, _, err = workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
 	repoFactory := repositories.NewFactory(db)
-	repoFactory.AuthEvent = failingAuthEventRepository{AuthEventRepository: repoFactory.AuthEvent}
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	config, err := authService.NewServiceConfig(nil, emailPkg.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
+	config.Audit = failingAuditCommand{}
+	service, err := authService.NewService(repoFactory, config, db, nil)
+	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, service, db)
 
-	err = serviceFactory.Auth.RevokeAllTokensWithReason(testpkg.TenantContext(tenantID), int(account.ID), "password_reset")
+	err = service.RevokeAllTokensWithReason(testpkg.TenantContext(tenantID), int(account.ID), "password_reset")
 	require.ErrorContains(t, err, "forced audit failure")
 
 	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "token deletion must roll back with the failed audit insert")
+
+	// A caller may retry after the fail-closed transaction. The retry revokes
+	// the still-present token and emits exactly one ledger row; another retry
+	// sees no producer rows and must not duplicate the event.
+	require.NoError(t, workingService.RevokeAllTokensWithReason(ctx, int(account.ID), "password_reset"))
+	require.NoError(t, workingService.RevokeAllTokensWithReason(ctx, int(account.ID), "password_reset"))
+
+	count, err = db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, count)
+	eventCount, err := db.NewSelect().TableExpr("audit.auth_events").
+		Where("account_id = ?", account.ID).
+		Where("event_type = ?", auditModels.EventTypeTokenRevoked).
+		Where("metadata->>'reason' = ?", "password_reset").
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, eventCount, "retry must not append a duplicate revocation event")
 }
 
 func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
@@ -108,10 +148,6 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	for range 6 {
 		_, _, err = service.Login(ctx, email, testPassword)
@@ -132,11 +168,9 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 	assert.Equal(t, float64(1), event.Metadata["revoked_token_count"])
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensRetainsPendingWipeReason(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -145,10 +179,6 @@ func TestCleanupExpiredTokensRetainsPendingWipeReason(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)

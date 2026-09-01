@@ -10,8 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Note: cleanupAccountRecords and cleanupRoleRecords are defined in role_repository_test.go
-
 // ============================================================================
 // AccountRoleRepository CRUD Tests
 // ============================================================================
@@ -27,8 +25,6 @@ func TestAccountRoleRepository_Create(t *testing.T) {
 	t.Run("creates account-role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "role_create")
 		role := testpkg.CreateTestRole(t, db, "CreateRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		ar := &auth.AccountRole{
 			AccountID: account.ID,
@@ -59,9 +55,6 @@ func TestAccountRoleRepository_FindByAccountID(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "find_by_acc_role")
 		role1 := testpkg.CreateTestRole(t, db, "Role1")
 		role2 := testpkg.CreateTestRole(t, db, "Role2")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role1.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role2.ID)
 
 		// Assign both roles
 		ar1 := &auth.AccountRole{AccountID: account.ID, RoleID: role1.ID}
@@ -82,7 +75,6 @@ func TestAccountRoleRepository_FindByAccountID(t *testing.T) {
 
 	t.Run("returns empty slice for account with no roles", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "no_roles")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		roles, err := repo.FindByAccountID(ctx, account.ID)
 		require.NoError(t, err)
@@ -102,9 +94,6 @@ func TestAccountRoleRepository_FindByRoleID(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "find_by_role1")
 		account2 := testpkg.CreateTestAccount(t, db, "find_by_role2")
 		role := testpkg.CreateTestRole(t, db, "SharedRole")
-		defer cleanupAccountRecords(t, db, account1.ID)
-		defer cleanupAccountRecords(t, db, account2.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to both accounts
 		ar1 := &auth.AccountRole{AccountID: account1.ID, RoleID: role.ID}
@@ -120,7 +109,6 @@ func TestAccountRoleRepository_FindByRoleID(t *testing.T) {
 
 	t.Run("returns empty slice for role with no accounts", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "NoAccRole")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		accountRoles, err := repo.FindByRoleID(ctx, role.ID)
 		require.NoError(t, err)
@@ -139,8 +127,6 @@ func TestAccountRoleRepository_FindByAccountAndRole(t *testing.T) {
 	t.Run("finds specific account-role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "find_specific_role")
 		role := testpkg.CreateTestRole(t, db, "SpecificRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Create mapping
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
@@ -175,9 +161,6 @@ func TestAccountRoleRepository_Update(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "update_role")
 		role1 := testpkg.CreateTestRole(t, db, "UpdateRole1")
 		role2 := testpkg.CreateTestRole(t, db, "UpdateRole2")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role1.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role2.ID)
 
 		// Create initial mapping
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role1.ID}
@@ -216,8 +199,6 @@ func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
 	t.Run("deletes existing account-role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_ar")
 		role := testpkg.CreateTestRole(t, db, "DeleteRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Create mapping
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
@@ -234,7 +215,6 @@ func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
 
 	t.Run("does not error when deleting non-existent mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_none")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		err := repo.DeleteByAccountAndRole(ctx, account.ID, 999999)
 		require.NoError(t, err)
@@ -256,8 +236,6 @@ func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
 	t.Run("deletes only the assignment of the given school", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_ar_tenant")
 		role := testpkg.CreateTestRole(t, db, "DeleteTenantRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		homeAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
 		require.NoError(t, repo.Create(testpkg.Ctx(t), homeAssignment))
@@ -280,7 +258,6 @@ func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
 
 	t.Run("does not error when nothing matches", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_ar_tenant_none")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		err := repo.DeleteByAccountRoleAndTenant(testpkg.Ctx(t), account.ID, 999999, otherTenantID)
 		require.NoError(t, err)
@@ -299,9 +276,6 @@ func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_all_roles")
 		role1 := testpkg.CreateTestRole(t, db, "DeleteAll1")
 		role2 := testpkg.CreateTestRole(t, db, "DeleteAll2")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role1.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role2.ID)
 
 		// Create multiple mappings
 		ar1 := &auth.AccountRole{AccountID: account.ID, RoleID: role1.ID}
@@ -321,7 +295,6 @@ func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
 
 	t.Run("does not error when account has no roles", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_empty")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		err := repo.DeleteByAccountID(ctx, account.ID)
 		require.NoError(t, err)
@@ -340,9 +313,6 @@ func TestAccountRoleRepository_DeleteByRoleID(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "del_by_role1")
 		account2 := testpkg.CreateTestAccount(t, db, "del_by_role2")
 		role := testpkg.CreateTestRole(t, db, "DeleteByRoleID")
-		defer cleanupAccountRecords(t, db, account1.ID)
-		defer cleanupAccountRecords(t, db, account2.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to both accounts
 		ar1 := &auth.AccountRole{AccountID: account1.ID, RoleID: role.ID}
@@ -386,8 +356,6 @@ func TestAccountRoleRepository_List(t *testing.T) {
 	t.Run("lists all account-role mappings", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list_ar")
 		role := testpkg.CreateTestRole(t, db, "ListRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
 		require.NoError(t, repo.Create(ctx, ar))
@@ -400,8 +368,6 @@ func TestAccountRoleRepository_List(t *testing.T) {
 	t.Run("filters by account_id", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list_by_acc")
 		role := testpkg.CreateTestRole(t, db, "ListByAcc")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
 		require.NoError(t, repo.Create(ctx, ar))
@@ -420,8 +386,6 @@ func TestAccountRoleRepository_List(t *testing.T) {
 	t.Run("filters by role_id", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list_by_role")
 		role := testpkg.CreateTestRole(t, db, "ListByRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		ar := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
 		require.NoError(t, repo.Create(ctx, ar))

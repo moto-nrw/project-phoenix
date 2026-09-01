@@ -107,6 +107,8 @@ describe("CareExitModal", () => {
   });
 
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-08-30T12:00:00+02:00"));
     vi.clearAllMocks();
     mockPreview.mockResolvedValue(preview());
     mockConfirm.mockResolvedValue({
@@ -122,6 +124,10 @@ describe("CareExitModal", () => {
       rosterRowsRemoved: 0,
       bookingsEnded: 0,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("says that the last care day still counts", () => {

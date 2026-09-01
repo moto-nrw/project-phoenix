@@ -18,6 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type guardianFinancialAuditCommand struct {
+	repo auditModels.GuardianFinancialChangeCreator
+}
+
+func (c guardianFinancialAuditCommand) Append(ctx context.Context, event any) error {
+	return c.repo.Create(ctx, event.(*auditModels.GuardianFinancialChange))
+}
+
 // linkExists reports whether a student↔guardian link row exists.
 func (env *guardianTestEnv) linkExists(t *testing.T, studentID, guardianProfileID int64) bool {
 	t.Helper()
@@ -238,7 +246,7 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
-		cfg.GuardianFinancialAudit = repositories.NewFactory(cfg.DB).GuardianFinancialChange
+		cfg.Audit = guardianFinancialAuditCommand{repo: repositories.NewFactory(cfg.DB).GuardianFinancialChange}
 	})
 	defer env.cleanup()
 

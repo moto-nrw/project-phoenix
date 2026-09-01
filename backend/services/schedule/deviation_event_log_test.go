@@ -61,7 +61,7 @@ func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
 	assert.Equal(t, auditModels.DeviationEventDroppedByReplan, ev.EventType)
 	require.NotNil(t, ev.ActivityGroupID)
 	assert.Equal(t, s.template.ID, *ev.ActivityGroupID)
-	assert.Equal(t, date, ev.OccurrenceDate)
+	assert.Equal(t, date.String(), ev.OccurrenceDate.String())
 	assert.Nil(t, ev.InstanceID, "vanished slot has no instance to point at")
 	assert.Nil(t, ev.ActorAccountID)
 	require.NotNil(t, ev.OldValue)

@@ -23,11 +23,9 @@ import (
 //     `is_unplanned=true` via the active.visits join.
 //   - /student/{id}/week stays within the ≤12 query budget over 14 days.
 //   - Tenant isolation: secondary tenant → 404 on the student.
-//
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	s := setupTimetableScenarioModule(t)
 
 	// Pick a weekday >= 7 days out (materialize today-or-future rule).

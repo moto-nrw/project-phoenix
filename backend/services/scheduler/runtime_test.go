@@ -10,9 +10,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 const schedulerUnitTenantID int64 = 1
+
+func testEnv(values ...string) func(string) string {
+	if len(values)%2 != 0 {
+		panic("testEnv requires key/value pairs")
+	}
+	env := make(map[string]string, len(values)/2)
+	for i := 0; i < len(values); i += 2 {
+		env[values[i]] = values[i+1]
+	}
+	return func(key string) string { return env[key] }
+}
 
 func TestStopCancelsRunningTaskContexts(t *testing.T) {
 	t.Parallel()
@@ -70,6 +82,7 @@ func newUnitScheduler(
 		InvitationCleanup:         invitationService,
 		EmailChangeCleanup:        emailChangeCleaner,
 		OperatorInvitationCleanup: operatorInvitationCleaner,
+		FeedbackCleaner:           &fakeFeedbackCleaner{},
 	})
 	jobs := scheduler.jobDefinitions()
 	required := make([]JobID, 0, len(jobs))
@@ -115,6 +128,21 @@ func unitScheduler(scheduler *Scheduler) *Scheduler {
 	}
 	if scheduler.registry == nil {
 		scheduler.registry = configured.registry
+	}
+	if scheduler.feedbackCleaner == nil {
+		scheduler.feedbackCleaner = configured.feedbackCleaner
+	}
+	return scheduler
+}
+
+func isolatedUnitScheduler(t *testing.T, db *bun.DB, scheduler *Scheduler) *Scheduler {
+	t.Helper()
+	scheduler = unitScheduler(scheduler)
+	scheduler.tenantRuntime = testpkg.TenantRuntime(t, db)
+	scheduler.tenantRuntimeConfigured = true
+	tenantID := testpkg.Tenant(t)
+	scheduler.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
+		return &schedulerMinuteSnapshot{tenantIDs: []int64{tenantID}}, errSchedulerSettingsBatchUnsupported
 	}
 	return scheduler
 }

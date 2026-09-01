@@ -10,7 +10,7 @@
 //     sub-checks produce warnings; shared rooms are sanctioned.
 //   - Re-plan-week: deletes only planned non-spontaneous; all other kinds survive.
 //
-// All fixtures via testpkg.CreateTest* + CleanupTableRecords — no hardcoded IDs.
+// All fixtures use testpkg.CreateTest* and package-clone ownership — no hardcoded IDs.
 package schedule_test
 
 import (

@@ -223,7 +223,7 @@ export function RolePermissionManagementModal({
         type="button"
         onClick={handleSaveChanges}
         disabled={saving || !hasChanges}
-        className="flex-1 rounded-lg bg-purple-600 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-purple-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+        className="bg-moto-purple hover:bg-moto-purple-strong flex-1 rounded-lg px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
       >
         {saving ? "Wird gespeichert..." : "Speichern"}
       </button>
@@ -248,7 +248,7 @@ export function RolePermissionManagementModal({
           )}
 
           {/* Stats */}
-          <div className="rounded-xl border border-gray-100 bg-purple-50/30 p-3 md:p-4">
+          <div className="bg-moto-purple-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-600 md:text-sm">
                 Zugewiesene Berechtigungen
@@ -266,13 +266,13 @@ export function RolePermissionManagementModal({
               placeholder="Berechtigungen suchen..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none md:px-4 md:py-2"
+              className="focus:ring-moto-purple min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none md:px-4 md:py-2"
             />
             <button
               type="button"
               onClick={() => handleTogglePermissions(filteredPermissions)}
               disabled={filteredPermissions.length === 0}
-              className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-purple-400 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              className="hover:border-moto-purple/40 hover:bg-moto-purple-soft shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
             >
               {allFilteredChecked ? "Alle abwählen" : "Alle auswählen"}
             </button>
@@ -324,7 +324,7 @@ export function RolePermissionManagementModal({
                             e.stopPropagation();
                             handleTogglePermissions(permissions);
                           }}
-                          className="relative ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-gray-300 bg-white transition-colors hover:border-purple-400 hover:bg-purple-50 md:h-[18px] md:w-[18px]"
+                          className="hover:border-moto-purple/40 hover:bg-moto-purple-soft relative ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-gray-300 bg-white transition-colors md:h-[18px] md:w-[18px]"
                           title={
                             allGroupChecked
                               ? `Alle ${localizeResource(resource)}-Berechtigungen abwählen`
@@ -333,13 +333,13 @@ export function RolePermissionManagementModal({
                         >
                           {allGroupChecked && (
                             <Check
-                              className="h-3 w-3 text-purple-600"
+                              className="text-moto-purple h-3 w-3"
                               strokeWidth={3}
                             />
                           )}
                           {someGroupChecked && (
                             <Minus
-                              className="h-3 w-3 text-purple-600"
+                              className="text-moto-purple h-3 w-3"
                               strokeWidth={3}
                             />
                           )}
@@ -373,7 +373,7 @@ export function RolePermissionManagementModal({
                                 onClick={() =>
                                   handleTogglePermission(permission.id)
                                 }
-                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:outline-none ${checked ? "bg-purple-600" : "bg-gray-300"}`}
+                                className={`focus:ring-moto-purple relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 focus:ring-2 focus:ring-offset-2 focus:outline-none ${checked ? "bg-moto-purple" : "bg-gray-300"}`}
                               >
                                 <span
                                   className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? "translate-x-6" : "translate-x-1"}`}

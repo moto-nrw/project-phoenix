@@ -483,11 +483,22 @@ type ParentAnnouncementRepository interface {
 	Create(ctx context.Context, a *ParentAnnouncement) error
 	Update(ctx context.Context, a *ParentAnnouncement) error
 	FindByID(ctx context.Context, id int64) (*ParentAnnouncement, error)
+	// FindByIDForUpdate reads the row while holding its lock until the
+	// transaction ends. The attachment writes (#2890) use it so that the
+	// "is it still a draft, is it still under the limit" check and the write
+	// that follows cannot be overtaken by a concurrent upload or publish.
+	FindByIDForUpdate(ctx context.Context, id int64) (*ParentAnnouncement, error)
 	Delete(ctx context.Context, id int64) error
 	// ListForTenant returns the tenant's announcements newest-first.
 	// includeInactive controls whether soft-disabled (active=false) rows appear.
 	ListForTenant(ctx context.Context, includeInactive bool) ([]*ParentAnnouncement, error)
 	SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error
+	// ClearEngagement drops the read/acknowledgement and poll-answer rows of an
+	// announcement. Update does it implicitly for a body edit; attaching or
+	// removing a file (#2890) changes the announcement just as much and calls
+	// it explicitly, so no confirmation survives a change to what was
+	// confirmed.
+	ClearEngagement(ctx context.Context, announcementID int64) error
 	// PublishIfDraft atomically flips a draft (published_at IS NULL) to
 	// published and reports whether this call made the change — false when the
 	// row was already published (a concurrent publish won the race), so the

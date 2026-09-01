@@ -69,8 +69,6 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
 		grantTenantRole(t, db, ctx, plain.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
 
-		defer testpkg.CleanupAuthFixtures(t, db, admin.ID, plain.ID)
-
 		ids, err := repo.ListEffectiveAdminAccountIDs(ctx)
 		require.NoError(t, err)
 
@@ -81,7 +79,6 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 	t.Run("excludes a deactivated admin account", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-inactive@example.test")
 		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
-		defer testpkg.CleanupAuthFixtures(t, db, admin.ID)
 
 		_, err := db.NewUpdate().
 			TableExpr("auth.accounts").
@@ -99,7 +96,6 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 	t.Run("excludes an admin whose tenant mapping is not active", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-pending@example.test")
 		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
-		defer testpkg.CleanupAuthFixtures(t, db, admin.ID)
 
 		_, err := db.NewUpdate().
 			TableExpr("auth.account_tenants").
@@ -120,7 +116,6 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 
 		foreignAdmin := testpkg.CreateTestAccount(t, db, "effective-foreign@example.test")
 		grantTenantRole(t, db, ctx, foreignAdmin.ID, otherTenant, authModels.BaseRoleAdmin)
-		defer testpkg.CleanupAuthFixtures(t, db, foreignAdmin.ID)
 
 		ids, err := repo.ListEffectiveAdminAccountIDs(ctx)
 		require.NoError(t, err)

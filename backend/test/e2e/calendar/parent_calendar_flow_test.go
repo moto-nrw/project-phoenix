@@ -26,7 +26,6 @@ import (
 // router, so a single test can drive the full staff→parent flow over HTTP.
 func setupParentCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-	testutil.SeedTestJWTConfig()
 	db, factory := testutil.SetupAPITest(t)
 
 	staffResource := calendarAPI.NewResource(factory.Calendar, db, slog.Default())
@@ -68,10 +67,8 @@ type feedE2EResponse struct {
 // a staff member creates an appointment for a guardian, then the guardian views
 // it, downloads its .ics, and fetches their subscription feed URL — all through
 // the real routers with a parent-scope JWT.
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
+	t.Parallel()
 	db, router := setupParentCalendarRoute(t)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")

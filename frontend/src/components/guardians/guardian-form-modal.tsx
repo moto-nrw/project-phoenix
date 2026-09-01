@@ -535,9 +535,9 @@ export default function GuardianFormModal({
         {error && (
           <div
             ref={errorRef}
-            className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3"
+            className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-2 md:p-3"
           >
-            <p className="text-xs text-red-800 md:text-sm">{error}</p>
+            <p className="text-moto-red-strong text-xs md:text-sm">{error}</p>
           </div>
         )}
 
@@ -564,7 +564,7 @@ export default function GuardianFormModal({
                   type="button"
                   onClick={() => removeEntry(entry.id)}
                   disabled={isLoading}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                  className="text-moto-red hover:bg-moto-red-soft flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors disabled:opacity-50"
                 >
                   <X className="h-3 w-3" />
                   Entfernen
@@ -573,10 +573,10 @@ export default function GuardianFormModal({
             )}
 
             {/* Personal Information */}
-            <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+            <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
               <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                 <svg
-                  className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+                  className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -595,9 +595,9 @@ export default function GuardianFormModal({
                   <div className="mb-1 flex items-center gap-1">
                     <label
                       htmlFor={`guardian-first-name-${entry.id}`}
-                      className={`block text-xs font-medium ${hasFieldError(entry.id, "firstName") ? "text-red-600" : "text-gray-700"}`}
+                      className={`block text-xs font-medium ${hasFieldError(entry.id, "firstName") ? "text-moto-red" : "text-gray-700"}`}
                     >
-                      Vorname <span className="text-red-500">*</span>
+                      Vorname <span className="text-moto-red">*</span>
                     </label>
                     <ParentVisibleBadge
                       compact
@@ -611,7 +611,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "firstName", e.target.value)
                     }
-                    className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "firstName") ? "border-red-400" : "border-gray-200"}`}
+                    className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "firstName") ? "border-moto-red/40" : "border-gray-200"}`}
                     placeholder="Max"
                     required
                     disabled={isLoading}
@@ -623,9 +623,9 @@ export default function GuardianFormModal({
                   <div className="mb-1 flex items-center gap-1">
                     <label
                       htmlFor={`guardian-last-name-${entry.id}`}
-                      className={`block text-xs font-medium ${hasFieldError(entry.id, "lastName") ? "text-red-600" : "text-gray-700"}`}
+                      className={`block text-xs font-medium ${hasFieldError(entry.id, "lastName") ? "text-moto-red" : "text-gray-700"}`}
                     >
-                      Nachname <span className="text-red-500">*</span>
+                      Nachname <span className="text-moto-red">*</span>
                     </label>
                     <ParentVisibleBadge
                       compact
@@ -639,7 +639,7 @@ export default function GuardianFormModal({
                     onChange={(e) =>
                       updateEntry(entry.id, "lastName", e.target.value)
                     }
-                    className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "lastName") ? "border-red-400" : "border-gray-200"}`}
+                    className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "lastName") ? "border-moto-red/40" : "border-gray-200"}`}
                     placeholder="Mustermann"
                     required
                     disabled={isLoading}
@@ -664,10 +664,10 @@ export default function GuardianFormModal({
             </div>
 
             {/* Contact Information */}
-            <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+            <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
               <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                 <svg
-                  className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+                  className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -689,7 +689,7 @@ export default function GuardianFormModal({
               <div className="mb-4">
                 <label
                   htmlFor={`guardian-email-${entry.id}`}
-                  className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "email") ? "text-red-600" : "text-gray-700"}`}
+                  className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "email") ? "text-moto-red" : "text-gray-700"}`}
                 >
                   E-Mail
                 </label>
@@ -700,7 +700,7 @@ export default function GuardianFormModal({
                   onChange={(e) =>
                     updateEntry(entry.id, "email", e.target.value)
                   }
-                  className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "email") ? "border-red-400" : "border-gray-200"}`}
+                  className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "email") ? "border-moto-red/40" : "border-gray-200"}`}
                   placeholder="max.mustermann@example.com"
                   disabled={isLoading}
                   maxLength={255}
@@ -756,7 +756,7 @@ export default function GuardianFormModal({
                             e.target.value,
                           )
                         }
-                        className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-1.5 text-sm transition-colors focus:ring-1 ${hasPhoneError(entry.id, phone.id) ? "border-red-400" : "border-gray-200"}`}
+                        className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-1.5 text-sm transition-colors focus:ring-1 ${hasPhoneError(entry.id, phone.id) ? "border-moto-red/40" : "border-gray-200"}`}
                         placeholder="+49 170 1234567"
                         disabled={isLoading}
                         aria-label={`Telefonnummer ${phoneIndex + 1}`}
@@ -795,8 +795,8 @@ export default function GuardianFormModal({
                         disabled={isLoading || phone.isPrimary}
                         className={`rounded p-1.5 transition-colors ${
                           phone.isPrimary
-                            ? "text-yellow-500"
-                            : "text-gray-300 hover:text-yellow-400"
+                            ? "text-moto-amber"
+                            : "hover:text-moto-amber text-gray-300"
                         }`}
                         title={
                           phone.isPrimary ? "Primär" : "Als primär markieren"
@@ -819,7 +819,7 @@ export default function GuardianFormModal({
                           type="button"
                           onClick={() => removePhone(entry.id, phone.id)}
                           disabled={isLoading}
-                          className="rounded p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          className="hover:bg-moto-red-soft hover:text-moto-red rounded p-1.5 text-gray-400 transition-colors"
                           title="Entfernen"
                           aria-label={`Telefonnummer ${phoneIndex + 1} entfernen`}
                         >
@@ -844,10 +844,10 @@ export default function GuardianFormModal({
             </div>
 
             {/* Address (optional) */}
-            <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+            <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
               <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                 <svg
-                  className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+                  className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -935,10 +935,10 @@ export default function GuardianFormModal({
             </div>
 
             {/* Additional Info */}
-            <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+            <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
               <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                 <svg
-                  className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+                  className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -1044,7 +1044,7 @@ export default function GuardianFormModal({
               type="button"
               onClick={onDelete}
               disabled={isLoading}
-              className="rounded-lg px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              className="text-moto-red hover:bg-moto-red-soft rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
             >
               Entfernen
             </button>

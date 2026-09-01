@@ -149,10 +149,9 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 	}
 }
 
-// Deliberately NOT parallel: Stats counts the platform-wide entities of the
-// whole clone, so the before/after snapshots this test compares drift with
-// every fixture a test running beside it creates.
 func TestOperatorSummariesRepository_Stats(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.Ctx(t)

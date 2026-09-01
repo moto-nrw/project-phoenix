@@ -41,6 +41,7 @@ type notificationPushSubscription struct {
 // act on — and nothing beyond that, because inventing consent is the failure
 // this whole epic is built to avoid.
 func TestNotificationPreferencesBackfill(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -87,8 +88,8 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 	// where every parent account has status = 'active' and accounts.active =
 	// true. The backfill filters on exactly that pair, so without these rows the
 	// fixture would describe a world that does not exist, a parent account
-	// belonging to no school at all. Cleaned up by CleanupAuthFixtures below,
-	// which deletes auth.account_tenants by account_id.
+	// belonging to no school at all. The mapping also attributes the otherwise
+	// tenantless account rows to this test's tenant for clone lifecycle checks.
 	mapToTenant := func(accountID int64) {
 		t.Helper()
 		now := time.Now()
@@ -170,7 +171,6 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 			Where("account_id IN (?)", testpkg.DBList(accountIDs)).
 			Exec(context.Background())
 		require.NoError(t, cerr)
-		testpkg.CleanupAuthFixtures(t, db, accountIDs...)
 	})
 
 	require.NoError(t, notificationPreferencesBackfillUp(ctx, db))
@@ -228,6 +228,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 // reads "on" for somebody who never agreed to a single category. down() is a
 // no-op, so nothing takes it back.
 func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -279,6 +280,7 @@ func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *tes
 // and delivery-time checks stopping the notification does not make the row less
 // wrong (data minimisation).
 func TestNotificationPreferencesBackfillSkipsInactiveGuardians(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -399,7 +401,6 @@ func setupBackfillTenants(t *testing.T, db *testpkg.DB) *backfillTenantEnv {
 				Where("account_id IN (?)", testpkg.DBList(env.accountIDs)).
 				Exec(cleanupCtx)
 			require.NoError(t, cerr)
-			testpkg.CleanupAuthFixtures(t, db, env.accountIDs...)
 		}
 		_, cerr := db.NewDelete().
 			Table("config.setting_values").

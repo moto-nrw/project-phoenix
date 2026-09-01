@@ -88,11 +88,12 @@ func roomNameByID(t *testing.T, db *testpkg.DB, id int64) string {
 // tenant has zero or one alias row, migration is a no-op for cleanup but
 // still rebuilds the index.
 func TestRoomsWCAliasUniqueUp_NoDuplicates(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	wcID := insertWCAliasRoom(t, db, tenantID, "WC")
@@ -108,11 +109,12 @@ func TestRoomsWCAliasUniqueUp_NoDuplicates(t *testing.T) {
 // "Toilette" name. This is the scenario where a school manually created
 // "Toilette" first, used it, then somehow ended up with a "WC" duplicate.
 func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	wcID := insertWCAliasRoom(t, db, tenantID, "WC")
@@ -140,11 +142,12 @@ func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
 // TestRoomsWCAliasUniqueUp_PrefersCanonicalWC covers tie-breaker step 2:
 // when active-group counts tie, "WC" wins over "Toilette".
 func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	wcID := insertWCAliasRoom(t, db, tenantID, "WC")
@@ -161,11 +164,12 @@ func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
 // completed successfully is a no-op — important because the deploy framework
 // can re-invoke a migration after a partial failure on the next run.
 func TestRoomsWCAliasUniqueUp_Idempotent(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	insertWCAliasRoom(t, db, tenantID, "WC")
@@ -191,11 +195,12 @@ func TestRoomsWCAliasUniqueUp_Idempotent(t *testing.T) {
 // when the application-level guard is bypassed (e.g. via the TOCTOU race
 // between two concurrent CreateRoom calls).
 func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	// Index already exists from SetupTestDB's prior migration run.
 	insertWCAliasRoom(t, db, tenantID, "WC")
@@ -214,13 +219,15 @@ func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
 // TestRoomsWCAliasUniqueUp_TenantIsolation guards against the index being
 // cross-tenant: every tenant must be allowed its own alias.
 func TestRoomsWCAliasUniqueUp_TenantIsolation(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.OwnTenantRows(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-	defer testpkg.CleanupTenantTestData(t, db, tenantA, tenantB)
+	testpkg.OwnTenantRows(t, db, tenantB)
 
 	insertWCAliasRoom(t, db, tenantA, "WC")
 	insertWCAliasRoom(t, db, tenantB, "WC")

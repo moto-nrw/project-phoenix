@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NewsCard, NewsDetailModal, isOpenPoll } from "./news-components";
 import type { ParentAnnouncement } from "~/lib/parent-api";
@@ -52,6 +52,13 @@ function announcement(
     ...overrides,
   };
 }
+
+// Opening the detail view asks the backend for the message's attachments
+// (#2890). Without a stub that becomes a real fetch, which happy-dom aborts at
+// teardown — noise that has nothing to do with what these tests check.
+beforeEach(() => {
+  vi.spyOn(parentApi, "listAnnouncementAttachments").mockResolvedValue([]);
+});
 
 afterEach(() => {
   vi.restoreAllMocks();

@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -17,6 +19,33 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
+
+type authEventCommand struct{ repo audit.AuthEventRepository }
+
+func (c authEventCommand) Append(ctx context.Context, event any) error {
+	authEvent, ok := event.(*audit.AuthEvent)
+	if !ok {
+		return fmt.Errorf("test auth event command: unsupported event %T", event)
+	}
+	return c.repo.Create(ctx, authEvent)
+}
+
+func NewAuthEventCommand(repo audit.AuthEventRepository) audit.Command {
+	return authEventCommand{repo: repo}
+}
+
+func NewAuditAuthEvent(accountID int64, ipAddress string) any {
+	return audit.NewAuthEvent(accountID, audit.EventTypeLogin, true, ipAddress)
+}
+
+func SetAuditEventTenant(event any, tenantID int64) {
+	event.(*audit.AuthEvent).SetTenantID(tenantID)
+}
+
+func AuditEventIdentity(event any) (tenantID, eventID, accountID int64) {
+	authEvent := event.(*audit.AuthEvent)
+	return authEvent.TenantID, authEvent.ID, authEvent.AccountID
+}
 
 // Database aliases and constructors keep migration tests on the shared test
 // support boundary instead of adding test-only dependencies to production
@@ -66,11 +95,9 @@ func SetupTestDB(t testing.TB) *bun.DB {
 		t.Skip("skipping DB integration test in -short mode")
 	}
 
-	packageTestDBOnce.Do(func() {
-		packageTestDBErr = initPackageTestDB()
-	})
-	if packageTestDBErr != nil {
-		t.Fatalf("setup package test database: %v", packageTestDBErr)
+	setupPackageTestDB(t)
+	if perTestDatabases || hasIsolatedTestDB(t) {
+		return setupIsolatedTestDB(t)
 	}
 
 	// Self-heal after tests that call viper.Reset() (factory config tests):
@@ -91,6 +118,24 @@ func SetupTestDB(t testing.TB) *bun.DB {
 	return sharedTestDB
 }
 
+// SetupIsolatedTestDB returns a disposable clone for one test. Use it only
+// when the behavior is database-global (schema, sweeps, hooks, or locks).
+func SetupIsolatedTestDB(t testing.TB) *bun.DB {
+	t.Helper()
+	setupPackageTestDB(t)
+	return setupIsolatedTestDB(t)
+}
+
+func setupPackageTestDB(t testing.TB) {
+	t.Helper()
+	packageTestDBOnce.Do(func() {
+		packageTestDBErr = initPackageTestDB()
+	})
+	if packageTestDBErr != nil {
+		t.Fatalf("setup package test database: %v", packageTestDBErr)
+	}
+}
+
 // WithAfterCommitHooks queues realtime side effects until the returned commit
 // function is called. It keeps service-package tests on the shared test seam
 // instead of importing tenant runtime internals directly.
@@ -105,7 +150,12 @@ func WithAfterCommitHooks(ctx context.Context) (context.Context, func()) {
 func SetupClosableTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 
-	SetupTestDB(t) // ensure the lifecycle ran and viper points at the clone
+	SetupTestDB(t) // ensure the lifecycle ran and selected this test's clone
+	if dsn, ok := isolatedTestDSN(t); ok {
+		db, err := openTestPool(dsn)
+		require.NoError(t, err, "Failed to open private isolated test database pool")
+		return db
+	}
 
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to open private test database pool")
@@ -118,68 +168,15 @@ func SetupClosableTestDB(t *testing.T) *bun.DB {
 func SetupServeTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 
-	SetupTestDB(t) // ensure the package clone and test role password are ready
+	SetupTestDB(t) // ensure the selected clone and test role password are ready
+	if dsn, ok := isolatedTestDSN(t); ok {
+		db, err := openTestPool(authRoleDSN(dsn))
+		require.NoError(t, err, "Failed to open private phoenix_auth isolated test database pool")
+		return db
+	}
 	db, err := database.DBConnForServe()
 	require.NoError(t, err, "Failed to open private phoenix_auth test database pool")
 	return db
-}
-
-// ============================================================================
-// Generic Cleanup Helpers
-// ============================================================================
-
-// CleanupTableRecords removes records from a schema-qualified table by ID.
-// Use this for simple single-table cleanup without FK dependencies.
-//
-// The ID type is generic because the suite has both: most tables use bigint
-// keys, RFID cards use strings. Two copies of this function drifted apart
-// once already.
-//
-// Usage:
-//
-//	testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-//	testpkg.CleanupTableRecords(t, db, "users.rfid_cards", card.ID)
-func CleanupTableRecords[ID int64 | string](tb testing.TB, db *bun.DB, table string, ids ...ID) {
-	tb.Helper()
-	if len(ids) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		TableExpr(table).
-		Where("id IN (?)", bun.List(ids)).
-		Exec(ctx)
-	if err != nil {
-		tb.Logf("Warning: failed to cleanup %s: %v", table, err)
-	}
-}
-
-// CleanupRateLimitsByEmail removes password reset rate limit records by email.
-// Use this for cleaning up after password reset rate limit tests.
-// The rate limit table uses email as the primary key, not an integer ID.
-//
-// Usage:
-//
-//	defer testpkg.CleanupRateLimitsByEmail(t, db, email1, email2)
-func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
-	tb.Helper()
-	if len(emails) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		TableExpr("auth.password_reset_rate_limits").
-		Where("email IN (?)", bun.List(emails)).
-		Exec(ctx)
-	if err != nil {
-		tb.Logf("Warning: failed to cleanup auth.password_reset_rate_limits: %v", err)
-	}
 }
 
 // ============================================================================
@@ -191,12 +188,14 @@ func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
 // Without tenant context, EnsureTenantID silently leaves tenant_id=0, which violates
 // FK constraints on tenant-scoped tables.
 func TenantContext(tenantID int64) context.Context {
-	return tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
+	ctx := tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
+	return audit.WithTenantID(ctx, tenantID)
 }
 
 // TenantScope owns a unique tenant for a test and provides the matching context.
 type TenantScope struct {
 	TenantID int64
+	ctx      context.Context
 }
 
 // NewTenantScope creates a unique tenant and returns a scope for tests that
@@ -210,12 +209,17 @@ func NewTenantScope(tb testing.TB, db *bun.DB) TenantScope {
 	tenantID := uniqueJWTSafeTenantID()
 	EnsureTestTenant(tb, db, tenantID)
 
-	return TenantScope{TenantID: tenantID}
+	return TenantScope{TenantID: tenantID, ctx: testRuntimeContext(tb)}
 }
 
 // Context returns a background context scoped to the test tenant.
 func (s TenantScope) Context() context.Context {
-	return TenantContext(s.TenantID)
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = WithPackageTenantRuntime(context.Background())
+	}
+	ctx = tenant.WithTenantID(ctx, s.TenantID)
+	return audit.WithTenantID(ctx, s.TenantID)
 }
 
 var uniqueTestTenantCounter int64

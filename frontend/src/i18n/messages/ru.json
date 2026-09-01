@@ -160,6 +160,12 @@
     "newsReadAndConfirm": "Подтвердить прочтение",
     "newsReadAnnouncement": "Читать",
     "newsExternalLink": "Открыть дополнительную информацию",
+    "newsAttachmentsTitle": "Файлы к этому сообщению",
+    "newsAttachmentsHint": "Нажмите на название, чтобы открыть или сохранить файл.",
+    "newsAttachmentsDownload": "Скачать",
+    "newsAttachmentsOpen": "Открыть в браузере",
+    "newsAttachmentsError": "Не удалось загрузить файлы.",
+    "newsAttachmentsRetry": "Попробовать снова",
     "newsClose": "Закрыть",
     "newsLetterBadge": "Требуется подтверждение",
     "newsLetterBindingHint": "Это письмо только для информации. Засчитывается подтверждение здесь, в родительском портале. Достаточно одного законного представителя на ребёнка."

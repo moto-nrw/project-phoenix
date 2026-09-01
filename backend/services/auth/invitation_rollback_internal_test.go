@@ -46,11 +46,9 @@ func TestAcceptInvitationRollsBackAccountMappingAndRole(t *testing.T) {
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
 
 	repos := repositories.NewFactory(db)
 	role := testpkg.CreateTestRoleForTenant(t, db, "rollback-kraft", tenantID)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
 	provisioningErr := errors.New("staff insert failed")
 	service := newTestInvitationService(t, InvitationServiceConfig{

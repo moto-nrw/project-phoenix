@@ -54,6 +54,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
+	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -70,15 +72,34 @@ const (
 // The returned pool is shared by every test in the binary and must not be closed.
 func SetupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory) {
 	t.Helper()
+	db, serviceFactory, _ := setupAPITest(t, clocks...)
+	return db, serviceFactory
+}
+
+func setupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory, *feedbackModule.Module) {
+	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-
 	repoFactory := repositories.NewFactory(db, clocks...)
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
+	settings := feedbackCompose.NewSettings()
+	module, err := feedbackCompose.New(feedbackCompose.Dependencies{
+		DB:       db,
+		Settings: settings,
+		Today:    feedbackModule.Today,
+		Observe:  func(feedbackCompose.Observation) {},
+	})
+	require.NoError(t, err, "Failed to create Feedback module")
+	serviceFactory, err := services.NewFactoryForTestsWithFeedback(repoFactory, db, slog.Default(), module, settings.Bind, clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)), "Failed to configure tenant runtime")
+	return db, serviceFactory, module
+}
 
-	return db, serviceFactory
+// SetupFeedbackAPITest adds the migrated Feedback module to the legacy test
+// graph without putting the module back onto services.Factory.
+func SetupFeedbackAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory, *feedbackModule.Module) {
+	t.Helper()
+	return setupAPITest(t, clocks...)
 }
 
 // RequestOption configures an HTTP request for testing.
@@ -367,7 +388,7 @@ func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseReco
 func ExecuteWithAuth(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims) *httptest.ResponseRecorder {
 	t.Helper()
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
-	return ExecuteRequest(router, req)
+	return ExecuteRequestForTest(t, router, req)
 }
 
 // ExecuteWithAuthPermissions folds the given permission set into the claims
@@ -377,7 +398,20 @@ func ExecuteWithAuthPermissions(t *testing.T, router chi.Router, req *http.Reque
 	t.Helper()
 	claims.Permissions = permissions
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
-	return ExecuteRequest(router, req)
+	return ExecuteRequestForTest(t, router, req)
+}
+
+// ExecuteRequestForTest is ExecuteRequest with t's disposable database
+// runtime when the test opted into one.
+func ExecuteRequestForTest(t *testing.T, router chi.Router, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	ctx := testpkg.WithTestTenantRuntime(t, req.Context())
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		ctx = tenant.WithTenantID(ctx, tenantID)
+	}
+	router.ServeHTTP(rr, req.WithContext(ctx))
+	return rr
 }
 
 // Response represents a standard API response for testing.

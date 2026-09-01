@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,10 +25,9 @@ import (
 // (a) enrollment token reaches the enroll handler and the claims arrive
 // on the request context for handler use.
 func TestMFAEnrollmentAuthenticator_AcceptsEnrollmentToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	tokenString, err := auth.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{
@@ -66,10 +64,9 @@ func TestMFAEnrollmentAuthenticator_AcceptsEnrollmentToken(t *testing.T) {
 // boundary the #1430 review demanded: an enrollment token must NEVER be
 // usable as a session token.
 func TestRegularAuthenticator_RejectsEnrollmentToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	tokenString, err := auth.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{
@@ -102,10 +99,9 @@ func TestRegularAuthenticator_RejectsEnrollmentToken(t *testing.T) {
 // a leaked access token being replayed at /auth/mfa/enroll/* to start a
 // fresh email-code flow under someone else's identity.
 func TestMFAEnrollmentAuthenticator_RejectsRegularAccessToken(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	access, err := auth.CreateJWT(AppClaims{
@@ -137,7 +133,7 @@ func TestMFAEnrollmentAuthenticator_RejectsRegularAccessToken(t *testing.T) {
 func TestMFAEnrollmentAuthenticator_NoToken(t *testing.T) {
 	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
@@ -157,7 +153,7 @@ func TestMFAEnrollmentAuthenticator_NoToken(t *testing.T) {
 func TestMFAEnrollmentAuthenticator_ExpiredToken(t *testing.T) {
 	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	tokenString, err := auth.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{

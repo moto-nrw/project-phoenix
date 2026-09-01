@@ -15,11 +15,12 @@ import (
 // (tenant_id, key) pair is loaded from the repository at most once (#2065).
 
 func TestRequestCacheSecondResolveIssuesNoRepoCall(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.cached_flag", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.cached_flag", config.FieldBoolean, true)
 
 	repo := newMockValueRepo()
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	var cachePaths []string
 	svc.(interface{ SetLookupObserver(SettingsLookupObserver) }).SetLookupObserver(
 		func(_ string, cache, outcome string, _ time.Duration) {
@@ -44,12 +45,13 @@ func TestRequestCacheSecondResolveIssuesNoRepoCall(t *testing.T) {
 }
 
 func TestRequestCachePartialHitQueriesOnlyMissingKeys(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.first", config.FieldBoolean, false)
-	registerTestSetting("test.second", config.FieldNumber, 5)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.first", config.FieldBoolean, false)
+	registerTestSetting(registry, "test.second", config.FieldNumber, 5)
 
 	repo := newMockValueRepo()
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	batch, ok := svc.(BatchSettingsService)
 	require.True(t, ok)
 	ctx := WithSettingsRequestCache(tenantCtx(41))
@@ -70,15 +72,16 @@ func TestRequestCachePartialHitQueriesOnlyMissingKeys(t *testing.T) {
 }
 
 func TestRequestCacheIsolatesTenants(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.isolated", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.isolated", config.FieldText, "default")
 
 	repo := newMockValueRepo()
 	overrideA := &config.SettingValue{SettingKey: "test.isolated", Value: json.RawMessage(`"tenant-a"`)}
 	overrideA.TenantID = 41
 	repo.values[repo.key(41, overrideA.SettingKey)] = overrideA
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	// One shared cache observed under two tenant contexts: the second tenant
 	// must get its own repository read and its own value.
@@ -96,11 +99,12 @@ func TestRequestCacheIsolatesTenants(t *testing.T) {
 }
 
 func TestRequestCacheCachesAbsentOverride(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.absent", config.FieldNumber, 30)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.absent", config.FieldNumber, 30)
 
 	repo := newMockValueRepo()
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	value, err := svc.ResolveInt(ctx, "test.absent")
@@ -114,15 +118,16 @@ func TestRequestCacheCachesAbsentOverride(t *testing.T) {
 }
 
 func TestRequestCacheCachesUnmarshalError(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.corrupt", config.FieldBoolean, false)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.corrupt", config.FieldBoolean, false)
 
 	repo := newMockValueRepo()
 	corrupt := &config.SettingValue{SettingKey: "test.corrupt", Value: json.RawMessage(`{invalid`)}
 	corrupt.TenantID = 41
 	repo.values[repo.key(41, corrupt.SettingKey)] = corrupt
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	_, firstErr := svc.ResolveBool(ctx, "test.corrupt")
@@ -134,8 +139,9 @@ func TestRequestCacheCachesUnmarshalError(t *testing.T) {
 }
 
 func TestWithSettingsRequestCacheIsIdempotent(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.idempotent", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.idempotent", config.FieldBoolean, true)
 
 	base := tenantCtx(41)
 	once := WithSettingsRequestCache(base)
@@ -145,7 +151,7 @@ func TestWithSettingsRequestCacheIsIdempotent(t *testing.T) {
 	// Behavioral proof: a resolve through the doubly-wrapped context is served
 	// by the same cache the singly-wrapped context populated.
 	repo := newMockValueRepo()
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	_, err := svc.ResolveBool(once, "test.idempotent")
 	require.NoError(t, err)
 	_, err = svc.ResolveBool(twice, "test.idempotent")
@@ -154,11 +160,12 @@ func TestWithSettingsRequestCacheIsIdempotent(t *testing.T) {
 }
 
 func TestResolveManyDoesNotCacheContextSnapshotValues(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.snapshot_key", config.FieldBoolean, false)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.snapshot_key", config.FieldBoolean, false)
 
 	repo := newMockValueRepo()
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	batch, ok := svc.(BatchSettingsService)
 	require.True(t, ok)
 
@@ -180,11 +187,12 @@ func TestResolveManyDoesNotCacheContextSnapshotValues(t *testing.T) {
 }
 
 func TestResolveManyWithoutCacheInContextStillWorks(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.plain", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.plain", config.FieldBoolean, true)
 
 	repo := newMockValueRepo()
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	// Scheduler / CLI contexts carry no request cache: every resolve queries.
 	_, err := svc.ResolveBool(tenantCtx(41), "test.plain")
@@ -195,10 +203,11 @@ func TestResolveManyWithoutCacheInContextStillWorks(t *testing.T) {
 }
 
 func TestRequestCacheUnknownKeyFailsWithoutQuery(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
 	repo := newMockValueRepo()
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	_, err := svc.Resolve(ctx, "nonexistent.key")
@@ -208,11 +217,12 @@ func TestRequestCacheUnknownKeyFailsWithoutQuery(t *testing.T) {
 }
 
 func TestSetValueEvictsRequestCacheEntry(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.rewritten", config.FieldNumber, 10)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.rewritten", config.FieldNumber, 10)
 
 	repo := newMockValueRepo()
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	before, err := svc.ResolveInt(ctx, "test.rewritten")
@@ -227,15 +237,16 @@ func TestSetValueEvictsRequestCacheEntry(t *testing.T) {
 }
 
 func TestResetValueEvictsRequestCacheEntry(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.reset", config.FieldNumber, 10)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.reset", config.FieldNumber, 10)
 
 	repo := newMockValueRepo()
 	override := &config.SettingValue{SettingKey: "test.reset", Value: json.RawMessage(`99`)}
 	override.TenantID = 41
 	repo.values[repo.key(41, override.SettingKey)] = override
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	before, err := svc.ResolveInt(ctx, "test.reset")
@@ -250,9 +261,10 @@ func TestResetValueEvictsRequestCacheEntry(t *testing.T) {
 }
 
 func TestLockHelpersFlushTenantCache(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.locked_a", config.FieldBoolean, false)
-	registerTestSetting("test.locked_b", config.FieldNumber, 1)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.locked_a", config.FieldBoolean, false)
+	registerTestSetting(registry, "test.locked_b", config.FieldNumber, 1)
 
 	cases := []struct {
 		name string
@@ -271,7 +283,7 @@ func TestLockHelpersFlushTenantCache(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := newMockValueRepo()
-			svc := createService(repo, &mockAuditRepo{})
+			svc := createService(registry, repo, &mockAuditRepo{})
 			ctx := WithSettingsRequestCache(tenantCtx(41))
 
 			// Prime the tenant bucket with two unrelated keys.
@@ -295,14 +307,15 @@ func TestLockHelpersFlushTenantCache(t *testing.T) {
 }
 
 func TestResolveBoolForTenantSkipsTxOnFullCacheHit(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.for_tenant", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.for_tenant", config.FieldBoolean, true)
 
 	repo := newMockValueRepo()
 	// createService wires a nil *bun.DB: if ResolveBoolForTenant reached
 	// WithTenantTx, the nil DB would blow up. Returning successfully from the
 	// second call therefore proves the transaction was skipped.
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	_, err := svc.ResolveBool(ctx, "test.for_tenant")

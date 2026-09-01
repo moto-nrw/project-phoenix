@@ -424,10 +424,9 @@ func companionNoteColumnExists(t *testing.T, db *bun.DB) bool {
 // once at startup (VerifyStudentSchema) and every read/write path assumes it.
 // A missing mandatory column must surface as an error, never as a silent
 // fallback.
-// Deliberately NOT parallel: the test drops and restores a column of
-// users.students, which changes the schema of the clone every test in this
-// binary shares.
 func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student

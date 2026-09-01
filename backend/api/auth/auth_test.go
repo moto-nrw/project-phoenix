@@ -645,7 +645,8 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 // TestPasswordReset tests the password reset endpoints
 func TestPasswordReset(t *testing.T) {
 	t.Parallel()
-	router := setupPublicRouter(t)
+	db, router := setupPublicRouterWithDB(t)
+	testpkg.OwnTestPasswordResetTokensForEmail(t, db, "admin@example.com")
 
 	t.Run("initiate always returns success", func(t *testing.T) {
 		body := map[string]string{
@@ -2165,6 +2166,7 @@ func TestLinkToTenant(t *testing.T) {
 		email := fmt.Sprintf("link-success-%d@example.com", time.Now().UnixNano())
 		password := "SecurePass123!"
 		account := testpkg.CreateTestAccountWithPassword(t, db, email, password)
+		testpkg.OwnTestAccountWithIdentity(t, db, account.ID)
 		// Linking provisions the person and staff record too (#2222).
 
 		// The identity fields are required for a staff-tier role (#2222).

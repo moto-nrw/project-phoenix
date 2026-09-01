@@ -64,7 +64,6 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, period.ID, int64(0))
 		assert.False(t, period.CreatedAt.IsZero())
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 	})
 
 	t.Run("creates period with week cycle anchor", func(t *testing.T) {
@@ -85,7 +84,6 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Greater(t, period.ID, int64(0))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 	})
 
 	t.Run("fails on nil period", func(t *testing.T) {
@@ -170,7 +168,6 @@ func TestCalendarPeriodRepository_FindByID(t *testing.T) {
 	t.Run("finds period by ID", func(t *testing.T) {
 		name := fmt.Sprintf("Test-FindByID-%d", time.Now().UnixNano())
 		created := createTestCalendarPeriod(t, repo, name)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", created.ID)
 
 		found, err := repo.FindByID(ctx, created.ID)
 
@@ -199,7 +196,6 @@ func TestCalendarPeriodRepository_Update(t *testing.T) {
 	t.Run("updates period successfully", func(t *testing.T) {
 		name := fmt.Sprintf("Test-Update-%d", time.Now().UnixNano())
 		period := createTestCalendarPeriod(t, repo, name)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 
 		period.Name = fmt.Sprintf("Updated-%d", time.Now().UnixNano())
 		period.PeriodType = scheduleModels.PeriodTypeSemester
@@ -226,7 +222,6 @@ func TestCalendarPeriodRepository_Update(t *testing.T) {
 	t.Run("fails validation on empty name", func(t *testing.T) {
 		name := fmt.Sprintf("Test-UpdateBad-%d", time.Now().UnixNano())
 		period := createTestCalendarPeriod(t, repo, name)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
 
 		period.Name = ""
 
@@ -260,7 +255,6 @@ func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 		p2.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, p2)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", p1.ID, p2.ID)
 
 		periods, err := repo.FindByTenantID(ctx)
 
@@ -306,7 +300,6 @@ func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 		err := repo.Create(ctx, inactivePeriod)
 		require.NoError(t, err)
 
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", activePeriod.ID, inactivePeriod.ID)
 		periods, err := repo.FindActiveByTenantID(ctx)
 
 		require.NoError(t, err)
@@ -336,7 +329,6 @@ func TestCalendarPeriodRepository_FindByName(t *testing.T) {
 	t.Run("finds period by name", func(t *testing.T) {
 		name := fmt.Sprintf("Test-FindByName-%d", time.Now().UnixNano())
 		created := createTestCalendarPeriod(t, repo, name)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", created.ID)
 
 		found, err := repo.FindByName(ctx, name)
 

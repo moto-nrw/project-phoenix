@@ -142,7 +142,6 @@ func TestRecurrenceRuleRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		found, err := repo.FindByID(ctx, rule.ID)
 		require.NoError(t, err)
@@ -173,7 +172,6 @@ func TestRecurrenceRuleRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		rule.IntervalCount = 2
 		rule.Weekdays = []string{"MON", "WED", "FRI"}
@@ -236,7 +234,6 @@ func TestRecurrenceRuleRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		rules, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -266,7 +263,6 @@ func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		rules, err := repo.FindByFrequency(ctx, schedule.FrequencyMonthly)
 		require.NoError(t, err)
@@ -288,7 +284,6 @@ func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		rules, err := repo.FindByFrequency(ctx, "WEEKLY")
 		require.NoError(t, err)
@@ -310,7 +305,6 @@ func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		rules, err := repo.FindByFrequency(ctx, schedule.FrequencyYearly)
 		require.NoError(t, err)
@@ -342,7 +336,6 @@ func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		rules, err := repo.FindByWeekday(ctx, "WED")
 		require.NoError(t, err)
@@ -365,7 +358,6 @@ func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		rules, err := repo.FindByWeekday(ctx, "SAT")
 		require.NoError(t, err)
@@ -397,7 +389,6 @@ func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		searchStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 		searchEnd := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
@@ -424,7 +415,6 @@ func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		searchStart := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 		searchEnd := time.Date(2025, 1, 31, 0, 0, 0, 0, time.UTC)
@@ -451,7 +441,6 @@ func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
 		}
 		err := repo.Create(ctx, rule)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 
 		searchStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 		searchEnd := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)

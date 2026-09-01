@@ -148,10 +148,10 @@ export function RelationshipPermissionsFields({
   return (
     <>
       {/* Relationship Flags */}
-      <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+      <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
         <h3 className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
           <svg
-            className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+            className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -172,7 +172,7 @@ export function RelationshipPermissionsFields({
               type="checkbox"
               checked={isPrimary}
               onChange={(e) => onChange("isPrimary", e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-600"
+              className="text-moto-purple focus:ring-moto-purple h-4 w-4 rounded border-gray-300"
               disabled={disabled}
             />
             <span className="text-sm text-gray-700">Hauptansprechpartner</span>
@@ -182,7 +182,7 @@ export function RelationshipPermissionsFields({
               type="checkbox"
               checked={canPickup}
               onChange={(e) => onChange("canPickup", e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-600"
+              className="text-moto-green-strong focus:ring-moto-green h-4 w-4 rounded border-gray-300"
               disabled={disabled}
             />
             <span className="text-sm text-gray-700">Abholberechtigt</span>
@@ -191,19 +191,19 @@ export function RelationshipPermissionsFields({
       </div>
 
       {/* Emergency Contact */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2">
+      <div className="border-moto-red/20 bg-moto-red-soft flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2">
         <label className="group flex cursor-pointer items-center gap-3">
           <input
             type="checkbox"
             checked={isEmergencyContact}
             onChange={(e) => onChange("isEmergencyContact", e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-600"
+            className="text-moto-red focus:ring-moto-red h-4 w-4 rounded border-gray-300"
             disabled={disabled}
             aria-label="Als Notfallkontakt markieren"
           />
           <div className="flex items-center gap-2">
             <svg
-              className="h-5 w-5 text-red-600"
+              className="text-moto-red h-5 w-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -215,7 +215,7 @@ export function RelationshipPermissionsFields({
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
-            <span className="text-sm font-medium text-red-900">
+            <span className="text-moto-red-strong text-sm font-medium">
               Notfallkontakt
             </span>
           </div>

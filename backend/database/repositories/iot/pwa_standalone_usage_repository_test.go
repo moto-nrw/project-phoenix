@@ -41,7 +41,6 @@ func TestPWAStandaloneUsageRepository(t *testing.T) {
 	tenantID := testpkg.Tenant(t)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-usage-%d@example.com", time.Now().UnixNano()))
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	recordSeen := func(tenantID int64, portal string) error {
 		return testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			return repo.RecordSeen(txCtx, tenantID, account.ID, portal)

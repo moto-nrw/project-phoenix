@@ -35,6 +35,7 @@ func newAccountIsolationEnv(t *testing.T) *accountIsolationEnv {
 	router.Mount("/auth", tc.resource.Router())
 	tenantID := testpkg.Tenant(t)
 	actor := testpkg.CreateTestAccount(t, tc.db, "account-scope-actor")
+	testpkg.OwnTestAccount(t, tc.db, actor.ID)
 	foreignTenantID, _ := testpkg.CreateTestTenant(t, tc.db)
 	return &accountIsolationEnv{
 		tc:              tc,

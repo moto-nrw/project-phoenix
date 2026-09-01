@@ -1,6 +1,7 @@
 package email
 
 import (
+	"context"
 	"log/slog"
 	"sync/atomic"
 )
@@ -25,7 +26,7 @@ func NewMockMailer() *MockMailer {
 	return &MockMailer{
 		SendFn: func(m Message) error {
 			logMessage(m)
-			return nil
+			return ErrDeliveryUnavailable
 		},
 	}
 }
@@ -33,4 +34,11 @@ func NewMockMailer() *MockMailer {
 func (s *MockMailer) Send(m Message) error {
 	s.SendInvoked.Store(true)
 	return s.SendFn(m)
+}
+
+func (s *MockMailer) SendContext(ctx context.Context, m Message) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.Send(m)
 }
