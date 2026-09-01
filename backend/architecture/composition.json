@@ -25681,6 +25681,16 @@
     },
     {
       "scope": "test",
+      "file": "services/auth/factory_operator_mfa_config_test.go",
+      "declaration": "TestFactoryOperatorMFAUsesConfiguredTokenAuth",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        31
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/auth/guardian_invitation_service_test.go",
       "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
       "target": "database/repositories.NewFactory",
