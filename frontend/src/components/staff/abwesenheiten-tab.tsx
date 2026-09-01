@@ -195,8 +195,8 @@ export function AbwesenheitenTab({
   readonly staffId: string;
   readonly canEdit: boolean;
   // Der Urlaubsanspruch hängt an einer eigenen Berechtigung: PUT
-  // /api/staff/{id}/vacation/quota verlangt staff:manage oder
-  // time_tracking:manage, nicht die Antragsentscheidung (#2906).
+  // /api/staff/{id}/vacation/quota verlangt time_tracking:manage, nicht die
+  // Antragsentscheidung (vacation:approve darf nur lesen, #2906).
   readonly canEditQuota: boolean;
   readonly canManageSickReports: boolean;
   // Passed in from the staff detail page so the "Krank melden" modal has the

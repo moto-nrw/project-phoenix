@@ -143,9 +143,10 @@ export default function StaffDetailContent() {
     canManageTimeTracking ||
     hasPermission(session, "vacation:approve");
   // Urlaubsanspruch (#2906): Spiegel des Backend-Gates auf
-  // PUT /{id}/vacation/quota — staff:manage oder time_tracking:manage.
-  const canEditVacationQuota =
-    canEdit || canManageTimeTracking || hasPermission(session, "staff:manage");
+  // PUT /{id}/vacation/quota — time_tracking:manage. Bewusst nicht
+  // staff:manage: wer nur das hält, sieht weder den Anspruch (GET ist
+  // vacation:approve / time_tracking:manage) noch den Abwesenheiten-Reiter.
+  const canEditVacationQuota = canEdit || canManageTimeTracking;
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
   const canEditStammdaten = hasPermission(session, "staff:stammdaten");

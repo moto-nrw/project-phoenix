@@ -68,7 +68,7 @@ func addStaffHRPermissions(ctx context.Context, db *bun.DB) error {
 		},
 		{
 			Name:        staffManagePermissionName,
-			Description: "Change the staff record of other staff members (staff notes, teacher role, vacation quota)",
+			Description: "Change the staff record of other staff members (staff notes, teacher role, qualifications)",
 			Resource:    "staff",
 			Action:      "manage",
 		},

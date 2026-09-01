@@ -149,7 +149,7 @@ const permissionDescriptions: Record<string, string> = {
   "staff:documents":
     "Allgemeine Personalunterlagen von Mitarbeitenden verwalten (Arbeitsvertrag, Zeugnis, Bewerbung, Sonstiges)",
   "staff:manage":
-    "Mitarbeiter-Datensätze anderer Personen ändern (Notizen, Betreuungsprofil, Urlaubsanspruch)",
+    "Mitarbeiter-Datensätze anderer Personen ändern (Notizen, Betreuungsprofil, Qualifikationen)",
 
   // Guardian payment data
   "guardians:financial":

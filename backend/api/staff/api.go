@@ -224,7 +224,13 @@ func (rs *Resource) Router() chi.Router {
 		r.With(common.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
 		r.With(common.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/question", rs.questionAbsence)
 		r.With(common.RequiresAnyPermission(permissions.VacationApprove, permissions.TimeTrackingManage), withTx).Get("/{id}/vacation/quota", rs.getStaffVacationQuota)
-		r.With(common.RequiresAnyPermission(permissions.StaffManage, permissions.TimeTrackingManage), withTx).Put("/{id}/vacation/quota", rs.setStaffVacationQuota)
+		// The vacation quota belongs to the time-tracking tier, not to the
+		// personnel record: reading is vacation:approve or
+		// time_tracking:manage, writing is time_tracking:manage. staff:manage
+		// is deliberately NOT on this write — a holder of it can neither read
+		// the quota back nor open the Abwesenheiten tab, so it would be an
+		// authority that only ever writes blind (#2906).
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/vacation/quota", rs.setStaffVacationQuota)
 		// Audit trail of a single work session, admin-facing. The MA-side
 		// /api/time-tracking/{id}/edits enforces session-staff ownership
 		// against the JWT subject; here the route guarantees the session

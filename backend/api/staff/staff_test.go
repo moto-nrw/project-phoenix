@@ -1659,3 +1659,26 @@ func TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "Regenerationstag", path)
 	}
 }
+
+// TestVacationQuotaWriteStaysOnTheTimeTrackingTier pins the gate on
+// PUT /{id}/vacation/quota (#2906): the quota belongs to the time-tracking
+// tier, which also owns reading it back and the Abwesenheiten tab that shows
+// it. staff:manage — the personnel-record authority — must not be able to
+// write a value it can never see.
+func TestVacationQuotaWriteStaysOnTheTimeTrackingTier(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	colleague := testpkg.CreateTestStaff(t, ctx.db, "Urlaubs", "Kontingent")
+	path := fmt.Sprintf("/staff/%d/vacation/quota", colleague.ID)
+	body := map[string]interface{}{"year": timezone.TodayDate().Year(), "days": 30}
+
+	refused := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(
+		t, http.MethodPut, path, body, testutil.WithJWTBearer(authToken(t, "staff:manage"))))
+	assert.Equal(t, http.StatusForbidden, refused.Code,
+		"staff:manage must not write a quota it cannot read: %s", refused.Body.String())
+
+	allowed := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(
+		t, http.MethodPut, path, body, testutil.WithJWTBearer(authToken(t, "time_tracking:manage"))))
+	assert.Equal(t, http.StatusOK, allowed.Code, allowed.Body.String())
+}

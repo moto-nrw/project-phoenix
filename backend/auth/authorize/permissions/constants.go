@@ -228,9 +228,11 @@ const (
 
 	// StaffManage gates writes to another person's general staff record —
 	// PUT /api/staff/{id} (staff notes, teacher flag, qualifications) and the
-	// vacation quota. Issue #2906: these are personnel-administration writes,
-	// not the child-data writes users:update was granted to the Betreuer role
-	// for.
+	// record adoption in POST /api/staff. Issue #2906: these are
+	// personnel-administration writes, not the child-data writes users:update
+	// was granted to the Betreuer role for. The vacation quota is NOT part of
+	// it — that belongs to the time-tracking tier (time_tracking:manage),
+	// which also owns reading it back.
 	StaffManage = ResourceStaff + ":" + ActionManage
 )
 
