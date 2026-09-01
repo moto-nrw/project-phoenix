@@ -151,6 +151,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		repoFactory, db, logger,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
+		observability.ObserveAuditAppend,
 	)
 	if err != nil {
 		return nil, nil, nil, err

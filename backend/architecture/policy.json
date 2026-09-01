@@ -869,13 +869,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/audits",
-      "owner": "audit-platform",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/migrations",
       "owner": "migrations",
       "role": "migration",
@@ -1808,13 +1801,16 @@
     {"name": "audit.enrollment_deletions", "write_owner": "audit-platform"},
     {"name": "audit.enrollment_offering_adjustments", "write_owner": "audit-platform"},
     {"name": "audit.enrollment_restorations", "write_owner": "audit-platform"},
+    {"name": "audit.file_event_ledger", "write_owner": "audit-platform"},
     {"name": "audit.guardian_changes", "write_owner": "audit-platform"},
+    {"name": "audit.guardian_financial_change_ledger", "write_owner": "audit-platform"},
     {"name": "audit.personnel_number_changes", "write_owner": "audit-platform"},
     {"name": "audit.staff_master_data_changes", "write_owner": "audit-platform"},
     {"name": "audit.substitution_changes", "write_owner": "audit-platform"},
     {"name": "audit.student_deletions", "write_owner": "audit-platform"},
     {"name": "audit.student_field_edits", "write_owner": "audit-platform"},
     {"name": "audit.time_tracking_deletions", "write_owner": "audit-platform"},
+    {"name": "audit.time_tracking_audit_log", "write_owner": "audit-platform"},
     {"name": "audit.unregistered_tag_scans", "write_owner": "device-fleet"},
     {"name": "audit.work_session_edits", "write_owner": "audit-platform"},
     {"name": "auth.account_permissions", "write_owner": "identity-access"},

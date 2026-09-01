@@ -446,12 +446,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 219,
+          "line": 220,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 700,
+          "line": 701,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +461,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 337,
+          "line": 338,
           "declaration": "New"
         }
       ]
@@ -476,7 +476,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 216,
+          "line": 217,
           "declaration": "type API"
         }
       ]
@@ -506,17 +506,17 @@
       "locations": [
         {
           "file": "services/auth/auth_service.go",
-          "line": 73,
+          "line": 75,
           "declaration": "type Service"
         },
         {
           "file": "services/auth/auth_service.go",
-          "line": 119,
+          "line": 122,
           "declaration": "NewService"
         },
         {
           "file": "services/auth/cleanup_composition.go",
-          "line": 30,
+          "line": 31,
           "declaration": "NewCleanupService"
         },
         {
@@ -561,12 +561,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 318,
+          "line": 344,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 334,
+          "line": 361,
           "declaration": "newFactory"
         },
         {
@@ -16609,7 +16609,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        337
+        338
       ],
       "tables": []
     },
@@ -20184,479 +20184,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         154
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/auth_event_repository_test.go",
-      "declaration": "TestAuthEventRepository_ClaimPendingAccountWideWipes",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        277
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/auth_event_repository_test.go",
-      "declaration": "TestAuthEventRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/auth_event_repository_test.go",
-      "declaration": "TestAuthEventRepository_FindByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        126
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/auth_event_repository_test.go",
-      "declaration": "TestAuthEventRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        95
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/auth_event_repository_test.go",
-      "declaration": "TestAuthEventRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        176
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/auth_event_repository_test.go",
-      "declaration": "TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDays",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        247
-      ],
-      "tables": [
-        "audit.auth_events"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/auth_event_repository_test.go",
-      "declaration": "TestAuthEventRepository_PendingAccountWideWipes",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        218
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/booking_consistency_test.go",
-      "declaration": "TestBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        154
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/booking_consistency_test.go",
-      "declaration": "TestBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        28
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/booking_consistency_test.go",
-      "declaration": "TestBookingConsistencyAuditUsesEffectiveDatesAndExceptions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        112
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/data_deletion_repository_test.go",
-      "declaration": "TestDataDeletionRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/data_deletion_repository_test.go",
-      "declaration": "TestDataDeletionRepository_FindByDateRange",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        159
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/data_deletion_repository_test.go",
-      "declaration": "TestDataDeletionRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        88
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/data_deletion_repository_test.go",
-      "declaration": "TestDataDeletionRepository_FindByStudentID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        125
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/data_deletion_repository_test.go",
-      "declaration": "TestDataDeletionRepository_FindByType",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        191
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/data_deletion_repository_test.go",
-      "declaration": "TestDataDeletionRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        228
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/data_import_repository_test.go",
-      "declaration": "TestDataImportRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/data_import_repository_test.go",
-      "declaration": "TestDataImportRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        104
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/data_import_repository_test.go",
-      "declaration": "TestDataImportRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        144
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/deviation_event_repository_test.go",
-      "declaration": "TestDeviationEventRepository_DeleteOlderThan",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        100
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/deviation_event_repository_test.go",
-      "declaration": "TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        137
-      ],
-      "tables": [
-        "schedule.staff_shifts"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/deviation_event_repository_test.go",
-      "declaration": "TestDeviationEventRepository_ListByRangeFiltersSlotAndRange",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        56
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/deviation_event_repository_test.go",
-      "declaration": "TestDeviationEventRepository_TenantIsolation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        82
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/deviation_event_repository_test.go",
-      "declaration": "createTestDeviationEvent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        29
-      ],
-      "tables": [
-        "audit.deviation_events"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/enrollment_offering_adjustment_test.go",
-      "declaration": "TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/enrollment_offering_adjustment_test.go",
-      "declaration": "TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_QueryError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        97
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/enrollment_offering_adjustment_test.go",
-      "declaration": "TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_RejectsMissingID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        85
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/enrollment_offering_adjustment_test.go",
-      "declaration": "TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        177
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/enrollment_offering_adjustment_test.go",
-      "declaration": "TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant_QueryError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        110
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/student_deletion_repository_test.go",
-      "declaration": "TestStudentDeletionRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        19
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/student_field_edit_test.go",
-      "declaration": "TestStudentFieldEditRepository_CreateBatchAndGetByStudentID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/student_field_edit_test.go",
-      "declaration": "TestStudentFieldEditRepository_CreateBatchValidation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        74
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/unregistered_tag_scan_repository_test.go",
-      "declaration": "TestUnregisteredTagScanRepository_DeleteOlderThan",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        192
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/unregistered_tag_scan_repository_test.go",
-      "declaration": "TestUnregisteredTagScanRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        22
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/unregistered_tag_scan_repository_test.go",
-      "declaration": "TestUnregisteredTagScanRepository_FindByIDReturnsNilWhenMissing",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/unregistered_tag_scan_repository_test.go",
-      "declaration": "TestUnregisteredTagScanRepository_ListForOperatorFiltersAndOrders",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        91
-      ],
-      "tables": [
-        "audit.unregistered_tag_scans"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/unregistered_tag_scan_repository_test.go",
-      "declaration": "TestUnregisteredTagScanRepository_ListForOperatorReturnsEmptySlice",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        133
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/unregistered_tag_scan_repository_test.go",
-      "declaration": "TestUnregisteredTagScanRepository_Resolve",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        150
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/unregistered_tag_scan_repository_test.go",
-      "declaration": "TestUnregisteredTagScanRepository_ResolveFailsWhenAlreadyResolved",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        174
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/unregistered_tag_scan_repository_test.go",
-      "declaration": "TestUnregisteredTagScanRepository_WrapsDatabaseErrors",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        61
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/work_session_edit_test.go",
-      "declaration": "TestWorkSessionEditRepository_CountBySessionID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        334,
-        335
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/work_session_edit_test.go",
-      "declaration": "TestWorkSessionEditRepository_CountBySessionIDs",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        401,
-        402
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/work_session_edit_test.go",
-      "declaration": "TestWorkSessionEditRepository_CountManualBySessionIDs",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        503,
-        504
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/work_session_edit_test.go",
-      "declaration": "TestWorkSessionEditRepository_CreateBatch",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        25,
-        26
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/work_session_edit_test.go",
-      "declaration": "TestWorkSessionEditRepository_GetBySessionID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        202,
-        203
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/work_session_edit_test.go",
-      "declaration": "TestWorkSessionEditRepository_WrapsDatabaseErrors",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        647
       ],
       "tables": []
     },
@@ -26183,7 +25710,7 @@
       "declaration": "TestRevokeAccess_PayerStaysWithoutFinancialPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        241
+        249
       ],
       "tables": [
         "users.guardian_profiles"
@@ -26241,7 +25768,7 @@
       "declaration": "newTestMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        38
       ],
       "tables": []
     },
@@ -26320,12 +25847,25 @@
     {
       "scope": "test",
       "file": "services/auth/token_revocation_audit_test.go",
-      "declaration": "TestRevocationRollsBackWhenAuditInsertFails",
+      "declaration": "TestLogoutRevokesTokensWhenAuditFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        78
+        76
       ],
       "tables": [
+        "auth.tokens"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/auth/token_revocation_audit_test.go",
+      "declaration": "TestRevocationAuditFailureRollsBackAndRetryIsIdempotent",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        104
+      ],
+      "tables": [
+        "audit.auth_events",
         "auth.tokens"
       ]
     },
@@ -30368,6 +29908,28 @@
     },
     {
       "scope": "test",
+      "file": "services/schedule/timetable_cleanup_service_test.go",
+      "declaration": "TestCleanup_RetentionOverride_UsesOverriddenDays",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        276
+      ],
+      "tables": [
+        "schedule.activity_instances"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/schedule/timetable_cleanup_service_test.go",
+      "declaration": "newCleanupSvc",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        136
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/scheduler/overdue_test.go",
       "declaration": "buildOverdue",
       "target": "database/repositories.NewFactory",
@@ -31457,7 +31019,7 @@
       "declaration": "TestGraduatePurgeAuditIncludesFeedbackOwnerCount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        101
+        105
       ],
       "tables": []
     },
@@ -31467,7 +31029,7 @@
       "declaration": "TestStudentDeletionService_DeleteCountsCrossTenantVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        299
+        303
       ],
       "tables": [
         "active.visits"
@@ -31479,7 +31041,7 @@
       "declaration": "TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson",
       "target": "database/repositories.NewFactory",
       "lines": [
-        132
+        136
       ],
       "tables": [
         "audit.student_deletions",
@@ -31500,7 +31062,7 @@
       "declaration": "TestStudentDeletionService_DeleteRejectsStalePreview",
       "target": "database/repositories.NewFactory",
       "lines": [
-        385
+        389
       ],
       "tables": [
         "schedule.instance_students",
@@ -31513,7 +31075,7 @@
       "declaration": "TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead",
       "target": "database/repositories.NewFactory",
       "lines": [
-        418
+        422
       ],
       "tables": [
         "users.parent_message_reads",
@@ -31527,7 +31089,7 @@
       "declaration": "TestStudentDeletionService_DeleteRollsBackWhenAuditFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        523
+        527
       ],
       "tables": [
         "schedule.instance_students",
@@ -31541,7 +31103,7 @@
       "declaration": "TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing",
       "target": "database/repositories.NewFactory",
       "lines": [
-        500
+        504
       ],
       "tables": [
         "users.students"
@@ -31553,7 +31115,7 @@
       "declaration": "TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        328
+        332
       ],
       "tables": [
         "audit.data_access_log",
@@ -31567,7 +31129,7 @@
       "declaration": "TestStudentDeletionWithFeedbackRowsPassesLockedCountRecheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        76
+        80
       ],
       "tables": []
     },
@@ -31577,7 +31139,7 @@
       "declaration": "newStudentDeletionTestService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        41
       ],
       "tables": []
     },

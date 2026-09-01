@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Actions recorded in audit.file_events (#2596). Mirrored by the CHECK
@@ -33,8 +31,8 @@ const (
 // snapshotted so the row still reads after a rename or account deletion.
 // Exactly one of FolderID / AnnouncementID is set, depending on the action.
 type FileEvent struct {
-	base.Model `bun:"schema:audit,table:file_events"`
-	base.TenantModel
+	Model
+	TenantModel
 	FolderID       *int64 `bun:"folder_id" json:"folder_id,omitempty"`
 	AnnouncementID *int64 `bun:"announcement_id" json:"announcement_id,omitempty"`
 	FileID         *int64 `bun:"file_id" json:"file_id,omitempty"`

@@ -4,17 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/uptrace/bun"
 )
 
 type PersonnelNumberChangeRepository struct {
-	db *bun.DB
+	runtime Runtime
 }
 
-func NewPersonnelNumberChangeRepository(db *bun.DB) auditModels.PersonnelNumberChangeCreator {
-	return &PersonnelNumberChangeRepository{db: db}
+func NewPersonnelNumberChangeRepository(runtime Runtime) auditModels.PersonnelNumberChangeCreator {
+	return &PersonnelNumberChangeRepository{runtime: requireRuntime(runtime)}
 }
 
 func (r *PersonnelNumberChangeRepository) Create(ctx context.Context, event *auditModels.PersonnelNumberChange) error {
@@ -24,13 +22,5 @@ func (r *PersonnelNumberChangeRepository) Create(ctx context.Context, event *aud
 	if err := event.Validate(); err != nil {
 		return fmt.Errorf("invalid personnel number change audit event: %w", err)
 	}
-	base.EnsureTenantID(ctx, event)
-	_, err := base.GetDB(ctx, r.db).NewInsert().
-		Model(event).
-		ModelTableExpr(`audit.personnel_number_changes AS "personnel_number_change"`).
-		Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("create personnel number change audit event: %w", err)
-	}
-	return nil
+	return NewAppender(r.runtime).Append(ctx, event)
 }

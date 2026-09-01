@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +20,7 @@ type stubBookingConsistencyAudit struct {
 
 func (s *stubBookingConsistencyAudit) Audit(
 	_ context.Context,
-	auditDate timezone.Date,
+	auditDate auditModel.Date,
 ) (*auditModel.BookingConsistencyReport, error) {
 	s.calls++
 	if s.report != nil {

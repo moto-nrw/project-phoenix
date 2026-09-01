@@ -104,6 +104,7 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 type Factory struct {
 	settingsRuntimeDB         *bun.DB
 	Auth                      auth.AuthService
+	Audit                     auditModels.Command
 	StaffPINAuth              auth.StaffPINAuthenticator
 	MFA                       auth.MFAService
 	Passkey                   auth.PasskeyService
@@ -312,6 +313,31 @@ type FeedbackSettingsBinder func(
 	func(context.Context) (int, error),
 )
 
+type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)
+
+func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
+	if store == nil || logger == nil || observe == nil {
+		return nil, errors.New("audit command store, logger, and observer are required")
+	}
+	command, err := auditService.NewCommand(store, func(observation auditService.AppendObservation) {
+		observe(observation.EventType, observation.Duration, observation.Rows, observation.Err)
+		log := logger.Debug
+		if observation.Err != nil {
+			log = logger.Error
+		}
+		log("audit append",
+			"event_type", observation.EventType,
+			"duration_ms", observation.Duration.Milliseconds(),
+			"rows", observation.Rows,
+			"failed", observation.Err != nil,
+		)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return command, nil
+}
+
 // NewFactoryWithModules builds the legacy service graph around the migrated
 // module capabilities it still consumes.
 func NewFactoryWithModules(
@@ -322,12 +348,13 @@ func NewFactoryWithModules(
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
+	observeAuditAppend AuditAppendObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil {
-		return nil, errors.New("meal plan and feedback capabilities with settings binders are required")
+	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil {
+		return nil, errors.New("meal plan, feedback, and Audit capabilities with their binders and observer are required")
 	}
-	return newFactory(repos, db, logger, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, clocks...)
+	return newFactory(repos, db, logger, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, false, clocks...)
 }
 
 func newFactory(
@@ -338,6 +365,8 @@ func newFactory(
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
+	observeAuditAppend AuditAppendObserver,
+	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
 	now := optionalClock(clocks)
@@ -362,6 +391,40 @@ func newFactory(
 	databaseLogger := logger.With("service", "database")
 	platformLogger := logger.With("service", "platform")
 	emailLogger := logger.With("component", "email")
+	auditLogger := logger.With("component", "audit-command")
+	auditTransactionRuntime := func(ctx context.Context) (bun.IDB, int64) {
+		auditTenantID := tenant.FromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			if allowAuditRootWrites {
+				return db, auditTenantID
+			}
+			return nil, auditTenantID
+		}
+		switch tx := raw.(type) {
+		case bun.Tx:
+			return tx, auditTenantID
+		case *bun.Tx:
+			if tx != nil {
+				return tx, auditTenantID
+			}
+		}
+		panic(fmt.Sprintf("audit command: unsupported transaction %T", raw))
+	}
+	auditReadRuntime := func(ctx context.Context) (bun.IDB, int64) {
+		transaction, tenantID := auditTransactionRuntime(ctx)
+		if transaction == nil {
+			return db, tenantID
+		}
+		return transaction, tenantID
+	}
+	repos.ConfigureAuditRuntime(auditReadRuntime)
+	auditAppender := repos.NewAuditStore(auditTransactionRuntime)
+	auditCommand, err := newAuditCommand(auditAppender, auditLogger, observeAuditAppend)
+	if err != nil {
+		return nil, err
+	}
+	repos.RouteAuditWrites(auditCommand)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger)
 
@@ -1340,6 +1403,7 @@ func newFactory(
 	authConfig.ParentsURL = parentsURL
 	authConfig.SchoolURL = schoolURL
 	authConfig.Settings = settingsService
+	authConfig.Audit = auditCommand
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
@@ -1359,6 +1423,7 @@ func newFactory(
 		JWTSecret:   viper.GetString("auth_jwt_secret"),
 		DB:          db,
 		Logger:      authLogger,
+		Audit:       auditCommand,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init mfa service: %w", err)
@@ -1424,24 +1489,24 @@ func newFactory(
 	emailOutboxWorker.SetMailIdentityResolver(tenantMailIdentity)
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo:         repos.GuardianInvitation,
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
-		AccountRoleRepo:        repos.AccountRole,
-		RoleRepo:               repos.Role,
-		PersonRepo:             repos.Person,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		GuardianFinancialAudit: repos.GuardianFinancialChange,
-		StudentRepo:            repos.Student,
-		SchoolRepo:             repos.School,
-		OutboxEnqueuer:         emailOutboxService,
-		EnrollmentBackfiller:   repos.ParentEnrollmentRequest,
-		SettingsResolver:       settingsService,
-		FrontendURL:            parentsURL, // accept link goes to the parents portal, not the staff frontend
-		FallbackExpiry:         invitationTokenExpiry,
-		DB:                     db,
-		Logger:                 authLogger.With("flow", "guardian_invitation"),
+		InvitationRepo:       repos.GuardianInvitation,
+		AccountRepo:          repos.Account,
+		AccountTenantRepo:    repos.AccountTenant,
+		AccountRoleRepo:      repos.AccountRole,
+		RoleRepo:             repos.Role,
+		PersonRepo:           repos.Person,
+		GuardianProfileRepo:  repos.GuardianProfile,
+		StudentGuardianRepo:  repos.StudentGuardian,
+		Audit:                auditCommand,
+		StudentRepo:          repos.Student,
+		SchoolRepo:           repos.School,
+		OutboxEnqueuer:       emailOutboxService,
+		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
+		SettingsResolver:     settingsService,
+		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
+		FallbackExpiry:       invitationTokenExpiry,
+		DB:                   db,
+		Logger:               authLogger.With("flow", "guardian_invitation"),
 	})
 
 	// Register the guardian_invitation renderer at startup so the outbox
@@ -1627,7 +1692,19 @@ func newFactory(
 		db,
 		today,
 	)
-	unregisteredTagScanService := auditService.NewUnregisteredTagScanService(repos.UnregisteredTagScan, db)
+	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
+		repos.UnregisteredTagScan,
+		auditCommand,
+		auditService.UnregisteredTagScanRuntime{
+			TenantID: tenant.FromContext,
+			WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error {
+				return tenant.WithinAdmin(ctx, fn)
+			},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize import service
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
@@ -2729,6 +2806,7 @@ func newFactory(
 	factory := &Factory{
 		settingsRuntimeDB:       db,
 		Auth:                    authService,
+		Audit:                   auditCommand,
 		StaffPINAuth:            authService,
 		MFA:                     mfaService,
 		Passkey:                 passkeyService,

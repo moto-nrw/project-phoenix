@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	announcementAttachmentsVersion     = "1.15.358"
+	announcementAttachmentsVersion     = "1.15.359"
 	announcementAttachmentsDescription = "Dateien an Elternmitteilungen anhängen und im Elternportal herunterladen (#2890)"
 )
 
@@ -18,7 +18,11 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     announcementAttachmentsVersion,
 		Description: announcementAttachmentsDescription,
-		DependsOn:   []string{additionalSupervisionAuditVersion, fileStorageVersion},
+		DependsOn: []string{
+			additionalSupervisionAuditVersion,
+			fileStorageVersion,
+			auditCommandViewsVersion,
+		},
 	})
 
 	Migrations.MustRegister(
@@ -156,6 +160,10 @@ func announcementAttachmentsUp(ctx context.Context, db *bun.DB) error {
 	// Die alte Constraint wurde 1.15.332 inline angelegt und trägt daher einen
 	// von PostgreSQL vergebenen Namen. Sie wird über ihre Definition gesucht
 	// statt über einen geratenen Namen, und die neue bekommt einen expliziten.
+	//
+	// audit.file_event_ledger (1.15.358) zählt seine Spalten einzeln auf und
+	// ist der einzige Weg, auf dem der Appender schreibt. Die neue Spalte muss
+	// deshalb mit in die Sicht, sonst sieht sie kein Schreiber und kein Leser.
 	_, err = tx.NewRaw(`
 		ALTER TABLE audit.file_events
 			ADD COLUMN IF NOT EXISTS announcement_id BIGINT;
@@ -183,6 +191,13 @@ func announcementAttachmentsUp(ctx context.Context, db *bun.DB) error {
 				'file_uploaded', 'file_deleted',
 				'announcement_attachment_uploaded', 'announcement_attachment_deleted'
 			));
+
+		DROP VIEW IF EXISTS audit.file_event_ledger;
+		CREATE VIEW audit.file_event_ledger WITH (security_invoker = true) AS
+		SELECT id, tenant_id, folder_id, announcement_id, file_id, action,
+			actor_account_id, actor_name, detail, created_at, updated_at
+		FROM audit.file_events;
+		GRANT SELECT, INSERT ON audit.file_event_ledger TO phoenix_tenant, phoenix_admin;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("error extending audit.file_events: %w", err)
@@ -220,7 +235,8 @@ func announcementAttachmentsDown(ctx context.Context, db *bun.DB) error {
 
 	// Erst die Zeilen der neuen Aktionen entfernen, dann die CHECK-Constraint
 	// zurückbauen: andernfalls lehnt die alte Constraint die vorhandenen
-	// Anhangs-Ereignisse ab und der Rollback bricht ab.
+	// Anhangs-Ereignisse ab und der Rollback bricht ab. Die Sicht muss vor der
+	// Spalte zurückgebaut werden, weil sie sonst auf ihr steht.
 	_, err = tx.NewRaw(`
 		DELETE FROM audit.file_events
 		WHERE action IN ('announcement_attachment_uploaded', 'announcement_attachment_deleted');
@@ -232,6 +248,13 @@ func announcementAttachmentsDown(ctx context.Context, db *bun.DB) error {
 				'folder_created', 'folder_updated', 'folder_deleted',
 				'file_uploaded', 'file_deleted'
 			));
+
+		DROP VIEW IF EXISTS audit.file_event_ledger;
+		CREATE VIEW audit.file_event_ledger WITH (security_invoker = true) AS
+		SELECT id, tenant_id, folder_id, file_id, action, actor_account_id,
+			actor_name, detail, created_at, updated_at
+		FROM audit.file_events;
+		GRANT SELECT, INSERT ON audit.file_event_ledger TO phoenix_tenant, phoenix_admin;
 
 		ALTER TABLE audit.file_events DROP COLUMN IF EXISTS announcement_id;
 

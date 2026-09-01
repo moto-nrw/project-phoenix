@@ -916,10 +916,10 @@ func (s *guardianInvitationService) revokeAccess(ctx context.Context, req Revoke
 		return nil
 	}
 	if link.IsPayer {
-		if s.GuardianFinancialAudit == nil || req.ActorAccountID <= 0 {
+		if s.Audit == nil || req.ActorAccountID <= 0 {
 			return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("refusing to remove payer without a financial audit")}
 		}
-		if err := s.GuardianFinancialAudit.Create(ctx, &auditModels.GuardianFinancialChange{
+		if err := s.Audit.Append(ctx, &auditModels.GuardianFinancialChange{
 			GuardianProfileID: link.GuardianProfileID,
 			StudentID:         &link.StudentID,
 			ChangedBy:         req.ActorAccountID,

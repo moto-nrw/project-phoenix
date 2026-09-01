@@ -35,6 +35,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	db, svc := testutil.SetupAPITest(t, clocks...)
 	repoFactory := repositories.NewFactory(db)
+	repoFactory.RouteAuditWrites(svc.Audit)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	// Real emitter wired to the recording broadcaster so the staff-side guardian

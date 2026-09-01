@@ -6,10 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 const UnregisteredTagScanRetentionDays = 90
@@ -22,16 +19,22 @@ type UnregisteredTagScanService interface {
 }
 
 type unregisteredTagScanService struct {
-	repo      auditModels.UnregisteredTagScanRepository
-	txHandler *tenant.TransactionRunner
+	repo        auditModels.UnregisteredTagScanRepository
+	command     auditModels.Command
+	tenantID    func(context.Context) int64
+	withinAdmin func(context.Context, func(context.Context) error) error
 }
 
-func NewUnregisteredTagScanService(repo auditModels.UnregisteredTagScanRepository, db *bun.DB) UnregisteredTagScanService {
-	service := &unregisteredTagScanService{repo: repo}
-	if db != nil {
-		service.txHandler = tenant.NewTransactionRunner()
+type UnregisteredTagScanRuntime struct {
+	TenantID    func(context.Context) int64
+	WithinAdmin func(context.Context, func(context.Context) error) error
+}
+
+func NewUnregisteredTagScanService(repo auditModels.UnregisteredTagScanRepository, command auditModels.Command, runtime UnregisteredTagScanRuntime) (UnregisteredTagScanService, error) {
+	if repo == nil || command == nil || runtime.TenantID == nil || runtime.WithinAdmin == nil {
+		return nil, fmt.Errorf("unregistered tag scan service dependencies are required")
 	}
-	return service
+	return &unregisteredTagScanService{repo: repo, command: command, tenantID: runtime.TenantID, withinAdmin: runtime.WithinAdmin}, nil
 }
 
 func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, deviceID *int64) error {
@@ -39,7 +42,7 @@ func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, 
 	if normalized == "" {
 		return fmt.Errorf("tag UID is required")
 	}
-	tenantID := tenant.FromContext(ctx)
+	tenantID := s.tenantID(ctx)
 	if tenantID <= 0 {
 		return fmt.Errorf("tenant context is required")
 	}
@@ -49,7 +52,7 @@ func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, 
 		ScannedAt: time.Now(),
 	}
 	scan.SetTenantID(tenantID)
-	return s.repo.Create(ctx, scan)
+	return s.command.Append(ctx, scan)
 }
 
 func (s *unregisteredTagScanService) ListForOperator(ctx context.Context, filter auditModels.UnregisteredTagScanFilter) ([]*auditModels.UnregisteredTagScan, error) {
@@ -72,7 +75,7 @@ func (s *unregisteredTagScanService) Resolve(ctx context.Context, id, operatorID
 	var scan *auditModels.UnregisteredTagScan
 	err := s.runAdmin(ctx, func(adminCtx context.Context) error {
 		var err error
-		scan, err = s.repo.Resolve(adminCtx, id, operatorID, strutil.TrimPtrToNil(note))
+		scan, err = s.repo.Resolve(adminCtx, id, operatorID, trimPtrToNil(note))
 		return err
 	})
 	return scan, err
@@ -86,8 +89,16 @@ func (s *unregisteredTagScanService) DeleteOlderThan(ctx context.Context, days i
 }
 
 func (s *unregisteredTagScanService) runAdmin(ctx context.Context, fn func(context.Context) error) error {
-	if s.txHandler == nil {
-		return fn(tenant.ContextWithoutTenant(ctx))
+	return s.withinAdmin(ctx, fn)
+}
+
+func trimPtrToNil(value *string) *string {
+	if value == nil {
+		return nil
 	}
-	return tenant.WithinAdmin(ctx, fn)
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
