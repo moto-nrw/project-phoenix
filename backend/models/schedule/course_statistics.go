@@ -19,7 +19,8 @@ type CourseInstanceRow struct {
 	CategoryName string `bun:"category_name"`
 	// MaxParticipants is the Teilnehmergrenze (#2233); 0 means unlimited.
 	MaxParticipants int `bun:"max_participants"`
-	// HeldInstances counts every occurrence that was not cancelled.
+	// HeldInstances counts every occurrence that took place: not cancelled,
+	// and not still ahead of the report date.
 	HeldInstances int `bun:"held_instances"`
 	// CancelledInstances counts the cancelled ones; they are reported next to
 	// the quota but never inside it.
@@ -29,8 +30,8 @@ type CourseInstanceRow struct {
 // CourseParticipationRow is one child's attendance in one course over the
 // window, already aggregated over the occurrences.
 //
-// The three counters partition the child's attendance rows on non-cancelled
-// occurrences, minus the rows that mean "the care plan did not place this
+// The three counters partition the child's attendance rows on the occurrences
+// that took place, minus the rows that mean "the care plan did not place this
 // child in the OGS that day" (not_scheduled while still expected — see
 // InstanceStudent.NotScheduled). Those are no course absence and drop out.
 type CourseParticipationRow struct {
@@ -51,9 +52,11 @@ type CourseParticipationRow struct {
 // tenant-scoped through the request context.
 type CourseStatisticsRepository interface {
 	// CourseInstances returns one row per course with occurrences dated in
-	// [from, to].
-	CourseInstances(ctx context.Context, from, to timezone.Date) ([]CourseInstanceRow, error)
+	// [from, to]. today is the report date the caller captured once; it
+	// decides which occurrences already took place.
+	CourseInstances(ctx context.Context, from, to, today timezone.Date) ([]CourseInstanceRow, error)
 	// CourseParticipation returns one row per (course, child) with attendance
-	// on non-cancelled occurrences dated in [from, to].
-	CourseParticipation(ctx context.Context, from, to timezone.Date) ([]CourseParticipationRow, error)
+	// on the occurrences dated in [from, to] that took place — same today,
+	// same rule as CourseInstances.
+	CourseParticipation(ctx context.Context, from, to, today timezone.Date) ([]CourseParticipationRow, error)
 }

@@ -27,25 +27,36 @@ func NewCourseStatisticsRepository(db *bun.DB) scheduleModels.CourseStatisticsRe
 // original row: the original keeps series_root_id NULL and is its own root.
 const courseKeyExpr = `COALESCE("template".series_root_id, "template".id)`
 
+// heldInstance is true for an occurrence that has taken place. It excludes
+// what still lies ahead: the period picker reaches to today, and a date the
+// school has not run yet must not be counted as a Termin, der stattgefunden
+// hat — which is what the screen and the export promise. So an occurrence
+// counts once it has started or been completed, and otherwise only from the
+// day after its date: a block that ran last Tuesday took place even when
+// nobody ever pressed "abschließen" — that omission shows up as Offen, not as
+// a date that never happened. Cancelled occurrences never match.
+//
+// The bind parameter is the report date the service captured once, so every
+// classification inside one report agrees on "today" even when the request
+// spans Berlin midnight.
+const heldInstance = `(
+		"instance".status IN (?, ?)
+		OR ("instance".status = ? AND "instance".date < ?)
+	)`
+
 // CourseInstances counts the occurrences of every course in [from, to],
 // separating the ones that happened from the cancelled ones. Name, category
 // and Teilnehmergrenze come from the series root, so a renamed successor
 // segment does not split one course into two rows.
 //
-// "Happened" excludes what still lies ahead. The period picker reaches into
-// the future, and a date the school has not run yet must not be counted as a
-// Termin, der stattgefunden hat — which is what the screen and the export
-// promise. So an occurrence counts once it has started or been completed, and
-// otherwise only from the day after its date: a block that ran last Tuesday
-// took place even when nobody ever pressed "abschließen" — that omission shows
-// up as Offen, not as a date that never happened.
+// What counts as happened is the heldInstance predicate above.
 //
 // Only Betreuungsplan templates are courses. An ad-hoc or spontaneous instance
 // may point at an operational group (a supervision or session group), and
 // those materialize rows just as well; without the is_template gate they would
 // appear as courses. Archived templates stay in on purpose: the section is
 // retrospective, and a course archived in March still took place in February.
-func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, to timezone.Date) ([]scheduleModels.CourseInstanceRow, error) {
+func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, to, today timezone.Date) ([]scheduleModels.CourseInstanceRow, error) {
 	var rows []scheduleModels.CourseInstanceRow
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`schedule.activity_instances AS "instance"`).
@@ -56,12 +67,9 @@ func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, 
 		ColumnExpr(`"root".name AS name`).
 		ColumnExpr(`COALESCE("category".name, '') AS category_name`).
 		ColumnExpr(`COALESCE("root".max_participants, 0) AS max_participants`).
-		ColumnExpr(`COUNT(*) FILTER (
-			WHERE "instance".status IN (?, ?)
-				OR ("instance".status = ? AND "instance".date < ?)
-		) AS held_instances`,
+		ColumnExpr(`COUNT(*) FILTER (WHERE `+heldInstance+`) AS held_instances`,
 			scheduleModels.InstanceStatusActive, scheduleModels.InstanceStatusCompleted,
-			scheduleModels.InstanceStatusPlanned, timezone.TodayDate()).
+			scheduleModels.InstanceStatusPlanned, today).
 		ColumnExpr(`COUNT(*) FILTER (WHERE "instance".status = ?) AS cancelled_instances`, scheduleModels.InstanceStatusCancelled).
 		Where(`"instance".date >= ? AND "instance".date <= ?`, from, to).
 		Where(`"template".tenant_id = "instance".tenant_id`).
@@ -116,8 +124,12 @@ const enrolledOnInstanceDate = `(
 	)`
 
 // CourseParticipation aggregates the attendance rows of every child per
-// course. Cancelled occurrences drop out completely — they are neither a
-// participation nor an absence — and so do the rows that only record that the
+// course. It reads exactly the occurrences CourseInstances counts as held
+// (see heldInstance): a cancelled date is neither a participation nor an
+// absence, and a date that has not happened yet is no open slot either — its
+// pre-materialized expected rows would otherwise report an appointment as
+// unfinished that nobody could have finished yet. Dropped as well are the rows
+// that only record that the
 // care plan never placed the child in the OGS that day, and the rows the
 // child's enrollment does not cover (see enrolledOnInstanceDate). Operational
 // groups are no courses here either, for the reason given at CourseInstances.
@@ -125,7 +137,7 @@ const enrolledOnInstanceDate = `(
 // The three counters are returned separately instead of a ready-made quota so
 // the service can state the denominator on the screen: present + absent are
 // decided, open occurrences are not.
-func (r *CourseStatisticsRepository) CourseParticipation(ctx context.Context, from, to timezone.Date) ([]scheduleModels.CourseParticipationRow, error) {
+func (r *CourseStatisticsRepository) CourseParticipation(ctx context.Context, from, to, today timezone.Date) ([]scheduleModels.CourseParticipationRow, error) {
 	var rows []scheduleModels.CourseParticipationRow
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`schedule.instance_students AS "attendance"`).
@@ -137,7 +149,9 @@ func (r *CourseStatisticsRepository) CourseParticipation(ctx context.Context, fr
 		ColumnExpr(`COUNT(*) FILTER (WHERE "attendance".status = ?) AS absent_days`, scheduleModels.AttendanceStatusAbsent).
 		ColumnExpr(`COUNT(*) FILTER (WHERE "attendance".status = ?) AS open_days`, scheduleModels.AttendanceStatusExpected).
 		Where(`"instance".date >= ? AND "instance".date <= ?`, from, to).
-		Where(`"instance".status <> ?`, scheduleModels.InstanceStatusCancelled).
+		Where(heldInstance,
+			scheduleModels.InstanceStatusActive, scheduleModels.InstanceStatusCompleted,
+			scheduleModels.InstanceStatusPlanned, today).
 		Where(`NOT ("attendance".not_scheduled AND "attendance".status = ?)`, scheduleModels.AttendanceStatusExpected).
 		Where(enrolledOnInstanceDate).
 		Where(`"instance".tenant_id = "attendance".tenant_id`).

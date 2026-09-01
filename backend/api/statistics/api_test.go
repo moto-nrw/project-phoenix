@@ -807,6 +807,11 @@ func TestStatisticsReport_CourseParticipation(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &todayReport))
 	require.Len(t, todayReport.Data.Courses, 1)
 	assert.Equal(t, 0, todayReport.Data.Courses[0].HeldInstances, "a date that has not run yet is no occurrence")
+	// … and its pre-materialized attendance rows are no open slots either:
+	// nobody could have decided a date that has not happened.
+	assert.Equal(t, 0, todayReport.Data.Courses[0].OpenDays, "a date that has not run yet has nothing open")
+	assert.Equal(t, 0, todayReport.Data.Courses[0].StudentCount)
+	assert.Empty(t, todayReport.Data.CourseStudents)
 
 	// section=courses computes only this section — the room table stays empty.
 	req = httptest.NewRequest(http.MethodGet, "/report?section=courses&from="+weekFrom.String()+"&to="+weekTo.String(), nil)

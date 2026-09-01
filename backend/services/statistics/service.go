@@ -372,7 +372,7 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 		if courseFrom.Before(report.CourseDataFrom) {
 			courseFrom = report.CourseDataFrom
 		}
-		courses, courseStudents, courseTotals, err := s.courseSection(ctx, filters, courseFrom, filters.To, studentRows)
+		courses, courseStudents, courseTotals, err := s.courseSection(ctx, filters, courseFrom, filters.To, today, studentRows)
 		if err != nil {
 			return nil, err
 		}

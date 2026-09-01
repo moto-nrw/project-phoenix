@@ -19,11 +19,11 @@ type courseRepoStub struct {
 	participErr   error
 }
 
-func (s courseRepoStub) CourseInstances(context.Context, timezone.Date, timezone.Date) ([]scheduleModels.CourseInstanceRow, error) {
+func (s courseRepoStub) CourseInstances(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]scheduleModels.CourseInstanceRow, error) {
 	return s.instances, s.instanceErr
 }
 
-func (s courseRepoStub) CourseParticipation(context.Context, timezone.Date, timezone.Date) ([]scheduleModels.CourseParticipationRow, error) {
+func (s courseRepoStub) CourseParticipation(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]scheduleModels.CourseParticipationRow, error) {
 	return s.participation, s.participErr
 }
 
@@ -48,7 +48,8 @@ func courseFixture() courseRepoStub {
 // callCourseSection runs the section over the unclamped filter window; the
 // retention clamp is compute()'s job and has its own test.
 func callCourseSection(svc *service, filters Filters, students []StudentRow) ([]CourseRow, []CourseStudentRow, CourseRow, error) {
-	return svc.courseSection(context.Background(), filters, filters.From, filters.To, students)
+	return svc.courseSection(context.Background(), filters, filters.From, filters.To,
+		timezone.DateFromTime(fixedNow()), students)
 }
 
 func courseStudents() []StudentRow {
@@ -197,7 +198,7 @@ func TestCourseSection_WindowBehindRetentionReadsNothing(t *testing.T) {
 	courses, childRows, totals, err := svc.courseSection(
 		context.Background(), filters,
 		// clamped from is after to: nothing of the window survives retention
-		filters.To.AddDays(1), filters.To, courseStudents())
+		filters.To.AddDays(1), filters.To, timezone.DateFromTime(fixedNow()), courseStudents())
 	require.NoError(t, err)
 	assert.Empty(t, courses)
 	assert.Empty(t, childRows)

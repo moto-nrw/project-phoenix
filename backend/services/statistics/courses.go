@@ -77,7 +77,7 @@ type CourseStudentRow struct {
 // names (CourseDataFrom): the cleanup job may run late or the tenant may have
 // shortened the window, so the reported cutoff is enforced here rather than
 // trusted to be enforced by deletion.
-func (s *service) courseSection(ctx context.Context, filters Filters, from, to timezone.Date, students []StudentRow) ([]CourseRow, []CourseStudentRow, CourseRow, error) {
+func (s *service) courseSection(ctx context.Context, filters Filters, from, to, today timezone.Date, students []StudentRow) ([]CourseRow, []CourseStudentRow, CourseRow, error) {
 	var totals CourseRow
 	totals.Name = totalsRowName
 	if s.cfg.Courses == nil || from.After(to) {
@@ -85,11 +85,11 @@ func (s *service) courseSection(ctx context.Context, filters Filters, from, to t
 		// nothing left to read, and the screen says so.
 		return nil, nil, totals, nil
 	}
-	instances, err := s.cfg.Courses.CourseInstances(ctx, from, to)
+	instances, err := s.cfg.Courses.CourseInstances(ctx, from, to, today)
 	if err != nil {
 		return nil, nil, totals, fmt.Errorf("load course instances: %w", err)
 	}
-	participation, err := s.cfg.Courses.CourseParticipation(ctx, from, to)
+	participation, err := s.cfg.Courses.CourseParticipation(ctx, from, to, today)
 	if err != nil {
 		return nil, nil, totals, fmt.Errorf("load course participation: %w", err)
 	}
