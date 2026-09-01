@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -122,6 +123,85 @@ func (r *AuthEventRepository) List(ctx context.Context, filters map[string]inter
 	}
 
 	return events, nil
+}
+
+// CreateStaffPreviewEndOnce records the end of one staff-view preview
+// instance and reports whether THIS call wrote the row (#2893).
+//
+// Ending a preview is idempotent and concurrent: the client may repeat the
+// call, and two tabs can end the same preview in the same moment. A
+// read-then-insert guard cannot cover the second case — both callers read
+// "not ended yet" before either row lands. So uniqueness lives in the
+// database (partial unique index idx_auth_events_staff_preview_end_once,
+// migration 1.15.357) and the conflict is absorbed here: the second writer
+// simply inserts nothing and gets false.
+func (r *AuthEventRepository) CreateStaffPreviewEndOnce(ctx context.Context, event *audit.AuthEvent) (bool, error) {
+	if event == nil {
+		return false, errors.New("auth event is required")
+	}
+	if event.EventType != audit.EventTypeStaffPreviewEnded {
+		return false, errors.New("event type must be staff_preview_ended")
+	}
+	if previewID, _ := event.GetMetadata()["preview_id"].(string); previewID == "" {
+		return false, errors.New("preview_id metadata is required")
+	}
+	if err := event.Validate(); err != nil {
+		return false, err
+	}
+
+	base.EnsureTenantID(ctx, event)
+
+	res, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(event).
+		ModelTableExpr("audit.auth_events").
+		On("CONFLICT DO NOTHING").
+		Exec(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, nil
+}
+
+// StaffPreviewEnded reports whether the preview instance previewID of
+// adminAccountID has already been ended (#2893).
+//
+// Read against the same partial unique index that makes the end one-shot, so
+// the lookup is a single index probe. It answers one question only: may a
+// token still be treated as the running preview instance, or does it belong
+// to a preview that is already closed?
+func (r *AuthEventRepository) StaffPreviewEnded(ctx context.Context, accountID int64, previewID string) (bool, error) {
+	if previewID == "" {
+		return false, errors.New("preview_id is required")
+	}
+	return base.GetDB(ctx, r.db).NewSelect().
+		Model((*audit.AuthEvent)(nil)).
+		ModelTableExpr(`audit.auth_events AS "auth_event"`).
+		Where(`"auth_event".`+whereAccountIDEquals, accountID).
+		Where(`"auth_event".event_type = ?`, audit.EventTypeStaffPreviewEnded).
+		Where(`"auth_event".metadata->>'preview_id' = ?`, previewID).
+		Exists(ctx)
+}
+
+// LockStaffPreview takes the transaction-scoped advisory lock of one preview
+// instance (#2893). Two writers contend for it: the renewal, which asks
+// whether the instance is still running and then mints its replacement token,
+// and the end, which closes it. Without the lock those two straddle each
+// other — the renewal reads "still running", the end commits, and the token
+// minted a moment later revives a preview the admin had closed, with no start
+// event of its own and an end the uniqueness index would swallow.
+//
+// The lock is released with the caller's transaction, so the renewal keeps it
+// until its token is committed.
+func (r *AuthEventRepository) LockStaffPreview(ctx context.Context, accountID int64, previewID string) error {
+	if previewID == "" {
+		return errors.New("preview_id is required")
+	}
+	return base.AcquireXactLock(ctx, r.db, fmt.Sprintf("staff-preview:%d:%s", accountID, previewID))
 }
 
 // ListPendingAccountWideWipes returns the newest pending wipe per account.

@@ -8,6 +8,7 @@ import { Button, ButtonLink } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
+import { getApiErrorMessage } from "~/lib/api-error-message";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import {
   getParentCalendarFeed,
@@ -97,8 +98,17 @@ export function CalendarSubscribePanel({
     try {
       setFeed(await loadFeed());
       setOpen(true);
-    } catch {
-      toast.error(copy.loadError);
+    } catch (err) {
+      // Showing the link creates it on first use, so the read-only staff
+      // preview blocks this call — say that instead of a generic failure.
+      toast.error(
+        getApiErrorMessage(
+          err,
+          "anzeigen",
+          "den Kalender-Link",
+          copy.loadError,
+        ),
+      );
     } finally {
       setLoading(false);
     }
