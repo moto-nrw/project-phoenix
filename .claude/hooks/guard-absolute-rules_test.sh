@@ -40,7 +40,11 @@ mkdir -p "$outside_dir/scripts"
 printf '#!/usr/bin/env bash\necho outside\n' >"$outside_dir/scripts/test-backend.sh"
 chmod +x "$outside_dir/scripts/test-backend.sh"
 printf 'package backend\n' >"$repo/backend/doc.go"
-chmod +x "$repo/scripts/run-go-toolchain.sh" "$repo/scripts/test-backend.sh" "$repo/scripts/env-check.sh"
+mkdir -p "$repo/backend/scripts"
+printf '#!/usr/bin/env bash\necho tracked\n' >"$repo/backend/scripts/new"
+mkdir -p "$repo/backend/cmd/tracked"
+printf 'package main\nfunc main() {}\n' >"$repo/backend/cmd/tracked/main.go"
+chmod +x "$repo/scripts/run-go-toolchain.sh" "$repo/scripts/test-backend.sh" "$repo/scripts/env-check.sh" "$repo/backend/scripts/new"
 git -C "$repo" add -A
 git -C "$repo" commit -qm fixture
 # untracked on purpose: exists, executable, but not vetted
@@ -48,6 +52,10 @@ printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new.sh"
 chmod +x "$repo/scripts/new.sh"
 printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new"
 chmod +x "$repo/scripts/new"
+printf 'package main\nfunc main() {}\n' >"$repo/untracked.go"
+mkdir -p "$fixture/bin"
+printf '#!/usr/bin/env bash\necho evil\n' >"$fixture/bin/evil"
+chmod +x "$fixture/bin/evil"
 
 worktree="$fixture/wt"
 git -C "$repo" worktree add -q "$worktree" -b guard-test-wt
@@ -57,10 +65,10 @@ checks=0
 
 # run_hook <allow|deny> <label> <payload-json>
 run_hook() {
-    local expect=$1 label=$2 payload=$3 out status decision
+    local expect=$1 label=$2 payload=$3 path=${4:-$PATH} out status decision
     checks=$((checks + 1))
     set +e
-    out=$(printf '%s' "$payload" | bash "$hook" 2>/dev/null)
+    out=$(printf '%s' "$payload" | PATH="$path" bash "$hook" 2>/dev/null)
     status=$?
     set -e
     decision=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // empty' 2>/dev/null) || decision=""
@@ -87,6 +95,13 @@ assert_bash() {
         '{tool_name: "Bash", tool_input: {command: $cmd}, cwd: $cwd}')"
 }
 
+# assert_bash_path <allow|deny> <cwd> <path> <command>
+assert_bash_path() {
+    local expect=$1 cwd=$2 path=$3 cmd=$4
+    run_hook "$expect" "Bash: $cmd (cwd=$cwd, PATH=$path)" "$(jq -n --arg cmd "$cmd" --arg cwd "$cwd" \
+        '{tool_name: "Bash", tool_input: {command: $cmd}, cwd: $cwd}')" "$path"
+}
+
 # --- tracked scripts inside the repo: allowed, in every invocation form ---
 assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go test ./...'
 assert_bash allow "$repo" 'scripts/test-backend.sh -run TestFoo ./...'
@@ -107,9 +122,16 @@ assert_bash allow "$repo" "rg $prod_host docs/"
 assert_bash allow "$repo" "grep -R 'test-changed.sh' scripts/"
 assert_bash allow "$repo" "scripts/run-go-toolchain.sh grep 'test-changed.sh' scripts/"
 assert_bash allow "$repo" "printf '%s\\n' 'a; scripts/new.sh'"
+assert_bash allow "$repo" 'printf "%s" "text; ./scripts/new.sh"'
 assert_bash allow "$repo" '/bin/bash scripts/env-check.sh'
 assert_bash allow "$repo" '/usr/bin/git --version'
 assert_bash allow "$repo" '/usr/bin/env'
+assert_bash allow "$repo" 'if true; then :; fi'
+assert_bash allow "$repo" 'cd backend | scripts/test-backend.sh'
+assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
+printf 'package main\n' >"$repo/backend/cmd/tracked/untracked.go"
+assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
+rm "$repo/backend/cmd/tracked/untracked.go"
 
 # --- unvetted execution: denied ---
 assert_bash deny "$repo" './scripts/new.sh'
@@ -138,11 +160,18 @@ assert_bash deny "$repo" 'xargs ./scripts/new'
 assert_bash deny "$repo" 'if true; then ./scripts/new; fi'
 assert_bash deny "$repo" 'PATH=/tmp evil'
 assert_bash deny "$repo" 'foo() { ./scripts/new; }; foo'
+assert_bash deny "$repo" 'foo(){ ./scripts/new; }; foo'
+assert_bash deny "$repo" 'foo (){ ./scripts/new; }; foo'
 assert_bash deny "$repo" 'cat <(./scripts/new)'
 assert_bash deny "$repo" "env --chdir=$outside_dir scripts/test-backend.sh"
 assert_bash deny "$repo" "env -C$outside_dir scripts/test-backend.sh"
 assert_bash deny "$repo" 'find . -exec ./scripts/new.sh \;'
 assert_bash deny "$repo" 'find . -execdir ./scripts/new.sh \;'
+assert_bash deny "$repo" 'go run ./untracked.go'
+assert_bash deny "$repo" 'scripts/run-go-toolchain.sh go run ./untracked.go'
+assert_bash deny "$repo" 'not-a-command-guard-test'
+assert_bash_path deny "$repo" "$fixture/bin:$PATH" 'evil'
+assert_bash deny "$repo" 'cd backend | ./scripts/new'
 
 # --- inline payloads and eval: denied, incl. the -lc flag cluster ---
 assert_bash deny "$repo" "bash -c 'echo hi'"

@@ -113,11 +113,26 @@ case "$tool" in
         # Absolute executables from standard system tool directories are not
         # repository scripts. Other paths remain subject to script vetting.
         vet_executable() {
+            local target
             case "$1" in
-                /bin/* | /sbin/* | /usr/bin/* | /usr/sbin/* | /usr/local/bin/* | /opt/homebrew/bin/*)
+                /bin/* | /sbin/* | /usr/bin/* | /usr/sbin/* | /usr/local/bin/* | /opt/homebrew/bin/* | /nix/store/* | */node_modules/@openai/codex-*/vendor/*/codex-path/rg)
                     [[ -x "$1" && ! -d "$1" ]]
                     ;;
+                */.devbox/nix/profile/default/bin/*)
+                    target=$(resolve_script "$1") || return 1
+                    [[ "$target" = /nix/store/* && -x "$1" && ! -d "$1" ]]
+                    ;;
                 *) vet_script "$1" ;;
+            esac
+        }
+
+        vet_bare_executable() {
+            local tok=$1 resolved
+            resolved=$(command -v "$tok" 2>/dev/null) || deny_untracked "$tok"
+            case "$resolved" in
+                "$tok") return 0 ;; # shell builtin
+                /*) vet_executable "$resolved" || deny_untracked "$tok" ;;
+                *) deny_untracked "$tok" ;;
             esac
         }
 
@@ -136,10 +151,57 @@ case "$tool" in
             esac
         }
 
+        vet_go_run() {
+            local tok=${1:-} path go_file rel found=
+            [[ -n "$tok" ]] || deny "Blocked: go run needs a tracked package or Go source file."
+            reject_dynamic_executable "$tok"
+            case "$tok" in
+                -*) deny "Blocked: go run flags cannot be inspected by the absolute-rule guard. Write the tracked package path directly." ;;
+                *.go)
+                    vet_script "$tok" || deny_untracked "$tok"
+                    shift
+                    while [[ $# -gt 0 && ${1:-} != -- ]]; do
+                        tok=$(clean_token "$1")
+                        [[ "$tok" = *.go ]] || break
+                        vet_script "$tok" || deny_untracked "$tok"
+                        shift
+                    done
+                    return 0
+                    ;;
+                .|./*|../*|/*) ;;
+                *) deny "Blocked: go run may execute only a tracked local package or Go source file." ;;
+            esac
+            path=$(cd -P "$curdir" 2>/dev/null && cd -P "$tok" 2>/dev/null && pwd) || deny_untracked "$tok"
+            case "$path" in "$root"/*) ;; *) deny_untracked "$tok" ;; esac
+            while IFS= read -r go_file; do
+                [[ -n "$go_file" ]] || continue
+                found=1
+                rel=${go_file#"$root"/}
+                git -C "$root" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1 || deny_untracked "$go_file"
+            done <<EOF
+$(find "$path" -maxdepth 1 -type f -name '*.go' -print)
+EOF
+            [[ -n "$found" ]] || deny_untracked "$tok"
+        }
+
+        vet_go_command() {
+            while [[ $# -gt 0 ]]; do
+                case "$(clean_token "$1")" in
+                    -C|-C*) deny "Blocked: go -C changes the executable resolution directory and cannot be inspected by the absolute-rule guard." ;;
+                    run) shift; vet_go_run "$@"; return 0 ;;
+                    *) return 0 ;;
+                esac
+            done
+        }
+
         vet_toolchain_request() {
-            local tok=$1
+            local tok=${1:-}
             reject_dynamic_executable "$tok"
             [[ "$tok" = */* ]] && vet_script "$tok" || [[ "$tok" != */* ]] || deny_untracked "$tok"
+            if [[ "$tok" = go ]]; then
+                shift
+                vet_go_command "$@"
+            fi
         }
 
         vet_env_assignment() {
@@ -262,15 +324,24 @@ case "$tool" in
                 function)
                     deny "Blocked: shell function definitions cannot be inspected by the absolute-rule guard. Write the command out directly."
                     ;;
-                *'()')
+                *'()'|*'(){'*)
                     [[ ${2:-} = '{' ]] && deny "Blocked: shell function definitions cannot be inspected by the absolute-rule guard. Write the command out directly."
+                    [[ "$first" = *'(){'* ]] && deny "Blocked: shell function definitions cannot be inspected by the absolute-rule guard. Write the command out directly."
                     ;;
             esac
             [[ ${2:-} = '()' && ${3:-} = '{' ]] && deny "Blocked: shell function definitions cannot be inspected by the absolute-rule guard. Write the command out directly."
+            [[ ${2:-} = '(){'* ]] && deny "Blocked: shell function definitions cannot be inspected by the absolute-rule guard. Write the command out directly."
             case "$first" in
                 /bin/bash|/bin/sh|/bin/zsh) first=${first##*/} ;;
             esac
-            [[ "$first" = */* ]] && vet_executable "$first" || [[ "$first" != */* ]] || deny_untracked "$first"
+            case "$first" in
+                fi|'esac'|done|'}'|')') return 0 ;;
+            esac
+            if [[ "$first" = */* ]]; then
+                vet_executable "$first" || deny_untracked "$first"
+            else
+                vet_bare_executable "$first"
+            fi
             case "${first##*/}" in
                 cd)
                     # keep resolution honest for `cd backend && ../scripts/x.sh`
@@ -299,7 +370,7 @@ case "$tool" in
                     if [[ "${tok##*/}" = run-go-toolchain.sh ]]; then
                         shift
                         [[ $# -gt 0 ]] || return 0
-                        vet_toolchain_request "$(clean_token "$1")"
+                        vet_toolchain_request "$@"
                     fi
                     ;;
                 python | python3 | node | nodejs | ruby | perl)
@@ -334,6 +405,10 @@ case "$tool" in
                         esac
                     done
                     ;;
+                go)
+                    shift
+                    vet_go_command "$@"
+                    ;;
                 *.sh)
                     vet_script "$first" || deny_untracked "$first"
                     ;;
@@ -347,7 +422,7 @@ case "$tool" in
             if [[ "${first##*/}" = run-go-toolchain.sh ]]; then
                 shift
                 [[ $# -gt 0 ]] || return 0
-                vet_toolchain_request "$(clean_token "$1")"
+                vet_toolchain_request "$@"
             fi
         }
 
@@ -355,7 +430,7 @@ case "$tool" in
         # separators only outside quotes. This is deliberately a lexer, never
         # an evaluator: the command supplied to the hook is never executed.
         scan_commands() {
-            local text=$1 segment='' quote='' ch next inner inner_quote depth i j len
+            local text=$1 segment='' quote='' ch next inner inner_quote depth i j len entry_curdir=$curdir
             len=${#text}
             i=0
             while (( i < len )); do
@@ -364,6 +439,12 @@ case "$tool" in
                 if [[ "$quote" = "'" ]]; then
                     segment+=$ch
                     [[ "$ch" = "'" ]] && quote=''
+                    i=$((i + 1))
+                    continue
+                fi
+                if [[ "$quote" = '"' && "$ch" = '"' ]]; then
+                    segment+=$ch
+                    quote=''
                     i=$((i + 1))
                     continue
                 fi
@@ -416,6 +497,7 @@ case "$tool" in
                     done
                     (( depth == 0 )) || deny "Blocked: an unterminated command substitution cannot be inspected by the absolute-rule guard."
                     scan_commands "$inner"
+                    curdir=$entry_curdir
                     segment+='__guard_substitution__'
                     i=$j
                     continue
@@ -429,16 +511,43 @@ case "$tool" in
                     done
                     (( j < len )) || deny "Blocked: an unterminated command substitution cannot be inspected by the absolute-rule guard."
                     scan_commands "$inner"
+                    curdir=$entry_curdir
                     segment+='__guard_substitution__'
                     i=$((j + 1))
                     continue
                 fi
+                if [[ "$quote" = '"' ]]; then
+                    case "$ch" in
+                        ';'|'|'|'&'|$'\n')
+                            segment+=$ch
+                            i=$((i + 1))
+                            continue
+                            ;;
+                    esac
+                fi
                 case "$ch" in
-                    ';'|'|'|'&'|$'\n')
+                    ';'|$'\n')
                         scan_segment "$segment"
                         segment=''
                         ;;
-                    *) segment+=$ch ;;
+                    '|')
+                        scan_segment "$segment"
+                        segment=''
+                        curdir=$entry_curdir
+                        [[ "$next" = '&' ]] && i=$((i + 1))
+                        ;;
+                    '&')
+                        scan_segment "$segment"
+                        segment=''
+                        if [[ "$next" = '&' ]]; then
+                            i=$((i + 1))
+                        else
+                            curdir=$entry_curdir
+                        fi
+                        ;;
+                    *)
+                        segment+=$ch
+                        ;;
                 esac
                 i=$((i + 1))
             done
