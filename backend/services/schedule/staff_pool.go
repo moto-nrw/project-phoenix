@@ -182,8 +182,8 @@ func buildStaffPoolFacts(
 		facts.elsewhere[row.StaffID] = append(facts.elsewhere[row.StaffID], StaffPoolAssignment{
 			InstanceID:   inst.ID,
 			Title:        inst.Title,
-			StartTime:    timezone.WallClock(inst.StartTime).Format("15:04"),
-			EndTime:      timezone.WallClock(inst.EndTime).Format("15:04"),
+			StartTime:    timezone.NormalizeWallClock(inst.StartTime).Format("15:04"),
+			EndTime:      timezone.NormalizeWallClock(inst.EndTime).Format("15:04"),
 			IsSubstitute: row.IsSubstitute,
 		})
 	}
@@ -210,8 +210,8 @@ func buildStaffPoolEntry(target *scheduleModel.ActivityInstance, staffID int64, 
 	staffShifts := facts.shiftsByStaff[staffID]
 	for _, shift := range staffShifts {
 		entry.ShiftWindows = append(entry.ShiftWindows, fmt.Sprintf("%s–%s",
-			timezone.WallClock(shift.StartTime).Format("15:04"),
-			timezone.WallClock(shift.EndTime).Format("15:04"),
+			timezone.NormalizeWallClock(shift.StartTime).Format("15:04"),
+			timezone.NormalizeWallClock(shift.EndTime).Format("15:04"),
 		))
 		if clockWindowsOverlap(shift.StartTime, shift.EndTime, target.StartTime, target.EndTime) {
 			entry.OnShift = true
@@ -220,7 +220,7 @@ func buildStaffPoolEntry(target *scheduleModel.ActivityInstance, staffID int64, 
 	sort.Strings(entry.ShiftWindows)
 	if entry.OnShift {
 		entry.CoversWindow = len(uncoveredShiftIntervals(
-			timezone.WallClock(target.StartTime), timezone.WallClock(target.EndTime), staffShifts,
+			timezone.NormalizeWallClock(target.StartTime), timezone.NormalizeWallClock(target.EndTime), staffShifts,
 		)) == 0
 	}
 
@@ -244,8 +244,8 @@ func buildStaffPoolEntry(target *scheduleModel.ActivityInstance, staffID int64, 
 // clockWindowsOverlap reports whether two wall-clock windows intersect;
 // touching boundaries do not overlap (same rule as StaffShift.Overlaps).
 func clockWindowsOverlap(aStart, aEnd, bStart, bEnd time.Time) bool {
-	as, ae := timezone.WallClock(aStart), timezone.WallClock(aEnd)
-	bs, be := timezone.WallClock(bStart), timezone.WallClock(bEnd)
+	as, ae := timezone.NormalizeWallClock(aStart), timezone.NormalizeWallClock(aEnd)
+	bs, be := timezone.NormalizeWallClock(bStart), timezone.NormalizeWallClock(bEnd)
 	return as.Before(be) && bs.Before(ae)
 }
 

@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -29,8 +28,16 @@ type cleanupService struct {
 	privacyConsentRepo userModels.PrivacyConsentRepository
 	dataDeletionRepo   audit.DataDeletionRepository
 	consentRetention   ConsentRetentionResolver
-	txHandler          *base.TxHandler
+	txHandler          *tenant.TransactionRunner
 	batchSize          int
+	today              func() timezone.Date
+}
+
+func (s *cleanupService) todayDate() timezone.Date {
+	if s.today != nil {
+		return s.today()
+	}
+	return timezone.TodayDate()
 }
 
 // NewCleanupService creates a new cleanup service instance
@@ -42,17 +49,22 @@ func NewCleanupService(
 	dataDeletionRepo audit.DataDeletionRepository,
 	consentRetention ConsentRetentionResolver,
 	db *bun.DB,
+	today ...func() timezone.Date,
 ) CleanupService {
-	return &cleanupService{
+	service := &cleanupService{
 		visitRepo:          visitRepo,
 		attendanceRepo:     attendanceRepo,
 		supervisorRepo:     supervisorRepo,
 		privacyConsentRepo: privacyConsentRepo,
 		dataDeletionRepo:   dataDeletionRepo,
 		consentRetention:   consentRetention,
-		txHandler:          base.NewTxHandler(db),
+		txHandler:          tenant.NewTransactionRunner(),
 		batchSize:          100, // Process 100 students at a time
 	}
+	if len(today) > 0 {
+		service.today = today[0]
+	}
+	return service
 }
 
 // CleanupExpiredVisits runs the cleanup process for all students
@@ -195,7 +207,7 @@ func (s *cleanupService) processBatch(ctx context.Context, students []userModels
 func (s *cleanupService) processStudent(ctx context.Context, student userModels.StudentRetentionSetting) (int64, error) {
 	var deletedCount int64
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context) error {
 		// Delete expired visits
 		count, err := s.visitRepo.DeleteExpiredVisits(ctx, student.StudentID, student.DataRetentionDays)
 		if err != nil {
@@ -235,7 +247,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		Errors:    make([]string, 0),
 	}
 
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	// Find all attendance records from before today that don't have check-out times
 	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
@@ -300,7 +312,7 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 		RecordsByDate:  make(map[string]int),
 	}
 
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	// Find all stale attendance records
 	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
@@ -337,7 +349,7 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 	}
 
 	// Today as a Berlin calendar day; binds as a DATE literal.
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	// Find all supervisor records from before today that don't have end_date
 	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)
@@ -394,7 +406,7 @@ func (s *cleanupService) PreviewSupervisorCleanup(ctx context.Context) (*Supervi
 	}
 
 	// Today as a Berlin calendar day; binds as a DATE literal.
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	// Find all stale supervisor records
 	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -24,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -66,12 +68,24 @@ type Service interface {
 	ParentCalendarFeedURL(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
 	RotateParentCalendarFeed(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
 	ParentCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
+	StaffCalendarFeedURL(ctx context.Context) (httpsURL, webcalURL string, err error)
+	RotateStaffCalendarFeed(ctx context.Context) (httpsURL, webcalURL string, err error)
+	StaffCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
 	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
 	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
 	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
 	// EnqueueDueAppointmentReminders queues the guardian reminder for every
 	// occurrence starting in [from, to). Driven by the scheduler, per tenant.
 	EnqueueDueAppointmentReminders(ctx context.Context, from, to time.Time) (int, error)
+}
+
+type FeedCleanupService interface {
+	CleanupExpiredFeedTombstones(ctx context.Context) (int, error)
+}
+
+type FullService interface {
+	Service
+	FeedCleanupService
 }
 
 type Config struct {
@@ -100,11 +114,15 @@ type Config struct {
 
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
 	// calendar is unaffected).
-	Outbox      OutboxEnqueuer
-	SchoolRepo  platformModels.SchoolRepository
-	Settings    LogoResolver
-	AccountRepo FeedAccountRepo
-	ParentsURL  string
+	Outbox                 OutboxEnqueuer
+	SchoolRepo             platformModels.SchoolRepository
+	Settings               LogoResolver
+	AccountRepo            FeedAccountRepo
+	StaffFeedRepo          authModels.StaffCalendarFeedTokenRepository
+	StaffFeedTombstoneRepo calModels.StaffFeedTombstoneRepository
+	PersonRepo             userModels.PersonRepository
+	ParentsURL             string
+	FrontendURL            string
 
 	// Notifier and Preferences drive the guardian push/in-app notification that
 	// accompanies the appointment e-mails (#1671). Both optional and both
@@ -122,40 +140,42 @@ type Config struct {
 }
 
 type service struct {
-	cfg Config
+	cfg          Config
+	feedCreation singleflight.Group
 }
 
-func NewService(cfg Config) Service {
+func NewService(cfg Config) FullService {
 	return &service{cfg: cfg}
 }
 
 type Event struct {
-	ID               string  `json:"id"`
-	Source           string  `json:"source"`
-	AppointmentID    *string `json:"appointment_id,omitempty"`
-	OccurrenceDate   *string `json:"occurrence_date,omitempty"`
-	TimetableID      *string `json:"timetable_id,omitempty"`
-	StudentID        *string `json:"student_id,omitempty"`
-	StudentName      *string `json:"student_name,omitempty"`
-	TenantID         *string `json:"tenant_id,omitempty"`
-	SchoolName       *string `json:"school_name,omitempty"`
-	Title            string  `json:"title"`
-	Description      *string `json:"description,omitempty"`
-	Location         *string `json:"location,omitempty"`
-	StartDate        string  `json:"start_date"`
-	EndDate          string  `json:"end_date"`
-	StartTime        string  `json:"start_time"`
-	EndTime          string  `json:"end_time"`
-	AllDay           bool    `json:"all_day"`
-	Cancelled        bool    `json:"cancelled"`
-	Recurring        bool    `json:"recurring"`
-	DeliveryMode     *string `json:"delivery_mode,omitempty"`
-	ResponseStatus   *string `json:"response_status,omitempty"`
-	RecipientID      *string `json:"recipient_id,omitempty"`
-	OrganizerStaffID *string `json:"organizer_staff_id,omitempty"`
-	CanRespond       bool    `json:"can_respond"`
-	CanEdit          bool    `json:"can_edit"`
-	CanViewOverview  bool    `json:"can_view_overview"`
+	ID               string    `json:"id"`
+	Source           string    `json:"source"`
+	AppointmentID    *string   `json:"appointment_id,omitempty"`
+	OccurrenceDate   *string   `json:"occurrence_date,omitempty"`
+	TimetableID      *string   `json:"timetable_id,omitempty"`
+	StudentID        *string   `json:"student_id,omitempty"`
+	StudentName      *string   `json:"student_name,omitempty"`
+	TenantID         *string   `json:"tenant_id,omitempty"`
+	SchoolName       *string   `json:"school_name,omitempty"`
+	Title            string    `json:"title"`
+	Description      *string   `json:"description,omitempty"`
+	Location         *string   `json:"location,omitempty"`
+	StartDate        string    `json:"start_date"`
+	EndDate          string    `json:"end_date"`
+	StartTime        string    `json:"start_time"`
+	EndTime          string    `json:"end_time"`
+	AllDay           bool      `json:"all_day"`
+	Cancelled        bool      `json:"cancelled"`
+	Recurring        bool      `json:"recurring"`
+	DeliveryMode     *string   `json:"delivery_mode,omitempty"`
+	ResponseStatus   *string   `json:"response_status,omitempty"`
+	RecipientID      *string   `json:"recipient_id,omitempty"`
+	OrganizerStaffID *string   `json:"organizer_staff_id,omitempty"`
+	CanRespond       bool      `json:"can_respond"`
+	CanEdit          bool      `json:"can_edit"`
+	CanViewOverview  bool      `json:"can_view_overview"`
+	ModifiedAt       time.Time `json:"-"`
 }
 
 type AppointmentDetail struct {
@@ -364,8 +384,8 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		Location:           req.Location,
 		StartDate:          req.StartDate,
 		EndDate:            req.EndDate,
-		StartTime:          timezone.WallClock(req.StartTime),
-		EndTime:            timezone.WallClock(req.EndTime),
+		StartTime:          timezone.NormalizeWallClock(req.StartTime),
+		EndTime:            timezone.NormalizeWallClock(req.EndTime),
 		AllDay:             req.AllDay,
 		DeliveryMode:       req.DeliveryMode,
 		OverviewVisibility: req.OverviewVisibility,
@@ -543,8 +563,8 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	appointment.Location = req.Location
 	appointment.StartDate = req.StartDate
 	appointment.EndDate = req.EndDate
-	appointment.StartTime = timezone.WallClock(req.StartTime)
-	appointment.EndTime = timezone.WallClock(req.EndTime)
+	appointment.StartTime = timezone.NormalizeWallClock(req.StartTime)
+	appointment.EndTime = timezone.NormalizeWallClock(req.EndTime)
 	appointment.AllDay = req.AllDay
 	appointment.OverviewVisibility = req.OverviewVisibility
 	if req.SendEmailSet || req.SendEmail {
@@ -683,46 +703,17 @@ func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int6
 	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment deleted"); err != nil {
 		return err
 	}
-	// A subscribed external calendar (a parent's .ics subscription) only drops an
+	// A subscribed external calendar only drops an
 	// appointment when it re-receives the SAME UID with STATUS:CANCELLED at a
-	// higher SEQUENCE. Hard-deleting a feed-visible appointment makes it vanish
+	// higher SEQUENCE. Hard-deleting an appointment makes it vanish
 	// from the feed, which many clients keep rather than purge — the stale event
-	// then lingers in the parent's calendar forever. So a feed-visible appointment
-	// (one with guardian recipients) is SOFT-deleted: it disappears from every
+	// then lingers in the subscribed calendar forever. Every appointment can appear
+	// in its organizer's staff feed, so it is SOFT-deleted: it disappears from every
 	// interactive staff/parent calendar (those queries filter deleted_at IS NULL),
 	// yet the subscription feed re-exports it as a durable STATUS:CANCELLED
 	// tombstone (retained by deletion time, independent of the date lookback) with
 	// a bumped SEQUENCE so even long-offline subscribers eventually purge it.
-	// Purely staff-internal appointments never reach a subscription feed, so they
-	// are removed outright.
-	feedVisible, err := s.appointmentHasGuardianRecipients(ctx, appointment.ID)
-	if err != nil {
-		return err
-	}
-	if feedVisible {
-		return s.cfg.AppointmentRepo.SoftDelete(ctx, appointment.ID)
-	}
-	// Child rows (recurrence, recipients, recipient-students, targets, occurrence
-	// overrides) are removed by ON DELETE CASCADE on the appointment FK.
-	return s.cfg.AppointmentRepo.Delete(ctx, appointment.ID)
-}
-
-// appointmentHasGuardianRecipients reports whether the appointment has any
-// materialized guardian-profile recipient — the marker that it can appear in a
-// parent's iCalendar subscription feed. Guardian-facing targets (a class, a
-// group, whole-school parents) are expanded into concrete guardian_profile
-// recipient rows at create/update time, so checking the recipients is sufficient.
-func (s *service) appointmentHasGuardianRecipients(ctx context.Context, appointmentID int64) (bool, error) {
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointmentID)
-	if err != nil {
-		return false, err
-	}
-	for _, recipient := range recipients {
-		if recipient.RecipientType == calModels.RecipientTypeGuardianProfile {
-			return true, nil
-		}
-	}
-	return false, nil
+	return s.cfg.AppointmentRepo.SoftDelete(ctx, appointment.ID)
 }
 
 func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
@@ -1316,37 +1307,59 @@ func (s *service) timetableRoomNames(ctx context.Context, roomIDs []int64) (map[
 	return names, nil
 }
 
-// collectStaffTimetableAssignments walks the window day by day and keeps the
-// first assignment per instance; cancelled instances drop out here, so their
-// rooms never reach the batch lookup.
-func (s *service) collectStaffTimetableAssignments(ctx context.Context, staffID int64, from, to timezone.Date) ([]staffTimetableAssignment, error) {
-	collected := []staffTimetableAssignment{}
+// collectStaffTimetableAssignments resolves the staff member's assignments and
+// their instances in two range queries. It keeps the first assignment per
+// instance. Interactive reads drop cancelled instances; subscription feeds
+// retain them so external calendars receive STATUS:CANCELLED.
+func (s *service) collectStaffTimetableAssignments(ctx context.Context, staffID int64, from, to timezone.Date, includeCancelled bool) ([]staffTimetableAssignment, error) {
+	assignments, err := s.cfg.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	instanceIDs := make([]int64, 0, len(assignments))
 	seen := make(map[int64]struct{})
-	for d := from; !d.After(to); d = d.AddDays(1) {
-		assignments, err := s.cfg.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, d)
-		if err != nil {
-			return nil, err
+	for _, assignment := range assignments {
+		if _, ok := seen[assignment.InstanceID]; ok {
+			continue
 		}
-		for _, assignment := range assignments {
-			if _, ok := seen[assignment.InstanceID]; ok {
-				continue
-			}
-			seen[assignment.InstanceID] = struct{}{}
-			instance, err := s.cfg.ActivityInstanceRepo.FindByID(ctx, assignment.InstanceID)
-			if err != nil {
-				return nil, err
-			}
-			if instance.Status == scheduleModels.InstanceStatusCancelled {
-				continue
-			}
-			collected = append(collected, staffTimetableAssignment{instance: instance, assignment: assignment})
+		seen[assignment.InstanceID] = struct{}{}
+		instanceIDs = append(instanceIDs, assignment.InstanceID)
+	}
+	instances, err := s.cfg.ActivityInstanceRepo.FindByIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, err
+	}
+	instancesByID := make(map[int64]*scheduleModels.ActivityInstance, len(instances))
+	for _, instance := range instances {
+		instancesByID[instance.ID] = instance
+	}
+
+	collected := make([]staffTimetableAssignment, 0, len(instanceIDs))
+	seen = make(map[int64]struct{})
+	for _, assignment := range assignments {
+		if _, ok := seen[assignment.InstanceID]; ok {
+			continue
 		}
+		seen[assignment.InstanceID] = struct{}{}
+		instance := instancesByID[assignment.InstanceID]
+		if instance == nil || (!includeCancelled && instance.Status == scheduleModels.InstanceStatusCancelled) {
+			continue
+		}
+		collected = append(collected, staffTimetableAssignment{instance: instance, assignment: assignment})
 	}
 	return collected, nil
 }
 
 func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
-	assigned, err := s.collectStaffTimetableAssignments(ctx, staffID, from, to)
+	return s.staffTimetableEventsWithCancelled(ctx, staffID, from, to, false)
+}
+
+func (s *service) staffTimetableFeedEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
+	return s.staffTimetableEventsWithCancelled(ctx, staffID, from, to, true)
+}
+
+func (s *service) staffTimetableEventsWithCancelled(ctx context.Context, staffID int64, from, to timezone.Date, includeCancelled bool) ([]Event, error) {
+	assigned, err := s.collectStaffTimetableAssignments(ctx, staffID, from, to, includeCancelled)
 	if err != nil {
 		return nil, err
 	}
@@ -1358,6 +1371,10 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 	for _, entry := range assigned {
 		instance := entry.instance
 		id := formatID(instance.ID)
+		modifiedAt := instance.UpdatedAt
+		if entry.assignment.UpdatedAt.After(modifiedAt) {
+			modifiedAt = entry.assignment.UpdatedAt
+		}
 		event := Event{
 			ID:          fmt.Sprintf("timetable:%d", instance.ID),
 			Source:      EventSourceTimetable,
@@ -1369,6 +1386,8 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 			StartTime:   formatClock(instance.StartTime),
 			EndTime:     formatClock(instance.EndTime),
 			AllDay:      false,
+			Cancelled:   instance.Status == scheduleModels.InstanceStatusCancelled,
+			ModifiedAt:  modifiedAt,
 		}
 		// A room deleted between assignment and this read misses the map;
 		// Location then stays nil rather than becoming an empty string.
@@ -1400,6 +1419,14 @@ func shiftsReferenceTypes(shifts []*scheduleModels.StaffShift) bool {
 // Location stays deliberately empty: schedule.staff_shifts carries no room
 // column, so there is nothing to resolve (#2078).
 func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
+	return s.staffShiftEventsWithCancelled(ctx, staffID, from, to, false)
+}
+
+func (s *service) staffShiftFeedEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
+	return s.staffShiftEventsWithCancelled(ctx, staffID, from, to, true)
+}
+
+func (s *service) staffShiftEventsWithCancelled(ctx context.Context, staffID int64, from, to timezone.Date, includeCancelled bool) ([]Event, error) {
 	if s.cfg.StaffShiftRepo == nil {
 		return []Event{}, nil
 	}
@@ -1419,7 +1446,7 @@ func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to 
 	}
 	events := []Event{}
 	for _, shift := range shifts {
-		if shift.Cancelled {
+		if shift.Cancelled && !includeCancelled {
 			continue
 		}
 		title := "Dienst"
@@ -1429,14 +1456,16 @@ func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to 
 			}
 		}
 		event := Event{
-			ID:        fmt.Sprintf("shift:%d", shift.ID),
-			Source:    EventSourceShift,
-			Title:     title,
-			StartDate: shift.Date.String(),
-			EndDate:   shift.Date.String(),
-			StartTime: formatClock(shift.StartTime),
-			EndTime:   formatClock(shift.EndTime),
-			AllDay:    false,
+			ID:         fmt.Sprintf("shift:%d", shift.ID),
+			Source:     EventSourceShift,
+			Title:      title,
+			StartDate:  shift.Date.String(),
+			EndDate:    shift.Date.String(),
+			StartTime:  formatClock(shift.StartTime),
+			EndTime:    formatClock(shift.EndTime),
+			AllDay:     false,
+			Cancelled:  shift.Cancelled,
+			ModifiedAt: shift.UpdatedAt,
 		}
 		if shift.Notes != "" {
 			notes := shift.Notes
@@ -2122,7 +2151,7 @@ func boundedRecurrenceDates(appointment *calModels.Appointment, rule *calModels.
 		maxEmpty := 4*(12/gcdInt(interval, 12)) + 12
 		empty := 0
 		for k := 0; len(out) < limit; k++ {
-			year, month := addMonthsTo(start.Year, int(start.Month), k*interval)
+			year, month := addMonthsTo(start.Year(), int(start.Month()), k*interval)
 			if past(timezone.NewDate(year, time.Month(month), 1)) {
 				break
 			}
@@ -2159,15 +2188,15 @@ func boundedRecurrenceDates(appointment *calModels.Appointment, rule *calModels.
 		const maxEmpty = 400
 		empty := 0
 		for k := 0; len(out) < limit; k++ {
-			year := start.Year + k*interval
-			if daysInMonth(year, int(start.Month)) < start.Day {
+			year := start.Year() + k*interval
+			if daysInMonth(year, int(start.Month())) < start.Day() {
 				empty++
 				if empty > maxEmpty {
 					break
 				}
 				continue
 			}
-			d := timezone.NewDate(year, start.Month, start.Day)
+			d := timezone.NewDate(year, start.Month(), start.Day())
 			if past(d) {
 				break
 			}
@@ -2183,7 +2212,7 @@ func boundedRecurrenceDates(appointment *calModels.Appointment, rule *calModels.
 // is exactly what matchesRule compares against).
 func monthlyCandidateDays(rule *calModels.RecurrenceRule, start timezone.Date) []int {
 	if len(rule.MonthDays) == 0 {
-		return []int{start.Day}
+		return []int{start.Day()}
 	}
 	// De-duplicate: a repeated month day would emit that occurrence twice and
 	// exhaust occurrence_count early.
@@ -2339,7 +2368,7 @@ func firstMatchingOccurrence(start timezone.Date, interval int, rule *calModels.
 	}
 }
 
-// firstMonthlyOccurrence finds the first reachable month (start.Month + k·interval)
+// firstMonthlyOccurrence finds the first reachable month (start.Month() + k·interval)
 // that contains a requested month-day valid for that month and on/after start.
 // The (month-of-year, leap-phase) pattern of reachable months repeats within a
 // bounded number of steps, so scanning that many steps proves impossibility
@@ -2351,7 +2380,7 @@ func firstMonthlyOccurrence(start timezone.Date, interval int, monthDays []int) 
 	// (+buffer) covers up to four leap cycles for a February-only day-29 rule.
 	maxSteps := 4*(12/gcdInt(interval, 12)) + 12
 	for k := 0; k <= maxSteps; k++ {
-		year, month := addMonthsTo(start.Year, int(start.Month), k*interval)
+		year, month := addMonthsTo(start.Year(), int(start.Month()), k*interval)
 		dim := daysInMonth(year, month)
 		for _, day := range days {
 			if day < 1 || day > dim {
@@ -2416,9 +2445,7 @@ func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recur
 // anchor weekly-recurrence intervals to calendar weeks rather than to 7-day
 // blocks measured from the appointment's start weekday.
 func weekStartMonday(d timezone.Date) timezone.Date {
-	// time.Weekday: Sunday=0 … Saturday=6; days since Monday = (weekday+6)%7.
-	offset := (int(d.Weekday()) + 6) % 7
-	return d.AddDays(-offset)
+	return d.StartOfISOWeek()
 }
 
 func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule) bool {
@@ -2444,22 +2471,22 @@ func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule)
 		}
 		return containsString(weekdays, strings.ToLower(candidate.Weekday().String()))
 	case calModels.RecurrenceFrequencyMonthly:
-		months := (candidate.Year-start.Year)*12 + int(candidate.Month-start.Month)
+		months := (candidate.Year()-start.Year())*12 + int(candidate.Month()-start.Month())
 		if months < 0 || months%rule.IntervalCount != 0 {
 			return false
 		}
 		if len(rule.MonthDays) == 0 {
-			return candidate.Day == start.Day
+			return candidate.Day() == start.Day()
 		}
 		for _, day := range rule.MonthDays {
-			if candidate.Day == day {
+			if candidate.Day() == day {
 				return true
 			}
 		}
 		return false
 	case calModels.RecurrenceFrequencyYearly:
-		years := candidate.Year - start.Year
-		return years >= 0 && years%rule.IntervalCount == 0 && candidate.Month == start.Month && candidate.Day == start.Day
+		years := candidate.Year() - start.Year()
+		return years >= 0 && years%rule.IntervalCount == 0 && candidate.Month() == start.Month() && candidate.Day() == start.Day()
 	default:
 		return false
 	}
@@ -2525,7 +2552,7 @@ func sortEvents(events []Event) {
 }
 
 func formatClock(t time.Time) string {
-	return timezone.WallClock(t).Format("15:04")
+	return timezone.NormalizeWallClock(t).Format("15:04")
 }
 
 func staffName(staff *userModels.Staff) string {

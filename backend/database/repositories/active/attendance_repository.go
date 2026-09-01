@@ -19,16 +19,18 @@ import (
 // AttendanceRepository implements active.AttendanceRepository interface
 type AttendanceRepository struct {
 	*base.Repository[*active.Attendance]
-	db *bun.DB
+	db    *bun.DB
+	today func() timezone.Date
 }
 
 // NewAttendanceRepository creates a new AttendanceRepository
-func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
+func NewAttendanceRepository(db *bun.DB, clocks ...func() time.Time) active.AttendanceRepository {
 	repo := base.NewRepository[*active.Attendance](db, "active.attendance", "Attendance")
 	repo.TenantScoped = true
 	return &AttendanceRepository{
 		Repository: repo,
 		db:         db,
+		today:      timezone.CalendarDateClock(clocks...),
 	}
 }
 
@@ -39,7 +41,7 @@ func (r *AttendanceRepository) LockStudentAttendance(ctx context.Context, studen
 	}
 	key := fmt.Sprintf("attendance:%d:%d", tenantID, studentID)
 	if _, err := base.GetDB(ctx, r.db).ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key); err != nil {
-		return &modelBase.DatabaseError{Op: "lock student attendance", Err: err}
+		return &modelBase.DatabaseError{Op: "lock student attendance", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -60,7 +62,7 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -86,7 +88,7 @@ func (r *AttendanceRepository) FindByStudentAndDateRange(ctx context.Context, st
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return attendance, nil
@@ -110,7 +112,7 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find latest by student",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -121,7 +123,7 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	today := timezone.TodayDate()
+	today := r.today()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
@@ -135,7 +137,7 @@ func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, stud
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get student current status",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -166,12 +168,12 @@ func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, atten
 		On("CONFLICT (student_id, date) WHERE check_out_time IS NULL DO NOTHING").
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "create_if_no_open_for_today", Err: err}
+		return false, &modelBase.DatabaseError{Op: "create_if_no_open_for_today", Err: base.TranslateNotFound(err)}
 	}
 
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "create_if_no_open_for_today_rows_affected", Err: err}
+		return false, &modelBase.DatabaseError{Op: "create_if_no_open_for_today_rows_affected", Err: base.TranslateNotFound(err)}
 	}
 	return affected > 0, nil
 }
@@ -222,7 +224,7 @@ func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID 
 			// caller already closed it. Both are idempotent successes.
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "close_open_for_today", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "close_open_for_today", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -260,7 +262,7 @@ func (r *AttendanceRepository) CreateIfNoOpenForTodayBatch(ctx context.Context, 
 			// Every row conflicted — the whole batch was absorbed.
 			return []int64{}, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "create_if_no_open_for_today_batch", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "create_if_no_open_for_today_batch", Err: base.TranslateNotFound(err)}
 	}
 	return insertedStudentIDs, nil
 }
@@ -293,7 +295,7 @@ func (r *AttendanceRepository) CloseOpenForDateByStudentIDs(ctx context.Context,
 		if errors.Is(err, sql.ErrNoRows) {
 			return []*active.Attendance{}, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "close_open_for_date_by_student_ids", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "close_open_for_date_by_student_ids", Err: base.TranslateNotFound(err)}
 	}
 	return closed, nil
 }
@@ -345,7 +347,7 @@ func (r *AttendanceRepository) getTodayByStudentIDs(ctx context.Context, student
 		uniqueIDs = append(uniqueIDs, id)
 	}
 
-	today := timezone.TodayDate()
+	today := r.today()
 	var attendances []*active.Attendance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendances).
@@ -367,7 +369,7 @@ func (r *AttendanceRepository) getTodayByStudentIDs(ctx context.Context, student
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get today by student IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -415,7 +417,7 @@ func (r *AttendanceRepository) findForDate(ctx context.Context, date timezone.Da
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find for date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -439,7 +441,7 @@ func (r *AttendanceRepository) ListOpenStudentIDsForDate(ctx context.Context, da
 	if err := query.Scan(ctx, &ids); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list open student IDs for date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -458,7 +460,7 @@ func (r *AttendanceRepository) CountByStaffID(ctx context.Context, staffID int64
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -482,7 +484,7 @@ func (r *AttendanceRepository) FindStaleOpen(ctx context.Context, before timezon
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find stale open attendance",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

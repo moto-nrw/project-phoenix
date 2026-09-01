@@ -208,10 +208,10 @@ func (rs *Resource) enrichExportCompanions(r *http.Request, responses []StudentR
 func resolveExportPlanningDate(filters studentExportFilters, now time.Time) (timezone.Date, bool, render.Renderer) {
 	planningDate, isToday, dateErr := resolvePlanningDate(filters.Date, now)
 	if dateErr != nil {
-		return timezone.Date{}, false, common.ErrorInvalidRequest(dateErr)
+		return timezone.Date(""), false, common.ErrorInvalidRequest(dateErr)
 	}
 	if err := liveFilterError(activeLiveExportFilters(filters), planningDate, isToday); err != nil {
-		return timezone.Date{}, false, common.ErrorInvalidRequest(err)
+		return timezone.Date(""), false, common.ErrorInvalidRequest(err)
 	}
 	return planningDate, isToday, nil
 }
@@ -395,7 +395,7 @@ func birthdayExportMatch(student StudentResponse, months map[time.Month]bool) bo
 	if err != nil {
 		return false
 	}
-	return len(months) == 0 || months[birthday.Month]
+	return len(months) == 0 || months[birthday.Month()]
 }
 
 // matchesTimeFilter reports whether a child's planned arrival/pickup time
@@ -514,7 +514,7 @@ func birthdaySortKey(birthday string) string {
 	if err != nil {
 		return "99-99"
 	}
-	return fmt.Sprintf("%02d-%02d", int(date.Month), date.Day)
+	return fmt.Sprintf("%02d-%02d", int(date.Month()), date.Day())
 }
 
 func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, planningDate timezone.Date) (map[int64]weeklySchedule, error) {
@@ -654,8 +654,8 @@ func ageExportCell(birthday string, onDate timezone.Date) string {
 	if err != nil {
 		return ""
 	}
-	years := onDate.Year - date.Year
-	if onDate.Month < date.Month || (onDate.Month == date.Month && onDate.Day < date.Day) {
+	years := onDate.Year() - date.Year()
+	if onDate.Month() < date.Month() || (onDate.Month() == date.Month() && onDate.Day() < date.Day()) {
 		years--
 	}
 	if years < 0 {
@@ -1099,5 +1099,5 @@ func timeValue(value *string) string {
 }
 
 func formatWallClock(value time.Time) string {
-	return timezone.WallClock(value).Format("15:04")
+	return timezone.NormalizeWallClock(value).Format("15:04")
 }

@@ -142,7 +142,9 @@ export function TransitionPreviewModal({
   return (
     <>
       <Modal
-        isOpen
+        // Ausgeblendet, solange die Bestätigung offen ist — nie zwei
+        // eigenständige Dialoge übereinander (#2774).
+        isOpen={!confirmOpen}
         onClose={onClose}
         title={`Vorschau: Jahrgangswechsel ${transition.academicYear}`}
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"

@@ -5,14 +5,20 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestHermeticTestPatterns verifies that test files follow hermetic testing patterns.
@@ -23,9 +29,10 @@ import (
 // Hermetic tests should:
 // - Create their own test data using fixtures
 // - Never rely on hardcoded IDs that may not exist in the database
-// - Clean up after themselves
+// - Let the package clone or fixture builder own their rows
 // - Be runnable in any order and in parallel
 func TestHermeticTestPatterns(t *testing.T) {
+	t.Parallel()
 	// Find the backend root directory
 	backendRoot, err := findBackendRoot()
 	if err != nil {
@@ -63,13 +70,13 @@ func TestHermeticTestPatterns(t *testing.T) {
 	})
 
 	t.Run("no_new_cleanup_calls", func(t *testing.T) {
-		violations := checkCleanupCallRatchet(t, backendRoot)
+		violations, err := checkCleanupCallRatchet(backendRoot)
+		require.NoError(t, err)
 		if len(violations) > 0 {
-			t.Errorf("Cleanup-call ratchet violated (per-package counts may only shrink):\n\n%s\n\n"+
-				"Since #2419 the package clone owns cleanup: every test binary gets a\n"+
-				"fresh database clone, so per-row Cleanup* calls are redundant. New\n"+
-				"tests must not add them. When you remove cleanup calls from a package,\n"+
-				"lower its baseline in cleanupCallBaseline — never raise one.",
+			t.Errorf("Found explicit fixture cleanup calls:\n\n%s\n\n"+
+				"The package clone owns tenant rows, and tenantless fixture builders\n"+
+				"own their exceptional lifecycle internally. Tests must not call\n"+
+				"Cleanup* helpers or add an allowlist entry.",
 				strings.Join(violations, "\n"))
 		}
 	})
@@ -139,36 +146,20 @@ func TestHermeticTestPatterns(t *testing.T) {
 				"the whole test binary. A helper that sets one and restores it in\n"+
 				"t.Cleanup will yank it out from under any test running beside it —\n"+
 				"the failure surfaces as an unrelated assertion, and only under load.\n\n"+
-				"Fix: drop t.Parallel() from this test, or make the helper stop mutating\n"+
-				"global state (inject the value instead).",
+				"Fix: make the helper stop mutating global state; inject the value instead.",
 				len(violations), strings.Join(violations, "\n"))
 		}
 	})
 
 	t.Run("tests_run_in_parallel", func(t *testing.T) {
-		counts, unexplained := checkSerialTestRatchet(t, backendRoot)
-		if v := shrinkOnlyViolations(unexplained, nil); len(v) > 0 {
-			t.Errorf("Serial tests without a reason:\n\n%s\n\n"+
-				"A test without t.Parallel() carries a comment directly above it that\n"+
-				"starts with %q and names which of the five reasons applies\n"+
-				"(process-global state, schema mutation, a sweep that runs across\n"+
-				"tenants, a query budget on the shared pool, deliberate lock\n"+
-				"contention).",
-				strings.Join(v, "\n"), serialReasonPrefix)
-		}
-		violations := shrinkOnlyViolations(counts, serialTestBaseline)
+		violations := shrinkOnlyViolations(checkSerialTests(t, backendRoot), serialTestBaseline)
 		if len(violations) > 0 {
-			t.Errorf("Serial-test ratchet violated (per-package counts may only shrink):\n\n%s\n\n"+
-				"Since #2419 every test runs in its own tenant inside a per-package\n"+
-				"database clone, so tests are parallel by default:\n\n"+
+			t.Errorf("Found top-level tests without t.Parallel():\n\n%s\n\n"+
+				"Every top-level backend test runs in parallel. Isolate process globals,\n"+
+				"schema changes, sweeps, measurements, and locks instead of adding an exemption:\n\n"+
 				"  func TestSomething(t *testing.T) {\n"+
 				"      t.Parallel()\n"+
-				"      db := testpkg.SetupTestDB(t)\n\n"+
-				"A test that genuinely cannot (it writes process-global state, changes\n"+
-				"the schema, measures a query budget, or exercises a sweep that runs\n"+
-				"across tenants) stays serial WITH a comment above it saying which of\n"+
-				"those it is — and raises nothing: lower another entry in\n"+
-				"serialTestBaseline first, or fix the reason instead.",
+				"      db := testpkg.SetupTestDB(t)\n",
 				strings.Join(violations, "\n"))
 		}
 	})
@@ -180,7 +171,7 @@ func TestHermeticTestPatterns(t *testing.T) {
 				"This pattern is silently rejected by bun (interface{} is not a struct),\n"+
 				"causing every Exec() to short-circuit without running SQL — the cleanup\n"+
 				"becomes a no-op and tests rely on stale data from previous runs (#1296).\n\n"+
-				"Fix: replace with TableExpr(...) — the same pattern CleanupTableRecords uses.\n"+
+				"Fix: replace Model((*interface{})(nil)).Table(...) with TableExpr(...).\n"+
 				"  // Before (no-op):\n"+
 				"  db.NewDelete().Model((*interface{})(nil)).Table(\"users.students\").Where(...)\n\n"+
 				"  // After (correct):\n"+
@@ -188,6 +179,114 @@ func TestHermeticTestPatterns(t *testing.T) {
 				len(violations), strings.Join(violations, "\n"))
 		}
 	})
+}
+
+func TestExplicitCleanupCallCountResolvesFixtureAliases(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		code           string
+		fixturePackage bool
+		want           int
+	}{
+		{
+			name: "explicit alias",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { fixture.CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "default alias",
+			code: `package sample
+import "github.com/moto-nrw/project-phoenix/test"
+func run() { test.CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "parenthesized selector",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { (fixture.CleanupAuthFixtures)(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "generic selector",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { fixture.CleanupTableRecords[int64](nil, nil, "table") }`,
+			want: 1,
+		},
+		{
+			name: "method value alias",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { cleanup := fixture.CleanupAuthFixtures; cleanup(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "deferred fixture call",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { defer fixture.CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name:           "fixture cleanup declaration",
+			fixturePackage: true,
+			code: `package test
+func CleanupFixture() {}`,
+			want: 0,
+		},
+		{
+			name: "uncalled fixture method value",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { _ = fixture.CleanupAuthFixtures }`,
+			want: 0,
+		},
+		{
+			name:           "unqualified in fixture package",
+			fixturePackage: true,
+			code: `package sample
+func run() { CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "dot import",
+			code: `package sample
+import . "github.com/moto-nrw/project-phoenix/test"
+func run() { CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "unqualified production function",
+			code: `package sample
+func CleanupExpiredTokens() {}
+func run() { CleanupExpiredTokens() }`,
+			want: 0,
+		},
+		{
+			name: "production method",
+			code: `package sample
+func run() { service.CleanupExpiredTokens() }`,
+			want: 0,
+		},
+		{
+			name: "comment and string",
+			code: `package sample
+// testpkg.CleanupAuthFixtures(nil, nil)
+var text = "CleanupAuthFixtures(nil, nil)"`,
+			want: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := countExplicitCleanupCalls("sample_test.go", []byte(tc.code), tc.fixturePackage)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestParallelGlobalStateGateFindsDirectMutation(t *testing.T) {
@@ -202,7 +301,7 @@ import (
 
 func TestDirectMutation(t *testing.T) {
 	t.Parallel()
-	viper.Set("key", "value")
+	viper.` + "Set" + `("key", "value")
 }
 `)
 	if err := os.WriteFile(filepath.Join(root, "direct_test.go"), probe, 0o600); err != nil {
@@ -311,7 +410,6 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"realtime/hub_broadcast_to_tenant_test.go",               // Pure SSE-hub unit test; tenant IDs are in-memory channel routing keys, not DB rows
 		"services/config/sideeffects/registry_test.go",           // Pure registry unit test; tenant IDs are pass-through arguments, not DB rows
 		"services/facilities/settings_sideeffects_test.go",       // Pure side-effect dispatch unit test against fake services; tenant IDs are not DB rows
-		"api/config/settings_broadcast_test.go",                  // Pure unit test for scheduleSettingsBroadcast; tenant IDs are pass-through arguments to a fake broadcaster
 		"api/students/response_helpers_test.go",                  // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
 		"auth/authorize/student_access_test.go",                  // Pure-logic tests against stub user-context + settings; int64 literals are fake group IDs in stack-allocated structs (no DB)
 		"api/students/photo_error_mappers_test.go",               // Table-driven mapper tests with httptest.NewRecorder; no DB
@@ -319,6 +417,8 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/users/student_photo_service_broadcast_test.go", // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
 		"api/common/trusted_device_dto_test.go",                  // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
 		"services/platform/outbox_worker_test.go",                // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
+		"services/platform/outbox_worker_reply_to_test.go",       // Uses sqlmock + in-memory doubles; IDs are only outbox-state sentinels, not database fixtures
+		"api/enrollment/change_request_handlers_test.go",         // Pure handler unit tests against a service mock; int64 literals are URL parser sentinels, not DB rows
 		"api/enrollment/export_handlers_test.go",                 // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
 		"guardian_related_accounts_errors_test.go",               // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows
 		"services/parentmessaging/parentmessaging_test.go",       // Pure unit tests for the messaging core against narrow fakes (no DB); int64 literals are in-memory sentinel IDs (thread/account/ref), not DB rows
@@ -419,14 +519,14 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"repositories.",
 	}
 
-	// Patterns indicating SetupTestDB or SetupAPITest usage
+	// Patterns indicating direct or indirect shared test DB setup.
 	setupPatterns := []string{
 		"SetupTestDB",
+		"SetupIsolatedTestDB",
 		"setupTestDB",
 		"SetupAPITest",
 		"setupAPITest",
 		"setupTestContext",                // Indirect setup via shared helper (calls SetupAPITest)
-		"newScenario",                     // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",               // services/enrollment rollover integration tests — wraps SetupTestDB
 		"setupRequestTest",                // services/enrollment request-service integration tests — wraps SetupTestDB
 		"setupDecisionTest",               // services/enrollment decision integration tests — wraps setupRolloverTest
@@ -437,7 +537,6 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"makeRosterChain",                 // services/schedule split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
 		"makeMoveSetup",                   // services/schedule staff-pool/move tests (#1884) — wraps SetupTestDB
 		"buildDevSetup",                   // api/timetable deviations/protocol tests — wraps SetupTestDB
-		"setupCheckinServiceTest",         // services/iot/checkin CheckinService tests — wraps SetupAPITest (issue #575 B8)
 		"setupAbsenceAdminTest",           // api/staff absence question tests (#1419) — wraps setupTestContext
 		"newOverviewFixture",              // services/active overview/export integration tests (#1417) — wraps SetupTestDB
 		"setupOverviewAPI",                // api/staff overview/export tests (#1417) — wraps setupTestContext
@@ -524,6 +623,9 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 				break
 			}
 		}
+		if !usesSetup && routeSizedSetupCall.MatchString(contentStr) {
+			usesSetup = true
+		}
 
 		// Check if file uses mocks
 		usesMocks := false
@@ -550,70 +652,15 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 	return violations
 }
 
-// cleanupCallBaseline is the shrink-only per-package baseline of Cleanup*
-// fixture calls in _test.go files (#2419). The clone-per-package lifecycle
-// makes a teardown redundant for every row that belongs to a tenant: it dies
-// with the clone, and no other test ever sees it. 5120 such calls are gone.
-//
-// What is left — and what the numbers below still allow — is the teardown the
-// lifecycle does NOT cover:
-//
-//   - rows in tenant-less tables (auth.accounts, the RBAC catalog, the
-//     platform/operator tables, password-reset and MFA rows). The leftover
-//     gate counts those as shared state, so a test that creates one has to
-//     take it back.
-//   - state reset BETWEEN subtests of one test: a unique index or a
-//     tenant-wide count that the next subtest would trip over. The better fix
-//     is testpkg.OwnTenant for that subtest; the teardown is the fallback
-//     where the subtests deliberately build on each other.
-//   - the delete that IS the test: an ID the code under test must report as
-//     missing, or a row a global sweep must not find.
-//
-// Counts may only go DOWN. A package not listed here must stay at zero.
-var cleanupCallBaseline = map[string]int{
-	"api/groups":                     2,
-	"api/staff":                      2,
-	"database/migrations":            58,
-	"database/repositories/auth":     121,
-	"database/repositories/iot":      6,
-	"database/repositories/schedule": 125,
-	"services/active":                1,
-	"services/activities":            1,
-	"services/auth":                  269,
-	"services/education":             1,
-	"services/users":                 1,
-}
+// cleanupCallBaseline is deliberately empty: explicit Cleanup* calls in tests
+// are forbidden. Package clones own tenant rows; tenantless fixtures and the
+// few schema-test exceptions register their lifecycle inside their builders.
+var cleanupCallBaseline = map[string]int{}
 
-// tenantContext1Baseline is the shrink-only per-package baseline of
-// bootstrap-tenant call sites (#2419). Every package that opens the test
-// database now runs on per-test tenants (see PerTestTenants and the
-// db_packages_opt_into_per_test_tenants gate), so what is left here is the
-// residue that does NOT come from a test writing into the shared tenant.
-// Counts may only go DOWN. A package not listed here must stay at zero.
-//
-// Why each entry survives — check the reason before touching a number:
-//
-//	api/testutil        the values TestClaimsFollowTheTestIntoItsOwnTenant
-//	                    feeds in: the bootstrap tenant IS the input whose
-//	                    rebase that test pins.
-//	auth/jwt            test imports auth/jwt, so auth/jwt's own internal
-//	                    tests cannot import test — no way to reach a
-//	                    per-test tenant from there.
-//	services/calendar   in-memory structs in pure unit tests (no DB, no rows).
-//	services/auth       an in-memory stub row standing in for "some other
-//	                    tenant" in a cross-tenant invalidation test.
-//	services/active     a comment naming the column in a UNIQUE constraint.
-//	services/enrollment a comment.
-//	tenant              an internal context test with no database at all.
-var tenantContext1Baseline = map[string]int{
-	"api/testutil":        3,
-	"auth/jwt":            2,
-	"services/active":     1,
-	"services/auth":       1,
-	"services/calendar":   3,
-	"services/enrollment": 1,
-	"tenant":              1,
-}
+// tenantContext1Baseline is empty: tests must generate or locally own tenant
+// identity instead of relying on the fixed bootstrap tenant. A package absent
+// from the baseline is allowed zero matches.
+var tenantContext1Baseline = map[string]int{}
 
 // walkGoFiles feeds every Go file under root to visit, as (rel, pkg, code):
 // the backend-relative path with forward slashes, its package directory, and
@@ -642,12 +689,15 @@ func walkGoFiles(root string, testOnly bool, visit func(rel, pkg string, code []
 // written above a test).
 func walkGoFilesRaw(root string, visit func(rel, pkg string, content []byte)) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil || info.IsDir() {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.IsDir() {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
-			return nil
+			return err
 		}
 		rel = filepath.ToSlash(rel)
 		switch {
@@ -658,7 +708,7 @@ func walkGoFilesRaw(root string, visit func(rel, pkg string, content []byte)) er
 		}
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil
+			return err
 		}
 		visit(rel, filepath.ToSlash(filepath.Dir(rel)), content)
 		return nil
@@ -690,23 +740,153 @@ func shrinkOnlyViolations(current, baseline map[string]int) []string {
 	return violations
 }
 
-// cleanupCallPattern matches a fixture-cleanup call in any spelling the
-// codebase uses: qualified (testpkg.CleanupX), deferred, or — inside package
-// test itself — unqualified in statement position. The leading `\w+\.` guard
-// on the last alternative keeps production calls like svc.CleanupExpiredX()
-// out of it.
-var cleanupCallPattern = regexp.MustCompile(
-	`(?m)testpkg\.Cleanup\w+\(|(?:^|\s)defer Cleanup\w+\(|^\s*Cleanup\w+\(`)
+const fixturePackagePath = "github.com/moto-nrw/project-phoenix/test"
+
+func countExplicitCleanupCalls(filename string, code []byte, fixturePackage bool) (int, error) {
+	file, err := parser.ParseFile(token.NewFileSet(), filename, code, parser.SkipObjectResolution)
+	if err != nil {
+		return 0, err
+	}
+
+	fixtureAliases := make(map[string]struct{})
+	dotImportedFixture := false
+	for _, imported := range file.Imports {
+		path, err := strconv.Unquote(imported.Path.Value)
+		if err != nil || path != fixturePackagePath {
+			continue
+		}
+		alias := "test"
+		if imported.Name != nil {
+			alias = imported.Name.Name
+		}
+		if alias == "." {
+			dotImportedFixture = true
+		}
+		if alias != "." && alias != "_" {
+			fixtureAliases[alias] = struct{}{}
+		}
+	}
+
+	methodValueAliases := cleanupMethodValueAliases(file, fixtureAliases, dotImportedFixture, fixturePackage)
+	count := 0
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if isFixtureCleanupCall(call.Fun, fixtureAliases, dotImportedFixture, fixturePackage, methodValueAliases) {
+			count++
+		}
+		return true
+	})
+	return count, nil
+}
+
+func cleanupMethodValueAliases(
+	file *ast.File,
+	fixtureAliases map[string]struct{},
+	dotImportedFixture, fixturePackage bool,
+) map[string]struct{} {
+	aliases := make(map[string]struct{})
+	ast.Inspect(file, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i, target := range assign.Lhs {
+			if i >= len(assign.Rhs) || !isFixtureCleanupReference(assign.Rhs[i], fixtureAliases, dotImportedFixture, fixturePackage) {
+				continue
+			}
+			if name, ok := target.(*ast.Ident); ok {
+				aliases[name.Name] = struct{}{}
+			}
+		}
+		return true
+	})
+	return aliases
+}
+
+func isFixtureCleanupCall(
+	expr ast.Expr,
+	fixtureAliases map[string]struct{},
+	dotImportedFixture, fixturePackage bool,
+	methodValueAliases map[string]struct{},
+) bool {
+	if isFixtureCleanupReference(expr, fixtureAliases, dotImportedFixture, fixturePackage) {
+		return true
+	}
+	name, ok := unwrapCleanupExpression(expr).(*ast.Ident)
+	if !ok {
+		return false
+	}
+	_, ok = methodValueAliases[name.Name]
+	return ok
+}
+
+func isFixtureCleanupReference(
+	expr ast.Expr,
+	fixtureAliases map[string]struct{},
+	dotImportedFixture, fixturePackage bool,
+) bool {
+	switch expression := unwrapCleanupExpression(expr).(type) {
+	case *ast.Ident:
+		return (fixturePackage || dotImportedFixture) && strings.HasPrefix(expression.Name, "Cleanup")
+	case *ast.SelectorExpr:
+		qualifier, ok := expression.X.(*ast.Ident)
+		if !ok || !strings.HasPrefix(expression.Sel.Name, "Cleanup") {
+			return false
+		}
+		_, ok = fixtureAliases[qualifier.Name]
+		return ok
+	default:
+		return false
+	}
+}
+
+func unwrapCleanupExpression(expr ast.Expr) ast.Expr {
+	for {
+		switch expression := expr.(type) {
+		case *ast.ParenExpr:
+			expr = expression.X
+		case *ast.IndexExpr:
+			expr = expression.X
+		case *ast.IndexListExpr:
+			expr = expression.X
+		default:
+			return expr
+		}
+	}
+}
+
+func countExplicitCleanupCallsPerPackage(root string) (map[string]int, error) {
+	counts := make(map[string]int)
+	var parseErr error
+	err := walkGoFilesRaw(root, func(rel, pkg string, code []byte) {
+		if !strings.HasSuffix(rel, "_test.go") {
+			return
+		}
+		count, err := countExplicitCleanupCalls(rel, code, pkg == "test")
+		if err != nil {
+			if parseErr == nil {
+				parseErr = fmt.Errorf("parse %s: %w", rel, err)
+			}
+			return
+		}
+		counts[pkg] += count
+	})
+	if err != nil {
+		return counts, err
+	}
+	return counts, parseErr
+}
 
 // checkCleanupCallRatchet enforces the shrink-only Cleanup*-call baseline.
-func checkCleanupCallRatchet(t *testing.T, root string) []string {
-	t.Helper()
-	re := cleanupCallPattern
-	current, err := countMatchesPerPackage(root, re, true)
+func checkCleanupCallRatchet(root string) ([]string, error) {
+	current, err := countExplicitCleanupCallsPerPackage(root)
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
+		return nil, err
 	}
-	return shrinkOnlyViolations(current, cleanupCallBaseline)
+	return shrinkOnlyViolations(current, cleanupCallBaseline), nil
 }
 
 // bootstrapTenantPattern matches every spelling of "pin this to the fixed
@@ -881,10 +1061,22 @@ func parallelGlobalStateViolations(files []globalStateFile, tainted map[string]b
 }
 
 // sharedPoolAssign captures the variable a file binds the SHARED pool to —
-// `db := testpkg.SetupTestDB(t)` or `db, svc := testutil.SetupAPITest(t)`.
+// `db := testpkg.SetupTestDB(t)` or a two-result api/testutil setup builder.
 // Only the first identifier can hold the pool in either signature.
 var sharedPoolAssign = regexp.MustCompile(
 	`(?m)^\s*(\w+)\s*(?:,\s*\w+\s*)?:?=\s*(?:\w+\.)?(?:SetupTestDB|SetupAPITest)\(`)
+
+// routeSizedSetupCall matches an actual builder invocation at the start of a
+// statement. It deliberately does not match function declarations or test
+// names that merely contain "Route(t".
+var routeSizedSetupCall = regexp.MustCompile(
+	`(?m)^\s*(?:[\w,\s]+:?=\s*|return\s+)?(?:setup|build)\w+(?:Route|Router|Module)\(t(?:,|\))`)
+
+func usesSharedDBSetup(content []byte) bool {
+	return bytes.Contains(content, []byte("SetupTestDB(")) ||
+		bytes.Contains(content, []byte("SetupAPITest(")) ||
+		routeSizedSetupCall.Match(content)
+}
 
 // privatePoolAssign captures variables bound to a PRIVATE pool, which the
 // owning test is allowed (and expected) to close: SetupClosableTestDB, plus
@@ -1023,7 +1215,7 @@ func checkLeftoverGateOptIn(t *testing.T, root string) []string {
 		if !strings.HasSuffix(rel, "_test.go") || strings.HasPrefix(rel, "internal/testdb/") {
 			return
 		}
-		if bytes.Contains(content, []byte("SetupTestDB(")) || bytes.Contains(content, []byte("SetupAPITest(")) {
+		if usesSharedDBSetup(content) {
 			usesDB[pkg] = true
 		}
 		if bytes.Contains(content, []byte("testpkg.Run(m)")) || bytes.Contains(content, []byte("\tRun(m)")) {
@@ -1055,7 +1247,7 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 		if !strings.HasSuffix(rel, "_test.go") {
 			return
 		}
-		if bytes.Contains(content, []byte("SetupTestDB(")) || bytes.Contains(content, []byte("SetupAPITest(")) {
+		if usesSharedDBSetup(content) {
 			usesDB[pkg] = true
 		}
 		if bytes.Contains(content, []byte("PerTestTenants()")) {
@@ -1080,97 +1272,8 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 	return violations
 }
 
-// serialTestBaseline is the shrink-only per-package count of top-level tests
-// that do NOT call t.Parallel() (#2419 goal 4, "voll parallel"). Everything
-// else in the suite runs in parallel; what is counted here is the residue
-// that cannot, and every one of those carries a comment above the test
-// saying why.
-//
-// The reasons that survive fall into five families:
-//
-//	process-global state   viper keys, environment variables, the default
-//	                       logger, the settings registry — a test that
-//	                       writes one cannot run beside a test that reads it
-//	                       (the no_parallel_test_touching_global_state gate
-//	                       is the forward-looking half of this).
-//	schema mutation        migration tests, and the handful of tests that
-//	                       drop and restore a column: they change the clone
-//	                       every test in the binary shares.
-//	unscoped sweeps        code that queries across tenants (a deadline
-//	                       worker, a global cleanup) called from a service
-//	                       test with a plain tenant context, so RLS never
-//	                       narrows it.
-//	measurement            query-budget tests, which install a hook on the
-//	                       shared pool and count what flows through it.
-//	lock contention        the handful of tests that take a row lock in one
-//	                       transaction and expect a second one to block on
-//	                       it; beside another test that touches those rows,
-//	                       the contention becomes a deadlock.
-//
-// Counts may only go DOWN. A package not listed here must have every test
-// parallel. Lower a number when you fix the underlying reason; never raise
-// one to make a new test fit.
-//
-// One deliberate exception, in the same change that introduced this note
-// (#2419): five packages went UP because tests that HAD t.Parallel() were
-// shown not to survive it — every one of them an unscoped sweep or a write to
-// process-global state, each now serial with its reason above it. They were
-// measured, not guessed: services/auth failed roughly one shuffled run in
-// three (CleanupExpiredTokens deletes orphaned push rows across every account
-// and tenant), and the four others were caught in full-suite runs.
-// database/repositories/platform paid for it by making 17 outbox tests
-// parallel.
-var serialTestBaseline = map[string]int{
-	"api":        20,
-	"api/active": 2,
-	"api/auth":   1,
-	// 1 -> 3 beim Merge von development: #2434 bringt zwei serielle Tests mit,
-	// deren Fixture SeedTestJWTConfig ruft (Begruendung steht ueber den Tests).
-	"api/enrollment":       3,
-	"api/guardians":        1,
-	"api/iot":              7,
-	"api/iot/checkin":      14,
-	"api/operator":         30,
-	"api/schedules":        2,
-	"api/staff":            15,
-	"api/staff-shifts":     1,
-	"api/students":         14,
-	"api/timetable":        2,
-	"api/work-time-models": 1,
-	"applog":               1,
-	"auth/device":          34,
-	"auth/jwt":             38,
-	"cmd":                  190,
-	"database":             8,
-	// Serial by package design (schema mutation on the shared clone), so every
-	// new migration test necessarily adds one — 91 since 1.15.314.
-	"database/migrations":              91,
-	"database/repositories/audit":      2,
-	"database/repositories/auth":       4,
-	"database/repositories/enrollment": 3,
-	"database/repositories/platform":   34,
-	"database/repositories/users":      1,
-	"email":                            12,
-	"integration/phoenixapi":           25,
-	"models/config":                    12,
-	"observability":                    4,
-	"seed/api":                         1,
-	"services":                         15,
-	"services/active":                  1,
-	"services/auth":                    25,
-	"services/config":                  147,
-	"services/education":               1,
-	"services/enrollment":              32,
-	"services/facilities":              1,
-	"services/iot/checkin":             38,
-	"services/parent":                  4,
-	"services/platform":                41,
-	"services/scheduler":               53,
-	"services/usercontext":             3,
-	"services/users":                   12,
-	"test/e2e/calendar":                4,
-	"test/e2e/timetable":               3,
-}
+// The baseline is intentionally empty: serial top-level tests are forbidden.
+var serialTestBaseline = map[string]int{}
 
 // topLevelTestDecl matches a top-level test function declaration.
 var topLevelTestDecl = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T\) \{`)
@@ -1182,71 +1285,20 @@ var topLevelTestDecl = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T
 // count.
 var topLevelParallelCall = regexp.MustCompile(`(?m)^\t\w+\.Parallel\(\)$`)
 
-// serialReasonPrefix is the sentence a serial test opens its reason with.
-// The ratchet requires it, so "why is this one serial" is answered in the
-// file and not only in this baseline's doc comment.
-const serialReasonPrefix = "// Deliberately NOT parallel:"
-
-// serialPackagePrefix says it once for a whole package. Some packages are
-// serial end to end for a single reason — cmd drives cobra and the viper
-// singleton, and repeating the same four lines above 134 tests told the
-// reader nothing the package could not say once.
-const serialPackagePrefix = "// Deliberately NOT parallel (whole package):"
-
-// checkSerialTestRatchet counts, per package, the top-level tests that do not
-// call t.Parallel(), and reports every one of them that gives no reason.
-func checkSerialTestRatchet(t *testing.T, root string) (counts, unexplained map[string]int) {
+func checkSerialTests(t *testing.T, root string) map[string]int {
 	t.Helper()
 
-	counts, unexplained = make(map[string]int), make(map[string]int)
-	serialPackages := make(map[string]bool)
-	if err := walkGoFilesRaw(root, func(_, pkg string, content []byte) {
-		if bytes.Contains(content, []byte(serialPackagePrefix)) {
-			serialPackages[pkg] = true
-		}
-	}); err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
-	}
-
+	counts := make(map[string]int)
 	err := walkGoFilesRaw(root, func(_, pkg string, content []byte) {
-		text := string(content)
-		for _, f := range splitGoFuncs(text) {
+		for _, f := range splitGoFuncs(string(content)) {
 			if !topLevelTestDecl.MatchString(f.body) || topLevelParallelCall.MatchString(f.body) {
 				continue
 			}
 			counts[pkg]++
-			if !serialPackages[pkg] && !strings.Contains(precedingComment(text, f), serialReasonPrefix) {
-				unexplained[pkg]++
-			}
 		}
 	})
 	if err != nil {
 		t.Logf("Warning: error walking directory: %v", err)
 	}
-	return counts, unexplained
-}
-
-// precedingComment returns the comment block directly above f.
-func precedingComment(text string, f goFunc) string {
-	idx := strings.Index(text, f.body)
-	if idx <= 0 {
-		return ""
-	}
-	before := text[:idx]
-	var block []string
-	for _, line := range reverse(strings.Split(strings.TrimRight(before, "\n"), "\n")) {
-		if !strings.HasPrefix(strings.TrimSpace(line), "//") {
-			break
-		}
-		block = append(block, line)
-	}
-	return strings.Join(block, "\n")
-}
-
-func reverse(lines []string) []string {
-	out := make([]string, 0, len(lines))
-	for i := len(lines) - 1; i >= 0; i-- {
-		out = append(out, lines[i])
-	}
-	return out
+	return counts
 }

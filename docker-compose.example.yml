@@ -39,6 +39,7 @@ services:
       EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT}
       EMAIL_SMTP_USER: ${EMAIL_SMTP_USER}
       EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD}
+      MAILPIT_URL: ${MAILPIT_URL}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
       VAPID_SUBSCRIBER: ${VAPID_SUBSCRIBER}
@@ -227,6 +228,12 @@ services:
 volumes:
   postgres:
   postgres_test:
+  # Caches carry a fixed name so every compose project (worktrees started with
+  # their own -p / COMPOSE_PROJECT_NAME) shares one copy instead of building
+  # its own multi-GB cache. Go and Next.js caches are safe for concurrent use.
   go_mod_cache:
+    name: phoenix_go_mod_cache
   go_build_cache:
+    name: phoenix_go_build_cache
   next_cache:
+    name: phoenix_next_cache

@@ -15,7 +15,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messagingService "github.com/moto-nrw/project-phoenix/services/messaging"
@@ -45,7 +44,7 @@ func (rs *Resource) Router() chi.Router {
 		// authority, so any staffer who may read a child may message that child's
 		// guardians — school-wide since #2329, an accepted, signed-off policy (the
 		// guardian always sees the sender as "OGS <Schule>", never an individual).
-		read := authorize.RequiresPermission(permissions.UsersRead)
+		read := common.RequiresPermission(permissions.UsersRead)
 		r.With(read, withTx).Get("/", rs.listInbox)
 		r.With(read, withTx).Get("/unread-count", rs.unreadCount)
 		r.With(read, withTx).Post("/threads", rs.startThread)

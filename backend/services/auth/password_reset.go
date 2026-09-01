@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -56,6 +55,7 @@ func (s *Service) InitiateSchoolPasswordReset(ctx context.Context, emailAddress 
 }
 
 func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string, opts passwordResetOptions) (*auth.PasswordResetToken, error) {
+	ctx = s.withTenantRuntime(ctx)
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
@@ -117,8 +117,7 @@ func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string
 
 // checkPasswordResetRateLimit checks if the email has exceeded rate limits
 func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress string) error {
-	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
-	if !rateLimitEnabled || s.repos.PasswordResetRateLimit == nil {
+	if !s.rateLimitEnabled || s.repos.PasswordResetRateLimit == nil {
 		return nil
 	}
 
@@ -167,7 +166,7 @@ func (s *Service) checkPasswordResetRateLimit(ctx context.Context, emailAddress 
 func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, accountID int64) (*auth.PasswordResetToken, error) {
 	var resetToken *auth.PasswordResetToken
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithinAdmin(s.withTenantRuntime(ctx), func(ctx context.Context) error {
 
 		if err := s.repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
 			s.getLogger().Error("failed to invalidate reset tokens, rolling back",
@@ -232,8 +231,8 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	baseRetry := resetToken.EmailRetryCount
 
-	// WithoutCancel: async delivery must outlive the HTTP request.
-	s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	// Async delivery must outlive the HTTP request without retaining its tx.
+	s.dispatcher.Dispatch(detachedTenantContext(s.withTenantRuntime(ctx)), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
@@ -246,6 +245,7 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 // ResetPassword resets a password using a reset token
 func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) error {
+	ctx = s.withTenantRuntime(ctx)
 	// Find valid token
 	resetToken, err := s.repos.PasswordResetToken.FindValidByToken(ctx, token)
 	if err != nil {
@@ -266,7 +266,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	// Uses WithAdminTx (BYPASSRLS) because password reset is a pre-authentication flow
 	// with no JWT/tenant context. Token.DeleteByAccountID touches auth.tokens which has
 	// RLS policies — phoenix_auth cannot satisfy them without tenant context.
-	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Update account password
 		if err := s.repos.Account.UpdatePassword(ctx, resetToken.AccountID, passwordHash); err != nil {
 			return err

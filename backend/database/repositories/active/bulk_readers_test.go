@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -23,7 +24,9 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSupervisor
+	repo := activeRepo.NewGroupSupervisorRepository(db, func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight()
+	})
 	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, "BulkSupervisedRoom")
@@ -70,7 +73,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 
 	t.Run("excludes a supervision that ended before today", func(t *testing.T) {
 		// end_date in the past mirrors IsSupervisorActive returning false.
-		yesterday := timezone.TodayDate().AddDays(-1)
+		yesterday := timezone.NewDate(2026, 8, 24).AddDays(-1)
 		_, err := db.NewUpdate().
 			TableExpr("active.group_supervisors").
 			Set("end_date = ?", yesterday).
@@ -97,8 +100,8 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	})
 
 	t.Run("uses the Berlin date independently of the database timezone", func(t *testing.T) {
-		today := timezone.TodayDate()
-		err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		today := timezone.NewDate(2026, 8, 24)
+		err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 			var databaseDate string
 			for _, zone := range []string{"Pacific/Kiritimati", "Etc/GMT+12"} {
 				var configuredZone string
@@ -168,7 +171,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 			StaffID:   foreignStaff.ID,
 			GroupID:   foreignGroup.ID,
 			Role:      "primary",
-			StartDate: timezone.TodayDate(),
+			StartDate: timezone.NewDate(2026, 8, 24),
 		}
 		foreignSupervision.SetTenantID(otherTenant)
 		_, err := db.NewInsert().

@@ -159,7 +159,15 @@
     "newsReadAndConfirm": "Gelesen bestätigen",
     "newsReadAnnouncement": "Lesen",
     "newsExternalLink": "Weitere Informationen öffnen",
-    "newsClose": "Schließen"
+    "newsAttachmentsTitle": "Dateien zu dieser Nachricht",
+    "newsAttachmentsHint": "Tippen Sie auf den Namen, um die Datei zu öffnen oder zu speichern.",
+    "newsAttachmentsDownload": "Herunterladen",
+    "newsAttachmentsOpen": "Im Browser öffnen",
+    "newsAttachmentsError": "Die Dateien konnten nicht geladen werden.",
+    "newsAttachmentsRetry": "Erneut versuchen",
+    "newsClose": "Schließen",
+    "newsLetterBadge": "Bestätigung erforderlich",
+    "newsLetterBindingHint": "Diese E-Mail ist nur zur Information. Es zählt die Bestätigung hier im Eltern-Portal. Eine sorgeberechtigte Person pro Kind genügt."
   },
   "parentNotificationSetup": {
     "title": "Keine wichtige Nachricht verpassen",
@@ -468,10 +476,8 @@
       "kindSick": "Krank melden",
       "kindExcused": "Entschuldigen",
       "kindHintSick": "Für Krankheitstage. Die OGS sieht die Krankmeldung sofort.",
-      "kindHintSickApproval": "Die OGS bestätigt die Krankmeldung. Bis dahin gilt Ihr Kind als erwartet.",
       "kindHintSickUnknown": "Für Krankheitstage. Die OGS erhält Ihre Krankmeldung.",
       "kindHintExcused": "Für Termine oder andere geplante Abwesenheiten. Geben Sie den Grund kurz an.",
-      "kindHintExcusedApproval": "Die OGS bestätigt die Abmeldung. Bis dahin gilt Ihr Kind als erwartet.",
       "kindHintExcusedUnknown": "Für Termine oder andere Abwesenheiten. Geben Sie den Grund an.",
       "periodLabel": "Tage der Abwesenheit",
       "from": "Erster Tag",
@@ -490,7 +496,6 @@
       "submitExcused": "Entschuldigung an die OGS senden",
       "reasonLabelRequired": "Grund / Hinweis an die OGS",
       "reasonRequiredError": "Bitte geben Sie einen kurzen Hinweis für die OGS ein.",
-      "approvalHint": "Nach dem Senden muss die OGS die Abwesenheit noch bestätigen.",
       "requestSentTitle": "Anfrage gesendet",
       "requestSentBody": "Die OGS muss die Abwesenheit noch bestätigen. Bis dahin gilt Ihr Kind als erwartet."
     },
@@ -502,9 +507,7 @@
       "excusedLabel": "Entschuldigt",
       "pendingLabel": "Freigabe ausstehend",
       "rejectedLabel": "Abgelehnt",
-      "withdraw": "Zurückziehen",
-      "withdrawError": "Zurückziehen fehlgeschlagen. Bitte aktualisieren Sie die Seite.",
-      "withdrawAlreadyDecided": "Diese Abmeldung wurde bereits von der OGS bearbeitet und kann nicht mehr zurückgezogen werden.",
+      "edit": "Anfrage bearbeiten",
       "reasonPrefix": "Grund"
     },
     "pickup": {
@@ -529,7 +532,10 @@
       "alreadyHomeGeneric": "Ihr Kind ist heute bereits zuhause. Die Abholzeit kann nicht mehr geändert werden.",
       "existingHint": "Für den {date} ist bereits eine Änderung hinterlegt. Speichern überschreibt sie.",
       "reset": "Änderung zurücknehmen",
-      "withdraw": "Anfrage zurückziehen",
+      "edit": "Anfrage bearbeiten",
+      "saveEdit": "Änderung speichern",
+      "editedAt": "Geändert am {date}",
+      "staleError": "Die Anfrage wurde inzwischen bearbeitet. Bitte laden Sie die Seite neu.",
       "pendingChange": "{from} → {to} Uhr",
       "pendingRequested": "Neue Abholzeit: {to} Uhr",
       "statusPending": "Wartet auf Bestätigung",
@@ -1152,6 +1158,41 @@
     "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
     "lockedAllAction": "Zur Eltern-App"
   },
+  "parentRequestEdit": {
+    "title": "Anfrage bearbeiten",
+    "intro": "Ändern Sie Ihre Anfrage, solange die OGS noch nicht entschieden hat.",
+    "editedAt": "Geändert am {date}",
+    "firstDay": "Erster Tag",
+    "lastDay": "Letzter Tag",
+    "day": "Tag",
+    "pickupTime": "Abholzeit",
+    "timeFormatHint": "Uhrzeit im Format 15:30",
+    "timeExample": "z. B. 15:30",
+    "reasonLabel": "Grund / Hinweis an die OGS",
+    "reasonRequired": "Bitte geben Sie einen kurzen Hinweis für die OGS ein.",
+    "valueRequired": "Bitte tragen Sie einen Wert ein.",
+    "saveError": "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+    "staleError": "Die Anfrage wurde inzwischen bearbeitet. Bitte laden Sie die Seite neu.",
+    "submit": "Änderung speichern",
+    "saving": "Wird gespeichert …",
+    "cancel": "Abbrechen",
+    "close": "Fenster schließen"
+  },
+  "parentRequestSharing": {
+    "button": "Anfrage teilen",
+    "title": "Anfrage mit anderen teilen",
+    "privacyHint": "Nur ausgewählte Sorgeberechtigte sehen Ihre Anfrage und die Antwort der OGS.",
+    "recipientLegend": "Anfrage teilen (optional)",
+    "protected": "Diese Anfrage bleibt privat. Die OGS hat den Familienschutz eingeschaltet.",
+    "noRecipients": "Es gibt keine weiteren Sorgeberechtigten mit Zugang zur Eltern-App.",
+    "loading": "Empfänger werden geladen …",
+    "error": "Die Empfänger konnten nicht geladen werden.",
+    "optionsError": "Die Empfänger konnten nicht geladen werden. Sie können die Anfrage trotzdem senden und später teilen.",
+    "save": "Auswahl speichern",
+    "saving": "Wird gespeichert …",
+    "cancel": "Abbrechen",
+    "close": "Fenster schließen"
+  },
   "parentMasterData": {
     "title": "Daten und Betreuung",
     "subtitle": "Prüfen Sie die Angaben zu Ihrem Kind und die gebuchte Betreuung. Änderungen mit Prüfbedarf werden deutlich gekennzeichnet.",
@@ -1167,9 +1208,11 @@
     "identityRequestButton": "Änderungen anfragen",
     "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
     "departureDescription": "Legen Sie für jeden Wochentag fest, ob Ihr Kind abgeholt wird, allein geht oder den Bus nimmt. Änderungen prüft die OGS.",
+    "departureReadOnlyAccompanied": "Ihr Kind geht an mindestens einem Tag mit einem anderen Kind. Sie können den Heimweg hier nicht ändern.",
     "requestButton": "Änderung anfragen",
     "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
     "requestError": "Die Anfrage konnte nicht gesendet werden.",
+    "requestEdit": "Anfrage bearbeiten",
     "pendingBadge": "In Prüfung",
     "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
     "editDisabled": "Das Bearbeiten dieser Angaben ist bei dieser OGS deaktiviert.",
@@ -1253,10 +1296,7 @@
       "pendingEffectiveFrom": "Gewünscht ab {date}",
       "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung bleibt alles wie bisher.",
       "pendingNote": "Ihre Nachricht: {note}",
-      "withdraw": "Anfrage zurückziehen",
-      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
-      "withdrawConfirmTitle": "Anfrage zurückziehen?",
-      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Die gebuchten Angebote bleiben unverändert.",
+      "edit": "Anfrage bearbeiten",
       "requestButton": "Betreuung ändern",
       "disabledNoEnrollment": "Für {name} sind keine weiteren Angaben zur Betreuung hinterlegt.",
       "disabledNoPermission": "Sie haben keine Berechtigung, Änderungen für dieses Kind zu beantragen.",
@@ -1282,6 +1322,12 @@
     },
     "careOfferingsModal": {
       "title": "Gebuchte Betreuung ändern",
+      "editTitle": "Anfrage bearbeiten",
+      "editIntro": "Ändern Sie Ihre offene Anfrage. Ihre neue Auswahl ersetzt die bisherige Anfrage.",
+      "editedAt": "Geändert am {date}",
+      "saveEdit": "Änderung speichern",
+      "noteRequired": "Bitte geben Sie kurz an, warum sich die Betreuung ändern soll.",
+      "staleError": "Die Anfrage wurde inzwischen bearbeitet. Bitte laden Sie die Seite neu.",
       "intro": "Wählen Sie, welche Angebote Ihr Kind künftig besuchen soll, und ab wann die Änderung gelten soll. Das Team prüft Ihre Anfrage.",
       "loadError": "Die verfügbaren Angebote konnten nicht geladen werden.",
       "noOfferings": "Für diesen Zeitraum ist keine Betreuung buchbar.",
@@ -1316,13 +1362,16 @@
       "7": "So"
     },
     "careSchedule": {
+      "arrival": "Ankunftszeit",
       "pickup": "Abholzeit",
       "modes": "Abholart",
       "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "readOnlyNotice": "Den Wochenplan können Sie hier nicht ändern. Änderungen an gebuchten Angeboten finden Sie im nächsten Abschnitt.",
+      "noPermissionNotice": "Sie können hier keine Änderung anfragen. Bitte fragen Sie bei der OGS nach.",
       "requestButton": "Änderungen anfragen",
       "requestTitle": "Änderung am Wochenplan anfragen",
       "close": "Dialog schließen",
-      "requestIntro": "Wählen Sie, was künftig an jedem Wochentag regelmäßig gelten soll.",
+      "requestIntro": "Ändern Sie Betreuungstage, Abholzeiten oder Abholarten. Sie sehen nur Änderungen, die Ihre OGS erlaubt.",
       "requestNoticeTitle": "Anfrage an die OGS",
       "requestNoticeBody": "Die Änderung ist dauerhaft und gilt jede Woche. Die OGS prüft Ihre Anfrage. Bis zur Bestätigung bleibt der bisherige Wochenplan gültig.",
       "requestSubmit": "Anfrage an OGS senden",
@@ -1333,7 +1382,8 @@
       "requestError": "Die Anfrage konnte nicht gesendet werden.",
       "requestAlreadyPending": "Für dieses Kind wird bereits eine Änderung geprüft.",
       "requestDisabled": "Diese Änderung ist für Ihre OGS nicht freigeschaltet.",
-      "requestInvalid": "Bitte prüfen Sie die ausgewählten Betreuungstage, Abholzeiten und Abholarten.",
+      "requestBookingLed": "Ihre OGS nimmt keine Anfragen zum Wochenplan an. Änderungen laufen über die gebuchten Angebote.",
+      "requestInvalid": "Bitte prüfen Sie die Betreuungstage, Abholzeiten und Abholarten.",
       "modeUnchanged": "Abholart wählen",
       "modeCurrent": "Aktuell: {modes}",
       "careDay": "Betreuung an diesem Tag",
@@ -1354,11 +1404,7 @@
       "timeExample": "z. B. 15:30",
       "pendingBadge": "In Prüfung",
       "pendingNotice": "Die OGS prüft Ihre Änderung. Bis zur Bestätigung bleibt der bisherige Wochenplan gültig.",
-      "requestedAt": "Angefragt am {date}",
-      "withdraw": "Anfrage zurückziehen",
-      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
-      "withdrawConfirmTitle": "Anfrage zurückziehen?",
-      "withdrawConfirmBody": "Möchten Sie die Anfrage zur Änderung der Abholung wirklich zurückziehen?"
+      "requestedAt": "Angefragt am {date}"
     }
   },
   "parentOgsMessaging": {
@@ -1540,7 +1586,8 @@
       "pickupUnknown": "Die Abholzeit ist gerade nicht abrufbar"
     },
     "care": {
-      "weekTitle": "Dein OGS Wochenplan"
+      "weekTitle": "Dein OGS Wochenplan",
+      "absenceTitle": "Abwesenheiten"
     }
   },
   "parentMessages": {
@@ -1619,6 +1666,7 @@
     "subscribe": "Im Kalender abonnieren",
     "linkLabel": "Abo-Link (zum Kopieren)",
     "copy": "Kopieren",
+    "copiedButton": "Kopiert",
     "copied": "Link kopiert.",
     "copyFailed": "Kopieren nicht möglich. Bitte markieren Sie den Link von Hand.",
     "linkOnce": "Aus Sicherheitsgründen sehen Sie diesen Link nur jetzt. Kopieren Sie ihn gleich in Ihren Kalender.",
@@ -1632,6 +1680,9 @@
     "rotateError": "Der Abo-Link konnte nicht erneuert werden.",
     "alreadyActive": "Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er nicht erneut angezeigt. Wenn Sie ihn nicht mehr haben, erstellen Sie einen neuen Link; der bisherige gilt dann nicht mehr.",
     "createNew": "Neuen Abo-Link erstellen"
+  },
+  "staffCalendarSubscribe": {
+    "description": "Abonnieren Sie Ihre Termine einmal im Handy-Kalender. Neue, geänderte und abgesagte Termine erscheinen danach automatisch. Sie müssen keinen Termin einzeln hinzufügen. Änderungen im Handy-Kalender erreichen moto nicht."
   },
   "parentNews": {
     "kicker": "Post von der OGS",

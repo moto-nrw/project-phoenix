@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Error message constants to avoid duplication
@@ -387,6 +388,8 @@ type workSessionService struct {
 	// (#2403). Setter injection; nil in bare-constructed unit fixtures.
 	absenceTypes   StaffAbsenceTypeService
 	supervisorRepo activeModels.GroupSupervisorRepository
+	groupRepo      activeModels.GroupRepository
+	db             *bun.DB
 	staffRepo      userModels.StaffRepository
 	scheduleRepo   configModels.StaffWorkScheduleRepository
 	workModelRepo  configModels.WorkTimeModelRepository
@@ -457,8 +460,8 @@ func (s *workSessionService) SetAbsenceTypeService(svc StaffAbsenceTypeService) 
 	s.absenceTypes = svc
 }
 
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, groupRepo activeModels.GroupRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger, db *bun.DB) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, groupRepo: groupRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger, db: db}
 }
 
 func (s *workSessionService) now() time.Time {
@@ -651,7 +654,7 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 		return fmt.Errorf("staff work schedule repository not configured")
 	}
 
-	entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, today)
+	entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, workforceDate(today))
 	if err != nil {
 		return fmt.Errorf("failed to load planned start schedule: %w", err)
 	}
@@ -660,18 +663,18 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 	}
 
 	staff := s.resolveStaffForTargets(ctx, staffID)
-	anchor := configModels.ResolveScheduleAnchor(staffAnchorOf(staff), entries)
+	anchor := configModels.ResolveScheduleAnchor(workforceDatePointer(staffAnchorOf(staff)), entries)
 	if anchor.IsZero() {
 		return nil
 	}
-	rotationWeek := configModels.ResolveWeekIndex(configModels.ScheduleRotationLength(entries), configModels.MondayOf(anchor), configModels.MondayOf(today))
-	dayIndex := configModels.ISODayIndex(today)
+	rotationWeek := configModels.ResolveWeekIndex(configModels.ScheduleRotationLength(entries), configModels.MondayOf(anchor), configModels.MondayOf(workforceDate(today)))
+	dayIndex := configModels.ISODayIndex(workforceDate(today))
 	for _, entry := range entries {
 		if entry.WeekIndex != rotationWeek || entry.DayOfWeek != dayIndex || entry.StartTime == nil {
 			continue
 		}
-		plannedStart := timezone.WallClock(*entry.StartTime)
-		currentClock := timezone.WallClock(now.In(timezone.Berlin))
+		plannedStart := timezone.NormalizeWallClock(*entry.StartTime)
+		currentClock := timezone.NormalizeWallClock(now.In(timezone.Berlin))
 		if currentClock.Before(plannedStart) {
 			return &PlannedStartNotReachedError{
 				PlannedStartTime: plannedStart.Format("15:04"),
@@ -711,7 +714,7 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason
 func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (timezone.Date, error) {
 	open, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return timezone.Date{}, fmt.Errorf(errGetCurrentSession, err)
+		return timezone.Date(""), fmt.Errorf(errGetCurrentSession, err)
 	}
 	if open != nil {
 		return open.Date, nil
@@ -938,7 +941,7 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 	if s.supervisorRepo == nil {
 		return
 	}
-	ended, err := s.supervisorRepo.EndAllActiveByStaffID(ctx, staffID)
+	ended, err := s.endActiveSupervisionsWithGroupLocks(ctx, staffID)
 	if err != nil {
 		s.getLogger().WarnContext(ctx, "failed to end active supervisions on checkout",
 			slog.Int64("staff_id", staffID),
@@ -950,6 +953,51 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 			slog.Int("ended_count", ended),
 			slog.Int64("staff_id", staffID))
 	}
+}
+
+func (s *workSessionService) endActiveSupervisionsWithGroupLocks(ctx context.Context, staffID int64) (int, error) {
+	if s.groupRepo == nil {
+		return s.supervisorRepo.EndAllActiveByStaffID(ctx, staffID)
+	}
+	ended := 0
+	err := s.runInWorkSessionTx(ctx, func(txCtx context.Context) error {
+		supervisions, err := s.supervisorRepo.FindActiveByStaffID(txCtx, staffID)
+		if err != nil {
+			return err
+		}
+		groupIDs := make([]int64, 0, len(supervisions))
+		for _, supervision := range supervisions {
+			groupIDs = append(groupIDs, supervision.GroupID)
+		}
+		if err := s.lockWorkSessionGroupRows(txCtx, groupIDs); err != nil {
+			return err
+		}
+		ended, err = s.supervisorRepo.EndAllActiveByStaffID(txCtx, staffID)
+		return err
+	})
+	return ended, err
+}
+
+func (s *workSessionService) lockWorkSessionGroupRows(ctx context.Context, groupIDs []int64) error {
+	unique := make(map[int64]struct{}, len(groupIDs))
+	for _, id := range groupIDs {
+		unique[id] = struct{}{}
+	}
+	ordered := slices.Collect(maps.Keys(unique))
+	slices.Sort(ordered)
+	for _, id := range ordered {
+		if _, err := s.groupRepo.FindByIDForUpdate(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *workSessionService) runInWorkSessionTx(ctx context.Context, fn func(context.Context) error) error {
+	if s.db == nil {
+		return fn(ctx)
+	}
+	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
 }
 
 // StartBreak starts a new break on the running block, whichever day it was
@@ -997,7 +1045,7 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 	}
 
 	// Create a new break
-	now := time.Now()
+	now := s.now()
 	brk := &activeModels.WorkSessionBreak{
 		SessionID: session.ID,
 		StartedAt: now,
@@ -1724,7 +1772,7 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 	}
 
 	// Wrap each session in SessionResponse with calculated fields and breaks
-	now := time.Now()
+	now := s.now()
 	responses := make([]*SessionResponse, len(sessions))
 	for i, session := range sessions {
 		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
@@ -1868,13 +1916,17 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 		}
 		anchor := model.RotationAnchorDate
 		if staff.RotationAnchorDate != nil {
-			anchor = *staff.RotationAnchorDate
+			anchor = workforceDate(*staff.RotationAnchorDate)
 		}
-		targets := configModels.WeeklyTargetsFromModel(model, anchor, sessionWeekStarts(sessions))
+		targets := configModels.WeeklyTargetsFromModel(model, anchor, workforceDates(sessionWeekStarts(sessions)))
 		for weekStart, target := range targets {
-			targets[weekStart] = target - holidayModelMinutes(model, anchor, weekStart, holidaySet)
+			targets[weekStart] = target - holidayModelMinutes(model, anchor, calendarDate(weekStart), holidaySet)
 		}
-		return summaryKeysOf(targets)
+		converted := make(map[timezone.Date]int, len(targets))
+		for weekStart, target := range targets {
+			converted[calendarDate(weekStart)] = target
+		}
+		return summaryKeysOf(converted)
 	}
 	return nil
 }
@@ -1914,7 +1966,7 @@ func holidayScheduleMinutes(entries []*configModels.StaffWorkSchedule, staffAnch
 		if !holidaySet[day] {
 			continue
 		}
-		dayTarget, _ := configModels.DailyTargetFromSchedule(entries, staffAnchor, day)
+		dayTarget, _ := configModels.DailyTargetFromSchedule(entries, workforceDatePointer(staffAnchor), workforceDate(day))
 		total += dayTarget
 	}
 	return total
@@ -1922,14 +1974,14 @@ func holidayScheduleMinutes(entries []*configModels.StaffWorkSchedule, staffAnch
 
 // holidayModelMinutes is holidayScheduleMinutes for the work-time-model
 // fallback path.
-func holidayModelMinutes(model *configModels.WorkTimeModel, anchor timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+func holidayModelMinutes(model *configModels.WorkTimeModel, anchor configModels.CalendarDate, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
 	total := 0
 	for offset := 0; offset < 7; offset++ {
 		day := weekStart.AddDays(offset)
 		if !holidaySet[day] {
 			continue
 		}
-		dayTarget, _ := configModels.DailyTargetFromModel(model, anchor, day)
+		dayTarget, _ := configModels.DailyTargetFromModel(model, anchor, workforceDate(day))
 		total += dayTarget
 	}
 	return total
@@ -1971,13 +2023,13 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 			to = weekStart
 		}
 	}
-	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, from, to.AddDays(6))
+	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, workforceDate(from), workforceDate(to.AddDays(6)))
 	if err != nil || len(entries) == 0 {
 		return nil
 	}
 	targetsByWeek := make(map[summaryWeekKey]int)
 	for _, weekStart := range weekStarts {
-		if target, ok := configModels.WeeklyTargetFromSchedule(entries, staffAnchorOf(staff), weekStart); ok {
+		if target, ok := configModels.WeeklyTargetFromSchedule(entries, workforceDatePointer(staffAnchorOf(staff)), workforceDate(weekStart)); ok {
 			target -= holidayScheduleMinutes(entries, staffAnchorOf(staff), weekStart, holidaySet)
 			targetsByWeek[summaryKeyOf(weekStart)] = target
 		}
@@ -2005,7 +2057,7 @@ func sessionWeekStarts(sessions []*SessionResponse) []timezone.Date {
 	for _, session := range sessions {
 		end := BalanceSessionEnd(session.WorkSession, now)
 		for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
-			weekStart := configModels.MondayOf(day)
+			weekStart := calendarDate(configModels.MondayOf(workforceDate(day)))
 			if _, ok := seen[weekStart]; ok {
 				continue
 			}
@@ -2822,7 +2874,8 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	}
 
 	staff.WorkTimeModelID = &model.ID
-	staff.RotationAnchorDate = &anchor
+	staffAnchor := calendarDate(anchor)
+	staff.RotationAnchorDate = &staffAnchor
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind template to staff: %w", err)
 	}
@@ -2845,9 +2898,9 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	// these rows then fall back to, re-paritying their A/B weeks and moving a
 	// historical Saldo.
 	if effective.IsZero() && isRotationalSchedule(entries) {
-		effective = timezone.TodayDate()
+		effective = timezone.DateFromTime(s.now())
 	}
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, effective); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, workforceDate(effective)); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
@@ -2866,18 +2919,18 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 // model and binds it to the staff member.
 func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *userModels.Staff, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error {
 	if anchor.IsZero() {
-		anchor = timezone.TodayDate()
+		anchor = timezone.DateFromTime(s.now())
 	}
 	model := &configModels.WorkTimeModel{
 		Name:               name,
 		RotationLength:     rotation,
-		RotationAnchorDate: anchor,
+		RotationAnchorDate: workforceDate(anchor),
 	}
 	if err := s.workModelRepo.Create(ctx, model, entries); err != nil {
 		return err
 	}
 	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, anchor); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, workforceDate(anchor)); err != nil {
 		return fmt.Errorf("write saved template schedule snapshot: %w", err)
 	}
 
@@ -2929,7 +2982,7 @@ func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *use
 		return scheduleValidationErrorf("rotation_length must be between 1 and %d", configModels.WorkTimeModelMaxRotation)
 	}
 
-	anchor := timezone.Date{}
+	anchor := timezone.Date("")
 	if in.RotationAnchorDate != "" {
 		parsed, err := timezone.ParseDate(in.RotationAnchorDate)
 		if err != nil {
@@ -2993,7 +3046,7 @@ func parseScheduleStartTime(raw *string) (*time.Time, error) {
 	if err != nil {
 		return nil, scheduleValidationErrorf("start_time must be HH:MM")
 	}
-	wallClock := timezone.WallClock(parsed)
+	wallClock := timezone.NormalizeWallClock(parsed)
 	return &wallClock, nil
 }
 

@@ -309,8 +309,9 @@ type EventData struct {
 	// of refetching. NotificationData contains only opaque routing IDs.
 	Title            *string           `json:"title,omitempty"`
 	Body             *string           `json:"body,omitempty"`
-	DeepLink         *string           `json:"deep_link,omitempty"` // app-relative path, e.g. "/reminders"
-	Priority         *string           `json:"priority,omitempty"`  // "low" | "normal" | "high"
+	DeepLink         *string           `json:"deep_link,omitempty"`        // app-relative path, e.g. "/reminders"
+	SchoolDeepLink   *string           `json:"school_deep_link,omitempty"` // the same destination on the school portal (#2208)
+	Priority         *string           `json:"priority,omitempty"`         // "low" | "normal" | "high"
 	NotificationType *string           `json:"notification_type,omitempty"`
 	NotificationData map[string]string `json:"notification_data,omitempty"` // opaque IDs for client-side routing
 }

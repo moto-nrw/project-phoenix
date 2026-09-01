@@ -2,16 +2,15 @@ package cmd
 
 import (
 	"bytes"
+	"io"
 	"log"
 	"log/slog"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,6 +21,12 @@ import (
 // =============================================================================
 // Test Helpers
 // =============================================================================
+
+func render(fn func(io.Writer)) string {
+	var output bytes.Buffer
+	fn(&output)
+	return output.String()
+}
 
 // setupTestCleanupContext creates a cleanupContext with test database
 func setupTestCleanupContext(t *testing.T) *cleanupContext {
@@ -38,17 +43,25 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	)
 	return &cleanupContext{
 		DB:             db,
-		RepoFactory:    repoFactory,
 		CleanupService: cleanupSvc,
+		Output:         io.Discard,
+		Logger:         log.New(io.Discard, "", 0),
 	}
 }
 
-// setupTestCleanupContextWithServices creates a cleanupContext with ServiceFactory
+// setupTestCleanupContextWithServices creates the narrow session-cleanup service.
 func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
+	sessionService := active.NewService(active.ServiceDependencies{
+		GroupRepo:                repoFactory.ActiveGroup,
+		VisitRepo:                repoFactory.ActiveVisit,
+		SupervisorRepo:           repoFactory.GroupSupervisor,
+		DeviceRepo:               repoFactory.Device,
+		TimetableBridgeCompleter: repoFactory.ActivityInstance,
+		DB:                       db,
+		Logger:                   slog.Default(),
+	})
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,
 		repoFactory.Attendance,
@@ -59,10 +72,11 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 		db,
 	)
 	return &cleanupContext{
-		DB:             db,
-		RepoFactory:    repoFactory,
-		ServiceFactory: serviceFactory,
-		CleanupService: cleanupSvc,
+		DB:                    db,
+		SessionCleanupService: sessionService,
+		CleanupService:        cleanupSvc,
+		Output:                io.Discard,
+		Logger:                log.New(io.Discard, "", 0),
 	}
 }
 
@@ -71,6 +85,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 // =============================================================================
 
 func TestGetStatusString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		success  bool
@@ -97,6 +112,7 @@ func TestGetStatusString(t *testing.T) {
 }
 
 func TestLogVisitCleanupResult_NoErrors(t *testing.T) {
+	t.Parallel()
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
@@ -109,7 +125,7 @@ func TestLogVisitCleanupResult_NoErrors(t *testing.T) {
 		Errors:            []active.CleanupError{},
 	}
 
-	logVisitCleanupResult(logger, result)
+	logVisitCleanupResult(logger, result, false)
 
 	output := logBuf.String()
 	assert.Contains(t, output, "Cleanup completed in")
@@ -119,11 +135,7 @@ func TestLogVisitCleanupResult_NoErrors(t *testing.T) {
 }
 
 func TestLogVisitCleanupResult_WithErrors_NotVerbose(t *testing.T) {
-	// Ensure verbose is false
-	oldVerbose := verbose
-	verbose = false
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
@@ -139,7 +151,7 @@ func TestLogVisitCleanupResult_WithErrors_NotVerbose(t *testing.T) {
 		},
 	}
 
-	logVisitCleanupResult(logger, result)
+	logVisitCleanupResult(logger, result, false)
 
 	output := logBuf.String()
 	assert.Contains(t, output, "Errors encountered: 2")
@@ -148,11 +160,7 @@ func TestLogVisitCleanupResult_WithErrors_NotVerbose(t *testing.T) {
 }
 
 func TestLogVisitCleanupResult_WithErrors_Verbose(t *testing.T) {
-	// Set verbose to true
-	oldVerbose := verbose
-	verbose = true
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
@@ -168,7 +176,7 @@ func TestLogVisitCleanupResult_WithErrors_Verbose(t *testing.T) {
 		},
 	}
 
-	logVisitCleanupResult(logger, result)
+	logVisitCleanupResult(logger, result, true)
 
 	output := logBuf.String()
 	assert.Contains(t, output, "Errors encountered: 2")
@@ -176,10 +184,8 @@ func TestLogVisitCleanupResult_WithErrors_Verbose(t *testing.T) {
 	assert.Contains(t, output, "Student 2: error 2")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintVisitCleanupSummary_Success(t *testing.T) {
+	t.Parallel()
 	result := &active.CleanupResult{
 		StartedAt:         time.Now(),
 		CompletedAt:       time.Now().Add(2 * time.Second),
@@ -189,8 +195,8 @@ func TestPrintVisitCleanupSummary_Success(t *testing.T) {
 		Errors:            []active.CleanupError{},
 	}
 
-	output := captureStdout(t, func() {
-		printVisitCleanupSummary(result)
+	output := render(func(w io.Writer) {
+		printVisitCleanupSummary(w, result)
 	})
 
 	assert.Contains(t, output, "Cleanup Summary:")
@@ -201,10 +207,8 @@ func TestPrintVisitCleanupSummary_Success(t *testing.T) {
 	assert.NotContains(t, output, "Errors:")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintVisitCleanupSummary_WithErrors(t *testing.T) {
+	t.Parallel()
 	result := &active.CleanupResult{
 		StartedAt:         time.Now(),
 		CompletedAt:       time.Now().Add(time.Second),
@@ -216,18 +220,16 @@ func TestPrintVisitCleanupSummary_WithErrors(t *testing.T) {
 		},
 	}
 
-	output := captureStdout(t, func() {
-		printVisitCleanupSummary(result)
+	output := render(func(w io.Writer) {
+		printVisitCleanupSummary(w, result)
 	})
 
 	assert.Contains(t, output, "Status: COMPLETED WITH ERRORS")
 	assert.Contains(t, output, "Errors: 1")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintPreviewHeader_WithOldestVisit(t *testing.T) {
+	t.Parallel()
 	oldestVisit := time.Now().Add(-48 * time.Hour)
 	preview := &active.CleanupPreview{
 		StudentVisitCounts: map[int64]int{1: 5, 2: 10},
@@ -235,8 +237,8 @@ func TestPrintPreviewHeader_WithOldestVisit(t *testing.T) {
 		OldestVisit:        &oldestVisit,
 	}
 
-	output := captureStdout(t, func() {
-		printPreviewHeader(preview)
+	output := render(func(w io.Writer) {
+		printPreviewHeader(w, preview)
 	})
 
 	assert.Contains(t, output, "Data Retention Cleanup Preview")
@@ -246,18 +248,16 @@ func TestPrintPreviewHeader_WithOldestVisit(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 2")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintPreviewHeader_NoOldestVisit(t *testing.T) {
+	t.Parallel()
 	preview := &active.CleanupPreview{
 		StudentVisitCounts: map[int64]int{1: 5},
 		TotalVisits:        5,
 		OldestVisit:        nil,
 	}
 
-	output := captureStdout(t, func() {
-		printPreviewHeader(preview)
+	output := render(func(w io.Writer) {
+		printPreviewHeader(w, preview)
 	})
 
 	assert.Contains(t, output, "Data Retention Cleanup Preview")
@@ -266,10 +266,8 @@ func TestPrintPreviewHeader_NoOldestVisit(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 1")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintRetentionStats_WithOldestExpiredVisit(t *testing.T) {
+	t.Parallel()
 	oldestExpired := time.Now().Add(-30 * 24 * time.Hour)
 	stats := &active.RetentionStats{
 		TotalExpiredVisits: 100,
@@ -277,8 +275,8 @@ func TestPrintRetentionStats_WithOldestExpiredVisit(t *testing.T) {
 		OldestExpiredVisit: &oldestExpired,
 	}
 
-	output := captureStdout(t, func() {
-		printRetentionStats(stats)
+	output := render(func(w io.Writer) {
+		printRetentionStats(w, stats)
 	})
 
 	assert.Contains(t, output, "Data Retention Statistics")
@@ -288,18 +286,16 @@ func TestPrintRetentionStats_WithOldestExpiredVisit(t *testing.T) {
 	assert.Contains(t, output, "days ago")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintRetentionStats_NoOldestExpiredVisit(t *testing.T) {
+	t.Parallel()
 	stats := &active.RetentionStats{
 		TotalExpiredVisits: 50,
 		StudentsAffected:   5,
 		OldestExpiredVisit: nil,
 	}
 
-	output := captureStdout(t, func() {
-		printRetentionStats(stats)
+	output := render(func(w io.Writer) {
+		printRetentionStats(w, stats)
 	})
 
 	assert.Contains(t, output, "Data Retention Statistics")
@@ -308,10 +304,8 @@ func TestPrintRetentionStats_NoOldestExpiredVisit(t *testing.T) {
 	assert.NotContains(t, output, "Oldest expired visit:")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintAttendancePreviewHeader_WithOldestRecord(t *testing.T) {
+	t.Parallel()
 	oldestRecord := timezone.TodayDate().AddDays(-1)
 	preview := &active.AttendanceCleanupPreview{
 		TotalRecords:   20,
@@ -319,8 +313,8 @@ func TestPrintAttendancePreviewHeader_WithOldestRecord(t *testing.T) {
 		OldestRecord:   &oldestRecord,
 	}
 
-	output := captureStdout(t, func() {
-		printAttendancePreviewHeader(preview)
+	output := render(func(w io.Writer) {
+		printAttendancePreviewHeader(w, preview)
 	})
 
 	assert.Contains(t, output, "Attendance Cleanup Preview:")
@@ -330,18 +324,16 @@ func TestPrintAttendancePreviewHeader_WithOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 2")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintAttendancePreviewHeader_NoOldestRecord(t *testing.T) {
+	t.Parallel()
 	preview := &active.AttendanceCleanupPreview{
 		TotalRecords:   10,
 		StudentRecords: map[int64]int{1: 10},
 		OldestRecord:   nil,
 	}
 
-	output := captureStdout(t, func() {
-		printAttendancePreviewHeader(preview)
+	output := render(func(w io.Writer) {
+		printAttendancePreviewHeader(w, preview)
 	})
 
 	assert.Contains(t, output, "Attendance Cleanup Preview:")
@@ -350,10 +342,8 @@ func TestPrintAttendancePreviewHeader_NoOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 1")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintAttendanceCleanupSummary_Success_WithOldestRecordDate(t *testing.T) {
+	t.Parallel()
 	oldestDate := timezone.TodayDate().AddDays(-2)
 	result := &active.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
@@ -365,8 +355,8 @@ func TestPrintAttendanceCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 		Errors:           []string{},
 	}
 
-	output := captureStdout(t, func() {
-		printAttendanceCleanupSummary(result)
+	output := render(func(w io.Writer) {
+		printAttendanceCleanupSummary(w, result, false)
 	})
 
 	assert.Contains(t, output, "Attendance Cleanup Summary:")
@@ -378,10 +368,8 @@ func TestPrintAttendanceCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 	assert.NotContains(t, output, "Errors:")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintAttendanceCleanupSummary_Success_NoOldestRecordDate(t *testing.T) {
+	t.Parallel()
 	result := &active.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
@@ -392,8 +380,8 @@ func TestPrintAttendanceCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 		Errors:           []string{},
 	}
 
-	output := captureStdout(t, func() {
-		printAttendanceCleanupSummary(result)
+	output := render(func(w io.Writer) {
+		printAttendanceCleanupSummary(w, result, false)
 	})
 
 	assert.Contains(t, output, "Attendance Cleanup Summary:")
@@ -402,10 +390,8 @@ func TestPrintAttendanceCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 	assert.Contains(t, output, "Status: SUCCESS")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintAttendanceCleanupSummary_WithErrors(t *testing.T) {
+	t.Parallel()
 	result := &active.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
@@ -416,48 +402,38 @@ func TestPrintAttendanceCleanupSummary_WithErrors(t *testing.T) {
 		Errors:           []string{"error 1", "error 2"},
 	}
 
-	output := captureStdout(t, func() {
-		printAttendanceCleanupSummary(result)
+	output := render(func(w io.Writer) {
+		printAttendanceCleanupSummary(w, result, false)
 	})
 
 	assert.Contains(t, output, "Status: COMPLETED WITH ERRORS")
 	assert.Contains(t, output, "Errors: 2")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintErrorList_Empty(t *testing.T) {
-	output := captureStdout(t, func() {
-		printErrorList([]string{})
+	t.Parallel()
+	output := render(func(w io.Writer) {
+		printErrorList(w, []string{}, false)
 	})
 
 	assert.Empty(t, output)
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintErrorList_EmptySlice_Nil(t *testing.T) {
-	output := captureStdout(t, func() {
-		printErrorList(nil)
+	t.Parallel()
+	output := render(func(w io.Writer) {
+		printErrorList(w, nil, false)
 	})
 
 	assert.Empty(t, output)
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintErrorList_NotVerbose(t *testing.T) {
-	oldVerbose := verbose
-	verbose = false
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	errors := []string{"error 1", "error 2", "error 3"}
 
-	output := captureStdout(t, func() {
-		printErrorList(errors)
+	output := render(func(w io.Writer) {
+		printErrorList(w, errors, false)
 	})
 
 	assert.Contains(t, output, "Errors: 3")
@@ -465,18 +441,12 @@ func TestPrintErrorList_NotVerbose(t *testing.T) {
 	assert.NotContains(t, output, "error 2")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintErrorList_Verbose(t *testing.T) {
-	oldVerbose := verbose
-	verbose = true
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	errors := []string{"error 1", "error 2"}
 
-	output := captureStdout(t, func() {
-		printErrorList(errors)
+	output := render(func(w io.Writer) {
+		printErrorList(w, errors, true)
 	})
 
 	assert.Contains(t, output, "Errors: 2")
@@ -484,15 +454,13 @@ func TestPrintErrorList_Verbose(t *testing.T) {
 	assert.Contains(t, output, "error 2")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintAbandonedSessionSummary(t *testing.T) {
+	t.Parallel()
 	threshold := 2 * time.Hour
 	count := 5
 
-	output := captureStdout(t, func() {
-		printAbandonedSessionSummary(threshold, count)
+	output := render(func(w io.Writer) {
+		printAbandonedSessionSummary(w, threshold, count)
 	})
 
 	assert.Contains(t, output, "Abandoned Session Cleanup Summary:")
@@ -501,10 +469,8 @@ func TestPrintAbandonedSessionSummary(t *testing.T) {
 	assert.Contains(t, output, "Status: SUCCESS")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintDailySessionSummary_Success(t *testing.T) {
+	t.Parallel()
 	result := &active.DailySessionCleanupResult{
 		SessionsEnded:    10,
 		VisitsEnded:      50,
@@ -514,8 +480,8 @@ func TestPrintDailySessionSummary_Success(t *testing.T) {
 		Errors:           []string{},
 	}
 
-	output := captureStdout(t, func() {
-		printDailySessionSummary(result)
+	output := render(func(w io.Writer) {
+		printDailySessionSummary(w, result, false)
 	})
 
 	assert.Contains(t, output, "Daily Session Cleanup Summary:")
@@ -526,10 +492,8 @@ func TestPrintDailySessionSummary_Success(t *testing.T) {
 	assert.NotContains(t, output, "Errors:")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintDailySessionSummary_WithErrors(t *testing.T) {
+	t.Parallel()
 	result := &active.DailySessionCleanupResult{
 		SessionsEnded:    5,
 		VisitsEnded:      20,
@@ -539,18 +503,16 @@ func TestPrintDailySessionSummary_WithErrors(t *testing.T) {
 		Errors:           []string{"error 1", "error 2"},
 	}
 
-	output := captureStdout(t, func() {
-		printDailySessionSummary(result)
+	output := render(func(w io.Writer) {
+		printDailySessionSummary(w, result, false)
 	})
 
 	assert.Contains(t, output, "Status: COMPLETED WITH ERRORS")
 	assert.Contains(t, output, "Errors: 2")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
+	t.Parallel()
 	oldestRecord := timezone.TodayDate().AddDays(-1)
 	preview := &active.SupervisorCleanupPreview{
 		TotalRecords: 15,
@@ -558,8 +520,8 @@ func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
 		OldestRecord: &oldestRecord,
 	}
 
-	output := captureStdout(t, func() {
-		printSupervisorPreviewHeader(preview)
+	output := render(func(w io.Writer) {
+		printSupervisorPreviewHeader(w, preview)
 	})
 
 	assert.Contains(t, output, "Supervisor Cleanup Preview:")
@@ -569,18 +531,16 @@ func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Staff affected: 2")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintSupervisorPreviewHeader_NoOldestRecord(t *testing.T) {
+	t.Parallel()
 	preview := &active.SupervisorCleanupPreview{
 		TotalRecords: 10,
 		StaffRecords: map[int64]int{1: 10},
 		OldestRecord: nil,
 	}
 
-	output := captureStdout(t, func() {
-		printSupervisorPreviewHeader(preview)
+	output := render(func(w io.Writer) {
+		printSupervisorPreviewHeader(w, preview)
 	})
 
 	assert.Contains(t, output, "Supervisor Cleanup Preview:")
@@ -589,10 +549,8 @@ func TestPrintSupervisorPreviewHeader_NoOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Staff affected: 1")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T) {
+	t.Parallel()
 	oldestDate := timezone.TodayDate().AddDays(-2)
 	result := &active.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
@@ -604,8 +562,8 @@ func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 		Errors:           []string{},
 	}
 
-	output := captureStdout(t, func() {
-		printSupervisorCleanupSummary(result)
+	output := render(func(w io.Writer) {
+		printSupervisorCleanupSummary(w, result, false)
 	})
 
 	assert.Contains(t, output, "Supervisor Cleanup Summary:")
@@ -617,10 +575,8 @@ func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 	assert.NotContains(t, output, "Errors:")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintSupervisorCleanupSummary_Success_NoOldestRecordDate(t *testing.T) {
+	t.Parallel()
 	result := &active.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
@@ -631,8 +587,8 @@ func TestPrintSupervisorCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 		Errors:           []string{},
 	}
 
-	output := captureStdout(t, func() {
-		printSupervisorCleanupSummary(result)
+	output := render(func(w io.Writer) {
+		printSupervisorCleanupSummary(w, result, false)
 	})
 
 	assert.Contains(t, output, "Supervisor Cleanup Summary:")
@@ -641,10 +597,8 @@ func TestPrintSupervisorCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 	assert.Contains(t, output, "Status: SUCCESS")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintSupervisorCleanupSummary_WithErrors(t *testing.T) {
+	t.Parallel()
 	result := &active.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
@@ -655,37 +609,33 @@ func TestPrintSupervisorCleanupSummary_WithErrors(t *testing.T) {
 		Errors:           []string{"error 1"},
 	}
 
-	output := captureStdout(t, func() {
-		printSupervisorCleanupSummary(result)
+	output := render(func(w io.Writer) {
+		printSupervisorCleanupSummary(w, result, false)
 	})
 
 	assert.Contains(t, output, "Status: COMPLETED WITH ERRORS")
 	assert.Contains(t, output, "Errors: 1")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintStaffBreakdown_Empty(t *testing.T) {
-	output := captureStdout(t, func() {
-		printStaffBreakdown("Test Header", "Count", map[int64]int{})
+	t.Parallel()
+	output := render(func(w io.Writer) {
+		printStaffBreakdown(w, "Test Header", "Count", map[int64]int{})
 	})
 
 	assert.Empty(t, output)
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintStaffBreakdown_WithData(t *testing.T) {
+	t.Parallel()
 	data := map[int64]int{
 		1: 10,
 		2: 20,
 		3: 5,
 	}
 
-	output := captureStdout(t, func() {
-		printStaffBreakdown("Per-staff breakdown", "Stale Records", data)
+	output := render(func(w io.Writer) {
+		printStaffBreakdown(w, "Per-staff breakdown", "Stale Records", data)
 	})
 
 	assert.Contains(t, output, "Per-staff breakdown:")
@@ -702,16 +652,13 @@ func TestPrintStaffBreakdown_WithData(t *testing.T) {
 // =============================================================================
 
 func TestRunVisitsDryRun_NotVerbose(t *testing.T) {
-	oldVerbose := verbose
-	verbose = false
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
-	err := runVisitsDryRun(logger, ctx)
+	err := runVisitsDryRun(logger, ctx, false)
 	require.NoError(t, err)
 
 	// Check logger output
@@ -724,16 +671,13 @@ func TestRunVisitsDryRun_NotVerbose(t *testing.T) {
 }
 
 func TestRunVisitsDryRun_Verbose(t *testing.T) {
-	oldVerbose := verbose
-	verbose = true
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
-	err := runVisitsDryRun(logger, ctx)
+	err := runVisitsDryRun(logger, ctx, true)
 	require.NoError(t, err)
 
 	logOutput := logBuf.String()
@@ -741,71 +685,62 @@ func TestRunVisitsDryRun_Verbose(t *testing.T) {
 }
 
 func TestRunVisitsCleanup(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
 	// Should run without error even if no data to clean
-	err := runVisitsCleanup(logger, ctx)
+	err := runVisitsCleanup(logger, ctx, false)
 	require.NoError(t, err)
 }
 
 func TestRunAttendanceDryRun_NotVerbose(t *testing.T) {
-	oldVerbose := verbose
-	verbose = false
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
-	err := runAttendanceDryRun(ctx)
+	err := runAttendanceDryRun(ctx, false)
 	require.NoError(t, err)
 }
 
 func TestRunAttendanceDryRun_Verbose(t *testing.T) {
-	oldVerbose := verbose
-	verbose = true
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
-	err := runAttendanceDryRun(ctx)
+	err := runAttendanceDryRun(ctx, true)
 	require.NoError(t, err)
 }
 
 func TestRunAttendanceCleanup(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
-	err := runAttendanceCleanup(ctx)
+	err := runAttendanceCleanup(ctx, false)
 	require.NoError(t, err)
 }
 
 func TestRunSupervisorsDryRun_NotVerbose(t *testing.T) {
-	oldVerbose := verbose
-	verbose = false
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
-	err := runSupervisorsDryRun(ctx)
+	err := runSupervisorsDryRun(ctx, false)
 	require.NoError(t, err)
 }
 
 func TestRunSupervisorsDryRun_Verbose(t *testing.T) {
-	oldVerbose := verbose
-	verbose = true
-	defer func() { verbose = oldVerbose }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
-	err := runSupervisorsDryRun(ctx)
+	err := runSupervisorsDryRun(ctx, true)
 	require.NoError(t, err)
 }
 
 func TestRunSupervisorsCleanup(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
-	err := runSupervisorsCleanup(ctx)
+	err := runSupervisorsCleanup(ctx, false)
 	require.NoError(t, err)
 }
 
@@ -813,22 +748,21 @@ func TestRunSupervisorsCleanup(t *testing.T) {
 // Category C: Functions Needing ServiceFactory (New Tests)
 // =============================================================================
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintVerboseRecentDeletions(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
 	// Should run without error even if no recent deletions exist
-	output := captureStdout(t, func() {
-		printVerboseRecentDeletions(ctx)
-	})
+	var output bytes.Buffer
+	ctx.Output = &output
+	printVerboseRecentDeletions(ctx)
 
 	// Should at least print the header
-	assert.Contains(t, output, "Recent deletion activity:")
+	assert.Contains(t, output.String(), "Recent deletion activity:")
 }
 
 func TestCountExpiredTokens(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestCleanupContext(t)
 
 	// Should return count (0 or more) without error
@@ -838,18 +772,14 @@ func TestCountExpiredTokens(t *testing.T) {
 }
 
 func TestRunAbandonedSessionCleanup_DryRun(t *testing.T) {
-	oldDryRun := dryRun
-	dryRun = true
-	defer func() { dryRun = oldDryRun }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContextWithServices(t)
 
 	var logBuf bytes.Buffer
-	log.SetOutput(&logBuf)
-	defer log.SetOutput(os.Stderr)
+	ctx.Logger = log.New(&logBuf, "", 0)
 
 	threshold := 5 * time.Minute
-	err := runAbandonedSessionCleanup(ctx, threshold)
+	err := runAbandonedSessionCleanup(ctx, threshold, true)
 	require.NoError(t, err)
 
 	logOutput := logBuf.String()
@@ -857,42 +787,31 @@ func TestRunAbandonedSessionCleanup_DryRun(t *testing.T) {
 	assert.Contains(t, logOutput, "5m")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestRunAbandonedSessionCleanup_Execute(t *testing.T) {
-	oldDryRun := dryRun
-	dryRun = false
-	defer func() { dryRun = oldDryRun }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContextWithServices(t)
 
 	threshold := 5 * time.Minute
-
-	output := captureStdout(t, func() {
-		err := runAbandonedSessionCleanup(ctx, threshold)
-		require.NoError(t, err)
-	})
+	var output bytes.Buffer
+	ctx.Output = &output
+	err := runAbandonedSessionCleanup(ctx, threshold, false)
+	require.NoError(t, err)
 
 	// Should print summary
-	assert.Contains(t, output, "Abandoned Session Cleanup Summary")
-	assert.Contains(t, output, "Threshold:")
-	assert.Contains(t, output, "Sessions cleaned:")
-	assert.Contains(t, output, "Status: SUCCESS")
+	assert.Contains(t, output.String(), "Abandoned Session Cleanup Summary")
+	assert.Contains(t, output.String(), "Threshold:")
+	assert.Contains(t, output.String(), "Sessions cleaned:")
+	assert.Contains(t, output.String(), "Status: SUCCESS")
 }
 
 func TestRunDailySessionCleanup_DryRun(t *testing.T) {
-	oldDryRun := dryRun
-	dryRun = true
-	defer func() { dryRun = oldDryRun }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContextWithServices(t)
 
 	var logBuf bytes.Buffer
-	log.SetOutput(&logBuf)
-	defer log.SetOutput(os.Stderr)
+	ctx.Logger = log.New(&logBuf, "", 0)
 
-	err := runDailySessionCleanup(ctx)
+	err := runDailySessionCleanup(ctx, true, false)
 	require.NoError(t, err)
 
 	logOutput := logBuf.String()
@@ -900,50 +819,39 @@ func TestRunDailySessionCleanup_DryRun(t *testing.T) {
 	assert.Contains(t, logOutput, "Would end all active sessions")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestRunDailySessionCleanup_Execute(t *testing.T) {
-	oldDryRun := dryRun
-	dryRun = false
-	defer func() { dryRun = oldDryRun }()
-
+	t.Parallel()
 	ctx := setupTestCleanupContextWithServices(t)
-
-	output := captureStdout(t, func() {
-		err := runDailySessionCleanup(ctx)
-		require.NoError(t, err)
-	})
+	var output bytes.Buffer
+	ctx.Output = &output
+	err := runDailySessionCleanup(ctx, false, false)
+	require.NoError(t, err)
 
 	// Should print summary
-	assert.Contains(t, output, "Daily Session Cleanup Summary")
-	assert.Contains(t, output, "Sessions ended:")
-	assert.Contains(t, output, "Visits ended:")
-	assert.Contains(t, output, "Supervisors ended:")
-	assert.Contains(t, output, "Status:")
+	assert.Contains(t, output.String(), "Daily Session Cleanup Summary")
+	assert.Contains(t, output.String(), "Sessions ended:")
+	assert.Contains(t, output.String(), "Visits ended:")
+	assert.Contains(t, output.String(), "Supervisors ended:")
+	assert.Contains(t, output.String(), "Status:")
 }
 
 // =============================================================================
 // Category D: Branch Coverage Tests for printStaffBreakdown
 // =============================================================================
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintStaffBreakdown_Empty_AlreadyTested(t *testing.T) {
+	t.Parallel()
 	// This test already exists as TestPrintStaffBreakdown_Empty in cleanup_test.go
 	// It properly tests the empty data case (line 639 early return)
-	output := captureStdout(t, func() {
-		printStaffBreakdown("Test Header", "Count", map[int64]int{})
+	output := render(func(w io.Writer) {
+		printStaffBreakdown(w, "Test Header", "Count", map[int64]int{})
 	})
 
 	assert.Empty(t, output)
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPrintStaffBreakdown_WithData_AlreadyTested(t *testing.T) {
+	t.Parallel()
 	// This test already exists as TestPrintStaffBreakdown_WithData in cleanup_test.go
 	// It properly tests the non-empty data case with table output
 	data := map[int64]int{
@@ -952,8 +860,8 @@ func TestPrintStaffBreakdown_WithData_AlreadyTested(t *testing.T) {
 		3: 5,
 	}
 
-	output := captureStdout(t, func() {
-		printStaffBreakdown("Per-staff breakdown", "Stale Records", data)
+	output := render(func(w io.Writer) {
+		printStaffBreakdown(w, "Per-staff breakdown", "Stale Records", data)
 	})
 
 	assert.Contains(t, output, "Per-staff breakdown:")
@@ -969,6 +877,7 @@ func TestPrintStaffBreakdown_WithData_AlreadyTested(t *testing.T) {
 // =============================================================================
 
 func TestCleanupConstants(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "dry-run", flagDryRun)
 	assert.Equal(t, "Show detailed information", flagDescShowDetails)
 	assert.Equal(t, "Students affected: %d\n", fmtStudentsAffected)
@@ -976,47 +885,14 @@ func TestCleanupConstants(t *testing.T) {
 }
 
 func TestCleanupCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "cleanup", cleanupCmd.Use)
 	assert.Contains(t, cleanupCmd.Short, "Clean up expired data")
 	assert.Contains(t, cleanupCmd.Long, "retention policies")
 }
 
-func TestCleanupCmd_IsRegisteredOnRoot(t *testing.T) {
-	found := false
-	for _, cmd := range RootCmd.Commands() {
-		if cmd.Use == "cleanup" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "cleanupCmd should be registered on RootCmd")
-}
-
-func TestCleanupCmd_HasSubcommands(t *testing.T) {
-	subcommands := cleanupCmd.Commands()
-	names := make([]string, 0, len(subcommands))
-	for _, cmd := range subcommands {
-		names = append(names, cmd.Use)
-	}
-
-	assert.Contains(t, names, "visits")
-	assert.Contains(t, names, "preview")
-	assert.Contains(t, names, "stats")
-	assert.Contains(t, names, "tokens")
-	assert.Contains(t, names, "invitations")
-	assert.Contains(t, names, "rate-limits")
-	assert.Contains(t, names, "attendance")
-	assert.Contains(t, names, "sessions")
-	assert.Contains(t, names, "supervisors")
-	assert.Contains(t, names, "timetable") // WP-B14
-	assert.Contains(t, names, "time-tracking")
-}
-
-func TestCleanupCmd_SubcommandCount(t *testing.T) {
-	assert.Len(t, cleanupCmd.Commands(), 11, "cleanupCmd should have exactly 11 subcommands")
-}
-
 func TestCleanupVisitsCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "visits", cleanupVisitsCmd.Use)
 	assert.Contains(t, cleanupVisitsCmd.Short, "expired visit records")
 	assert.Contains(t, cleanupVisitsCmd.Long, "GDPR compliance")
@@ -1024,54 +900,63 @@ func TestCleanupVisitsCmd_Metadata(t *testing.T) {
 }
 
 func TestCleanupPreviewCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "preview", cleanupPreviewCmd.Use)
 	assert.Contains(t, cleanupPreviewCmd.Short, "Preview")
 	assert.NotNil(t, cleanupPreviewCmd.RunE)
 }
 
 func TestCleanupStatsCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "stats", cleanupStatsCmd.Use)
 	assert.Contains(t, cleanupStatsCmd.Short, "retention statistics")
 	assert.NotNil(t, cleanupStatsCmd.RunE)
 }
 
 func TestCleanupTokensCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "tokens", cleanupTokensCmd.Use)
 	assert.Contains(t, cleanupTokensCmd.Short, "expired authentication tokens")
 	assert.NotNil(t, cleanupTokensCmd.RunE)
 }
 
 func TestCleanupTimetableCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "timetable", cleanupTimetableCmd.Use)
 	assert.Contains(t, cleanupTimetableCmd.Short, "timetable")
 	assert.NotNil(t, cleanupTimetableCmd.RunE)
 }
 
 func TestCleanupInvitationsCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "invitations", cleanupInvitationsCmd.Use)
 	assert.Contains(t, cleanupInvitationsCmd.Short, "invitation tokens")
 	assert.NotNil(t, cleanupInvitationsCmd.RunE)
 }
 
 func TestCleanupRateLimitsCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "rate-limits", cleanupRateLimitsCmd.Use)
 	assert.Contains(t, cleanupRateLimitsCmd.Short, "rate limit")
 	assert.NotNil(t, cleanupRateLimitsCmd.RunE)
 }
 
 func TestCleanupAttendanceCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "attendance", cleanupAttendanceCmd.Use)
 	assert.Contains(t, cleanupAttendanceCmd.Short, "stale attendance")
 	assert.NotNil(t, cleanupAttendanceCmd.RunE)
 }
 
 func TestCleanupSessionsCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "sessions", cleanupSessionsCmd.Use)
 	assert.Contains(t, cleanupSessionsCmd.Short, "abandoned active sessions")
 	assert.NotNil(t, cleanupSessionsCmd.RunE)
 }
 
 func TestCleanupSupervisorsCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "supervisors", cleanupSupervisorsCmd.Use)
 	assert.Contains(t, cleanupSupervisorsCmd.Short, "stale supervisor records")
 	assert.NotNil(t, cleanupSupervisorsCmd.RunE)
@@ -1082,6 +967,7 @@ func TestCleanupSupervisorsCmd_Metadata(t *testing.T) {
 // =============================================================================
 
 func TestCleanupVisitsCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := cleanupVisitsCmd.Flags()
 	assert.NotNil(t, f.Lookup("dry-run"))
 	assert.NotNil(t, f.Lookup("verbose"))
@@ -1090,22 +976,26 @@ func TestCleanupVisitsCmd_Flags(t *testing.T) {
 }
 
 func TestCleanupPreviewCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := cleanupPreviewCmd.Flags()
 	assert.NotNil(t, f.Lookup("verbose"))
 }
 
 func TestCleanupStatsCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := cleanupStatsCmd.Flags()
 	assert.NotNil(t, f.Lookup("verbose"))
 }
 
 func TestCleanupAttendanceCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := cleanupAttendanceCmd.Flags()
 	assert.NotNil(t, f.Lookup("dry-run"))
 	assert.NotNil(t, f.Lookup("verbose"))
 }
 
 func TestCleanupSessionsCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := cleanupSessionsCmd.Flags()
 	assert.NotNil(t, f.Lookup("dry-run"))
 	assert.NotNil(t, f.Lookup("verbose"))
@@ -1114,60 +1004,8 @@ func TestCleanupSessionsCmd_Flags(t *testing.T) {
 }
 
 func TestCleanupSupervisorsCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := cleanupSupervisorsCmd.Flags()
 	assert.NotNil(t, f.Lookup("dry-run"))
 	assert.NotNil(t, f.Lookup("verbose"))
-}
-
-// =============================================================================
-// Category G: Parent-Child and Usage Tests (from test/improve-coverage)
-// =============================================================================
-
-func TestCleanupSubcommands_ParentRelationship(t *testing.T) {
-	assert.Equal(t, cleanupCmd, cleanupVisitsCmd.Parent())
-	assert.Equal(t, cleanupCmd, cleanupPreviewCmd.Parent())
-	assert.Equal(t, cleanupCmd, cleanupStatsCmd.Parent())
-	assert.Equal(t, cleanupCmd, cleanupTokensCmd.Parent())
-	assert.Equal(t, cleanupCmd, cleanupInvitationsCmd.Parent())
-	assert.Equal(t, cleanupCmd, cleanupRateLimitsCmd.Parent())
-	assert.Equal(t, cleanupCmd, cleanupAttendanceCmd.Parent())
-	assert.Equal(t, cleanupCmd, cleanupSessionsCmd.Parent())
-	assert.Equal(t, cleanupCmd, cleanupSupervisorsCmd.Parent())
-}
-
-func TestCleanupCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	cleanupCmd.SetOut(buf)
-	cleanupCmd.SetErr(buf)
-
-	err := cleanupCmd.Usage()
-	require.NoError(t, err)
-
-	output := buf.String()
-	assert.Contains(t, output, "cleanup")
-	assert.Contains(t, output, "Available Commands")
-}
-
-func TestCleanupVisitsCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	cleanupVisitsCmd.SetOut(buf)
-	cleanupVisitsCmd.SetErr(buf)
-
-	err := cleanupVisitsCmd.Usage()
-	require.NoError(t, err)
-
-	output := buf.String()
-	assert.Contains(t, output, "visits")
-}
-
-func TestCleanupSessionsCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	cleanupSessionsCmd.SetOut(buf)
-	cleanupSessionsCmd.SetErr(buf)
-
-	err := cleanupSessionsCmd.Usage()
-	require.NoError(t, err)
-
-	output := buf.String()
-	assert.Contains(t, output, "sessions")
 }

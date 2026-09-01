@@ -28,26 +28,24 @@ import (
 func TestFlowF_GDPRCleanup(t *testing.T) {
 	t.Parallel()
 
-	s := newScenario(t)
-	defer s.teardown()
+	today := timezone.NewDate(2030, 8, 30)
+	s := setupTimetableScenarioModule(t, func() time.Time {
+		return today.BerlinMidnight().Add(12 * time.Hour)
+	})
 
 	// --- Fixtures: students, room, old + fresh instances -------------------
 	room := testpkg.CreateTestRoom(t, s.db, "FlowF-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	studA := testpkg.CreateTestStudent(t, s.db, "Anna", "FlowF", "3a")
 	studB := testpkg.CreateTestStudent(t, s.db, "Bob", "FlowF", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	// Old instance: 60 days ago. Should be deleted.
-	oldDate := timezone.TodayDate().AddDays(-60)
+	oldDate := today.AddDays(-60)
 	// Fresh instance: 5 days ago. Should survive.
-	freshDate := timezone.TodayDate().AddDays(-5)
+	freshDate := today.AddDays(-5)
 
 	// Old exception on a separate past date (template scope; no student audit).
-	oldExceptionDate := timezone.TodayDate().AddDays(-70)
+	oldExceptionDate := today.AddDays(-70)
 
 	oldInstance := testpkg.CreateTestActivityInstance(t, s.db, oldDate, room.ID,
 		testpkg.ActivityInstanceOpts{Title: "FlowF-Old", IsSpontaneous: true})
@@ -71,10 +69,6 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// Fresh instance also has a student; must survive.
 	_ = testpkg.CreateTestInstanceStudent(t, s.db, freshInstance.ID, studA.ID, "")
 
-	// Cleanup registration — old instance IDs may vanish, but re-registration
-	// is idempotent from the teardown order's perspective (DELETEs skip).
-	s.registerCleanup("schedule.activity_instances", oldInstance.ID, freshInstance.ID)
-
 	// Old exception (template-scoped cleanup).
 	oldExc := &scheduleModel.ActivityException{
 		ActivityGroupID: 0, // doesn't reference a real template; tenant-scope + date drive the delete
@@ -91,21 +85,18 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 		roomID:     room.ID,
 		staffIDs:   []int64{studAStaffProxy(t, s)}, // need at least one staff for buildTemplate
 		studentIDs: []int64{},
+		validFrom:  today.AddDays(-100),
 	})
 	oldExc.ActivityGroupID = tmpl.group.ID
 	_, err = s.db.NewInsert().Model(oldExc).
 		ModelTableExpr(`schedule.activity_exceptions`).Exec(s.tenantCtx())
 	require.NoError(t, err, "insert old activity_exception")
-	// Exception cleanup is FK'd to template: if cleanup doesn't reach it,
-	// teardown will. Register explicitly so we don't leak.
-	s.registerCleanup("schedule.activity_exceptions", oldExc.ID)
-
 	// --- Set retention to 30 days via the settings service ----------------
 	setRetentionDays(t, s, 30)
 
 	// --- Preview first (dry-run) ------------------------------------------
 	preview := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
-		return s.factory.TimetableCleanup.PreviewExpiredTimetableData(ctx)
+		return s.previewTimetableCleanup(ctx)
 	}).(*scheduleSvc.TimetableCleanupPreview)
 	assert.GreaterOrEqual(t, preview.InstancesToDelete, 1,
 		"at least the old instance is previewed for delete")
@@ -115,7 +106,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 
 	// --- Run the actual cleanup -------------------------------------------
 	result := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
-		return s.factory.TimetableCleanup.CleanupExpiredTimetableData(ctx)
+		return s.cleanupTimetable(ctx)
 	}).(*scheduleSvc.TimetableCleanupResult)
 
 	assert.True(t, result.Success)
@@ -140,7 +131,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 
 	// --- Idempotency: second run deletes nothing --------------------------
 	result2 := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
-		return s.factory.TimetableCleanup.CleanupExpiredTimetableData(ctx)
+		return s.cleanupTimetable(ctx)
 	}).(*scheduleSvc.TimetableCleanupResult)
 	assert.True(t, result2.Success)
 	assert.Equal(t, 0, result2.InstancesDeleted, "idempotent: nothing left to delete")
@@ -151,21 +142,14 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// Seed an old instance in T2; run cleanup there; verify T1 fresh
 	// instance is still intact.
 	t2Scope := tenant.WithTenantID(context.Background(), s.secondaryTenant)
-	err = tenant.WithTenantTx(t2Scope, s.db, s.secondaryTenant, func(ctx context.Context, _ bun.Tx) error {
-		_, err := s.factory.TimetableCleanup.CleanupExpiredTimetableData(ctx)
+	err = testpkg.WithTenantTx(t, t2Scope, s.db, s.secondaryTenant, func(ctx context.Context, _ bun.Tx) error {
+		_, err := s.cleanupTimetable(ctx)
 		return err
 	})
 	require.NoError(t, err, "T2 cleanup ran cleanly")
 	assert.True(t, instanceExists(t, s, freshInstance.ID),
 		"T1 fresh instance untouched after T2 cleanup")
 
-	// cleanup: wipe audit rows we created so teardown doesn't report them
-	// from stale state.
-	_, _ = s.db.NewDelete().
-		TableExpr("audit.data_deletions").
-		Where("tenant_id = ?", s.primaryTenant).
-		Where("student_id IN (?, ?)", studA.ID, studB.ID).
-		Exec(s.tenantCtx())
 }
 
 // runInTenantTx wraps fn in WithTenantTx against the primary tenant and
@@ -173,7 +157,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 func runInTenantTx(t *testing.T, s *scenario, fn func(ctx context.Context) (any, error)) any {
 	t.Helper()
 	var out any
-	err := tenant.WithTenantTx(context.Background(), s.db, s.primaryTenant,
+	err := testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {
 			res, err := fn(ctx)
 			out = res
@@ -191,18 +175,11 @@ func setRetentionDays(t *testing.T, s *scenario, days int) {
 		permissions.ConfigManage,
 		permissions.ConfigUpdate,
 	}
-	err := tenant.WithTenantTx(context.Background(), s.db, s.primaryTenant,
+	err := testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {
-			return s.factory.Settings.SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
+			return s.resource.SettingsService.SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
 		})
 	require.NoError(t, err, "set gdpr.timetable_retention_days=%d", days)
-	s.extraCleanup = append(s.extraCleanup, func() {
-		// Reset the override so a subsequent test sees the registry default.
-		_ = tenant.WithTenantTx(context.Background(), s.db, s.primaryTenant,
-			func(ctx context.Context, _ bun.Tx) error {
-				return s.factory.Settings.ResetValue(ctx, "gdpr.timetable_retention_days", nil, perms)
-			})
-	})
 }
 
 // studAStaffProxy creates a single staff member used only to satisfy
@@ -211,8 +188,6 @@ func setRetentionDays(t *testing.T, s *scenario, days int) {
 func studAStaffProxy(t *testing.T, s *scenario) int64 {
 	t.Helper()
 	st := testpkg.CreateTestStaff(t, s.db, "FlowF", fmt.Sprintf("Proxy-%d", time.Now().UnixNano()))
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 	return st.ID
 }
 

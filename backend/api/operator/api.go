@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -37,6 +38,7 @@ type Resource struct {
 
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
+	AppEnv                     string
 	AuthService                platformSvc.OperatorAuthService
 	PasskeyService             platformSvc.OperatorPasskeyService
 	MFAService                 platformSvc.OperatorMFAService
@@ -119,6 +121,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		tokenAuth:             tokenAuth,
 		operatorLookup:        cfg.AuthService,
 	}
+	resource.provisioningResource.appEnv = cfg.AppEnv
 	if cfg.SettingsService != nil {
 		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService, cfg.CareLifecycle)
 	}
@@ -215,7 +218,9 @@ func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(RequiresOperatorScope)
+		r.Use(common.SecurityPrincipalMiddleware)
 		r.Use(RequiresActiveOperator(rs.operatorLookup))
 
 		rs.mountPasskeyRoutes(r)

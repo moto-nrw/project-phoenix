@@ -21,9 +21,9 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type settingValuesQueryCounter struct {
@@ -41,16 +41,15 @@ func (c *settingValuesQueryCounter) BeforeQuery(ctx context.Context, event *bun.
 
 func (*settingValuesQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
 
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
-	db, svc := testutil.SetupAPITest(t)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = authRoute.SettingsService
 
 	// The blanket attachment in api/base.go is what production requests run
 	// through; mirror it here so the request cache is present.

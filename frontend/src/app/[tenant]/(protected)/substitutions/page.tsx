@@ -1,810 +1,966 @@
 "use client";
 
-import { Clock } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { CalendarClock, Clock, Repeat2, UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { type ReactNode, Suspense, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 
+import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { Alert } from "~/components/ui/alert";
-import { Avatar } from "~/components/ui/avatar";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
+import { InfoCard } from "~/components/ui/info-card";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import {
-  SkeletonRegion,
-  PageHeaderSkeleton,
-  ListSkeleton,
-} from "~/components/ui/page-skeletons";
-import type {
-  ActiveFilter,
-  FilterConfig,
-} from "~/components/ui/page-header/types";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { PageHeader } from "~/components/ui/page-header/PageHeader";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useToast } from "~/contexts/ToastContext";
-import { groupService } from "~/lib/api";
-import type { Group } from "~/lib/api";
-import { formatDate, toISODate } from "~/lib/date-helpers";
-import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { readableApiMessage } from "~/lib/api-error-message";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type {
+  RunningSupervision,
+  ScheduleSubstitutionOverview,
   Substitution,
-  TeacherAvailability,
+  SubstitutionOverview,
 } from "~/lib/substitution-helpers";
-import {
-  formatTeacherName,
-  getTeacherStatus,
-} from "~/lib/substitution-helpers";
-import { useImmutableSWR, useSWRAuth } from "~/lib/swr";
+import { useSWRAuth } from "~/lib/swr";
 import { useOpenCareGroupMode } from "~/lib/tenant-context";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "SubstitutionsPage" });
 
-/** Wert des Dauer-Umschalters, der das freie Zahlenfeld einblendet. */
-const CUSTOM_DURATION = "custom";
+const EMPTY_OVERVIEW: SubstitutionOverview = {
+  groups: [],
+  groupHandovers: [],
+  targets: [],
+  runningSupervisions: [],
+};
 
-/**
- * Voreinstellungen des Dauer-Umschalters. Die Werte sind Tageszahlen, weil der
- * erste Tag mitzählt: "Heute" ist ein Tag, nicht null.
- */
-const DURATION_PRESETS = [
-  { value: "1", label: "Heute" },
-  { value: "3", label: "3 Tage" },
-  { value: "7", label: "1 Woche" },
-  { value: CUSTOM_DURATION, label: "Individuell" },
-];
+type ScheduleSectionProps = Readonly<{
+  overview: ScheduleSubstitutionOverview | undefined;
+  canRead: boolean;
+  canManage: boolean;
+  hrefFor: (appointmentId?: string) => string;
+}>;
 
-const MAX_DURATION_DAYS = 365;
+type GroupSectionProps = Readonly<{
+  overview: SubstitutionOverview;
+  openCare: boolean;
+  onAssign: () => void;
+  onEnd: (handover: Substitution) => void;
+}>;
 
-/**
- * Enddatum eines heute beginnenden Zugriffs. Der Starttag zählt mit, ein
- * Zugriff über einen Tag endet also heute — dieselbe Rechnung, die auch an das
- * Backend geht.
- */
-function accessEndDate(days: number): Date {
-  const end = new Date();
-  end.setDate(end.getDate() + days - 1);
-  return end;
-}
+type AssignmentFieldsProps = Readonly<{
+  overview: SubstitutionOverview;
+  admin: boolean;
+  values: {
+    groupId: string;
+    staffId: string;
+    today: string;
+    start: string;
+    end: string;
+  };
+  setters: {
+    group: (value: string) => void;
+    staff: (value: string) => void;
+    start: (value: string) => void;
+    end: (value: string) => void;
+  };
+}>;
 
-function getSubstituteName(
-  teachers: TeacherAvailability[],
-  substitution: Substitution,
-): string {
-  const substituteTeacher = teachers.find(
-    (t) => t.id === substitution.substituteStaffId,
-  );
-  return substituteTeacher
-    ? formatTeacherName(substituteTeacher)
-    : (substitution.substituteStaffName ?? "Unbekannt");
-}
+type GroupAssignmentModalProps = Readonly<{
+  isOpen: boolean;
+  overview: SubstitutionOverview;
+  admin: boolean;
+  saving: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (
+    groupId: string,
+    staffId: string,
+    start: string,
+    end: string,
+  ) => void;
+}>;
 
-/**
- * Meta-Zeile unter einem Namen oder Gruppennamen: durch Mittelpunkte getrennte
- * Textstücke, leere Werte fallen weg.
- *
- * Bewusst ohne farbige Pillen. Eine getönte Pille ist im Produkt einem echten
- * Ausnahmezustand vorbehalten (etwa "Abwesend" in der Mitarbeiterliste); hier
- * hätte fast jede Zeile eine getragen, die meisten davon für den Normalfall
- * "Verfügbar". Farbe, die auf jeder Zeile steht, unterscheidet nichts mehr und
- * macht aus einer Arbeitsliste ein Schaubild.
- */
-function MetaLine({ parts }: Readonly<{ parts: (string | null)[] }>) {
-  const visible = parts.filter((part): part is string => Boolean(part));
-  if (visible.length === 0) return null;
-
+function RunningSection({
+  rows,
+  onAssign,
+}: Readonly<{
+  rows: RunningSupervision[];
+  onAssign: (activeGroupId: string) => void;
+}>) {
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        variant="compact"
+        title="Keine laufenden Betreuungen"
+        description="Zurzeit läuft keine Betreuung in Ihrem Sichtbereich."
+      />
+    );
+  }
   return (
-    <p className="mt-1 truncate text-xs text-gray-500">
-      {visible.map((part, index) => (
-        <span key={part}>
-          {index > 0 && <span className="mx-1.5 text-gray-300">·</span>}
-          {part}
-        </span>
+    <ul className="divide-y divide-gray-200">
+      {rows.map((row) => (
+        <RunningRow key={row.id} row={row} onAssign={onAssign} />
       ))}
-    </p>
-  );
-}
-
-/** Gemeinsame Listenfläche: eine weiße Karte mit Trennlinien statt einzelner Karten. */
-function ListSurface({ children }: Readonly<{ children: ReactNode }>) {
-  return (
-    <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border">
-      {children}
     </ul>
   );
 }
 
-function SectionHeading({
-  icon,
-  title,
-  count,
-  hint,
+function RunningRow({
+  row,
+  onAssign,
 }: Readonly<{
-  icon: ReactNode;
-  title: string;
-  count: number;
-  hint?: string;
+  row: RunningSupervision;
+  onAssign: (activeGroupId: string) => void;
 }>) {
+  const details = [
+    row.roomName,
+    row.supervisors.map((staff) => staff.fullName).join(", "),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2 md:mb-4">
-      <span className="text-gray-500" aria-hidden="true">
-        {icon}
-      </span>
-      <h2 className="text-base font-semibold text-gray-900 md:text-lg">
-        {title}
-      </h2>
-      <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-100 px-2 text-xs font-semibold text-gray-700 tabular-nums">
-        {count}
-      </span>
-      {hint ? <span className="text-xs text-gray-500">{hint}</span> : null}
-    </div>
-  );
-}
-
-/**
- * Eine Zeile in den beiden Zugriffs-Abschnitten. Die Art des Zugriffs steht
- * schon in der Abschnittsüberschrift, deshalb trägt die Zeile sie nicht noch
- * einmal als Kennzeichnung; nur das Enddatum kommt hinzu, wo es eines gibt.
- */
-function AccessRow({
-  groupName,
-  personName,
-  until,
-  onEnd,
-  disabled,
-}: Readonly<{
-  groupName: string;
-  personName: string;
-  until: string | null;
-  onEnd: () => void;
-  disabled: boolean;
-}>) {
-  return (
-    <li className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <li className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-gray-900">
-          {groupName}
-        </p>
-        <MetaLine parts={[`Zugriff für ${personName}`, until]} />
+        <p className="truncate text-sm font-medium text-gray-900">{row.name}</p>
+        <p className="mt-1 text-xs text-gray-500">{details}</p>
       </div>
-      <Button
-        type="button"
-        variant="outline_danger"
-        size="md"
-        onClick={onEnd}
-        disabled={disabled}
-        aria-label={`Zugriff von ${personName} auf ${groupName} beenden`}
-        className="w-full sm:w-auto"
-      >
-        Beenden
-      </Button>
+      {row.canAssign ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={() => onAssign(row.id)}
+        >
+          <UserPlus className="h-4 w-4" aria-hidden="true" />
+          Betreuer hinzufügen
+        </Button>
+      ) : (
+        <p className="text-xs text-gray-500">
+          Nur zuständige Personen können jemanden hinzufügen.
+        </p>
+      )}
     </li>
   );
 }
 
-function SubstitutionPageContent() {
-  const router = useTenantRouter();
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.push("/");
-    },
-  });
-
-  // Gruppenzugriff ist nur bei festen Gruppen sinnvoll (#1940); bei offener
-  // Betreuung arbeiten ohnehin alle Berechtigten mit allen Kindern. Die
-  // Navigation blendet den Eintrag aus, das hier fängt Direktaufrufe ab.
-  const openCareGroupMode = useOpenCareGroupMode();
-
-  // Der Seitenkopf trägt den Titel nur im Telefonformat; auf breiten Schirmen
-  // steht er bereits in der Kopfleiste der Anwendung.
-  const isMobile = useMediaQuery(BELOW_MD);
-
-  const { success: showSuccessToast } = useToast();
-
-  const {
-    data: teachers = [],
-    isLoading: teachersLoading,
-    error: teachersError,
-    mutate: mutateTeachers,
-  } = useSWRAuth<TeacherAvailability[]>(
-    "substitution-teachers",
-    () => substitutionService.fetchAvailableTeachers(new Date()),
-    { keepPreviousData: true },
-  );
-
-  const { data: groups = [] } = useImmutableSWR<Group[]>(
-    "substitution-groups",
-    () => groupService.getGroups(),
-  );
-
-  const { data: activeSubstitutions = [], mutate: mutateActiveSubstitutions } =
-    useSWRAuth<Substitution[]>(
-      "active-substitutions",
-      () => substitutionService.fetchActiveSubstitutions(new Date()),
-      { keepPreviousData: true },
-    );
-
-  // UI-Zustand
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [isMutating, setIsMutating] = useState(false);
-
-  // Ladefehler gehören auf die Seite, Fehler einer Aktion in den Dialog, in dem
-  // die Aktion ausgelöst wurde. Vorher war das eine gemeinsame Variable, wodurch
-  // ein Ladefehler mitten im Zuweisen-Dialog auftauchte.
-  const [mutationError, setMutationError] = useState<string | null>(null);
-
-  // Zuweisen-Dialog
-  const [showPopup, setShowPopup] = useState(false);
-  const [selectedTeacher, setSelectedTeacher] =
-    useState<TeacherAvailability | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [durationPreset, setDurationPreset] = useState("1");
-  const [customDays, setCustomDays] = useState(2);
-
-  // Beenden-Bestätigung
-  const [showEndConfirmation, setShowEndConfirmation] = useState(false);
-  const [substitutionToEnd, setSubstitutionToEnd] = useState<{
-    id: string;
-    groupName: string;
-    teacherName: string;
-  } | null>(null);
-
-  const isLoading = teachersLoading;
-  const loadError = teachersError ? "Fehler beim Laden der Daten." : null;
-
-  const substitutionDays =
-    durationPreset === CUSTOM_DURATION ? customDays : Number(durationPreset);
-
-  const filteredTeachers = useMemo(() => {
-    let filtered = [...teachers];
-
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter((teacher) => {
-        const checks = [
-          formatTeacherName(teacher).toLowerCase().includes(searchLower),
-          teacher.role?.toLowerCase().includes(searchLower),
-          teacher.regularGroup?.toLowerCase().includes(searchLower),
-        ];
-        return checks.some(Boolean);
-      });
-    }
-
-    if (statusFilter !== "all") {
-      const isInSubstitution = statusFilter === "substitution";
-      filtered = filtered.filter(
-        (teacher) => teacher.inSubstitution === isInSubstitution,
-      );
-    }
-
-    return filtered;
-  }, [teachers, searchTerm, statusFilter]);
-
-  const openSubstitutionPopup = (teacher: TeacherAvailability) => {
-    setSelectedTeacher(teacher);
-    setSelectedGroupId("");
-    setDurationPreset("1");
-    setCustomDays(2);
-    setMutationError(null);
-    setShowPopup(true);
-  };
-
-  const closePopup = () => {
-    setShowPopup(false);
-    setSelectedTeacher(null);
-    setMutationError(null);
-  };
-
-  const handleAssignSubstitution = async () => {
-    if (!selectedTeacher || !selectedGroupId) {
-      setMutationError("Bitte wähle eine Gruppe aus.");
-      return;
-    }
-
-    const group = groups.find((g) => g.id === selectedGroupId);
-    if (!group) {
-      setMutationError("Gruppe nicht gefunden.");
-      return;
-    }
-
-    try {
-      setIsMutating(true);
-      setMutationError(null);
-
-      // Kein regular_staff_id: der Zugriff ersetzt niemanden, er kommt zusätzlich
-      // zu den bestehenden Berechtigungen der Gruppe.
-      const regularStaffId = null;
-
-      await substitutionService.createSubstitution(
-        group.id,
-        regularStaffId,
-        selectedTeacher.id,
-        new Date(),
-        accessEndDate(substitutionDays),
-        "Gruppenzugriff",
-        `Gruppenzugriff für ${substitutionDays} Tag(e)`,
-      );
-
-      await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
-
-      const teacherName = formatTeacherName(selectedTeacher);
-      const days = substitutionDays > 1 ? `${substitutionDays} Tage` : "1 Tag";
-      showSuccessToast(
-        `Zugriff auf "${group.name}" für ${teacherName} gewährt (${days})`,
-      );
-
-      closePopup();
-    } catch (err) {
-      logger.error("failed to create substitution", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setMutationError("Fehler beim Gewähren des Zugriffs.");
-    } finally {
-      setIsMutating(false);
-    }
-  };
-
-  const handleEndSubstitutionClick = (
-    substitutionId: string,
-    groupName: string,
-    teacherName: string,
-  ) => {
-    setMutationError(null);
-    setSubstitutionToEnd({ id: substitutionId, groupName, teacherName });
-    setShowEndConfirmation(true);
-  };
-
-  const confirmEndSubstitution = async () => {
-    if (!substitutionToEnd) return;
-
-    try {
-      setIsMutating(true);
-      setMutationError(null);
-      await substitutionService.deleteSubstitution(substitutionToEnd.id);
-
-      await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
-
-      showSuccessToast(`Zugriff auf "${substitutionToEnd.groupName}" beendet`);
-
-      setShowEndConfirmation(false);
-      setSubstitutionToEnd(null);
-    } catch (err) {
-      logger.error("failed to end substitution", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setMutationError("Fehler beim Beenden des Zugriffs.");
-    } finally {
-      setIsMutating(false);
-    }
-  };
-
-  const filterConfigs: FilterConfig[] = useMemo(
-    () => [
-      {
-        id: "status",
-        label: "Status",
-        type: "buttons",
-        value: statusFilter,
-        onChange: (value) => setStatusFilter(value as string),
-        options: [
-          { value: "all", label: "Alle" },
-          { value: "available", label: "Verfügbar" },
-          { value: "substitution", label: "Hat Zugriff" },
-        ],
-      },
-    ],
-    [statusFilter],
-  );
-
-  const activeFilters: ActiveFilter[] = useMemo(() => {
-    const filters: ActiveFilter[] = [];
-
-    if (searchTerm) {
-      filters.push({
-        id: "search",
-        label: `"${searchTerm}"`,
-        onRemove: () => setSearchTerm(""),
-      });
-    }
-
-    if (statusFilter !== "all") {
-      const statusLabels = {
-        available: "Verfügbar",
-        substitution: "Hat Zugriff",
-      };
-      filters.push({
-        id: "status",
-        label:
-          statusLabels[statusFilter as keyof typeof statusLabels] ??
-          statusFilter,
-        onRemove: () => setStatusFilter("all"),
-      });
-    }
-
-    return filters;
-  }, [searchTerm, statusFilter]);
-
-  if (status === "loading") {
-    return <SubstitutionPageSkeleton />;
-  }
-
-  if (openCareGroupMode) {
+function ScheduleSection({
+  overview,
+  canRead,
+  canManage,
+  hrefFor,
+}: ScheduleSectionProps) {
+  if (!canRead) {
     return (
-      <div className="moto-content-surface mx-auto mt-8 max-w-lg rounded-2xl border p-6 text-center shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Gruppenzugriff nicht verfügbar
-        </h2>
-        <p className="mt-2 text-sm text-gray-600">
-          Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle
-          berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein
-          temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen
-          Gruppen“ kann in den Einstellungen geändert werden.
+      <EmptyState
+        variant="compact"
+        title="Keine Terminvertretungen verfügbar"
+        description="Bitten Sie einen Admin um Zugriff auf Terminvertretungen."
+      />
+    );
+  }
+  const appointments = (overview?.appointments ?? []).filter((appointment) =>
+    appointment.staff.some((staff) => staff.isAbsent || staff.isSubstitute),
+  );
+  if (appointments.length === 0) {
+    return (
+      <EmptyState
+        variant="compact"
+        title="Heute keine Terminvertretungen"
+        description="Für heute ist keine Vertretung eingetragen."
+      />
+    );
+  }
+  return (
+    <ul className="divide-y divide-gray-200">
+      {appointments.map((appointment) => (
+        <ScheduleRow
+          key={appointment.id}
+          appointment={appointment}
+          canManage={canManage}
+          href={hrefFor(appointment.id)}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function ScheduleRow({
+  appointment,
+  canManage,
+  href,
+}: Readonly<{
+  appointment: ScheduleSubstitutionOverview["appointments"][number];
+  canManage: boolean;
+  href: string;
+}>) {
+  const people = appointment.staff
+    .filter((staff) => staff.isAbsent || staff.isSubstitute)
+    .map((staff) => staff.name)
+    .join(", ");
+  return (
+    <li className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-gray-900">
+          {appointment.title}
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          {appointment.startTime}–{appointment.endTime} Uhr · {people}
         </p>
       </div>
+      {canManage ? (
+        <ButtonLink variant="outline" size="md" href={href}>
+          Vertretung eintragen
+        </ButtonLink>
+      ) : (
+        <p className="text-xs text-gray-500">
+          Ein Admin kann die Vertretung eintragen.
+        </p>
+      )}
+    </li>
+  );
+}
+
+function GroupSection(props: GroupSectionProps) {
+  const { overview, openCare, onAssign, onEnd } = props;
+  if (openCare) {
+    return (
+      <EmptyState
+        variant="compact"
+        title="Keine Gruppenübergabe nötig"
+        description="Diese Schule arbeitet ohne feste Gruppen."
+      />
     );
   }
-
-  const transfers = activeSubstitutions.filter((s) => s.isTransfer);
-  const longTermAccess = activeSubstitutions.filter((s) => !s.isTransfer);
-
-  const renderTeacherList = () => {
-    if (isLoading) {
-      return (
-        <SkeletonRegion label="Fachkräfte werden geladen…">
-          <ListSkeleton rows={6} />
-        </SkeletonRegion>
-      );
-    }
-
-    if (filteredTeachers.length === 0) {
-      return (
+  return (
+    <div className="space-y-4">
+      {overview.groups.length > 0 && overview.targets.length > 0 ? (
+        <Button type="button" variant="outline" size="md" onClick={onAssign}>
+          Gruppe übergeben
+        </Button>
+      ) : overview.groups.length === 0 ? (
+        <p className="text-sm text-gray-600">
+          Keine Gruppe verfügbar. Ein Admin kann Gruppenleitungen verwalten.
+        </p>
+      ) : (
+        <p className="text-sm text-gray-600">
+          Keine andere Betreuungskraft verfügbar. Ein Admin kann Mitarbeitende
+          verwalten.
+        </p>
+      )}
+      {overview.groupHandovers.length === 0 ? (
         <EmptyState
-          icon={<MotoConceptIcon concept="staff" size={48} />}
-          title="Keine Fachkräfte gefunden"
-          description="Versuche deine Suchkriterien anzupassen."
+          variant="compact"
+          title="Keine Gruppenübergaben"
+          description="Zurzeit ist keine Gruppe übergeben."
         />
-      );
-    }
+      ) : (
+        <ul className="divide-y divide-gray-200">
+          {overview.groupHandovers.map((handover) => (
+            <HandoverRow key={handover.id} handover={handover} onEnd={onEnd} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
-    return (
-      <ListSurface>
-        {filteredTeachers.map((teacher) => {
-          const name = formatTeacherName(teacher);
-          return (
-            <li
-              key={teacher.id}
-              className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <Avatar name={name} size="md" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-900">
-                    {name}
-                  </p>
-                  {/* "Verfügbar" ist der Normalfall und bekommt keine eigene
-                      Auszeichnung: wo nichts steht, ist nichts zugewiesen. */}
-                  <MetaLine
-                    parts={[
-                      teacher.regularGroup ?? null,
-                      teacher.substitutionCount > 0
-                        ? getTeacherStatus(teacher)
-                        : null,
-                    ]}
-                  />
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => openSubstitutionPopup(teacher)}
-                aria-label={`${name} Zugriff auf eine Gruppe geben`}
-                className="w-full sm:w-auto"
-              >
-                Zuweisen
-              </Button>
-            </li>
-          );
-        })}
-      </ListSurface>
-    );
-  };
+function HandoverRow({
+  handover,
+  onEnd,
+}: Readonly<{
+  handover: Substitution;
+  onEnd: (handover: Substitution) => void;
+}>) {
+  return (
+    <li className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-gray-900">
+          {handover.groupName}
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          Übergeben an {handover.substituteStaffName} · bis{" "}
+          {formatDate(handover.endDate, true)}
+        </p>
+      </div>
+      {handover.canEnd ? (
+        <Button
+          type="button"
+          variant="outline_danger"
+          size="md"
+          onClick={() => onEnd(handover)}
+        >
+          Beenden
+        </Button>
+      ) : null}
+    </li>
+  );
+}
 
-  const renderAccessSection = (
-    substitutions: Substitution[],
-    emptyText: string,
-    untilFor: (substitution: Substitution) => string | null,
-  ) => {
-    // Eine leere Liste bekommt dieselbe Fläche wie eine gefüllte, damit der
-    // Abschnitt nicht als freischwebender Text im Raster steht. Bewusst knapp:
-    // das ist eine Liste ohne Einträge, kein leerer Seitenbereich, für den
-    // EmptyState mit seiner grossen zentrierten Überschrift gedacht ist.
-    if (substitutions.length === 0) {
-      return (
-        <div className="moto-content-surface rounded-2xl border p-4 text-sm text-gray-500">
-          {emptyText}
-        </div>
-      );
-    }
+function LabeledSelect({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+}: Readonly<{
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ id: string; name: string }>;
+}>) {
+  return (
+    <div>
+      <label
+        id={`${id}-label`}
+        htmlFor={id}
+        className="mb-2 block text-sm font-medium text-gray-700"
+      >
+        {label}
+      </label>
+      <CustomSelect
+        id={id}
+        ariaLabelledBy={`${id}-label`}
+        value={value}
+        onChange={onChange}
+        placeholder={`${label} auswählen...`}
+        options={options.map((option) => ({
+          value: option.id,
+          label: option.name,
+        }))}
+      />
+    </div>
+  );
+}
 
-    return (
-      <ListSurface>
-        {substitutions.map((substitution) => {
-          const group = groups.find((g) => g.id === substitution.groupId);
-          if (!group) return null;
+function LabeledDate({
+  id,
+  label,
+  value,
+  min,
+  onChange,
+}: Readonly<{
+  id: string;
+  label: string;
+  value: string;
+  min: string;
+  onChange: (value: string) => void;
+}>) {
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-2 block text-sm font-medium text-gray-700"
+      >
+        {label}
+      </label>
+      <Input
+        id={id}
+        name={id}
+        type="date"
+        min={min}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
 
-          const substituteName = getSubstituteName(teachers, substitution);
+function AdminPeriodFields({
+  today,
+  start,
+  end,
+  onStart,
+  onEnd,
+}: Readonly<{
+  today: string;
+  start: string;
+  end: string;
+  onStart: (value: string) => void;
+  onEnd: (value: string) => void;
+}>) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <LabeledDate
+        id="handover-start"
+        label="Startdatum"
+        value={start}
+        min={today}
+        onChange={onStart}
+      />
+      <LabeledDate
+        id="handover-end"
+        label="Enddatum"
+        value={end}
+        min={start}
+        onChange={onEnd}
+      />
+    </div>
+  );
+}
 
-          return (
-            <AccessRow
-              key={substitution.id}
-              groupName={group.name}
-              personName={substituteName}
-              until={untilFor(substitution)}
-              disabled={isMutating}
-              onEnd={() =>
-                handleEndSubstitutionClick(
-                  substitution.id,
-                  group.name,
-                  substituteName,
-                )
-              }
-            />
-          );
-        })}
-      </ListSurface>
-    );
-  };
+function AssignmentFields(props: AssignmentFieldsProps) {
+  const { overview, admin, values, setters } = props;
+  return (
+    <>
+      <p className="text-sm text-gray-600">
+        {admin
+          ? "Wählen Sie die Gruppe, die Person und den Zeitraum."
+          : "Sie können nur eigene Gruppen für heute übergeben."}
+      </p>
+      <LabeledSelect
+        id="handover-group"
+        label="Gruppe"
+        value={values.groupId}
+        onChange={setters.group}
+        options={overview.groups}
+      />
+      <LabeledSelect
+        id="handover-staff"
+        label="Betreuungskraft"
+        value={values.staffId}
+        onChange={setters.staff}
+        options={overview.targets.map((target) => ({
+          id: target.id,
+          name: target.fullName,
+        }))}
+      />
+      {admin ? (
+        <AdminPeriodFields
+          today={values.today}
+          start={values.start}
+          end={values.end}
+          onStart={setters.start}
+          onEnd={setters.end}
+        />
+      ) : null}
+    </>
+  );
+}
 
-  const assignFooter = (
+function AssignmentFooter({
+  saving,
+  disabled,
+  onClose,
+  onSubmit,
+}: Readonly<{
+  saving: boolean;
+  disabled: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+}>) {
+  return (
     <>
       <Button
         type="button"
-        variant="outline"
+        variant="secondary"
         size="md"
-        onClick={closePopup}
-        disabled={isMutating}
+        onClick={onClose}
+        disabled={saving}
       >
         Abbrechen
       </Button>
       <Button
         type="button"
-        variant="primary"
         size="md"
-        onClick={() => void handleAssignSubstitution()}
-        isLoading={isMutating}
-        loadingText="Wird zugewiesen…"
-        disabled={!selectedGroupId || isMutating}
+        onClick={onSubmit}
+        disabled={disabled}
+        isLoading={saving}
+        loadingText="Wird übergeben…"
       >
         Zuweisen
       </Button>
     </>
   );
+}
 
+function useAssignmentForm(onSubmit: GroupAssignmentModalProps["onSubmit"]) {
+  const today = berlinTodayISO();
+  const [groupId, setGroupId] = useState("");
+  const [staffId, setStaffId] = useState("");
+  const [start, setStart] = useState(today);
+  const [end, setEnd] = useState(today);
+  const chooseStart = (value: string) => {
+    setStart(value);
+    if (end < value) setEnd(value);
+  };
+  return {
+    values: { groupId, staffId, today, start, end },
+    setters: {
+      group: setGroupId,
+      staff: setStaffId,
+      start: chooseStart,
+      end: setEnd,
+    },
+    submit: () => onSubmit(groupId, staffId, start, end),
+    complete: Boolean(groupId && staffId && end >= start),
+  };
+}
+
+function GroupAssignmentModal(props: GroupAssignmentModalProps) {
+  const form = useAssignmentForm(props.onSubmit);
+  const close = () => {
+    if (!props.saving) props.onClose();
+  };
+  return (
+    <Modal
+      isOpen={props.isOpen}
+      onClose={close}
+      title="Gruppe übergeben"
+      isDismissDisabled={props.saving}
+      footer={
+        <AssignmentFooter
+          saving={props.saving}
+          disabled={!form.complete || props.saving}
+          onClose={close}
+          onSubmit={form.submit}
+        />
+      }
+    >
+      <div className="space-y-5">
+        {props.error ? <Alert type="error" message={props.error} /> : null}
+        <AssignmentFields
+          overview={props.overview}
+          admin={props.admin}
+          values={form.values}
+          setters={form.setters}
+        />
+      </div>
+    </Modal>
+  );
+}
+
+function prioritizeRunning(rows: RunningSupervision[]) {
+  return [...rows].sort(
+    (a, b) =>
+      Number(b.isCurrentUserSupervising) - Number(a.isCurrentUserSupervising),
+  );
+}
+
+function useScheduleData(
+  session: Parameters<typeof hasPermission>[0],
+  today: string,
+) {
+  const canRead = hasPermission(session, "schedules:read");
+  const canManage = hasPermission(session, "schedules:manage");
+  const result = useSWRAuth<ScheduleSubstitutionOverview>(
+    canRead ? `substitution-schedule-${today}` : null,
+    () => substitutionService.fetchScheduleOverview(today, today),
+    { keepPreviousData: true },
+  );
+  return { ...result, canRead, canManage };
+}
+
+function useOverviewData(session: Parameters<typeof hasPermission>[0]) {
+  const tenantPath = useTenantAwarePath();
+  const today = berlinTodayISO();
+  const {
+    data: overview = EMPTY_OVERVIEW,
+    isLoading,
+    error,
+    mutate,
+  } = useSWRAuth<SubstitutionOverview>(
+    "substitution-overview",
+    () => substitutionService.fetchOverview(),
+    { keepPreviousData: true },
+  );
+  const schedule = useScheduleData(session, today);
+  const running = useMemo(
+    () => prioritizeRunning(overview.runningSupervisions),
+    [overview.runningSupervisions],
+  );
+  const scheduleHref = (id?: string) =>
+    tenantPath(`/vertretung?d=${today}${id ? `&block=${id}` : ""}`);
+  return {
+    overview,
+    isLoading,
+    error,
+    mutate,
+    schedule: schedule.data,
+    scheduleError: schedule.error,
+    scheduleLoading: schedule.isLoading,
+    running,
+    scheduleHref,
+    canReadSchedules: schedule.canRead,
+    canManageSchedules: schedule.canManage,
+  };
+}
+
+function refreshAfterMutation(refresh: () => Promise<unknown>) {
+  void refresh().catch((cause) => {
+    logger.error("group_handover_refresh_failed", { error: String(cause) });
+  });
+}
+
+function useAssignGroup(refresh: () => Promise<unknown>) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const assign = async (
+    groupId: string,
+    staffId: string,
+    start: string,
+    end: string,
+    onDone: () => void,
+  ) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await substitutionService.createSubstitution(
+        groupId,
+        staffId,
+        start,
+        end,
+      );
+      toast.success("Die Gruppe wurde übergeben.");
+      onDone();
+      refreshAfterMutation(refresh);
+    } catch (cause) {
+      logger.error("group_handover_assign_failed", { error: String(cause) });
+      setError(
+        readableApiMessage(cause) ??
+          "Die Gruppe konnte nicht übergeben werden.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  return { assign, saving, error, clearError: () => setError(null) };
+}
+
+function useEndGroup(refresh: () => Promise<unknown>) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const end = async (handover: Substitution, onDone: () => void) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await substitutionService.deleteSubstitution(handover.id);
+      toast.success("Die Übergabe wurde beendet.");
+      onDone();
+      refreshAfterMutation(refresh);
+    } catch (cause) {
+      logger.error("group_handover_end_failed", { error: String(cause) });
+      setError(
+        readableApiMessage(cause) ??
+          "Die Übergabe konnte nicht beendet werden.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  return { end, saving, error, clearError: () => setError(null) };
+}
+
+function RunningCard({
+  rows,
+  onAssign,
+}: Readonly<{ rows: RunningSupervision[]; onAssign: (id: string) => void }>) {
+  return (
+    <InfoCard
+      title="Laufende Betreuungen"
+      icon={<Clock className="h-5 w-5 text-gray-600" aria-hidden="true" />}
+    >
+      <p className="text-sm text-gray-600">
+        Hier sehen Sie laufende Aufsichten in Ihrem Sichtbereich.
+      </p>
+      <RunningSection rows={rows} onAssign={onAssign} />
+    </InfoCard>
+  );
+}
+
+function ScheduleCardContent({
+  data,
+}: Readonly<{ data: ReturnType<typeof useOverviewData> }>) {
+  if (data.scheduleError) {
+    return (
+      <Alert
+        type="error"
+        message="Terminvertretungen konnten nicht geladen werden."
+      />
+    );
+  }
+  if (data.scheduleLoading) {
+    return (
+      <SkeletonRegion label="Terminvertretungen werden geladen">
+        <ListSkeleton rows={2} />
+      </SkeletonRegion>
+    );
+  }
+  return (
+    <ScheduleSection
+      overview={data.schedule}
+      canRead={data.canReadSchedules}
+      canManage={data.canManageSchedules}
+      hrefFor={data.scheduleHref}
+    />
+  );
+}
+
+function ScheduleCard({
+  data,
+}: Readonly<{ data: ReturnType<typeof useOverviewData> }>) {
+  return (
+    <InfoCard
+      title="Termine"
+      icon={
+        <CalendarClock className="h-5 w-5 text-gray-600" aria-hidden="true" />
+      }
+    >
+      <p className="text-sm text-gray-600">
+        Hier sehen Sie Vertretungen für heutige Termine.
+      </p>
+      <ScheduleCardContent data={data} />
+      {data.canManageSchedules ? (
+        <ButtonLink
+          className="mt-auto self-start"
+          variant="ghost"
+          size="compact"
+          href={data.scheduleHref()}
+        >
+          Alle Termine öffnen
+        </ButtonLink>
+      ) : null}
+    </InfoCard>
+  );
+}
+
+function GroupCard({
+  overview,
+  openCare,
+  onAssign,
+  onEnd,
+}: Readonly<{
+  overview: SubstitutionOverview;
+  openCare: boolean;
+  onAssign: () => void;
+  onEnd: (handover: Substitution) => void;
+}>) {
+  return (
+    <InfoCard
+      title="Gruppen"
+      icon={<Repeat2 className="h-5 w-5 text-gray-600" aria-hidden="true" />}
+    >
+      <p className="text-sm text-gray-600">
+        Hier verwalten Sie zeitlich begrenzte Gruppenübergaben.
+      </p>
+      <GroupSection
+        overview={overview}
+        openCare={openCare}
+        onAssign={onAssign}
+        onEnd={onEnd}
+      />
+    </InfoCard>
+  );
+}
+
+function EndDialog({
+  handover,
+  action,
+  onClose,
+}: Readonly<{
+  handover: Substitution | null;
+  action: ReturnType<typeof useEndGroup>;
+  onClose: () => void;
+}>) {
+  return (
+    <ConfirmationModal
+      isOpen={handover !== null}
+      onClose={() => {
+        if (!action.saving) onClose();
+      }}
+      onConfirm={() => {
+        if (handover) void action.end(handover, onClose);
+      }}
+      title="Übergabe beenden?"
+      confirmText="Beenden"
+      cancelText="Abbrechen"
+      isConfirmLoading={action.saving}
+      isDismissDisabled={action.saving}
+    >
+      <div className="space-y-3 text-sm text-gray-600">
+        {action.error ? <Alert type="error" message={action.error} /> : null}
+        <p>Die Person ist danach nicht mehr für diese Gruppe zuständig.</p>
+        {handover ? (
+          <p className="font-medium text-gray-900">
+            {handover.groupName} · {handover.substituteStaffName}
+          </p>
+        ) : null}
+      </div>
+    </ConfirmationModal>
+  );
+}
+
+type PageOverlaysProps = Readonly<{
+  data: ReturnType<typeof useOverviewData>;
+  admin: boolean;
+  assignOpen: boolean;
+  runningId: string | null;
+  ending: Substitution | null;
+  assignAction: ReturnType<typeof useAssignGroup>;
+  endAction: ReturnType<typeof useEndGroup>;
+  closeAssign: () => void;
+  closeRunning: () => void;
+  closeEnding: () => void;
+}>;
+
+function PageOverlays(props: PageOverlaysProps) {
+  const { data, assignAction, endAction } = props;
   return (
     <>
-      <div className="-mt-1.5 w-full">
-        <PageHeaderWithSearch
-          title={isMobile ? "Gruppenzugriff" : ""}
-          badge={{
-            icon: <MotoConceptIcon concept="staff" size={20} />,
-            count: filteredTeachers.length,
-            label: "Fachkräfte",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Fachkraft suchen...",
-          }}
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setStatusFilter("all");
-          }}
+      {props.assignOpen ? (
+        <GroupAssignmentModal
+          isOpen
+          overview={data.overview}
+          admin={props.admin}
+          saving={assignAction.saving}
+          error={assignAction.error}
+          onClose={props.closeAssign}
+          onSubmit={(...args) =>
+            void assignAction.assign(...args, props.closeAssign)
+          }
         />
-
-        {loadError && (
-          <div className="mb-6">
-            <Alert type="error" message={loadError} />
-          </div>
-        )}
-
-        {/* Die Anzahl steht bereits im Zähler des Seitenkopfs, deshalb hier
-            eine schlichte Überschrift ohne Zählpille. */}
-        <div className="mb-6">
-          <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4 md:text-lg">
-            Verfügbare pädagogische Fachkräfte
-          </h2>
-          {renderTeacherList()}
-        </div>
-
-        <div className="space-y-6">
-          <section>
-            <SectionHeading
-              icon={<Clock className="h-5 w-5" />}
-              title="Tagesübergaben"
-              count={transfers.length}
-              hint="(enden heute 23:59)"
-            />
-            {/* Kein Enddatum: alle Zeilen dieses Abschnitts enden heute, das
-                steht bereits in der Überschrift. */}
-            {renderAccessSection(
-              transfers,
-              "Keine aktiven Tagesübergaben",
-              () => null,
-            )}
-          </section>
-
-          <section>
-            <SectionHeading
-              icon={<MotoConceptIcon concept="calendar" size={20} />}
-              title="Längerfristige Zugriffe"
-              count={longTermAccess.length}
-              hint="(mehrtägig)"
-            />
-            {renderAccessSection(
-              longTermAccess,
-              "Keine aktiven längerfristigen Zugriffe",
-              (substitution) =>
-                `bis ${substitution.endDate.toLocaleDateString("de-DE", {
-                  timeZone: "Europe/Berlin",
-                  day: "2-digit",
-                  month: "2-digit",
-                })}`,
-            )}
-          </section>
-        </div>
-      </div>
-
-      <Modal
-        isOpen={showPopup}
-        onClose={closePopup}
-        title="Zugriff gewähren"
-        footer={assignFooter}
-        isDismissDisabled={isMutating}
-      >
-        <div className="space-y-6">
-          {mutationError ? (
-            <Alert type="error" message={mutationError} />
-          ) : null}
-
-          <p className="text-sm text-gray-600">
-            <span className="font-medium text-gray-900">
-              {selectedTeacher ? formatTeacherName(selectedTeacher) : ""}
-            </span>{" "}
-            erhält zusätzlichen Zugriff auf die Kinder der gewählten Gruppe. Die
-            bestehenden Berechtigungen der Gruppe bleiben unverändert.
-          </p>
-
-          <div>
-            <label
-              id="substitution-group-select-label"
-              htmlFor="substitution-group-select"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              OGS-Gruppe auswählen
-            </label>
-            <CustomSelect
-              id="substitution-group-select"
-              ariaLabelledBy="substitution-group-select-label"
-              value={selectedGroupId}
-              onChange={setSelectedGroupId}
-              placeholder="Gruppe auswählen..."
-              options={[
-                { value: "", label: "Gruppe auswählen..." },
-                ...groups.map((group) => ({
-                  value: group.id,
-                  label: group.name,
-                })),
-              ]}
-            />
-          </div>
-
-          <div>
-            <p
-              id="substitution-duration-label"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Dauer
-            </p>
-            <Tabs value={durationPreset} onValueChange={setDurationPreset}>
-              <TabsList
-                variant="default"
-                aria-labelledby="substitution-duration-label"
-                className="h-auto flex-wrap"
-              >
-                {DURATION_PRESETS.map((preset) => (
-                  <TabsTrigger key={preset.value} value={preset.value}>
-                    {preset.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-
-            {durationPreset === CUSTOM_DURATION ? (
-              <div className="mt-3 max-w-40">
-                <Input
-                  id="substitution-days-input"
-                  name="substitution-days-input"
-                  type="number"
-                  min={1}
-                  max={MAX_DURATION_DAYS}
-                  controlSize="compact"
-                  aria-label="Anzahl der Tage"
-                  value={customDays}
-                  onChange={(e) => {
-                    const parsed = Number(e.target.value);
-                    if (!Number.isInteger(parsed)) return;
-
-                    setCustomDays(
-                      Math.min(MAX_DURATION_DAYS, Math.max(1, parsed)),
-                    );
-                  }}
-                />
-              </div>
-            ) : null}
-
-            <p className="mt-2 text-sm text-gray-500">
-              {substitutionDays === 1
-                ? "Zugriff nur für heute, endet um 23:59 Uhr."
-                : `Zugriff bis ${formatDate(toISODate(accessEndDate(substitutionDays)), true)}, 23:59 Uhr.`}
-            </p>
-          </div>
-        </div>
-      </Modal>
-
-      <ConfirmationModal
-        isOpen={showEndConfirmation}
-        onClose={() => {
-          setShowEndConfirmation(false);
-          setSubstitutionToEnd(null);
-          setMutationError(null);
-        }}
-        onConfirm={() => void confirmEndSubstitution()}
-        title="Zugriff beenden?"
-        confirmText="Beenden"
-        cancelText="Abbrechen"
-        isConfirmLoading={isMutating}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red/90"
-      >
-        {substitutionToEnd && (
-          <div className="space-y-4">
-            {mutationError ? (
-              <Alert type="error" message={mutationError} />
-            ) : null}
-            <p className="text-sm text-gray-600">
-              Möchtest du den Zugriff wirklich beenden? Die Person sieht die
-              Kinder der Gruppe danach nicht mehr.
-            </p>
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium text-gray-900">Gruppe:</span>{" "}
-                {substitutionToEnd.groupName}
-              </p>
-              <p className="mt-1 text-sm text-gray-600">
-                <span className="font-medium text-gray-900">Zugriff für:</span>{" "}
-                {substitutionToEnd.teacherName}
-              </p>
-            </div>
-          </div>
-        )}
-      </ConfirmationModal>
+      ) : null}
+      {props.runningId ? (
+        <AddSupervisorModal
+          activeGroupId={props.runningId}
+          isOpen
+          onClose={props.closeRunning}
+          onAdded={data.mutate}
+        />
+      ) : null}
+      <EndDialog
+        handover={props.ending}
+        action={endAction}
+        onClose={props.closeEnding}
+      />
     </>
   );
 }
 
-function SubstitutionPageSkeleton() {
+type OverviewContentProps = Readonly<{
+  data: ReturnType<typeof useOverviewData>;
+  openCare: boolean;
+  onAssignGroup: () => void;
+  onAssignRunning: (id: string) => void;
+  onEndGroup: (handover: Substitution) => void;
+}>;
+
+function OverviewContent(props: OverviewContentProps) {
+  if (props.data.error?.name === "SubstitutionAccessError") {
+    return <ForbiddenPage />;
+  }
+  if (props.data.error) {
+    return (
+      <Alert
+        type="error"
+        message="Vertretungen konnten nicht geladen werden. Bitte laden Sie die Seite neu."
+      />
+    );
+  }
   return (
-    <SkeletonRegion label="Gruppenzugriff wird geladen">
-      <PageHeaderSkeleton />
+    <>
+      <RunningCard rows={props.data.running} onAssign={props.onAssignRunning} />
+      <ScheduleCard data={props.data} />
+      <GroupCard
+        overview={props.data.overview}
+        openCare={props.openCare}
+        onAssign={props.onAssignGroup}
+        onEnd={props.onEndGroup}
+      />
+    </>
+  );
+}
+
+type LoadedPageProps = Readonly<{
+  session: Parameters<typeof hasEffectiveAdminScope>[0];
+  data: ReturnType<typeof useOverviewData>;
+  openCare: boolean;
+}>;
+
+function usePageDialogs(data: ReturnType<typeof useOverviewData>) {
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [runningId, setRunningId] = useState<string | null>(null);
+  const [ending, setEnding] = useState<Substitution | null>(null);
+  const assignAction = useAssignGroup(data.mutate);
+  const endAction = useEndGroup(data.mutate);
+  const openAssign = () => {
+    assignAction.clearError();
+    setAssignOpen(true);
+  };
+  const openEnd = (handover: Substitution) => {
+    endAction.clearError();
+    setEnding(handover);
+  };
+  return {
+    assignOpen,
+    runningId,
+    ending,
+    assignAction,
+    endAction,
+    openAssign,
+    openEnd,
+    setAssignOpen,
+    setRunningId,
+    setEnding,
+  };
+}
+
+function LoadedPage({ session, data, openCare }: LoadedPageProps) {
+  const dialogs = usePageDialogs(data);
+  return (
+    <>
+      <PageHeader title="Vertretungen" concept="groupAccess" />
+      <div className="space-y-4">
+        <OverviewContent
+          data={data}
+          openCare={openCare}
+          onAssignGroup={dialogs.openAssign}
+          onAssignRunning={dialogs.setRunningId}
+          onEndGroup={dialogs.openEnd}
+        />
+      </div>
+      <PageOverlays
+        data={data}
+        admin={hasEffectiveAdminScope(session)}
+        assignOpen={dialogs.assignOpen}
+        runningId={dialogs.runningId}
+        ending={dialogs.ending}
+        assignAction={dialogs.assignAction}
+        endAction={dialogs.endAction}
+        closeAssign={() => dialogs.setAssignOpen(false)}
+        closeRunning={() => dialogs.setRunningId(null)}
+        closeEnding={() => dialogs.setEnding(null)}
+      />
+    </>
+  );
+}
+
+function SubstitutionPageContent() {
+  const router = useTenantRouter();
+  const openCare = useOpenCareGroupMode();
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated: () => router.push("/"),
+  });
+  const data = useOverviewData(session);
+  if (status === "loading" || data.isLoading) return <LoadingFallback />;
+  return <LoadedPage session={session} data={data} openCare={openCare} />;
+}
+
+function LoadingFallback() {
+  return (
+    <SkeletonRegion label="Vertretungen werden geladen">
       <ListSkeleton rows={6} />
     </SkeletonRegion>
   );
@@ -812,8 +968,8 @@ function SubstitutionPageSkeleton() {
 
 export default function SubstitutionPage() {
   return (
-    <RoleGuard variant="adminOnly">
-      <Suspense fallback={<SubstitutionPageSkeleton />}>
+    <RoleGuard variant="staffOrAdmin" fallback={<LoadingFallback />}>
+      <Suspense fallback={<LoadingFallback />}>
         <SubstitutionPageContent />
       </Suspense>
     </RoleGuard>

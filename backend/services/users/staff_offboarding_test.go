@@ -44,11 +44,14 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
+	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
 	authCfg, err := authSvcPkg.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
+	authCfg.Audit = testpkg.NewAuthEventCommand(repos.AuthEvent)
 	authService, err := authSvcPkg.NewService(repos, authCfg, db, nil)
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, authService, db)
 
 	deps := usersSvc.StaffOffboardingServiceDependencies{
 		PersonRepo:             repos.Person,
@@ -289,6 +292,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		InvitationExpiry: time.Hour,
 		DB:               sc.db,
 	})
+	testpkg.SetTenantRuntime(t, invSvc, sc.db)
 
 	oldCredential := offboardingCredential("Offboard", "123")
 	newCredential := offboardingCredential("Reinvited", "456")
@@ -385,6 +389,26 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 	assert.Nil(t, deletedAt, "blocked offboarding must not soft-delete the staff row")
 }
 
+func TestOffboardStaff_ActiveGroupHandoverBlocks(t *testing.T) {
+	t.Parallel()
+
+	sc := newOffboardingScenario(t)
+	staff := testpkg.CreateTestStaff(t, sc.db, "Handover", "Target")
+	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardHandover")
+	today := timezone.TodayDate()
+	handover := testpkg.CreateTestGroupSubstitution(
+		t, sc.db, group.ID, nil, staff.ID, today, today.AddDays(1),
+	)
+
+	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
+	require.ErrorIs(t, err, usersSvc.ErrStaffInUse)
+
+	_, err = sc.repos.GroupSubstitution.FindByID(sc.ctx, handover.ID)
+	require.NoError(t, err)
+	_, err = sc.repos.Staff.FindByID(sc.ctx, staff.ID)
+	require.NoError(t, err)
+}
+
 // TestOffboardStaff_CleansUpAssignments: planned assignments the old
 // ON DELETE CASCADE used to remove must be cleaned up explicitly.
 func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
@@ -397,9 +421,9 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 	educationGroup := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardGroup")
 	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, educationGroup.ID, teacher.ID)
 
-	testpkg.CreateTestStaff(t, sc.db, "Other", "Substitute")
+	otherStaff := testpkg.CreateTestStaff(t, sc.db, "Other", "Substitute")
 	today := timezone.TodayDate()
-	substitution := testpkg.CreateTestGroupSubstitution(t, sc.db, educationGroup.ID, nil, staffID,
+	substitution := testpkg.CreateTestGroupSubstitution(t, sc.db, educationGroup.ID, &staffID, otherStaff.ID,
 		today.AddDays(1), today.AddDays(8))
 
 	var personID int64
@@ -460,8 +484,10 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardBroadcastGroup")
 	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, group.ID, teacher.ID)
 	today := timezone.TodayDate()
+	regularStaffID := teacher.StaffID
+	otherStaff := testpkg.CreateTestStaff(t, sc.db, "Broadcast", "Substitute")
 	substitution := testpkg.CreateTestGroupSubstitution(
-		t, sc.db, group.ID, nil, teacher.StaffID, today, today.AddDays(1),
+		t, sc.db, group.ID, &regularStaffID, otherStaff.ID, today, today.AddDays(1),
 	)
 
 	var personID int64
@@ -878,7 +904,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 	model := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("offb-model-%d", time.Now().UnixNano()),
 		RotationLength:     1,
-		RotationAnchorDate: timezone.NewDate(2026, time.January, 5),
+		RotationAnchorDate: configModel.NewCalendarDate(2026, time.January, 5),
 	}
 	require.NoError(t, sc.repos.WorkTimeModel.Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
@@ -918,10 +944,9 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 //
 // The proof is indirect but exact: while another transaction holds the account
 // row, offboarding must not get as far as deleting the role mapping.
-// Deliberately NOT parallel: the test takes a row lock in one transaction and
-// expects the offboarding in the other to block on it. Beside a test that
-// touches the same rows, that contention turns into a deadlock instead.
 func TestOffboardStaff_LocksAccountBeforeRevokingRoles(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	sc := newOffboardingScenario(t)
 
 	credential := offboardingCredential("Offboard", "789")

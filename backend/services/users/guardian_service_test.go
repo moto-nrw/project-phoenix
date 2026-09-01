@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,7 @@ func isProfileLockTimeout(err error) bool {
 // setupGuardianService creates a GuardianService with real database connection
 func setupGuardianService(t *testing.T, db *bun.DB) *users.GuardianService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Guardian
 }
@@ -432,7 +432,7 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	// MUST run in one (the SELECT ... FOR UPDATE row lock and the link-then-
 	// guardian ordering are only meaningful/atomic within a single tx), and the
 	// HTTP handler wraps it that way. Exercising the real contract here.
-	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, impact.LinkIDs, 1)
 	})
 
@@ -474,7 +474,7 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	})
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999}, 1)
 	})
 
@@ -2656,7 +2656,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 			holdTx, err := db.BeginTx(ctx, nil)
 			require.NoError(t, err)
 			defer func() { _ = holdTx.Rollback() }()
-			holdCtx := modelBase.ContextWithTx(ctx, &holdTx)
+			holdCtx := tenant.WithTransactionForTest(ctx, &holdTx)
 			require.NoError(t, repoFactory.GuardianProfile.LockByIDForUpdate(holdCtx, profile.ID))
 
 			// The staff writer, on a separate tx with a short lock_timeout, must
@@ -2666,7 +2666,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 			defer func() { _ = staffTx.Rollback() }()
 			_, err = staffTx.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "250ms")
 			require.NoError(t, err)
-			staffCtx := modelBase.ContextWithTx(ctx, &staffTx)
+			staffCtx := tenant.WithTransactionForTest(ctx, &staffTx)
 
 			runErr := w.run(staffCtx)
 			require.Errorf(t, runErr, "%s must block on the held profile FOR UPDATE lock", w.name)

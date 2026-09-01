@@ -17,7 +17,10 @@ func TestBuildActivitiesExposeStableStringIDs(t *testing.T) {
 	t.Parallel()
 
 	templateID := int64(41)
-	template := &activitiesModels.Group{Name: "Schach"}
+	template := &activitiesModels.Group{
+		Name:     "Schach",
+		Category: &activitiesModels.Category{Name: "Sport"},
+	}
 	template.ID = templateID
 	runningGroup := &activeModels.Group{
 		StartTime: time.Now().Add(-time.Hour),
@@ -34,29 +37,33 @@ func TestBuildActivitiesExposeStableStringIDs(t *testing.T) {
 	)
 	require.Len(t, running, 1)
 	assert.Equal(t, "101", running[0].ID)
+	assert.Equal(t, "Sport", running[0].Category)
 
 	now := time.Date(2026, time.July, 18, 12, 0, 0, 0, timezone.Berlin)
 	first := &scheduleModels.ActivityInstance{
-		Title:     "Schach",
-		StartTime: now.Add(time.Hour),
-		RoomID:    7,
-		Status:    scheduleModels.InstanceStatusPlanned,
+		Title:           "Schach",
+		ActivityGroupID: &templateID,
+		StartTime:       now.Add(time.Hour),
+		RoomID:          7,
+		Status:          scheduleModels.InstanceStatusPlanned,
 	}
 	first.ID = 201
 	second := &scheduleModels.ActivityInstance{
-		Title:     first.Title,
-		StartTime: first.StartTime,
-		RoomID:    first.RoomID,
-		Status:    first.Status,
+		Title:           first.Title,
+		ActivityGroupID: first.ActivityGroupID,
+		StartTime:       first.StartTime,
+		RoomID:          first.RoomID,
+		Status:          first.Status,
 	}
 	second.ID = 202
 
 	upcoming := buildUpcomingActivities(
 		[]*scheduleModels.ActivityInstance{first, second},
-		nil,
+		[]*activitiesModels.Group{template},
 		map[int64]string{7: "Raum 1"},
 		now,
 	)
 	require.Len(t, upcoming, 2)
 	assert.Equal(t, []string{"201", "202"}, []string{upcoming[0].ID, upcoming[1].ID})
+	assert.Equal(t, []string{"Sport", "Sport"}, []string{upcoming[0].Category, upcoming[1].Category})
 }

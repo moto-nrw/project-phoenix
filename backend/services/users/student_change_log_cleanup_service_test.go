@@ -76,11 +76,9 @@ func changeLogSettings(retentionDays int) *configtest.Mock {
 	}
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
@@ -110,11 +108,9 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	assert.Equal(t, 1, countChangeLogDeletions(t, db, student.ID), "one audit row for the affected student")
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 

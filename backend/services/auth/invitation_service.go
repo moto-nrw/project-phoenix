@@ -73,8 +73,12 @@ type InvitationServiceConfig struct {
 	SchoolURL        string
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
-	DB               *bun.DB
-	Logger           *slog.Logger
+	// MailIdentity points replies to a staff invitation at the OGS instead of
+	// moto (#1936). This send bypasses the outbox, so it stamps the header
+	// itself. Optional: nil sends without a Reply-To, exactly as before.
+	MailIdentity email.ReplyToResolver
+	DB           *bun.DB
+	Logger       *slog.Logger
 }
 
 type invitationService struct {
@@ -94,9 +98,10 @@ type invitationService struct {
 	schoolURL         string
 	defaultFrom       email.Email
 	invitationExpiry  time.Duration
+	mailIdentity      email.ReplyToResolver
 	db                *bun.DB
-	txHandler         *modelBase.TxHandler
 	logger            *slog.Logger
+	tenantRuntime     *tenant.UnitOfWork
 }
 
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
@@ -131,11 +136,22 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		frontendURL:       trimmedFrontend,
 		schoolURL:         strings.TrimRight(strings.TrimSpace(config.SchoolURL), "/"),
 		defaultFrom:       config.DefaultFrom,
+		mailIdentity:      config.MailIdentity,
 		invitationExpiry:  config.InvitationExpiry,
 		db:                config.DB,
-		txHandler:         modelBase.NewTxHandler(config.DB),
 		logger:            logger,
 	}
+}
+
+func (s *invitationService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
+}
+
+func (s *invitationService) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
 }
 
 // CreateInvitation creates an invitation token and queues the invitation email.
@@ -181,7 +197,11 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	// token must never reach an inbox as a dead link. Outside a tenant tx
 	// the hook runs synchronously.
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.sendInvitationEmail(invitation, roleName, req.SchoolName, schoolPortal)
+		// The surrounding transaction is committed when this callback runs.
+		// Detach it before resolving the tenant mail identity so its settings
+		// lookup opens a fresh RLS transaction rather than using the closed one.
+		postCommitCtx := detachedTenantContext(s.withTenantRuntime(ctx))
+		s.sendInvitationEmail(postCommitCtx, invitation, roleName, req.SchoolName, schoolPortal)
 	})
 
 	return invitation, nil
@@ -304,6 +324,7 @@ func (s *invitationService) attachRoleAndCreator(ctx context.Context, invitation
 
 // ValidateInvitation returns the public details for a token if it is still usable.
 func (s *invitationService) ValidateInvitation(ctx context.Context, token string) (*InvitationValidationResult, error) {
+	ctx = s.withTenantRuntime(ctx)
 	var result *InvitationValidationResult
 	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		invitation, fetchErr := s.fetchValidInvitation(adminCtx, token)
@@ -335,6 +356,7 @@ func (s *invitationService) ValidateInvitation(ctx context.Context, token string
 
 // AcceptInvitation converts a token into a real account & person record.
 func (s *invitationService) AcceptInvitation(ctx context.Context, token string, userData UserRegistrationData) (*authModels.Account, error) {
+	ctx = s.withTenantRuntime(ctx)
 	var createdAccount *authModels.Account
 	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		invitation, fetchErr := s.fetchValidInvitation(adminCtx, token)
@@ -368,19 +390,21 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 			return nameErr
 		}
 
-		invitationCtx := tenant.WithTenantID(adminCtx, invitation.TenantID)
-		return s.txHandler.RunInTx(invitationCtx, func(txCtx context.Context, tx bun.Tx) error {
-			account, accountErr := s.findExistingAccountByEmail(txCtx, invitation.Email)
-			if accountErr != nil {
-				return &AuthError{Op: opAcceptInvitation, Err: accountErr}
-			}
-			created, txErr := s.createAccountWithRole(txCtx, invitation, passwordHash, firstName, lastName, account)
-			if txErr != nil {
-				return txErr
-			}
-			createdAccount = created
-			return nil
-		})
+		invitationTenantID, tenantErr := tenant.NewTenantID(invitation.TenantID)
+		if tenantErr != nil {
+			return &AuthError{Op: opAcceptInvitation, Err: tenantErr}
+		}
+		invitationCtx := tenant.WithTenant(adminCtx, invitationTenantID)
+		account, accountErr := s.findExistingAccountByEmail(invitationCtx, invitation.Email)
+		if accountErr != nil {
+			return &AuthError{Op: opAcceptInvitation, Err: accountErr}
+		}
+		created, txErr := s.createAccountWithRole(invitationCtx, invitation, passwordHash, firstName, lastName, account)
+		if txErr != nil {
+			return txErr
+		}
+		createdAccount = created
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -746,7 +770,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		slog.Int64("actor_account_id", actorAccountID))
 
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.sendInvitationEmail(invitation, role.Name, schoolName, isSchoolPortalRole(role))
+	s.sendInvitationEmail(ctx, invitation, role.Name, schoolName, isSchoolPortalRole(role))
 	return nil
 }
 
@@ -883,7 +907,7 @@ func (s *invitationService) lookupSchoolName(ctx context.Context, tenantID int64
 	return school.Name
 }
 
-func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string, schoolName string, schoolPortal bool) {
+func (s *invitationService) sendInvitationEmail(ctx context.Context, invitation *authModels.InvitationToken, roleName string, schoolName string, schoolPortal bool) {
 	if s.dispatcher == nil {
 		s.getLogger().Warn("email dispatcher unavailable, skipping invitation email",
 			slog.Int64("invitation_id", invitation.ID))
@@ -911,8 +935,13 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
 	}
 
+	// An invited Mitarbeiter answering this mail ("wer lädt mich ein?") must
+	// reach the OGS, not moto (#1936).
+	replyIdentity := email.ResolveReplyToIdentity(ctx, s.mailIdentity, tenant.FromContext(ctx), s.getLogger())
+
 	message := email.Message{
 		From:     s.defaultFrom,
+		ReplyTo:  email.NewEmail(replyIdentity.Name, replyIdentity.Address),
 		To:       email.NewEmail("", invitation.Email),
 		Subject:  subject,
 		Template: "invitation.html",
@@ -936,7 +965,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 
 	baseRetry := invitation.EmailRetryCount
 
-	s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
+	s.dispatcher.Dispatch(detachedTenantContext(s.withTenantRuntime(ctx)), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: invitationEmailBackoff,
@@ -948,6 +977,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 }
 
 func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
+	ctx = s.withTenantRuntime(ctx)
 	retryCount := baseRetry + result.Attempt
 	var sentAt *time.Time
 	var errText *string
@@ -1029,6 +1059,7 @@ func isNotFoundError(err error) bool {
 // token. Tenant routing resolves hosts by subdomain, not slug (#1977).
 // Best-effort: returns "" on any error so the accept response still succeeds.
 func (s *invitationService) GetTenantSubdomainForToken(ctx context.Context, token string) string {
+	ctx = s.withTenantRuntime(ctx)
 	var subdomain string
 	_ = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		invitation, err := s.invitationRepo.FindByToken(txCtx, token)

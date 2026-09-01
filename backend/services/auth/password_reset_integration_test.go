@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -29,12 +29,6 @@ func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *s
 
 func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, email.Mailer, sqlmock.Sqlmock, func()) {
 	t.Helper()
-
-	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
-	viper.Set("rate_limit_enabled", true)
-	t.Cleanup(func() {
-		viper.Set("rate_limit_enabled", prevRateLimitEnabled)
-	})
 
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -75,8 +69,10 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 		frontendURL:         "http://localhost:3000",
 		parentsURL:          "http://parents.localhost:3000",
 		passwordResetExpiry: 30 * time.Minute,
-		txHandler:           modelBase.NewTxHandler(bunDB),
+		rateLimitEnabled:    true,
+		txHandler:           tenant.NewTransactionRunner(),
 		db:                  bunDB,
+		tenantRuntime:       newMockTenantRuntime(t, bunDB),
 	}
 
 	cleanup := func() {
@@ -103,18 +99,14 @@ func grantGuardianRoleForPasswordReset(t *testing.T, service *Service, accountID
 	}))
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiatePasswordResetSendsEmail(t *testing.T) {
+	t.Parallel()
 	service, _, tokens, _, _, mailer, mock, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	expectAdminTx(mock)
 
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
@@ -138,11 +130,8 @@ func TestInitiatePasswordResetSendsEmail(t *testing.T) {
 	require.LessOrEqual(t, ttl, 31*time.Minute)
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiateParentPasswordResetSendsParentPortalLink(t *testing.T) {
+	t.Parallel()
 	service, _, tokens, _, _, mailer, mock, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 	grantGuardianRoleForPasswordReset(t, service, 1, 123)
@@ -152,8 +141,7 @@ func TestInitiateParentPasswordResetSendsParentPortalLink(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	expectAdminTx(mock)
 
 	token, err := service.InitiateParentPasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
@@ -173,11 +161,8 @@ func TestInitiateParentPasswordResetSendsParentPortalLink(t *testing.T) {
 	require.True(t, ok, "token should be persisted")
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiateParentPasswordResetNonGuardianIsNeutral(t *testing.T) {
+	t.Parallel()
 	service, _, tokens, rateRepo, _, mailer, mock, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 	require.NoError(t, service.repos.AccountTenant.Create(context.Background(), &authModel.AccountTenant{
@@ -203,11 +188,8 @@ func TestInitiateParentPasswordResetNonGuardianIsNeutral(t *testing.T) {
 	require.Equal(t, 0, rateRepo.Attempts())
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiateParentPasswordResetPropagatesRoleLookupError(t *testing.T) {
+	t.Parallel()
 	service, _, tokens, _, _, mailer, mock, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -238,11 +220,8 @@ func TestInitiateParentPasswordResetPropagatesRoleLookupError(t *testing.T) {
 	require.Empty(t, tokens.tokens)
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiateParentPasswordResetSkipsDanglingRoleRow(t *testing.T) {
+	t.Parallel()
 	// An account_role row that points at a role id with no matching auth.roles
 	// row is a data inconsistency, not a DB fault. The guardian scan must treat
 	// the dangling row as "not this role" and keep walking — here there is no
@@ -275,11 +254,8 @@ func TestInitiateParentPasswordResetSkipsDanglingRoleRow(t *testing.T) {
 	require.Empty(t, tokens.tokens)
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiateParentPasswordResetUnknownEmailIsNeutral(t *testing.T) {
+	t.Parallel()
 	service, _, tokens, rateRepo, _, mailer, _, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -296,11 +272,8 @@ func TestInitiateParentPasswordResetUnknownEmailIsNeutral(t *testing.T) {
 	require.Equal(t, 0, rateRepo.Attempts())
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiatePasswordResetEmailFailureRecordsError(t *testing.T) {
+	t.Parallel()
 	flaky := newFlakyMailer(3, errors.New("smtp down"))
 	originalBackoff := passwordResetEmailBackoff
 	passwordResetEmailBackoff = []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond}
@@ -312,8 +285,7 @@ func TestInitiatePasswordResetEmailFailureRecordsError(t *testing.T) {
 
 	ctx := context.Background()
 
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	expectAdminTx(mock)
 
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
@@ -331,18 +303,14 @@ func TestInitiatePasswordResetEmailFailureRecordsError(t *testing.T) {
 	require.Len(t, flaky.Messages(), 0)
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestResetPasswordWithValidToken(t *testing.T) {
+	t.Parallel()
 	service, accounts, tokens, _, sessionTokens, _, mock, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	expectAdminTx(mock)
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
 
@@ -363,11 +331,8 @@ func TestResetPasswordWithValidToken(t *testing.T) {
 	require.Equal(t, int64(1), sessionTokens.DeletedAccountIDs()[0])
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestResetPasswordWithExpiredToken(t *testing.T) {
+	t.Parallel()
 	service, _, tokens, _, _, _, _, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -384,18 +349,14 @@ func TestResetPasswordWithExpiredToken(t *testing.T) {
 	require.True(t, errors.Is(err, ErrInvalidToken))
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
+	t.Parallel()
 	service, _, _, rateRepo, _, _, mock, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		mock.ExpectBegin()
-		mock.ExpectCommit()
+		expectAdminTx(mock)
 		_, err := service.InitiatePasswordReset(ctx, "user@example.com")
 		require.NoError(t, err)
 	}

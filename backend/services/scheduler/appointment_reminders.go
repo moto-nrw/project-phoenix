@@ -43,11 +43,6 @@ type AppointmentReminderQueuer interface {
 	EnqueueDueAppointmentReminders(ctx context.Context, from, to time.Time) (int, error)
 }
 
-// SetAppointmentReminderQueuer wires the guardian reminder tick. Nil disables it.
-func (s *Scheduler) SetAppointmentReminderQueuer(q AppointmentReminderQueuer) {
-	s.appointmentReminders = q
-}
-
 func (s *Scheduler) scheduleAppointmentReminderTask() {
 	if s.appointmentReminders == nil {
 		s.getLogger().Info("appointment reminder tick not configured (no queuer)")
@@ -67,7 +62,7 @@ func (s *Scheduler) runAppointmentReminderTaskPolling(task *ScheduledTask) {
 // checkAndRunAppointmentReminders scans one overlapping window per active
 // tenant. The overlap retries a tenant that failed during the previous pass;
 // reminder outbox keys make the repeat harmless for tenants that succeeded.
-func (s *Scheduler) checkAndRunAppointmentReminders(task *ScheduledTask) {
+func (s *Scheduler) checkAndRunAppointmentReminders(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -83,7 +78,7 @@ func (s *Scheduler) checkAndRunAppointmentReminders(task *ScheduledTask) {
 
 	now := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := s.taskContext(ctx, 5*time.Minute)
 	defer cancel()
 
 	scanToByTenant := make(map[int64]time.Time)

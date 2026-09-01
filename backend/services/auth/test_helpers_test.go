@@ -571,6 +571,8 @@ type stubInvitationTokenRepository struct {
 	nowFunc func() time.Time
 }
 
+const invitationTestTenantID int64 = 1
+
 func newStubInvitationTokenRepository() *stubInvitationTokenRepository {
 	return &stubInvitationTokenRepository{
 		tokens:  make(map[int64]*authModel.InvitationToken),
@@ -592,6 +594,9 @@ func (r *stubInvitationTokenRepository) Create(_ context.Context, token *authMod
 	if token.ID == 0 {
 		r.nextID++
 		token.ID = r.nextID
+	}
+	if token.TenantID == 0 {
+		token.TenantID = invitationTestTenantID
 	}
 	r.tokens[token.ID] = token
 	r.byToken[token.Token] = token
@@ -1227,10 +1232,6 @@ func (noopTokenRepository) FindValidTokens(context.Context, map[string]interface
 
 func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, int64, string, int) ([]*authModel.Token, error) {
 	panic("CleanupOldTokensForAccountReturning not implemented")
-}
-
-func (noopTokenRepository) FindByFamilyID(context.Context, string) ([]*authModel.Token, error) {
-	panic("FindByFamilyID not implemented")
 }
 
 func (noopTokenRepository) DeleteByFamilyIDReturning(context.Context, string) ([]*authModel.Token, error) {

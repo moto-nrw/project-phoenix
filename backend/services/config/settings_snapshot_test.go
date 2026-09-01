@@ -1,20 +1,20 @@
-package config_test
+package config
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.batch_text", config.FieldText, "default")
-	registerTestSetting("test.batch_bool", config.FieldBoolean, false)
-	registerTestSetting("test.batch_int", config.FieldNumber, 7)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.batch_text", config.FieldText, "default")
+	registerTestSetting(registry, "test.batch_bool", config.FieldBoolean, false)
+	registerTestSetting(registry, "test.batch_int", config.FieldNumber, 7)
 
 	repo := newMockValueRepo()
 	textValue := &config.SettingValue{
@@ -30,8 +30,8 @@ func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
 	boolValue.TenantID = 41
 	repo.values[repo.key(41, boolValue.SettingKey)] = boolValue
 
-	service := createService(repo, &mockAuditRepo{})
-	batch, ok := service.(configService.BatchSettingsService)
+	service := createService(registry, repo, &mockAuditRepo{})
+	batch, ok := service.(BatchSettingsService)
 	require.True(t, ok)
 
 	snapshot, err := batch.ResolveMany(tenantCtx(41), []string{
@@ -59,7 +59,7 @@ func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, hasOverride)
 
-	snapshotCtx := configService.WithSettingsSnapshot(tenantCtx(41), snapshot)
+	snapshotCtx := WithSettingsSnapshot(tenantCtx(41), snapshot)
 	_, err = service.ResolveString(snapshotCtx, "test.batch_text")
 	require.NoError(t, err)
 	_, err = service.ResolveBool(snapshotCtx, "test.batch_bool")
@@ -70,15 +70,16 @@ func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, repo.findManyCalls, "typed accessors must reuse the attached snapshot")
 
-	_, err = service.ResolveString(configService.WithSettingsSnapshot(tenantCtx(42), snapshot), "test.batch_text")
+	_, err = service.ResolveString(WithSettingsSnapshot(tenantCtx(42), snapshot), "test.batch_text")
 	require.NoError(t, err)
 	assert.Equal(t, 2, repo.findManyCalls, "a snapshot from another tenant must never be reused")
 }
 
 func TestResolveManyKeepsMalformedOverrideIsolated(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.valid", config.FieldBoolean, false)
-	registerTestSetting("test.malformed", config.FieldBoolean, false)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.valid", config.FieldBoolean, false)
+	registerTestSetting(registry, "test.malformed", config.FieldBoolean, false)
 
 	repo := newMockValueRepo()
 	valid := &config.SettingValue{SettingKey: "test.valid", Value: json.RawMessage(`true`)}
@@ -88,8 +89,8 @@ func TestResolveManyKeepsMalformedOverrideIsolated(t *testing.T) {
 	malformed.TenantID = 8
 	repo.values[repo.key(8, malformed.SettingKey)] = malformed
 
-	service := createService(repo, &mockAuditRepo{})
-	batch := service.(configService.BatchSettingsService)
+	service := createService(registry, repo, &mockAuditRepo{})
+	batch := service.(BatchSettingsService)
 	snapshot, err := batch.ResolveMany(tenantCtx(8), []string{"test.valid", "test.malformed"})
 	require.NoError(t, err)
 
@@ -105,13 +106,14 @@ func TestResolveManyKeepsMalformedOverrideIsolated(t *testing.T) {
 }
 
 func TestGetSchemaLoadsAllSettingsWithOneQuery(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.schema_one", config.FieldText, "one")
-	registerTestSetting("test.schema_two", config.FieldBoolean, true)
-	registerTestSetting("test.schema_three", config.FieldNumber, 3)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.schema_one", config.FieldText, "one")
+	registerTestSetting(registry, "test.schema_two", config.FieldBoolean, true)
+	registerTestSetting(registry, "test.schema_three", config.FieldNumber, 3)
 
 	repo := newMockValueRepo()
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 
 	schema, err := service.GetSchema(tenantCtx(5), nil)
 	require.NoError(t, err)

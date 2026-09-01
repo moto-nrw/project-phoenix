@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ErrSavepointControl classifies failures to create, roll back, or release a
@@ -18,8 +16,6 @@ var ErrSavepointControl = errors.New("savepoint control failed")
 // identifier is interpolated. PostgreSQL permits nested savepoints with the
 // same name; RELEASE and ROLLBACK TO address the most recently established
 // one, which gives nested WithSavepoint calls the expected stack semantics.
-const operationSavepointName = "phoenix_operation"
-
 // WithSavepoint runs fn inside a PostgreSQL savepoint on the transaction in
 // ctx. A normal fn error is returned after its writes and after-commit hooks
 // have been rolled back, leaving the surrounding transaction usable. Any
@@ -34,30 +30,30 @@ func WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 		return fmt.Errorf("%w: callback is required", ErrSavepointControl)
 	}
 
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
+	uow, err := unitOfWorkFromContext(ctx)
+	if err != nil {
 		return fmt.Errorf("%w: transaction is required", ErrSavepointControl)
 	}
 
-	if _, err := (*tx).ExecContext(ctx, "SAVEPOINT "+operationSavepointName); err != nil {
-		return fmt.Errorf("%w: create: %v", ErrSavepointControl, err)
+	if err := uow.savepoint(ctx, CreateSavepoint); err != nil {
+		return fmt.Errorf("%w: create: %w", ErrSavepointControl, err)
 	}
 
 	hooks, hookCount := afterCommitCheckpoint(ctx)
 	operationErr := fn(ctx)
 	if operationErr != nil {
-		if _, err := (*tx).ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+operationSavepointName); err != nil {
-			return errors.Join(operationErr, fmt.Errorf("%w: rollback: %v", ErrSavepointControl, err))
+		if err := uow.savepoint(ctx, RollbackSavepoint); err != nil {
+			return errors.Join(operationErr, fmt.Errorf("%w: rollback: %w", ErrSavepointControl, err))
 		}
 		discardAfterCommitHooksAfter(hooks, hookCount)
-		if _, err := (*tx).ExecContext(ctx, "RELEASE SAVEPOINT "+operationSavepointName); err != nil {
-			return errors.Join(operationErr, fmt.Errorf("%w: release after rollback: %v", ErrSavepointControl, err))
+		if err := uow.savepoint(ctx, ReleaseSavepoint); err != nil {
+			return errors.Join(operationErr, fmt.Errorf("%w: release after rollback: %w", ErrSavepointControl, err))
 		}
 		return operationErr
 	}
 
-	if _, err := (*tx).ExecContext(ctx, "RELEASE SAVEPOINT "+operationSavepointName); err != nil {
-		return fmt.Errorf("%w: release: %v", ErrSavepointControl, err)
+	if err := uow.savepoint(ctx, ReleaseSavepoint); err != nil {
+		return fmt.Errorf("%w: release: %w", ErrSavepointControl, err)
 	}
 	return nil
 }

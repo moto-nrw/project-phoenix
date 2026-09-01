@@ -23,10 +23,10 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -39,8 +39,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// MealPlan is the narrow provider capability used by the parents workflow.
+type MealPlan interface {
+	Available(context.Context) (bool, error)
+	Week(context.Context, mealplanModule.Date) ([]mealplanModule.Entry, error)
+}
+
 // Service is the public contract consumed by HTTP handlers.
 type Service interface {
+	// GuardianAnnouncementTenant reports the school of an announcement whose
+	// attachments this account may download, or 0 when it may not (#2890).
+	GuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64) (int64, error)
+
 	// ListChildrenForAccount returns every child linked to any
 	// guardian profile owned by the account, across every active
 	// tenant mapping. Sorted by school then by name.
@@ -84,17 +94,41 @@ type Service interface {
 	// By default, both statuses become PENDING requests. The independent sick
 	// and excused approval settings can opt a school into direct status writes.
 	// A note is mandatory for both absence types.
-	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) (*SickNoteResult, error)
+	// recipientGuardianProfileIDs are the co-guardians the family picked for
+	// this request; they are stored in the SAME transaction as the request row
+	// (#2267). Empty shares with nobody.
+	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string, recipientGuardianProfileIDs []int64) (*SickNoteResult, error)
 
 	// ListExcusedRequests returns the child's pending sick and excused absence
 	// requests plus any decided in the recent window, newest-first. The method
 	// retains its legacy excused-only name. Authorization only.
 	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error)
 
-	// WithdrawExcusedRequest withdraws the caller's own pending sick or excused
-	// absence request. The method retains its legacy excused-only name.
-	// Authorization: the account must be the submitting guardian.
-	WithdrawExcusedRequest(ctx context.Context, accountID, studentID, requestID int64) (*activeModels.ExcusedAbsenceRequest, error)
+	// EditExcusedRequest rewrites the caller's own pending sick or excused
+	// absence request instead of withdrawing and refiling it (#2267). The
+	// existing share is kept. Authorization: the account must be the
+	// submitting guardian.
+	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*activeModels.ExcusedAbsenceRequest, error)
+
+	// EditPickupChangeRequest rewrites the caller's own pending one-day
+	// pickup change (#2267).
+	EditPickupChangeRequest(ctx context.Context, accountID, studentID, requestID int64, date timezone.Date, pickupTime time.Time, reason, expectedVersion string) (*scheduleModels.CareScheduleChangeRequest, error)
+
+	// EditCareScheduleRequest rewrites the caller's own pending weekly-plan
+	// request (#2267).
+	EditCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64, payload map[string]any, expectedVersion string) (*ChildCareSchedule, error)
+
+	// EditMasterDataRequest rewrites the proposed value of the caller's own
+	// pending Stammdaten request (#2267). Target and field stay fixed.
+	EditMasterDataRequest(ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string) (*usersModels.StudentDataChangeRequest, error)
+
+	// EditOfferingChangeRequest rewrites the caller's own pending offering
+	// change (#2267).
+	EditOfferingChangeRequest(ctx context.Context, accountID, studentID, requestID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool, expectedVersion string) (*ChildCareOfferings, error)
+
+	// ListRequestEvents returns one request's history for the guardian who
+	// submitted it (#2267). Anyone else gets not-found.
+	ListRequestEvents(ctx context.Context, accountID, studentID int64, requestType string, requestID int64) ([]ParentRequestEventView, error)
 
 	// ListSickDays returns the child's currently-active parent-facing
 	// absences (sick and excused) in the given date range; class-trip days
@@ -113,15 +147,14 @@ type Service interface {
 	// (parent_portal.access) plus the operations.meal_plan_enabled toggle for
 	// the child's tenant: when the feature is off it returns
 	// ErrMealPlanDisabled so the portal can hide the section.
-	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]*mealplanModels.MealPlanEntry, error)
+	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]mealplanModule.Entry, error)
 
 	// SubmitCareExceptionWithReason requires a
 	// concrete pickup time and stores the parent's explanation with it. Arrival
 	// exceptions remain under staff control.
 	SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason string) (*CareException, error)
-	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error)
+	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string, recipientGuardianProfileIDs []int64) (*scheduleModels.CareScheduleChangeRequest, error)
 	ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]*scheduleModels.CareScheduleChangeRequest, error)
-	WithdrawPickupChangeRequest(ctx context.Context, accountID, studentID, requestID int64) (*scheduleModels.CareScheduleChangeRequest, error)
 
 	// ListCareExceptions returns the merged pickup/arrival exceptions for the
 	// child in [from, to], including staff-authored ones (flagged via Source)
@@ -164,7 +197,7 @@ type Service interface {
 	// already-pending fields are skipped/rejected. Gated by
 	// operations.parent_master_data_request_enabled and
 	// GuardianPermissionMasterDataRequest.
-	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange) ([]*usersModels.StudentDataChangeRequest, error)
+	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange, recipientGuardianProfileIDs []int64) ([]*usersModels.StudentDataChangeRequest, error)
 
 	// ListMyMasterDataRequests returns the child's change requests (any status),
 	// newest-first. Authorization only.
@@ -228,11 +261,6 @@ type Service interface {
 	// parent_portal.request.submit; gated by operations.parent_notes_enabled.
 	CreateCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any) (*ChildCareSchedule, error)
 
-	// WithdrawCareScheduleRequest flips the caller's own pending request to
-	// withdrawn. Requires parent_portal.request.submit; stays available after
-	// messaging is disabled so outstanding requests can be wound down.
-	WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error)
-
 	// GetChildOfferingCatalog returns the offerings the guardian may pick from
 	// for a change request, prefilled with the current booking. Requires
 	// parent_portal.request.submit.
@@ -241,11 +269,7 @@ type Service interface {
 
 	// CreateOfferingChangeRequest stores a pending post-enrollment offering
 	// change for staff review. Requires parent_portal.request.submit.
-	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool) (*ChildCareOfferings, error)
-
-	// WithdrawOfferingChangeRequest flips the caller's own pending offering
-	// change request to withdrawn.
-	WithdrawOfferingChangeRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareOfferings, error)
+	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool, recipientGuardianProfileIDs []int64) (*ChildCareOfferings, error)
 
 	// GetChildCareOfferings returns the care offerings the child is booked into,
 	// plus whether the guardian may request a change
@@ -345,6 +369,11 @@ type ChildFeatureFlags struct {
 	// it off, the feed/unread endpoints return nothing and the nav/panel
 	// entries must stay hidden rather than dead-end on an empty page.
 	NewsEnabled bool
+	// ReasonRequired is true when this school makes the family state a reason
+	// for a request (operations.parent_request_reason_policy is "guardians" or
+	// "both", #2267). The portal marks the note field as required instead of
+	// letting the server reject the submission afterwards.
+	ReasonRequired bool
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or
@@ -392,6 +421,7 @@ type Profile struct {
 type ServiceConfig struct {
 	ChildRepo             parentModels.ChildRepository
 	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
+	EnrollmentSettings    enrollmentSettingsQueries
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
@@ -435,8 +465,8 @@ type ServiceConfig struct {
 	// request submissions. Best-effort, after-commit only.
 	Emitter *parentmessaging.Emitter
 
-	// Meal plan (Essensplan) read access for the child's school.
-	MealPlanRepo mealplanModels.MealPlanEntryRepository
+	// Meal plan (Essensplan) public capability for the child's school.
+	MealPlan MealPlan
 
 	// Booked care offerings read view (#1665). The offering side is reached
 	// through the approved enrollment behind the child.
@@ -462,9 +492,17 @@ type ServiceConfig struct {
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
 	// Stammdaten view + change flow (Track A direct edit, Track B requests).
-	PersonRepo        usersModels.PersonRepository
-	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
-	StudentAudit      usersSvc.StudentChangeRecorder
+	PersonRepo                usersModels.PersonRepository
+	ChangeRequestRepo         usersModels.StudentDataChangeRequestRepository
+	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
+	ExcusedRequestRepo        activeModels.ExcusedAbsenceRequestRepository
+	OfferingChangeRequestRepo enrollmentModels.OfferingChangeRequestRepository
+	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository
+	ParentRequestShares       usersModels.ParentRequestShareEventRepository
+	StudentAudit              usersSvc.StudentChangeRecorder
+	// ParentRequestEvents appends to the append-only parent-request ledger
+	// inside the ambient transaction. Nil skips recording (tests).
+	ParentRequestEvents usersSvc.ParentRequestEventRecorder
 
 	// Guardian contact + pickup editing (#1667). The phone repo backs both the
 	// caller's primary-phone master-data edit and the wholesale phone-list replace
@@ -475,6 +513,11 @@ type ServiceConfig struct {
 
 	DB     *bun.DB
 	Logger *slog.Logger
+	Now    func() time.Time
+}
+
+type enrollmentSettingsQueries interface {
+	EnrollmentEnabledForTenants(ctx context.Context, tenantIDs []int64) (map[int64]bool, error)
 }
 
 type service struct {
@@ -486,7 +529,21 @@ func NewService(cfg ServiceConfig) Service {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	if cfg.Now == nil {
+		cfg.Now = timezone.Now
+	}
 	return &service{ServiceConfig: cfg}
+}
+
+func (s *service) now() time.Time {
+	if s.Now == nil {
+		return timezone.Now()
+	}
+	return s.Now()
+}
+
+func (s *service) todayDate() timezone.Date {
+	return timezone.DateFromTime(s.now())
 }
 
 // AbsenceNotifierSetter injects the sick/excused producer after construction.
@@ -648,6 +705,31 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("parent: list enrollable: %w", err)
+	}
+	if len(phases) > 0 {
+		if s.EnrollmentSettings == nil {
+			return nil, errors.New("parent: enrollment settings queries not wired")
+		}
+		tenantIDs := make([]int64, 0, len(phases))
+		seen := make(map[int64]struct{}, len(phases))
+		for _, phase := range phases {
+			if _, exists := seen[phase.SchoolID]; exists {
+				continue
+			}
+			seen[phase.SchoolID] = struct{}{}
+			tenantIDs = append(tenantIDs, phase.SchoolID)
+		}
+		enabled, settingsErr := s.EnrollmentSettings.EnrollmentEnabledForTenants(ctx, tenantIDs)
+		if settingsErr != nil {
+			return nil, fmt.Errorf("parent: resolve enrollment settings: %w", settingsErr)
+		}
+		filtered := phases[:0]
+		for _, phase := range phases {
+			if enabled[phase.SchoolID] {
+				filtered = append(filtered, phase)
+			}
+		}
+		phases = filtered
 	}
 
 	s.Logger.Debug("parent: listed enrollable phases",

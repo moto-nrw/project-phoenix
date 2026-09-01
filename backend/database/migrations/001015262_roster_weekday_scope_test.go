@@ -8,10 +8,10 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestWeekdayRosterPrimarySupervisorIsScopedByCalendarPeriod(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := time.Now().UnixNano()
@@ -45,7 +45,7 @@ func TestWeekdayRosterPrimarySupervisorIsScopedByCalendarPeriod(t *testing.T) {
 
 func insertPrimarySupervisor(
 	t *testing.T,
-	db *bun.DB,
+	db *testpkg.DB,
 	tenantID, groupID, staffID, periodID int64,
 	weekday int,
 ) {
@@ -61,7 +61,7 @@ func insertPrimarySupervisor(
 
 func supervisorIsPrimary(
 	t *testing.T,
-	db *bun.DB,
+	db *testpkg.DB,
 	tenantID, groupID, staffID, periodID int64,
 	weekday int,
 ) bool {

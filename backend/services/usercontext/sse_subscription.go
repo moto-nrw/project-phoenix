@@ -50,7 +50,8 @@ func (e *SSESetupError) Error() string { return fmt.Sprintf("SSE setup: %s", e.M
 // overview scope covers them) every active group's events.
 // Non-admins without a staff record are rejected with an SSESetupError.
 func (s *userContextService) ResolveSSESubscription(ctx context.Context) (*SSESubscription, error) {
-	isAdmin := authorize.HasEffectiveAdminScope(ctx)
+	claims := jwt.ClaimsFromCtx(ctx)
+	isAdmin := claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 
 	staff, errMsg, code := s.resolveSSEStaff(ctx)
 	if staff == nil && !isAdmin {
@@ -157,7 +158,10 @@ func (s *userContextService) resolveSSESupervisions(ctx context.Context, staffID
 	}
 
 	if s.sseSettings != nil {
-		broad, err := authorize.HasOperationalOverview(ctx, s.sseSettings, s)
+		claims := jwt.ClaimsFromCtx(ctx)
+		assignmentBound := claims.IsSchoolScope()
+		admin := claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
+		broad, err := authorize.HasOperationalOverview(ctx, s.sseSettings, s, assignmentBound, admin)
 		if err != nil {
 			s.getLogger().Warn("operational overview scope check failed for SSE, falling back to staff supervisions",
 				slog.String("error", err.Error()),

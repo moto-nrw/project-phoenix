@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -24,17 +25,17 @@ import (
 // testContext holds shared test dependencies.
 type testContext struct {
 	db          *bun.DB
-	services    *services.Factory
 	resource    *studentsAPI.Resource
 	broadcaster *testpkg.RecordingBroadcaster
 }
 
-// setupTestContext initializes the test environment.
-func setupTestContext(t *testing.T) *testContext {
+// setupStudentsRoute initializes the production students resource.
+func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAPITest(t, clocks...)
 	repoFactory := repositories.NewFactory(db)
+	repoFactory.RouteAuditWrites(svc.Audit)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	// Real emitter wired to the recording broadcaster so the staff-side guardian
@@ -49,13 +50,14 @@ func setupTestContext(t *testing.T) *testContext {
 		broadcaster,
 		slog.Default(),
 	)
+	testpkg.SetTenantRuntime(t, parentEventEmitter, db)
 
 	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
 		StudentRepo: repoFactory.Student,
 		Settings:    svc.Settings,
 		UserContext: svc.UserContext,
 		Broadcaster: broadcaster,
-		Unlinker:    studentsAPI.NewPhotoUnlinker(slog.Default()),
+		Unlinker:    studentsAPI.NewPhotoUnlinker(slog.Default(), "public"),
 		DB:          db,
 		Logger:      slog.Default(),
 	})
@@ -63,11 +65,13 @@ func setupTestContext(t *testing.T) *testContext {
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           svc.Users,
 		GuardianService:         svc.Guardian,
+		GradeTransitionService:  svc.GradeTransition,
 		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
 		EducationService:        svc.Education,
 		UserContextService:      svc.UserContext,
 		ActiveService:           svc.Active,
 		IoTService:              svc.IoT,
+		DevicePINFallback:       testDevicePIN,
 		PickupScheduleService:   svc.PickupSchedule,
 		PartialAbsenceService:   svc.PartialAbsence,
 		ArrivalScheduleService:  svc.ArrivalSchedule,
@@ -81,26 +85,41 @@ func setupTestContext(t *testing.T) *testContext {
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, repoFactory.StudentPickupException, db),
 		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.Users),
 		ExcusedRequestService:   svc.ExcusedRequests,
+		StudentAuditService:     svc.StudentAudit,
+		EnrollmentDecision:      svc.EnrollmentDecision,
 		// The three users:update-gated review queues, wired so the combined
 		// pending-count endpoint can be exercised end to end (#2232).
-		MasterDataReviewService: svc.MasterDataReview,
-		CareRequestService:      svc.CareRequests,
-		OfferingChangeService:   svc.OfferingChanges,
-		PickupAdjustmentService: svc.PickupAdjustments,
-		Broadcaster:             broadcaster,
-		ParentEventEmitter:      parentEventEmitter,
-		StudentPhotos:           studentPhotos,
-		ListExportService:       listexport.NewService(),
-		Logger:                  slog.Default(),
-		DB:                      db,
+		MasterDataReviewService:  svc.MasterDataReview,
+		CareRequestService:       svc.CareRequests,
+		OfferingChangeService:    svc.OfferingChanges,
+		PickupAdjustmentService:  svc.PickupAdjustments,
+		ParentRequestBulkService: svc.ParentRequests,
+		FamilyProtectionService:  svc.FamilyProtection,
+		Broadcaster:              broadcaster,
+		ParentEventEmitter:       parentEventEmitter,
+		StudentPhotos:            studentPhotos,
+		ListExportService:        listexport.NewService(),
+		Logger:                   slog.Default(),
+		Now:                      firstClock(clocks),
+		DB:                       db,
 	})
 
 	return &testContext{
 		db:          db,
-		services:    svc,
 		resource:    resource,
 		broadcaster: broadcaster,
 	}
+}
+
+func firstClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	return clocks[0]
+}
+
+func fixedCalendarClock() time.Time {
+	return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 }
 
 // authExec signs a JWT carrying claims (narrowed to perms) and runs the request
@@ -113,5 +132,5 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppCl
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequest(tc.resource.Router(), req)
+	return testutil.ExecuteRequestForTest(t, tc.resource.Router(), req)
 }

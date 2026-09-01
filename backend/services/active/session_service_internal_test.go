@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -221,6 +223,89 @@ func newSessionSQLMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	return db, mock
 }
 
+type sessionTestSavepoints struct{}
+
+type sessionStartLockerStub struct {
+	lock func(context.Context, int64, int64) error
+}
+
+func (s sessionStartLockerStub) LockSessionStart(ctx context.Context, tenantID, activityID int64) error {
+	return s.lock(ctx, tenantID, activityID)
+}
+
+func TestAcquireActivitySessionLock_UsesRepository(t *testing.T) {
+	t.Parallel()
+	ctx := tenant.WithTenantID(context.Background(), 17)
+	called := false
+	svc := &service{ServiceDependencies: ServiceDependencies{SessionStartLock: sessionStartLockerStub{
+		lock: func(_ context.Context, tenantID, activityID int64) error {
+			called = true
+			assert.Equal(t, int64(17), tenantID)
+			assert.Equal(t, int64(23), activityID)
+			return nil
+		},
+	}}}
+
+	require.NoError(t, svc.acquireActivitySessionLock(ctx, 23, "start"))
+	assert.True(t, called)
+}
+
+func TestAcquireActivitySessionLock_PropagatesRepositoryFailure(t *testing.T) {
+	t.Parallel()
+	expected := errors.New("lock failed")
+	svc := &service{ServiceDependencies: ServiceDependencies{SessionStartLock: sessionStartLockerStub{
+		lock: func(context.Context, int64, int64) error { return expected },
+	}}}
+
+	err := svc.acquireActivitySessionLock(tenant.WithTenantID(context.Background(), 17), 23, "start")
+	require.ErrorIs(t, err, expected)
+}
+
+func (sessionTestSavepoints) exec(ctx context.Context, statement string) error {
+	raw, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
+		return tenant.ErrRuntimeRequired
+	}
+	var tx bun.Tx
+	switch value := raw.(type) {
+	case bun.Tx:
+		tx = value
+	case *bun.Tx:
+		if value == nil {
+			return tenant.ErrRuntimeRequired
+		}
+		tx = *value
+	default:
+		return fmt.Errorf("unsupported transaction type %T", raw)
+	}
+	_, err := tx.ExecContext(ctx, statement)
+	return err
+}
+
+func (s sessionTestSavepoints) CreateSavepoint(ctx context.Context) error {
+	return s.exec(ctx, "SAVEPOINT phoenix_operation")
+}
+func (s sessionTestSavepoints) RollbackSavepoint(ctx context.Context) error {
+	return s.exec(ctx, "ROLLBACK TO SAVEPOINT phoenix_operation")
+}
+func (s sessionTestSavepoints) ReleaseSavepoint(ctx context.Context) error {
+	return s.exec(ctx, "RELEASE SAVEPOINT phoenix_operation")
+}
+
+func withSessionTestRuntime(t *testing.T, ctx context.Context, db *bun.DB) context.Context {
+	t.Helper()
+	tenantID := testpkg.Tenant(t)
+	within := func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error { return fn(ctx, tx) })
+	}
+	admin := func(ctx context.Context, fn func(context.Context, any) error) error {
+		return within(ctx, tenantID, fn)
+	}
+	runtime, err := tenant.NewUnitOfWork(within, admin, tenant.SavepointFunc(sessionTestSavepoints{}), func(error) bool { return false })
+	require.NoError(t, err)
+	return tenant.WithTenantID(tenant.WithUnitOfWork(ctx, runtime), tenantID)
+}
+
 type timetableBridgeCompleterForSessionUnitTest struct {
 	completeFunc func(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 }
@@ -271,7 +356,7 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 			visitEnded = true
 			return nil
 		},
-	}},
+	}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 	}
 
 	result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
@@ -321,7 +406,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 			endSessionFunc: func(context.Context, int64) error {
 				return errors.New("session end failed")
 			},
-		}, VisitRepo: &mockVisitRepository{}},
+		}, VisitRepo: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
 		result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
@@ -355,7 +440,8 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 					return nil
 				},
 			},
-			VisitRepo: &mockVisitRepository{},
+			VisitRepo:      &mockVisitRepository{},
+			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
 					assert.Equal(t, []int64{100}, activeGroupIDs)
@@ -410,10 +496,11 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 				},
 				endSessionFunc: func(context.Context, int64) error { return endSessionErr },
 			},
-			VisitRepo: &mockVisitRepository{},
+			VisitRepo:      &mockVisitRepository{},
+			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(ctx context.Context, _ []int64, _ time.Time) (int64, error) {
-					_, inTx := modelBase.TxFromContext(ctx)
+					_, inTx := tenant.TransactionFromContext(ctx)
 					assert.True(t, inTx, "the bridge must write inside the timeout transaction")
 					return 1, nil
 				},
@@ -423,10 +510,11 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 
 	t.Run("commits both halves together", func(t *testing.T) {
 		db, mock := newSessionSQLMockDB(t)
+		txCtx := withSessionTestRuntime(t, ctx, db)
 		mock.ExpectBegin()
 		mock.ExpectCommit()
 
-		result, err := newService(db, nil).ProcessSessionTimeoutByID(ctx, 100)
+		result, err := newService(db, nil).ProcessSessionTimeoutByID(txCtx, 100)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -435,10 +523,11 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 
 	t.Run("a failing session end takes the bridge write with it", func(t *testing.T) {
 		db, mock := newSessionSQLMockDB(t)
+		txCtx := withSessionTestRuntime(t, ctx, db)
 		mock.ExpectBegin()
 		mock.ExpectRollback()
 
-		result, err := newService(db, errors.New("session end failed")).ProcessSessionTimeoutByID(ctx, 100)
+		result, err := newService(db, errors.New("session end failed")).ProcessSessionTimeoutByID(txCtx, 100)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -739,8 +828,8 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectBegin()
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := modelBase.ContextWithTx(ctx, &tx)
-		mock.ExpectExec("SAVEPOINT sp_active_assign_supervisor").WillReturnError(errors.New("savepoint failed"))
+		txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+		mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnError(errors.New("savepoint failed"))
 		mock.ExpectRollback()
 
 		called := false
@@ -762,9 +851,9 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectBegin()
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := modelBase.ContextWithTx(ctx, &tx)
-		mock.ExpectExec("SAVEPOINT sp_active_nfc_auto_checkin").WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectExec("ROLLBACK TO SAVEPOINT sp_active_nfc_auto_checkin").WillReturnError(errors.New("rollback failed"))
+		txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+		mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnError(errors.New("rollback failed"))
 		mock.ExpectRollback()
 
 		logged := false
@@ -785,9 +874,9 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectBegin()
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := modelBase.ContextWithTx(ctx, &tx)
-		mock.ExpectExec("SAVEPOINT sp_active_update_device_location").WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectExec("RELEASE SAVEPOINT sp_active_update_device_location").WillReturnError(errors.New("release failed"))
+		txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+		mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnError(errors.New("release failed"))
 		mock.ExpectRollback()
 
 		called := false
@@ -1439,6 +1528,46 @@ func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
 	})
 }
 
+func TestSupervisorReplacement_PreservesAdditionalSupervisors(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	additional := &activeModels.GroupSupervisor{
+		Model:     modelBase.Model{ID: 21},
+		StaffID:   11,
+		Role:      "additional_supervisor",
+		StartDate: timezone.TodayDate(),
+	}
+	primary := &activeModels.GroupSupervisor{
+		Model:     modelBase.Model{ID: 20},
+		StaffID:   10,
+		Role:      "supervisor",
+		StartDate: timezone.TodayDate(),
+	}
+
+	var updatedIDs, createdStaffIDs []int64
+	svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
+			return []*activeModels.GroupSupervisor{primary, additional}, nil
+		},
+		updateFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+			updatedIDs = append(updatedIDs, supervisor.ID)
+			return nil
+		},
+		createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+			createdStaffIDs = append(createdStaffIDs, supervisor.StaffID)
+			return nil
+		},
+	}}}
+
+	err := svc.replaceSupervisorsInTransaction(ctx, 100, map[int64]bool{10: true, 11: true, 12: true})
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{20, 20}, updatedIDs)
+	assert.Equal(t, []int64{12}, createdStaffIDs)
+	assert.Nil(t, additional.EndDate)
+}
+
 func TestGetDeviceIDString(t *testing.T) {
 	t.Parallel()
 
@@ -1453,43 +1582,6 @@ func TestNormalizeTransferredSupervisorRole(t *testing.T) {
 
 	assert.Equal(t, "supervisor", normalizeTransferredSupervisorRole("Supervisor"))
 	assert.Equal(t, "helper", normalizeTransferredSupervisorRole("helper"))
-}
-
-func TestValidateSessionForTimeout_Branches(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	t.Run("not found", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return nil, errors.New("missing")
-			},
-		}},
-		}
-
-		session, err := svc.validateSessionForTimeout(ctx, 100)
-
-		require.Error(t, err)
-		assert.Nil(t, session)
-		assert.Contains(t, err.Error(), ErrActiveGroupNotFound.Error())
-	})
-
-	t.Run("already ended", func(t *testing.T) {
-		endedAt := time.Now()
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return &activeModels.Group{Model: modelBase.Model{ID: 100}, EndTime: &endedAt}, nil
-			},
-		}},
-		}
-
-		session, err := svc.validateSessionForTimeout(ctx, 100)
-
-		require.Error(t, err)
-		assert.Nil(t, session)
-		assert.Contains(t, err.Error(), ErrActiveGroupAlreadyEnded.Error())
-	})
 }
 
 func TestEndDailySessions_RepositoryFailures(t *testing.T) {
@@ -1514,7 +1606,10 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 	})
 
 	t.Run("visit bulk failure aborts later bulk steps", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		db, mock := newSessionSQLMockDB(t)
+		mock.ExpectBegin()
+		mock.ExpectRollback()
+		svc := &service{ServiceDependencies: ServiceDependencies{DB: db, GroupRepo: &mockGroupRepository{
 			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
 			},
@@ -1525,15 +1620,16 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		result, err := svc.EndDailySessions(ctx)
+		result, err := svc.EndDailySessions(withSessionTestRuntime(t, ctx, db))
 
-		require.NoError(t, err)
+		require.Error(t, err)
 		require.NotNil(t, result)
 		assert.False(t, result.Success)
 		assert.Contains(t, result.Errors[0], "bulk visit close failed")
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("session bulk failure records error and still tries supervisors", func(t *testing.T) {
+	t.Run("session bulk failure aborts supervisor cleanup", func(t *testing.T) {
 		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
 			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
@@ -1554,10 +1650,10 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 
 		result, err := svc.EndDailySessions(ctx)
 
-		require.NoError(t, err)
+		require.Error(t, err)
 		assert.False(t, result.Success)
 		assert.Equal(t, 2, result.VisitsEnded)
-		assert.Equal(t, 3, result.SupervisorsEnded)
+		assert.Zero(t, result.SupervisorsEnded)
 		assert.Contains(t, result.Errors[0], "bulk session close failed")
 	})
 
@@ -1582,7 +1678,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 
 		result, err := svc.EndDailySessions(ctx)
 
-		require.NoError(t, err)
+		require.Error(t, err)
 		assert.False(t, result.Success)
 		assert.Equal(t, 1, result.SessionsEnded)
 		assert.Contains(t, result.Errors[0], "bulk supervisor close failed")
@@ -1613,11 +1709,17 @@ func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
 
 	t.Run("update failure is captured", func(t *testing.T) {
 		result := &DailySessionCleanupResult{Success: true}
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		record := &activeModels.GroupSupervisor{Model: modelBase.Model{ID: 10}, GroupID: 20, StartDate: today.AddDays(-1)}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+			findByIDForUpdateFunc: func(context.Context, int64) (*activeModels.Group, error) {
+				return &activeModels.Group{Model: modelBase.Model{ID: 20}}, nil
+			},
+		}, SupervisorRepo: &mockGroupSupervisorRepository{
 			findStaleOpenFunc: func(context.Context, timezone.Date) ([]*activeModels.GroupSupervisor, error) {
-				return []*activeModels.GroupSupervisor{
-					{Model: modelBase.Model{ID: 10}, StartDate: today.AddDays(-1)},
-				}, nil
+				return []*activeModels.GroupSupervisor{record}, nil
+			},
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.GroupSupervisor, error) {
+				return record, nil
 			},
 			updateColumnsFunc: func(context.Context, *activeModels.GroupSupervisor, ...string) (int64, error) {
 				return 0, errors.New("stale close failed")

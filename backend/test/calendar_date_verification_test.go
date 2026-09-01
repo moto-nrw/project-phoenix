@@ -53,6 +53,9 @@ var unmappedDateColumns = map[string]string{
 	// type the restore does not need.
 	"users.student_care_exit_removals.valid_from":           "care-exit ledger, copied column-to-column in SQL — no model struct",
 	"users.student_care_exit_removals.previous_valid_until": "care-exit ledger, copied column-to-column in SQL — no model struct",
+	// Meal-plan persistence uses an adapter-local row with timezone.Date. The
+	// scanner intentionally only inspects models/, so it cannot discover it.
+	"schedule.meal_plan_entries.date": "meal-plan Postgres adapter-local row uses timezone.Date — no models/ struct",
 }
 
 // renamedDateColumns maps a DATE column declared under an old name in a
@@ -109,6 +112,21 @@ func TestDateColumnTypes(t *testing.T) {
 				switch f.goType {
 				case "timezone.Date", "*timezone.Date":
 					// migrated — ok
+				case "Date", "*Date":
+					// Audit owns the same ISO calendar-date value shape without
+					// importing the legacy shared timezone package.
+					if !strings.HasPrefix(f.file, "models/audit/") {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" uses Date outside models/audit — use timezone.Date"))
+					}
+				case "CalendarDate", "*CalendarDate":
+					// models/config is being detached from the legacy timezone
+					// package by #2646. CalendarDate is an ISO string value, so
+					// BUN binds it without converting a time.Time instant to UTC.
+					if !strings.HasPrefix(f.file, "models/config/") {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" uses CalendarDate outside models/config — use timezone.Date"))
+					}
 				case "time.Time", "*time.Time":
 					if _, ok := legacyTimeTimeDateColumns[col]; !ok {
 						violations = append(violations, formatViolation(f.file, f.line,
@@ -306,17 +324,17 @@ type dateFieldInfo struct {
 	goType     string
 }
 
-// scanModelDateFields parses every struct in models/**/*.go and returns
+// scanModelDateFields parses persistence structs in models/**/*.go and
+// modules/**/*.go and returns
 // map["schema.table.column"][]dateFieldInfo for all fields. Fields tagged
 // type:date additionally register their column in dateColumns (belt and
 // braces for columns the migration scan cannot see).
 func scanModelDateFields(t *testing.T, root string, dateColumns map[string]string) map[string][]dateFieldInfo {
 	t.Helper()
 	result := map[string][]dateFieldInfo{}
-	modelsDir := filepath.Join(root, "models")
 	fset := token.NewFileSet()
 
-	err := filepath.Walk(modelsDir, func(path string, info os.FileInfo, err error) error {
+	walk := func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
@@ -372,9 +390,11 @@ func scanModelDateFields(t *testing.T, root string, dateColumns map[string]strin
 			return true
 		})
 		return nil
-	})
-	if err != nil {
-		t.Fatalf("walking models dir: %v", err)
+	}
+	for _, dir := range []string{"models", "modules"} {
+		if err := filepath.Walk(filepath.Join(root, dir), walk); err != nil {
+			t.Fatalf("walking %s dir: %v", dir, err)
+		}
 	}
 	return result
 }

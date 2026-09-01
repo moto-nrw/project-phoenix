@@ -234,8 +234,7 @@ func (s *passkeyService) BeginRegistration(ctx context.Context, req PasskeyRegis
 	}
 	accountID := req.AccountID
 	tenantID := req.TenantID
-	if err := s.repos.PasskeySession.Create(ctx, &authModel.PasskeySession{
-		ID:             sessionID.String(),
+	session := &authModel.PasskeySession{
 		AccountID:      &accountID,
 		TenantID:       &tenantID,
 		Purpose:        authModel.PasskeySessionPurposeRegistration,
@@ -243,7 +242,9 @@ func (s *passkeyService) BeginRegistration(ctx context.Context, req PasskeyRegis
 		ExpectedOrigin: req.ExpectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
-	}); err != nil {
+	}
+	session.ID = sessionID.String()
+	if err := s.repos.PasskeySession.Create(ctx, session); err != nil {
 		return nil, &AuthError{Op: "store passkey session", Err: err}
 	}
 
@@ -329,15 +330,16 @@ func (s *passkeyService) BeginLogin(ctx context.Context, req PasskeyLoginStartRe
 		return nil, &AuthError{Op: "marshal passkey session", Err: err}
 	}
 	tenantID := req.TenantID
-	if err := s.repos.PasskeySession.Create(ctx, &authModel.PasskeySession{
-		ID:             sessionID.String(),
+	session := &authModel.PasskeySession{
 		TenantID:       &tenantID,
 		Purpose:        authModel.PasskeySessionPurposeLogin,
 		RPID:           rpID,
 		ExpectedOrigin: req.ExpectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
-	}); err != nil {
+	}
+	session.ID = sessionID.String()
+	if err := s.repos.PasskeySession.Create(ctx, session); err != nil {
 		return nil, &AuthError{Op: "store passkey login session", Err: err}
 	}
 	return &PasskeyCredentialAssertion{SessionID: sessionID.String(), Options: assertion}, nil

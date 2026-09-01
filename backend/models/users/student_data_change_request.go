@@ -17,6 +17,11 @@ var ErrChangeRequestNotPending = errors.New("users: change request is not pendin
 // caller's tenant.
 var ErrChangeRequestNotFound = errors.New("users: change request not found")
 
+// ErrChangeRequestNotDecided means a correction was attempted on a row that
+// carries no decision to correct — still pending, audit-only, or closed some
+// other way.
+var ErrChangeRequestNotDecided = errors.New("users: change request is not decided")
+
 // Change-request lifecycle states. Track A (direct edit) writes rows directly
 // as auto_applied — the live record was already updated, the row is the audit
 // trail. Track B (review) writes pending rows that a staff decision moves to
@@ -26,6 +31,9 @@ const (
 	DataChangeStatusPending     = "pending"
 	DataChangeStatusApproved    = "approved"
 	DataChangeStatusRejected    = "rejected"
+	// DataChangeStatusDone closes a request that only covered days already
+	// gone: nothing to apply, and "abgelehnt" would misstate what happened.
+	DataChangeStatusDone = "done"
 	// DataChangeStatusCareEnded closes an open request whose child left the
 	// OGS before anybody decided it (#2487). Deliberately its own value:
 	// "abgelehnt" would tell the family the office looked at the change and
@@ -70,7 +78,8 @@ type StudentDataChangeRequest struct {
 // rows accept a staff decision.
 func (c *StudentDataChangeRequest) IsTerminal() bool {
 	switch c.Status {
-	case DataChangeStatusAutoApplied, DataChangeStatusApproved, DataChangeStatusRejected, DataChangeStatusCareEnded:
+	case DataChangeStatusAutoApplied, DataChangeStatusApproved, DataChangeStatusRejected,
+		DataChangeStatusCareEnded, DataChangeStatusDone:
 		return true
 	default:
 		return false
@@ -117,7 +126,21 @@ type StudentDataChangeRequestRepository interface {
 	// is already decided / audit-only.
 	FindPendingByIDForUpdate(ctx context.Context, id int64) (*StudentDataChangeRequest, error)
 
+	// UpdatePending rewrites a still-pending row's proposed value — the
+	// guardian edit path (#2267). old_value stays untouched: it is the
+	// baseline the request was filed against.
+	UpdatePending(ctx context.Context, id int64, newValue json.RawMessage) error
+
 	// Decide moves a pending row to approved/rejected, stamping review_reason,
 	// reviewed_by, reviewed_at and (for approvals) applied_at.
 	Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool) error
+
+	// FindByIDForUpdate locks a request row whatever its status — the
+	// correction path (#2267), which starts from a DECIDED row.
+	FindByIDForUpdate(ctx context.Context, id int64) (*StudentDataChangeRequest, error)
+
+	// Redecide rewrites an already decided row. Separate from Decide on
+	// purpose: Decide only ever touches pending rows, and a correction must
+	// not be able to slip past that guard by accident.
+	Redecide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool) error
 }

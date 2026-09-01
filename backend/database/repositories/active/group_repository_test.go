@@ -982,7 +982,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "WithSupervisorsRoom")
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
 
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		group := &active.Group{
 			StartTime:      now,
 			LastActivity:   now,
@@ -1020,7 +1020,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "NoSupervisors")
 		room := testpkg.CreateTestRoom(t, db, "NoSupervisorsRoom")
 
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		group := &active.Group{
 			StartTime:      now,
 			LastActivity:   now,

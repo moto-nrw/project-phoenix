@@ -135,6 +135,23 @@ describe("InstanceDetailModal", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("renders the complete 255-character title", () => {
+    const longTitle = "T".repeat(255);
+
+    render(
+      <InstanceDetailModal
+        instance={instance({ title: longTitle })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(longTitle).toHaveLength(255);
+    expect(screen.getByRole("heading", { name: longTitle })).toHaveTextContent(
+      longTitle,
+    );
+  });
+
   it("renders details and executes lifecycle/edit/repeat/attendance actions", async () => {
     const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
     const onEdit = vi.fn();
@@ -1081,7 +1098,7 @@ describe("InstanceDetailModal", () => {
     expect(screen.queryByText(/aus Regeltermin/)).not.toBeInTheDocument();
   });
 
-  it("labels the substitution jump action 'Vertretung bearbeiten' and links to /vertretung", () => {
+  it("labels the substitution jump action 'Vertretung eintragen' and links to /vertretung", () => {
     render(
       <InstanceDetailModal
         instance={instance({
@@ -1100,7 +1117,7 @@ describe("InstanceDetailModal", () => {
       />,
     );
 
-    const link = screen.getByRole("link", { name: /Vertretung bearbeiten/ });
+    const link = screen.getByRole("link", { name: /Vertretung eintragen/ });
     expect(link).toHaveAttribute(
       "href",
       expect.stringContaining("/vertretung?d=2026-05-04&block=42"),

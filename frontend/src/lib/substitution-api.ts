@@ -1,266 +1,257 @@
-// lib/substitution-api.ts
-// API client for substitution-related operations
-
 import { sessionFetch } from "./session-cache";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "SubstitutionAPI" });
 import {
+  type BackendGroupHandover,
+  type BackendAdditionalSupervisionResult,
+  type RunningSupervision,
+  type BackendSubstitutionOverview,
   type Substitution,
   type TeacherAvailability,
-  type BackendSubstitution,
-  type BackendStaffWithSubstitutionStatus,
+  formatDateForBackend,
   mapSubstitutionResponse,
   mapSubstitutionsResponse,
-  mapTeacherAvailabilityResponses,
+  mapRunningSupervision,
+  mapSubstitutionOverview,
+  mapScheduleSubstitutionOverview,
+  type ScheduleSubstitutionOverview,
+  type SubstitutionOverview,
   prepareSubstitutionForBackend,
-  formatDateForBackend,
+  type SubstitutionProxyEnvelope,
+  unwrapSubstitutionProxyEnvelope,
 } from "./substitution-helpers";
+import {
+  mapApplyDeviations,
+  mapBulkSubstitution,
+  prepareApplyDeviationsBody,
+  prepareBulkSubstitutionBody,
+} from "./timetable-helpers";
+import type {
+  ApplyDeviationsInput,
+  ApplyDeviationsResponse,
+  BackendApplyDeviationsResponse,
+  BackendBulkSubstitutionResponse,
+  BulkSubstitutionInput,
+  BulkSubstitutionResponse,
+} from "./timetable-types";
 
-// Substitution service with API methods
 class SubstitutionService {
-  // Get all substitutions with optional filters
-  async fetchSubstitutions(filters?: {
-    page?: number;
-    pageSize?: number;
-  }): Promise<Substitution[]> {
-    try {
-      let url = "/api/substitutions";
-
-      if (filters) {
-        const params = new URLSearchParams();
-        if (filters.page) params.append("page", filters.page.toString());
-        if (filters.pageSize)
-          params.append("page_size", filters.pageSize.toString());
-
-        if (params.toString()) {
-          url += `?${params.toString()}`;
-        }
-      }
-
-      const response = await sessionFetch(url, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch substitutions: ${response.statusText}`,
-        );
-      }
-
-      const data = (await response.json()) as { data: unknown } | unknown[];
-
-      // Handle response format - could be wrapped or direct array
-      if (Array.isArray(data)) {
-        return mapSubstitutionsResponse(data as BackendSubstitution[]);
-      } else if (data && typeof data === "object" && "data" in data) {
-        return mapSubstitutionsResponse(data.data as BackendSubstitution[]);
-      } else {
-        logger.error("unexpected response format for substitutions");
-        return [];
-      }
-    } catch (error) {
-      logger.error("error fetching substitutions", { error: String(error) });
+  async fetchOverview(): Promise<SubstitutionOverview> {
+    const response = await sessionFetch("/api/substitutions", {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const error = new Error("Vertretungen konnten nicht geladen werden.");
+      if (response.status === 403) error.name = "SubstitutionAccessError";
       throw error;
     }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    return mapSubstitutionOverview(unwrapSubstitutionProxyEnvelope(envelope));
   }
 
-  // Get active substitutions for a specific date
-  async fetchActiveSubstitutions(date?: Date): Promise<Substitution[]> {
-    try {
-      let url = "/api/substitutions/active";
-
-      if (date) {
-        const params = new URLSearchParams();
-        params.append("date", formatDateForBackend(date));
-        url += `?${params.toString()}`;
-      }
-
-      const response = await sessionFetch(url, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch active substitutions: ${response.statusText}`,
-        );
-      }
-
-      const data = (await response.json()) as { data: unknown } | unknown[];
-
-      if (Array.isArray(data)) {
-        return mapSubstitutionsResponse(data as BackendSubstitution[]);
-      } else if (data && typeof data === "object" && "data" in data) {
-        return mapSubstitutionsResponse(data.data as BackendSubstitution[]);
-      } else {
-        logger.error("unexpected response format for active substitutions");
-        return [];
-      }
-    } catch (error) {
-      logger.error("error fetching active substitutions", {
-        error: String(error),
-      });
-      throw error;
+  async fetchScheduleOverview(
+    from: string,
+    to: string,
+  ): Promise<ScheduleSubstitutionOverview> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(`/api/substitutions?${params}`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Vertretungen konnten nicht geladen werden.");
     }
-  }
-
-  // Get available teachers with their substitution status
-  async fetchAvailableTeachers(
-    date?: Date,
-    search?: string,
-  ): Promise<TeacherAvailability[]> {
-    try {
-      let url = "/api/staff/available-for-substitution";
-      const params = new URLSearchParams();
-
-      if (date) {
-        params.append("date", formatDateForBackend(date));
-      }
-      if (search) {
-        params.append("search", search);
-      }
-
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
-
-      const response = await sessionFetch(url, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch available teachers: ${response.statusText}`,
-        );
-      }
-
-      const data = (await response.json()) as { data: unknown } | unknown[];
-
-      if (Array.isArray(data)) {
-        return mapTeacherAvailabilityResponses(
-          data as BackendStaffWithSubstitutionStatus[],
-        );
-      } else if (data && typeof data === "object" && "data" in data) {
-        return mapTeacherAvailabilityResponses(
-          data.data as BackendStaffWithSubstitutionStatus[],
-        );
-      } else {
-        logger.error("unexpected response format for available teachers");
-        return [];
-      }
-    } catch (error) {
-      logger.error("error fetching available teachers", {
-        error: String(error),
-      });
-      throw error;
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    if (envelope.data === undefined) {
+      throw new Error("Ungültige Antwort für Vertretungen.");
     }
+    return mapScheduleSubstitutionOverview(envelope.data);
   }
 
-  // Create a new substitution
+  async applyScheduleSubstitution(
+    instanceId: string,
+    input: ApplyDeviationsInput,
+  ): Promise<ApplyDeviationsResponse> {
+    if (input.cancel) {
+      throw new Error("Absagen laufen nicht über eine Vertretung.");
+    }
+    const response = await sessionFetch("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "schedule_substitution",
+        schedule_substitution: {
+          instance_id: Number(instanceId),
+          ...prepareApplyDeviationsBody(input),
+        },
+      }),
+    });
+    if (!response.ok) throw await substitutionError(response);
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendApplyDeviationsResponse>;
+    return mapApplyDeviations(unwrapSubstitutionProxyEnvelope(envelope));
+  }
+
+  async applyBulkSubstitution(
+    input: BulkSubstitutionInput,
+  ): Promise<BulkSubstitutionResponse> {
+    const response = await sessionFetch("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "schedule_substitution",
+        schedule_substitution: {
+          whole_days: prepareBulkSubstitutionBody(input),
+        },
+      }),
+    });
+    if (!response.ok) throw await substitutionError(response);
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendBulkSubstitutionResponse>;
+    return mapBulkSubstitution(unwrapSubstitutionProxyEnvelope(envelope));
+  }
+
+  async fetchSubstitutions(date?: Date): Promise<Substitution[]> {
+    const params = new URLSearchParams();
+    if (date) params.set("date", formatDateForBackend(date));
+    const response = await sessionFetch(
+      `/api/substitutions${params.size > 0 ? `?${params.toString()}` : ""}`,
+      { credentials: "include" },
+    );
+    if (!response.ok) {
+      throw new Error(`Gruppenübergaben konnten nicht geladen werden.`);
+    }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    const body = unwrapSubstitutionProxyEnvelope(envelope);
+    return mapSubstitutionsResponse(body.group_handovers);
+  }
+
+  async fetchAvailableTeachers(): Promise<TeacherAvailability[]> {
+    const response = await sessionFetch("/api/substitutions", {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Fachkräfte konnten nicht geladen werden.");
+    }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    const body = unwrapSubstitutionProxyEnvelope(envelope);
+    return body.targets.map((staff) => {
+      const [firstName = "", ...lastNameParts] = staff.full_name.split(" ");
+      return {
+        id: staff.id.toString(),
+        firstName,
+        lastName: lastNameParts.join(" "),
+        inSubstitution: false,
+        substitutionCount: 0,
+      };
+    });
+  }
+
+  async fetchRunningSupervision(
+    activeGroupId: string,
+  ): Promise<RunningSupervision> {
+    const params = new URLSearchParams({ active_group_id: activeGroupId });
+    const response = await sessionFetch(`/api/substitutions?${params}`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error(
+        "Die Betreuung konnte nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
+    }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    const rows = unwrapSubstitutionProxyEnvelope(envelope).running_supervisions;
+    if (!Array.isArray(rows) || rows.length !== 1 || !rows[0]) {
+      throw new Error("Ungültige Antwort für die Betreuung.");
+    }
+    return mapRunningSupervision(rows[0]);
+  }
+
+  async addSupervisor(
+    activeGroupId: string,
+    targetStaffId: string,
+  ): Promise<{ id: string; targetName: string }> {
+    const response = await sessionFetch("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "additional_supervision",
+        additional_supervision: {
+          active_group_id: activeGroupId,
+          target_staff_id: targetStaffId,
+        },
+      }),
+    });
+    if (!response.ok) {
+      const body = (await response.json()) as { error?: string };
+      throw new Error(
+        body.error ??
+          "Der Betreuer konnte nicht hinzugefügt werden. Bitte versuchen Sie es noch einmal.",
+      );
+    }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendAdditionalSupervisionResult>;
+    const body = unwrapSubstitutionProxyEnvelope(envelope);
+    return { id: body.id.toString(), targetName: body.target.full_name };
+  }
+
   async createSubstitution(
     groupId: string,
-    regularStaffId: string | null, // Now optional - null for general coverage
     substituteStaffId: string,
-    startDate: Date,
-    endDate: Date,
-    reason?: string,
-    notes?: string,
+    startDate: string,
+    endDate: string,
   ): Promise<Substitution> {
-    try {
-      const requestData = prepareSubstitutionForBackend(
-        groupId,
-        regularStaffId,
-        substituteStaffId,
-        startDate,
-        endDate,
-        reason,
-        notes,
+    const response = await sessionFetch("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify(
+        prepareSubstitutionForBackend(
+          groupId,
+          substituteStaffId,
+          startDate,
+          endDate,
+        ),
+      ),
+    });
+    if (!response.ok) {
+      const body = (await response.json()) as { error?: string };
+      const error = new Error(
+        body.error ?? "Gruppenübergabe konnte nicht erstellt werden.",
       );
-
-      const response = await sessionFetch("/api/substitutions", {
-        method: "POST",
-        credentials: "include",
-        body: JSON.stringify(requestData),
-      });
-
-      if (!response.ok) {
-        const errorData = (await response.json()) as {
-          error?: string;
-          message?: string;
-        };
-        const errorMessage =
-          errorData.error ?? errorData.message ?? response.statusText;
-        throw new Error(`Failed to create substitution: ${errorMessage}`);
-      }
-
-      const data = (await response.json()) as unknown;
-
-      if (data && typeof data === "object" && "data" in data) {
-        return mapSubstitutionResponse(
-          (data as { data: BackendSubstitution }).data,
-        );
-      } else {
-        return mapSubstitutionResponse(data as BackendSubstitution);
-      }
-    } catch (error) {
-      logger.error("error creating substitution", {
-        group_id: groupId,
-        error: String(error),
-      });
+      error.name = "TransferError";
       throw error;
     }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendGroupHandover>;
+    const body = unwrapSubstitutionProxyEnvelope(envelope);
+    return mapSubstitutionResponse(body);
   }
 
-  // Delete/end a substitution
   async deleteSubstitution(id: string): Promise<void> {
-    try {
-      const response = await sessionFetch(`/api/substitutions/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to delete substitution: ${response.statusText}`,
-        );
-      }
-    } catch (error) {
-      logger.error("error deleting substitution", {
-        substitution_id: id,
-        error: String(error),
-      });
+    const response = await sessionFetch("/api/substitutions/end", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "group_handover",
+        id,
+      }),
+    });
+    if (!response.ok) {
+      const body = (await response.json()) as { error?: string };
+      const error = new Error(
+        body.error ?? "Gruppenübergabe konnte nicht beendet werden.",
+      );
+      error.name = "CancelTransferError";
       throw error;
     }
   }
+}
 
-  // Get a single substitution by ID
-  async getSubstitution(id: string): Promise<Substitution> {
-    try {
-      const response = await sessionFetch(`/api/substitutions/${id}`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch substitution: ${response.statusText}`);
-      }
-
-      const data = (await response.json()) as unknown;
-
-      if (data && typeof data === "object" && "data" in data) {
-        return mapSubstitutionResponse(
-          (data as { data: BackendSubstitution }).data,
-        );
-      } else {
-        return mapSubstitutionResponse(data as BackendSubstitution);
-      }
-    } catch (error) {
-      logger.error("error fetching substitution", {
-        substitution_id: id,
-        error: String(error),
-      });
-      throw error;
-    }
-  }
+async function substitutionError(response: Response): Promise<Error> {
+  const body = (await response.json()) as { error?: string };
+  return new Error(body.error ?? "Vertretung konnte nicht gespeichert werden.");
 }
 
 export const substitutionService = new SubstitutionService();

@@ -21,7 +21,7 @@ import (
 
 func TestInviteGuardianToStudent_RestrictedContactRoundTrip(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Staff", "Invite", "8a")
 	profile := testpkg.CreateTestGuardianProfile(t, ctx.db, "staff-restricted")
@@ -78,7 +78,7 @@ func TestInviteGuardianToStudent_RestrictedContactRoundTrip(t *testing.T) {
 
 func TestInviteGuardianToStudent_SocialWorkerLinkRefused(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Staff", "SocialWorker", "8b")
 	profile := testpkg.CreateTestGuardianProfile(t, ctx.db, "staff-social-worker")

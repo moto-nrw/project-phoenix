@@ -2,9 +2,11 @@ package auth_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -53,10 +55,6 @@ func TestLogoutLeavesOtherDeviceSessionsIntact(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, firstRefresh, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -83,10 +81,6 @@ func TestLogoutLeavesStaffPushOnOtherDevices(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, firstRefresh, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -166,10 +160,6 @@ func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
 	secondaryTenantID := account.ID + 1_000_000_000
 	testpkg.EnsureTestTenant(t, db, secondaryTenantID)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/school-a", "family-a")
 	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/school-b", "family-b")
@@ -193,10 +183,6 @@ func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -212,7 +198,7 @@ func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/tx-school-a", "family-a")
 	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/tx-school-b", "family-b")
 
-	require.NoError(t, tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return service.RevokeAllTokens(txCtx, int(account.ID))
 	}))
 
@@ -232,15 +218,15 @@ func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 	email, username := uniqueTestCredentials("switch-cap")
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	testpkg.EnsureTestTenant(t, db, 2)
-	testpkg.MapAccountToTenant(t, db, account.ID, 2)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	targetTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, targetTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 	for range 5 {
 		_, _, err = service.Login(ctx, email, testPassword)
 		require.NoError(t, err)
 	}
-	_, _, err = service.SwitchTenant(ctx, account.ID, "t2")
+	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID))
 	require.NoError(t, err)
 
 	count, err := db.NewSelect().
@@ -253,11 +239,9 @@ func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 	require.Equal(t, 5, count, "switch-tenant must share the staff portal cap across schools")
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensRemovesOrphanPush(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -266,10 +250,6 @@ func TestCleanupExpiredTokensRemovesOrphanPush(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/orphan-family", "missing-family")
 	_, err = service.CleanupExpiredTokens(ctx)
@@ -290,15 +270,11 @@ func TestDeactivateAccountFromAdminTxRemovesPush(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/admin-deact-a", "family-a")
 	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/admin-deact-b", "family-b")
 
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
 		return service.DeactivateAccount(adminCtx, int(account.ID))
 	}))
 
@@ -342,10 +318,6 @@ func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleUser)
 	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, tenantRefresh, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -374,10 +346,6 @@ func TestSessionCapDoesNotEvictOtherPortalSessions(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleUser)
 	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, parentRefresh, err := service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -405,10 +373,6 @@ func TestSessionCapRemovesStaffPushForEvictedFamily(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -442,10 +406,6 @@ func TestLogoutRemovesUnboundStaffPushAtSessionTenant(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -471,10 +431,6 @@ func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -503,10 +459,6 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -522,7 +474,7 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 
 	role, err := service.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr(authModels.BaseRoleUser))
 	require.NoError(t, err)
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
 		return service.AssignRoleToAccount(tenant.WithTenantID(adminCtx, tenantID), int(account.ID), int(role.ID))
 	}))
 
@@ -554,10 +506,6 @@ func TestLogoutRemovesParentPushForFamily(t *testing.T) {
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, firstRefresh, err := service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -596,10 +544,6 @@ func TestLogoutRemovesUnboundParentPushAtSessionTenant(t *testing.T) {
 	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	_, refreshToken, err := service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -625,10 +569,6 @@ func TestSessionCapRemovesUnboundStaffPushAtEvictedTenant(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -654,10 +594,6 @@ func TestSessionCapRemovesParentPushForEvictedFamily(t *testing.T) {
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, _, err = service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -692,10 +628,6 @@ func TestRevokeAllTokensClearsParentPushAcrossTenants(t *testing.T) {
 	secondaryTenantID := account.ID + 1_000_000_000
 	testpkg.EnsureTestTenant(t, db, secondaryTenantID)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/parent-school-a", "parent-family-a")
 	insertParentPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/parent-school-b", "parent-family-b")
@@ -717,10 +649,6 @@ func TestLogoutUnknownScopeRemovesBothUnboundPortals(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -751,10 +679,6 @@ func TestSessionCapLeavesUnknownSessionsIsolated(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	for i := range 5 {
 		legacy := &authModels.Token{
@@ -788,10 +712,6 @@ func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -812,11 +732,9 @@ func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
 	require.Zero(t, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -828,10 +746,6 @@ func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
 	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	_, _, err = service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -857,10 +771,6 @@ func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
-	})
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -874,7 +784,7 @@ func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
 		return service.RevokeAllTokens(adminCtx, int(account.ID))
 	}))
 
@@ -883,11 +793,9 @@ func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 	require.Zero(t, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -896,12 +804,8 @@ func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
-	require.NoError(t, tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return service.DeactivateAccount(txCtx, int(account.ID))
 	}))
 	require.NoError(t, service.ActivateAccount(ctx, int(account.ID)))
@@ -921,7 +825,7 @@ func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
 	require.Equal(t, 1, count)
 }
 
-func TestActivateAccountClearsPendingAccountWideWipe(t *testing.T) {
+func TestActivateAccountCompletesPendingAccountWideWipeWithoutMutatingHistory(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -932,29 +836,40 @@ func TestActivateAccountClearsPendingAccountWideWipe(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	insertPendingAccountWideWipe(t, db, account.ID, tenantID, "account_deactivated", time.Now())
+	var pendingID int64
+	require.NoError(t, db.NewSelect().
+		TableExpr("audit.auth_events").
+		Column("id").
+		Where("account_id = ?", account.ID).
+		Where("event_type = ?", auditModels.EventTypeTokenRevoked).
+		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
+		Scan(context.Background(), &pendingID))
 	require.NoError(t, service.ActivateAccount(ctx, int(account.ID)))
 
-	pending, err := db.NewSelect().
+	history, err := db.NewSelect().
 		TableExpr("audit.auth_events").
 		Where("account_id = ?", account.ID).
-		Where("event_type = ?", "token_revoked").
+		Where("event_type = ?", auditModels.EventTypeTokenRevoked).
 		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
 		Count(context.Background())
 	require.NoError(t, err)
-	require.Zero(t, pending)
+	require.Equal(t, 1, history, "completion must not update or delete the pending event")
+
+	completed, err := db.NewSelect().
+		TableExpr("audit.auth_events").
+		Where("account_id = ?", account.ID).
+		Where("event_type = ?", auditModels.EventTypeAccountWideWipeCompleted).
+		Where(`metadata->>'pending_event_id' = ?`, fmt.Sprint(pendingID)).
+		Count(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, completed)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -963,10 +878,6 @@ func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T)
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	insertPendingAccountWideWipe(t, db, account.ID, tenantID, "administrative_revoke", time.Now().Add(-time.Minute))
 	_, _, err = service.Login(ctx, email, testPassword)
@@ -985,11 +896,9 @@ func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T)
 	require.Equal(t, 1, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -998,10 +907,6 @@ func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	familyID := uniqueTestName("pre-revoke-family")
 	cutoff := time.Now().Add(-time.Minute)
@@ -1027,11 +932,9 @@ func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T
 	require.Zero(t, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -1040,10 +943,6 @@ func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) 
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	tokenCreatedAt := time.Now().Add(-9 * 24 * time.Hour)
 	wipeAt := time.Now().Add(-8 * 24 * time.Hour)
@@ -1069,11 +968,9 @@ func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) 
 	require.Zero(t, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensKeepsParentPushForUnknownSession(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -1082,10 +979,6 @@ func TestCleanupExpiredTokensKeepsParentPushForUnknownSession(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	legacy := &authModels.Token{
 		AccountID:   account.ID,

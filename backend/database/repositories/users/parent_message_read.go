@@ -64,11 +64,11 @@ func (r *ParentMessageReadRepository) MarkReadUpTo(ctx context.Context, tenantID
 		Where(advance).
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "mark parent message thread read up to", Err: err}
+		return false, &modelBase.DatabaseError{Op: "mark parent message thread read up to", Err: base.TranslateNotFound(err)}
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "mark parent message thread read up to", Err: err}
+		return false, &modelBase.DatabaseError{Op: "mark parent message thread read up to", Err: base.TranslateNotFound(err)}
 	}
 	return affected > 0, nil
 }
@@ -87,7 +87,7 @@ func (r *ParentMessageReadRepository) MarkStaffHandledUpTo(ctx context.Context, 
 			("thread".staff_handled_up_to_at, "thread".staff_handled_up_to_message_id) < (?, ?))`, handledAt, handledMessageID)
 	query = base.WithTenantFilter(ctx, query, "thread")
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark parent message thread handled for staff", Err: err}
+		return &modelBase.DatabaseError{Op: "mark parent message thread handled for staff", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -402,7 +402,7 @@ func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, acc
 		query = query.Where(guardianUnreadExists, accountID)
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent message inbox", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent message inbox", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -419,7 +419,7 @@ func (r *ParentMessageReadRepository) ListThreadsForStudent(ctx context.Context,
 		Where(threadHasMessages)
 	query = base.WithTenantFilter(ctx, query, "t")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent message threads for student", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent message threads for student", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -438,7 +438,7 @@ func (r *ParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.
 		Where(guardianStillLinked)
 	query = base.WithTenantFilter(ctx, query, "t")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardian threads for student", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list guardian threads for student", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -461,7 +461,7 @@ func (r *ParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.
 		Where(threadHasMessages).
 		Where(guardianStillLinked)
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardian threads cross-tenant", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list guardian threads cross-tenant", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -484,7 +484,7 @@ func (r *ParentMessageReadRepository) UnreadMessageCountForGuardianTenants(ctx c
 		Where(guardianStillLinked).
 		Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count unread guardian messages cross-tenant", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count unread guardian messages cross-tenant", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -510,7 +510,7 @@ func (r *ParentMessageReadRepository) FindThreadHeader(ctx context.Context, thre
 		Where("t.id = ?", threadID)
 	query = base.WithTenantFilter(ctx, query, "t")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find thread header", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find thread header", Err: base.TranslateNotFound(err)}
 	}
 	if len(rows) == 0 {
 		return nil, nil
@@ -558,7 +558,7 @@ func (r *ParentMessageReadRepository) LatestReadCursorByOther(ctx context.Contex
 		Limit(1)
 	query = base.WithTenantFilter(ctx, query, "r")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "latest parent message read cursor", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "latest parent message read cursor", Err: base.TranslateNotFound(err)}
 	}
 	if len(rows) == 0 {
 		return nil, nil
@@ -586,7 +586,7 @@ func (r *ParentMessageReadRepository) GuardianReadCursor(ctx context.Context, th
 		Limit(1)
 	query = base.WithTenantFilter(ctx, query, "r")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "guardian parent message read cursor", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "guardian parent message read cursor", Err: base.TranslateNotFound(err)}
 	}
 	if len(rows) == 0 {
 		return nil, nil
@@ -604,7 +604,7 @@ func (r *ParentMessageReadRepository) UnreadMessageCountForStaff(ctx context.Con
 	query = base.WithTenantFilter(ctx, query, "t")
 	count, err := query.Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count unread parent messages for staff", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count unread parent messages for staff", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }

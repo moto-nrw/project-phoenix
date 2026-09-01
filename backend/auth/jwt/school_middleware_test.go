@@ -2,6 +2,7 @@ package jwt_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -118,19 +119,24 @@ func TestSchoolMiddleware_RejectsOtherScopes(t *testing.T) {
 // letting RLS silently return zero rows downstream.
 func TestSchoolMiddleware_ZeroTenantID_Unauthorized(t *testing.T) {
 	t.Parallel()
+	var observed tenant.RuntimeEvent
 
 	handler := jwtpkg.SchoolMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("tenant_id=0 school token must NOT reach the wrapped handler")
 	}))
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, schoolMiddlewareRequest(jwtpkg.AppClaims{
+	req := schoolMiddlewareRequest(jwtpkg.AppClaims{
 		ID:    42,
 		Sub:   "lehrkraft@example.test",
 		Scope: tenant.ScopeSchool,
-	}))
+	})
+	req = req.WithContext(tenant.WithRuntimeObserver(req.Context(), func(event tenant.RuntimeEvent) { observed = event }))
+	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Equal(t, tenant.RuntimeMissingTenant, observed.Kind)
+	assert.True(t, errors.Is(observed.Err, tenant.ErrInvalidTenantID))
 }
 
 // TestSchoolMiddleware_ZeroID_Unauthorized — claims with ID==0 (a

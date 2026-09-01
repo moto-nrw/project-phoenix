@@ -33,11 +33,12 @@ pre-commit:
             failed=true
             continue
           fi
-          while IFS= read -r line; do
-            echo "❌ Plaintext value in $f: ${line%%=*}="
+          plaintext=$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.+' "$f" | grep -v 'ENC\[' | grep -v '^sops_' || true)
+          if [ -n "$plaintext" ]; then
+            echo "❌ Plaintext value in $f: ${plaintext%%=*}="
             echo "   Re-encrypt: sops encrypt --in-place $f"
             failed=true
-          done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.+' "$f" | grep -v 'ENC\[' | grep -v '^sops_')
+          fi
         done
         if [ "$failed" = true ]; then
           exit 1
@@ -48,11 +49,9 @@ pre-commit:
       glob: "backend/**/*.go"
       run: |
         cd backend
-        # Use goimports from PATH or fallback to ~/go/bin
-        GOIMPORTS=$(which goimports 2>/dev/null || echo "$HOME/go/bin/goimports")
-        DIFF=$($GOIMPORTS -d . 2>&1)
+        DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d . 2>&1)
         if [ -n "$DIFF" ]; then
-          echo "❌ Go imports not organized. Run: cd backend && goimports -w ."
+          echo "❌ Go imports not organized. Run: cd backend && ../scripts/run-go-toolchain.sh go tool goimports -w ."
           echo "$DIFF"
           exit 1
         fi
@@ -66,28 +65,29 @@ pre-push:
 
     go-vet:
       glob: "backend/**/*.go"
-      run: cd backend && go vet ./...
+      run: cd backend && ../scripts/run-go-toolchain.sh go vet ./...
 
     golangci-lint:
       glob: "backend/**/*.go"
-      run: cd backend && golangci-lint run --timeout 5m
+      run: cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --timeout 5m
+
+    go-toolchain-pins:
+      glob: "{backend/go.mod,backend/tools/go.mod,backend/Dockerfile,backend/Dockerfile.dev,devbox.json,devbox.lock,lefthook.yml,scripts/backend-architecture/go.mod,scripts/run-go-toolchain.sh,.github/workflows/*.yml}"
+      run: cd backend && ../scripts/run-go-toolchain.sh go test ./test -run '^TestGoToolchainPinsRatchet$' -count=1
 
     backend-architecture:
-      glob: "{backend/**/*.go,backend/.go-arch-lint.yml,backend/tools/go.{mod,sum},scripts/backend-architecture.sh}"
-      run: scripts/backend-architecture.sh legacy-check
+      glob: "{backend/**/*.go,backend/architecture/**,backend/internal/architecture/**,scripts/backend-architecture.sh}"
+      run: scripts/run-go-toolchain.sh scripts/backend-architecture.sh check
 
     # Dead code detection (matches CI)
     go-deadcode:
       glob: "backend/**/*.go"
-      run: scripts/check-deadcode.sh
+      run: scripts/run-go-toolchain.sh scripts/check-deadcode.sh
 
     # Security vulnerability detection
-    # TEMPORARILY SKIPPED: Requires Go 1.25.6, which is not yet available in the nix package
-    # TODO: Re-enable once Go 1.25.6+ is available in nixpkgs
     go-vulncheck:
       glob: "backend/**/*.go"
-      run: cd backend && govulncheck ./...
-      skip: true
+      run: cd backend && ../scripts/run-go-toolchain.sh govulncheck ./...
 
     # Frontend lint + typecheck (pnpm check = oxlint + tsc --noEmit)
     frontend-check:

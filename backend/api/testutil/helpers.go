@@ -10,10 +10,13 @@
 //
 // Example:
 //
-//	func TestHandler(t *testing.T) {
+//	func setupAuthRoute(t *testing.T) (*bun.DB, *Resource) {
 //	    db, services := testutil.SetupAPITest(t)
+//	    return db, NewResource(services.Auth, services.Invitation)
+//	}
 //
-//	    resource := NewResource(services.Auth, services.Invitation)
+//	func TestHandler(t *testing.T) {
+//	    db, resource := setupAuthRoute(t)
 //	    router := chi.NewRouter()
 //	    router.Mount("/auth", resource.Router())
 //
@@ -37,6 +40,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -50,6 +54,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
+	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -61,19 +67,39 @@ const (
 	contentTypeJSON   = "application/json"
 )
 
-// SetupAPITest initializes test database and service factory for API tests.
-// Returns the shared package database pool and a service factory. Tests must
-// not close the pool — it is shared by every test in the binary.
-func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
+// SetupAPITest constructs the legacy graph inside route- and module-sized
+// test builders. Callers must not expose the returned Factory.
+// The returned pool is shared by every test in the binary and must not be closed.
+func SetupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory) {
+	t.Helper()
+	db, serviceFactory, _ := setupAPITest(t, clocks...)
+	return db, serviceFactory
+}
+
+func setupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory, *feedbackModule.Module) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	repoFactory := repositories.NewFactory(db, clocks...)
+	settings := feedbackCompose.NewSettings()
+	module, err := feedbackCompose.New(feedbackCompose.Dependencies{
+		DB:       db,
+		Settings: settings,
+		Today:    feedbackModule.Today,
+		Observe:  func(feedbackCompose.Observation) {},
+	})
+	require.NoError(t, err, "Failed to create Feedback module")
+	serviceFactory, err := services.NewFactoryForTestsWithFeedback(repoFactory, db, slog.Default(), module, settings.Bind, clocks...)
 	require.NoError(t, err, "Failed to create service factory")
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)), "Failed to configure tenant runtime")
+	return db, serviceFactory, module
+}
 
-	return db, serviceFactory
+// SetupFeedbackAPITest adds the migrated Feedback module to the legacy test
+// graph without putting the module back onto services.Factory.
+func SetupFeedbackAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory, *feedbackModule.Module) {
+	t.Helper()
+	return setupAPITest(t, clocks...)
 }
 
 // RequestOption configures an HTTP request for testing.
@@ -99,6 +125,69 @@ func WithClaims(tb testing.TB, claims jwt.AppClaims) RequestOption {
 			ctx = tenant.WithTenantID(ctx, claims.TenantID)
 		}
 		*req = *req.WithContext(ctx)
+	}
+}
+
+// WithTestTenant supplies the package test's tenant without exposing tenant
+// runtime details to adapter tests.
+func WithTestTenant(tb testing.TB) RequestOption {
+	tenantID := testpkg.Tenant(tb)
+	return func(req *http.Request) {
+		*req = *req.WithContext(tenant.WithTenantID(req.Context(), tenantID))
+	}
+}
+
+// ProtectedTestTenantGroup is the authorization-free test boundary for HTTP
+// adapters whose permission middleware is tested separately. It retains the
+// real tenant transaction and request caches.
+func ProtectedTestTenantGroup(db *bun.DB, r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+	r.Group(func(gr chi.Router) {
+		gr.Use(testpkg.TenantTxMiddleware(db))
+		fn(gr, func(next http.Handler) http.Handler { return next })
+	})
+}
+
+func ProtectedTestTenantGroupFunc(db *bun.DB) func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)) {
+	return func(r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+		ProtectedTestTenantGroup(db, r, fn)
+	}
+}
+
+func UnprotectedGroupFunc() func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)) {
+	return func(r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+		fn(r, IdentityMiddleware)
+	}
+}
+
+func RecordingUnprotectedGroupFunc(called *bool) func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)) {
+	return func(r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+		*called = true
+		fn(r, IdentityMiddleware)
+	}
+}
+
+func IdentityMiddleware(next http.Handler) http.Handler { return next }
+
+func RespondSuccess(w http.ResponseWriter, r *http.Request, status int, data any, message string) {
+	render.Status(r, status)
+	render.JSON(w, r, Response{Status: "success", Data: data, Message: message})
+}
+
+func RespondNoContent(w http.ResponseWriter, r *http.Request) { render.NoContent(w, r) }
+
+func RespondError(w http.ResponseWriter, r *http.Request, status int, err error) {
+	render.Status(r, status)
+	render.JSON(w, r, Response{Status: "error", Error: err.Error()})
+}
+
+func RespondInvalidRequest(w http.ResponseWriter, r *http.Request, err error) {
+	RespondError(w, r, http.StatusBadRequest, err)
+}
+
+func ErrorResponder(resolve func(error) (int, error)) func(http.ResponseWriter, *http.Request, error, string) {
+	return func(w http.ResponseWriter, r *http.Request, err error, _ string) {
+		status, responseErr := resolve(err)
+		RespondError(w, r, status, responseErr)
 	}
 }
 
@@ -257,25 +346,40 @@ func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileNam
 	return req
 }
 
-// NewTenantRouter creates a chi.Router pre-configured with TenantTxMiddleware.
-// Use this in integration tests instead of chi.NewRouter() to match production
-// middleware behavior (RLS enforcement via SET LOCAL ROLE + set_config).
-//
-// NOTE: Production routers apply TenantTxMiddleware per-route (via .With(withTx))
-// so that permission checks reject unauthorized requests before a DB transaction
-// is opened. Tests keep group-level r.Use() for simplicity since test helpers
-// control their own request context and don't have the same connection-waste concern.
+// NewTenantRouter creates a chi.Router with the test transaction boundary
+// (testpkg.TenantTxMiddleware) at the root. Tests that inject identity into
+// the request context get the same transaction decision as production;
+// resource routers that apply the production jwt + TenantTxMiddleware chain
+// themselves run it unchanged underneath, since their requests arrive here
+// unauthenticated and pass through.
 func NewTenantRouter(db *bun.DB) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Use(tenant.TenantTxMiddleware(db))
+	router.Use(testpkg.TenantTxMiddleware(db))
 	return router
+}
+
+// AuthenticationContext returns the identity values injected by request
+// options, preferring an explicit test permission set over claims defaults.
+func AuthenticationContext(ctx context.Context) (jwt.AppClaims, []string) {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if granted := jwt.PermissionsFromCtx(ctx); granted != nil {
+		return claims, granted
+	}
+	return claims, claims.Permissions
 }
 
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
 func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	ctx := testpkg.WithPackageTenantRuntime(req.Context())
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		// Request options inject identity before this helper installs the runtime.
+		// Reapply the tenant so the adapter-owned repository scope matches the
+		// production middleware order (runtime first, authentication second).
+		ctx = tenant.WithTenantID(ctx, tenantID)
+	}
+	router.ServeHTTP(rr, req.WithContext(ctx))
 	return rr
 }
 
@@ -284,7 +388,7 @@ func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseReco
 func ExecuteWithAuth(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims) *httptest.ResponseRecorder {
 	t.Helper()
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
-	return ExecuteRequest(router, req)
+	return ExecuteRequestForTest(t, router, req)
 }
 
 // ExecuteWithAuthPermissions folds the given permission set into the claims
@@ -294,7 +398,20 @@ func ExecuteWithAuthPermissions(t *testing.T, router chi.Router, req *http.Reque
 	t.Helper()
 	claims.Permissions = permissions
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
-	return ExecuteRequest(router, req)
+	return ExecuteRequestForTest(t, router, req)
+}
+
+// ExecuteRequestForTest is ExecuteRequest with t's disposable database
+// runtime when the test opted into one.
+func ExecuteRequestForTest(t *testing.T, router chi.Router, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	ctx := testpkg.WithTestTenantRuntime(t, req.Context())
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		ctx = tenant.WithTenantID(ctx, tenantID)
+	}
+	router.ServeHTTP(rr, req.WithContext(ctx))
+	return rr
 }
 
 // Response represents a standard API response for testing.

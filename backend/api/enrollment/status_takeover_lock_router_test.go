@@ -15,7 +15,6 @@ import (
 	"github.com/uptrace/bun"
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -89,7 +88,6 @@ func (discardingOutbox) EnqueueOutbox(context.Context, platformModels.OutboxEnqu
 
 func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 	t.Helper()
-	testutil.SeedTestJWTConfig()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -204,7 +202,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 
 	env := &takeoverLockEnv{
 		db:       db,
-		router:   resource.Router(),
+		router:   testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()),
 		tenantID: tenantID,
 		phaseID:  phase.ID,
 		token:    submitted.Request.StatusToken,
@@ -300,9 +298,8 @@ func decodeStatus(t *testing.T, rec *httptest.ResponseRecorder) statusEnvelope {
 	return out
 }
 
-// Deliberately NOT parallel: process-global state — the fixture sets viper
-// keys for the public status router.
 func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing.T) {
+	t.Parallel()
 	env, cleanup := setupTakeoverLockTest(t)
 	defer cleanup()
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
@@ -329,11 +326,25 @@ func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing
 	// …while the same request for the sibling goes through.
 	sibling := env.postChangeRequest(t, env.changeRequestBody(1, 2))
 	assert.Equal(t, http.StatusCreated, sibling.Code, sibling.Body.String())
+
+	// Token lookup runs under admin scope, then the write switches to the
+	// resolved tenant transaction. The approved child stays untouched.
+	withdrawReq := httptest.NewRequest(
+		http.MethodPost,
+		fmt.Sprintf("/requests/%s/withdraw", env.token),
+		strings.NewReader(`{}`),
+	)
+	withdrawReq.Header.Set("Content-Type", "application/json")
+	withdrawn := httptest.NewRecorder()
+	env.router.ServeHTTP(withdrawn, withdrawReq)
+	require.Equal(t, http.StatusNoContent, withdrawn.Code, withdrawn.Body.String())
+	withdrawnStatus := decodeStatus(t, env.get(t, "/requests/"+env.token))
+	assert.Equal(t, enrollmentModels.ChildStatusApproved, withdrawnStatus.Data.Children[0].Status)
+	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, withdrawnStatus.Data.Children[1].Status)
 }
 
-// Deliberately NOT parallel: process-global state — the fixture sets viper
-// keys for the public status router.
 func TestPublicStatus_AllChildrenTakenOverLeavesNoChangeForm(t *testing.T) {
+	t.Parallel()
 	env, cleanup := setupTakeoverLockTest(t)
 	defer cleanup()
 	env.takeOver(t, env.request.Children[0].ID, "Lina")

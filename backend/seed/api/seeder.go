@@ -2,17 +2,13 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
-	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 )
 
 const (
@@ -21,7 +17,7 @@ const (
 	defaultSeedSchoolName       = "Demo School"
 	defaultSeedSchoolSlug       = "demo-school"
 	defaultSeedSchoolSubdomain  = "demo-school"
-	seedTokenHeader             = seedtoken.Header
+	seedTokenHeader             = "X-Phoenix-Seed-Token"
 	defaultSeedParentPassword   = "ParentSeed1234%"
 	seedPasswordAlphabet        = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"
 	seedPasswordLength          = 12
@@ -34,14 +30,16 @@ type SeedOptions struct {
 	TenantSlug    string // Fixed tenant slug instead of demo-school-{timestamp}
 	StaffPassword string // Shared password for all 20 staff accounts
 	AdminEmail    string // Fixed email for the bootstrap school admin
+	StatePath     string // Output path; empty uses DefaultSeedStatePath
 }
 
 // Seeder orchestrates the complete API-based seeding process
 type Seeder struct {
-	adapter *phoenixapi.Adapter
-	client  *Client
-	verbose bool
-	options SeedOptions
+	client    *Client
+	random    io.Reader
+	verbose   bool
+	options   SeedOptions
+	statePath string
 }
 
 // SeedResult contains counts of created entities
@@ -64,18 +62,28 @@ type bootstrapSeedState struct {
 }
 
 // NewSeeder creates a new API seeder
-func NewSeeder(baseURL string, verbose bool, options SeedOptions) *Seeder {
-	adapter := phoenixapi.New(baseURL, verbose)
+func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOptions) *Seeder {
+	statePath := options.StatePath
+	if statePath == "" {
+		statePath = DefaultSeedStatePath
+	}
 	return &Seeder{
-		adapter: adapter,
-		client:  NewClientWithAdapter(adapter, verbose),
-		verbose: verbose,
-		options: options,
+		client:    NewClientWithAdapter(adapter, verbose),
+		random:    random,
+		verbose:   verbose,
+		options:   options,
+		statePath: statePath,
 	}
 }
 
 // Seed executes the complete seeding workflow
 func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*SeedResult, error) {
+	if s.client == nil || s.client.adapter == nil {
+		return nil, fmt.Errorf("seed API adapter is required")
+	}
+	if s.random == nil {
+		return nil, fmt.Errorf("seed random source is required")
+	}
 	runtime := newRuntime(s, email, password, staffPIN)
 	workflow := fullDemoWorkflow(s)
 	if err := workflow.Run(ctx, runtime); err != nil {
@@ -132,7 +140,7 @@ func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, erro
 	if s.options.StaffPassword != "" {
 		adminPassword = s.options.StaffPassword
 	} else {
-		adminPassword, err = generateSeedPassword()
+		adminPassword, err = generateSeedPassword(s.random)
 		if err != nil {
 			return nil, fmt.Errorf("generate admin password: %w", err)
 		}
@@ -231,7 +239,10 @@ func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain st
 	return payload.Data.ID, payload.Data.Subdomain, nil
 }
 
-func generateSeedPassword() (string, error) {
+func generateSeedPassword(randomSource io.Reader) (string, error) {
+	if randomSource == nil {
+		return "", fmt.Errorf("seed random source is required")
+	}
 	// Character sets that must each appear at least once to satisfy
 	// ValidatePasswordStrength (upper, lower, digit, special).
 	required := []string{
@@ -243,7 +254,7 @@ func generateSeedPassword() (string, error) {
 
 	bytes := make([]byte, seedPasswordLength)
 	random := make([]byte, seedPasswordLength)
-	if _, err := rand.Read(random); err != nil {
+	if _, err := io.ReadFull(randomSource, random); err != nil {
 		return "", err
 	}
 
@@ -259,7 +270,7 @@ func generateSeedPassword() (string, error) {
 
 	// Shuffle using Fisher-Yates to avoid predictable positions.
 	shuffleRandom := make([]byte, seedPasswordLength)
-	if _, err := rand.Read(shuffleRandom); err != nil {
+	if _, err := io.ReadFull(randomSource, shuffleRandom); err != nil {
 		return "", err
 	}
 	for i := seedPasswordLength - 1; i > 0; i-- {
@@ -281,8 +292,8 @@ func truncateSeedSubdomain(subdomain string) string {
 // wrapConflictError checks if the error is a 409 Conflict from the API and
 // returns a user-friendly message directing the developer to run migrate reset.
 func wrapConflictError(err error, entity string) error {
-	var apiErr *phoenixapi.APIError
-	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusConflict {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == 409 {
 		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'go run main.go migrate reset' before re-seeding", entity)
 	}
 	return err
@@ -471,7 +482,7 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	fmt.Println()
 
 	fmt.Println("OUTPUT FILES:")
-	fmt.Printf("  %s   (seed state with credentials & IDs)\n", DefaultSeedStatePath)
+	fmt.Printf("  %s   (seed state with credentials & IDs)\n", s.statePath)
 	fmt.Println()
 }
 

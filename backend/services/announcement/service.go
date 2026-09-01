@@ -35,6 +35,19 @@ type OutboxEnqueuer interface {
 	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
 }
 
+// DeliveryRecorder is the slice of the delivery repository this package needs:
+// write the per-recipient rows behind the staff matrix, and drop them when an
+// announcement is retracted. Declared here (rather than importing the repository
+// interface wholesale) for the same reason OutboxEnqueuer is — the service
+// depends on the operations it uses, not on a data-access surface.
+type DeliveryRecorder interface {
+	ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []*platformModels.EmailDelivery) error
+	DeleteForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) (int64, error)
+	ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]*platformModels.EmailDeliveryStatus, error)
+	AttachOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error
+	ClaimFailedDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error)
+}
+
 const (
 	maxTitleLen   = 200
 	maxBodyLen    = 4000
@@ -65,6 +78,12 @@ var (
 	// are forbidden. Correcting means unpublish (retract) → edit → republish,
 	// which is visible to parents and re-triggers the opted-in e-mail.
 	ErrPublishedImmutable = errors.New("announcement: published announcements cannot be edited")
+	// ErrNotPublished: reminders and resends only make sense for an announcement
+	// that is actually live.
+	ErrNotPublished = errors.New("announcement: announcement is not published")
+	// ErrNothingOutstanding: the announcement never asked for anything, so there
+	// is nobody to remind.
+	ErrNothingOutstanding = errors.New("announcement: nothing is outstanding for this announcement")
 )
 
 // TargetInput is one audience selector supplied by the staff author.
@@ -95,6 +114,14 @@ type Input struct {
 	ResponseType     string     `json:"response_type"`
 	ResponseDeadline *time.Time `json:"response_deadline,omitempty"`
 	Options          []string   `json:"options,omitempty"`
+
+	// DeliveryMode "letter" makes this an Elternbrief (#2384): e-mail and
+	// acknowledgement become mandatory and the mail carries the full body.
+	// EmailAudience decides who receives that mail — "portal_only" (default) is
+	// the portal audience, "all_contacts" additionally reaches guardians with an
+	// address but no portal access. Both default when empty.
+	DeliveryMode  string `json:"delivery_mode,omitempty"`
+	EmailAudience string `json:"email_audience,omitempty"`
 }
 
 // Service is the staff-facing parent-announcement contract.
@@ -118,8 +145,21 @@ type Service interface {
 	// yet and reports how many were reached.
 	RemindUnanswered(ctx context.Context, id int64) (int, error)
 
+	// --- Elternbrief (#2384) ---
+	// LetterStatus returns the recipient matrix (e-mail and moto status per
+	// person) plus the per-child fulfilment behind it.
+	LetterStatus(ctx context.Context, id int64) (*LetterStatus, error)
+	// RemindOutstanding nudges whoever still owes a response — an unanswered
+	// poll or an unconfirmed Elternbrief — and reports how many were reached.
+	RemindOutstanding(ctx context.Context, id int64) (int, error)
+	// ResendFailedEmails re-queues only the mails that ended up failed.
+	ResendFailedEmails(ctx context.Context, id int64) (int, error)
+
 	// --- cancellation notice (#2601) ---
 	CareCancellationPublisher
+
+	// AttachmentSupport is the announcement side of the attachments (#2890).
+	AttachmentSupport
 }
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
@@ -132,8 +172,12 @@ type ServiceConfig struct {
 	// Preferences gates the push by the guardian's own consent. Optional; when
 	// absent no guardian is notified at all, which is the safe direction.
 	Preferences notifications.PreferenceService
-	ParentsURL  string
-	Logger      *slog.Logger
+	// Deliveries records who an Elternbrief was addressed to and what happened
+	// to their mail. Optional: without it the letter still publishes and mails
+	// still go out, only the staff matrix stays empty.
+	Deliveries DeliveryRecorder
+	ParentsURL string
+	Logger     *slog.Logger
 }
 
 type service struct {
@@ -142,7 +186,11 @@ type service struct {
 	outbox      OutboxEnqueuer
 	notifier    notifications.Service
 	preferences notifications.PreferenceService
+	deliveries  DeliveryRecorder
 	parentsURL  string
+	// attachments is the file side of #2890, injected after construction (the
+	// two services point at each other).
+	attachments AttachmentPurger
 	logger      *slog.Logger
 }
 
@@ -158,6 +206,7 @@ func NewService(cfg ServiceConfig) Service {
 		outbox:      cfg.Outbox,
 		notifier:    cfg.Notifier,
 		preferences: cfg.Preferences,
+		deliveries:  cfg.Deliveries,
 		parentsURL:  cfg.ParentsURL,
 		logger:      logger,
 	}
@@ -254,6 +303,8 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 		ExpiresAt:               in.ExpiresAt,
 		ResponseType:            in.ResponseType,
 		ResponseDeadline:        in.ResponseDeadline,
+		DeliveryMode:            in.DeliveryMode,
+		EmailAudience:           in.EmailAudience,
 		Active:                  true,
 		CreatedBy:               createdBy,
 	}
@@ -273,6 +324,8 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 		slog.Int64("created_by", createdBy),
 		slog.Int("target_count", len(targets)),
 		slog.String("response_type", a.ResponseType),
+		slog.String("delivery_mode", a.DeliveryMode),
+		slog.String("email_audience", a.EmailAudience),
 		slog.Int("option_count", len(options)),
 	)
 	return a, nil
@@ -310,6 +363,8 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	a.ExpiresAt = in.ExpiresAt
 	a.ResponseType = in.ResponseType
 	a.ResponseDeadline = in.ResponseDeadline
+	a.DeliveryMode = in.DeliveryMode
+	a.EmailAudience = in.EmailAudience
 	if err := s.repo.Update(ctx, a); err != nil {
 		// The write is guarded by published_at IS NULL: if the draft was
 		// published between the load above and here, no row matched. Surface the
@@ -343,7 +398,12 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 }
 
 func (s *service) Delete(ctx context.Context, id int64) error {
-	a, err := s.repo.FindByID(ctx, id)
+	// Unter der Zeilensperre laden, nicht nur lesen: der Anhang-Upload nimmt
+	// dieselbe Sperre (#2890). Ohne sie kann ein Upload committen, nachdem
+	// purgeAttachments die Anhänge aufgezählt hat — seine Zeile verschwindet
+	// dann mit dem Cascade, ohne dass je ein Cleanup-Intent für ihre Bytes
+	// geschrieben wurde.
+	a, err := s.repo.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return fmt.Errorf("announcement: load for delete: %w", err)
 	}
@@ -358,6 +418,18 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	// otherwise leave pending rows that still deliver a notification for an
 	// announcement that no longer exists.
 	if err := s.cancelPendingEmails(ctx, id); err != nil {
+		return err
+	}
+	// Delivery rows carry the same weak link (related_entity_id, no FK), so they
+	// need the same explicit cleanup.
+	if err := s.dropDeliveryRows(ctx, a.GetTenantID(), id); err != nil {
+		return err
+	}
+	// The attachment rows DO cascade — which is exactly the problem: once they
+	// are gone, nothing points at their bytes any more. Record the cleanup
+	// intents first, in this transaction, so a rollback takes them with it
+	// (#2890).
+	if err := s.purgeAttachments(ctx, id); err != nil {
 		return err
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
@@ -438,7 +510,16 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 			// into e-mail for an announcement expects it to leave. The e-mail
 			// path applies its own consent rule (see enqueueAnnouncementEmails).
 			if fresh.SendEmail {
-				if err := s.enqueueAnnouncementEmails(ctx, fresh); err != nil {
+				// An Elternbrief (and any announcement mailing beyond the portal
+				// audience) takes the tracked path: it records one delivery row per
+				// addressed person, including the ones that get nothing, because the
+				// recipient matrix is the deliverable. Everything else keeps the
+				// original untracked path unchanged.
+				enqueue := s.enqueueAnnouncementEmails
+				if needsDeliveryTracking(fresh) {
+					enqueue = s.enqueueTrackedEmails
+				}
+				if err := enqueue(ctx, fresh); err != nil {
 					return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
 				}
 			}
@@ -647,6 +728,10 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 				a.ResponseDeadline.Format("02.01.2006"))
 		}
 	}
+	// Every recipient of this path has portal access by construction
+	// (ResolveAudienceEmails is portal-audience only), so the attachment hint
+	// always points somewhere the reader can go.
+	hasAttachment := s.hasAttachments(ctx, a.ID)
 	queued := 0
 	for _, rcpt := range recipients {
 		// Deliberately NO announcement body here: e-mail is the least trusted
@@ -655,16 +740,17 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		if _, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
-				emailPayloadRecipient:   rcpt.Email,
-				emailPayloadFirstName:   rcpt.FirstName,
-				emailPayloadLastName:    rcpt.LastName,
-				emailPayloadTitle:       a.Title,
-				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   s.parentsURL,
-				emailPayloadLogoURL:     logoURL,
-				emailPayloadMotoLogoURL: motoLogoURL,
-				emailPayloadKicker:      kicker,
-				emailPayloadIntro:       intro,
+				emailPayloadRecipient:     rcpt.Email,
+				emailPayloadFirstName:     rcpt.FirstName,
+				emailPayloadLastName:      rcpt.LastName,
+				emailPayloadTitle:         a.Title,
+				emailPayloadSchoolName:    schoolName,
+				emailPayloadPortalURL:     s.parentsURL,
+				emailPayloadLogoURL:       logoURL,
+				emailPayloadMotoLogoURL:   motoLogoURL,
+				emailPayloadKicker:        kicker,
+				emailPayloadIntro:         intro,
+				emailPayloadHasAttachment: hasAttachment,
 			},
 			RelatedEntityType: relatedEntityTypeAnnouncement,
 			RelatedEntityID:   a.ID,
@@ -732,6 +818,27 @@ func (s *service) cancelPendingEmails(ctx context.Context, id int64) error {
 	return nil
 }
 
+// dropDeliveryRows removes the recipient matrix of a retracted or deleted
+// announcement. A republish resolves the audience live and writes a fresh set,
+// so keeping the old rows would only show a matrix for a wording parents never
+// saw — and would strand recipients who have since been unlinked.
+func (s *service) dropDeliveryRows(ctx context.Context, tenantID, id int64) error {
+	if s.deliveries == nil {
+		return nil
+	}
+	dropped, err := s.deliveries.DeleteForEntity(ctx, tenantID, relatedEntityTypeAnnouncement, id)
+	if err != nil {
+		return fmt.Errorf("announcement: drop delivery rows: %w", err)
+	}
+	if dropped > 0 {
+		s.logger.Info("parent announcement delivery rows dropped",
+			slog.Int64("announcement_id", id),
+			slog.Int64("dropped", dropped),
+		)
+	}
+	return nil
+}
+
 func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
 	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -751,6 +858,9 @@ func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentA
 		// unpublish -> edit -> republish, so a still-pending mail with the old
 		// wording must not go out after the announcement is pulled.
 		if err := s.cancelPendingEmails(ctx, id); err != nil {
+			return nil, err
+		}
+		if err := s.dropDeliveryRows(ctx, a.GetTenantID(), id); err != nil {
 			return nil, err
 		}
 		a.PublishedAt = nil
@@ -797,6 +907,65 @@ func (s *service) Recipients(ctx context.Context, id int64) ([]*usersModels.Anno
 // optional absolute http(s) link, at least one target, and per-type ref
 // consistency (class -> text, group/AG/student -> id, school_all/
 // pending_enrollment -> neither). Duplicate targets are collapsed.
+// normalizeDelivery validates and completes the two delivery axes of #2384:
+// delivery_mode (Mitteilung vs Elternbrief) and email_audience (who receives the
+// mail, independently of who sees the announcement in the portal).
+//
+// The letter's mandatory channels are FORCED here rather than rejected. The
+// database CHECK is the guarantee; this is the API being forgiving about how a
+// client expresses the same intent — a caller that selects "Elternbrief" has
+// already said it wants both channels, and failing that request with a 400 would
+// only teach clients to send redundant flags. Silently WIDENING an audience or
+// turning a poll into a letter, by contrast, would change what the author
+// intended and is refused.
+func normalizeDelivery(in *Input) error {
+	if in.DeliveryMode == "" {
+		in.DeliveryMode = usersModels.ParentAnnouncementDeliveryStandard
+	}
+	if !usersModels.ValidAnnouncementDeliveryMode(in.DeliveryMode) {
+		return fmt.Errorf("%w: delivery_mode %q", ErrValidation, in.DeliveryMode)
+	}
+	if in.EmailAudience == "" {
+		in.EmailAudience = usersModels.EmailAudiencePortalOnly
+	}
+	if !usersModels.ValidAnnouncementEmailAudience(in.EmailAudience) {
+		return fmt.Errorf("%w: email_audience %q", ErrValidation, in.EmailAudience)
+	}
+	if in.EmailAudience == usersModels.EmailAudienceAllContacts && in.DeliveryMode != usersModels.ParentAnnouncementDeliveryLetter {
+		return fmt.Errorf("%w: email_audience %q requires an Elternbrief", ErrValidation, in.EmailAudience)
+	}
+
+	if in.DeliveryMode == usersModels.ParentAnnouncementDeliveryLetter {
+		// A poll asks a question per child; a letter demands one acknowledgement
+		// per child. Combining them would need a single row to carry two different
+		// per-child completion semantics, so v1 keeps the axes separate (the
+		// chk_parent_announcements_letter_not_poll constraint mirrors this).
+		if in.ResponseType != "" && in.ResponseType != usersModels.ParentAnnouncementResponseNone {
+			return fmt.Errorf("%w: an Elternbrief cannot also be a poll", ErrValidation)
+		}
+		// Targeting people with an open enrollment reaches guardians that have no
+		// student link yet — "the letter is fulfilled for this child" has no
+		// meaning for them, and they would sit in the recipient matrix as
+		// permanently outstanding. Refused rather than silently dropped so the
+		// author notices while composing.
+		for _, t := range in.Targets {
+			if t.TargetType == usersModels.AnnouncementTargetPendingEnrollment {
+				return fmt.Errorf("%w: an Elternbrief cannot target pending enrollments", ErrValidation)
+			}
+		}
+		in.SendEmail = true
+		in.RequiresAcknowledgement = true
+	}
+
+	// Widening the e-mail audience without sending e-mail at all is a
+	// contradiction that almost certainly means the client lost a flag. Refuse it
+	// instead of persisting a setting that does nothing.
+	if in.EmailAudience == usersModels.EmailAudienceAllContacts && !in.SendEmail {
+		return fmt.Errorf("%w: email_audience %q requires send_email", ErrValidation, in.EmailAudience)
+	}
+	return nil
+}
+
 func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) {
 	in.Title = strings.TrimSpace(in.Title)
 	in.Body = strings.TrimSpace(in.Body)
@@ -828,6 +997,9 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 	}
 	if len(in.Targets) == 0 {
 		return nil, fmt.Errorf("%w: at least one target required", ErrValidation)
+	}
+	if err := normalizeDelivery(in); err != nil {
+		return nil, err
 	}
 
 	seen := make(map[string]bool, len(in.Targets))

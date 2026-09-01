@@ -4,7 +4,7 @@
 //
 // The point of the endpoint is that a multi-day absence/substitution lands in
 // ONE atomic save. The tests drive the wired handler with real DB writes
-// (buildDevSetup delegates the deviation writes to the real service), then
+// (buildDevModule delegates the deviation writes to the real service), then
 // read the DB back to prove:
 //   - a substitute covers every selected day (and only those),
 //   - the absence-only variant marks the rows without creating cover,
@@ -35,10 +35,11 @@ func bulkRouter(parentCtx context.Context, res *Resource) chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(res.DB))
 	r.Post("/substitutions/bulk", res.applyBulkSubstitution)
 	return r
 }
@@ -74,7 +75,7 @@ func bulkStaffState(t *testing.T, s *devSetup, instanceID int64) (absentA bool, 
 func TestBulkSubstitution_MultiDayWithSubstitute(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := bulkRouter(s.ctx, s.res)
 	d1Str, d1 := futureSubDate(1)
 	d2Str, d2 := futureSubDate(2)
@@ -122,7 +123,7 @@ func TestBulkSubstitution_MultiDayWithSubstitute(t *testing.T) {
 func TestBulkSubstitution_AbsenceOnly(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := bulkRouter(s.ctx, s.res)
 	d1Str, d1 := futureSubDate(1)
 	d2Str, d2 := futureSubDate(2)
@@ -151,7 +152,7 @@ func TestBulkSubstitution_AbsenceOnly(t *testing.T) {
 func TestBulkSubstitution_AtomicRejectAcrossDays(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := bulkRouter(s.ctx, s.res)
 	d1Str, d1 := futureSubDate(1)
 	d2Str, d2 := futureSubDate(2)
@@ -183,7 +184,7 @@ func TestBulkSubstitution_AtomicRejectAcrossDays(t *testing.T) {
 func TestBulkSubstitution_RejectsPastAndInvalidInput(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := bulkRouter(s.ctx, s.res)
 	past := futureSubDateOffset(-1)
 

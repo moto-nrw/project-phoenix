@@ -73,7 +73,7 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 		},
 		slog.Default(),
 	)
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		db:                      db,
 		schoolRepo:              platformRepo.NewSchoolRepository(db),
 		studentChangeLogCleanup: cleanup,
@@ -88,10 +88,9 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 				configModel.KeyDataCleanupTimeoutMinutes: 30,
 			},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
 
-	s.checkAndRunStudentChangeLogCleanup(&ScheduledTask{Name: "student-change-log-cleanup"})
+	s.checkAndRunStudentChangeLogCleanup(context.Background(), &ScheduledTask{Name: "student-change-log-cleanup"})
 
 	editCount, err := db.NewSelect().
 		ModelTableExpr(`audit.student_field_edits`).

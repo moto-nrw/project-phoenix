@@ -12,6 +12,7 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,15 +29,16 @@ func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, i
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
 	require.NoError(t, err)
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:     repos,
-		TokenAuth: tokenAuth,
-		JWTSecret: extraJWTSecret,
-		DB:        db,
+		Repos:      repos,
+		TokenAuth:  tokenAuth,
+		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
+		JWTSecret:  extraJWTSecret,
+		DB:         db,
 	})
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, svc, db)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-extra")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 	return svc, repos, acc.ID
 }
 
@@ -256,7 +258,6 @@ func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.
 	require.NoError(t, err)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-ratelimit-blind")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	challengeToken, err := svc.StartChallenge(
 		context.Background(), acc.ID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"),

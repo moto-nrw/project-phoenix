@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/uptrace/bun"
 )
 
 func TestNoDuplicateMigrationVersions(t *testing.T) {
@@ -97,6 +96,7 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 }
 
 func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
+	t.Parallel()
 	content, err := os.ReadFile("001015050_timeframes_use_time_without_timezone.go")
 	if err != nil {
 		t.Fatalf("failed to read timeframe clock migration: %v", err)
@@ -116,6 +116,7 @@ func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
 }
 
 func TestOperatorRefreshTokenMigrationUpDown(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -144,7 +145,7 @@ func TestOperatorRefreshTokenMigrationUpDown(t *testing.T) {
 	}
 }
 
-func relationExists(t *testing.T, db *bun.DB, relation string) bool {
+func relationExists(t *testing.T, db *testpkg.DB, relation string) bool {
 	t.Helper()
 	var exists bool
 	if err := db.NewRaw(`SELECT to_regclass(?) IS NOT NULL`, relation).Scan(context.Background(), &exists); err != nil {

@@ -1,18 +1,13 @@
-package config_test
+package config
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
@@ -22,15 +17,15 @@ func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "BalanceLock")
 
-	adjustments := activeRepo.NewStaffBalanceAdjustmentRepository(db)
-	schedules := configRepo.NewStaffWorkScheduleRepository(db)
+	runtime := testpkg.ConfigRuntime(db)
+	schedules := NewStaffWorkScheduleRepository(runtime)
 
 	lockHeld := make(chan struct{})
 	releaseLock := make(chan struct{})
 	holderDone := make(chan error, 1)
 	go func() {
-		holderDone <- tenant.WithTenantTx(context.Background(), db, staff.TenantID, func(ctx context.Context, _ bun.Tx) error {
-			if err := adjustments.LockStaffBalanceWrites(ctx, staff.ID); err != nil {
+		holderDone <- testpkg.WithinTenantContext(t, context.Background(), db, staff.TenantID, func(ctx context.Context) error {
+			if err := runtime.LockStaffBalance(ctx, staff.ID); err != nil {
 				return err
 			}
 			close(lockHeld)
@@ -48,13 +43,13 @@ func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
 
 	writerDone := make(chan error, 1)
 	go func() {
-		writerDone <- tenant.WithTenantTx(context.Background(), db, staff.TenantID, func(ctx context.Context, _ bun.Tx) error {
+		writerDone <- testpkg.WithinTenantContext(t, context.Background(), db, staff.TenantID, func(ctx context.Context) error {
 			return schedules.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{{
 				WeekIndex:      0,
 				RotationLength: 1,
 				DayOfWeek:      configModel.DayMonday,
 				TargetMinutes:  480,
-			}}, timezone.Date{})
+			}}, configModel.CalendarDate(""))
 		})
 	}()
 

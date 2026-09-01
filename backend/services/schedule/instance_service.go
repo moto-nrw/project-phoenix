@@ -24,6 +24,7 @@ package schedule
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,6 +73,10 @@ var (
 	// decision is made after the instance and day locks are held.
 	ErrInstanceWeekend = errors.New("timetable entries can only be scheduled from Monday to Friday")
 
+	// ErrInstanceOutsideActiveCalendarPeriod is returned when a planned
+	// instance would be created or moved outside every active calendar period.
+	ErrInstanceOutsideActiveCalendarPeriod = errors.New("instance date must lie within an active calendar period")
+
 	// ErrAmbiguousTemplateInstanceDelete is returned when a single-instance
 	// delete would need to persist a date-wide cancellation exception but the
 	// template has multiple materialized slots on that date. Handlers map this
@@ -103,6 +108,7 @@ var (
 	ErrInstanceCompleteEarly       = errors.New("activity instance cannot be completed before planned end")
 	ErrLifecycleSettings           = errors.New("activity lifecycle settings unavailable")
 	ErrCompletionConfirmationStale = errors.New("activity completion confirmation is stale")
+	ErrIdempotencyKeyReuse         = errors.New("idempotency key was reused with different request data")
 )
 
 type LifecycleSettings interface {
@@ -257,6 +263,7 @@ type CreateInstanceInput struct {
 	StaffIDs         []int64
 	StudentIDs       []int64
 	CreatedByStaffID *int64
+	IdempotencyKey   *string
 	// RequiredStaff is the optional manual Personalbedarf override (#1839);
 	// nil = derive from the Betreuungsschlüssel.
 	RequiredStaff *int
@@ -305,19 +312,21 @@ type ReplanWeekResult struct {
 // InstanceServiceDependencies aggregates wiring. All repo fields are required;
 // Broadcaster is optional (nil → no SSE).
 type InstanceServiceDependencies struct {
-	InstanceRepo      scheduleModel.ActivityInstanceRepository
-	InstanceStaffRepo scheduleModel.InstanceStaffRepository
-	InstanceStudents  scheduleModel.InstanceStudentRepository
-	ExceptionRepo     scheduleModel.ActivityExceptionRepository
-	ActiveGroupRepo   activeModel.GroupRepository
-	SupervisorRepo    activeModel.GroupSupervisorRepository
-	VisitRepo         activeModel.VisitRepository
-	RoomRepo          facilitiesModel.RoomRepository
-	ActivityGroupRepo activitiesModel.GroupRepository
-	StaffRepo         usersModel.StaffRepository
-	StudentRepo       usersModel.StudentRepository
-	ActiveService     ActiveSessionEnder
-	Materialization   MaterializationService
+	InstanceRepo       scheduleModel.ActivityInstanceRepository
+	IdempotencyRepo    scheduleModel.InstanceIdempotencyRepository
+	InstanceStaffRepo  scheduleModel.InstanceStaffRepository
+	InstanceStudents   scheduleModel.InstanceStudentRepository
+	ExceptionRepo      scheduleModel.ActivityExceptionRepository
+	ActiveGroupRepo    activeModel.GroupRepository
+	SupervisorRepo     activeModel.GroupSupervisorRepository
+	VisitRepo          activeModel.VisitRepository
+	RoomRepo           facilitiesModel.RoomRepository
+	ActivityGroupRepo  activitiesModel.GroupRepository
+	StaffRepo          usersModel.StaffRepository
+	StudentRepo        usersModel.StudentRepository
+	CalendarPeriodRepo scheduleModel.CalendarPeriodRepository
+	ActiveService      ActiveSessionEnder
+	Materialization    MaterializationService
 	// CareDayService decides which still-expected children may be stamped
 	// absent when an instance ends (#1747) — required.
 	CareDayService CareDayService
@@ -341,16 +350,27 @@ type instanceService struct {
 	deps InstanceServiceDependencies
 }
 
+type spontaneousStartWorkdayGuardKey struct{}
+
+func withSpontaneousStartWorkdayGuard(ctx context.Context) context.Context {
+	return context.WithValue(ctx, spontaneousStartWorkdayGuardKey{}, struct{}{})
+}
+
+func hasSpontaneousStartWorkdayGuard(ctx context.Context) bool {
+	_, ok := ctx.Value(spontaneousStartWorkdayGuardKey{}).(struct{})
+	return ok
+}
+
 // NewInstanceService constructs an InstanceService. Panics if a required
 // dependency is nil — the service has no sensible degraded mode for lifecycle
 // transitions, so the factory must wire it completely at startup.
 func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
-	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
+	if deps.InstanceRepo == nil || deps.IdempotencyRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.ExceptionRepo == nil ||
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
-		deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
+		deps.CalendarPeriodRepo == nil || deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
 		deps.RecoveryRepo == nil || (deps.EnforceTimePolicy && deps.Settings == nil) {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
@@ -365,7 +385,7 @@ func (s *instanceService) now() time.Time {
 }
 
 func instanceBoundary(day timezone.Date, wallClock time.Time) time.Time {
-	return time.Date(day.Year, day.Month, day.Day, wallClock.Hour(), wallClock.Minute(), wallClock.Second(), wallClock.Nanosecond(), timezone.Berlin)
+	return time.Date(day.Year(), day.Month(), day.Day(), wallClock.Hour(), wallClock.Minute(), wallClock.Second(), wallClock.Nanosecond(), timezone.Berlin)
 }
 
 func (s *instanceService) validateStartTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
@@ -384,6 +404,18 @@ func (s *instanceService) validateStartTime(ctx context.Context, instance *sched
 		return ErrInstanceStartExpired
 	}
 	return nil
+}
+
+func validateSpontaneousStartWorkday(instance *scheduleModel.ActivityInstance, now time.Time) error {
+	if !instance.IsSpontaneous {
+		return nil
+	}
+	switch now.In(timezone.Berlin).Weekday() {
+	case time.Saturday, time.Sunday:
+		return ErrInstanceWeekend
+	default:
+		return nil
+	}
 }
 
 func (s *instanceService) validateCompleteTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
@@ -522,6 +554,11 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 
 	now := s.now()
+	if hasSpontaneousStartWorkdayGuard(ctx) && instance.IsSpontaneous {
+		if err := validateSpontaneousStartWorkday(instance, now); err != nil {
+			return nil, err
+		}
+	}
 	newGroup := &activeModel.Group{
 		StartTime:      now,
 		LastActivity:   now,
@@ -1493,62 +1530,211 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		})
 		return created, err
 	}
+	return s.createInTenantTransaction(ctx, tenantID, req)
+}
+
+func (s *instanceService) createInTenantTransaction(
+	ctx context.Context, tenantID int64, req CreateInstanceInput,
+) (*scheduleModel.ActivityInstance, error) {
+	idempotencyFingerprint, err := createInstanceIdempotencyFingerprint(req)
+	if err != nil {
+		return nil, &ScheduleError{Op: "create instance: fingerprint idempotency key", Err: err}
+	}
+	if req.IdempotencyKey != nil {
+		existing, err := s.findCreateByIdempotencyKey(ctx, *req.IdempotencyKey)
+		if err != nil {
+			return nil, &ScheduleError{Op: "create instance: find idempotency key", Err: err}
+		}
+		if existing != nil {
+			return idempotentCreateResult(existing, idempotencyFingerprint)
+		}
+	}
 	if err := s.lockRecurrenceThenGradeTransitions(ctx, "create instance"); err != nil {
 		return nil, err
+	}
+	if req.IdempotencyKey != nil {
+		existing, err := s.findCreateByIdempotencyKey(ctx, *req.IdempotencyKey)
+		if err != nil {
+			return nil, &ScheduleError{Op: "create instance: reload idempotency key", Err: err}
+		}
+		if existing != nil {
+			return idempotentCreateResult(existing, idempotencyFingerprint)
+		}
+	}
+	if req.IsSpontaneous == nil || !*req.IsSpontaneous {
+		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
+			return nil, &ScheduleError{Op: "create instance: validate calendar period", Err: err}
+		}
 	}
 	if err := s.validateInstanceReferences(ctx, req.Date, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, req.CreatedByStaffID); err != nil {
 		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
 	}
 
+	inst := newActivityInstance(tenantID, req, idempotencyFingerprint)
+	result, inserted, err := s.insertCreatedInstance(ctx, inst)
+	if err != nil || !inserted {
+		return result, err
+	}
+	if err := s.assignCreatedInstanceRoster(ctx, inst, req, tenantID); err != nil {
+		return nil, err
+	}
+	s.logCreatedInstance(ctx, inst, req)
+	return inst, nil
+}
+
+func newActivityInstance(
+	tenantID int64, req CreateInstanceInput, idempotencyFingerprint *string,
+) *scheduleModel.ActivityInstance {
 	isSpontaneous := false
 	if req.IsSpontaneous != nil {
 		isSpontaneous = *req.IsSpontaneous
 	}
-
 	inst := &scheduleModel.ActivityInstance{
-		Date:            req.Date,
-		StartTime:       req.StartTime,
-		EndTime:         req.EndTime,
-		Title:           req.Title,
-		Description:     req.Description,
-		Notes:           req.Notes,
-		RoomID:          req.RoomID,
-		ActivityGroupID: req.ActivityGroupID,
-		RequiredStaff:   req.RequiredStaff,
-		ListKind:        req.ListKind,
-		Status:          scheduleModel.InstanceStatusPlanned,
-		IsSpontaneous:   isSpontaneous,
-		CreatedBy:       req.CreatedByStaffID,
+		Date:                   req.Date,
+		StartTime:              req.StartTime,
+		EndTime:                req.EndTime,
+		Title:                  req.Title,
+		Description:            req.Description,
+		Notes:                  req.Notes,
+		RoomID:                 req.RoomID,
+		ActivityGroupID:        req.ActivityGroupID,
+		RequiredStaff:          req.RequiredStaff,
+		ListKind:               req.ListKind,
+		Status:                 scheduleModel.InstanceStatusPlanned,
+		IsSpontaneous:          isSpontaneous,
+		CreatedBy:              req.CreatedByStaffID,
+		IdempotencyKey:         req.IdempotencyKey,
+		IdempotencyFingerprint: idempotencyFingerprint,
 	}
 	inst.SetTenantID(tenantID)
+	return inst
+}
 
-	if err := s.deps.InstanceRepo.Create(ctx, inst); err != nil {
-		return nil, &ScheduleError{Op: "create instance: insert", Err: err}
+func createInstanceIdempotencyFingerprint(req CreateInstanceInput) (*string, error) {
+	if req.IdempotencyKey == nil {
+		return nil, nil
 	}
+	isSpontaneous := req.IsSpontaneous != nil && *req.IsSpontaneous
+	staffIDs := sliceutil.UniquePositive(slices.Clone(req.StaffIDs))
+	studentIDs := sliceutil.UniquePositive(slices.Clone(req.StudentIDs))
+	slices.Sort(staffIDs)
+	slices.Sort(studentIDs)
+	payload, err := json.Marshal(struct {
+		Date             string  `json:"date"`
+		StartTime        string  `json:"start_time"`
+		EndTime          string  `json:"end_time"`
+		Title            string  `json:"title"`
+		Description      *string `json:"description"`
+		Notes            *string `json:"notes"`
+		RoomID           int64   `json:"room_id"`
+		ActivityGroupID  *int64  `json:"activity_group_id"`
+		ListKind         *string `json:"list_kind"`
+		IsSpontaneous    bool    `json:"is_spontaneous"`
+		StaffIDs         []int64 `json:"staff_ids"`
+		StudentIDs       []int64 `json:"student_ids"`
+		CreatedByStaffID *int64  `json:"created_by_staff_id"`
+		RequiredStaff    *int    `json:"required_staff"`
+	}{
+		Date: req.Date.String(), StartTime: req.StartTime.Format("15:04:05"), EndTime: req.EndTime.Format("15:04:05"),
+		Title: req.Title, Description: req.Description, Notes: req.Notes, RoomID: req.RoomID,
+		ActivityGroupID: req.ActivityGroupID, ListKind: req.ListKind, IsSpontaneous: isSpontaneous,
+		StaffIDs: staffIDs, StudentIDs: studentIDs, CreatedByStaffID: req.CreatedByStaffID, RequiredStaff: req.RequiredStaff,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal create request: %w", err)
+	}
+	sum := sha256.Sum256(payload)
+	fingerprint := fmt.Sprintf("%x", sum)
+	return &fingerprint, nil
+}
 
-	for _, staffID := range sliceutil.UniquePositive(req.StaffIDs) {
-		if staffID <= 0 {
-			continue
+func idempotentCreateResult(
+	existing *scheduleModel.ActivityInstance, fingerprint *string,
+) (*scheduleModel.ActivityInstance, error) {
+	if fingerprint == nil || existing.IdempotencyFingerprint == nil ||
+		*existing.IdempotencyFingerprint != *fingerprint {
+		return nil, ErrIdempotencyKeyReuse
+	}
+	return existing, nil
+}
+
+func (s *instanceService) insertCreatedInstance(
+	ctx context.Context, inst *scheduleModel.ActivityInstance,
+) (*scheduleModel.ActivityInstance, bool, error) {
+	if inst.IdempotencyKey == nil {
+		if err := s.deps.InstanceRepo.Create(ctx, inst); err != nil {
+			return nil, false, &ScheduleError{Op: "create instance: insert", Err: err}
 		}
+		return inst, true, nil
+	}
+	inserted, err := s.deps.IdempotencyRepo.CreateIdempotent(ctx, inst)
+	if err != nil {
+		return nil, false, &ScheduleError{Op: "create instance: insert idempotent", Err: err}
+	}
+	if inserted {
+		return inst, true, nil
+	}
+	existing, err := s.findCreateByIdempotencyKey(ctx, *inst.IdempotencyKey)
+	if err != nil {
+		return nil, false, &ScheduleError{Op: "create instance: load idempotent result", Err: err}
+	}
+	if existing == nil {
+		return nil, false, &ScheduleError{
+			Op:  "create instance: load idempotent result",
+			Err: errors.New("idempotent insert conflict has no matching row"),
+		}
+	}
+	result, err := idempotentCreateResult(existing, inst.IdempotencyFingerprint)
+	return result, false, err
+}
+
+func (s *instanceService) findCreateByIdempotencyKey(
+	ctx context.Context, key string,
+) (*scheduleModel.ActivityInstance, error) {
+	options := modelBase.NewQueryOptions().WithPagination(1, 1)
+	options.Filter.Equal("idempotency_key", key)
+	instances, err := s.deps.InstanceRepo.List(ctx, options)
+	if err != nil || len(instances) == 0 {
+		return nil, err
+	}
+	return instances[0], nil
+}
+
+func (s *instanceService) assignCreatedInstanceRoster(
+	ctx context.Context, inst *scheduleModel.ActivityInstance, req CreateInstanceInput, tenantID int64,
+) error {
+	if err := s.assignCreatedInstanceStaff(ctx, inst.ID, req.StaffIDs, tenantID); err != nil {
+		return err
+	}
+	studentIDs := sliceutil.UniquePositive(req.StudentIDs)
+	if err := s.lockCareExceptionDaysForStudents(ctx, studentIDs, inst.Date); err != nil {
+		return err
+	}
+	return s.assignCreatedInstanceStudents(ctx, inst, studentIDs, tenantID)
+}
+
+func (s *instanceService) assignCreatedInstanceStaff(
+	ctx context.Context, instanceID int64, staffIDs []int64, tenantID int64,
+) error {
+	for _, staffID := range sliceutil.UniquePositive(staffIDs) {
 		row := &scheduleModel.InstanceStaff{
-			InstanceID: inst.ID,
+			InstanceID: instanceID,
 			StaffID:    staffID,
 			// RoomID nil → uses instance.RoomID at runtime
 			IsPrimary: false,
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
-			return nil, &ScheduleError{Op: "create instance: assign staff", Err: err}
+			return &ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
-	newStudentIDs := sliceutil.UniquePositive(req.StudentIDs)
-	if err := s.lockCareExceptionDaysForStudents(ctx, newStudentIDs, inst.Date); err != nil {
-		return nil, err
-	}
-	for _, studentID := range newStudentIDs {
-		if studentID <= 0 {
-			continue
-		}
+	return nil
+}
+
+func (s *instanceService) assignCreatedInstanceStudents(
+	ctx context.Context, inst *scheduleModel.ActivityInstance, studentIDs []int64, tenantID int64,
+) error {
+	for _, studentID := range studentIDs {
 		row := &scheduleModel.InstanceStudent{
 			InstanceID: inst.ID,
 			StudentID:  studentID,
@@ -1556,26 +1742,29 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
-			return nil, &ScheduleError{Op: "create instance: assign student", Err: err}
+			return &ScheduleError{Op: "create instance: assign student", Err: err}
 		}
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
-		return nil, &ScheduleError{Op: "create instance: apply student status days", Err: err}
+		return &ScheduleError{Op: "create instance: apply student status days", Err: err}
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, inst.ID, inst.Date); err != nil {
-		return nil, &ScheduleError{Op: "create instance: apply student partial absences", Err: err}
+		return &ScheduleError{Op: "create instance: apply student partial absences", Err: err}
 	}
+	return nil
+}
 
+func (s *instanceService) logCreatedInstance(
+	ctx context.Context, inst *scheduleModel.ActivityInstance, req CreateInstanceInput,
+) {
 	s.getLogger().Info("instance created",
-		slog.Int64("tenant_id", tenantID),
+		slog.Int64("tenant_id", inst.GetTenantID()),
 		slog.Int64("instance_id", inst.ID),
 		slog.String("date", inst.Date.String()),
 		slog.Bool("spontaneous", inst.IsSpontaneous),
 		slog.Int("staff_assigned", len(req.StaffIDs)),
 	)
 	s.broadcastPlannedInstanceChanged(ctx, "instance_create")
-
-	return inst, nil
 }
 
 func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput, actorAccountID *int64) (*scheduleModel.ActivityInstance, error) {
@@ -1637,6 +1826,11 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	}
 	if err := validateLegacyWeekendInstanceDate(instance.Date, req.Date); err != nil {
 		return nil, err
+	}
+	if req.CalendarPeriodID != nil || (instance.Date != req.Date && !instance.IsSpontaneous) {
+		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
+			return nil, &ScheduleError{Op: "update instance: validate calendar period", Err: err}
+		}
 	}
 
 	if err := s.validateInstanceReferences(ctx, req.Date, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
@@ -1721,6 +1915,19 @@ func validateLegacyWeekendInstanceDate(existing, requested timezone.Date) error 
 		return nil
 	}
 	return ErrInstanceWeekend
+}
+
+func (s *instanceService) validateInstanceDateInActiveCalendarPeriod(ctx context.Context, date timezone.Date) error {
+	periods, err := s.deps.CalendarPeriodRepo.FindActiveByTenantID(ctx)
+	if err != nil {
+		return fmt.Errorf("find active calendar periods: %w", err)
+	}
+	for _, period := range periods {
+		if period.ContainsDay(date) {
+			return nil
+		}
+	}
+	return ErrInstanceOutsideActiveCalendarPeriod
 }
 
 // clearStaleAckIfStaffed clears a lingering "deliberately unstaffed"
@@ -2051,7 +2258,7 @@ func (s *instanceService) hasTx(ctx context.Context) bool {
 	if s.deps.DB == nil {
 		return true // no DB wired (unit tests): nothing to lock, nothing to wrap
 	}
-	_, ok := modelBase.TxFromContext(ctx)
+	_, ok := tenant.TransactionFromContext(ctx)
 	return ok
 }
 
@@ -2223,7 +2430,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		// find). Fail fast instead of silently no-oping the admin action.
 		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
-	if _, ok := modelBase.TxFromContext(ctx); !ok {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		var result *ReplanWeekResult
 		err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			var err error

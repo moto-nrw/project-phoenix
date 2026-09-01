@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,6 +66,48 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestPlanningTrackRepositoryFindByIDs(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	scope := testpkg.NewTenantScope(t, db)
+	repo := repositories.NewFactory(db).PlanningTrack
+	ctx := scope.Context()
+
+	active := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
+	archived := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
+	require.NoError(t, repo.Create(ctx, active))
+	require.NoError(t, repo.Create(ctx, archived))
+	archivedAt := time.Now()
+	archived.ArchivedAt = &archivedAt
+	updated, err := repo.UpdateColumns(ctx, archived, "archived_at")
+	require.NoError(t, err)
+	require.Positive(t, updated)
+
+	empty, err := repo.FindByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+
+	// Archived rows resolve too (historical references keep their colour);
+	// unknown IDs are simply absent instead of an error.
+	tracks, err := repo.FindByIDs(ctx, []int64{active.ID, archived.ID, archived.ID + 1000})
+	require.NoError(t, err)
+	require.Len(t, tracks, 2)
+	byID := map[int64]*model.PlanningTrack{}
+	for _, track := range tracks {
+		byID[track.ID] = track
+	}
+	require.NotNil(t, byID[active.ID])
+	require.NotNil(t, byID[archived.ID])
+	assert.True(t, byID[archived.ID].IsArchived())
+
+	// Tenant isolation: another tenant sees none of these rows.
+	otherScope := testpkg.NewTenantScope(t, db)
+	foreign, err := repo.FindByIDs(otherScope.Context(), []int64{active.ID, archived.ID})
+	require.NoError(t, err)
+	assert.Empty(t, foreign)
+}
+
 func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	t.Parallel()
 
@@ -82,7 +123,7 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	err := service.ReorderPlanningTracks(scope.Context(), []int64{first.ID})
 	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNotFound)
 
-	err = tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		require.NoError(t, repo.UpdateSortOrders(txCtx, nil))
 		return repo.UpdateSortOrders(txCtx, []int64{first.ID, first.ID + second.ID + 1000})
 	})

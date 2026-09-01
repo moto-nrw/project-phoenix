@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -90,8 +92,10 @@ func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	repoFactory := repositories.NewFactory(db)
 	cfg, err := NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
+	cfg.Audit = testpkg.NewAuthEventCommand(repoFactory.AuthEvent)
 	service, err := NewService(repoFactory, cfg, db, slog.Default())
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, service, db)
 	return service
 }
 
@@ -107,7 +111,6 @@ func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 	account, err := service.Register(ctx, email, username, "Test1234%", nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	_, refreshJWT, err := service.Login(ctx, email, "Test1234%")
 	require.NoError(t, err)
@@ -149,7 +152,7 @@ func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 	require.NoError(t, err)
 	_, err = probeTx.ExecContext(ctx, `SET LOCAL lock_timeout = '500ms'`)
 	require.NoError(t, err)
-	probeCtx := modelBase.ContextWithTx(ctx, &probeTx)
+	probeCtx := tenant.WithTransactionForTest(ctx, &probeTx)
 	lockedToken, err := service.repos.Token.FindByTokenForUpdate(probeCtx, tokens[0].Token)
 	require.NoError(t, err)
 	require.NotNil(t, lockedToken)
@@ -810,8 +813,6 @@ func TestRefreshTokenInTransaction_GuardFailureLeavesPresentedTokenUsable(t *tes
 	require.NoError(t, err)
 	// LIFO: the account rows reference the school, so the school teardown has
 	// to be registered first and therefore run last.
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	_, refreshJWT, err := service.Login(ctx, accountEmail, "Test1234%")

@@ -47,7 +47,7 @@ func (r *TimetableConflictAckRepository) ListFingerprintsByAccount(ctx context.C
 	query = base.WithTenantFilter(ctx, query, "conflict_ack")
 
 	if err := query.Scan(ctx, &fingerprints); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list conflict ack fingerprints", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list conflict ack fingerprints", Err: base.TranslateNotFound(err)}
 	}
 	return fingerprints, nil
 }
@@ -76,7 +76,7 @@ func (r *TimetableConflictAckRepository) Acknowledge(ctx context.Context, accoun
 		On("CONFLICT (tenant_id, account_id, fingerprint) DO NOTHING").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "acknowledge conflict", Err: err}
+		return &modelBase.DatabaseError{Op: "acknowledge conflict", Err: base.TranslateNotFound(err)}
 	}
 	if rows, err := res.RowsAffected(); err != nil || rows == 0 {
 		return nil // duplicate ack — the set did not grow, nothing to prune
@@ -105,7 +105,7 @@ func (r *TimetableConflictAckRepository) pruneOldest(ctx context.Context, accoun
 	prune = base.WithTenantFilter(ctx, prune, "conflict_ack")
 
 	if _, err := prune.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "prune conflict acks", Err: err}
+		return &modelBase.DatabaseError{Op: "prune conflict acks", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -122,7 +122,7 @@ func (r *TimetableConflictAckRepository) Unacknowledge(ctx context.Context, acco
 	query = base.WithTenantFilter(ctx, query, "conflict_ack")
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "unacknowledge conflict", Err: err}
+		return &modelBase.DatabaseError{Op: "unacknowledge conflict", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

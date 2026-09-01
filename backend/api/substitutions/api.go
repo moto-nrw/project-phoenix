@@ -3,432 +3,339 @@ package substitutions
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
-	"strings"
-	"time"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	modelEducation "github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/services/education"
+	substitution "github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-// Constants for error messages (S1192 - avoid duplicate string literals)
-const (
-	errSubstitutionNotFound = "substitution not found"
-	errContainsNotFound     = "not found" // Used for error message checks
-)
-
 type Resource struct {
-	Service education.Service
+	Service substitution.SubstitutionModule
 	db      *bun.DB
 }
 
-func NewResource(educationService education.Service, db *bun.DB) *Resource {
-	return &Resource{
-		Service: educationService,
-		db:      db,
-	}
-}
-
-// SubstitutionResponse represents a substitution in API responses
-type SubstitutionResponse struct {
-	ID                int64      `json:"id"`
-	GroupID           int64      `json:"group_id"`
-	Group             *GroupInfo `json:"group,omitempty"`
-	RegularStaffID    *int64     `json:"regular_staff_id,omitempty"`
-	RegularStaff      *StaffInfo `json:"regular_staff,omitempty"`
-	SubstituteStaffID int64      `json:"substitute_staff_id"`
-	SubstituteStaff   *StaffInfo `json:"substitute_staff,omitempty"`
-	StartDate         string     `json:"start_date"` // YYYY-MM-DD format
-	EndDate           string     `json:"end_date"`   // YYYY-MM-DD format
-	Reason            string     `json:"reason,omitempty"`
-	Duration          int        `json:"duration_days"`
-	IsActive          bool       `json:"is_active"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
-}
-
-// GroupInfo represents basic group information in substitution responses
-type GroupInfo struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
-// StaffInfo represents basic staff information in substitution responses
-type StaffInfo struct {
-	ID        int64  `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	FullName  string `json:"full_name"`
-}
-
-// newSubstitutionResponse converts a substitution model to a response object
-func newSubstitutionResponse(sub *modelEducation.GroupSubstitution) SubstitutionResponse {
-	response := SubstitutionResponse{
-		ID:                sub.ID,
-		GroupID:           sub.GroupID,
-		RegularStaffID:    sub.RegularStaffID,
-		SubstituteStaffID: sub.SubstituteStaffID,
-		StartDate:         sub.StartDate.String(),
-		EndDate:           sub.EndDate.String(),
-		Reason:            sub.Reason,
-		Duration:          sub.Duration(),
-		IsActive:          education.SubstitutionIsActiveNow(sub, time.Now()),
-		CreatedAt:         sub.CreatedAt,
-		UpdatedAt:         sub.UpdatedAt,
-	}
-
-	// Add group details if available
-	if sub.Group != nil {
-		response.Group = &GroupInfo{
-			ID:   sub.Group.ID,
-			Name: sub.Group.Name,
-		}
-	}
-
-	// Add regular staff details if available (only if RegularStaffID is set)
-	if sub.RegularStaffID != nil && sub.RegularStaff != nil {
-		response.RegularStaff = &StaffInfo{
-			ID: sub.RegularStaff.ID,
-		}
-		if sub.RegularStaff.Person != nil {
-			response.RegularStaff.FirstName = sub.RegularStaff.Person.FirstName
-			response.RegularStaff.LastName = sub.RegularStaff.Person.LastName
-			response.RegularStaff.FullName = sub.RegularStaff.Person.GetFullName()
-		}
-	}
-
-	// Add substitute staff details if available
-	if sub.SubstituteStaff != nil {
-		response.SubstituteStaff = &StaffInfo{
-			ID: sub.SubstituteStaff.ID,
-		}
-		if sub.SubstituteStaff.Person != nil {
-			response.SubstituteStaff.FirstName = sub.SubstituteStaff.Person.FirstName
-			response.SubstituteStaff.LastName = sub.SubstituteStaff.Person.LastName
-			response.SubstituteStaff.FullName = sub.SubstituteStaff.Person.GetFullName()
-		}
-	}
-
-	return response
-}
-
-// createSubstitutionRequest represents a request to create a substitution
-type createSubstitutionRequest struct {
-	GroupID           int64  `json:"group_id"`
-	RegularStaffID    *int64 `json:"regular_staff_id,omitempty"`
-	SubstituteStaffID int64  `json:"substitute_staff_id"`
-	StartDate         string `json:"start_date"` // YYYY-MM-DD format
-	EndDate           string `json:"end_date"`   // YYYY-MM-DD format
-	Reason            string `json:"reason,omitempty"`
+func NewResource(service substitution.SubstitutionModule, db *bun.DB) *Resource {
+	return &Resource{Service: service, db: db}
 }
 
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-
-	// Protected routes that require authentication and permissions
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
-
-		// Read operations require substitutions:read permission
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/", rs.list)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/active", rs.listActive)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/{id}", rs.get)
-
-		// Write operations require substitutions:create/update/delete permissions
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsCreate), withTx).Post("/", rs.create)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsUpdate), withTx).Put("/{id}", rs.update)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsDelete), withTx).Delete("/{id}", rs.delete)
+		r.With(withTx).Get("/", rs.overview)
+		r.With(withTx).Post("/", rs.assign)
+		r.With(withTx).Post("/end", rs.end)
 	})
-
 	return r
 }
 
-// list handles GET /api/substitutions
-func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
-	options := base.NewQueryOptions()
-
-	// Apply pagination
-	page, pageSize := common.ParsePagination(r)
-	options.WithPagination(page, pageSize)
-
-	substitutions, err := rs.Service.ListSubstitutions(r.Context(), options)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	// Transform to response DTOs - this ensures we always return an array, never null
-	responses := make([]SubstitutionResponse, 0, len(substitutions))
-	for _, sub := range substitutions {
-		responses = append(responses, newSubstitutionResponse(sub))
-	}
-
-	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Substitutions retrieved successfully")
+type assignmentRequest struct {
+	Type          substitution.TargetType `json:"type"`
+	GroupHandover *struct {
+		GroupID       common.JSONID `json:"group_id"`
+		TargetStaffID common.JSONID `json:"target_staff_id"`
+		StartDate     string        `json:"start_date,omitempty"`
+		EndDate       string        `json:"end_date,omitempty"`
+	} `json:"group_handover"`
+	AdditionalSupervision *struct {
+		ActiveGroupID common.JSONID `json:"active_group_id"`
+		TargetStaffID common.JSONID `json:"target_staff_id"`
+	} `json:"additional_supervision"`
+	ScheduleSubstitution *scheduleAssignmentRequest `json:"schedule_substitution"`
 }
 
-// listActive handles GET /api/substitutions/active
-func (rs *Resource) listActive(w http.ResponseWriter, r *http.Request) {
-	// Get date parameter (defaults to today)
-	dateStr := r.URL.Query().Get("date")
-	var date timezone.Date
-	if dateStr != "" {
-		parsedDate, err := timezone.ParseDate(dateStr)
+type scheduleAssignmentRequest struct {
+	InstanceID           int64                                      `json:"instance_id"`
+	UnderstaffedAck      *bool                                      `json:"understaffed_ack,omitempty"`
+	UnderstaffedNote     *string                                    `json:"understaffed_note,omitempty"`
+	Absences             []substitution.ScheduleAbsenceChange       `json:"absences,omitempty"`
+	Substitutions        []substitution.ScheduleSubstitutionChange  `json:"substitutions,omitempty"`
+	SubstitutionRemovals []substitution.ScheduleSubstitutionRemoval `json:"substitution_removals,omitempty"`
+	Presences            []substitution.SchedulePresenceChange      `json:"presences,omitempty"`
+	WholeDays            *struct {
+		AbsentStaffID     int64           `json:"absent_staff_id"`
+		SubstituteStaffID *int64          `json:"substitute_staff_id,omitempty"`
+		Dates             []timezone.Date `json:"dates"`
+		Reason            *string         `json:"reason,omitempty"`
+	} `json:"whole_days,omitempty"`
+}
+
+type endRequest struct {
+	Type substitution.TargetType `json:"type"`
+	ID   common.JSONID           `json:"id"`
+}
+
+func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
+	query := substitution.OverviewQuery{IncludeTargets: true}
+	if raw := r.URL.Query().Get("group_id"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Gruppe ist ungültig.", "invalid_target"))
+			return
+		}
+		query.GroupID = id
+	}
+	if raw := r.URL.Query().Get("active_group_id"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Gruppe ist ungültig.", "invalid_target"))
+			return
+		}
+		query.ActiveGroupID = id
+	}
+	if raw := r.URL.Query().Get("date"); raw != "" {
+		date, err := timezone.ParseDate(raw)
 		if err != nil {
-			common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+			common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Das Datum ist ungültig.", "invalid_period"))
 			return
 		}
-		date = parsedDate
-	} else {
-		date = timezone.TodayDate()
+		query.On = &date
 	}
-
-	substitutions, err := rs.Service.GetActiveSubstitutions(r.Context(), date)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
+	if !parseScheduleRange(w, r, &query) {
 		return
 	}
-
-	// Transform to response DTOs - this ensures we always return an array, never null
-	responses := make([]SubstitutionResponse, 0, len(substitutions))
-	for _, sub := range substitutions {
-		responses = append(responses, newSubstitutionResponse(sub))
+	caller, err := callerFromContext(r.Context())
+	if err != nil {
+		renderModuleError(w, r, err)
+		return
 	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Active substitutions retrieved successfully")
+	result, err := rs.Service.Overview(r.Context(), caller, query)
+	if err != nil {
+		renderModuleError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, result, "Vertretungen geladen")
 }
 
-// create handles POST /api/substitutions
-func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
-	var req createSubstitutionRequest
-
-	if json.NewDecoder(r.Body).Decode(&req) != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
-		return
-	}
-
-	// Validate required fields
-	if req.GroupID == 0 || req.SubstituteStaffID == 0 {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
-		return
-	}
-
-	// Parse dates
-	startDate, err := timezone.ParseDate(req.StartDate)
+func (rs *Resource) assign(w http.ResponseWriter, r *http.Request) {
+	request, err := decodeAssignment(r.Body)
 	if err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid start date format. Expected YYYY-MM-DD")
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Anfrage ist ungültig.", "invalid_target"))
 		return
 	}
-
-	endDate, err := timezone.ParseDate(req.EndDate)
+	assignment, err := request.toAssignment()
 	if err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid end date format. Expected YYYY-MM-DD")
+		renderModuleError(w, r, err)
 		return
 	}
-
-	// Validate date range
-	if startDate.After(endDate) {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionDateRange.Error())
+	caller, err := callerFromContext(r.Context())
+	if err != nil {
+		renderModuleError(w, r, err)
 		return
 	}
-
-	// Validate no backdating - start date must be today or in the future
-	today := timezone.TodayDate()
-	if startDate.Before(today) {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionBackdated.Error())
+	created, err := rs.Service.Assign(r.Context(), caller, assignment)
+	if err != nil {
+		renderModuleError(w, r, err)
 		return
 	}
-
-	// Create domain model
-	substitution := &modelEducation.GroupSubstitution{
-		GroupID:           req.GroupID,
-		RegularStaffID:    req.RegularStaffID,
-		SubstituteStaffID: req.SubstituteStaffID,
-		StartDate:         startDate,
-		EndDate:           endDate,
-		Reason:            req.Reason,
-	}
-
-	// Note: We intentionally allow staff members to substitute multiple groups simultaneously.
-	// We also allow groups to have multiple substitutes at the same time.
-	// This enables flexible team-based supervision of groups.
-
-	// Create the substitution
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.Service.CreateSubstitution(ctx, substitution)
-	}); err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
+	if created.ScheduleSubstitution != nil {
+		common.Respond(w, r, http.StatusCreated, created.ScheduleSubstitution, "Vertretung gespeichert")
 		return
 	}
-
-	// Convert to response DTO
-	response := newSubstitutionResponse(substitution)
-	common.Respond(w, r, http.StatusCreated, response, "Substitution created successfully")
+	if request.Type == substitution.TargetAdditionalSupervision {
+		common.Respond(w, r, http.StatusCreated, created, "Betreuer hinzugefügt")
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, created, "Gruppe übergeben")
 }
 
-// get handles GET /api/substitutions/{id}
-func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+func decodeAssignment(body io.Reader) (assignmentRequest, error) {
+	var request assignmentRequest
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		return assignmentRequest{}, err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return assignmentRequest{}, errors.New("request body must contain one JSON object")
+	}
+	return request, nil
+}
+
+func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
+	var request endRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Anfrage ist ungültig.", "invalid_target"))
 		return
 	}
-
-	substitution, err := rs.Service.GetSubstitution(r.Context(), id)
+	caller, err := callerFromContext(r.Context())
 	if err != nil {
-		if strings.Contains(err.Error(), errContainsNotFound) {
-			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
-			return
+		renderModuleError(w, r, err)
+		return
+	}
+	if err := rs.Service.End(r.Context(), caller, substitution.EndRequest{Type: request.Type, ID: request.ID.Int64()}); err != nil {
+		renderModuleError(w, r, err)
+		return
+	}
+	message := "Gruppenübergabe beendet"
+	if request.Type == substitution.TargetScheduleSubstitution {
+		message = "Vertretung beendet"
+	}
+	common.Respond(w, r, http.StatusOK, map[string]bool{"ended": true}, message)
+}
+
+func parseScheduleRange(w http.ResponseWriter, r *http.Request, query *substitution.OverviewQuery) bool {
+	fromRaw, toRaw := r.URL.Query().Get("from"), r.URL.Query().Get("to")
+	if fromRaw == "" && toRaw == "" {
+		return true
+	}
+	from, fromErr := timezone.ParseDate(fromRaw)
+	to, toErr := timezone.ParseDate(toRaw)
+	if fromErr != nil || toErr != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Der Zeitraum ist ungültig.", "invalid_period"))
+		return false
+	}
+	query.ScheduleFrom, query.ScheduleTo, query.IncludeScheduleTargets = &from, &to, true
+	return true
+}
+
+func (request assignmentRequest) toAssignment() (substitution.Assignment, error) {
+	assignment := substitution.Assignment{Type: request.Type}
+	switch request.Type {
+	case substitution.TargetGroupHandover:
+		if request.GroupHandover == nil {
+			return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
 		}
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
+		start, err := optionalDate(request.GroupHandover.StartDate)
+		if err != nil {
+			return assignment, invalidAssignmentRequest("Das Startdatum ist ungültig.", substitution.ErrInvalidPeriod, "invalid_period")
+		}
+		end, err := optionalDate(request.GroupHandover.EndDate)
+		if err != nil {
+			return assignment, invalidAssignmentRequest("Das Enddatum ist ungültig.", substitution.ErrInvalidPeriod, "invalid_period")
+		}
+		assignment.GroupHandover = &substitution.GroupHandoverAssignment{
+			GroupID: request.GroupHandover.GroupID.Int64(), TargetStaffID: request.GroupHandover.TargetStaffID.Int64(),
+			StartDate: start, EndDate: end,
+		}
+	case substitution.TargetScheduleSubstitution:
+		return request.toScheduleAssignment(assignment)
+	case substitution.TargetAdditionalSupervision:
+		if request.AdditionalSupervision == nil {
+			return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
+		}
+		assignment.AdditionalSupervision = &substitution.AdditionalSupervisionAssignment{ActiveGroupID: request.AdditionalSupervision.ActiveGroupID.Int64(), TargetStaffID: request.AdditionalSupervision.TargetStaffID.Int64()}
+	default:
+		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
 	}
-
-	// Convert to response DTO
-	response := newSubstitutionResponse(substitution)
-	common.Respond(w, r, http.StatusOK, response, "Substitution retrieved successfully")
+	return assignment, nil
 }
 
-// update handles PUT /api/substitutions/{id}
-func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
-		return
+func (request assignmentRequest) toScheduleAssignment(assignment substitution.Assignment) (substitution.Assignment, error) {
+	if request.ScheduleSubstitution == nil {
+		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
 	}
-
-	var substitution modelEducation.GroupSubstitution
-	if json.NewDecoder(r.Body).Decode(&substitution) != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
-		return
+	wire := request.ScheduleSubstitution
+	value := &substitution.ScheduleSubstitutionAssignment{
+		InstanceID: wire.InstanceID, UnderstaffedAck: wire.UnderstaffedAck, UnderstaffedNote: wire.UnderstaffedNote,
+		Absences: wire.Absences, Substitutions: wire.Substitutions,
+		SubstitutionRemovals: wire.SubstitutionRemovals, Presences: wire.Presences,
 	}
-	substitution.ID = id
-
-	// Validate dates
-	if errMsg := validateSubstitutionDates(&substitution); errMsg != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, errMsg.Error())
-		return
-	}
-
-	// Check existing and validate conflicts
-	existing, err := rs.Service.GetSubstitution(r.Context(), id)
-	if err != nil {
-		rs.handleGetSubstitutionError(w, r, err)
-		return
-	}
-
-	if err := rs.checkStaffChangeConflicts(r.Context(), &substitution, existing); err != nil {
-		common.RespondWithError(w, r, http.StatusConflict, err.Error())
-		return
-	}
-
-	// Perform update
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.Service.UpdateSubstitution(ctx, &substitution)
-	}); err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	updated, err := rs.Service.GetSubstitution(r.Context(), id)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, newSubstitutionResponse(updated), "Substitution updated successfully")
-}
-
-// validateSubstitutionDates validates date range and no backdating
-func validateSubstitutionDates(sub *modelEducation.GroupSubstitution) error {
-	if sub.StartDate.After(sub.EndDate) {
-		return ErrSubstitutionDateRange
-	}
-
-	today := timezone.TodayDate()
-	if sub.StartDate.Before(today) {
-		return ErrSubstitutionBackdated
-	}
-	return nil
-}
-
-// handleGetSubstitutionError handles errors from GetSubstitution
-func (rs *Resource) handleGetSubstitutionError(w http.ResponseWriter, r *http.Request, err error) {
-	if strings.Contains(err.Error(), errContainsNotFound) {
-		common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
-		return
-	}
-	common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-}
-
-// checkStaffChangeConflicts checks for conflicts when staff member changes
-func (rs *Resource) checkStaffChangeConflicts(
-	ctx context.Context,
-	newSub *modelEducation.GroupSubstitution,
-	existing *modelEducation.GroupSubstitution,
-) error {
-	if existing.SubstituteStaffID == newSub.SubstituteStaffID {
-		return nil
-	}
-
-	conflicts, err := rs.Service.CheckSubstitutionConflicts(ctx, newSub.SubstituteStaffID, newSub.StartDate, newSub.EndDate)
-	if err != nil {
-		return err
-	}
-
-	if hasRealConflicts(conflicts, newSub.ID) {
-		return ErrStaffAlreadySubstituting
-	}
-	return nil
-}
-
-// hasRealConflicts checks if there are conflicts excluding the current substitution
-func hasRealConflicts(conflicts []*modelEducation.GroupSubstitution, excludeID int64) bool {
-	for _, conflict := range conflicts {
-		if conflict.ID != excludeID {
-			return true
+	if wire.WholeDays != nil {
+		value.WholeDays = &substitution.ScheduleWholeDayAssignment{
+			AbsentStaffID: wire.WholeDays.AbsentStaffID, SubstituteStaffID: wire.WholeDays.SubstituteStaffID,
+			Dates: wire.WholeDays.Dates, Reason: wire.WholeDays.Reason,
 		}
 	}
-	return false
+	assignment.ScheduleSubstitution = value
+	return assignment, nil
 }
 
-// delete handles DELETE /api/substitutions/{id}
-func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+func invalidAssignmentRequest(message string, target error, code string) error {
+	return &substitution.OperationError{Target: target, Code: code, Message: message}
+}
+
+func optionalDate(raw string) (*timezone.Date, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	date, err := timezone.ParseDate(raw)
 	if err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
+		return nil, err
+	}
+	return &date, nil
+}
+
+func callerFromContext(ctx context.Context) (substitution.SubstitutionCaller, error) {
+	principal, err := permissions.PrincipalFromContext(ctx)
+	if err != nil || principal.TenantID() != tenant.FromContext(ctx) {
+		return substitution.SubstitutionCaller{}, substitution.ErrForbidden
+	}
+	return substitution.SubstitutionCaller{
+		AccountID: principal.AccountID(), TenantID: principal.TenantID(), Scope: string(principal.Scope()),
+		Roles: principal.Roles(), Admin: principal.HasAdminScope(), HasPermission: principal.HasPermission,
+	}, nil
+}
+
+func renderModuleError(w http.ResponseWriter, r *http.Request, err error) {
+	var operation *substitution.OperationError
+	if errors.As(err, &operation) {
+		common.RenderError(w, r, moduleErrorResponse(operationErrorSpec(operation))(err))
 		return
 	}
+	common.RenderError(w, r, moduleErrorRenderer(err))
+}
 
-	// Check if substitution exists
-	_, err = rs.Service.GetSubstitution(r.Context(), id)
-	if err != nil {
-		if strings.Contains(err.Error(), errContainsNotFound) {
-			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
-			return
+type moduleErrorSpec struct {
+	target  error
+	status  int
+	code    string
+	message string
+}
+
+var moduleErrorSpecs = []moduleErrorSpec{
+	{target: substitution.ErrNotFound, status: http.StatusNotFound, code: "not_found", message: "Gruppenübergabe nicht gefunden."},
+	{target: substitution.ErrForbidden, status: http.StatusForbidden, code: "forbidden", message: "Diese Aktion ist nicht erlaubt."},
+	{target: substitution.ErrInvalidTarget, status: http.StatusBadRequest, code: "invalid_target", message: "Die ausgewählte Gruppe oder Fachkraft ist ungültig."},
+	{target: substitution.ErrInvalidPeriod, status: http.StatusBadRequest, code: "invalid_period", message: "Der Zeitraum ist ungültig."},
+	{target: substitution.ErrNotRunning, status: http.StatusConflict, code: "not_running", message: "Die Gruppenübergabe ist nicht mehr aktiv."},
+	{target: substitution.ErrAlreadyAssigned, status: http.StatusConflict, code: "already_assigned", message: "Diese Gruppenübergabe besteht bereits."},
+	{target: substitution.ErrConflict, status: http.StatusConflict, code: "conflict", message: "Die Änderung steht im Konflikt mit der aktuellen Planung."},
+	{target: substitution.ErrSelfAssignment, status: http.StatusBadRequest, code: "self_assignment", message: "Sie können sich nicht selbst hinzufügen."},
+}
+
+func operationErrorSpec(operation *substitution.OperationError) moduleErrorSpec {
+	for _, spec := range moduleErrorSpecs {
+		if errors.Is(operation.Target, spec.target) {
+			if operation.Code != "" {
+				spec.code = operation.Code
+			}
+			if operation.Message != "" {
+				spec.message = operation.Message
+			}
+			return spec
 		}
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
 	}
-
-	// Delete the substitution
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.Service.DeleteSubstitution(ctx, id)
-	}); err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	common.RespondNoContent(w, r)
+	return internalModuleError
 }
+
+var internalModuleError = moduleErrorSpec{
+	status: http.StatusInternalServerError, code: "internal", message: "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+}
+
+func moduleErrorResponse(spec moduleErrorSpec) func(error) render.Renderer {
+	return func(err error) render.Renderer {
+		return &common.ErrResponse{
+			Err: err, HTTPStatusCode: spec.status, Status: "error", ErrorText: spec.message, Code: spec.code,
+		}
+	}
+}
+
+func moduleErrorRules() []common.ErrorRule {
+	rules := make([]common.ErrorRule, 0, len(moduleErrorSpecs))
+	for _, spec := range moduleErrorSpecs {
+		rules = append(rules, common.ErrorRule{Target: spec.target, Render: moduleErrorResponse(spec)})
+	}
+	return rules
+}
+
+var moduleErrorRenderer = common.RulesRenderer(moduleErrorRules(), moduleErrorResponse(internalModuleError))

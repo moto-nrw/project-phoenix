@@ -17,6 +17,8 @@ interface BackendAbsenceType {
   name: string;
   base_type: string;
   is_active: boolean;
+  allowance_enabled: boolean;
+  overrun_policy: "warn" | "block";
 }
 
 export interface AbsenceType {
@@ -26,6 +28,8 @@ export interface AbsenceType {
   /** The standard type whose calculation this art inherits (today: "other"). */
   readonly baseType: string;
   readonly isActive: boolean;
+  readonly allowanceEnabled: boolean;
+  readonly overrunPolicy: "warn" | "block";
 }
 
 function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
@@ -34,6 +38,8 @@ function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
     name: data.name,
     baseType: data.base_type,
     isActive: data.is_active,
+    allowanceEnabled: data.allowance_enabled,
+    overrunPolicy: data.overrun_policy,
   };
 }
 
@@ -110,7 +116,12 @@ class AbsenceTypeService {
   /** Renames and/or (de)activates. Omitted fields stay as they are. */
   async updateAbsenceType(
     id: string,
-    changes: { name?: string; isActive?: boolean },
+    changes: {
+      name?: string;
+      isActive?: boolean;
+      allowanceEnabled?: boolean;
+      overrunPolicy?: "warn" | "block";
+    },
   ): Promise<AbsenceType> {
     const response = await sessionFetch(`/api/staff/absence-types/${id}`, {
       method: "PUT",
@@ -120,10 +131,90 @@ class AbsenceTypeService {
         ...(changes.isActive !== undefined
           ? { is_active: changes.isActive }
           : {}),
+        ...(changes.allowanceEnabled !== undefined
+          ? { allowance_enabled: changes.allowanceEnabled }
+          : {}),
+        ...(changes.overrunPolicy !== undefined
+          ? { overrun_policy: changes.overrunPolicy }
+          : {}),
       }),
     });
     return readOne(response);
   }
+
+  async getAllowance(
+    absenceTypeId: string,
+    staffId: string,
+    year: number,
+  ): Promise<AbsenceTypeAllowanceSummary> {
+    const response = await sessionFetch(
+      `/api/staff/absence-types/${absenceTypeId}/allowances/${staffId}?year=${year}`,
+    );
+    return readAllowance(response);
+  }
+
+  async setAllowance(
+    absenceTypeId: string,
+    staffId: string,
+    payload: { year: number; entitledDays: number; reason: string },
+  ): Promise<AbsenceTypeAllowanceSummary> {
+    const response = await sessionFetch(
+      `/api/staff/absence-types/${absenceTypeId}/allowances/${staffId}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year: payload.year,
+          entitled_days: payload.entitledDays,
+          reason: payload.reason,
+        }),
+      },
+    );
+    return readAllowance(response);
+  }
+}
+
+interface BackendAbsenceTypeAllowanceSummary {
+  staff_id: string;
+  absence_type_id: string;
+  year: number;
+  entitled_days: number;
+  taken_days: number;
+  reserved_days: number;
+  remaining_days: number;
+}
+
+export interface AbsenceTypeAllowanceSummary {
+  readonly staffId: string;
+  readonly absenceTypeId: string;
+  readonly year: number;
+  readonly entitledDays: number;
+  readonly takenDays: number;
+  readonly reservedDays: number;
+  readonly remainingDays: number;
+}
+
+async function readAllowance(
+  response: Response,
+): Promise<AbsenceTypeAllowanceSummary> {
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Kontingent konnte nicht gespeichert werden",
+    );
+  }
+  const json = (await response.json()) as {
+    data: BackendAbsenceTypeAllowanceSummary;
+  };
+  return {
+    staffId: json.data.staff_id,
+    absenceTypeId: json.data.absence_type_id,
+    year: json.data.year,
+    entitledDays: json.data.entitled_days,
+    takenDays: json.data.taken_days,
+    reservedDays: json.data.reserved_days,
+    remainingDays: json.data.remaining_days,
+  };
 }
 
 export const absenceTypeService = new AbsenceTypeService();

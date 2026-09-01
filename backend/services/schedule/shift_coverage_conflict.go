@@ -380,7 +380,7 @@ func projectSeriesCoverageDay(projection seriesCoverageProjection) (effectiveShi
 	if !day.active {
 		return day, nil
 	}
-	if !timezone.WallClock(day.end).After(timezone.WallClock(day.start)) {
+	if !timezone.NormalizeWallClock(day.end).After(timezone.NormalizeWallClock(day.start)) {
 		return day, invalidShiftCoverageQuery("effective exception end time must be after start time")
 	}
 	if survivingInstanceBlocksSeriesCandidate(projection.instances, projection.activityGroupID, projection.date, day.start) {
@@ -403,10 +403,10 @@ func applySeriesCoverageException(
 		return inactiveCoverageDay(day)
 	}
 	if exception.StartTime != nil {
-		day.start = timezone.WallClock(*exception.StartTime)
+		day.start = timezone.NormalizeWallClock(*exception.StartTime)
 	}
 	if exception.EndTime != nil {
-		day.end = timezone.WallClock(*exception.EndTime)
+		day.end = timezone.NormalizeWallClock(*exception.EndTime)
 	}
 	return day
 }
@@ -478,13 +478,13 @@ func survivingInstanceBlocksSeriesCandidate(
 	date timezone.Date,
 	effectiveStart time.Time,
 ) bool {
-	effectiveStart = timezone.WallClock(effectiveStart)
+	effectiveStart = timezone.NormalizeWallClock(effectiveStart)
 	for _, instance := range instances {
 		if instance == nil || instance.ActivityGroupID == nil || *instance.ActivityGroupID != activityGroupID || instance.Date != date {
 			continue
 		}
 		deletedByReplan := instance.Status == scheduleModel.InstanceStatusPlanned && !instance.IsSpontaneous
-		if !deletedByReplan && timezone.WallClock(instance.StartTime).Equal(effectiveStart) {
+		if !deletedByReplan && timezone.NormalizeWallClock(instance.StartTime).Equal(effectiveStart) {
 			return true
 		}
 	}
@@ -500,9 +500,9 @@ func selectPreservedDeviationSource(instances []*scheduleModel.ActivityInstance,
 	if len(instances) == 1 {
 		return instances[0]
 	}
-	proposedStart = timezone.WallClock(proposedStart)
+	proposedStart = timezone.NormalizeWallClock(proposedStart)
 	for _, instance := range instances {
-		if timezone.WallClock(instance.StartTime).Equal(proposedStart) {
+		if timezone.NormalizeWallClock(instance.StartTime).Equal(proposedStart) {
 			return instance
 		}
 	}
@@ -671,10 +671,10 @@ func buildShiftCoverageWarnings(
 	warnings := make([]ShiftCoverageWarning, 0, len(pending))
 	for _, item := range pending {
 		name := coverageStaffName(staff[item.staffID], item.staffID)
-		start := timezone.WallClock(item.start).Format("15:04")
-		end := timezone.WallClock(item.end).Format("15:04")
-		gapStart := timezone.WallClock(item.gap.StartTime).Format("15:04")
-		gapEnd := timezone.WallClock(item.gap.EndTime).Format("15:04")
+		start := timezone.NormalizeWallClock(item.start).Format("15:04")
+		end := timezone.NormalizeWallClock(item.end).Format("15:04")
+		gapStart := timezone.NormalizeWallClock(item.gap.StartTime).Format("15:04")
+		gapEnd := timezone.NormalizeWallClock(item.gap.EndTime).Format("15:04")
 		warnings = append(warnings, ShiftCoverageWarning{
 			StaffID:            item.staffID,
 			StaffName:          name,
@@ -702,7 +702,7 @@ func normalizeShiftCoverageQuery(query ShiftCoverageQuery) ([]timezone.Date, []i
 	if err != nil {
 		return nil, nil, err
 	}
-	if !timezone.WallClock(query.EndTime).After(timezone.WallClock(query.StartTime)) {
+	if !timezone.NormalizeWallClock(query.EndTime).After(timezone.NormalizeWallClock(query.StartTime)) {
 		return nil, nil, invalidShiftCoverageQuery("end time must be after start time")
 	}
 	staffIDs, err := normalizeShiftCoverageStaffIDs(query.StaffIDs)

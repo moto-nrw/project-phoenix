@@ -7,7 +7,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // The tier is derived from whether the role may manage users, by the same
@@ -18,12 +17,14 @@ import (
 // name literally would file the wildcard ones as staff and hand out a tier the
 // running code disagrees with.
 func TestRolesBaseRoleBackfillMatchesWildcardPermissions(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	wildcardResource := ensureBackfillPermission(t, db, "users:*", "users", "*")
 	wildcardAction := ensureBackfillPermission(t, db, "*:manage", "*", "manage")
@@ -57,7 +58,7 @@ func TestRolesBaseRoleBackfillMatchesWildcardPermissions(t *testing.T) {
 // ensureBackfillPermission returns the id of the named permission, creating it
 // when the catalog does not carry it yet. Permissions are global rows, so a
 // pre-existing one is left in place rather than cleaned up.
-func ensureBackfillPermission(t *testing.T, db *bun.DB, name, resource, action string) int64 {
+func ensureBackfillPermission(t *testing.T, db *testpkg.DB, name, resource, action string) int64 {
 	t.Helper()
 	ctx := context.Background()
 
@@ -79,7 +80,7 @@ func ensureBackfillPermission(t *testing.T, db *bun.DB, name, resource, action s
 	return id
 }
 
-func grantBackfillPermission(t *testing.T, db *bun.DB, roleID, permissionID int64) {
+func grantBackfillPermission(t *testing.T, db *testpkg.DB, roleID, permissionID int64) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO auth.role_permissions (role_id, permission_id, created_at, updated_at)
@@ -95,7 +96,7 @@ func grantBackfillPermission(t *testing.T, db *bun.DB, roleID, permissionID int6
 	})
 }
 
-func baseRoleOf(t *testing.T, db *bun.DB, roleID int64) string {
+func baseRoleOf(t *testing.T, db *testpkg.DB, roleID int64) string {
 	t.Helper()
 	var values []string
 	require.NoError(t, db.NewRaw(

@@ -30,7 +30,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 	checkinPermissions := []string{permissions.VisitsUpdate}
 
 	t.Run("orphaned visit is healed and checkin proceeds", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		webDevice := testpkg.EnsureWebManualDevice(t, db)
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "SelfHeal", "Teacher")
@@ -99,7 +99,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 	})
 
 	t.Run("capacity rejection rolls back orphan cleanup", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		webDevice := testpkg.EnsureWebManualDevice(t, db)
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "CapacityRollback", "Teacher")
@@ -139,7 +139,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 	})
 
 	t.Run("still 409 when checked in without a visit", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		webDevice := testpkg.EnsureWebManualDevice(t, db)
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "NoVisit", "Teacher")
@@ -170,7 +170,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 	})
 
 	t.Run("still 409 when student is genuinely in another room", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		webDevice := testpkg.EnsureWebManualDevice(t, db)
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Genuine", "Teacher")

@@ -60,7 +60,7 @@ func seedCareCancellationNotice(t *testing.T, ctx context.Context, repo usersMod
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, []*usersModels.ParentAnnouncementTarget{
 		{TargetType: usersModels.AnnouncementTargetStudent, TargetRefID: &id},
 	}))
-	now := time.Now()
+	now := time.Now().Add(-time.Minute)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	persisted, err := repo.FindByID(ctx, a.ID)
 	require.NoError(t, err)
@@ -73,11 +73,11 @@ func TestAnnouncementFeed_NoticeVisibleWhenNewsIsOff(t *testing.T) {
 	svc, db, repos := buildNoticeFeedService(t, false, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	handWritten := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
 	notice := seedCareCancellationNotice(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, chain.StudentID)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	feed, err := svc.ListAnnouncements(ctx, chain.AccountID)
 	require.NoError(t, err)
 	require.Len(t, feed, 1, "only the notice shows where news is off")
@@ -104,10 +104,10 @@ func TestAnnouncementFeed_NoticeHiddenWhenBothSwitchesAreOff(t *testing.T) {
 	svc, db, repos := buildNoticeFeedService(t, false, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	notice := seedCareCancellationNotice(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, chain.StudentID)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	feed, err := svc.ListAnnouncements(ctx, chain.AccountID)
 	require.NoError(t, err)
 	assert.Empty(t, feed)
@@ -121,11 +121,11 @@ func TestAnnouncementFeed_NewsOnShowsNoticeAndLetters(t *testing.T) {
 	svc, db, repos := buildNoticeFeedService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
 	seedCareCancellationNotice(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, chain.StudentID)
 
-	feed, err := svc.ListAnnouncements(context.Background(), chain.AccountID)
+	feed, err := svc.ListAnnouncements(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	assert.Len(t, feed, 2)
 }
@@ -135,20 +135,20 @@ func TestAnnouncementFeed_NewsOnHidesNoticeWhenNoticeSwitchIsOff(t *testing.T) {
 	svc, db, repos := buildNoticeFeedService(t, true, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	handWritten := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
 	notice := seedCareCancellationNotice(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, chain.StudentID)
 
-	feed, err := svc.ListAnnouncements(context.Background(), chain.AccountID)
+	feed, err := svc.ListAnnouncements(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	require.Len(t, feed, 1)
 	assert.Equal(t, handWritten.ID, feed[0].ID)
 
-	unread, err := svc.UnreadAnnouncementCount(context.Background(), chain.AccountID)
+	unread, err := svc.UnreadAnnouncementCount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, unread)
 
-	require.NoError(t, svc.MarkAnnouncementRead(context.Background(), chain.AccountID, handWritten.ID, *handWritten.PublishedAt))
-	err = svc.MarkAnnouncementRead(context.Background(), chain.AccountID, notice.ID, *notice.PublishedAt)
+	require.NoError(t, svc.MarkAnnouncementRead(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, handWritten.ID, *handWritten.PublishedAt))
+	err = svc.MarkAnnouncementRead(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, notice.ID, *notice.PublishedAt)
 	assert.ErrorIs(t, err, parentService.ErrAnnouncementNotFound)
 }

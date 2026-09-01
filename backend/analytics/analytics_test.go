@@ -3,10 +3,8 @@ package analytics
 import (
 	"bytes"
 	"encoding/json"
-	"io"
+	"errors"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -57,27 +55,39 @@ func TestNewWithAPIKeyAndHost(t *testing.T) {
 	require.NoError(t, tracker.Close())
 }
 
-// recordingServer captures every /batch/ request body the tracker sends.
-type recordingServer struct {
+const (
+	statusOK                  = 200
+	statusInternalServerError = 500
+)
+
+// recordingSender captures every /batch/ request body the tracker sends.
+type recordingSender struct {
 	mu     sync.Mutex
 	bodies [][]byte
 	status int
+	err    error
 }
 
-func (rs *recordingServer) handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		rs.mu.Lock()
-		rs.bodies = append(rs.bodies, body)
-		rs.mu.Unlock()
-		w.WriteHeader(rs.status)
-	}
+func (rs *recordingSender) Post(_ string, body []byte) (int, error) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	rs.bodies = append(rs.bodies, append([]byte(nil), body...))
+	return rs.status, rs.err
 }
 
-func (rs *recordingServer) requests() [][]byte {
+func (rs *recordingSender) requests() [][]byte {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	return append([][]byte(nil), rs.bodies...)
+}
+
+func newTestTracker(sender batchSender, logger *slog.Logger) Tracker {
+	return &httpTracker{
+		endpoint: "https://eu.i.posthog.com/batch/",
+		apiKey:   "phc_test",
+		sender:   sender,
+		logger:   logger,
+	}
 }
 
 func newTestLogger() (*slog.Logger, *bytes.Buffer) {
@@ -88,13 +98,10 @@ func newTestLogger() (*slog.Logger, *bytes.Buffer) {
 func TestCapturePostsBatchPayload(t *testing.T) {
 	t.Parallel()
 
-	rs := &recordingServer{status: http.StatusOK}
-	server := httptest.NewServer(rs.handler())
-	defer server.Close()
+	rs := &recordingSender{status: statusOK}
 
 	logger, logs := newTestLogger()
-	tracker, err := New("phc_test", server.URL, logger)
-	require.NoError(t, err)
+	tracker := newTestTracker(rs, logger)
 
 	tracker.Capture("school:42", "student_checked_in", map[string]any{"method": "rfid"})
 	require.NoError(t, tracker.Close()) // waits for the in-flight send
@@ -127,13 +134,10 @@ func TestCapturePostsBatchPayload(t *testing.T) {
 func TestCaptureDoesNotMutateCallerProps(t *testing.T) {
 	t.Parallel()
 
-	rs := &recordingServer{status: http.StatusOK}
-	server := httptest.NewServer(rs.handler())
-	defer server.Close()
+	rs := &recordingSender{status: statusOK}
 
 	logger, _ := newTestLogger()
-	tracker, err := New("phc_test", server.URL, logger)
-	require.NoError(t, err)
+	tracker := newTestTracker(rs, logger)
 
 	props := map[string]any{"method": "manual"}
 	tracker.Capture("school:1", "student_checked_out", props)
@@ -145,13 +149,10 @@ func TestCaptureDoesNotMutateCallerProps(t *testing.T) {
 func TestCaptureWithNilPropsSucceeds(t *testing.T) {
 	t.Parallel()
 
-	rs := &recordingServer{status: http.StatusOK}
-	server := httptest.NewServer(rs.handler())
-	defer server.Close()
+	rs := &recordingSender{status: statusOK}
 
 	logger, logs := newTestLogger()
-	tracker, err := New("phc_test", server.URL, logger)
-	require.NoError(t, err)
+	tracker := newTestTracker(rs, logger)
 
 	tracker.Capture("school:1", "room_transfer", nil)
 	require.NoError(t, tracker.Close())
@@ -163,13 +164,10 @@ func TestCaptureWithNilPropsSucceeds(t *testing.T) {
 func TestCaptureLogsWarningOnServerError(t *testing.T) {
 	t.Parallel()
 
-	rs := &recordingServer{status: http.StatusInternalServerError}
-	server := httptest.NewServer(rs.handler())
-	defer server.Close()
+	rs := &recordingSender{status: statusInternalServerError}
 
 	logger, logs := newTestLogger()
-	tracker, err := New("phc_test", server.URL, logger)
-	require.NoError(t, err)
+	tracker := newTestTracker(rs, logger)
 
 	tracker.Capture("school:1", "some_event", nil)
 	require.NoError(t, tracker.Close())
@@ -181,12 +179,8 @@ func TestCaptureLogsWarningOnServerError(t *testing.T) {
 func TestCaptureLogsWarningOnNetworkError(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.NotFoundHandler())
-	server.Close() // connection refused from here on
-
 	logger, logs := newTestLogger()
-	tracker, err := New("phc_test", server.URL, logger)
-	require.NoError(t, err)
+	tracker := newTestTracker(&recordingSender{err: errors.New("connection refused")}, logger)
 
 	tracker.Capture("school:1", "some_event", nil)
 	require.NoError(t, tracker.Close())
@@ -197,13 +191,10 @@ func TestCaptureLogsWarningOnNetworkError(t *testing.T) {
 func TestCaptureLogsWarningOnUnmarshalableProps(t *testing.T) {
 	t.Parallel()
 
-	rs := &recordingServer{status: http.StatusOK}
-	server := httptest.NewServer(rs.handler())
-	defer server.Close()
+	rs := &recordingSender{status: statusOK}
 
 	logger, logs := newTestLogger()
-	tracker, err := New("phc_test", server.URL, logger)
-	require.NoError(t, err)
+	tracker := newTestTracker(rs, logger)
 
 	tracker.Capture("school:1", "bad_event", map[string]any{"ch": make(chan int)})
 	require.NoError(t, tracker.Close())
@@ -215,11 +206,7 @@ func TestCaptureLogsWarningOnUnmarshalableProps(t *testing.T) {
 func TestNilLoggerFallsBackToDefault(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.NotFoundHandler())
-	server.Close()
-
-	tracker, err := New("phc_test", server.URL, nil)
-	require.NoError(t, err)
+	tracker := newTestTracker(&recordingSender{err: errors.New("connection refused")}, nil)
 
 	// Must not panic despite the nil logger and the failing send.
 	tracker.Capture("school:1", "some_event", nil)

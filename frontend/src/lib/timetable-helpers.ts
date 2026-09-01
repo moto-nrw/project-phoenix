@@ -56,6 +56,8 @@ import type {
   DeviationHistoryEvent,
   DeviationHistoryResponse,
   ApplyDeviationsResponse,
+  ApplyDeviationsInput,
+  BulkSubstitutionInput,
   InstanceStaffSummary,
   InstanceStudentSummary,
   GuardianNoticeReach,
@@ -376,6 +378,31 @@ export function nextWorkdayISO(iso: string): string {
   if (day === 6) d.setDate(d.getDate() + 2);
   else if (day === 0) d.setDate(d.getDate() + 1);
   return toISODate(d);
+}
+
+/**
+ * Ein Schultag zurück: Mo landet auf dem vorigen Freitag, sonst auf dem
+ * Vortag. Gegenstück zur Vorwärtsnavigation der Tagesansicht, die über
+ * `nextWorkdayISO` läuft.
+ */
+export function previousWorkdayISO(iso: string): string {
+  const d = parseISODate(iso);
+  d.setDate(d.getDate() - 1);
+  const day = d.getDay(); // 0 = So, 6 = Sa
+  if (day === 0) d.setDate(d.getDate() - 2);
+  else if (day === 6) d.setDate(d.getDate() - 1);
+  return toISODate(d);
+}
+
+/**
+ * "Mittwoch, 12.08.2026" — Datumszeile der Tagesansicht. Ausgeschrieben, weil
+ * die Kopfzeile dort genau einen Tag benennt und nicht wie die Woche eine
+ * Spanne abkürzen muss.
+ */
+export function formatFullDayLabel(d: Date): string {
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${getGermanWeekdayLong(d)}, ${day}.${month}.${d.getFullYear()}`;
 }
 
 /**
@@ -750,12 +777,87 @@ export function mapApplyDeviations(
     })),
     warnings: (raw.warnings ?? []).map((warning) => ({
       instanceId: String(warning.instance_id),
+      kind: warning.kind,
+      otherInstanceId:
+        warning.other_instance_id === undefined
+          ? undefined
+          : String(warning.other_instance_id),
+      message: warning.message,
       title: warning.title,
       date: warning.date,
       startTime: warning.start_time,
       endTime: warning.end_time,
     })),
     guardianNotice: mapGuardianNoticeResult(raw.guardian_notice),
+  };
+}
+
+export function prepareApplyDeviationsBody(
+  input: ApplyDeviationsInput,
+): Record<string, unknown> {
+  if (input.cancel) {
+    return {
+      cancel: true,
+      ...(input.cancelReason ? { cancel_reason: input.cancelReason } : {}),
+      ...(input.guardianNotice
+        ? {
+            guardian_notice: {
+              title: input.guardianNotice.title,
+              message: input.guardianNotice.message,
+            },
+          }
+        : {}),
+    };
+  }
+  const body: Record<string, unknown> = {};
+  if (input.understaffedAck !== undefined) {
+    body.understaffed_ack = input.understaffedAck;
+    if (input.understaffedAck && input.understaffedNote) {
+      body.understaffed_note = input.understaffedNote;
+    }
+  }
+  if (input.absences?.length) {
+    body.absences = input.absences.map((item) => ({
+      staff_id: Number(item.staffId),
+      reason: item.reason,
+      instance_ids: item.instanceIds?.map(Number),
+    }));
+  }
+  if (input.substitutions?.length) {
+    body.substitutions = input.substitutions.map((item) => ({
+      absent_staff_id: Number(item.absentStaffId),
+      substitute_staff_id: Number(item.substituteStaffId),
+      reason: item.reason,
+      instance_ids: item.instanceIds?.map(Number),
+    }));
+  }
+  if (input.substitutionRemovals?.length) {
+    body.substitution_removals =
+      input.substitutionRemovals.map(scopedStaffBody);
+  }
+  if (input.presences?.length) {
+    body.presences = input.presences.map(scopedStaffBody);
+  }
+  return body;
+}
+
+function scopedStaffBody(item: { staffId: string; instanceIds?: string[] }) {
+  return {
+    staff_id: Number(item.staffId),
+    instance_ids: item.instanceIds?.map(Number),
+  };
+}
+
+export function prepareBulkSubstitutionBody(
+  input: BulkSubstitutionInput,
+): Record<string, unknown> {
+  return {
+    absent_staff_id: Number(input.absentStaffId),
+    dates: input.dates,
+    ...(input.substituteStaffId
+      ? { substitute_staff_id: Number(input.substituteStaffId) }
+      : {}),
+    ...(input.reason ? { reason: input.reason } : {}),
   };
 }
 
@@ -1405,7 +1507,7 @@ export function computeTimetableSetup(input: {
  * Chrome-Abbau (Planung-Redesign Inkrement 4, Chunk 8) entfernt, deshalb
  * leben die noch gebrauchten Typen/Konstanten hier im Helper-Modul.
  */
-export type TimetableView = "week" | "month" | "series";
+export type TimetableView = "day" | "week" | "month" | "series";
 
 /**
  * Drei diskrete Zoomstufen des Wochenrasters. Die Pixel-pro-Stunde-Werte

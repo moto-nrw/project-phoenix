@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -19,15 +21,51 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestMealPlanErrorRendererContracts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, targetCode, internalMessage, body string
+		err                                     error
+		status                                  int
+	}{
+		{name: "disabled", targetCode: "meal_plan_disabled", status: http.StatusForbidden, body: `{"status":"error","error":"feature_disabled"}`},
+		{name: "invalid date", targetCode: "invalid_meal_date", status: http.StatusBadRequest, body: `{"status":"error","error":"meal plan covers weekdays only (Monday-Friday)"}`},
+		{name: "invalid dishes", targetCode: "invalid_dishes", status: http.StatusBadRequest, body: `{"status":"error","error":"invalid_dishes"}`},
+		{name: "internal", err: errors.New("database unavailable"), status: http.StatusInternalServerError, internalMessage: "failed to load meal plan", body: `{"status":"error","error":"failed to load meal plan"}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			request := httptest.NewRequest(http.MethodGet, "/meal-plan", nil)
+			response := httptest.NewRecorder()
+			err := test.err
+			if test.targetCode != "" {
+				for _, rule := range mealPlanErrorRules {
+					if rule.Target.Error() == test.targetCode {
+						err = rule.Target
+						break
+					}
+				}
+				require.Error(t, err)
+			}
+			renderMealPlanFailure(response, request, err, test.internalMessage)
+			assert.Equal(t, test.status, response.Code)
+			assert.JSONEq(t, test.body, response.Body.String())
+		})
+	}
+}
+
 // TestParseAllowedOrigins tests the parseAllowedOrigins function
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestParseAllowedOrigins(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		envValue          string
@@ -92,11 +130,8 @@ func TestParseAllowedOrigins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set environment variable for this test
-			t.Setenv("CORS_ALLOWED_ORIGINS", tt.envValue)
-
 			// Call function under test
-			exact, wildcards := parseAllowedOrigins()
+			exact, wildcards := parseAllowedOrigins(tt.envValue)
 
 			// Assert results
 			assert.Equal(t, tt.expectedExact, exact)
@@ -106,8 +141,8 @@ func TestParseAllowedOrigins(t *testing.T) {
 }
 
 // TestParsePositiveInt tests the parsePositiveInt function
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestParsePositiveInt(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		envVar       string
@@ -182,13 +217,8 @@ func TestParsePositiveInt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set environment variable for this test
-			if tt.envValue != "" {
-				t.Setenv(tt.envVar, tt.envValue)
-			}
-
 			// Call function under test
-			result := parsePositiveInt(tt.envVar, tt.defaultValue)
+			result := parsePositiveInt(tt.envValue, tt.defaultValue)
 
 			// Assert result
 			assert.Equal(t, tt.expected, result)
@@ -214,7 +244,7 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Don't set any env var, so it uses default
-			result := parsePositiveInt("NONEXISTENT_ENV_VAR", tt.defaultValue)
+			result := parsePositiveInt("", tt.defaultValue)
 			assert.Equal(t, tt.defaultValue, result)
 		})
 	}
@@ -223,21 +253,64 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
 	t.Parallel()
 
+	composition := setupCaregiverCompositionModule(t)
+
+	require.True(t, composition.authWired)
+	require.True(t, composition.operatorWired)
+	assert.True(t, composition.sharedCapability)
+}
+
+type caregiverComposition struct {
+	authWired        bool
+	operatorWired    bool
+	sharedCapability bool
+}
+
+func setupCaregiverCompositionModule(t *testing.T) *caregiverComposition {
+	t.Helper()
 	db, serviceFactory := testutil.SetupAPITest(t)
-
 	repoFactory := repositories.NewFactory(db)
-	api := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
+	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
 	initializeAPIResources(api, repoFactory, db, slog.Default())
+	return &caregiverComposition{
+		authWired:        api.Auth != nil,
+		operatorWired:    api.Operator != nil,
+		sharedCapability: api.Services.CaregiverCapability == api.Auth.CaregiverCapabilityService,
+	}
+}
 
-	require.NotNil(t, api.Auth)
-	require.NotNil(t, api.Operator)
-	assert.Same(t, serviceFactory.CaregiverCapability, api.Auth.CaregiverCapabilityService)
+type settingsCallbackRoute struct {
+	router chi.Router
+	hub    *realtime.Hub
+}
+
+func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
+	t.Helper()
+	db, serviceFactory := testutil.SetupAPITest(t)
+	repoFactory := repositories.NewFactory(db)
+	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
+	initializeAPIResources(api, repoFactory, db, slog.Default())
+	return &settingsCallbackRoute{router: api.Settings.SettingsRouter(), hub: api.Services.RealtimeHub}
+}
+
+func setupOperatorInvitationRoute(t *testing.T) chi.Router {
+	t.Helper()
+	db, serviceFactory, feedback := testutil.SetupFeedbackAPITest(t)
+	repoFactory := repositories.NewFactory(db)
+	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
+	api.rateLimiting = true
+	api.authRateLimit = "5"
+	initializeAPIResources(api, repoFactory, db, slog.Default())
+	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
+		DB:       db,
+		Settings: mealplanCompose.SettingsFunc(func(context.Context) (bool, error) { return true, nil }),
+		Observe:  func(mealplanCompose.Observation) {},
+	})
+	require.NoError(t, err)
+	api.MealPlan = newMealPlanResource(mealPlan, db)
+	api.Feedback = newFeedbackResource(feedback, db)
+	api.registerRoutesWithRateLimiting()
+	return api.Router
 }
 
 func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
@@ -261,35 +334,14 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	api := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
-	initializeAPIResources(api, repoFactory, db, slog.Default())
-
-	previousEnabled := viper.Get("rate_limit_enabled")
-	previousPerMinute := viper.Get("rate_limit_per_minute")
-	viper.Set("rate_limit_enabled", true)
-	viper.Set("rate_limit_per_minute", 5)
-	t.Cleanup(func() {
-		viper.Set("rate_limit_enabled", previousEnabled)
-		viper.Set("rate_limit_per_minute", previousPerMinute)
-	})
-
-	api.registerRoutesWithRateLimiting()
+	t.Parallel()
+	router := setupOperatorInvitationRoute(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/operator/auth/invitations/validate", nil)
 	rr := httptest.NewRecorder()
 
-	api.Router.ServeHTTP(rr, req)
+	router.ServeHTTP(rr, req)
 
 	assert.NotEqual(t, http.StatusNotFound, rr.Code)
 }
@@ -301,10 +353,7 @@ func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testin
 
 func rateLimitTestAuth(t *testing.T) *jwt.TokenAuth {
 	t.Helper()
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
-
-	tokenAuth, err := jwt.NewTokenAuthWithSecret("rate-limit-test-secret-32-chars!!")
+	tokenAuth, err := jwt.NewTokenAuthWithDurations("rate-limit-test-secret-32-chars!!", 15*time.Minute, 24*time.Hour)
 	require.NoError(t, err)
 	return tokenAuth
 }
@@ -328,8 +377,8 @@ func rateLimitRequest(token string) *http.Request {
 	return req
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TwoSessionsSameIdentityShareKey(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	// Two distinct tokens (differing payloads) for the same account/tenant —
@@ -348,8 +397,8 @@ func TestIdentityRateLimitKey_TwoSessionsSameIdentityShareKey(t *testing.T) {
 	assert.Equal(t, keyFunc(rateLimitRequest(sessionA)), keyFunc(rateLimitRequest(sessionB)))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_RefreshTokenSharesAccountBudget(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	access := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
@@ -365,8 +414,8 @@ func TestIdentityRateLimitKey_RefreshTokenSharesAccountBudget(t *testing.T) {
 		"a refresh token presented as bearer must land in the same account bucket")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_DifferentAccountsHaveDifferentKeys(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	tokenA := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "user-a@example.com", TenantID: 7})
@@ -376,8 +425,8 @@ func TestIdentityRateLimitKey_DifferentAccountsHaveDifferentKeys(t *testing.T) {
 	assert.NotEqual(t, keyFunc(rateLimitRequest(tokenA)), keyFunc(rateLimitRequest(tokenB)))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TenantSwitchGetsOwnBudget(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	tenant7 := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
@@ -388,8 +437,8 @@ func TestIdentityRateLimitKey_TenantSwitchGetsOwnBudget(t *testing.T) {
 		"a tenant switch mints a new tenant_id and gets its own budget")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_ScopeSeparatesPortals(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	// Operator IDs and account IDs are different ID spaces — the same numeric
@@ -407,8 +456,8 @@ func TestIdentityRateLimitKey_ScopeSeparatesPortals(t *testing.T) {
 	assert.Len(t, keys, 3, "tenant, platform, and parent scopes must have distinct keys")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_KeyContainsNoTokenOrPII(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	token := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
@@ -424,15 +473,15 @@ func TestIdentityRateLimitKey_KeyContainsNoTokenOrPII(t *testing.T) {
 	assert.NotContains(t, key, "Doe")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_InvalidTokenFallsBack(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("not-a-real-token")))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_DeviceAPIKeyFallsBack(t *testing.T) {
+	t.Parallel()
 	// IoT devices send an opaque API key as bearer token. It is not a JWT and
 	// cannot be verified here, so device requests must stay on IP limiting —
 	// an unverified bearer value must never open its own bucket.
@@ -441,15 +490,15 @@ func TestIdentityRateLimitKey_DeviceAPIKeyFallsBack(t *testing.T) {
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("phx_3f9c2d1a8b7e6f5a4d3c2b1a")))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_MissingHeaderFallsBack(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("")))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	_, token, err := tokenAuth.JwtAuth.Encode(map[string]any{
@@ -462,8 +511,8 @@ func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(token)))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 	otherAuth, err := jwt.NewTokenAuthWithSecret("a-completely-different-32char-key!!")
 	require.NoError(t, err)
@@ -474,8 +523,8 @@ func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
 		"a token signed with the wrong secret must not produce an identity key")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestIdentityRateLimitKey_TokenWithoutAccountIDFallsBack(t *testing.T) {
+	t.Parallel()
 	// MFA challenge/enrollment tokens carry account_id + a pending flag but
 	// no "id" claim — they must fall back to IP limiting.
 	tokenAuth := rateLimitTestAuth(t)
@@ -495,8 +544,8 @@ func TestIdentityRateLimitKey_TokenWithoutAccountIDFallsBack(t *testing.T) {
 // into the real limiter middleware and asserts the #2064 acceptance
 // criteria end to end: two valid sessions of one identity drain ONE budget,
 // while a different account and unauthenticated IP traffic stay unaffected.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	// 1 request/minute refill with burst 3: the refill contributes no tokens
@@ -545,8 +594,8 @@ func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 // TestRateLimiting_ConcurrentSessionsShareBudget hammers one identity from
 // two sessions in parallel (run with -race in CI) and asserts the combined
 // allowance equals exactly one burst — no per-session multiplication.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
+	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
 	const burst = 10
@@ -594,20 +643,10 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
-	initializeAPIResources(a, repoFactory, db, slog.Default())
+	route := setupSettingsCallbackRoute(t)
 
 	// Mount the SetValue handler on a tenant-aware router
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	// Set checkout.wc_enabled = true → triggers callback → creates WC infrastructure
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
@@ -624,19 +663,9 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
+	route := setupSettingsCallbackRoute(t)
 
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
-	initializeAPIResources(a, repoFactory, db, slog.Default())
-
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
 		map[string]any{"value": true},
@@ -652,19 +681,9 @@ func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
+	route := setupSettingsCallbackRoute(t)
 
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
-	initializeAPIResources(a, repoFactory, db, slog.Default())
-
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
 		map[string]any{"value": false},
@@ -702,16 +721,7 @@ func adminClaimsForCallback() jwt.AppClaims {
 func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-	initializeAPIResources(a, repoFactory, db, slog.Default())
+	route := setupSettingsCallbackRoute(t)
 
 	// Subscribe a fake SSE client to the real Hub so we can observe
 	// BroadcastToAll without mocking. UserID/TenantID are arbitrary —
@@ -721,10 +731,10 @@ func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 		UserID:           1,
 		SubscribedGroups: map[string]bool{},
 	}
-	a.Services.RealtimeHub.Register(client, testpkg.Tenant(t), nil)
-	defer a.Services.RealtimeHub.Unregister(client)
+	route.hub.Register(client, testpkg.Tenant(t), nil)
+	defer route.hub.Unregister(client)
 
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	// First, enable so PUT-false is a real disable transition (default is
 	// already false; set true→false to exercise the purge branch). The
@@ -812,26 +822,17 @@ func drainEvents(ch chan realtime.Event) {
 func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-	initializeAPIResources(a, repoFactory, db, slog.Default())
+	route := setupSettingsCallbackRoute(t)
 
 	client := &realtime.Client{
 		Channel:          make(chan realtime.Event, 8),
 		UserID:           1,
 		SubscribedGroups: map[string]bool{},
 	}
-	a.Services.RealtimeHub.Register(client, testpkg.Tenant(t), nil)
-	defer a.Services.RealtimeHub.Unregister(client)
+	route.hub.Register(client, testpkg.Tenant(t), nil)
+	defer route.hub.Unregister(client)
 
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	// awaitTenantSettings drains events on the buffered channel until it
 	// finds a tenant_settings_changed for the expected key, or fails the

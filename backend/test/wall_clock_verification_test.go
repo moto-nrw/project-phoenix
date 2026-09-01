@@ -2,7 +2,7 @@
 //
 // PostgreSQL TIME columns carry a clock value, not an instant. ActivityInstance
 // uses time.Time for those columns, so assignments derived from time.Now or
-// timezone.Now must pass through timezone.WallClock before persistence.
+// timezone.Now must pass through timezone.NormalizeWallClock before persistence.
 package test
 
 import (
@@ -34,7 +34,7 @@ func TestActivityInstanceWallClockRatchet(t *testing.T) {
 	if len(violations) > 0 {
 		t.Errorf("Found %d ActivityInstance wall-clock assignment(s) derived from a current instant:\n\n%s\n\n"+
 			"schedule.activity_instances.start_time/end_time are PostgreSQL TIME columns. "+
-			"Normalize dynamic values with timezone.WallClock, or use a fixed UTC-anchored clock in tests.",
+			"Normalize dynamic values with timezone.NormalizeWallClock, or use a fixed UTC-anchored clock in tests.",
 			len(violations), strings.Join(violations, "\n"))
 	}
 }
@@ -56,7 +56,7 @@ func examples() {
 	berlinNow := tz.Now()
 	_ = &schedule.ActivityInstance{StartTime: raw}
 	_ = &schedule.ActivityInstance{EndTime: berlinNow.Add(90 * stdtime.Minute)}
-	_ = &schedule.ActivityInstance{StartTime: tz.WallClock(berlinNow)}
+	_ = &schedule.ActivityInstance{StartTime: tz.NormalizeWallClock(berlinNow)}
 	_ = &schedule.ActivityInstance{StartTime: stdtime.Date(2000, 1, 1, 10, 0, 0, 0, stdtime.UTC)}
 }
 `
@@ -129,7 +129,7 @@ func wallClockViolations(body *ast.BlockStmt, rel string, fset *token.FileSet, i
 			if expressionUsesCurrentInstant(field.Value, instantVars, timePackages, timezonePackages) {
 				pos := fset.Position(field.Value.Pos())
 				violations = append(violations, formatViolation(rel, pos.Line,
-					name.Name+" must normalize the current instant with timezone.WallClock"))
+					name.Name+" must normalize the current instant with timezone.NormalizeWallClock"))
 			}
 		}
 		return true
@@ -186,7 +186,7 @@ func expressionUsesCurrentInstant(expr ast.Expr, instantVars, timePackages, time
 	case *ast.ParenExpr:
 		return expressionUsesCurrentInstant(e.X, instantVars, timePackages, timezonePackages)
 	case *ast.CallExpr:
-		if isImportedCall(e.Fun, timezonePackages, "WallClock") {
+		if isImportedCall(e.Fun, timezonePackages, "NormalizeWallClock") {
 			return false
 		}
 		if isImportedCall(e.Fun, timePackages, "Now") || isImportedCall(e.Fun, timezonePackages, "Now") {
@@ -204,12 +204,15 @@ func expressionUsesCurrentInstant(expr ast.Expr, instantVars, timePackages, time
 }
 
 func isImportedCall(expr ast.Expr, packageNames map[string]bool, functionName string) bool {
+	if identifier, ok := expr.(*ast.Ident); ok {
+		return identifier.Obj == nil && identifier.Name == functionName && packageNames["."]
+	}
 	selector, ok := expr.(*ast.SelectorExpr)
 	if !ok || selector.Sel.Name != functionName {
 		return false
 	}
 	pkg, ok := selector.X.(*ast.Ident)
-	return ok && packageNames[pkg.Name]
+	return ok && pkg.Obj == nil && packageNames[pkg.Name]
 }
 
 func timeImportNames(file *ast.File) (map[string]bool, map[string]bool) {
@@ -221,8 +224,12 @@ func timeImportNames(file *ast.File) (map[string]bool, map[string]bool) {
 			continue
 		}
 		name := pathpkg.Base(importPath)
-		if spec.Name != nil && spec.Name.Name != "." && spec.Name.Name != "_" {
-			name = spec.Name.Name
+		if spec.Name != nil {
+			if spec.Name.Name == "." {
+				name = "."
+			} else if spec.Name.Name != "_" {
+				name = spec.Name.Name
+			}
 		}
 		switch {
 		case importPath == "time":

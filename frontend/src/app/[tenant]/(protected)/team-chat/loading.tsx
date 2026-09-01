@@ -1,7 +1,7 @@
 "use client";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { TeamChatSkeleton } from "./page-skeleton";
+import { TeamChatSkeleton } from "~/components/messaging/team-chat-skeletons";
 
 /**
  * Route-level loading UI: the real header renders immediately (real chrome

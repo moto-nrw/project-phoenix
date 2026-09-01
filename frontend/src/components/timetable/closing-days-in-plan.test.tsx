@@ -136,6 +136,25 @@ describe("MonthPlannerGrid closing days (#2032)", () => {
     expect(screen.getAllByText("Leer")).toHaveLength(monthDays.length);
   });
 
+  it("marks dates outside the planning period instead of Leer", () => {
+    render(
+      <MonthPlannerGrid
+        days={monthDays}
+        monthDate={new Date("2026-05-01T00:00:00")}
+        instances={[]}
+        todayISO="2026-05-04"
+        planningDisabledDateISOs={new Set(["2026-05-04"])}
+        onDayClick={vi.fn()}
+      />,
+    );
+
+    const disabledCell = screen.getByText("Nicht planbar").closest("button");
+    expect(disabledCell).not.toBeNull();
+    expect(
+      within(disabledCell as HTMLElement).queryByText("Leer"),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the empty day action keyboard-accessible beside instance buttons", () => {
     const onDayClick = vi.fn();
 

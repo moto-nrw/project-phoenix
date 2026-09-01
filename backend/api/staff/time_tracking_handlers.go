@@ -285,7 +285,7 @@ func (rs *Resource) getStaffVacationQuota(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	year, err := parseYearQuery(r)
+	year, err := parseYearQuery(r, timezone.TodayDate())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -315,7 +315,7 @@ func (rs *Resource) setStaffVacationQuota(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if body.Year == 0 {
-		body.Year = timezone.TodayDate().Year
+		body.Year = timezone.TodayDate().Year()
 	}
 	if err := rs.StaffAbsenceService.UpsertVacationQuota(r.Context(), staffID, body.Year, body.EntitledDays, body.CarryoverDays); err != nil {
 		if errors.Is(err, activeSvc.ErrVacationQuotaInvalid) {
@@ -341,10 +341,10 @@ func parseInt64Param(r *http.Request, name string) (int64, error) {
 	return v, nil
 }
 
-func parseYearQuery(r *http.Request) (int, error) {
+func parseYearQuery(r *http.Request, today timezone.Date) (int, error) {
 	yearStr := r.URL.Query().Get("year")
 	if yearStr == "" {
-		return timezone.TodayDate().Year, nil
+		return today.Year(), nil
 	}
 	year, err := strconv.Atoi(yearStr)
 	if err != nil || year < 2000 || year > 2100 {
@@ -542,21 +542,18 @@ func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
 }
 
 // adminAbsenceErrorRules classifies StaffAbsenceService errors for the admin
-// absence endpoints (#1843). The absence service raises message-shaped errors
-// (no sentinels), so most rules match on the message; the sick cascade wraps
-// schedule sentinels, matched via errors.Is.
+// absence endpoints (#1843). Service sentinels and the sick cascade's wrapped
+// schedule sentinel match via errors.Is; legacy message-shaped errors match by
+// message.
 var adminAbsenceErrorRules = []common.ErrorRule{
-	// 409 with a stable code so the frontend can show the overdraft message
-	// (#1420 review) — mirrors balance_adjustment_exceeds_balance.
-	{Target: activeSvc.ErrCompTimeExceedsBalance, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "comp_time_exceeds_balance")
-	}},
 	// School-defined Abwesenheitsarten (#2403): a retired or unknown art is a
 	// bad selection, not a server fault.
 	{Target: activeSvc.ErrAbsenceTypeInactive, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "absence_type_inactive")
 	}},
 	{Target: activeSvc.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
+	{Target: activeSvc.ErrAbsenceTypeAllowanceInvalid, Render: common.ErrorInvalidRequest},
+	{Target: activeSvc.ErrAbsenceTypeAllowanceExceeded, Render: common.ErrorConflict},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},
@@ -649,4 +646,51 @@ func (rs *Resource) adminDeleteStaffAbsence(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	common.RespondNoContent(w, r)
+}
+
+// getCompTimeBalancePreview handles
+// GET /api/staff/{id}/time-tracking/comp-time-preview?date_start=YYYY-MM-DD&date_end=YYYY-MM-DD&half_day=true|false
+// (#2873): the Stundenkonto projection the "Freizeitausgleich eintragen"
+// modal shows before the Leitung confirms the booking. Informative only — an
+// overdraft no longer blocks the create.
+func (rs *Resource) getCompTimeBalancePreview(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if _, err := rs.PersonService.GetStaffByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+	dateStart, err := timezone.ParseDate(r.URL.Query().Get("date_start"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date_start format, expected YYYY-MM-DD")))
+		return
+	}
+	dateEnd, err := timezone.ParseDate(r.URL.Query().Get("date_end"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date_end format, expected YYYY-MM-DD")))
+		return
+	}
+	halfDay := false
+	switch r.URL.Query().Get("half_day") {
+	case "", "false":
+	case "true":
+		halfDay = true
+	default:
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid half_day value, expected true or false")))
+		return
+	}
+
+	preview, err := rs.StaffAbsenceService.PreviewCompTimeBalance(r.Context(), staffID, dateStart, dateEnd, halfDay)
+	if err != nil {
+		rs.getLogger().Error("failed to compute comp_time preview",
+			"staff_id", staffID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.RenderWithRules(err, adminAbsenceErrorRules, common.ErrorInternalServer))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, preview, "Comp time preview computed successfully")
 }

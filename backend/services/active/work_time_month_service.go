@@ -114,6 +114,11 @@ type WorkTimeMonthService interface {
 	// each target minus recorded net work, because comp_time itself credits
 	// nothing (#1420).
 	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error)
+	// GetFutureCompTimeCommitmentMinutes sums the deductions of every
+	// effective comp-time absence on days after today, through the supported
+	// balance horizon. The comp-time preview (#2873) subtracts it so already
+	// planned Freizeitausgleiche show up in the projected balance.
+	GetFutureCompTimeCommitmentMinutes(ctx context.Context, staffID int64) (int, error)
 	// GetDailyProjection returns Soll, Gutschrift, Ist and Saldo per calendar
 	// day for the daily table — the same arithmetic the Monatskarte sums.
 	GetDailyProjection(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyProjection, error)
@@ -231,7 +236,7 @@ type monthStaffReader interface {
 
 // monthScheduleReader is implemented by config.StaffWorkScheduleRepository.
 type monthScheduleReader interface {
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModels.StaffWorkSchedule, error)
+	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error)
 	HasScheduleHistory(ctx context.Context, staffID int64) (bool, error)
 }
 
@@ -334,7 +339,7 @@ type monthKey struct {
 	Month int
 }
 
-func monthOf(d timezone.Date) monthKey { return monthKey{Year: d.Year, Month: int(d.Month)} }
+func monthOf(d timezone.Date) monthKey { return monthKey{Year: d.Year(), Month: int(d.Month())} }
 
 func (k monthKey) firstDay() timezone.Date { return timezone.NewDate(k.Year, time.Month(k.Month), 1) }
 
@@ -454,9 +459,9 @@ func (a *monthAggregates) balance() int {
 // is the fallback — the same two-tier resolution the weekly summaries use.
 type dailyTargetResolver struct {
 	entries     []*configModels.StaffWorkSchedule
-	staffAnchor *timezone.Date
+	staffAnchor *configModels.CalendarDate
 	model       *configModels.WorkTimeModel
-	modelAnchor timezone.Date
+	modelAnchor configModels.CalendarDate
 	holidays    map[timezone.Date]bool
 }
 
@@ -468,11 +473,11 @@ func (r *dailyTargetResolver) targetFor(d timezone.Date) int {
 		return 0
 	}
 	if len(r.entries) > 0 {
-		target, _ := configModels.DailyTargetFromSchedule(r.entries, r.staffAnchor, d)
+		target, _ := configModels.DailyTargetFromSchedule(r.entries, r.staffAnchor, workforceDate(d))
 		return target
 	}
 	if r.model != nil {
-		target, _ := configModels.DailyTargetFromModel(r.model, r.modelAnchor, d)
+		target, _ := configModels.DailyTargetFromModel(r.model, r.modelAnchor, workforceDate(d))
 		return target
 	}
 	return 0
@@ -493,9 +498,9 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to load staff for month summary: %w", err)
 	}
-	resolver.staffAnchor = staff.RotationAnchorDate
+	resolver.staffAnchor = workforceDatePointer(staff.RotationAnchorDate)
 
-	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, from, to)
+	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, workforceDate(from), workforceDate(to))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work schedules: %w", err)
 	}
@@ -526,7 +531,7 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 	resolver.model = model
 	resolver.modelAnchor = model.RotationAnchorDate
 	if staff.RotationAnchorDate != nil {
-		resolver.modelAnchor = *staff.RotationAnchorDate
+		resolver.modelAnchor = workforceDate(*staff.RotationAnchorDate)
 	}
 	return resolver, nil
 }
@@ -836,8 +841,8 @@ func (s *workTimeMonthService) addPlannedShifts(ctx context.Context, staffID int
 // services/schedule — that package imports this one, so it cannot be shared
 // without an import cycle.
 func shiftNetMinutes(shift *scheduleModels.StaffShift) int {
-	start := timezone.WallClock(shift.StartTime)
-	end := timezone.WallClock(shift.EndTime)
+	start := timezone.NormalizeWallClock(shift.StartTime)
+	end := timezone.NormalizeWallClock(shift.EndTime)
 	minutes := int(end.Sub(start)/time.Minute) - shift.BreakMinutes
 	if minutes < 0 {
 		return 0
@@ -877,7 +882,7 @@ func resolveAccountAnchor(ctx context.Context, settings monthSettingsResolver, l
 	}
 	value, err := settings.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)
 	if err != nil {
-		return timezone.Date{}, fmt.Errorf("failed to resolve account start date setting: %w", err)
+		return timezone.Date(""), fmt.Errorf("failed to resolve account start date setting: %w", err)
 	}
 	if value == "" {
 		return fallback, nil
@@ -1082,6 +1087,26 @@ func (s *workTimeMonthService) addAdjustmentReductionCheckpoints(
 		}
 	}
 	return nil
+}
+
+// GetFutureCompTimeCommitmentMinutes sums the unrealized deductions of every
+// effective comp-time absence from tomorrow through the balance horizon.
+func (s *workTimeMonthService) GetFutureCompTimeCommitmentMinutes(ctx context.Context, staffID int64) (int, error) {
+	if staffID <= 0 {
+		return 0, errors.New("staff id is required")
+	}
+	if s.absenceRepo == nil {
+		return 0, nil
+	}
+	today := s.today()
+	from := today.AddDays(1)
+	last := monthOf(today).addMonths(maxFutureMonths).lastDay()
+	checkpoints := map[timezone.Date]struct{}{}
+	compTimeAbsences, err := s.addCompTimeReductionCheckpoints(ctx, staffID, from, last, checkpoints)
+	if err != nil {
+		return 0, err
+	}
+	return s.getCompTimeDeductionInRange(ctx, staffID, from, last, compTimeAbsences)
 }
 
 func (s *workTimeMonthService) addCompTimeReductionCheckpoints(
@@ -1686,11 +1711,11 @@ func excludedByAccountStart(d, anchor timezone.Date) bool {
 func (s *workTimeMonthService) accountAwareTargets(ctx context.Context, staffID int64, from, to timezone.Date) (*dailyTargetResolver, timezone.Date, error) {
 	resolver, err := s.buildTargetResolver(ctx, staffID, from, to)
 	if err != nil {
-		return nil, timezone.Date{}, err
+		return nil, timezone.Date(""), err
 	}
 	anchor, err := s.chainAnchor(ctx, monthOf(from))
 	if err != nil {
-		return nil, timezone.Date{}, err
+		return nil, timezone.Date(""), err
 	}
 	return resolver, anchor, nil
 }

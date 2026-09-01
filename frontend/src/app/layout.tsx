@@ -69,11 +69,14 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+/**
+ * Kein maximumScale und kein userScalable: die App muss auf jedem Gerät
+ * vergrößert werden können (#2267). Ein gesperrter Zoom sperrt genau die
+ * Menschen aus, die ihn brauchen.
+ */
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default async function RootLayout({

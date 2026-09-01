@@ -6,17 +6,9 @@
 // rendered as-is. Follows the calm Anmeldungen/Planung surface language: one
 // content section, gray-50 stat blocks, no colored chips.
 
-import {
-  FileImage,
-  FileSpreadsheet,
-  FileText,
-  File as FileIcon,
-  FolderOpen,
-  Lock,
-  Presentation,
-  Upload,
-  Users,
-} from "lucide-react";
+import { FileText, FolderOpen, Lock, Upload, Users } from "lucide-react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -24,13 +16,15 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { FileTypeIcon } from "~/components/ui/file-type-icon";
+import { InfoItem } from "~/components/ui/info-card";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatCard } from "~/components/ui/stat-card";
 import { formatDate } from "~/lib/date-helpers";
+import { hasPermission } from "~/lib/auth-utils";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import {
   filesService,
@@ -52,23 +46,6 @@ const logger = createLogger({ component: "FilesPage" });
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
-function fileIcon(contentType: string) {
-  const className = "h-4 w-4 text-gray-400";
-  if (contentType.startsWith("image/")) {
-    return <FileImage className={className} aria-hidden="true" />;
-  }
-  if (contentType === "application/pdf") {
-    return <FileText className={className} aria-hidden="true" />;
-  }
-  if (contentType.includes("spreadsheetml")) {
-    return <FileSpreadsheet className={className} aria-hidden="true" />;
-  }
-  if (contentType.includes("presentationml")) {
-    return <Presentation className={className} aria-hidden="true" />;
-  }
-  return <FileIcon className={className} aria-hidden="true" />;
-}
-
 function visibilityIcon(visibility: FileFolder["visibility"]) {
   const className = "h-3.5 w-3.5 text-gray-400";
   if (visibility === "admins") {
@@ -81,6 +58,7 @@ function visibilityIcon(visibility: FileFolder["visibility"]) {
 }
 
 export function FilesPage() {
+  const { data: session } = useSession();
   const {
     data: overview,
     isLoading,
@@ -145,6 +123,9 @@ export function FilesPage() {
 
   const canManage = overview?.canManage ?? false;
   const canUpload = overview?.canUpload ?? false;
+  const canChangeUploadPermission =
+    hasPermission(session, "config:read") &&
+    hasPermission(session, "config:update");
 
   const folderNav = (
     <nav aria-label="Ordner" className="space-y-1">
@@ -208,10 +189,10 @@ export function FilesPage() {
           </p>
           <h1 className="text-base font-semibold text-gray-900">Dateien</h1>
           <p className="max-w-3xl text-sm leading-6 text-gray-600">
-            Gemeinsame Dateien der OGS, zum Beispiel Konzeption, Formulare oder
-            Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner
-            fest. Unterlagen zu einem Kind oder zu einer Person liegen weiter
-            beim Kind bzw. bei der Person.
+            Hier liegen gemeinsame Dateien der OGS, zum Beispiel Formulare und
+            Notfallpläne. Die Leitung entscheidet für jeden Ordner, wer ihn
+            sehen darf. Unterlagen zu Kindern und Mitarbeitenden bleiben bei der
+            jeweiligen Person.
           </p>
         </div>
         {canManage && (
@@ -273,19 +254,34 @@ export function FilesPage() {
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
             {canManage && overview && overview.maxBytes > 0 && (
-              <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                <StatCard
-                  variant="tile"
-                  label="Belegter Speicherplatz"
-                  value={`${formatBytes(overview.usedBytes)} von ${formatBytes(overview.maxBytes)}`}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Team darf hochladen"
+              <div className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
+                <InfoItem
+                  label="Speicherplatz"
                   value={
-                    overview.staffUploadEnabled ? "Ja" : "Nein (Einstellungen)"
+                    <span className="tabular-nums">
+                      {formatBytes(overview.usedBytes)} von{" "}
+                      {formatBytes(overview.maxBytes)} belegt
+                    </span>
                   }
                 />
+                <div className="space-y-1">
+                  <InfoItem
+                    label="Dateien hochladen"
+                    value={
+                      overview.staffUploadEnabled
+                        ? "Leitung und Team"
+                        : "Nur Leitung"
+                    }
+                  />
+                  {canChangeUploadPermission && (
+                    <Link
+                      href="/settings?tab=operations&highlight=files.staff_upload_enabled"
+                      className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
+                    >
+                      Berechtigung ändern
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
           </aside>
@@ -434,7 +430,7 @@ function FolderFilesPanel({
       header: "Datei",
       render: (file) => (
         <span className="flex min-w-0 items-center gap-2">
-          {fileIcon(file.contentType)}
+          <FileTypeIcon contentType={file.contentType} />
           {isViewableInBrowser(file.contentType) ? (
             <a
               href={filesService.viewUrl(folder.id, file.id)}
@@ -592,7 +588,7 @@ function FolderFilesPanel({
             </Button>
           </p>
           <p className="text-xs text-gray-400">
-            PDF, Word, Excel, PowerPoint, PNG oder JPG · max. 25 MB pro Datei
+            PDF, Word, Excel, PowerPoint, PNG oder JPG · höchstens 25 MB
           </p>
           <input
             ref={fileInputRef}
@@ -623,7 +619,7 @@ function FolderFilesPanel({
             title="Noch keine Dateien in diesem Ordner"
             description={
               canUpload
-                ? "Laden Sie die erste Datei über den Bereich oben hoch."
+                ? "Laden Sie oben die erste Datei hoch."
                 : "Sobald die Leitung Dateien ablegt, erscheinen sie hier."
             }
           />

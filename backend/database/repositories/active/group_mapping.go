@@ -3,8 +3,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -17,7 +15,6 @@ import (
 const (
 	tableActiveGroupMappings   = "active.group_mappings"
 	tableExprGroupMappingsAsGM = `active.group_mappings AS "group_mapping"`
-	whereIDEquals              = "id = ?"
 )
 
 // GroupMappingRepository implements active.GroupMappingRepository interface
@@ -50,7 +47,7 @@ func (r *GroupMappingRepository) FindByActiveCombinedGroupID(ctx context.Context
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active combined group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -71,7 +68,7 @@ func (r *GroupMappingRepository) FindByActiveGroupID(ctx context.Context, active
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -92,7 +89,7 @@ func (r *GroupMappingRepository) AddGroupToCombination(ctx context.Context, comb
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "check mapping existence",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -121,7 +118,7 @@ func (r *GroupMappingRepository) AddGroupToCombination(ctx context.Context, comb
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "add group to combination",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -143,7 +140,7 @@ func (r *GroupMappingRepository) RemoveGroupFromCombination(ctx context.Context,
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "remove group from combination",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -160,69 +157,4 @@ func (r *GroupMappingRepository) List(ctx context.Context, options *modelBase.Qu
 		mappings = make([]*active.GroupMapping, 0)
 	}
 	return mappings, nil
-}
-
-// FindWithRelations retrieves a mapping with its associated relations
-func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64) (*active.GroupMapping, error) {
-	mapping := new(active.GroupMapping)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(mapping).
-		ModelTableExpr(tableExprGroupMappingsAsGM).
-		Where(whereIDEquals, id)
-
-	query = base.WithTenantFilter(ctx, query, "group_mapping")
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with relations",
-			Err: err,
-		}
-	}
-
-	// Load CombinedGroup relation separately (multi-schema)
-	if mapping.ActiveCombinedGroupID > 0 {
-		combinedGroup := new(active.CombinedGroup)
-		cgQuery := base.GetDB(ctx, r.db).NewSelect().
-			Model(combinedGroup).
-			ModelTableExpr(`active.combined_groups AS "combined_group"`).
-			Where(whereIDEquals, mapping.ActiveCombinedGroupID)
-
-		cgQuery = base.WithTenantFilter(ctx, cgQuery, "combined_group")
-
-		cgErr := cgQuery.Scan(ctx)
-		if cgErr == nil {
-			mapping.CombinedGroup = combinedGroup
-		} else if !errors.Is(cgErr, sql.ErrNoRows) {
-			// Return actual database errors, but allow "not found" to continue
-			return nil, &modelBase.DatabaseError{
-				Op:  "find combined group relation",
-				Err: cgErr,
-			}
-		}
-	}
-
-	// Load ActiveGroup relation separately (multi-schema)
-	if mapping.ActiveGroupID > 0 {
-		activeGroup := new(active.Group)
-		agQuery := base.GetDB(ctx, r.db).NewSelect().
-			Model(activeGroup).
-			ModelTableExpr(`active.groups AS "group"`).
-			Where(whereIDEquals, mapping.ActiveGroupID)
-
-		agQuery = base.WithTenantFilter(ctx, agQuery, "group")
-
-		agErr := agQuery.Scan(ctx)
-		if agErr == nil {
-			mapping.ActiveGroup = activeGroup
-		} else if !errors.Is(agErr, sql.ErrNoRows) {
-			// Return actual database errors, but allow "not found" to continue
-			return nil, &modelBase.DatabaseError{
-				Op:  "find active group relation",
-				Err: agErr,
-			}
-		}
-	}
-
-	return mapping, nil
 }

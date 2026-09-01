@@ -50,8 +50,8 @@ func (snapshotSessionSettings) ResolveInt(context.Context, string) (int, error) 
 func (f *snapshotFixture) newAdminSessionService() active.WorkSessionService {
 	return active.NewWorkSessionService(
 		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.WorkSessionEdit, f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.Staff, f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
-		snapshotSessionSettings{}, nil,
+		f.repos.GroupSupervisor, f.repos.ActiveGroup, f.repos.Staff, f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
+		snapshotSessionSettings{}, nil, f.db,
 	)
 }
 
@@ -94,7 +94,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 		DayOfWeek:     configModels.DayMonday,
 		TargetMinutes: 480,
 		WeekIndex:     0, RotationLength: 1,
-		ValidFrom: timezone.NewDate(2020, time.January, 1),
+		ValidFrom: configModels.NewCalendarDate(2020, time.January, 1),
 	}
 	_, err := db.NewInsert().Model(schedule).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
 	require.NoError(t, err)
@@ -280,7 +280,7 @@ func TestMonthClose_RejectsUnfinishedMonth(t *testing.T) {
 	f := newSnapshotFixture(t)
 	today := timezone.TodayDate()
 
-	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, today.Year, int(today.Month), "zu früh")
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, today.Year(), int(today.Month()), "zu früh")
 	require.ErrorIs(t, err, active.ErrMonthNotClosable)
 }
 

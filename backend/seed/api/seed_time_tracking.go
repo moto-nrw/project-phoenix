@@ -9,11 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // seedTimeTrackingHistoryStep populates Soll/Ist data for the demo tenant
@@ -65,6 +60,10 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
+	todayDate := todaySeedDate()
+	if err := seedTimeTrackingCoverage(rt, staffIDByEmail[staffOrder[0].Email], todayDate.Year()); err != nil {
+		return err
+	}
 	// One school-defined Abwesenheitsart (#2403), so the dropdown, the
 	// absence list and the exports show the mixed case a real school has:
 	// the five standard types plus a name of its own.
@@ -78,14 +77,18 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	rng := rand.New(rand.NewPCG(0xC0FFEE, 0xBEEF))
-	today := timezone.TodayDate().UTCMidnight()
-	loc := timezone.Berlin
+	today := todaySeedDate().UTCMidnight()
+	loc := seedBerlinLocation()
+	statisticsSupervisorEmail := rt.FixedSeeder.staffCredentials[max(0, len(rt.FixedSeeder.staffCredentials)-2)].Email
 
 	sessionCount := 0
 	absenceCount := 0
 
 	for idx, cred := range staffOrder {
 		staffID := staffIDByEmail[cred.Email]
+		if cred.Position == "Extern" {
+			continue
+		}
 		if err := rt.Client.Login(cred.Email, cred.Password); err != nil {
 			return fmt.Errorf("login as %s: %w", cred.Email, err)
 		}
@@ -102,7 +105,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		if rng.Float64() < 0.25 {
 			day := mostRecentWeekday(today.AddDate(0, 0, -rng.IntN(timeTrackingDaysBack)), time.Wednesday)
 			sickDay = &day
-			if err := postAbsence(rt, day, day, activeModels.AbsenceTypeSick, "Krankmeldung", nil); err != nil {
+			if err := postAbsence(rt, day, day, "sick", "Krankmeldung", nil); err != nil {
 				return fmt.Errorf("seed sick day for staff %d: %w", staffID, err)
 			}
 			absenceCount++
@@ -114,7 +117,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		if idx == 1 {
 			day := mostRecentWeekday(today.AddDate(0, 0, -7), time.Monday)
 			customDay = &day
-			if err := postAbsence(rt, day, day, activeModels.AbsenceTypeOther, "Regenerationstag", &customAbsenceTypeID); err != nil {
+			if err := postAbsence(rt, day, day, "other", "Regenerationstag", &customAbsenceTypeID); err != nil {
 				return fmt.Errorf("seed custom absence for staff %d: %w", staffID, err)
 			}
 			absenceCount++
@@ -124,7 +127,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		// always free when we POST /check-in for the next iteration.
 		for offset := timeTrackingDaysBack - 1; offset >= 0; offset-- {
 			day := today.AddDate(0, 0, -offset)
-			if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
+			if !shouldSeedTimeTrackingDay(day, today, cred.Email == statisticsSupervisorEmail) {
 				continue
 			}
 			if sickDay != nil && day.Equal(*sickDay) {
@@ -138,7 +141,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			// demo data renders as a complete two-week timeline. Random
 			// skips made the calendar look broken to first-time viewers.
 
-			created, err := seedSessionViaAPI(rt, rng, day, loc)
+			created, err := seedSessionViaAPI(rt, rng, day, loc, sessionCount == 0)
 			if err != nil {
 				return fmt.Errorf("seed session for staff %d on %s: %w", staffID, toDateKey(day), err)
 			}
@@ -147,10 +150,26 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			}
 		}
 	}
+	if len(staffOrder) > 1 {
+		staffID := staffIDByEmail[staffOrder[1].Email]
+		if err := seedCustomAbsenceTypeAllowance(rt, customAbsenceTypeID, staffID, todayDate.Year()); err != nil {
+			return err
+		}
+	}
 
 	fmt.Printf("  %d schedules, %d sessions, %d absences seeded for %d staff\n",
 		scheduleCount, sessionCount, absenceCount, len(staffOrder))
 	return nil
+}
+
+func shouldSeedTimeTrackingDay(day, today time.Time, isStatisticsSupervisor bool) bool {
+	if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
+		return false
+	}
+	// The earlier statistics step leaves this supervisor with a closed NFC
+	// block today. A synthetic 08:00–16:00 app block would overlap it whenever
+	// the seed runs during working hours.
+	return !isStatisticsSupervisor || toDateKey(day) != toDateKey(today)
 }
 
 func buildStaffOrder(fs *FixedSeeder) ([]StaffCredentials, map[string]int64) {
@@ -176,8 +195,8 @@ func buildStaffOrder(fs *FixedSeeder) ([]StaffCredentials, map[string]int64) {
 
 func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail map[string]int64) (int, error) {
 	rt.Client.BindAuth(rt.TenantAuth)
-	entries := make([]map[string]any, 0, configModels.DayFriday-configModels.DayMonday+1)
-	for d := configModels.DayMonday; d <= configModels.DayFriday; d++ {
+	entries := make([]map[string]any, 0, 4-0+1)
+	for d := 0; d <= 4; d++ {
 		entries = append(entries, map[string]any{
 			"week_index":     0,
 			"day_of_week":    d,
@@ -187,6 +206,9 @@ func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail m
 
 	count := 0
 	for _, cred := range staff {
+		if cred.Position == "Extern" {
+			continue
+		}
 		staffID := staffIDByEmail[cred.Email]
 		path := fmt.Sprintf("/api/staff/%d/schedule", staffID)
 		body := map[string]any{
@@ -202,7 +224,7 @@ func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail m
 	return count, nil
 }
 
-func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (phoenixapi.AuthRef, error) {
+func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (AuthRef, error) {
 	currentAuth := rt.Client.auth
 	defer rt.Client.BindAuth(currentAuth)
 
@@ -211,21 +233,21 @@ func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (phoenixapi.Au
 			continue
 		}
 		if err := rt.Client.Login(cred.Email, cred.Password); err != nil {
-			return phoenixapi.AuthRef{}, fmt.Errorf("login vacation approver %s: %w", cred.Email, err)
+			return AuthRef{}, fmt.Errorf("login vacation approver %s: %w", cred.Email, err)
 		}
 		return rt.Client.auth, nil
 	}
-	return phoenixapi.AuthRef{}, fmt.Errorf("no OGS-Büro staff credential available for vacation approval")
+	return AuthRef{}, fmt.Errorf("no OGS-Büro staff credential available for vacation approval")
 }
 
 // seedSessionViaAPI walks the live clocking flow for one historical day:
 // open + close a fresh session today, then PUT to backdate it. Returns
 // whether a session was created (false when the staff already had an
 // open session that we couldn't safely close).
-func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Location) (bool, error) {
-	status := activeModels.WorkSessionStatusPresent
+func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Location, withBreak bool) (bool, error) {
+	status := "present"
 	if rng.Float64() < 0.1 {
-		status = activeModels.WorkSessionStatusHomeOffice
+		status = "home_office"
 	}
 
 	checkInResp, err := rt.Client.Post("/api/time-tracking/check-in", map[string]any{
@@ -237,6 +259,11 @@ func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Loc
 	sessionID, err := extractSessionID(checkInResp)
 	if err != nil {
 		return false, fmt.Errorf("parse check-in response: %w", err)
+	}
+	if withBreak {
+		if err := seedOneWorkSessionBreak(rt); err != nil {
+			return false, err
+		}
 	}
 
 	if _, err := rt.Client.Post("/api/time-tracking/check-out", nil); err != nil {
@@ -264,6 +291,50 @@ func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Loc
 		return false, fmt.Errorf("put backdate: %w", err)
 	}
 	return true, nil
+}
+
+func seedTimeTrackingCoverage(rt *Runtime, staffID int64, year int) error {
+	rt.Client.BindAuth(rt.TenantAuth)
+	if _, err := rt.Client.Put(fmt.Sprintf("/api/staff/%d/vacation/quota", staffID), map[string]any{
+		"year": year, "entitled_days": 30, "carryover_days": 2,
+	}); err != nil {
+		return fmt.Errorf("seed vacation quota for staff %d: %w", staffID, err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/time-tracking/opening", staffID), map[string]any{
+		"effective_date":  todaySeedDate().UTCMidnight().AddDate(0, 0, -1).Format(time.DateOnly),
+		"balance_minutes": 600,
+		"note":            "Übertrag für die Demo",
+	}); err != nil {
+		return fmt.Errorf("seed opening balance for staff %d: %w", staffID, err)
+	}
+	adjustmentRaw, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/time-tracking/adjustments", staffID), map[string]any{
+		"type": "payout", "minutes_delta": -30,
+		"effective_date": todaySeedDate().String(),
+		"note":           "Korrigierter Demo-Ausgleich",
+	})
+	if err != nil {
+		return fmt.Errorf("seed removable balance adjustment for staff %d: %w", staffID, err)
+	}
+	adjustmentID, err := parseEnvelopeStringID(adjustmentRaw)
+	if err != nil {
+		return fmt.Errorf("parse balance adjustment for staff %d: %w", staffID, err)
+	}
+	if _, err := rt.Client.Delete(fmt.Sprintf("/api/staff/%d/time-tracking/adjustments/%d", staffID, adjustmentID)); err != nil {
+		return fmt.Errorf("delete demo balance adjustment for staff %d: %w", staffID, err)
+	}
+	return nil
+}
+
+func seedOneWorkSessionBreak(rt *Runtime) error {
+	if _, err := rt.Client.Post("/api/time-tracking/break/start", map[string]any{
+		"planned_duration_minutes": 30,
+	}); err != nil {
+		return fmt.Errorf("start demo work break: %w", err)
+	}
+	if _, err := rt.Client.Post("/api/time-tracking/break/end", nil); err != nil {
+		return fmt.Errorf("end demo work break: %w", err)
+	}
+	return nil
 }
 
 // seedCustomAbsenceType adds the school's own Abwesenheitsart as the admin and
@@ -299,6 +370,28 @@ func seedCustomAbsenceType(rt *Runtime) (int64, error) {
 	return id, nil
 }
 
+func seedCustomAbsenceTypeAllowance(rt *Runtime, absenceTypeID, staffID int64, year int) error {
+	currentAuth := rt.Client.auth
+	defer rt.Client.BindAuth(currentAuth)
+	rt.Client.BindAuth(rt.TenantAuth)
+	if _, err := rt.Client.Put(
+		fmt.Sprintf("/api/absence-types/%d", absenceTypeID),
+		map[string]any{"allowance_enabled": true, "overrun_policy": "warn"},
+	); err != nil {
+		return fmt.Errorf("enable custom absence type allowance: %w", err)
+	}
+	if _, err := rt.Client.Put(
+		fmt.Sprintf("/api/absence-types/%d/allowances/%d", absenceTypeID, staffID),
+		map[string]any{
+			"year": year, "entitled_days": 3.5,
+			"reason": "Demo-Anspruch",
+		},
+	); err != nil {
+		return fmt.Errorf("seed custom absence type allowance for staff %d: %w", staffID, err)
+	}
+	return nil
+}
+
 func postAbsence(rt *Runtime, dateStart, dateEnd time.Time, absenceType, note string, absenceTypeID *int64) error {
 	body := map[string]any{
 		"absence_type": absenceType,
@@ -315,7 +408,7 @@ func postAbsence(rt *Runtime, dateStart, dateEnd time.Time, absenceType, note st
 	return nil
 }
 
-func requestAndApproveVacation(rt *Runtime, approverAuth phoenixapi.AuthRef, dateStart, dateEnd time.Time, note string) error {
+func requestAndApproveVacation(rt *Runtime, approverAuth AuthRef, dateStart, dateEnd time.Time, note string) error {
 	staffAuth := rt.Client.auth
 	defer rt.Client.BindAuth(staffAuth)
 

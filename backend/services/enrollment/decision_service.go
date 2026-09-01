@@ -454,6 +454,7 @@ type DecisionServiceConfig struct {
 	// leave it nil.
 	LockPickupStudents func(ctx context.Context, studentIDs []int64) error
 	Logger             *slog.Logger
+	Today              func() timezone.Date
 }
 
 type decisionService struct {
@@ -464,11 +465,18 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	if cfg.Today == nil {
+		cfg.Today = timezone.TodayDate
+	}
 	cfg.ParentsURL = strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
 	if cfg.ParentsURL == "" {
 		cfg.ParentsURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 	}
 	return &decisionService{DecisionServiceConfig: cfg}
+}
+
+func (s *decisionService) todayDate() timezone.Date {
+	return s.Today()
 }
 
 func (s *decisionService) List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error) {
@@ -605,7 +613,7 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
-	onDate := BookingViewDate(timezone.TodayDate(), phase.ServiceEndDate)
+	onDate := BookingViewDate(s.todayDate(), phase.ServiceEndDate)
 	// The date the WRITE path treats as "now".
 	selectionDate := currentOfferingSelectionDate(phase)
 	out := make(map[int64]ChildOfferingSet, len(children))
@@ -1296,7 +1304,7 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	// Refresh projected-pickup consumers AFTER the re-read has the student id
 	// stamped by this approval.
 	if input.Status == DecisionApproved {
-		today := timezone.TodayDate()
+		today := s.todayDate()
 		if !phase.ServiceStartDate.After(today) {
 			if err := s.syncOfferingPickupAfterApproval(ctx, target); err != nil {
 				return nil, fmt.Errorf("decision: refresh offering pickup projection: %w", err)
@@ -1440,7 +1448,7 @@ func (s *decisionService) approvalActivationPlan(ctx context.Context, phase *enr
 
 	activateOn := phase.ServiceStartDate
 	status := users.StudentStatusPending
-	if !activateOn.After(timezone.TodayDate()) {
+	if !activateOn.After(s.todayDate()) {
 		status = users.StudentStatusActive
 	}
 	return approvalActivationPlan{
@@ -1899,7 +1907,7 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// recurrence gate is already held — taken with the shared class-writes
 	// gate before the row write above.
 	if existing.SchoolClass != previousSchoolClass {
-		if err := s.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()); err != nil {
+		if err := s.ResyncOfferingSourcedTemplates(ctx, s.todayDate()); err != nil {
 			return nil, fmt.Errorf("decision: resync sourced templates after approval class change: %w", err)
 		}
 	}
@@ -2891,7 +2899,7 @@ func (s *decisionService) materializeEnrollmentsFrom(
 	// occurrence, so an approval after materialization must add the child to
 	// the drafted templates' already-materialized future occurrences itself
 	// (#2147 review).
-	if err := s.reconcileEnrollmentInstanceRosters(ctx, studentID, draftGroupIDSet(drafts), enrollmentRewriteBoundary(startFrom)); err != nil {
+	if err := s.reconcileEnrollmentInstanceRosters(ctx, studentID, draftGroupIDSet(drafts), s.enrollmentRewriteBoundary(startFrom)); err != nil {
 		return err
 	}
 	// Multi-source templates were deliberately not drafted above; the resync
@@ -2915,8 +2923,8 @@ func (s *decisionService) materializeEnrollmentsFrom(
 // enrollmentRewriteBoundary is the date from which a decision/adjustment flow
 // may rewrite materialized occurrences: the flow's own start override, never
 // earlier than today (history is observation, not plan).
-func enrollmentRewriteBoundary(startFrom *timezone.Date) timezone.Date {
-	boundary := timezone.TodayDate()
+func (s *decisionService) enrollmentRewriteBoundary(startFrom *timezone.Date) timezone.Date {
+	boundary := s.todayDate()
 	if startFrom != nil && startFrom.After(boundary) {
 		boundary = *startFrom
 	}
@@ -4417,7 +4425,7 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 		if err != nil {
 			return fmt.Errorf("parse %s time %q: %w", day, hhmm, err)
 		}
-		t = timezone.WallClock(t)
+		t = timezone.NormalizeWallClock(t)
 		row := &scheduleModels.StudentPickupSchedule{
 			StudentID:  studentID,
 			Weekday:    weekdayInt[day],

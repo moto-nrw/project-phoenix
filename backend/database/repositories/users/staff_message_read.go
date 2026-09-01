@@ -105,7 +105,7 @@ func (r *StaffMessageReadRepository) MarkReadUpTo(ctx context.Context, threadID,
 		Set("last_read_message_id = EXCLUDED.last_read_message_id").
 		Where(advance).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark staff message thread read up to", Err: err}
+		return &modelBase.DatabaseError{Op: "mark staff message thread read up to", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func (r *StaffMessageReadRepository) UnreadCount(ctx context.Context, accountID 
 
 	count := 0
 	if err := query.Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count unread staff messages", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count unread staff messages", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -183,7 +183,7 @@ func (r *StaffMessageReadRepository) ListInbox(ctx context.Context, accountID in
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff message inbox", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff message inbox", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -208,7 +208,7 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 		OrderExpr(`name ASC`)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list messageable staff", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list messageable staff", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -239,7 +239,56 @@ func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, acc
 		Limit(1).
 		Exists(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check messageable staff", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check messageable staff", Err: base.TranslateNotFound(err)}
 	}
 	return exists, nil
+}
+
+// roleKindRow is the projection StaffRoleKinds scans into.
+type roleKindRow struct {
+	AccountID   int64 `bun:"account_id"`
+	IsAdmin     bool  `bun:"is_admin"`
+	IsLehrkraft bool  `bun:"is_lehrkraft"`
+}
+
+// StaffRoleKinds classifies accounts by their roles at the current tenant.
+//
+// "admin" is the system admin role itself (seeded without a base_role) or any
+// custom role whose base_role is admin, "lehrkraft" the platform system role of that
+// name (name-matched and narrowed to system roles exactly like
+// services/auth.IsLehrkraftSystemRole, so a school's own custom role that
+// happens to share the label does not count). Precedence admin > lehrkraft >
+// staff, see the StaffRoleKind constants.
+func (r *StaffMessageReadRepository) StaffRoleKinds(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	out := make(map[int64]string, len(accountIDs))
+	for _, id := range accountIDs {
+		out[id] = users.StaffRoleKindStaff
+	}
+	if len(accountIDs) == 0 {
+		return out, nil
+	}
+
+	var rows []roleKindRow
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`auth.account_roles AS "ar"`).
+		ColumnExpr(`"ar".account_id AS account_id`).
+		ColumnExpr(`COALESCE(bool_or("role".base_role = ? OR ("role".is_system AND lower(btrim("role".name)) = ?)), false) AS is_admin`, authModels.BaseRoleAdmin, authModels.BaseRoleAdmin).
+		ColumnExpr(`COALESCE(bool_or("role".is_system AND lower(btrim("role".name)) = 'lehrkraft'), false) AS is_lehrkraft`).
+		Join(`JOIN auth.roles AS "role" ON "role".id = "ar".role_id`).
+		Where(`"ar".tenant_id = ?`, tenant.FromContext(ctx)).
+		Where(`"ar".account_id IN (?)`, bun.List(accountIDs)).
+		GroupExpr(`"ar".account_id`).
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve staff role kinds", Err: base.TranslateNotFound(err)}
+	}
+	for _, row := range rows {
+		switch {
+		case row.IsAdmin:
+			out[row.AccountID] = users.StaffRoleKindAdmin
+		case row.IsLehrkraft:
+			out[row.AccountID] = users.StaffRoleKindLehrkraft
+		}
+	}
+	return out, nil
 }

@@ -48,11 +48,8 @@ func TestParseClassRosterExportRequestRejectsMissingClass(t *testing.T) {
 	assert.Contains(t, err.Error(), "school_class is required")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestClassRosterExportRequiresConfigManageAndUsersRead(t *testing.T) {
-	testutil.SeedTestJWTConfig()
+	t.Parallel()
 	router := (&Resource{
 		ReportService:     &fakeClassRosterReportService{},
 		ListExportService: listexport.NewService(),

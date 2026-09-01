@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -58,9 +57,22 @@ func (r *planningTrackRepoStub) FindByID(_ context.Context, id any) (*model.Plan
 	}
 	track, ok := r.tracks[id.(int64)]
 	if !ok {
-		return nil, &modelBase.DatabaseError{Op: "find planning track", Err: sql.ErrNoRows}
+		return nil, &modelBase.DatabaseError{Op: "find planning track", Err: modelBase.ErrNotFound}
 	}
 	return track, nil
+}
+
+func (r *planningTrackRepoStub) FindByIDs(_ context.Context, ids []int64) ([]*model.PlanningTrack, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	result := make([]*model.PlanningTrack, 0, len(ids))
+	for _, id := range ids {
+		if track, ok := r.tracks[id]; ok {
+			result = append(result, track)
+		}
+	}
+	return result, nil
 }
 
 func (r *planningTrackRepoStub) Update(_ context.Context, track *model.PlanningTrack) error {

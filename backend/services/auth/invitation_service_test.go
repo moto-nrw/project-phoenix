@@ -57,7 +57,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
-	service := NewInvitationService(InvitationServiceConfig{
+	service := newTestInvitationService(t, InvitationServiceConfig{
 		InvitationRepo:    invitationRepo,
 		AccountRepo:       accountRepo,
 		AccountTenantRepo: newStubAccountTenantRepository(),
@@ -312,6 +312,8 @@ func TestCreateInvitationOnlyInvalidatesExistingTokensInTargetTenant(t *testing.
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	targetTenantID := testpkg.UniqueTestTenantID(t)
 	otherTenant := &authModel.InvitationToken{
 		Email:     "principal@example.com",
 		Token:     "other-tenant-token",
@@ -319,7 +321,7 @@ func TestCreateInvitationOnlyInvalidatesExistingTokensInTargetTenant(t *testing.
 		CreatedBy: nullableCreatedBy(1),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
-	otherTenant.SetTenantID(1)
+	otherTenant.SetTenantID(otherTenantID)
 	require.NoError(t, invitations.Create(ctx, otherTenant))
 
 	targetTenant := &authModel.InvitationToken{
@@ -329,20 +331,20 @@ func TestCreateInvitationOnlyInvalidatesExistingTokensInTargetTenant(t *testing.
 		CreatedBy: nullableCreatedBy(1),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
-	targetTenant.SetTenantID(2)
+	targetTenant.SetTenantID(targetTenantID)
 	require.NoError(t, invitations.Create(ctx, targetTenant))
 
 	req := InvitationRequest{
 		Email:     "principal@example.com",
 		RoleID:    2,
-		TenantID:  2,
+		TenantID:  targetTenantID,
 		CreatedBy: 0,
 	}
 
 	invitation, err := service.CreateInvitation(ctx, req)
 	require.NoError(t, err)
 	require.NotNil(t, invitation)
-	require.Equal(t, int64(2), invitation.TenantID)
+	require.Equal(t, targetTenantID, invitation.TenantID)
 	require.Nil(t, invitation.CreatedBy)
 
 	require.Nil(t, otherTenant.UsedAt, "invite in a different tenant must remain valid")
@@ -739,7 +741,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 	staff, staffAll := newStubStaffRepository()
 	teachers := newStubTeacherRepository()
 
-	service := NewInvitationService(InvitationServiceConfig{
+	service := newTestInvitationService(t, InvitationServiceConfig{
 		InvitationRepo:    invitations,
 		AccountRepo:       accounts,
 		AccountTenantRepo: newStubAccountTenantRepository(),
@@ -894,7 +896,7 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 	schoolRepo := newStubSchoolRepository(map[int64]bool{42: true})
 	staffRepo, _ := newStubStaffRepository()
 
-	service := NewInvitationService(InvitationServiceConfig{
+	service := newTestInvitationService(t, InvitationServiceConfig{
 		InvitationRepo:    invitationRepo,
 		AccountRepo:       newStubAccountRepository(),
 		AccountTenantRepo: newStubAccountTenantRepository(),
@@ -963,7 +965,7 @@ func TestGetTenantSubdomainForTokenUsesSubdomainNotSlug(t *testing.T) {
 		}, nil
 	}
 
-	service := NewInvitationService(InvitationServiceConfig{
+	service := newTestInvitationService(t, InvitationServiceConfig{
 		InvitationRepo:    invitationRepo,
 		AccountRepo:       newStubAccountRepository(),
 		AccountTenantRepo: newStubAccountTenantRepository(),
@@ -1179,7 +1181,7 @@ func TestCreateInvitationRejectsExistingTenantAccess(t *testing.T) {
 		TenantID:  77,
 		Status:    authModel.AccountTenantStatusActive,
 	}))
-	service := NewInvitationService(InvitationServiceConfig{
+	service := newTestInvitationService(t, InvitationServiceConfig{
 		InvitationRepo:    invitations,
 		AccountRepo:       accounts,
 		AccountTenantRepo: accountTenants,
@@ -1481,20 +1483,11 @@ func TestInvitationHelpersCoverFallbacks(t *testing.T) {
 	require.Equal(t, "Lovelace", *invitation.LastName)
 	require.Equal(t, "Leitung", *invitation.Position)
 
-	var tx bun.Tx
-	ctxWithTx := baseModel.ContextWithTx(context.Background(), &tx)
-	called := false
-	require.NoError(t, tenant.WithAdminTxOrDirect(ctxWithTx, svc.db, func(context.Context) error {
-		called = true
-		return nil
-	}))
-	require.True(t, called)
-
 	tenantCtx := tenant.WithTenantID(context.Background(), 123)
 	require.Same(t, tenantCtx, scopedInvitationTenantContext(tenantCtx, 123))
 
 	svc.dispatcher = nil
-	svc.sendInvitationEmail(&authModel.InvitationToken{
+	svc.sendInvitationEmail(context.Background(), &authModel.InvitationToken{
 		Model: baseModel.Model{ID: 99},
 		Email: "skip-email@example.com",
 		Token: "skip-email-token",

@@ -16,7 +16,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -43,7 +42,7 @@ func TestCareWithdrawalLifecycle_AllowsRetroactiveExitButNotBeforeAttendance(t *
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lina", "Rueckwirkend", "2a")
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	_, err := db.NewUpdate().TableExpr("users.students").
 		Set("enrolled_from = ?", today.AddDays(-10)).
 		Set("status = ?", userModels.StudentStatusActive).
@@ -97,7 +96,7 @@ func TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentReques
 	require.NoError(t, err)
 	require.Len(t, requestChildIDs, 2)
 	studentID := student.ID
-	firstGap := timezone.TodayDate().AddDays(1)
+	firstGap := timezone.NewDate(2026, 8, 24).AddDays(1)
 	completion := &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
@@ -107,7 +106,7 @@ func TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentReques
 	require.NoError(t, repositories.NewFactory(db).CareWithdrawal.UpsertPending(ctx, completion))
 
 	input := userService.CareExitInput{
-		LastCareDay: timezone.TodayDate(), Reason: userModels.CareExitReasonNoCareNeed,
+		LastCareDay: timezone.NewDate(2026, 8, 24), Reason: userModels.CareExitReasonNoCareNeed,
 	}
 	svc := newCareLifecycleService(t, db)
 	preview, err := svc.PreviewWithdrawalCareEnd(ctx, completion.ID, input)
@@ -275,7 +274,7 @@ func TestCareWithdrawalLifecycle_ConcurrentCompletionWritesOneResult(t *testing.
 		go func(index int) {
 			defer wg.Done()
 			<-start
-			err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 				_, confirmErr := svc.ConfirmWithdrawalCareEnd(txCtx, completion.ID, preview.Token, input, actorID)
 				return confirmErr
 			})
@@ -321,13 +320,14 @@ func TestCareWithdrawalLifecycle_CancellingPlannedExitRestoresTask(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	bookingGateCalls := 0
-	svc := newCareLifecycleServiceWithLock(t, db, func(context.Context) error {
+	today := timezone.NewDate(2026, 8, 24)
+	svc := newCareLifecycleServiceWithLockAt(t, db, func(context.Context) error {
 		bookingGateCalls++
 		return nil
-	})
+	}, func() timezone.Date { return today })
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Nele", "Storno", "2b")
-	firstGap := timezone.TodayDate().AddDays(2)
+	firstGap := today.AddDays(2)
 	completion := createWithdrawalCompletion(t, db, student.ID, actorID, firstGap)
 	input := userService.CareExitInput{
 		LastCareDay: firstGap.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed,

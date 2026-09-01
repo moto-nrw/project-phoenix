@@ -52,7 +52,7 @@ func (r *InstanceStudentRepository) FindByID(ctx context.Context, id any) (*sche
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  opFindByID,
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return &row, nil
@@ -78,7 +78,7 @@ func (r *InstanceStudentRepository) FindByInstanceID(ctx context.Context, instan
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by instance id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -105,7 +105,7 @@ func (r *InstanceStudentRepository) FindByInstanceIDs(ctx context.Context, insta
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by instance ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -133,7 +133,7 @@ func (r *InstanceStudentRepository) FindExpectedByInstanceIDs(ctx context.Contex
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find expected by instance ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -174,7 +174,7 @@ func (r *InstanceStudentRepository) FindNotScheduledCandidatesByInstanceIDs(ctx 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find not scheduled candidates by instance ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -207,7 +207,7 @@ func (r *InstanceStudentRepository) CountNonAbsentByInstanceIDs(ctx context.Cont
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count non-absent by instance ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -253,7 +253,7 @@ func (r *InstanceStudentRepository) FindPresentInOtherActiveInstances(ctx contex
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find present in other active instances",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	out := make([]schedule.ParallelPresence, 0, len(rows))
@@ -288,7 +288,7 @@ func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Contex
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -316,7 +316,7 @@ func (r *InstanceStudentRepository) FindByStudentIDsAndDate(ctx context.Context,
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ids and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -341,7 +341,7 @@ func (r *InstanceStudentRepository) FindByInstanceAndStudent(ctx context.Context
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by instance and student",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return &row, nil
@@ -393,7 +393,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "update attendance from checkin",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	n, _ := res.RowsAffected()
@@ -437,7 +437,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckinBatch(
 	if _, err := q.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update attendance from checkin batch",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -467,7 +467,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceCheckoutBatch(
 		Where(`"instance_student".checked_in_at <= ?`, checkedOutAt)
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 	if _, err := q.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "update slot attendance checkout batch", Err: err}
+		return &modelBase.DatabaseError{Op: "update slot attendance checkout batch", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -509,7 +509,7 @@ func (r *InstanceStudentRepository) CreateUnplannedPresentIfAbsent(
 			OR (attendance.status = ? AND attendance.checked_out_at IS NOT NULL)
 	`, tenant.FromContext(ctx), instanceID, studentID, schedule.AttendanceStatusPresent, checkedInAt,
 		schedule.AttendanceStatusExpected, schedule.AttendanceStatusPresent).Exec(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "create unplanned slot attendance", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "create unplanned slot attendance", Err: base.TranslateNotFound(err)}
 	}
 	return r.FindByInstanceAndStudent(ctx, instanceID, studentID)
 }
@@ -531,7 +531,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceCheckout(
 		Where(`"instance_student".checked_in_at <= ?`, checkedOutAt)
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 	if _, err := q.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "update slot attendance checkout", Err: err}
+		return &modelBase.DatabaseError{Op: "update slot attendance checkout", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -561,7 +561,7 @@ func (r *InstanceStudentRepository) ReconcileAttendanceInterval(
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "reconcile slot attendance interval", Err: err}
+		return false, &modelBase.DatabaseError{Op: "reconcile slot attendance interval", Err: base.TranslateNotFound(err)}
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
@@ -584,7 +584,7 @@ func (r *InstanceStudentRepository) FindCurrentCandidates(
 		OrderExpr(`"activity_instance".start_time ASC, "activity_instance".id ASC`)
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 	if err := q.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find current student slot candidates", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find current student slot candidates", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -614,7 +614,7 @@ func (r *InstanceStudentRepository) FindCurrentCandidatesByStudentIDs(
 		OrderExpr(`"instance_student".student_id ASC, "activity_instance".start_time ASC, "activity_instance".id ASC`)
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 	if err := q.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find current student slot candidates batch", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find current student slot candidates batch", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -663,7 +663,7 @@ func (r *InstanceStudentRepository) ApplyStatusDay(
 		schedule.AttendanceStatusAbsent, substatus, statusDayID, time.Now().UTC(),
 		tenant.FromContext(ctx), studentID, schedule.AttendanceStatusExpected, date, schedule.InstanceStatusCancelled).Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "apply student status day to slots", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "apply student status day to slots", Err: base.TranslateNotFound(err)}
 	}
 	n, _ := res.RowsAffected()
 	return int(n), nil
@@ -716,7 +716,7 @@ func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, status
 		schedule.AttendanceSubstatusFieldTrip,
 		time.Now().UTC(), tenant.FromContext(ctx), statusDayID).Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "release student status day from slots", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "release student status day from slots", Err: base.TranslateNotFound(err)}
 	}
 	n, _ := res.RowsAffected()
 
@@ -771,7 +771,7 @@ func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, status
 		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
 		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "replay partial absence after status day release", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "replay partial absence after status day release", Err: base.TranslateNotFound(err)}
 	}
 	return int(n), nil
 }
@@ -811,7 +811,7 @@ func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
 		schedule.AttendanceSubstatusFieldTrip, time.Now().UTC(),
 		tenant.FromContext(ctx), instanceID, schedule.AttendanceStatusExpected).Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "apply active status days to instance", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "apply active status days to instance", Err: base.TranslateNotFound(err)}
 	}
 	n, _ := res.RowsAffected()
 	return int(n), nil
@@ -865,7 +865,7 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
 		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "apply partial absence to slots", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "apply partial absence to slots", Err: base.TranslateNotFound(err)}
 	}
 	n, _ := res.RowsAffected()
 	return int(n), nil
@@ -937,12 +937,12 @@ func (r *InstanceStudentRepository) FindPartialAbsenceBlocks(
 				)
 			)
 		ORDER BY instance.start_time ASC, instance.id ASC
-	`, tenant.FromContext(ctx), date, timezone.WallClock(from),
+	`, tenant.FromContext(ctx), date, timezone.NormalizeWallClock(from),
 		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted,
 		studentID, schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
 		studentID, studentID, string(users.StudentStatusAlumnus)).Scan(ctx, &rows)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find partial absence blocks", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find partial absence blocks", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -1001,7 +1001,7 @@ func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, p
 		time.Now().UTC(), tenant.FromContext(ctx), pickupExceptionID,
 		schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "release partial absence from slots", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "release partial absence from slots", Err: base.TranslateNotFound(err)}
 	}
 	n, _ := res.RowsAffected()
 	return int(n), nil
@@ -1026,7 +1026,7 @@ func (r *InstanceStudentRepository) ApplyActivePartialAbsencesForInstance(
 			AND partial_absence.excused_from IS NOT NULL
 		ORDER BY partial_absence.student_id
 	`, tenant.FromContext(ctx), date).Scan(ctx, &studentIDs); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "list active partial absences for lock", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "list active partial absences for lock", Err: base.TranslateNotFound(err)}
 	}
 	for _, studentID := range studentIDs {
 		if err := careplanning.LockExceptionDay(ctx, r.db, studentID, date); err != nil {
@@ -1068,7 +1068,7 @@ func (r *InstanceStudentRepository) ApplyActivePartialAbsencesForInstance(
 		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent, date,
 		schedule.InstanceStatusCancelled).Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "apply active partial absences to instance", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "apply active partial absences to instance", Err: base.TranslateNotFound(err)}
 	}
 	n, _ := res.RowsAffected()
 	return int(n), nil
@@ -1144,7 +1144,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 	if _, err := q.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update attendance fields",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -1178,7 +1178,7 @@ func (r *InstanceStudentRepository) BulkUpdateStatus(
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "bulk update status",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	n, _ := res.RowsAffected()
@@ -1258,7 +1258,7 @@ func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs [
 	if _, err := q.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "mark attendance rows not scheduled",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -1277,7 +1277,7 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by instance id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -1402,7 +1402,7 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "archive planned by student ids from",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1410,7 +1410,7 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return int(affected), nil
@@ -1568,7 +1568,7 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "restore archived rows by transition",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1576,7 +1576,7 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return int(affected), nil
@@ -1608,7 +1608,7 @@ func (r *InstanceStudentRepository) lockRestoreCareExceptionDays(
 	`, transitionID, bun.List(studentIDs), tenant.FromContext(ctx), from,
 		schedule.InstanceStatusCompleted, schedule.InstanceStatusCancelled,
 	).Scan(ctx, &days); err != nil {
-		return &modelBase.DatabaseError{Op: "list restore care-exception days for lock", Err: err}
+		return &modelBase.DatabaseError{Op: "list restore care-exception days for lock", Err: base.TranslateNotFound(err)}
 	}
 	// Student row then care-day for every pair (student FOR UPDATE is
 	// re-entrant within the same transaction when the same child appears on
@@ -1659,7 +1659,7 @@ func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx conte
 	if _, err := q.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "mark expected absent by active group ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -1698,7 +1698,7 @@ func (r *InstanceStudentRepository) CloseOpenCheckoutsByActiveGroupIDs(ctx conte
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "close open checkouts by active group ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	n, _ := res.RowsAffected()
@@ -1727,7 +1727,7 @@ func (r *InstanceStudentRepository) ListStudentInstanceRefsBefore(ctx context.Co
 	if err := q.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list student instance refs before",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil

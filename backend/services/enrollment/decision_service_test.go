@@ -26,7 +26,6 @@ import (
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -170,6 +169,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 			slog.Default(),
 		),
 		Logger: slog.Default(),
+		Today:  func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	})
 }
 
@@ -201,7 +201,7 @@ func assertOfferingAdjustmentWaitsForRecurrenceGate(
 	releaseHolder := make(chan struct{})
 	holderDone := make(chan error, 1)
 	go func() {
-		holderDone <- tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		holderDone <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			if err := scheduleService.LockTenantRecurrenceWrites(txCtx, env.db); err != nil {
 				return err
 			}
@@ -221,7 +221,7 @@ func assertOfferingAdjustmentWaitsForRecurrenceGate(
 
 	adjustmentDone := make(chan error, 1)
 	go func() {
-		adjustmentDone <- tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		adjustmentDone <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			_, err := decision.UpdateChildOfferings(txCtx, input)
 			return err
 		})
@@ -441,7 +441,7 @@ func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceS
 	ctx := testpkg.Ctx(t)
 	env.sourcePhase.ServiceStartDate = serviceStartDate
 	if !env.sourcePhase.ServiceEndDate.After(serviceStartDate) {
-		env.sourcePhase.ServiceEndDate = timezone.NewDate(serviceStartDate.Year, serviceStartDate.Month+10, serviceStartDate.Day)
+		env.sourcePhase.ServiceEndDate = timezone.NewDate(serviceStartDate.Year(), serviceStartDate.Month()+10, serviceStartDate.Day())
 	}
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 }
@@ -763,7 +763,7 @@ func TestDecisionService_Decide_ConcurrentSiblingResolutionsEnqueueOneCompleteDi
 		go func() {
 			defer wg.Done()
 			<-start
-			errs <- tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+			errs <- testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 				_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
 					RequestID:  submitted.Request.ID,
 					ChildID:    childID,
@@ -2163,7 +2163,7 @@ func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *te
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "activation-scheduled-past@example.com", "Past", "Start")
-	startDate := timezone.TodayDate().AddDays(-1)
+	startDate := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	setSourcePhaseServiceStartDate(t, env, startDate)
 
 	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
@@ -2701,7 +2701,7 @@ func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBa
 
 	// Drive Decide inside a tenant tx (production wraps it via middleware) so a
 	// returned error actually rolls the schedule delete back.
-	decideErr := tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, err := env.decision.Decide(txCtx, enrollmentService.DecideInput{
 			RequestID:  reqID,
 			ChildID:    childID,
@@ -2771,7 +2771,7 @@ func TestDecisionService_Decide_ExistingStudentCareRenewalObsoletesWithdrawalWit
 		WithdrawalConfirmedAt: time.Now(),
 	}))
 
-	err := tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, decideErr := env.decision.Decide(txCtx, enrollmentService.DecideInput{
 			RequestID: requestID, ChildID: childID,
 			Status: enrollmentService.DecisionApproved, ReviewedBy: actorID,
@@ -3664,7 +3664,7 @@ func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	setSourcePhaseServiceStartDate(t, env, today.AddDays(-30))
 	reqID, childID := submitOneChild(t, env, "lco-attrs@example.com", "Lina", "Attrs")
 
@@ -3881,7 +3881,7 @@ func TestBookingViewDate(t *testing.T) {
 
 	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.NewDate(2027, 7, 31)),
 		"inside or ahead of the period the reference date is simply today")
-	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.Date{}),
+	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.Date("")),
 		"a missing period end must not move the reference date")
 	assert.Equal(t, timezone.NewDate(2026, 7, 31),
 		enrollmentService.BookingViewDate(today, timezone.NewDate(2026, 7, 31)),

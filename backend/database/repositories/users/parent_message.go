@@ -52,7 +52,7 @@ func (r *ParentMessageRepository) FindByIDForUpdate(ctx context.Context, id int6
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find parent message for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find parent message for update", Err: base.TranslateNotFound(err)}
 	}
 	return message, nil
 }
@@ -82,7 +82,7 @@ func (r *ParentMessageRepository) FindEventByRef(ctx context.Context, threadID i
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find parent message event by ref", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find parent message event by ref", Err: base.TranslateNotFound(err)}
 	}
 	return message, nil
 }
@@ -117,7 +117,7 @@ func (r *ParentMessageRepository) ListByThread(ctx context.Context, threadID int
 	query = base.WithTenantFilter(ctx, query, "parent_message")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent messages", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent messages", Err: base.TranslateNotFound(err)}
 	}
 	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
 		messages[i], messages[j] = messages[j], messages[i]

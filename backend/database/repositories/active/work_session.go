@@ -22,16 +22,22 @@ const (
 // WorkSessionRepository implements active.WorkSessionRepository interface
 type WorkSessionRepository struct {
 	*base.Repository[*active.WorkSession]
-	db *bun.DB
+	db  *bun.DB
+	now func() time.Time
 }
 
 // NewWorkSessionRepository creates a new WorkSessionRepository
-func NewWorkSessionRepository(db *bun.DB) active.WorkSessionRepository {
+func NewWorkSessionRepository(db *bun.DB, clocks ...func() time.Time) active.WorkSessionRepository {
+	now := time.Now
+	if len(clocks) > 0 && clocks[0] != nil {
+		now = clocks[0]
+	}
 	repo := base.NewRepository[*active.WorkSession](db, tableActiveWorkSessions, "WorkSession")
 	repo.TenantScoped = true
 	return &WorkSessionRepository{
 		Repository: repo,
 		db:         db,
+		now:        now,
 	}
 }
 
@@ -43,7 +49,7 @@ func (r *WorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staf
 
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
 func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
-	return r.getOpenByStaffAndDate(ctx, staffID, timezone.TodayDate(), false)
+	return r.getOpenByStaffAndDate(ctx, staffID, timezone.DateFromTime(r.now()), false)
 }
 
 // GetOpenByStaffAndDate returns the not-checked-out session of a staff member on
@@ -78,7 +84,7 @@ func (r *WorkSessionRepository) getOpenByStaffAndDate(ctx context.Context, staff
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get current by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -105,7 +111,7 @@ func (r *WorkSessionRepository) getOpenByStaffAndDate(ctx context.Context, staff
 func (r *WorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
 
-	now := time.Now()
+	now := r.now()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
@@ -121,7 +127,7 @@ func (r *WorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staf
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get latest open by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -144,7 +150,7 @@ func (r *WorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id in
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "lock open session by ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -178,7 +184,7 @@ func (r *WorkSessionRepository) ListOverlappingByStaffID(ctx context.Context, st
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list overlapping by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -206,7 +212,7 @@ func (r *WorkSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, s
 	}
 	query = base.WithTenantFilter(ctx, query, "work_session")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list overlapping by staff IDs", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list overlapping by staff IDs", Err: base.TranslateNotFound(err)}
 	}
 	for _, session := range sessions {
 		result[session.StaffID] = append(result[session.StaffID], session)
@@ -231,7 +237,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get history by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -253,7 +259,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get open sessions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -276,7 +282,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 // forgotten checkout would keep its owner "present" for weeks, in today's
 // overview as well as in on-duty notification filtering.
 func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
-	now := time.Now()
+	now := r.now()
 	today := timezone.DateFromTime(now)
 	liveOpenSince := now.Add(-active.MaxOpenWorkSessionDuration)
 
@@ -300,7 +306,7 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get today presence map",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -359,7 +365,7 @@ func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, chec
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "close session",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -367,7 +373,7 @@ func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, chec
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "close session",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -399,7 +405,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffI
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get history by staff IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	for _, session := range sessions {

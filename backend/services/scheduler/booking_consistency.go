@@ -34,7 +34,7 @@ func (s *Scheduler) runBookingConsistencyAuditTask(task *ScheduledTask) {
 	)
 }
 
-func (s *Scheduler) checkAndRunBookingConsistencyAudit(task *ScheduledTask) {
+func (s *Scheduler) checkAndRunBookingConsistencyAudit(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -48,10 +48,10 @@ func (s *Scheduler) checkAndRunBookingConsistencyAudit(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), bookingConsistencyAuditTimeout)
+	ctx, cancel := s.taskContext(ctx, bookingConsistencyAuditTimeout)
 	defer cancel()
 
-	auditDate := timezone.TodayDate()
+	auditDate := auditModel.Date(timezone.TodayDate())
 	if err := s.forEachTenant(ctx, "booking-consistency-audit", func(tenantCtx context.Context) error {
 		report, err := s.bookingConsistency.Audit(tenantCtx, auditDate)
 		if err != nil {
@@ -74,9 +74,6 @@ func (s *Scheduler) logBookingConsistencyReport(report *auditModel.BookingConsis
 		slog.Int64("tenant_id", report.TenantID),
 		slog.String("audit_date", report.AuditDate.String()),
 		slog.Int("pickup_projection_missing_days", report.PickupProjectionMissingDays),
-		slog.Int("arrival_without_booking_days", report.ArrivalWithoutBookingDays),
-		slog.Int("booking_without_arrival_days", report.BookingWithoutArrivalDays),
-		slog.Int("planned_without_booking_rows", report.PlannedWithoutBookingRows),
 		slog.Int("approved_without_required_offering", report.ApprovedWithoutRequiredOffering),
 		slog.Int("approved_without_optional_offering", report.ApprovedWithoutOptionalOffering),
 		slog.Int("total_findings", report.TotalFindings()),

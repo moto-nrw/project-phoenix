@@ -1,4 +1,4 @@
-package config_test
+package config
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,18 +26,19 @@ func (r *noisyValueRepo) FindByTenantAndKeys(
 }
 
 func TestSettingsSnapshotRejectsNilAndUnknownKeys(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.known", config.FieldText, "known")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.known", config.FieldText, "known")
 
-	service := createService(newMockValueRepo(), &mockAuditRepo{})
-	batch := service.(configService.BatchSettingsService)
+	service := createService(registry, newMockValueRepo(), &mockAuditRepo{})
+	batch := service.(BatchSettingsService)
 	snapshot, err := batch.ResolveMany(tenantCtx(9), []string{"test.known"})
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	assert.Equal(t, ctx, configService.WithSettingsSnapshot(ctx, nil))
+	assert.Equal(t, ctx, WithSettingsSnapshot(ctx, nil))
 
-	var nilSnapshot *configService.SettingsSnapshot
+	var nilSnapshot *SettingsSnapshot
 	_, err = nilSnapshot.Value("test.known")
 	require.Error(t, err)
 	_, err = nilSnapshot.HasOverride("test.known")
@@ -59,18 +59,19 @@ func TestSettingsSnapshotRejectsNilAndUnknownKeys(t *testing.T) {
 }
 
 func TestSettingsSnapshotContextMustContainEveryRequestedKey(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.first", config.FieldText, "first")
-	registerTestSetting("test.second", config.FieldText, "second")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.first", config.FieldText, "first")
+	registerTestSetting(registry, "test.second", config.FieldText, "second")
 
 	repo := newMockValueRepo()
-	service := createService(repo, &mockAuditRepo{})
-	batch := service.(configService.BatchSettingsService)
+	service := createService(registry, repo, &mockAuditRepo{})
+	batch := service.(BatchSettingsService)
 	snapshot, err := batch.ResolveMany(tenantCtx(23), []string{"test.first"})
 	require.NoError(t, err)
 	require.Equal(t, 1, repo.findManyCalls)
 
-	ctx := configService.WithSettingsSnapshot(tenantCtx(23), snapshot)
+	ctx := WithSettingsSnapshot(tenantCtx(23), snapshot)
 	value, err := service.ResolveString(ctx, "test.second")
 	require.NoError(t, err)
 	assert.Equal(t, "second", value)
@@ -78,8 +79,9 @@ func TestSettingsSnapshotContextMustContainEveryRequestedKey(t *testing.T) {
 }
 
 func TestSettingsSnapshotIgnoresRowsOutsideRequestedTenantAndKeys(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.requested", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.requested", config.FieldText, "default")
 
 	wrongTenant := &config.SettingValue{
 		SettingKey: "test.requested",
@@ -101,8 +103,8 @@ func TestSettingsSnapshotIgnoresRowsOutsideRequestedTenantAndKeys(t *testing.T) 
 		mockValueRepo: newMockValueRepo(),
 		stored:        []*config.SettingValue{nil, wrongTenant, unrequested, requested},
 	}
-	service := createService(repo, &mockAuditRepo{})
-	snapshot, err := service.(configService.BatchSettingsService).ResolveMany(
+	service := createService(registry, repo, &mockAuditRepo{})
+	snapshot, err := service.(BatchSettingsService).ResolveMany(
 		tenantCtx(71),
 		[]string{"test.requested"},
 	)
@@ -114,10 +116,11 @@ func TestSettingsSnapshotIgnoresRowsOutsideRequestedTenantAndKeys(t *testing.T) 
 }
 
 func TestSettingsSnapshotIntConversionsRejectInvalidNumbers(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.json_number", config.FieldNumber, json.Number("12"))
-	registerTestSetting("test.invalid_json_number", config.FieldNumber, json.Number("invalid"))
-	registerTestSetting("test.out_of_range", config.FieldNumber, 0)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.json_number", config.FieldNumber, json.Number("12"))
+	registerTestSetting(registry, "test.invalid_json_number", config.FieldNumber, json.Number("invalid"))
+	registerTestSetting(registry, "test.out_of_range", config.FieldNumber, 0)
 
 	repo := newMockValueRepo()
 	outOfRange := &config.SettingValue{
@@ -127,8 +130,8 @@ func TestSettingsSnapshotIntConversionsRejectInvalidNumbers(t *testing.T) {
 	outOfRange.TenantID = 31
 	repo.values[repo.key(outOfRange.TenantID, outOfRange.SettingKey)] = outOfRange
 
-	service := createService(repo, &mockAuditRepo{})
-	snapshot, err := service.(configService.BatchSettingsService).ResolveMany(
+	service := createService(registry, repo, &mockAuditRepo{})
+	snapshot, err := service.(BatchSettingsService).ResolveMany(
 		tenantCtx(31),
 		[]string{"test.json_number", "test.invalid_json_number", "test.out_of_range"},
 	)
@@ -148,12 +151,13 @@ func TestSettingsSnapshotIntConversionsRejectInvalidNumbers(t *testing.T) {
 }
 
 func TestGetSchemaPropagatesBatchResolutionError(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.schema_error", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.schema_error", config.FieldText, "default")
 
 	repo := newMockValueRepo()
 	repo.err = errors.New("database unavailable")
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 
 	schema, err := service.GetSchema(tenantCtx(11), nil)
 	require.Error(t, err)

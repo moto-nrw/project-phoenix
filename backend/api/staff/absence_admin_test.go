@@ -29,16 +29,20 @@ import (
 // setupAbsenceAdminTest builds the router context plus an editor (admin
 // account linked to a staff row, required by resolveEditorStaffID) and a
 // subject staff member with one plain shift tomorrow.
-func setupAbsenceAdminTest(t *testing.T) (tc *testContext, token string, subjectID int64, shiftID int64) {
+func setupAbsenceAdminTest(t *testing.T, clocks ...func() time.Time) (tc *testContext, token string, subjectID int64, shiftID int64) {
 	t.Helper()
-	tc = setupTestContext(t)
+	tc = setupStaffRoute(t, clocks...)
 	suffix := time.Now().UnixNano()
 
 	editorPerson, editorAccount := testpkg.CreateTestPersonWithAccount(t, tc.db, "Absence", fmt.Sprintf("Editor-%d", suffix))
 	testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
 	subject := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Subject-%d", suffix))
 
-	tomorrow := timezone.TodayDate().AddDays(1)
+	today := timezone.TodayDate()
+	if len(clocks) > 0 {
+		today = timezone.DateFromTime(clocks[0]())
+	}
+	tomorrow := today.AddDays(1)
 	shift := &scheduleModels.StaffShift{
 		StaffID:   subject.ID,
 		Date:      tomorrow,
@@ -70,8 +74,10 @@ func postAbsence(t *testing.T, tc *testContext, token string, staffID int64, bod
 func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 	t.Parallel()
 
-	tc, token, subjectID, shiftID := setupAbsenceAdminTest(t)
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tc, token, subjectID, shiftID := setupAbsenceAdminTest(t, func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	})
+	tomorrow := timezone.NewDate(2026, 8, 24).AddDays(1)
 
 	rec := postAbsence(t, tc, token, subjectID, map[string]any{
 		"absence_type": "sick",
@@ -116,7 +122,7 @@ func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
 	t.Parallel()
 
 	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := timezone.NewDate(2026, 8, 24).AddDays(1)
 
 	rec := postAbsence(t, tc, token, subjectID, map[string]any{
 		"absence_type": "comp_time",
@@ -176,10 +182,10 @@ func TestAdminCreateStaffAbsence_RequiresPermission(t *testing.T) {
 func TestStaffAbsenceReads_AllowTimeTrackingManage(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStaffRoute(t)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Reader-%d", time.Now().UnixNano()))
 	token := authToken(t, "time_tracking:manage")
-	year := timezone.TodayDate().Year
+	year := timezone.TodayDate().Year()
 
 	paths := []string{
 		fmt.Sprintf("/staff/%d/absences?from=%d-01-01&to=%d-12-31", staff.ID, year, year),
@@ -220,4 +226,83 @@ func TestAdminCreateStaffAbsence_RejectsVacationType(t *testing.T) {
 		"date_end":     tomorrow.String(),
 	})
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing.T) {
+	t.Parallel()
+
+	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
+	ctx := testpkg.Ctx(t)
+	absenceType := &activeModels.StaffAbsenceType{
+		Name:             "Sonderurlaub",
+		BaseType:         activeModels.AbsenceTypeOther,
+		IsActive:         true,
+		AllowanceEnabled: true,
+		OverrunPolicy:    activeModels.AbsenceTypeOverrunBlock,
+	}
+	absenceType.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsenceType.Create(ctx, absenceType))
+
+	tomorrow := timezone.TodayDate().AddDays(1)
+	rec := postAbsence(t, tc, token, subjectID, map[string]any{
+		"absence_type":    "other",
+		"absence_type_id": absenceType.ID,
+		"date_start":      tomorrow.String(),
+		"date_end":        tomorrow.String(),
+	})
+
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+}
+
+// #2873: the comp-time preview endpoint returns the Stundenkonto projection
+// for the modal. The subject has no schedule targets, so every value is zero
+// — the point here is the wire contract and the manager permission gate.
+func TestAdminCompTimePreview_ReturnsProjection(t *testing.T) {
+	t.Parallel()
+
+	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
+	day := timezone.NewDate(2026, 9, 7)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf(
+		"/staff/%d/time-tracking/comp-time-preview?date_start=%s&date_end=%s&half_day=false",
+		subjectID, day.String(), day.String(),
+	), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	tc.router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var body struct {
+		Data struct {
+			CurrentBalanceMinutes   int `json:"current_balance_minutes"`
+			DeductionMinutes        int `json:"deduction_minutes"`
+			ProjectedBalanceMinutes int `json:"projected_balance_minutes"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, 0, body.Data.DeductionMinutes)
+	assert.Equal(t, body.Data.CurrentBalanceMinutes, body.Data.ProjectedBalanceMinutes)
+
+	// Malformed dates are a client error, not a 500.
+	badReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf(
+		"/staff/%d/time-tracking/comp-time-preview?date_start=heute&date_end=%s",
+		subjectID, day.String(),
+	), nil)
+	badReq.Header.Set("Authorization", "Bearer "+token)
+	badRec := httptest.NewRecorder()
+	tc.router.ServeHTTP(badRec, badReq)
+	assert.Equal(t, http.StatusBadRequest, badRec.Code, badRec.Body.String())
+
+	// half_day accepts only true|false — anything else is a client error, not
+	// a silent full-day preview.
+	for _, halfDay := range []string{"1", "invalid"} {
+		hdReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf(
+			"/staff/%d/time-tracking/comp-time-preview?date_start=%s&date_end=%s&half_day=%s",
+			subjectID, day.String(), day.String(), halfDay,
+		), nil)
+		hdReq.Header.Set("Authorization", "Bearer "+token)
+		hdRec := httptest.NewRecorder()
+		tc.router.ServeHTTP(hdRec, hdReq)
+		assert.Equal(t, http.StatusBadRequest, hdRec.Code, "half_day=%s: %s", halfDay, hdRec.Body.String())
+	}
 }

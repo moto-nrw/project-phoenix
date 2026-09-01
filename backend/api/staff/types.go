@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -203,31 +202,6 @@ func updateStaffResponseFor(staff *users.Staff, teacher *users.Teacher, action u
 	default:
 		return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully"
 	}
-}
-
-// SubstitutionInfo represents a single substitution with transfer indicator
-type SubstitutionInfo struct {
-	ID         int64            `json:"id"`
-	GroupID    int64            `json:"group_id"`
-	GroupName  string           `json:"group_name,omitempty"`
-	IsTransfer bool             `json:"is_transfer"`
-	StartDate  string           `json:"start_date"`
-	EndDate    string           `json:"end_date"`
-	Group      *education.Group `json:"group,omitempty"`
-}
-
-// StaffWithSubstitutionStatus represents a staff member with their substitution status
-type StaffWithSubstitutionStatus struct {
-	*StaffResponse
-	IsSubstituting    bool               `json:"is_substituting"`
-	SubstitutionCount int                `json:"substitution_count"`
-	Substitutions     []SubstitutionInfo `json:"substitutions,omitempty"`
-	CurrentGroup      *education.Group   `json:"current_group,omitempty"`
-	RegularGroup      *education.Group   `json:"regular_group,omitempty"`
-	TeacherID         int64              `json:"teacher_id,omitempty"`
-	Specialization    string             `json:"specialization,omitempty"`
-	Role              string             `json:"role,omitempty"`
-	Qualifications    string             `json:"qualifications,omitempty"`
 }
 
 // StaffWithRoleResponse represents a staff member with role information

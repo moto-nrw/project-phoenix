@@ -142,6 +142,7 @@ interface SSEEventData {
   title?: string;
   body?: string;
   deep_link?: string; // app-relative path, e.g. "/reminders"
+  school_deep_link?: string; // the same destination on the school portal (#2208)
   priority?: string; // "low" | "normal" | "high"
   notification_type?: string;
   notification_data?: Record<string, string>; // opaque IDs for client-side routing

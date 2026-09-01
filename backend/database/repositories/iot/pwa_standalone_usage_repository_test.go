@@ -7,32 +7,28 @@ import (
 	"time"
 
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func cleanupPWAUsage(t *testing.T, db *bun.DB, accountIDs ...int64) {
-	t.Helper()
-	_, err := db.NewDelete().
-		Model((*iotModels.PWAStandaloneUsage)(nil)).
-		ModelTableExpr("iot.pwa_standalone_usage").
-		Where("account_id IN (?)", bun.List(accountIDs)).
-		Exec(context.Background())
-	require.NoError(t, err)
+type testPWAUsageRow struct {
+	bun.BaseModel `bun:"schema:iot,table:pwa_standalone_usage"`
+	TenantID      int64     `bun:"tenant_id"`
+	AccountID     int64     `bun:"account_id"`
+	Portal        string    `bun:"portal"`
+	FirstSeenAt   time.Time `bun:"first_seen_at"`
+	LastSeenAt    time.Time `bun:"last_seen_at"`
 }
 
-func fetchPWAUsageRows(t *testing.T, db *bun.DB, accountID int64) []*iotModels.PWAStandaloneUsage {
+func fetchPWAUsageRows(t *testing.T, db *bun.DB, accountID int64) []*testPWAUsageRow {
 	t.Helper()
-	var rows []*iotModels.PWAStandaloneUsage
-	err := db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`iot.pwa_standalone_usage AS "pwa_standalone_usage"`).
+	var rows []*testPWAUsageRow
+	err := db.NewSelect().Model(&rows).
+		ModelTableExpr(`iot.pwa_standalone_usage AS "test_pwa_usage_row"`).
 		Where("account_id = ?", accountID).
-		Order("id ASC").
+		Order("tenant_id ASC", "portal ASC").
 		Scan(context.Background())
 	require.NoError(t, err)
 	return rows
@@ -40,72 +36,73 @@ func fetchPWAUsageRows(t *testing.T, db *bun.DB, accountID int64) []*iotModels.P
 
 func TestPWAStandaloneUsageRepository(t *testing.T) {
 	t.Parallel()
-
 	db := testpkg.SetupTestDB(t)
-
 	repo := iotRepo.NewPWAStandaloneUsageRepository(db)
-	ctx := testpkg.Ctx(t)
-
+	tenantID := testpkg.Tenant(t)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-usage-%d@example.com", time.Now().UnixNano()))
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-	defer cleanupPWAUsage(t, db, account.ID)
-	createAccountTenantMapping(t, db, account.ID, testpkg.Tenant(t))
-
-	newUsage := func(portal string) *iotModels.PWAStandaloneUsage {
-		usage := &iotModels.PWAStandaloneUsage{AccountID: account.ID, Portal: portal}
-		usage.SetTenantID(testpkg.Tenant(t))
-		return usage
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	recordSeen := func(tenantID int64, portal string) error {
+		return testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			return repo.RecordSeen(txCtx, tenantID, account.ID, portal)
+		})
 	}
 
-	t.Run("record seen is idempotent per (tenant, account, portal)", func(t *testing.T) {
-		require.NoError(t, repo.RecordSeen(ctx, newUsage(iotModels.PushPortalStaff)))
-
+	t.Run("record seen is idempotent per tenant account and portal", func(t *testing.T) {
+		require.NoError(t, recordSeen(tenantID, "staff"))
 		rows := fetchPWAUsageRows(t, db, account.ID)
 		require.Len(t, rows, 1)
 		firstSeen := rows[0].FirstSeenAt
 
-		// Backdate, then report again: the row must stay unique and only
-		// last_seen_at may advance.
 		_, err := db.ExecContext(context.Background(),
 			`UPDATE iot.pwa_standalone_usage SET last_seen_at = NOW() - INTERVAL '1 hour' WHERE account_id = ?`,
 			account.ID)
 		require.NoError(t, err)
-
-		require.NoError(t, repo.RecordSeen(ctx, newUsage(iotModels.PushPortalStaff)))
+		require.NoError(t, recordSeen(tenantID, "staff"))
 
 		rows = fetchPWAUsageRows(t, db, account.ID)
-		require.Len(t, rows, 1, "repeated reports must not duplicate the row")
+		require.Len(t, rows, 1)
 		assert.WithinDuration(t, time.Now(), rows[0].LastSeenAt, time.Minute)
-		assert.WithinDuration(t, firstSeen, rows[0].FirstSeenAt, time.Second, "first_seen_at must not move on refresh")
+		assert.WithinDuration(t, firstSeen, rows[0].FirstSeenAt, time.Second)
 	})
 
 	t.Run("portals are separate rows", func(t *testing.T) {
-		require.NoError(t, repo.RecordSeen(ctx, newUsage(iotModels.PushPortalParent)))
-		rows := fetchPWAUsageRows(t, db, account.ID)
-		require.Len(t, rows, 2)
+		require.NoError(t, recordSeen(tenantID, "parent"))
+		assert.Len(t, fetchPWAUsageRows(t, db, account.ID), 2)
 	})
 
-	t.Run("tenant filter hides rows from other tenants", func(t *testing.T) {
-		otherCtx := tenant.WithTenantID(context.Background(), 2)
-		rows, err := repo.List(otherCtx, map[string]any{"account_id": account.ID})
-		require.NoError(t, err)
-		assert.Empty(t, rows)
+	t.Run("tenant role cannot bypass the write capability", func(t *testing.T) {
+		err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+			_, updateErr := tx.ExecContext(txCtx,
+				`UPDATE iot.pwa_standalone_usage SET last_seen_at = NOW() WHERE account_id = ?`, account.ID)
+			return updateErr
+		})
+		require.Error(t, err)
 	})
 
-	t.Run("delete older than removes only stale rows of the tenant", func(t *testing.T) {
-		// Age the staff row past the cutoff; the parent row stays fresh.
-		_, err := db.ExecContext(context.Background(),
-			`UPDATE iot.pwa_standalone_usage SET last_seen_at = NOW() - INTERVAL '40 days'
-			 WHERE account_id = ? AND portal = ?`,
-			account.ID, iotModels.PushPortalStaff)
+	t.Run("delete is tenant scoped", func(t *testing.T) {
+		otherTenantID := testpkg.UniqueTestTenantID(t)
+		testpkg.EnsureAccountTenant(t, db, account.ID, otherTenantID)
+		err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			return repo.RecordSeen(txCtx, otherTenantID, account.ID, "staff")
+		})
+		require.Error(t, err, "the database capability must not bypass tenant RLS")
+		require.NoError(t, recordSeen(otherTenantID, "staff"))
+		_, err = db.ExecContext(context.Background(),
+			`UPDATE iot.pwa_standalone_usage SET last_seen_at = NOW() - INTERVAL '40 days' WHERE account_id = ?`,
+			account.ID)
 		require.NoError(t, err)
 
-		deleted, err := repo.DeleteLastSeenBefore(ctx, time.Now().AddDate(0, 0, -30))
+		var deleted int
+		err = testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			var deleteErr error
+			deleted, deleteErr = repo.DeleteLastSeenBefore(txCtx, tenantID, time.Now().AddDate(0, 0, -30))
+			return deleteErr
+		})
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, deleted, 1)
+		assert.Equal(t, 2, deleted)
 
 		rows := fetchPWAUsageRows(t, db, account.ID)
 		require.Len(t, rows, 1)
-		assert.Equal(t, iotModels.PushPortalParent, rows[0].Portal)
+		assert.Equal(t, otherTenantID, rows[0].TenantID)
 	})
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   mapEducationalGroupResponse,
+  mapNavigationEducationalGroupResponse,
   mapActivityGroupResponse,
   mapActiveGroupResponse,
   mapUserProfileResponse,
@@ -8,6 +9,7 @@ import {
   mapStaffResponse,
   mapTeacherResponse,
   type BackendEducationalGroup,
+  type NavigationEducationalGroup,
   type BackendActivityGroup,
   type BackendActiveGroup,
   type BackendUserProfile,
@@ -105,6 +107,27 @@ describe("usercontext-helpers", () => {
 
       expect(result.roomId).toBe("5");
       expect(result.room).toBeUndefined();
+    });
+  });
+
+  describe("mapNavigationEducationalGroupResponse", () => {
+    it("preserves string IDs and builds room data from the navigation view", () => {
+      const navigationGroup: NavigationEducationalGroup = {
+        id: "12345",
+        name: "Eulen",
+        room_id: "77",
+        room_name: "Blauer Raum",
+        via_substitution: true,
+        is_personal: true,
+      };
+
+      expect(mapNavigationEducationalGroupResponse(navigationGroup)).toEqual({
+        id: "12345",
+        name: "Eulen",
+        roomId: "77",
+        room: { id: "77", name: "Blauer Raum" },
+        viaSubstitution: true,
+      });
     });
   });
 

@@ -42,8 +42,10 @@ func buildGapsSetup(t *testing.T) *gapsSetup {
 	cleanup := func() {
 	}
 
+	clock := func() time.Time { return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour) }
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
+		TimetableData: testTimetableData(db, clock),
+		Now:           clock,
 		DB:            db,
 	})
 
@@ -56,7 +58,7 @@ func gapsRouter(parentCtx context.Context, res *Resource) chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
@@ -88,7 +90,7 @@ func decodeGaps(t *testing.T, w *httptest.ResponseRecorder) GapsResponse {
 // futureDate produces a Berlin-local YYYY-MM-DD always in the future so the
 // "past dates rejected" check does not flake. offsetDays=0 returns today.
 func futureDate(offsetDays int) (string, timezone.Date) {
-	d := timezone.TodayDate().AddDays(offsetDays)
+	d := timezone.NewDate(2026, 8, 24).AddDays(offsetDays)
 	return d.String(), d
 }
 

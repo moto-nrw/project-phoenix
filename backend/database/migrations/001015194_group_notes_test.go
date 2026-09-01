@@ -7,10 +7,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func groupNotesColumnExists(t *testing.T, db *bun.DB) bool {
+func groupNotesColumnExists(t *testing.T, db *testpkg.DB) bool {
 	t.Helper()
 	var exists bool
 	require.NoError(t, db.NewRaw(`
@@ -27,6 +26,7 @@ func groupNotesColumnExists(t *testing.T, db *bun.DB) bool {
 // activities.groups.notes column (Wochennotiz), Down removes it, and the
 // round-trip is idempotent (#1837 follow-up).
 func TestGroupNotesMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

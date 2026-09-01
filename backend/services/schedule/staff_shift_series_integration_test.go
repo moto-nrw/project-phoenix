@@ -13,7 +13,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +35,9 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	scope := testpkg.NewTenantScope(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Serie", fmt.Sprintf("Dienstplan-%d", scope.TenantID))
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
+		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	})
 	require.NoError(t, err)
 
 	env := &seriesTestEnv{
@@ -72,14 +73,14 @@ func (e *seriesTestEnv) createPeriod(t *testing.T, start, end timezone.Date, cyc
 // HTTP handlers provide (the advisory lock requires a transaction).
 func (e *seriesTestEnv) inTx(t *testing.T, fn func(ctx context.Context) error) {
 	t.Helper()
-	require.NoError(t, tenant.WithTenantTx(context.Background(), e.db, e.scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), e.db, e.scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return fn(txCtx)
 	}))
 }
 
 func (e *seriesTestEnv) inTxExpectErr(t *testing.T, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithTenantTx(context.Background(), e.db, e.scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	return testpkg.WithTenantTx(t, context.Background(), e.db, e.scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return fn(txCtx)
 	})
 }
@@ -88,7 +89,7 @@ func seriesClock(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 func allWeekdays() []int16 { return []int16{1, 2, 3, 4, 5, 6, 7} }
@@ -122,7 +123,7 @@ func TestStaffShiftSeries_CreateMaterializesFromTomorrow(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodStart := today.AddDays(-7)
 	periodEnd := today.AddDays(20)
 	periodID := env.createPeriod(t, periodStart, periodEnd, 1, nil)
@@ -149,7 +150,7 @@ func TestStaffShiftSeries_CreateMaterializesFromTomorrow(t *testing.T) {
 		require.NotNil(t, row.SeriesID)
 		assert.Equal(t, result.Series.ID, *row.SeriesID)
 		assert.False(t, row.Detached)
-		assert.Equal(t, "09:00", timezone.WallClock(row.StartTime).Format("15:04"))
+		assert.Equal(t, "09:00", timezone.NormalizeWallClock(row.StartTime).Format("15:04"))
 	}
 }
 
@@ -157,7 +158,7 @@ func TestStaffShiftSeries_WeekPatternARespectsCycle(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	// Anchor on the Monday of the current week so week parity is stable.
 	isoToday := (int(today.Weekday()) + 6) % 7 // 0 = Monday
 	anchor := today.AddDays(-isoToday)
@@ -183,7 +184,7 @@ func TestStaffShiftSeries_WeekPatternRequiresCycle(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternA)
@@ -198,7 +199,7 @@ func TestStaffShiftSeries_CreateRejectsBadReferences(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	t.Run("unknown calendar period", func(t *testing.T) {
@@ -234,7 +235,7 @@ func TestStaffShiftSeries_SplitOutsideSegmentRejected(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
@@ -272,7 +273,7 @@ func TestStaffShiftSeries_CollisionSkipsAndReports(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 	periodEnd := today.AddDays(10)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
@@ -311,7 +312,7 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
 
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
@@ -362,7 +363,7 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
@@ -406,8 +407,8 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 	require.Len(t, todayRows, 1)
 	assert.Equal(t, todayShift.ID, todayRows[0].ID, "today must retain its concrete identity")
 	assert.True(t, todayRows[0].Detached)
-	assert.Equal(t, "09:00", timezone.WallClock(todayRows[0].StartTime).Format("15:04"))
-	assert.Equal(t, "15:00", timezone.WallClock(todayRows[0].EndTime).Format("15:04"))
+	assert.Equal(t, "09:00", timezone.NormalizeWallClock(todayRows[0].StartTime).Format("15:04"))
+	assert.Equal(t, "15:00", timezone.NormalizeWallClock(todayRows[0].EndTime).Format("15:04"))
 	assert.Equal(t, 30, todayRows[0].BreakMinutes)
 	require.NotNil(t, todayRows[0].SeriesID)
 	assert.Equal(t, result.Series.ID, *todayRows[0].SeriesID,
@@ -419,7 +420,7 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 	require.Len(t, tomorrowRows, 1)
 	assert.Equal(t, result.Series.ID, *tomorrowRows[0].SeriesID)
 	assert.False(t, tomorrowRows[0].Detached)
-	assert.Equal(t, "09:00", timezone.WallClock(tomorrowRows[0].StartTime).Format("15:04"))
+	assert.Equal(t, "09:00", timezone.NormalizeWallClock(tomorrowRows[0].StartTime).Format("15:04"))
 
 	var secondResult *scheduleSvc.SeriesResult
 	env.inTx(t, func(ctx context.Context) error {
@@ -440,14 +441,14 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 	require.Len(t, todayRows, 1)
 	require.NotNil(t, todayRows[0].SeriesID)
 	assert.Equal(t, secondResult.Series.ID, *todayRows[0].SeriesID)
-	assert.Equal(t, "10:00", timezone.WallClock(todayRows[0].StartTime).Format("15:04"))
+	assert.Equal(t, "10:00", timezone.NormalizeWallClock(todayRows[0].StartTime).Format("15:04"))
 }
 
 func TestStaffShiftSeries_MoveConsumesOriginalDateBeforeRematerialization(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	originalDate := today.AddDays(1)
 	for originalDate.Weekday() != time.Monday {
 		originalDate = originalDate.AddDays(1)
@@ -511,7 +512,7 @@ func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	originalMonday := today.AddDays(1)
 	for originalMonday.Weekday() != time.Monday {
 		originalMonday = originalMonday.AddDays(1)
@@ -611,7 +612,7 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(14)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -678,7 +679,7 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 	for _, row := range before {
 		require.NotNil(t, row.SeriesID)
 		assert.Equal(t, series.ID, *row.SeriesID)
-		assert.Equal(t, "09:00", timezone.WallClock(row.StartTime).Format("15:04"))
+		assert.Equal(t, "09:00", timezone.NormalizeWallClock(row.StartTime).Format("15:04"))
 	}
 
 	// The detached edit survives the split, re-pointed to the successor.
@@ -687,7 +688,7 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 	assert.True(t, detachedRows[0].Detached)
 	require.NotNil(t, detachedRows[0].SeriesID)
 	assert.Equal(t, successorID, *detachedRows[0].SeriesID)
-	assert.Equal(t, "14:00", timezone.WallClock(detachedRows[0].StartTime).Format("15:04"))
+	assert.Equal(t, "14:00", timezone.NormalizeWallClock(detachedRows[0].StartTime).Format("15:04"))
 
 	// The removed occurrence stays removed: the exception moved to the
 	// successor and the split did not regenerate the date.
@@ -706,7 +707,7 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 		}
 		require.NotNil(t, row.SeriesID)
 		assert.Equal(t, successorID, *row.SeriesID, "row on %s must belong to the successor", row.Date)
-		assert.Equal(t, "12:00", timezone.WallClock(row.StartTime).Format("15:04"))
+		assert.Equal(t, "12:00", timezone.NormalizeWallClock(row.StartTime).Format("15:04"))
 	}
 }
 
@@ -714,7 +715,7 @@ func TestStaffShiftSeries_EndSeriesKeepsDetachedAndPast(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(14)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -768,7 +769,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
 
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
@@ -813,7 +814,7 @@ func TestStaffShiftSeries_SplitAtFirstOccurrence(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(20)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -853,7 +854,7 @@ func TestStaffShiftSeries_SplitAtFirstOccurrence(t *testing.T) {
 	for _, row := range rows {
 		require.NotNil(t, row.SeriesID)
 		assert.Equal(t, successorID, *row.SeriesID)
-		assert.Equal(t, "12:00", timezone.WallClock(row.StartTime).Format("15:04"))
+		assert.Equal(t, "12:00", timezone.NormalizeWallClock(row.StartTime).Format("15:04"))
 	}
 }
 
@@ -863,7 +864,7 @@ func TestStaffShiftSeries_EndAtFirstOccurrence(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(20)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -894,7 +895,7 @@ func TestStaffShiftSeries_CapAllByStaffIDClampsFutureSeries(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	validFrom := today.AddDays(7)

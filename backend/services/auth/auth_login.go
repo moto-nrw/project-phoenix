@@ -469,7 +469,7 @@ func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 // guard (optional) re-validates the caller's authorization inside this
 // transaction, before anything is written — see mintGuard.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		if err := s.applyMintGuard(ctx, account, guard); err != nil {
 			return err
 		}
@@ -572,7 +572,7 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 	// happens inside tenant-scoped transactions. Without BYPASSRLS the role/permission
 	// queries return zero rows and the JWT gets empty permissions.
 	var result *accountMetadata
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 
 		// Step 1: Resolve tenant FIRST — roles/permissions depend on the target tenant.
 		tenantID, orgID, err := s.resolveAccountTenant(ctx, account.ID, tenantSlug)
@@ -623,7 +623,7 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 // re-resolving via slug or default fallback could silently switch to a different tenant.
 func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *auth.Account, tenantID int64) (*accountMetadata, error) {
 	var result *accountMetadata
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, _ bun.Tx) error {
 		var err error
 		result, err = s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
 		return err
@@ -1078,7 +1078,10 @@ func (s *Service) buildJWTClaims(
 	return appClaims, refreshClaims
 }
 
-// generateAndLogTokens generates JWT token pair and logs the authentication event
+// generateAndLogTokens generates JWT token pair and records the authentication
+// event. Token persistence has already committed before this function runs, so
+// audit failures are best effort: reporting one as a login failure would leave
+// the caller with an issued refresh token but no successful response.
 func (s *Service) generateAndLogTokens(
 	ctx context.Context,
 	accountID int64,
@@ -1092,7 +1095,13 @@ func (s *Service) generateAndLogTokens(
 	}
 
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, "")
+		if err := s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, ""); err != nil {
+			s.getLogger().Error("failed to audit authenticated session",
+				slog.Int64("account_id", accountID),
+				slog.String("event_type", eventType),
+				slog.Any("error", err),
+			)
+		}
 	}
 
 	return accessToken, refreshToken, nil
@@ -1101,7 +1110,9 @@ func (s *Service) generateAndLogTokens(
 // logFailedLogin logs a failed login attempt if IP address is provided
 func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress, userAgent, reason string) {
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, accountID, audit.EventTypeLogin, false, ipAddress, userAgent, reason)
+		if err := s.logAuthEvent(ctx, accountID, audit.EventTypeLogin, false, ipAddress, userAgent, reason); err != nil {
+			s.getLogger().Error("failed to audit rejected login", slog.Any("error", err))
+		}
 	}
 }
 
@@ -1139,17 +1150,8 @@ func (s *Service) RegisterSchoolAccount(
 	}
 	var role *auth.Role
 	if roleID != nil && *roleID > 0 {
-		var roleErr error
-		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
-			// System roles have tenant_id NULL. Clear only the Go context tenant
-			// for this lookup; the surrounding transaction and its RLS context stay
-			// intact for the subsequent account creation. The resolved role is
-			// also what the identity provisioning below is decided on — inside the
-			// tenant transaction a system role would be invisible.
-			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
-			role, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
-			return roleErr
-		})
+		var err error
+		role, err = s.resolveAssignableSchoolRole(ctx, *roleID, tenantID)
 		if err != nil {
 			return nil, nil, &AuthError{Op: "register", Err: err}
 		}
@@ -1231,13 +1233,13 @@ func (s *Service) persistAccountWithRole(
 ) (*SchoolIdentity, error) {
 	if tenantID <= 0 {
 		// No tenant context (e.g. tests) — fall back to admin tx for the account insert only.
-		return nil, tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+		return nil, tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 			return s.repos.Account.Create(ctx, account)
 		})
 	}
 
 	var schoolIdentity *SchoolIdentity
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithTenantTx(s.withTenantRuntime(ctx), s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 
 		// Create account (auth.accounts has no tenant_id, no RLS — plain INSERT)
 		if err := s.repos.Account.Create(ctx, account); err != nil {
@@ -1354,15 +1356,8 @@ func (s *Service) LinkSchoolAccount(
 	// to a different school (issue #1021).
 	var role *auth.Role
 	if roleID != nil && *roleID > 0 {
-		var roleErr error
-		// System roles have tenant_id NULL. Clear only the Go context tenant for
-		// this lookup; the admin transaction and the target-school policy remain
-		// in force.
-		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
-			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
-			role, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
-			return roleErr
-		})
+		var err error
+		role, err = s.resolveAssignableSchoolRole(ctx, *roleID, tenantID)
 		if err != nil {
 			return nil, nil, &AuthError{Op: op, Err: err}
 		}
@@ -1396,6 +1391,29 @@ func (s *Service) LinkSchoolAccount(
 	return account, schoolIdentity, nil
 }
 
+// resolveAssignableSchoolRole reuses an ambient request or operator
+// transaction. Opening an admin transaction inside a tenant transaction is a
+// privilege escalation and the runtime correctly rejects it; opening another
+// transaction is unnecessary because auth.roles exposes system roles to every
+// tenant and the policy validator rejects roles from another school.
+func (s *Service) resolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*auth.Role, error) {
+	lookup := func(lookupCtx context.Context) (*auth.Role, error) {
+		return ValidateAssignableSchoolRole(lookupCtx, s.repos.Role, roleID, tenantID)
+	}
+
+	if tx, ok := tenant.TransactionFromContext(ctx); ok && tx != nil {
+		return lookup(ctx)
+	}
+
+	var role *auth.Role
+	err := tenant.WithAdminTxOrDirect(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context) error {
+		var lookupErr error
+		role, lookupErr = lookup(adminCtx)
+		return lookupErr
+	})
+	return role, err
+}
+
 // performAccountTenantLink creates a tenant mapping, role assignment and school
 // identity for an existing account.
 func (s *Service) performAccountTenantLink(
@@ -1407,7 +1425,7 @@ func (s *Service) performAccountTenantLink(
 	identity *SchoolAccountIdentity,
 ) (*SchoolIdentity, error) {
 	var schoolIdentity *SchoolIdentity
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithTenantTx(s.withTenantRuntime(ctx), s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 
 		if err := s.ensureTenantMapping(ctx, account.ID, tenantID); err != nil {
 			return err
@@ -1523,7 +1541,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	var rejectAfterCommit error
 	var revokedForPush *auth.Token
 
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		var err error
 		now := time.Now()
 
@@ -1648,6 +1666,14 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrAccountInactive) && ipAddress != "" {
+			if auditErr := s.logAuthEvent(ctx, int64(refreshClaims.ID), audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive"); auditErr != nil {
+				s.getLogger().Error("failed to audit rejected refresh",
+					slog.Int("account_id", refreshClaims.ID),
+					slog.Any("error", auditErr),
+				)
+			}
+		}
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: err}
 	}
 	if revokedForPush != nil {
@@ -1671,9 +1697,6 @@ func (s *Service) fetchAndValidateAccountForUpdate(ctx context.Context, accountI
 		return nil, &AuthError{Op: opGetAccount, Err: fmt.Errorf("account lookup failed: %w", err)}
 	}
 	if !account.Active {
-		if ipAddress != "" {
-			s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
-		}
 		return nil, &AuthError{Op: "check account status", Err: ErrAccountInactive}
 	}
 	return account, nil
@@ -2057,7 +2080,8 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction).
 	var revoked *auth.Token
-	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	var revokedTokens []*auth.Token
+	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get token from database to find the account ID
 		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
 		if err != nil {
@@ -2065,32 +2089,15 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			return nil
 		}
 
-		if err := s.deleteFamilyWithAudit(ctx, dbToken, "logout", ipAddress, userAgent); err != nil {
-			s.getLogger().Warn("failed to delete refresh-token family during logout",
-				slog.Int64("account_id", dbToken.AccountID),
-				slog.Any("error", err),
-			)
-			return &AuthError{Op: "delete token family with audit", Err: err}
+		var deleteErr error
+		if dbToken.FamilyID == "" {
+			deleteErr = s.repos.Token.Delete(ctx, dbToken.ID)
+			revokedTokens = []*auth.Token{dbToken}
+		} else {
+			revokedTokens, deleteErr = s.repos.Token.DeleteByFamilyIDReturning(ctx, dbToken.FamilyID)
 		}
-
-		// Log successful logout against the school the session actually
-		// belonged to. /auth/logout is a pre-deauthentication route with no
-		// tenant in context, and logAuthEvent then falls back to the account's
-		// FIRST active mapping — for a Lehrkraft or a caregiver mapped to
-		// several schools that files the logout under a school they were never
-		// logged into. The token row carries the tenant the session was minted
-		// for; the claims are the fallback for pre-tenant-claim legacy rows.
-		auditCtx := ctx
-		switch {
-		case dbToken.TenantID > 0:
-			auditCtx = tenant.WithTenantID(ctx, dbToken.TenantID)
-		case refreshClaims.TenantID > 0:
-			auditCtx = tenant.WithTenantID(ctx, refreshClaims.TenantID)
-		}
-
-		// Log successful logout
-		if ipAddress != "" {
-			s.logAuthEvent(auditCtx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+		if deleteErr != nil {
+			return &AuthError{Op: "delete token family", Err: deleteErr}
 		}
 
 		revoked = dbToken
@@ -2098,8 +2105,41 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 	})
 	if err == nil && revoked != nil {
 		s.queuePushCleanup(ctx, revoked.AccountID, []*auth.Token{revoked}, "family")
+		s.auditLogout(ctx, revoked, revokedTokens, refreshClaims.TenantID, ipAddress, userAgent)
 	}
 	return err
+}
+
+// auditLogout appends audit records after the token-family deletion commits.
+// Logout must never leave a usable session because the audit store is down.
+func (s *Service) auditLogout(ctx context.Context, revoked *auth.Token, tokens []*auth.Token, claimTenantID int64, ipAddress, userAgent string) {
+	tenantID := revoked.TenantID
+	if tenantID == 0 {
+		tenantID = claimTenantID
+	}
+	if tenantID == 0 {
+		s.getLogger().Error("failed to audit logout",
+			slog.Int64("account_id", revoked.AccountID),
+			slog.String("error", "tenant is required"),
+		)
+		return
+	}
+	auditCtx := tenant.WithTenantID(s.withTenantRuntime(ctx), tenantID)
+	err := tenant.WithTenantTx(auditCtx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.auditRevokedTokens(txCtx, tokens, "logout", ipAddress, userAgent); err != nil {
+			return err
+		}
+		if ipAddress == "" {
+			return nil
+		}
+		return s.logAuthEvent(txCtx, revoked.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+	})
+	if err != nil {
+		s.getLogger().Error("failed to audit logout",
+			slog.Int64("account_id", revoked.AccountID),
+			slog.Any("error", err),
+		)
+	}
 }
 
 // ChangePassword updates an account's password

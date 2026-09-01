@@ -9,6 +9,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/spf13/cobra"
 )
 
@@ -47,17 +48,36 @@ type settingOverrideRow struct {
 	Value      json.RawMessage `json:"value"`
 }
 
+type settingsCommandContext struct {
+	*cleanupContext
+	schools platformModel.SchoolRepository
+	values  configModel.SettingValueRepository
+}
+
+func newSettingsCommandContext() (*settingsCommandContext, error) {
+	base, err := newCleanupContext()
+	if err != nil {
+		return nil, err
+	}
+	schools, values := services.NewSettingsCommandRepositories(base.DB)
+	return &settingsCommandContext{
+		cleanupContext: base,
+		schools:        schools,
+		values:         values,
+	}, nil
+}
+
 func runSettingsOverrides(_ *cobra.Command, _ []string) error {
-	ctx, err := newCleanupContext()
+	ctx, err := newSettingsCommandContext()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
-	schools, err := ctx.RepoFactory.School.List(context.Background())
+	schools, err := ctx.schools.List(context.Background())
 	if err != nil {
 		return fmt.Errorf("list schools: %w", err)
 	}
-	rows, err := collectSettingOverrideRows(context.Background(), schools, selectedSettingOverrideKeys(), ctx.RepoFactory.SettingValue)
+	rows, err := collectSettingOverrideRows(context.Background(), schools, selectedSettingOverrideKeys(), ctx.values)
 	if err != nil {
 		return err
 	}

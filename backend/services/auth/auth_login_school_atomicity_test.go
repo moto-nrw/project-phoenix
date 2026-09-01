@@ -11,6 +11,7 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -123,16 +124,16 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(portalBindingJWTSecret)
 	require.NoError(t, err)
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:     repos,
-		TokenAuth: tokenAuth,
-		JWTSecret: portalBindingJWTSecret,
-		DB:        db,
+		Repos:      repos,
+		TokenAuth:  tokenAuth,
+		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
+		JWTSecret:  portalBindingJWTSecret,
+		DB:         db,
 	})
 	require.NoError(t, err)
 
 	account := testpkg.CreateTestAccount(t, db, "mfa-portal-binding")
 	accountID := account.ID
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, accountID) })
 
 	tenantID, _ := newSchoolTenant(t, db)
 	testpkg.EnsureAccountTenant(t, db, accountID, tenantID)

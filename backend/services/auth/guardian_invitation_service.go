@@ -16,7 +16,6 @@ import (
 	"github.com/gofrs/uuid"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -62,18 +61,18 @@ const schoolLoginImageURLKey = "loginImageUrl"
 // misconfiguration — production wiring always sets it), enqueueEmail
 // logs a warning and skips the send.
 type GuardianInvitationServiceConfig struct {
-	InvitationRepo         authModels.GuardianInvitationRepository
-	AccountRepo            authModels.AccountRepository
-	AccountTenantRepo      authModels.AccountTenantRepository
-	AccountRoleRepo        authModels.AccountRoleRepository
-	RoleRepo               authModels.RoleRepository
-	PersonRepo             userModels.PersonRepository
-	GuardianProfileRepo    userModels.GuardianProfileRepository
-	StudentGuardianRepo    userModels.StudentGuardianRepository
-	GuardianFinancialAudit auditModels.GuardianFinancialChangeCreator
-	StudentRepo            userModels.StudentRepository
-	SchoolRepo             platformModels.SchoolRepository
-	OutboxEnqueuer         platformModels.OutboxEnqueuer
+	InvitationRepo      authModels.GuardianInvitationRepository
+	AccountRepo         authModels.AccountRepository
+	AccountTenantRepo   authModels.AccountTenantRepository
+	AccountRoleRepo     authModels.AccountRoleRepository
+	RoleRepo            authModels.RoleRepository
+	PersonRepo          userModels.PersonRepository
+	GuardianProfileRepo userModels.GuardianProfileRepository
+	StudentGuardianRepo userModels.StudentGuardianRepository
+	Audit               auditModels.Command
+	StudentRepo         userModels.StudentRepository
+	SchoolRepo          platformModels.SchoolRepository
+	OutboxEnqueuer      platformModels.OutboxEnqueuer
 	// EnrollmentBackfiller stamps guardian_account_id onto every
 	// pre-account enrollment.requests row matching the guardian's
 	// email, so requests submitted before invite acceptance show up in
@@ -97,7 +96,8 @@ type EnrollmentBackfiller interface {
 
 type guardianInvitationService struct {
 	GuardianInvitationServiceConfig
-	txHandler *modelBase.TxHandler
+	txHandler     *tenant.TransactionRunner
+	tenantRuntime *tenant.UnitOfWork
 }
 
 // NewGuardianInvitationService builds a guardian invitation service. A nil
@@ -112,12 +112,23 @@ func NewGuardianInvitationService(cfg GuardianInvitationServiceConfig) GuardianI
 	cfg.FrontendURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 	return &guardianInvitationService{
 		GuardianInvitationServiceConfig: cfg,
-		txHandler:                       modelBase.NewTxHandler(cfg.DB),
+		txHandler:                       tenant.NewTransactionRunner(),
 	}
 }
 
 func (s *guardianInvitationService) getLogger() *slog.Logger {
 	return cmp.Or(s.Logger, slog.Default())
+}
+
+func (s *guardianInvitationService) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
+}
+
+func (s *guardianInvitationService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // resolveTokenExpiry follows the documented HasTenantOverride → ResolveInt →
@@ -312,7 +323,7 @@ func (s *guardianInvitationService) guardianAcceptTarget(ctx context.Context, in
 
 func (s *guardianInvitationService) acceptGuardianInvitation(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, emailAddress, passwordHash string) (*authModels.Account, error) {
 	var account *authModels.Account
-	err := s.txHandler.RunInTx(tenant.WithTenantID(ctx, invitation.TenantID), func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(tenant.WithTenantID(s.withTenantRuntime(ctx), invitation.TenantID), func(txCtx context.Context) error {
 		acc, innerErr := s.createOrFindAccount(txCtx, emailAddress, passwordHash)
 		if innerErr != nil {
 			return innerErr
@@ -586,7 +597,7 @@ func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invita
 // token. Best-effort; returns "" on error.
 func (s *guardianInvitationService) GetTenantSlugForToken(ctx context.Context, token string) string {
 	var slug string
-	_ = tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	_ = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		invitation, err := s.InvitationRepo.FindByToken(txCtx, token)
 		if err != nil {
 			return err

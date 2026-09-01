@@ -2189,30 +2189,41 @@ describe("staff-api", () => {
       ).rejects.toThrow("overlapping absence");
     });
 
-    it("maps the comp_time overdraft conflict to a German message (#1420)", async () => {
+    it("loads the comp_time Saldo-Vorschau (#2873)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 409,
-        text: () =>
-          Promise.resolve(
-            JSON.stringify({
-              code: "comp_time_exceeds_balance",
-              error: "comp_time absence exceeds accrued balance",
-            }),
-          ),
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              current_balance_minutes: 120,
+              deduction_minutes: 480,
+              realized_deduction_minutes: 0,
+              future_commitment_minutes: 240,
+              future_adjustment_minutes: -60,
+              projected_balance_minutes: -660,
+            },
+          }),
       } as Response);
 
-      await expect(
-        staffAbsenceService.createAbsence("1", {
-          absence_type: "comp_time",
-          date_start: "2026-07-27",
-          date_end: "2026-07-28",
-          note: "FZA",
-        }),
-      ).rejects.toThrow(
-        "Der Freizeitausgleich übersteigt die vor dem Startdatum verfügbaren Plus-Stunden.",
+      const preview = await staffAbsenceService.getCompTimePreview("1", {
+        dateStart: "2026-07-27",
+        dateEnd: "2026-07-28",
+        halfDay: false,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/time-tracking/comp-time-preview?date_start=2026-07-27&date_end=2026-07-28&half_day=false",
+        expect.anything(),
       );
+      expect(preview).toEqual({
+        currentBalanceMinutes: 120,
+        deductionMinutes: 480,
+        realizedDeductionMinutes: 0,
+        futureCommitmentMinutes: 240,
+        futureAdjustmentMinutes: -60,
+        projectedBalanceMinutes: -660,
+      });
     });
 
     it("deletes an absence (#1843)", async () => {

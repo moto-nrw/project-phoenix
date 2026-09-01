@@ -3,46 +3,53 @@ set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root/backend"
+export PHOENIX_ARCHITECTURE_PROJECT="$repo_root/backend"
+
+run_with_default_baseline() {
+  local command=$1
+  shift
+  local use_default=true
+  for argument in "$@"; do
+    case "$argument" in
+      --baseline|--baseline=*) use_default=false ;;
+    esac
+  done
+  if "$use_default"; then
+    set -- --baseline "$repo_root/backend/architecture/legacy.jsonl" "$@"
+  fi
+  cd "$repo_root/scripts/backend-architecture"
+  exec go run . "$command" "$@"
+}
 
 case "${1:-}" in
   check)
     shift
-    exec go run ./internal/architecture/cmd check "$@"
+    run_with_default_baseline check "$@"
     ;;
   explain)
     shift
-    exec go run ./internal/architecture/cmd explain "$@"
+    cd "$repo_root/scripts/backend-architecture"
+    exec go run . explain "$@"
     ;;
-  legacy-check)
-    go_arch_lint=$(go -C tools tool -n go-arch-lint)
-    exec "$go_arch_lint" check \
-      --project-path . \
-      --arch-file .go-arch-lint.yml
+  audit-issues)
+    shift
+    run_with_default_baseline audit-issues "$@"
     ;;
   diagram)
-    output=${2:-/tmp/phoenix-backend-architecture.svg}
-    go_arch_lint=$(go -C tools tool -n go-arch-lint)
-    "$go_arch_lint" graph \
-      --project-path . \
-      --arch-file .go-arch-lint.yml \
-      --focus handlers \
-      --type flow \
-      --out "$output"
-    echo "$output"
+    shift
+    run_with_default_baseline diagram "$@"
     ;;
   dependencies)
-    command -v dot >/dev/null || {
-      echo "Graphviz is required; enter the Devbox shell first" >&2
-      exit 1
-    }
-    output=${2:-/tmp/phoenix-backend-dependencies.svg}
-    expression=${3:-'goos=linux(goarch=amd64(./...:module))'}
-    goda=$(go -C tools tool -n goda)
-    "$goda" graph "$expression" | dot -Tsvg -o "$output"
-    echo "$output"
+    shift
+    run_with_default_baseline dependencies "$@"
+    ;;
+  validate-ticket)
+    shift
+    cd "$repo_root/scripts/backend-architecture"
+    exec go run . validate-ticket "$@"
     ;;
   *)
-    echo "Usage: $0 {check [--project path] [--policy path]|explain|legacy-check|diagram [output.svg]|dependencies [output.svg] [goda-expression]}" >&2
+    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --api-url url|diagram [--output dir]|dependencies --focus module-or-package [--output dir]|validate-ticket --ticket path}" >&2
     exit 2
     ;;
 esac

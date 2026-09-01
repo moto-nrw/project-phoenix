@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	group := testpkg.CreateTestActivityGroup(t, db, "ArchivalUpgrade")
@@ -70,17 +70,16 @@ func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.
 }
 
 func TestActivityCategoryArchivalUpCanonicalizesReservedCaseVariants(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	const (
-		variantTenantID   int64 = 9258
-		duplicateTenantID int64 = 9259
-	)
+	variantTenantID := testpkg.UniqueTestTenantID(t)
+	duplicateTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, variantTenantID)
+	testpkg.OwnTenantRows(t, db, variantTenantID)
 	testpkg.EnsureTestTenant(t, db, duplicateTenantID)
-	defer testpkg.CleanupTenantTestData(t, db, variantTenantID)
-	defer testpkg.CleanupTenantTestData(t, db, duplicateTenantID)
+	testpkg.OwnTenantRows(t, db, duplicateTenantID)
 
 	restored := false
 	require.NoError(t, activityCategoryArchivalDown(ctx, db))
@@ -137,15 +136,18 @@ func TestActivityCategoryArchivalUpCanonicalizesReservedCaseVariants(t *testing.
 }
 
 func TestActivityCategoryArchivalDownPreservesReferencedNameConflict(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	group := testpkg.CreateTestActivityGroup(t, db, "ArchivalRollback")
-	category := new(activitiesModel.Category)
-	require.NoError(t, db.NewSelect().
-		Model(category).
-		ModelTableExpr(`activities.categories AS "category"`).
-		Where("id = ?", group.CategoryID).
-		Scan(ctx))
+	var category struct {
+		ID       int64
+		TenantID int64 `bun:"tenant_id"`
+		Name     string
+	}
+	require.NoError(t, db.NewRaw(`
+		SELECT id, tenant_id, name FROM activities.categories WHERE id = ?
+	`, group.CategoryID).Scan(ctx, &category))
 	replacementName := category.Name
 
 	now := time.Now()
@@ -155,12 +157,12 @@ func TestActivityCategoryArchivalDownPreservesReferencedNameConflict(t *testing.
 		Where("id = ?", category.ID).
 		Exec(ctx)
 	require.NoError(t, err)
-	replacement := &activitiesModel.Category{Name: replacementName}
-	replacement.SetTenantID(category.TenantID)
-	require.NoError(t, db.NewInsert().
-		Model(replacement).
-		ModelTableExpr("activities.categories").
-		Scan(ctx))
+	var replacementID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO activities.categories (tenant_id, name)
+		VALUES (?, ?)
+		RETURNING id
+	`, category.TenantID, replacementName).Scan(ctx, &replacementID))
 
 	defer func() {
 		require.NoError(t, activityCategoryArchivalUp(ctx, db))

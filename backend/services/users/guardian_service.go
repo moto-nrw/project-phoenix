@@ -71,6 +71,11 @@ type GuardianServiceDependencies struct {
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
 
+	// MailIdentity points replies to this invitation at the OGS instead of
+	// moto (#1936). Optional: nil sends without a Reply-To, exactly as before.
+	// This send bypasses the outbox, so it stamps the header itself.
+	MailIdentity email.ReplyToResolver
+
 	// Infrastructure
 	DB *bun.DB
 }
@@ -79,7 +84,7 @@ type GuardianServiceDependencies struct {
 // invitations, and phone numbers.
 type GuardianService struct {
 	GuardianServiceDependencies
-	txHandler *base.TxHandler
+	txHandler *tenant.TransactionRunner
 }
 
 // NewGuardianService creates a new GuardianService instance
@@ -91,7 +96,7 @@ func NewGuardianService(deps GuardianServiceDependencies) *GuardianService {
 
 	return &GuardianService{
 		GuardianServiceDependencies: deps,
-		txHandler:                   base.NewTxHandler(deps.DB),
+		txHandler:                   tenant.NewTransactionRunner(),
 	}
 }
 
@@ -258,6 +263,12 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 // Use this only for guardians with no remaining links; for the deliberate
 // full delete use DeleteGuardianWithLinks.
 func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.deleteGuardian(txCtx, id, changedByAccountID)
+	})
+}
+
+func (s *GuardianService) deleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
@@ -276,8 +287,15 @@ func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccou
 //
 // This is the "Komplett löschen" path from #819 and is gated to admins at the
 // handler, because it reaches across every linked student — including siblings
-// in groups the caller may not supervise.
+// in groups the caller may not supervise. The service owns the transaction;
+// an ambient handler transaction is joined rather than nested.
 func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.deleteGuardianWithLinks(txCtx, id, expectedLinkIDs, changedByAccountID)
+	})
+}
+
+func (s *GuardianService) deleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
@@ -463,7 +481,7 @@ func (s *GuardianService) SendInvitation(ctx context.Context, req GuardianInvita
 
 	// Send invitation email asynchronously, pass tenant context for DB calls
 	if s.Dispatcher != nil && profile.Email != nil {
-		tenantCtx := tenant.WithTenantID(context.Background(), tenant.FromContext(ctx))
+		tenantCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 		go s.sendInvitationEmail(tenantCtx, invitation, profile)
 	}
 
@@ -471,7 +489,7 @@ func (s *GuardianService) SendInvitation(ctx context.Context, req GuardianInvita
 }
 
 // sendInvitationEmail sends the invitation email (called asynchronously).
-// ctx should carry tenant context but NOT a transaction (use tenant.WithTenantID on Background).
+// ctx should carry tenant context but not an ambient request transaction.
 func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
 	if s.Dispatcher == nil || profile.Email == nil {
 		return
@@ -494,6 +512,7 @@ func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *a
 
 	message := email.Message{
 		From:     s.DefaultFrom,
+		ReplyTo:  s.resolveReplyTo(ctx),
 		To:       email.NewEmail("", *profile.Email),
 		Subject:  "Einladung zum Eltern-Portal",
 		Template: "guardian-invitation.html",
@@ -1042,6 +1061,12 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 // relationship stays intact. The check runs under the student lock so a payer
 // assigned concurrently cannot slip past it.
 func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.removeGuardianFromStudent(txCtx, studentID, guardianProfileID, changedByAccountID, mayClearPayer)
+	})
+}
+
+func (s *GuardianService) removeGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
 	// The student row serializes this deletion with SetStudentPayer, which
 	// takes the same lock before it reads a relationship's is_payer state.
 	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
@@ -1326,4 +1351,12 @@ func (s *GuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianI
 // GetPhoneNumberByID retrieves a phone number by ID
 func (s *GuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
 	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
+}
+
+// resolveReplyTo returns the OGS reply address for this tenant, or the zero
+// value when none is configured. This send bypasses the outbox, so it stamps
+// the header itself; the degradation policy is shared (#1936).
+func (s *GuardianService) resolveReplyTo(ctx context.Context) email.Email {
+	identity := email.ResolveReplyToIdentity(ctx, s.MailIdentity, tenant.FromContext(ctx), nil)
+	return email.NewEmail(identity.Name, identity.Address)
 }

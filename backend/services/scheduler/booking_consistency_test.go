@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +20,7 @@ type stubBookingConsistencyAudit struct {
 
 func (s *stubBookingConsistencyAudit) Audit(
 	_ context.Context,
-	auditDate timezone.Date,
+	auditDate auditModel.Date,
 ) (*auditModel.BookingConsistencyReport, error) {
 	s.calls++
 	if s.report != nil {
@@ -37,25 +36,25 @@ func TestBookingConsistencyAuditLogsDriftCounts(t *testing.T) {
 	auditor := &stubBookingConsistencyAudit{report: &auditModel.BookingConsistencyReport{
 		TenantID:                    42,
 		PickupProjectionMissingDays: 3,
-		PlannedWithoutBookingRows:   2,
 	}}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		bookingConsistency: auditor,
 		tasks:              make(map[string]*ScheduledTask),
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
-		})),
-	}
+		}))})
 
-	s.checkAndRunBookingConsistencyAudit(&ScheduledTask{Name: "booking-consistency-audit"})
+	s.checkAndRunBookingConsistencyAudit(context.Background(), &ScheduledTask{Name: "booking-consistency-audit"})
 
 	require.Equal(t, 1, auditor.calls)
 	logOutput := output.String()
 	assert.Contains(t, logOutput, `"msg":"booking consistency audit found drift"`)
 	assert.Contains(t, logOutput, `"tenant_id":42`)
 	assert.Contains(t, logOutput, `"pickup_projection_missing_days":3`)
-	assert.Contains(t, logOutput, `"planned_without_booking_rows":2`)
-	assert.Contains(t, logOutput, `"total_findings":5`)
+	assert.NotContains(t, logOutput, `"arrival_without_booking_days"`)
+	assert.NotContains(t, logOutput, `"booking_without_arrival_days"`)
+	assert.NotContains(t, logOutput, `"planned_without_booking_rows"`)
+	assert.Contains(t, logOutput, `"total_findings":3`)
 }
 
 func TestBookingConsistencyAuditLogsRepositoryError(t *testing.T) {
@@ -64,18 +63,17 @@ func TestBookingConsistencyAuditLogsRepositoryError(t *testing.T) {
 	var output bytes.Buffer
 	want := errors.New("query failed")
 	auditor := &stubBookingConsistencyAudit{err: want}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		bookingConsistency: auditor,
 		tasks:              make(map[string]*ScheduledTask),
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
-		})),
-	}
+		}))})
 
-	s.checkAndRunBookingConsistencyAudit(&ScheduledTask{Name: "booking-consistency-audit"})
+	s.checkAndRunBookingConsistencyAudit(context.Background(), &ScheduledTask{Name: "booking-consistency-audit"})
 
 	require.Equal(t, 1, auditor.calls)
-	assert.Contains(t, output.String(), `"msg":"booking consistency audit failed"`)
+	assert.Contains(t, output.String(), `"msg":"tenant operation failed, continuing to next tenant"`)
 	assert.Contains(t, output.String(), `"error":"query failed"`)
 }
 
@@ -87,15 +85,14 @@ func TestBookingConsistencyAuditTreatsOptionalNoOfferingAsReview(t *testing.T) {
 		TenantID:                        42,
 		ApprovedWithoutOptionalOffering: 2,
 	}}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		bookingConsistency: auditor,
 		tasks:              make(map[string]*ScheduledTask),
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
-		})),
-	}
+		}))})
 
-	s.checkAndRunBookingConsistencyAudit(&ScheduledTask{Name: "booking-consistency-audit"})
+	s.checkAndRunBookingConsistencyAudit(context.Background(), &ScheduledTask{Name: "booking-consistency-audit"})
 
 	assert.Contains(t, output.String(), `"msg":"booking consistency audit passed"`)
 	assert.Contains(t, output.String(), `"approved_without_optional_offering":2`)

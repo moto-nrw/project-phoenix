@@ -11,8 +11,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // mockGroupRepository is a minimal mock implementation of active.GroupRepository
@@ -101,10 +104,6 @@ func (m *mockGroupRepository) EndSession(ctx context.Context, id int64) error {
 		return m.endSessionFunc(ctx, id)
 	}
 	return nil
-}
-
-func (m *mockGroupRepository) FindWithRelations(ctx context.Context, id int64) (*active.Group, error) {
-	return nil, nil
 }
 
 func (m *mockGroupRepository) FindWithVisits(ctx context.Context, id int64) (*active.Group, error) {
@@ -376,6 +375,7 @@ func (m *mockVisitRepository) GetTodayVisitNamesForStudents(ctx context.Context,
 
 // mockGroupSupervisorRepository is a minimal mock implementation of active.GroupSupervisorRepository
 type mockGroupSupervisorRepository struct {
+	findByIDFunc             func(ctx context.Context, id interface{}) (*active.GroupSupervisor, error)
 	findByActiveGroupIDFunc  func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error)
 	endSupervisionFunc       func(ctx context.Context, id int64) error
 	createFunc               func(ctx context.Context, entity *active.GroupSupervisor) error
@@ -395,6 +395,9 @@ func (m *mockGroupSupervisorRepository) Create(ctx context.Context, entity *acti
 }
 
 func (m *mockGroupSupervisorRepository) FindByID(ctx context.Context, id interface{}) (*active.GroupSupervisor, error) {
+	if m.findByIDFunc != nil {
+		return m.findByIDFunc(ctx, id)
+	}
 	return nil, nil
 }
 
@@ -470,6 +473,149 @@ func (m *mockGroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*a
 		return m.findAllActiveFunc(ctx)
 	}
 	return nil, nil
+}
+
+func TestEndActivitySessionLocksGroupBeforeEnding(t *testing.T) {
+	t.Parallel()
+
+	locked := false
+	groupRepo := &mockGroupRepository{
+		findByIDForUpdateFunc: func(context.Context, int64) (*active.Group, error) {
+			locked = true
+			return &active.Group{Model: base.Model{ID: 1}}, nil
+		},
+		endSessionFunc: func(context.Context, int64) error {
+			require.True(t, locked)
+			return nil
+		},
+	}
+	visitRepo := &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*active.Visit, error) {
+		return []*active.Visit{}, nil
+	}}
+	supervisorRepo := &mockGroupSupervisorRepository{findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*active.GroupSupervisor, error) {
+		return []*active.GroupSupervisor{}, nil
+	}}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		GroupRepo: groupRepo, VisitRepo: visitRepo, SupervisorRepo: supervisorRepo,
+	}}
+
+	require.NoError(t, svc.EndActivitySession(context.Background(), 1))
+	require.True(t, locked)
+}
+
+func TestProcessSessionTimeoutLocksGroupBeforeEnding(t *testing.T) {
+	t.Parallel()
+	locked := false
+	groupRepo := &mockGroupRepository{
+		findByIDForUpdateFunc: func(context.Context, int64) (*active.Group, error) {
+			locked = true
+			return &active.Group{Model: base.Model{ID: 1}}, nil
+		},
+		endSessionFunc: func(context.Context, int64) error {
+			require.True(t, locked)
+			return nil
+		},
+	}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		GroupRepo: groupRepo,
+		VisitRepo: &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*active.Visit, error) {
+			return []*active.Visit{}, nil
+		}},
+		SupervisorRepo: &mockGroupSupervisorRepository{},
+	}}
+
+	_, err := svc.ProcessSessionTimeoutByID(context.Background(), 1)
+	require.NoError(t, err)
+	require.True(t, locked)
+}
+
+func TestEndSupervisionLocksGroupBeforeRelease(t *testing.T) {
+	t.Parallel()
+	order := make([]string, 0, 3)
+	lookups := 0
+	supervisors := &mockGroupSupervisorRepository{
+		findByIDFunc: func(context.Context, interface{}) (*active.GroupSupervisor, error) {
+			lookups++
+			order = append(order, "supervision")
+			return &active.GroupSupervisor{Model: base.Model{ID: 2}, GroupID: 1}, nil
+		},
+		endSupervisionFunc: func(context.Context, int64) error {
+			order = append(order, "end")
+			return nil
+		},
+	}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		GroupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(context.Context, int64) (*active.Group, error) {
+			order = append(order, "group-lock")
+			return &active.Group{Model: base.Model{ID: 1}}, nil
+		}},
+		SupervisorRepo: supervisors,
+	}}
+
+	require.NoError(t, svc.EndSupervision(context.Background(), 2))
+	require.Equal(t, 2, lookups)
+	require.Equal(t, []string{"supervision", "group-lock", "supervision", "end"}, order)
+}
+
+func TestEndActivitySessionDoesNotBroadcastWhenCommitFails(t *testing.T) {
+	t.Parallel()
+	mockDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = mockDB.Close() })
+	db := bun.NewDB(mockDB, pgdialect.New())
+	mock.ExpectBegin()
+	mock.ExpectCommit().WillReturnError(errors.New("commit failed"))
+
+	groupRepo := &mockGroupRepository{
+		findByIDForUpdateFunc: func(context.Context, int64) (*active.Group, error) {
+			return &active.Group{Model: base.Model{ID: 1}}, nil
+		},
+	}
+	visitRepo := &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*active.Visit, error) {
+		return []*active.Visit{}, nil
+	}}
+	supervisorRepo := &mockGroupSupervisorRepository{findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*active.GroupSupervisor, error) {
+		return []*active.GroupSupervisor{}, nil
+	}}
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		DB: db, GroupRepo: groupRepo, VisitRepo: visitRepo,
+		SupervisorRepo: supervisorRepo, Broadcaster: broadcaster,
+	}}
+
+	ctx := withSessionTestRuntime(t, context.Background(), db)
+	require.ErrorContains(t, svc.EndActivitySession(ctx, 1), "commit failed")
+	require.Empty(t, broadcaster.Events())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestEndActiveGroupSessionDoesNotBroadcastWhenOuterCommitFails(t *testing.T) {
+	t.Parallel()
+	mockDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = mockDB.Close() })
+	db := bun.NewDB(mockDB, pgdialect.New())
+	mock.ExpectBegin()
+	mock.ExpectCommit().WillReturnError(errors.New("outer commit failed"))
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		DB: db,
+		GroupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(context.Context, int64) (*active.Group, error) {
+			return &active.Group{Model: base.Model{ID: 1}}, nil
+		}},
+		VisitRepo: &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*active.Visit, error) {
+			return []*active.Visit{}, nil
+		}},
+		SupervisorRepo: &mockGroupSupervisorRepository{findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*active.GroupSupervisor, error) {
+			return []*active.GroupSupervisor{}, nil
+		}},
+		Broadcaster: broadcaster,
+	}}
+
+	ctx := withSessionTestRuntime(t, context.Background(), db)
+	require.ErrorContains(t, svc.EndActiveGroupSession(ctx, 1), "outer commit failed")
+	require.Empty(t, broadcaster.Events())
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 // TestEndActivitySession_FindByActiveGroupIDError tests the error path when finding supervisors fails.

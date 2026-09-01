@@ -520,6 +520,15 @@ describe("proxy", () => {
       expect(res.headers.get("location")).toContain(`${SCHOOL_HOSTNAME}/`);
     });
 
+    it("keeps the tenant group overview out of the school portal", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/ogs-groups`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toContain(`${SCHOOL_HOSTNAME}/`);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    });
+
     it("redirects /school/* on other hosts to the school host", () => {
       const res = proxy(
         makeRequest("http://localhost:3000/school/login", "localhost:3000"),

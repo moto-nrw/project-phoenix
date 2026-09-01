@@ -33,6 +33,7 @@ type fakePushRepo struct {
 	deleteAttempts     []*iot.PushSubscription
 	keepExpired        bool
 	staffAccounts      map[int64][]*iot.PushSubscription
+	schoolAccounts     map[int64][]*iot.PushSubscription
 	staffAccountsAsked []int64
 	staffAccountsErr   error
 	deleteErr          error
@@ -143,13 +144,15 @@ func testSub(id, tenantID int64, endpoint string) *iot.PushSubscription {
 }
 
 func testChannel(repo *fakePushRepo, sender *fakeSender) *webPushChannel {
-	return &webPushChannel{
+	channel := &webPushChannel{
 		repo:      repo,
 		vapid:     testVAPID(),
 		sender:    sender,
 		logger:    slog.Default(),
 		sendSlots: make(chan struct{}, maxConcurrentPushSends),
 	}
+	channel.SetTenantRuntime(newMockTenantRuntime(nil, nil))
+	return channel
 }
 
 func TestWebPushPayloadIsGDPRSafe(t *testing.T) {
@@ -243,34 +246,34 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 	}
 	channel := testChannel(repo, &fakeSender{})
 
-	got, err := channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeTenant})
+	got, err := channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: ScopeTenant}})
 	require.NoError(t, err)
 	assert.Equal(t, staff, got)
 
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeAdmin})
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: ScopeAdmin}})
 	require.NoError(t, err)
 	assert.Equal(t, admins, got)
 
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeGuardian, GuardianAccountID: 99})
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: ScopeGuardian, GuardianAccountID: 99}})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
 
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
-	})
+	}})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
 
 	// A child-scoped audience carries the child into the device lookup, which is
 	// where parent_portal.access is answered for the transaction that sends.
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
 		StudentIDs:         []int64{55},
-	})
+	}})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
 	assert.Equal(t, []int64{55}, repo.guardiansStudentIDs,
@@ -279,32 +282,32 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 	// Access to that child revoked since the producer picked its audience: the
 	// account keeps its devices and its consent, and still gets nothing.
 	repo.hiddenStudentID = 55
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
 		StudentIDs:         []int64{55},
-	})
+	}})
 	require.NoError(t, err)
 	assert.Empty(t, got)
 
 	// An event that is not about one child stays unscoped.
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
-	})
+	}})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
 	assert.Empty(t, repo.guardiansStudentIDs)
 	repo.hiddenStudentID = 0
 
 	// Group scope is deliberately unsupported: no error, no recipients.
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeGroup, ActiveGroupID: "g1"})
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: ScopeGroup, ActiveGroupID: "g1"}})
 	require.NoError(t, err)
 	assert.Empty(t, got)
 
-	_, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: "bogus"})
+	_, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: "bogus"}})
 	require.Error(t, err)
 }
 
@@ -487,6 +490,7 @@ func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {
 	}}
 	channel := testChannel(repo, sender)
 	channel.db = db
+	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 	deliveryDone := make(chan error, 1)
 	go func() {
@@ -535,6 +539,7 @@ func TestWebPushDeliverSynchronouslyRequiresPushAcceptance(t *testing.T) {
 		channel := testChannel(&fakePushRepo{}, &fakeSender{})
 		db, mock := mockTenantTx(t)
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 		require.ErrorIs(t, channel.DeliverSynchronously(context.Background(), event), ErrNoWebPushSubscribers)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -549,6 +554,7 @@ func TestWebPushDeliverSynchronouslyPreservesCallerDeadline(t *testing.T) {
 	}}, &fakeSender{})
 	db, mock := mockTenantTx(t)
 	channel.db = db
+	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 	deadline := time.Now().Add(time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
@@ -581,6 +587,14 @@ func (f *fakePushRepo) FindForStaffAccounts(_ context.Context, accountIDs []int6
 	var out []*iot.PushSubscription
 	for _, accountID := range accountIDs {
 		out = append(out, f.staffAccounts[accountID]...)
+	}
+	return out, nil
+}
+
+func (f *fakePushRepo) FindForSchoolAccounts(_ context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
+	var out []*iot.PushSubscription
+	for _, accountID := range accountIDs {
+		out = append(out, f.schoolAccounts[accountID]...)
 	}
 	return out, nil
 }
@@ -629,6 +643,7 @@ func TestWebPushDeliverBatchResolvesOnceAndSendsPerRecipient(t *testing.T) {
 	channel := testChannel(repo, sender)
 	db, mock := mockTenantTx(t)
 	channel.db = db
+	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{
 		staffEventFor(11, "Abholung steht an"),
@@ -681,6 +696,7 @@ func TestWebPushDeliverBatchEdgeCases(t *testing.T) {
 		channel := testChannel(repo, sender)
 		db, _ := mockTenantTx(t)
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 		require.NoError(t, channel.DeliverBatch(context.Background(), []Event{
 			staffEventFor(11, "erreicht"),
@@ -698,6 +714,7 @@ func TestWebPushDeliverBatchEdgeCases(t *testing.T) {
 		channel := testChannel(&fakePushRepo{}, &fakeSender{})
 		db, _ := mockTenantTx(t)
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 		require.NoError(t, channel.DeliverBatch(context.Background(), []Event{staffEventFor(11, "x")}))
 	})
 
@@ -705,6 +722,7 @@ func TestWebPushDeliverBatchEdgeCases(t *testing.T) {
 		channel := testChannel(&fakePushRepo{staffAccountsErr: errors.New("boom")}, &fakeSender{})
 		db, _ := mockTenantTx(t)
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 		require.Error(t, channel.DeliverBatch(context.Background(), []Event{staffEventFor(11, "x")}))
 	})
 }
@@ -721,6 +739,7 @@ func TestWebPushDeliverBatchFallsBackForOtherScopes(t *testing.T) {
 	channel := testChannel(repo, sender)
 	db, _ := mockTenantTx(t)
 	channel.db = db
+	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{{
 		Type:     "test",

@@ -17,6 +17,9 @@ defaults:
   run:
     shell: bash
 
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   backend-quality:
     if: ${{ inputs.run-backend }}
@@ -50,9 +53,6 @@ jobs:
           else
             echo "All Go files are properly formatted"
           fi
-
-      - name: Check backend package architecture
-        run: scripts/backend-architecture.sh legacy-check
 
       - name: Run backend source ratchets
         working-directory: backend
@@ -117,7 +117,7 @@ jobs:
       - name: golang ci lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v6
         with:
-          version: v2.12.2 # pinned: v2.13.0 crashes (staticcheck nilness panics on sentry-go)
+          version: v2.13.1
           args: --timeout 10m ${{ steps.packages.outputs.args }}
           working-directory: backend
 

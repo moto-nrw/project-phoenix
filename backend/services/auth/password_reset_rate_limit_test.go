@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -23,12 +23,6 @@ import (
 
 func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *testpkg.CapturingMailer, sqlmock.Sqlmock, func()) {
 	t.Helper()
-
-	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
-	viper.Set("rate_limit_enabled", true)
-	t.Cleanup(func() {
-		viper.Set("rate_limit_enabled", prevRateLimitEnabled)
-	})
 
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -54,7 +48,10 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 		defaultFrom:         newDefaultFromEmail(),
 		frontendURL:         "http://localhost:3000",
 		passwordResetExpiry: 30 * time.Minute,
-		txHandler:           baseModel.NewTxHandler(bunDB),
+		rateLimitEnabled:    true,
+		txHandler:           tenant.NewTransactionRunner(),
+		db:                  bunDB,
+		tenantRuntime:       newMockTenantRuntime(t, bunDB),
 	}
 
 	cleanup := func() {
@@ -67,11 +64,8 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 	return service, accountRepo, tokenRepo, rateRepo, mailer, mock, cleanup
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {
+	t.Parallel()
 	service, _, tokenRepo, rateRepo, mailer, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 1},
 		Email: "user@example.com",
@@ -80,8 +74,7 @@ func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		mock.ExpectBegin()
-		mock.ExpectCommit()
+		expectAdminTx(mock)
 		token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 		if err != nil {
 			t.Fatalf("expected attempt %d to succeed, got error: %v", i+1, err)
@@ -103,11 +96,8 @@ func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {
 	}
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
+	t.Parallel()
 	service, _, _, rateRepo, _, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 42},
 		Email: "user@example.com",
@@ -116,8 +106,7 @@ func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		mock.ExpectBegin()
-		mock.ExpectCommit()
+		expectAdminTx(mock)
 		if _, err := service.InitiatePasswordReset(ctx, "user@example.com"); err != nil {
 			t.Fatalf("setup attempt %d failed: %v", i+1, err)
 		}
@@ -153,11 +142,8 @@ func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
 	}
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
+	t.Parallel()
 	service, _, _, rateRepo, _, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 7},
 		Email: "user@example.com",
@@ -166,8 +152,7 @@ func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		mock.ExpectBegin()
-		mock.ExpectCommit()
+		expectAdminTx(mock)
 		if _, err := service.InitiatePasswordReset(ctx, "user@example.com"); err != nil {
 			t.Fatalf("setup attempt %d failed: %v", i+1, err)
 		}
@@ -175,8 +160,7 @@ func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
 
 	rateRepo.setWindow(time.Now().Add(-2*time.Hour), 3)
 
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	expectAdminTx(mock)
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	if err != nil {
 		t.Fatalf("expected request after window reset to succeed, got error: %v", err)
@@ -190,11 +174,8 @@ func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
 	}
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestInitiatePasswordReset_IncrementsCounter(t *testing.T) {
+	t.Parallel()
 	service, _, _, rateRepo, _, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 5},
 		Email: "user@example.com",
@@ -203,8 +184,7 @@ func TestInitiatePasswordReset_IncrementsCounter(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 1; i <= 2; i++ {
-		mock.ExpectBegin()
-		mock.ExpectCommit()
+		expectAdminTx(mock)
 		if _, err := service.InitiatePasswordReset(ctx, "user@example.com"); err != nil {
 			t.Fatalf("attempt %d failed: %v", i, err)
 		}

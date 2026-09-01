@@ -7,25 +7,41 @@ import (
 )
 
 type Violation struct {
-	Scope  Scope
-	Rule   string
-	Source string
-	Target string
-	Detail string
+	Scope     Scope      `json:"scope"`
+	Rule      string     `json:"rule"`
+	Source    string     `json:"source"`
+	Target    string     `json:"target"`
+	Detail    string     `json:"-"`
+	Locations []Location `json:"-"`
+}
+
+// Location identifies one source declaration that causes a violation.
+type Location struct {
+	File        string `json:"file"`
+	Line        int    `json:"line"`
+	Declaration string `json:"declaration"`
 }
 
 func (v Violation) Key() string {
 	return fmt.Sprintf("%s|%s|%s|%s", v.Scope, v.Rule, v.Source, v.Target)
 }
 
+func violationTargetsPackage(rule string) bool {
+	return strings.HasPrefix(rule, "packages.") ||
+		strings.HasPrefix(rule, "external.") ||
+		strings.HasPrefix(rule, "imports.") ||
+		rule == "policy.rules-overlap"
+}
+
 func Check(policy *Policy, graph *Graph) []Violation {
 	packages := policy.packageMap()
 	externalPackages := policy.externalPackageMap()
-	violations := packageClassificationViolations(packages, graph.Packages)
+	violations := packageClassificationViolations(packages, graph.Packages, graph.PackageLocations)
 	violations = append(violations, graph.SemanticViolations...)
 	usedExternalPackages := make(map[string]struct{}, len(externalPackages))
 	for _, edge := range graph.Edges {
 		if violation := checkEdge(policy, packages, externalPackages, usedExternalPackages, edge); violation != nil {
+			violation.Locations = append(violation.Locations, graph.ImportLocations[edge]...)
 			violations = append(violations, *violation)
 		}
 	}
@@ -38,15 +54,44 @@ func uniqueSortedViolations(violations []Violation) []Violation {
 	for _, violation := range violations {
 		key := violation.Key()
 		previous, exists := byKey[key]
-		if !exists || violation.Detail < previous.Detail {
+		if !exists {
 			byKey[key] = violation
+			continue
 		}
+		previous.Locations = append(previous.Locations, violation.Locations...)
+		if violation.Detail < previous.Detail {
+			previous.Detail = violation.Detail
+		}
+		byKey[key] = previous
 	}
 	result := make([]Violation, 0, len(byKey))
 	for _, violation := range byKey {
+		violation.Locations = uniqueSortedLocations(violation.Locations)
 		result = append(result, violation)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Key() < result[j].Key() })
+	return result
+}
+
+func uniqueSortedLocations(locations []Location) []Location {
+	byKey := make(map[string]Location, len(locations))
+	for _, location := range locations {
+		key := fmt.Sprintf("%s\x00%d\x00%s", location.File, location.Line, location.Declaration)
+		byKey[key] = location
+	}
+	result := make([]Location, 0, len(byKey))
+	for _, location := range byKey {
+		result = append(result, location)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].File != result[j].File {
+			return result[i].File < result[j].File
+		}
+		if result[i].Line != result[j].Line {
+			return result[i].Line < result[j].Line
+		}
+		return result[i].Declaration < result[j].Declaration
+	})
 	return result
 }
 
@@ -66,13 +111,16 @@ func (p *Policy) externalPackageMap() map[string]ExternalPackage {
 	return packages
 }
 
-func packageClassificationViolations(policyPackages map[string]Package, graphPackages []string) []Violation {
+func packageClassificationViolations(policyPackages map[string]Package, graphPackages []string, locations map[string][]Location) []Violation {
 	graphSet := make(map[string]struct{}, len(graphPackages))
 	var violations []Violation
 	for _, path := range graphPackages {
 		graphSet[path] = struct{}{}
 		if _, ok := policyPackages[path]; !ok {
-			violations = append(violations, Violation{Scope: ScopeProduction, Rule: "packages.unclassified", Source: path, Target: path, Detail: "first-party package has no owner or role"})
+			violations = append(violations, Violation{
+				Scope: ScopeProduction, Rule: "packages.unclassified", Source: path, Target: path,
+				Detail: "first-party package has no owner or role", Locations: locations[path],
+			})
 		}
 	}
 	for path := range policyPackages {
@@ -177,9 +225,17 @@ func FormatViolations(violations []Violation) error {
 	}
 	lines := make([]string, 0, len(violations))
 	for _, violation := range violations {
-		lines = append(lines, violation.Key()+" -- "+violation.Detail)
+		lines = appendViolationLines(lines, "", violation)
 	}
 	return fmt.Errorf("architecture check failed with %d violation(s):\n%s", len(violations), strings.Join(lines, "\n"))
+}
+
+func appendViolationLines(lines []string, indent string, violation Violation) []string {
+	lines = append(lines, indent+violation.Key()+" -- "+violation.Detail)
+	for _, location := range violation.Locations {
+		lines = append(lines, fmt.Sprintf("%s  at %s:%d (%s)", indent, location.File, location.Line, location.Declaration))
+	}
+	return lines
 }
 
 func (p *Policy) absolutePackage(path string) string {

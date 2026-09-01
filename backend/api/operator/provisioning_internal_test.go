@@ -25,7 +25,6 @@ import (
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -308,6 +307,27 @@ func newMockAdminDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	return bun.NewDB(sqlDB, pgdialect.New()), mock
 }
 
+func withMockAdminRuntime(t *testing.T, req *http.Request, db *bun.DB) *http.Request {
+	t.Helper()
+	runtime, err := tenant.NewUnitOfWork(
+		func(context.Context, int64, func(context.Context, any) error) error {
+			return errors.New("tenant transaction is not available in this operator test")
+		},
+		func(ctx context.Context, fn func(context.Context, any) error) error {
+			return db.RunInTx(ctx, nil, func(txCtx context.Context, tx bun.Tx) error {
+				if _, execErr := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); execErr != nil {
+					return execErr
+				}
+				return fn(tenant.WithTransactionForTest(txCtx, &tx), tx)
+			})
+		},
+		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
+	)
+	require.NoError(t, err)
+	return req.WithContext(tenant.WithUnitOfWork(req.Context(), runtime))
+}
+
 func (m *mockCaregiverCapabilityService) EnableCaregiverCapability(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
 	if m.enableFn != nil {
 		return m.enableFn(ctx, accountID, input)
@@ -475,8 +495,8 @@ func TestProvisioningResource_ListSchools_Error(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
+	t.Parallel()
 	expiresAt := time.Now().Add(time.Hour).UTC()
 	first := "Ada"
 	last := "Lovelace"
@@ -512,10 +532,7 @@ func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
 			}, nil
 		},
 	})
-
-	prevEnv := viper.GetString("app_env")
-	viper.Set("app_env", "development")
-	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
+	resource.appEnv = "development"
 
 	req := httptest.NewRequest(http.MethodPost, "http://localhost/operator/schools/12/invite-admin", bytes.NewBufferString(`{"email":" PRINCIPAL@example.com ","first_name":" Ada ","last_name":" Lovelace ","position":" Principal ","caregiver_enabled":true}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -574,12 +591,10 @@ func TestProvisioningResource_InviteSchoolAdmin_ServiceValidationError(t *testin
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestProvisioningHelpers(t *testing.T) {
+	t.Parallel()
 	errText := "boom"
 	now := time.Now()
-	prevEnv := viper.GetString("app_env")
-	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
 
 	assert.Equal(t, int64(0), operatorInvitationCreatedByValue(nil))
 	assert.Equal(t, int64(9), operatorInvitationCreatedByValue(ptrInt64(9)))
@@ -587,22 +602,17 @@ func TestProvisioningHelpers(t *testing.T) {
 	assert.Equal(t, "failed", operatorInvitationDeliveryStatus(nil, &errText))
 	assert.Equal(t, "sent", operatorInvitationDeliveryStatus(&now, &errText))
 
-	viper.Set("app_env", "development")
 	req := httptest.NewRequest(http.MethodPost, "http://localhost/", nil)
-	assert.False(t, shouldExposeSeedInvitationToken(req))
+	assert.False(t, shouldExposeSeedInvitationToken(req, "development"))
 	req.Header.Set(seedtoken.Header, "true")
-	assert.True(t, shouldExposeSeedInvitationToken(req))
-	viper.Set("app_env", "production")
-	assert.False(t, shouldExposeSeedInvitationToken(req))
-	viper.Set("app_env", "staging")
-	assert.False(t, shouldExposeSeedInvitationToken(req))
-	viper.Set("app_env", "developement")
-	assert.False(t, shouldExposeSeedInvitationToken(req))
+	assert.True(t, shouldExposeSeedInvitationToken(req, "development"))
+	assert.False(t, shouldExposeSeedInvitationToken(req, "production"))
+	assert.False(t, shouldExposeSeedInvitationToken(req, "staging"))
+	assert.False(t, shouldExposeSeedInvitationToken(req, "developement"))
 
-	viper.Set("app_env", "development")
 	publicReq := httptest.NewRequest(http.MethodPost, "https://api-staging.moto-app.de/", nil)
 	publicReq.Header.Set(seedtoken.Header, "true")
-	assert.False(t, shouldExposeSeedInvitationToken(publicReq))
+	assert.False(t, shouldExposeSeedInvitationToken(publicReq, "development"))
 }
 
 func TestProvisioningErrorRenderer_NotFoundAndFallbacks(t *testing.T) {
@@ -2657,6 +2667,7 @@ func TestProvisioningResource_GetSchoolAccountCaregiverCapability(t *testing.T) 
 	routeCtx.URLParams.Add("id", "12")
 	routeCtx.URLParams.Add("accountId", "34")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withMockAdminRuntime(t, req, db)
 	rr := httptest.NewRecorder()
 
 	resource.GetSchoolAccountCaregiverCapability(rr, req)
@@ -2677,7 +2688,7 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.
 			enableFn: func(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
 				assert.Equal(t, int64(12), tenant.FromContext(ctx))
 				assert.Equal(t, int64(34), accountID)
-				tx, ok := modelBase.TxFromContext(ctx)
+				tx, ok := tenant.TransactionFromContext(ctx)
 				require.True(t, ok)
 				require.NotNil(t, tx)
 				assert.Equal(t, userModels.EnableCaregiverCapabilityInput{
@@ -2697,6 +2708,7 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.
 	routeCtx.URLParams.Add("id", "12")
 	routeCtx.URLParams.Add("accountId", "34")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withMockAdminRuntime(t, req, db)
 	rr := httptest.NewRecorder()
 
 	resource.EnableSchoolAccountCaregiverCapability(rr, req)
@@ -2742,7 +2754,7 @@ func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing
 			disableFn: func(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
 				assert.Equal(t, int64(12), tenant.FromContext(ctx))
 				assert.Equal(t, int64(34), accountID)
-				tx, ok := modelBase.TxFromContext(ctx)
+				tx, ok := tenant.TransactionFromContext(ctx)
 				require.True(t, ok)
 				require.NotNil(t, tx)
 				return nil, &usersSvc.CaregiverCapabilityBlockedError{
@@ -2760,6 +2772,7 @@ func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing
 	routeCtx.URLParams.Add("id", "12")
 	routeCtx.URLParams.Add("accountId", "34")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withMockAdminRuntime(t, req, db)
 	rr := httptest.NewRecorder()
 
 	resource.DisableSchoolAccountCaregiverCapability(rr, req)

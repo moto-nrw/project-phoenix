@@ -8,10 +8,13 @@ import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
+import { RequestSharingSelector } from "~/components/parent/request-sharing-control";
+import { useRequestVersion } from "~/components/parent/request-edit-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import {
   getChildOfferingCatalog,
   ParentApiError,
+  updateOfferingChangeRequest,
   type OfferingCatalog,
   type OfferingCatalogItem,
   type OfferingChangeSelectionInput,
@@ -98,16 +101,31 @@ export function OfferingChangeRequestModal({
   childName,
   onClose,
   onSubmit,
+  onEdited,
+  editRequestId,
+  reasonRequired = true,
 }: Readonly<{
   studentId: string;
   childName?: string;
   onClose: () => void;
-  onSubmit: (input: {
-    offerings: OfferingChangeSelectionInput[];
-    effective_from: string;
-    note?: string;
-    complete_withdrawal_confirmed?: boolean;
-  }) => Promise<void>;
+  onSubmit?: (
+    input: {
+      offerings: OfferingChangeSelectionInput[];
+      effective_from: string;
+      note?: string;
+      complete_withdrawal_confirmed?: boolean;
+    },
+    recipientGuardianProfileIds: string[],
+  ) => Promise<void | string>;
+  /** Nach dem Ändern einer offenen Anfrage: die Ansicht neu laden. */
+  onEdited?: () => void;
+  /**
+   * Gesetzt, wenn eine noch offene Anfrage geändert wird. Die Auswahl ersetzt
+   * dann die bisherige Anfrage, statt eine neue zu senden.
+   */
+  editRequestId?: string;
+  /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
+  reasonRequired?: boolean;
 }>) {
   const t = useTranslations("parentMasterData");
   const locale = useLocale();
@@ -118,10 +136,17 @@ export function OfferingChangeRequestModal({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recipientIds, setRecipientIds] = useState<string[]>([]);
   const [confirmCompleteWithdrawal, setConfirmCompleteWithdrawal] =
     useState(false);
   const editedOfferingIDs = useRef(new Set<string>());
   const catalogRequestID = useRef(0);
+  const { version, editedAt } = useRequestVersion(
+    studentId,
+    "offering",
+    editRequestId ?? "",
+    editRequestId !== undefined,
+  );
 
   const load = useCallback(async () => {
     const requestID = ++catalogRequestID.current;
@@ -233,17 +258,40 @@ export function OfferingChangeRequestModal({
         selected_days: item.days_of_week_mode === "parent_choice" ? days : [],
       });
     }
+    if (reasonRequired && note.trim() === "") {
+      setError(t("careOfferingsModal.noteRequired"));
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit({
-        offerings,
-        effective_from: effectiveFrom,
-        note: note.trim() === "" ? undefined : note.trim(),
-        ...(completeWithdrawalConfirmed
-          ? { complete_withdrawal_confirmed: true }
-          : {}),
-      });
+      if (editRequestId) {
+        // Gleiche Form wie beim Anlegen: dieselbe Auswahl, nur an eine
+        // bestehende Anfrage geschickt.
+        await updateOfferingChangeRequest(studentId, editRequestId, {
+          offerings,
+          effective_from: effectiveFrom,
+          note: note.trim() === "" ? undefined : note.trim(),
+          ...(completeWithdrawalConfirmed
+            ? { complete_withdrawal_confirmed: true }
+            : {}),
+          expectedVersion: version,
+        });
+        onEdited?.();
+        onClose();
+        return;
+      }
+      await onSubmit?.(
+        {
+          offerings,
+          effective_from: effectiveFrom,
+          note: note.trim() === "" ? undefined : note.trim(),
+          ...(completeWithdrawalConfirmed
+            ? { complete_withdrawal_confirmed: true }
+            : {}),
+        },
+        recipientIds,
+      );
       onClose();
     } catch (err) {
       if (
@@ -254,9 +302,11 @@ export function OfferingChangeRequestModal({
         return;
       }
       setError(
-        err instanceof Error
-          ? err.message
-          : t("careOfferingsModal.submitError"),
+        err instanceof ParentApiError && err.code === "change_request_stale"
+          ? t("careOfferingsModal.staleError")
+          : err instanceof Error
+            ? err.message
+            : t("careOfferingsModal.submitError"),
       );
     } finally {
       setSubmitting(false);
@@ -264,191 +314,222 @@ export function OfferingChangeRequestModal({
   };
 
   return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={t("careOfferingsModal.title")}
-      mobileSheet
-      footer={
-        <>
-          <Button
-            type="button"
-            variant="surface"
-            size="md"
-            className="hidden sm:inline-flex"
-            onClick={onClose}
-          >
-            {t("careOfferingsModal.cancel")}
-          </Button>
-          <Button
-            type="button"
-            size="md"
-            className="w-full gap-2 sm:w-auto"
-            onClick={() => void handleSubmit()}
-            disabled={submitting || loading || !catalog || emptyCatalog}
-          >
-            {submitting && (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            )}
-            {t("careOfferingsModal.submit")}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">
-          {t("careOfferingsModal.intro")}
-        </p>
-
-        {loading && (
-          <div className="space-y-2">
-            <div className="h-16 animate-pulse rounded-xl bg-gray-100" />
-            <div className="h-16 animate-pulse rounded-xl bg-gray-100" />
-          </div>
-        )}
-
-        {!loading && emptyCatalog && (
-          <Alert type="info" message={t("careOfferingsModal.noOfferings")} />
-        )}
-
-        {!loading && catalog && !emptyCatalog && (
+    <>
+      <Modal
+        // Ausgeblendet, solange die Abmelde-Bestätigung offen ist — nie zwei
+        // eigenständige Dialoge übereinander (#2774).
+        isOpen={!confirmCompleteWithdrawal}
+        onClose={onClose}
+        title={
+          editRequestId
+            ? t("careOfferingsModal.editTitle")
+            : t("careOfferingsModal.title")
+        }
+        mobileSheet
+        footer={
           <>
-            <div className="space-y-3">
-              {items.map((item) => {
-                const row = draft[item.id];
-                const selected = row?.selected ?? false;
-                const full =
-                  item.free_slots !== undefined &&
-                  item.free_slots <= 0 &&
-                  !item.selected;
-                const unavailable = item.is_active === false && !item.selected;
-                return (
-                  <div
-                    key={item.id}
-                    className="rounded-xl border border-gray-200 p-3"
-                  >
-                    <label className="flex cursor-pointer items-start gap-3">
-                      <Checkbox
-                        checked={selected}
-                        disabled={
-                          full ||
-                          unavailable ||
-                          item.automatic ||
-                          (item.is_required && selected)
-                        }
-                        onChange={() => toggleOffering(item)}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-900">
-                            {item.name}
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              className="hidden sm:inline-flex"
+              onClick={onClose}
+            >
+              {t("careOfferingsModal.cancel")}
+            </Button>
+            <Button
+              type="button"
+              size="md"
+              className="w-full gap-2 max-sm:min-h-11 sm:w-auto"
+              onClick={() => void handleSubmit()}
+              disabled={submitting || loading || !catalog || emptyCatalog}
+            >
+              {submitting && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              {editRequestId
+                ? t("careOfferingsModal.saveEdit")
+                : t("careOfferingsModal.submit")}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-gray-600">
+            {editRequestId
+              ? t("careOfferingsModal.editIntro")
+              : t("careOfferingsModal.intro")}
+          </p>
+          {editedAt && (
+            <p className="text-sm text-gray-600">
+              {t("careOfferingsModal.editedAt", {
+                date: formatDate(editedAt, false, locale),
+              })}
+            </p>
+          )}
+
+          {loading && (
+            <div className="space-y-2">
+              <div className="h-16 animate-pulse rounded-xl bg-gray-100" />
+              <div className="h-16 animate-pulse rounded-xl bg-gray-100" />
+            </div>
+          )}
+
+          {!loading && emptyCatalog && (
+            <Alert type="info" message={t("careOfferingsModal.noOfferings")} />
+          )}
+
+          {!loading && catalog && !emptyCatalog && (
+            <>
+              <div className="space-y-3">
+                {items.map((item) => {
+                  const row = draft[item.id];
+                  const selected = row?.selected ?? false;
+                  const full =
+                    item.free_slots !== undefined &&
+                    item.free_slots <= 0 &&
+                    !item.selected;
+                  const unavailable =
+                    item.is_active === false && !item.selected;
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-gray-200 p-3"
+                    >
+                      <label className="flex cursor-pointer items-start gap-3">
+                        <Checkbox
+                          checked={selected}
+                          disabled={
+                            full ||
+                            unavailable ||
+                            item.automatic ||
+                            (item.is_required && selected)
+                          }
+                          onChange={() => toggleOffering(item)}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-900">
+                              {item.name}
+                            </span>
+                            {item.is_required && (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                {t("careOfferingsModal.requiredBadge")}
+                              </span>
+                            )}
+                            {full && (
+                              <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-xs font-medium text-[#CC2626]">
+                                {t("careOfferingsModal.fullBadge")}
+                              </span>
+                            )}
+                            {!full && item.free_slots !== undefined && (
+                              <span className="text-xs text-gray-500">
+                                {t("careOfferingsModal.freeSlots", {
+                                  count: item.free_slots,
+                                })}
+                              </span>
+                            )}
                           </span>
-                          {item.is_required && (
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                              {t("careOfferingsModal.requiredBadge")}
-                            </span>
-                          )}
-                          {full && (
-                            <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-xs font-medium text-[#CC2626]">
-                              {t("careOfferingsModal.fullBadge")}
-                            </span>
-                          )}
-                          {!full && item.free_slots !== undefined && (
-                            <span className="text-xs text-gray-500">
-                              {t("careOfferingsModal.freeSlots", {
-                                count: item.free_slots,
-                              })}
+                          {item.description && (
+                            <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+                              {item.description}
                             </span>
                           )}
                         </span>
-                        {item.description && (
-                          <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                            {item.description}
-                          </span>
+                      </label>
+
+                      {selected &&
+                        item.days_of_week_mode === "parent_choice" && (
+                          <div className="mt-3 pl-8">
+                            <p className="mb-1.5 text-xs font-medium text-gray-500">
+                              {t("careOfferingsModal.daysLabel")}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {DAY_ORDER.filter((day) =>
+                                item.available_days.includes(day),
+                              ).map((day) => (
+                                <label
+                                  key={day}
+                                  className={`flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 ${item.automatic ? "cursor-not-allowed" : "cursor-pointer"}`}
+                                >
+                                  <Checkbox
+                                    checked={row?.days.has(day) ?? false}
+                                    disabled={item.automatic}
+                                    onChange={() => toggleDay(item.id, day)}
+                                  />
+                                  <span className="text-sm text-gray-700">
+                                    {weekdayLabel(day)}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                      </span>
-                    </label>
 
-                    {selected && item.days_of_week_mode === "parent_choice" && (
-                      <div className="mt-3 pl-8">
-                        <p className="mb-1.5 text-xs font-medium text-gray-500">
-                          {t("careOfferingsModal.daysLabel")}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {DAY_ORDER.filter((day) =>
-                            item.available_days.includes(day),
-                          ).map((day) => (
-                            <label
-                              key={day}
-                              className={`flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 ${item.automatic ? "cursor-not-allowed" : "cursor-pointer"}`}
-                            >
-                              <Checkbox
-                                checked={row?.days.has(day) ?? false}
-                                disabled={item.automatic}
-                                onChange={() => toggleDay(item.id, day)}
-                              />
-                              <span className="text-sm text-gray-700">
-                                {weekdayLabel(day)}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {selected && item.days_of_week_mode !== "parent_choice" && (
-                      <p className="mt-2 pl-8 text-xs text-gray-500">
-                        {t("careOfferingsModal.fixedDays", {
-                          days: item.available_days
-                            .map(weekdayLabel)
-                            .join(", "),
-                        })}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div>
-              <ISODatePicker
-                label={t("careOfferingsModal.effectiveFromLabel")}
-                value={effectiveFrom}
-                min={catalog.earliest_effective_from}
-                max={catalog.latest_effective_from}
-                required
-                disabled={loading}
-                onChange={(date) => void loadForEffectiveDate(date)}
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                {t("careOfferingsModal.effectiveFromHint", {
-                  date: formatDate(
-                    catalog.earliest_effective_from,
-                    false,
-                    locale,
-                  ),
+                      {selected &&
+                        item.days_of_week_mode !== "parent_choice" && (
+                          <p className="mt-2 pl-8 text-xs text-gray-500">
+                            {t("careOfferingsModal.fixedDays", {
+                              days: item.available_days
+                                .map(weekdayLabel)
+                                .join(", "),
+                            })}
+                          </p>
+                        )}
+                    </div>
+                  );
                 })}
-              </p>
-            </div>
+              </div>
 
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("careOfferingsModal.noteLabel")}
-              </span>
-              <textarea
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                rows={3}
-                maxLength={2000}
-                placeholder={t("careOfferingsModal.notePlaceholder")}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-              />
-            </label>
-          </>
-        )}
+              <div>
+                <ISODatePicker
+                  label={t("careOfferingsModal.effectiveFromLabel")}
+                  value={effectiveFrom}
+                  min={catalog.earliest_effective_from}
+                  max={catalog.latest_effective_from}
+                  required
+                  disabled={loading}
+                  onChange={(date) => void loadForEffectiveDate(date)}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {t("careOfferingsModal.effectiveFromHint", {
+                    date: formatDate(
+                      catalog.earliest_effective_from,
+                      false,
+                      locale,
+                    ),
+                  })}
+                </p>
+              </div>
 
-        {error && <Alert type="error" message={error} />}
-      </div>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  {t("careOfferingsModal.noteLabel")}
+                  {reasonRequired && <span aria-hidden="true"> *</span>}
+                </span>
+                <textarea
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  required={reasonRequired}
+                  placeholder={t("careOfferingsModal.notePlaceholder")}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                />
+              </label>
+              {!editRequestId && (
+                <RequestSharingSelector
+                  studentId={studentId}
+                  selected={recipientIds}
+                  onChange={setRecipientIds}
+                />
+              )}
+            </>
+          )}
+
+          {error && <Alert type="error" message={error} />}
+        </div>
+      </Modal>
       <ConfirmationModal
         mobileSheet
         isOpen={confirmCompleteWithdrawal}
@@ -468,6 +549,6 @@ export function OfferingChangeRequestModal({
           })}
         </p>
       </ConfirmationModal>
-    </Modal>
+    </>
   );
 }

@@ -27,7 +27,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -37,7 +37,7 @@ import (
 // offsetWeeks additional weeks. The split validates effective_date >= today,
 // so all split tests anchor on future dates.
 func futureMonday(offsetWeeks int) timezone.Date {
-	d := timezone.TodayDate().AddDays(1)
+	d := timezone.NewDate(2026, 8, 24).AddDays(1)
 	for d.Weekday() != time.Monday {
 		d = d.AddDays(1)
 	}
@@ -269,7 +269,7 @@ func createLinkedCareOffering(
 		AutoAddGradeLevels: []int{},
 	}
 	var created *enrollmentModels.CareOffering
-	require.NoError(t, tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var createErr error
 		created, createErr = s.factory.EnrollmentCareOffering.Create(txCtx, offering)
 		return createErr
@@ -1058,7 +1058,7 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 	suffix := time.Now().UnixNano()
 
 	t.Run("past effective_date", func(t *testing.T) {
-		in := baseSplitInput(s, timezone.TodayDate().AddDays(-1), fmt.Sprintf("Split-Vergangen-%d", suffix))
+		in := baseSplitInput(s, timezone.NewDate(2026, 8, 24).AddDays(-1), fmt.Sprintf("Split-Vergangen-%d", suffix))
 		_, err := s.factory.TemplateSplit.Split(s.ctx, in)
 		require.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
 	})
@@ -1715,7 +1715,7 @@ func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T)
 	defer release()
 
 	go func() {
-		endDone <- tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		endDone <- testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			_, err := s.factory.TemplateSplit.EndFromDate(txCtx, scheduleSvc.TemplateEndInput{
 				TemplateID:    s.template.ID,
 				EffectiveDate: effective,
@@ -1802,7 +1802,7 @@ func TestTemplateEnd_ConcurrentMaterializationCannotInsertPastCommittedCap(t *te
 	defer release()
 
 	go func() {
-		endDone <- tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		endDone <- testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			_, err := s.factory.TemplateSplit.EndFromDate(txCtx, scheduleSvc.TemplateEndInput{
 				TemplateID:    s.template.ID,
 				EffectiveDate: effective,
@@ -1891,7 +1891,7 @@ func TestTemplateArchive_ConcurrentMaterializationCannotInsertStaleOccurrence(t 
 	defer release()
 
 	go func() {
-		archiveDone <- tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		archiveDone <- testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			archived, err := s.factory.TimetableData.ArchiveTemplate(txCtx, s.template.ID)
 			if err != nil {
 				return err

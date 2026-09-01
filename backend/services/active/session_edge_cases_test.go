@@ -18,7 +18,7 @@ import (
 // buildSessionEdgeCaseService creates an Active Service for edge case tests
 func buildSessionEdgeCaseService(t *testing.T, db *bun.DB) activeSvc.Service {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }

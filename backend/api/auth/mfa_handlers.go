@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -376,5 +375,5 @@ func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Requ
 // parseClientIP wraps getClientIP and parses the result as net.IP. Returns
 // nil when the header value is empty or unparseable.
 func parseClientIP(r *http.Request) net.IP {
-	return clientip.ParseClientIP(r)
+	return common.ParseClientIP(r)
 }

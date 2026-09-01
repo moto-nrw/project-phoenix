@@ -14,7 +14,12 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  hasRole,
+  isCaregiver,
+} from "~/lib/auth-utils";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -28,6 +33,7 @@ import {
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { getSettingValue } from "~/lib/settings-api";
 import {
@@ -162,6 +168,16 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
 ];
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
+  {
+    // Tagesplan (#2383): die Standardseite der Betreuungskräfte, deshalb der
+    // erste Tab. Gating (binary-Modus, timetable.enabled) unten in
+    // filteredMainItemsByMode.
+    href: "/tagesplan",
+    label: "Tagesplan",
+    iconKey: "betreuungsplan",
+    concept: "carePlan",
+    alwaysShow: true,
+  },
   {
     href: "/ogs-groups",
     label: "Gruppe",
@@ -324,6 +340,13 @@ const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
 
 const additionalNavItems: AdditionalNavItem[] = [
   {
+    href: "/ogs-groups",
+    label: "Gruppe",
+    iconKey: "group",
+    concept: "groups",
+    alwaysShow: true,
+  },
+  {
     href: "/activities",
     label: "Aktivitäten",
     iconKey: "activities",
@@ -346,6 +369,16 @@ const additionalNavItems: AdditionalNavItem[] = [
     label: "Team-Chat",
     iconKey: "chat",
     concept: "messages",
+  },
+  {
+    // Tagesinformationen (#2180): Hinweise der Leitung an das Team. Auf
+    // kleinen Bildschirmen der einzige Zugang, wie beim Team-Chat. Wie die
+    // Route /today ist der Eintrag an users:read gebunden.
+    href: "/tagesinformationen",
+    label: "Tagesinformationen",
+    iconKey: "newspaper",
+    concept: "announcements",
+    requiresPermission: "users:read",
   },
   {
     // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
@@ -372,13 +405,11 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
-    // Alt-Bereich für temporären Gruppen-Datenzugriff (#1940) — nur bei
-    // festen Gruppen sichtbar (Filter unten).
+    // Gemeinsame Übersicht für alle drei Vertretungsvorgänge.
     href: "/substitutions",
-    label: "Gruppenzugriff",
+    label: "Vertretungen",
     iconKey: "substitutions",
     concept: "groupAccess",
-    requiresAdmin: true,
   },
   // Planning is flattened in the mobile drawer. The shared catalog omits the
   // desktop-only calendar-period editor and supplies all legacy active paths.
@@ -451,6 +482,19 @@ const additionalNavItems: AdditionalNavItem[] = [
 ];
 
 const NFC_ONLY_HREFS = new Set<string>(["/activities"]);
+
+// Nav-Einträge, die im binären Anwesenheitsmodus verborgen bleiben (#2915).
+// Gleiche fachliche Regel wie die Desktop-Sidebar (dortiges
+// BINARY_HIDDEN_HREFS plus das separat gegatete Aufsicht-Accordion): Räume,
+// Aktivitäten und Aufsicht sind Raum-/Besuchs-Konzepte ohne Bedeutung, wenn
+// eine Schule nur in der Schule / nicht in der Schule erfasst. Die Seiten
+// sperrt der BinaryModeGuard — ein Nav-Eintrag dorthin endet auf einer
+// 404-Seite.
+const BINARY_HIDDEN_HREFS = new Set<string>([
+  "/rooms",
+  "/activities",
+  "/active-supervisions",
+]);
 
 interface MobileBottomNavProps {
   readonly className?: string;
@@ -576,7 +620,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       ? resolvedOperatorMainItems
       : isCaregiver(session)
         ? STAFF_MAIN_ITEMS
-        : hasRole(session, "admin")
+        : hasEffectiveAdminScope(session)
           ? ADMIN_MAIN_ITEMS
           : STAFF_MAIN_ITEMS;
   // Callers covered by the school-wide overview (#2380): inject the
@@ -608,16 +652,21 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Pre-compute permission flags to reduce complexity in filter
   const userIsAdmin = hasRole(session, "admin");
+  const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
+  const isBinaryMode = presenceMode === "binary";
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
-  // Gruppenzugriff (#1940) ist nur bei festen Gruppen sinnvoll.
+  // Gruppenübergaben (#1940) sind nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
   const staffMessagingEnabled = useStaffMessagingEnabled();
+  // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
+  // damit es auch ohne config:read aufgelöst ist.
+  const tagesplanEnabled = useTimetableEnabled();
   // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches
   // settingsSchema-Lesemuster wie die Desktop-Sidebar; `!== false`, damit die
   // Einträge während des Schema-Ladens nicht kurz verschwinden. Das Ergebnis
@@ -638,20 +687,46 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const filteredMainItemsByMode = filteredMainItems.filter(
     (item) =>
       (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
+      // Binärer Anwesenheitsmodus (#2915): dieselbe Sichtbarkeitsregel wie in
+      // der Desktop-Sidebar.
+      !(isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) &&
+      (item.href !== "/ogs-groups" ||
+        userIsCaregiver ||
+        userHasEffectiveAdminScope) &&
       // Bei offener Betreuung gibt es keine "meine Gruppe" — der
       // gruppenbasierte Einstieg entfällt (#1544).
-      !(openCareGroupMode && item.href === "/ogs-groups"),
+      !(openCareGroupMode && item.href === "/ogs-groups") &&
+      // Tagesplan (#2383): nur im detaillierten Modus, nur an Schulen mit
+      // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne
+      // config:read) und nur mit schedules:read — das Gate der Route
+      // (/timetable/operations/planned-now), sonst wäre der Tab ein 403.
+      !(
+        item.href === "/tagesplan" &&
+        (presenceMode === "binary" ||
+          !tagesplanEnabled ||
+          !hasPermission(session, "schedules:read"))
+      ),
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
     // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
     // change-request-access.
     if (item.href === "/anfragen") return canOpenRequestsPage(session);
+    if (
+      item.href === "/ogs-groups" &&
+      !userIsCaregiver &&
+      !userHasEffectiveAdminScope
+    ) {
+      return false;
+    }
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
+    // Binärer Anwesenheitsmodus (#2915): auch im Mehr-Menü kein Link auf eine
+    // Seite, die der BinaryModeGuard sperrt.
+    if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
     if (
       isPlanningPageHref(item.href) &&
       item.href !== "/calendar-periods" &&
@@ -662,7 +737,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       // Betreuungsplan-Leseansicht verschwindet mit timetable.enabled.
       return false;
     }
-    if (item.href === "/substitutions" && openCareGroupMode) return false;
     // Team-Chat (#2598) ist Opt-in und faellt fail-closed: ohne eingeschalteten
     // Schalter taucht der Eintrag gar nicht erst auf, genau wie in der
     // Seitenleiste.
@@ -797,6 +871,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     item.href === "/eltern" ||
                     item.href === "/anfragen" ||
                     item.href === "/team-chat" ||
+                    item.href === "/tagesinformationen" ||
                     isPlanningPageHref(item.href)
                       ? tenantPath(item.href)
                       : item.href;

@@ -2,6 +2,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -21,13 +23,14 @@ import (
 // selector to the guardian accounts it reaches.
 type ParentAnnouncementRepository struct {
 	*base.Repository[*users.ParentAnnouncement]
+	today func() timezone.Date
 }
 
 // NewParentAnnouncementRepository wires a fresh repository.
-func NewParentAnnouncementRepository(db *bun.DB) users.ParentAnnouncementRepository {
+func NewParentAnnouncementRepository(db *bun.DB, clocks ...func() time.Time) users.ParentAnnouncementRepository {
 	repo := base.NewRepository[*users.ParentAnnouncement](db, "users.parent_announcements", "ParentAnnouncement")
 	repo.TenantScoped = true
-	return &ParentAnnouncementRepository{Repository: repo}
+	return &ParentAnnouncementRepository{Repository: repo, today: timezone.CalendarDateClock(clocks...)}
 }
 
 // pendingEnrollmentStatuses are the request-child states that count as an "open
@@ -67,8 +70,8 @@ func pendingStatusList() string {
 // the feed). The Berlin date is rendered from validated integer fields, so
 // inlining it as a literal is injection-safe and — like pendingStatusList — keeps
 // the runtime `?` args limited to the ids, preserving their positional order.
-func activeActivityGroupExists(tenantExpr string) string {
-	today := "'" + timezone.TodayDate().String() + "'"
+func activeActivityGroupExists(tenantExpr string, date timezone.Date) string {
+	today := "'" + date.String() + "'"
 	return fmt.Sprintf(`(pt.target_type = 'activity_group' AND EXISTS (
 						SELECT 1 FROM activities.student_enrollments se
 						WHERE se.student_id = s.id AND se.tenant_id = %[1]s
@@ -103,7 +106,7 @@ func activeActivityGroupExists(tenantExpr string) string {
 // Without the fallback an applicant whose submission was never stamped (e.g. a
 // silently-failed invite-accept backfill) sees the school in the feed's tenant
 // set yet no announcement, while staff stats/e-mail counted them symmetrically.
-func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
+func reachedPredicate(annExpr, tenantExpr, accPlace string, today timezone.Date) string {
 	return fmt.Sprintf(`(
 		EXISTS (
 			SELECT 1
@@ -149,12 +152,38 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 			WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s
 				AND pt.target_type = 'pending_enrollment'
 		)
-	)`, annExpr, tenantExpr, accPlace, pendingStatusList(), activeActivityGroupExists(tenantExpr))
+	)`, annExpr, tenantExpr, accPlace, pendingStatusList(), activeActivityGroupExists(tenantExpr, today))
 }
 
 // FindByID returns the announcement by id (tenant-scoped), or nil when absent.
 func (r *ParentAnnouncementRepository) FindByID(ctx context.Context, id int64) (*users.ParentAnnouncement, error) {
 	return r.FindByIDOrNil(ctx, id)
+}
+
+// FindByIDForUpdate returns the announcement by id (tenant-scoped) while
+// holding its row lock until the transaction ends, or nil when absent.
+//
+// Der Anhang-Upload (#2890) prüft „noch ein Entwurf" und „noch unter der
+// Grenze" und schreibt danach. Ohne diese Sperre laufen zwei gleichzeitige
+// Uploads beide durch die Prüfung, und ein Upload kann eine Veröffentlichung
+// überholen, die zwischen Prüfung und INSERT committet.
+func (r *ParentAnnouncementRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.ParentAnnouncement, error) {
+	a := new(users.ParentAnnouncement)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(a).
+		ModelTableExpr(`users.parent_announcements AS "parent_announcement"`).
+		Where(`"parent_announcement".id = ?`, id).
+		For("UPDATE")
+	if where, val, ok := base.TenantWhere(ctx, "parent_announcement"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("lock parent announcement %d: %w", id, err)
+	}
+	return a, nil
 }
 
 // Delete removes the announcement by id (targets + reads cascade in the DB).
@@ -177,7 +206,7 @@ func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includ
 	}
 	query = base.WithTenantFilter(ctx, query, "parent_announcement")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcements for tenant", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcements for tenant", Err: base.TranslateNotFound(err)}
 	}
 	if len(rows) == 0 {
 		return rows, nil
@@ -198,7 +227,7 @@ func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includ
 		OrderExpr("pat.id ASC")
 	tq = base.WithTenantFilter(ctx, tq, "pat")
 	if err := tq.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets for tenant", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets for tenant", Err: base.TranslateNotFound(err)}
 	}
 	for _, t := range targets {
 		if a, ok := byID[t.AnnouncementID]; ok {
@@ -242,16 +271,18 @@ func (r *ParentAnnouncementRepository) Update(ctx context.Context, a *users.Pare
 		Set("expires_at = ?", a.ExpiresAt).
 		Set("response_type = ?", a.ResponseType).
 		Set("response_deadline = ?", a.ResponseDeadline).
+		Set("delivery_mode = ?", a.DeliveryMode).
+		Set("email_audience = ?", a.EmailAudience).
 		Set("updated_at = ?", now).
 		Where("id = ?", a.ID).
 		Where("published_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update parent announcement draft", Err: err}
+		return &modelBase.DatabaseError{Op: "update parent announcement draft", Err: base.TranslateNotFound(err)}
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update parent announcement draft rows affected", Err: err}
+		return &modelBase.DatabaseError{Op: "update parent announcement draft rows affected", Err: base.TranslateNotFound(err)}
 	}
 	if n == 0 {
 		return users.ErrAnnouncementPublished
@@ -278,7 +309,7 @@ func (r *ParentAnnouncementRepository) clearResponses(ctx context.Context, annou
 		ModelTableExpr("users.parent_announcement_responses").
 		Where("announcement_id = ?", announcementID).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear parent announcement responses", Err: err}
+		return &modelBase.DatabaseError{Op: "clear parent announcement responses", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -292,9 +323,20 @@ func (r *ParentAnnouncementRepository) clearReads(ctx context.Context, announcem
 		ModelTableExpr("users.parent_announcement_reads").
 		Where("announcement_id = ?", announcementID).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear parent announcement reads", Err: err}
+		return &modelBase.DatabaseError{Op: "clear parent announcement reads", Err: base.TranslateNotFound(err)}
 	}
 	return nil
+}
+
+// ClearEngagement drops every read/acknowledgement and poll answer of an
+// announcement. It is the explicit form of what Update already does after a
+// body edit, for the callers that change an announcement without rewriting its
+// row — attaching or removing a file (#2890).
+func (r *ParentAnnouncementRepository) ClearEngagement(ctx context.Context, announcementID int64) error {
+	if err := r.clearReads(ctx, announcementID); err != nil {
+		return err
+	}
+	return r.clearResponses(ctx, announcementID)
 }
 
 // SetPublished sets (or clears, when publishedAt is nil) the publication
@@ -307,7 +349,7 @@ func (r *ParentAnnouncementRepository) SetPublished(ctx context.Context, id int6
 		Where("id = ?", id).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set parent announcement published_at", Err: err}
+		return &modelBase.DatabaseError{Op: "set parent announcement published_at", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -328,11 +370,11 @@ func (r *ParentAnnouncementRepository) PublishIfDraft(ctx context.Context, id in
 		Where("published_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "publish parent announcement", Err: err}
+		return false, &modelBase.DatabaseError{Op: "publish parent announcement", Err: base.TranslateNotFound(err)}
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "publish parent announcement rows affected", Err: err}
+		return false, &modelBase.DatabaseError{Op: "publish parent announcement rows affected", Err: base.TranslateNotFound(err)}
 	}
 	return n > 0, nil
 }
@@ -359,7 +401,7 @@ func (r *ParentAnnouncementRepository) ReplaceTargets(ctx context.Context, tenan
 		Where("tenant_id = ?", tenantID).
 		For("UPDATE").
 		Scan(ctx, &publishedAt); err != nil {
-		return &modelBase.DatabaseError{Op: "lock parent announcement for target replace", Err: err}
+		return &modelBase.DatabaseError{Op: "lock parent announcement for target replace", Err: base.TranslateNotFound(err)}
 	}
 	if publishedAt != nil {
 		return users.ErrAnnouncementPublished
@@ -369,7 +411,7 @@ func (r *ParentAnnouncementRepository) ReplaceTargets(ctx context.Context, tenan
 		ModelTableExpr("users.parent_announcement_targets").
 		Where("announcement_id = ?", announcementID).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear parent announcement targets", Err: err}
+		return &modelBase.DatabaseError{Op: "clear parent announcement targets", Err: base.TranslateNotFound(err)}
 	}
 	if len(targets) == 0 {
 		return nil
@@ -382,7 +424,7 @@ func (r *ParentAnnouncementRepository) ReplaceTargets(ctx context.Context, tenan
 		Model(&targets).
 		ModelTableExpr("users.parent_announcement_targets").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "insert parent announcement targets", Err: err}
+		return &modelBase.DatabaseError{Op: "insert parent announcement targets", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -397,7 +439,7 @@ func (r *ParentAnnouncementRepository) ListTargets(ctx context.Context, announce
 		OrderExpr("pat.id ASC")
 	query = base.WithTenantFilter(ctx, query, "pat")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -443,12 +485,12 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 				AND rc.status IN (%s)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
-		) reached`, activeActivityGroupExists("?"), pendingStatusList())
+		) reached`, activeActivityGroupExists("?", r.today()), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
 	).Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count parent announcement audience", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count parent announcement audience", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -457,7 +499,7 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 // announcement's audience right now.
 func (r *ParentAnnouncementRepository) AccountMatchesAnnouncement(ctx context.Context, tenantID, announcementID, accountID int64) (bool, error) {
 	var matched bool
-	predicate := reachedPredicate("?", "?", "?")
+	predicate := reachedPredicate("?", "?", "?", r.today())
 	sqlStr := "SELECT " + predicate
 	// reachedPredicate references, in order: ann (student), tenant (student x4
 	// inside the fragment), acc (student); ann (pending), tenant (pending), acc
@@ -466,7 +508,7 @@ func (r *ParentAnnouncementRepository) AccountMatchesAnnouncement(ctx context.Co
 	// the args below follow the textual `?` order of the rendered string.
 	args := reachedArgs(announcementID, tenantID, accountID)
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, args...).Scan(ctx, &matched); err != nil {
-		return false, &modelBase.DatabaseError{Op: "check parent announcement audience match", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check parent announcement audience match", Err: base.TranslateNotFound(err)}
 	}
 	return matched, nil
 }
@@ -566,12 +608,160 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			AND (req.guardian_account_id IS NOT NULL OR ea.id IS NOT NULL)
 		) recips
 		GROUP BY account_id, email`,
-		activeActivityGroupExists("?"), pendingStatusList())
+		activeActivityGroupExists("?", r.today()), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience emails", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience emails", Err: base.TranslateNotFound(err)}
+	}
+	return rows, nil
+}
+
+// letterReachedStudentsSQL is every child the announcement's targets reach,
+// with NO guardian requirement at all.
+//
+// This is deliberately broader than the portal audience the poll view uses. A
+// letter to the whole school reaches every child in it; whether anyone can
+// confirm for a given child is a SEPARATE question, answered per row by
+// can_confirm. Collapsing the two — as the poll audience does — makes a
+// school-wide letter report "6 Kinder" when it went to 116, which reads as
+// "almost everyone confirmed" instead of "110 children have no portal contact".
+//
+// Bind order: tenant (students), tenant (activity-group sub-EXISTS), ann, tenant.
+func letterReachedStudentsSQL(annExpr, tenantExpr string, today timezone.Date) string {
+	return fmt.Sprintf(`
+		SELECT DISTINCT s.id AS student_id
+		FROM users.parent_announcement_targets pt
+		JOIN users.students s ON s.tenant_id = %[2]s AND (
+			pt.target_type = 'school_all'
+			OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
+			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+			OR %[3]s
+		)
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		AND s.status <> 'alumnus'
+		WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s`,
+		annExpr, tenantExpr, activeActivityGroupExists(tenantExpr, today))
+}
+
+// letterReachedStudentArgs mirrors the placeholder order of
+// letterReachedStudentsSQL("?", "?").
+func letterReachedStudentArgs(announcementID, tenantID int64) []any {
+	return []any{tenantID, tenantID, announcementID, tenantID}
+}
+
+// LetterChildStatuses returns every reached child with the DERIVED fulfilment
+// state of an Elternbrief (#2384): who confirmed it for that child and when.
+//
+// The audience is the same portal-visible student set the poll view uses, so a
+// child nobody can currently reach in moto stays visible instead of silently
+// disappearing from the count.
+//
+// The LATERAL picks the FIRST acknowledgement, ordered by time: once the letter
+// is fulfilled, "wer hat für dieses Kind bestätigt" means whoever got there
+// first. It joins through students_guardians with parent_portal.access, so a
+// guardian who acknowledged the announcement for a DIFFERENT child cannot
+// accidentally fulfil this one.
+//
+// Nothing here is stored: because acknowledgement lives on the account, one
+// confirmation covers every addressed sibling of that guardian automatically.
+func (r *ParentAnnouncementRepository) LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementLetterChildStatus, error) {
+	reached := letterReachedStudentsSQL("?", "?", r.today())
+	confirmable := pollAudienceStudentsSQL("?", "?", "", r.today())
+	args := append(letterReachedStudentArgs(announcementID, tenantID),
+		audienceStudentArgs(announcementID, tenantID, nil)...)
+	sqlStr := `WITH reached AS (` + reached + `),
+		confirmable AS (` + confirmable + `)
+		SELECT s.id AS student_id,
+			COALESCE(p.first_name, '') AS first_name,
+			COALESCE(p.last_name, '')  AS last_name,
+			COALESCE(s.school_class, '') AS school_class,
+			EXISTS (SELECT 1 FROM confirmable c WHERE c.student_id = s.id) AS can_confirm,
+			ack.acknowledged_at AS acknowledged_at,
+			COALESCE(ack.first_name, '') AS ack_first_name,
+			COALESCE(ack.last_name, '')  AS ack_last_name
+		FROM reached
+		JOIN users.students s ON s.id = reached.student_id
+		JOIN users.persons p ON p.id = s.person_id
+		LEFT JOIN LATERAL (
+			SELECT par.acknowledged_at, gp.first_name, gp.last_name
+			FROM users.students_guardians sg
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id
+				AND gp.tenant_id = ? AND gp.account_id IS NOT NULL
+			JOIN users.parent_announcement_reads par ON par.announcement_id = ?
+				AND par.tenant_id = ? AND par.account_id = gp.account_id
+			WHERE sg.student_id = s.id AND sg.tenant_id = ?
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+				AND par.acknowledged_at IS NOT NULL
+			ORDER BY par.acknowledged_at ASC
+			LIMIT 1
+		) ack ON TRUE
+		ORDER BY last_name ASC, first_name ASC, student_id ASC`
+	sqlArgs := append(append([]any{}, args...), tenantID, announcementID, tenantID, tenantID)
+	var rows []*users.AnnouncementLetterChildStatus
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, sqlArgs...).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "parent announcement letter child statuses", Err: base.TranslateNotFound(err)}
+	}
+	return rows, nil
+}
+
+// ResolveDeliveryRecipients returns every guardian linked to a child the
+// announcement's student-based targets reach, with no portal-access filter —
+// the input for the per-recipient delivery rows behind the staff matrix (#2384).
+//
+// Two things make this different from ResolveAudienceEmails, and both are the
+// point: guardians WITHOUT parent_portal.access are included (so the matrix can
+// show "kein Portalzugang" instead of silently omitting the person), and
+// guardians without an address are included (so the school sees the gap it has
+// to fix). Whether such a person is actually mailed is the caller's decision,
+// taken from the announcement's email_audience.
+//
+// has_portal_access is aggregated with bool_or across the reached children: a
+// guardian who has portal access for one addressed child but not another can
+// see the announcement, so they count as reachable in moto.
+func (r *ParentAnnouncementRepository) ResolveDeliveryRecipients(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementDeliveryRecipient, error) {
+	var rows []*users.AnnouncementDeliveryRecipient
+	sqlStr := fmt.Sprintf(`
+		SELECT gp.id AS guardian_profile_id,
+			gp.account_id,
+			COALESCE(gp.first_name, '') AS first_name,
+			COALESCE(gp.last_name, '')  AS last_name,
+			COALESCE(LOWER(BTRIM(gp.email)), '') AS email,
+			COALESCE(gp.portal_locale, '') AS portal_locale,
+			bool_or(
+				sg.permissions @> '{"parent_portal.access": true}'::jsonb
+				AND gp.account_id IS NOT NULL
+				AND EXISTS (
+					SELECT 1 FROM auth.account_tenants act
+					WHERE act.account_id = gp.account_id
+						AND act.tenant_id = gp.tenant_id
+						AND act.status = 'active'
+				)
+			) AS has_portal_access
+		FROM users.parent_announcement_targets pt
+		JOIN users.students s ON s.tenant_id = ? AND (
+			pt.target_type = 'school_all'
+			OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
+			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+			OR %s
+		)
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		-- Same alumnus rule as every other audience query (#405): a graduated
+		-- child's guardians drop out entirely.
+		AND s.status <> 'alumnus'
+		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+		WHERE pt.announcement_id = ? AND pt.tenant_id = ?
+		GROUP BY gp.id, gp.account_id, gp.first_name, gp.last_name, gp.email, gp.portal_locale
+		ORDER BY LOWER(COALESCE(gp.last_name, '')), LOWER(COALESCE(gp.first_name, '')), gp.id`,
+		activeActivityGroupExists("?", r.today()))
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,
+	).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement delivery recipients", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -582,7 +772,7 @@ func (r *ParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID 
 	if err := base.GetDB(ctx, r.DB).NewRaw(
 		`SELECT COALESCE(name, '') FROM platform.schools WHERE id = ?`, tenantID,
 	).Scan(ctx, &name); err != nil {
-		return "", &modelBase.DatabaseError{Op: "resolve school name", Err: err}
+		return "", &modelBase.DatabaseError{Op: "resolve school name", Err: base.TranslateNotFound(err)}
 	}
 	return name, nil
 }
@@ -647,14 +837,14 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 			ON par.announcement_id = ? AND par.account_id = acc.account_id
 		GROUP BY acc.account_id, par.read_at, par.acknowledged_at
 		ORDER BY last_name ASC, first_name ASC, acc.account_id ASC`,
-		activeActivityGroupExists("?"), pendingStatusList())
+		activeActivityGroupExists("?", r.today()), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
 		tenantID,       // guardian locale
 		announcementID, // reads join
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience recipients", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience recipients", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -695,7 +885,7 @@ func (r *ParentAnnouncementRepository) CountReachableGuardiansForStudents(ctx co
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, bun.List(studentIDs),
 	).Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count reachable guardians for students", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count reachable guardians for students", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -709,11 +899,11 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 		return []*users.AnnouncementFeedItem{}, nil
 	}
 	var rows []*users.AnnouncementFeedItem
-	reached := reachedPredicate("a.id", "a.tenant_id", "?")
+	reached := reachedPredicate("a.id", "a.tenant_id", "?", r.today())
 	sqlStr := `
 		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
-			a.response_type, a.response_deadline, a.system_kind,
+			a.response_type, a.response_deadline, a.delivery_mode, a.system_kind,
 			COALESCE(sch.name, '') AS school_name,
 			par.read_at AS read_at,
 			par.acknowledged_at AS acknowledged_at
@@ -735,7 +925,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID,
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -747,8 +937,8 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 		return 0, nil
 	}
 	var count int
-	reached := reachedPredicate("a.id", "a.tenant_id", "?")
-	openPoll := openPollForAccountPredicate("a", "a.tenant_id", "?")
+	reached := reachedPredicate("a.id", "a.tenant_id", "?", r.today())
+	openPoll := openPollForAccountPredicate("a", "a.tenant_id", "?", r.today())
 	// Reading an actionable item must not clear its reminder. It stays outstanding
 	// until the requested confirmation or every required poll answer is stored.
 	sqlStr := `
@@ -773,7 +963,7 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count outstanding parent announcements", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count outstanding parent announcements", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -823,7 +1013,7 @@ func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, a
 		announcementID, tenantID, expectedPublishedAt, // guard CTE
 		tenantID, announcementID, accountID, now, // insert values
 	).Scan(ctx, &live); err != nil {
-		return false, &modelBase.DatabaseError{Op: "mark parent announcement read", Err: err}
+		return false, &modelBase.DatabaseError{Op: "mark parent announcement read", Err: base.TranslateNotFound(err)}
 	}
 	return live, nil
 }
@@ -848,7 +1038,7 @@ func (r *ParentAnnouncementRepository) MarkAcknowledged(ctx context.Context, ten
 		announcementID, tenantID, expectedPublishedAt, // guard CTE
 		tenantID, announcementID, accountID, now, now, // upsert values
 	).Scan(ctx, &live); err != nil {
-		return false, &modelBase.DatabaseError{Op: "mark parent announcement acknowledged", Err: err}
+		return false, &modelBase.DatabaseError{Op: "mark parent announcement acknowledged", Err: base.TranslateNotFound(err)}
 	}
 	return live, nil
 }
@@ -902,14 +1092,14 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 			(SELECT COUNT(*) FROM users.parent_announcement_reads par
 				WHERE par.announcement_id = ? AND par.tenant_id = ? AND par.acknowledged_at IS NOT NULL
 					AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count`,
-		activeActivityGroupExists("?"), pendingStatusList())
+		activeActivityGroupExists("?", r.today()), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(audienceCTE,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
 		announcementID, tenantID, // read_count
 		announcementID, tenantID, // acknowledged_count
 	).Scan(ctx, &stats.TargetCount, &stats.ReadCount, &stats.AcknowledgedCount); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "parent announcement stats", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "parent announcement stats", Err: base.TranslateNotFound(err)}
 	}
 	return stats, nil
 }

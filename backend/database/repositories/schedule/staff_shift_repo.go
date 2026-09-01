@@ -27,7 +27,7 @@ func NewStaffShiftRepository(db *bun.DB) schedule.StaffShiftRepository {
 }
 
 // FindByID returns one shift with its TIME columns re-anchored via
-// timezone.WallClock. The embedded generic scan leaves the driver's year-0
+// timezone.NormalizeWallClock. The embedded generic scan leaves the driver's year-0
 // anchor on TIME columns; a whole-model update that preserves the stored
 // window would write that anchor back as an out-of-range timestamp
 // (SQLSTATE 22008 — exposed by the #1843 cascade's plain-cancel path, latent
@@ -45,8 +45,8 @@ func (r *StaffShiftRepository) FindByID(ctx context.Context, id any) (*schedule.
 // TIME columns so callers can compare and format the wall-clock values.
 func normalizeShiftWallClock(shifts []*schedule.StaffShift) {
 	for _, s := range shifts {
-		s.StartTime = timezone.WallClock(s.StartTime)
-		s.EndTime = timezone.WallClock(s.EndTime)
+		s.StartTime = timezone.NormalizeWallClock(s.StartTime)
+		s.EndTime = timezone.NormalizeWallClock(s.EndTime)
 	}
 }
 
@@ -66,7 +66,7 @@ func (r *StaffShiftRepository) FindByDateRange(ctx context.Context, start, end t
 	query = base.WithTenantFilter(ctx, query, "staff_shift")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff shifts by date range", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by date range", Err: base.TranslateNotFound(err)}
 	}
 	normalizeShiftWallClock(shifts)
 	return shifts, nil
@@ -87,7 +87,7 @@ func (r *StaffShiftRepository) FindByStaffAndDateRange(ctx context.Context, staf
 	query = base.WithTenantFilter(ctx, query, "staff_shift")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff and date range", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff and date range", Err: base.TranslateNotFound(err)}
 	}
 	normalizeShiftWallClock(shifts)
 	return shifts, nil
@@ -111,7 +111,7 @@ func (r *StaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, staffI
 	query = base.WithTenantFilter(ctx, query, "staff_shift")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff ids and date", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff ids and date", Err: base.TranslateNotFound(err)}
 	}
 	normalizeShiftWallClock(shifts)
 	return shifts, nil
@@ -130,7 +130,7 @@ func (r *StaffShiftRepository) FindByOriginShiftID(ctx context.Context, originSh
 	query = base.WithTenantFilter(ctx, query, "staff_shift")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff shifts by origin shift id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by origin shift id", Err: base.TranslateNotFound(err)}
 	}
 	normalizeShiftWallClock(shifts)
 	return shifts, nil
@@ -155,7 +155,7 @@ func (r *StaffShiftRepository) FindByStaffIDsAndDates(ctx context.Context, staff
 
 	query = base.WithTenantFilter(ctx, query, "staff_shift")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff IDs and dates", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff IDs and dates", Err: base.TranslateNotFound(err)}
 	}
 	normalizeShiftWallClock(shifts)
 	return shifts, nil
@@ -182,7 +182,7 @@ func (r *StaffShiftRepository) FindUsedCalendarWeeks(ctx context.Context, start,
 
 	query = base.WithTenantFilter(ctx, query, "staff_shift")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find used staff-shift calendar weeks", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find used staff-shift calendar weeks", Err: base.TranslateNotFound(err)}
 	}
 	weeks := make([]timezone.Date, 0, len(rows))
 	for _, row := range rows {
@@ -206,7 +206,7 @@ func (r *StaffShiftRepository) BulkCreate(ctx context.Context, shifts []*schedul
 		ModelTableExpr("schedule.staff_shifts").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "bulk create staff shifts", Err: err}
+		return &modelBase.DatabaseError{Op: "bulk create staff shifts", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -226,11 +226,11 @@ func (r *StaffShiftRepository) DeleteNonDetachedBySeriesFrom(ctx context.Context
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete non-detached staff shifts by series", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete non-detached staff shifts by series", Err: base.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete non-detached staff shifts by series", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete non-detached staff shifts by series", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -253,11 +253,11 @@ func (r *StaffShiftRepository) RepointDetachedSeriesFrom(ctx context.Context, fr
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "repoint detached staff shifts to successor series", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "repoint detached staff shifts to successor series", Err: base.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "repoint detached staff shifts to successor series", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "repoint detached staff shifts to successor series", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -276,11 +276,11 @@ func (r *StaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staf
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete upcoming staff shifts by staff ID", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete upcoming staff shifts by staff ID", Err: base.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete upcoming staff shifts by staff ID", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete upcoming staff shifts by staff ID", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -310,7 +310,7 @@ func (r *StaffShiftRepository) FindByStaffIDsAndDateRange(ctx context.Context, s
 	query = base.WithTenantFilter(ctx, query, "staff_shift")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff IDs and date range", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff IDs and date range", Err: base.TranslateNotFound(err)}
 	}
 	normalizeShiftWallClock(shifts)
 	for _, shift := range shifts {

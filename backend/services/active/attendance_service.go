@@ -34,7 +34,7 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 		attendanceRecords = make(map[int64]*active.Attendance)
 	}
 
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	for _, studentID := range studentIDs {
 		status := &AttendanceStatus{
@@ -81,7 +81,7 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 		return &AttendanceStatus{
 			StudentID: studentID,
 			Status:    "not_checked_in",
-			Date:      timezone.TodayDate(),
+			Date:      s.todayDate(),
 		}, nil
 	}
 
@@ -143,8 +143,8 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
 	}
 
-	now := time.Now()
-	today := timezone.TodayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 
 	// "on_yard" is a sub-state of "checked_in" (still on premises) — toggling
 	// from either should perform a checkout. Only "not_checked_in" and
@@ -225,8 +225,8 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now()
-	today := timezone.TodayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeWeb)
 	if err != nil {
 		return nil, err
@@ -912,7 +912,7 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 		StaffID:   staffID,
 		GroupID:   groupID,
 		Role:      role,
-		StartDate: timezone.TodayDate(),
+		StartDate: s.todayDate(),
 		// EndDate is nil (active supervision)
 	}
 

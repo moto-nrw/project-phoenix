@@ -10,7 +10,7 @@
 //     sub-checks produce warnings; shared rooms are sanctioned.
 //   - Re-plan-week: deletes only planned non-spontaneous; all other kinds survive.
 //
-// All fixtures via testpkg.CreateTest* + CleanupTableRecords — no hardcoded IDs.
+// All fixtures use testpkg.CreateTest* and package-clone ownership — no hardcoded IDs.
 package schedule_test
 
 import (
@@ -52,6 +52,7 @@ type lifecycleSetup struct {
 	student1 int64
 	student2 int64
 	tmplID   int64
+	period   *scheduleModels.CalendarPeriod
 }
 
 // buildLifecycle prepares the minimum scaffold for instance-lifecycle tests:
@@ -64,8 +65,9 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	// t.Cleanup has released its row references.
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	// Own tenant per caller, subtests included: every subtest builds its own
 	// lifecycle and then asserts tenant-wide (loadLifecycleExceptions counts
@@ -83,6 +85,9 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	// lifecycle path; we only need a non-nil FK target for the spontaneous=
 	// false branch to fire.
 	templateRow := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("LC-Tmpl-%d", suffix))
+	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("LC-Period-%d", suffix),
+		timezone.NewDate(2000, 1, 1), timezone.NewDate(2100, 1, 1))
+	testpkg.SetCalendarPeriodActive(t, db, period, true)
 
 	// Parent-fixture cleanup registered BEFORE any per-test child cleanups,
 	// so LIFO orders children → parents → db.Close.
@@ -97,6 +102,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 		student1: student1.ID,
 		student2: student2.ID,
 		tmplID:   templateRow.ID,
+		period:   period,
 	}
 	// These state-machine fixtures use fixed wall-clock windows. Time-policy
 	// boundaries have dedicated clock-injected tests; keep this suite focused on
@@ -108,6 +114,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broadcaster) scheduleSvc.InstanceService {
 	return scheduleSvc.NewInstanceService(scheduleSvc.InstanceServiceDependencies{
 		InstanceRepo:       s.repos.ActivityInstance,
+		IdempotencyRepo:    s.repos.InstanceIdempotency,
 		InstanceStaffRepo:  s.repos.InstanceStaff,
 		InstanceStudents:   s.repos.InstanceStudent,
 		ExceptionRepo:      s.repos.ActivityException,
@@ -118,6 +125,7 @@ func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broa
 		ActivityGroupRepo:  s.repos.ActivityGroup,
 		StaffRepo:          s.repos.Staff,
 		StudentRepo:        s.repos.Student,
+		CalendarPeriodRepo: s.repos.CalendarPeriod,
 		ActiveService:      s.factory.Active,
 		Materialization:    s.factory.Materialization,
 		CareDayService:     s.factory.CareDay,
@@ -428,6 +436,160 @@ func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 	assert.Equal(t, realtime.EventActiveSupervisionChanged, tenantCalls[1].Event.Type)
 	assert.Equal(t, groupCalls[0].Event.ActiveGroupID, tenantCalls[0].Event.ActiveGroupID)
 	assert.Equal(t, groupCalls[0].Event.ActiveGroupID, tenantCalls[1].Event.ActiveGroupID)
+}
+
+func TestInstance_CreateRejectsDateOutsideActiveCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	_, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:      timezone.NewDate(2101, 4, 21),
+		StartTime: time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:     "Außerhalb des Zeitraums",
+		RoomID:    s.roomID,
+	})
+
+	require.ErrorIs(t, err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+}
+
+func TestInstance_CreateSpontaneousSkipsActiveCalendarPeriodValidation(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	isSpontaneous := true
+	created, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:          timezone.NewDate(2101, 4, 21),
+		StartTime:     time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:         "Spontan außerhalb des Zeitraums",
+		RoomID:        s.roomID,
+		IsSpontaneous: &isSpontaneous,
+	})
+
+	require.NoError(t, err)
+	assert.True(t, created.IsSpontaneous)
+}
+
+func TestInstance_UpdatePlannedRejectsDateOutsideActiveCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedInstance(t, s, false, false)
+	_, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+		Date:      timezone.NewDate(2101, 4, 21),
+		StartTime: instance.StartTime,
+		EndTime:   instance.EndTime,
+		Title:     "Außerhalb des Zeitraums",
+		RoomID:    s.roomID,
+	}, nil)
+
+	require.ErrorIs(t, err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+	stored, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+	require.NoError(t, err)
+	assert.Equal(t, instance.Date, stored.Date)
+}
+
+func TestInstance_UpdatePlannedKeepsDateAfterPeriodDeactivation(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedInstance(t, s, false, false)
+	testpkg.SetCalendarPeriodActive(t, s.db, s.period, false)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+		Date:      instance.Date,
+		StartTime: instance.StartTime,
+		EndTime:   instance.EndTime,
+		Title:     "Bearbeitet nach Deaktivierung",
+		RoomID:    s.roomID,
+	}, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, instance.Date, updated.Date)
+}
+
+func TestInstance_UpdatePlannedMovesSpontaneousOutsideActiveCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedSpontaneousInstance(t, s, false)
+	targetDate := timezone.NewDate(2101, 4, 21)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+		Date:      targetDate,
+		StartTime: instance.StartTime,
+		EndTime:   instance.EndTime,
+		Title:     "Spontan verschoben",
+		RoomID:    s.roomID,
+	}, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, targetDate, updated.Date)
+	assert.True(t, updated.IsSpontaneous)
+}
+
+func TestInstance_UpdatePlannedConvertsSpontaneousRejectsOutsideActiveCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedSpontaneousInstance(t, s, false)
+	periodID := s.period.ID
+	_, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+		Date:             timezone.NewDate(2101, 4, 21),
+		StartTime:        instance.StartTime,
+		EndTime:          instance.EndTime,
+		Title:            "Als geplant verschieben",
+		RoomID:           s.roomID,
+		ActivityGroupID:  &s.tmplID,
+		CalendarPeriodID: &periodID,
+	}, nil)
+
+	require.ErrorIs(t, err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+}
+
+func TestInstance_UpdatePlannedConvertsSpontaneousSameDateRejectsInactiveCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedSpontaneousInstance(t, s, false)
+	periodID := s.period.ID
+	testpkg.SetCalendarPeriodActive(t, s.db, s.period, false)
+
+	_, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+		Date:             instance.Date,
+		StartTime:        instance.StartTime,
+		EndTime:          instance.EndTime,
+		Title:            "Als geplant behalten",
+		RoomID:           s.roomID,
+		ActivityGroupID:  &s.tmplID,
+		CalendarPeriodID: &periodID,
+	}, nil)
+
+	require.ErrorIs(t, err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+}
+
+func TestInstance_CreateIdempotencyRetryReturnsStoredResultAfterPeriodDeactivation(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	key := "retry-after-period-deactivation"
+	req := scheduleSvc.CreateInstanceInput{
+		Date:           timezone.NewDate(2026, 4, 21),
+		StartTime:      time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:          "Idempotent außerhalb nach Deaktivierung",
+		RoomID:         s.roomID,
+		IdempotencyKey: &key,
+	}
+	created, err := s.svc.Create(s.ctx, req)
+	require.NoError(t, err)
+
+	testpkg.SetCalendarPeriodActive(t, s.db, s.period, false)
+
+	replayed, err := s.svc.Create(s.ctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, created.ID, replayed.ID)
 }
 
 // TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged pins the SSE
@@ -1001,7 +1163,7 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 
 	// Our staff member already supervises a live group in the SAME room the
 	// instance starts in — sanctioned parallel supervision (#2139).
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1061,7 +1223,7 @@ func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
 	// Comparing against the group's primary room alone would warn here.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomA-%d", time.Now().UnixNano()))
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1093,7 +1255,7 @@ func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T)
 	// would have suppressed.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomB-%d", time.Now().UnixNano()))
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1127,7 +1289,7 @@ func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
 	// The supervision points at a group bridged to an instance whose roster
 	// does not contain the staff member — the effective room is undetermined,
 	// so the warning must stay ("not certainly the same room").
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1161,7 +1323,7 @@ func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
 	// Pre-seed an active.group + a live supervision by our staff member on it.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-OtherRoom-%d", time.Now().UnixNano()))
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1267,7 +1429,7 @@ func TestInstance_ReplanWeek_RemovesFutureLegacyWeekendInstances(t *testing.T) {
 
 	s := buildLifecycle(t)
 
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	for from.Weekday() != time.Monday {
 		from = from.AddDays(1)
 	}
@@ -1564,6 +1726,7 @@ func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) 
 	now := time.Date(2026, 4, 22, 8, 0, 0, 0, timezone.Berlin)
 	guarded := scheduleSvc.NewInstanceService(scheduleSvc.InstanceServiceDependencies{
 		InstanceRepo:       s.repos.ActivityInstance,
+		IdempotencyRepo:    s.repos.InstanceIdempotency,
 		InstanceStaffRepo:  s.repos.InstanceStaff,
 		InstanceStudents:   s.repos.InstanceStudent,
 		ExceptionRepo:      s.repos.ActivityException,
@@ -1574,6 +1737,7 @@ func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) 
 		ActivityGroupRepo:  s.repos.ActivityGroup,
 		StaffRepo:          s.repos.Staff,
 		StudentRepo:        s.repos.Student,
+		CalendarPeriodRepo: s.repos.CalendarPeriod,
 		ActiveService:      s.factory.Active,
 		Materialization:    s.factory.Materialization,
 		CareDayService:     s.factory.CareDay,

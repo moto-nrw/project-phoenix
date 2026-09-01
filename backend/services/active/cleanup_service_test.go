@@ -9,7 +9,6 @@
 //
 //	ARRANGE: Create test fixtures (real database records)
 //	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
-//	  defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 //
 //	ACT: Perform the operation under test
 //	  result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -36,9 +35,9 @@ import (
 )
 
 // setupCleanupService creates a cleanup service with real database connection
-func setupCleanupService(t *testing.T, db *bun.DB) active.CleanupService {
+func setupCleanupService(t *testing.T, db *bun.DB, clocks ...func() time.Time) active.CleanupService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.ActiveCleanup
 }
@@ -576,7 +575,7 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 
 	// Create a stale attendance record (yesterday, no checkout). The DATE
 	// column takes a timezone.Date, which binds as a calendar-day literal.
-	yesterday := timezone.TodayDate().AddDays(-1)
+	yesterday := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	checkInTime := yesterday.UTCMidnight().Add(8 * time.Hour) // 8:00 UTC yesterday
 
 	var attendanceID int64
@@ -614,7 +613,7 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	assert.Equal(t, 23, checkOutInBerlin.Hour(), "hour should be 23 in Berlin time")
 	assert.Equal(t, 59, checkOutInBerlin.Minute(), "minute should be 59")
 	assert.Equal(t, 59, checkOutInBerlin.Second(), "second should be 59")
-	assert.Equal(t, yesterday.Day, checkOutInBerlin.Day(),
+	assert.Equal(t, yesterday.Day(), checkOutInBerlin.Day(),
 		"date should be the same day as the attendance record, not the next day")
 }
 

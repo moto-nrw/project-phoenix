@@ -14,7 +14,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -27,7 +26,7 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Rieke", "Reviewer")
@@ -38,7 +37,7 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 	pending := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "language_preference", `"de"`, `"en"`)
 
 	ctx := authorizedCtx(context.Background())
-	err := tenant.WithTenantTx(ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{
 			RequestID:  rejected.ID,
 			Approve:    false,
@@ -60,7 +59,7 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, next, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{Limit: 25})
 		require.NoError(t, e)
 		assert.Nil(t, next, "one page must not report more")
@@ -114,19 +113,19 @@ func TestMasterDataReview_ListHistoryScopedToWritableChildren(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: false, Reason: "nein"})
 		return e
 	})
 	require.NoError(t, err)
 
 	denyBase := context.WithValue(context.Background(), jwt.CtxPermissions, []string{"users:update"})
-	err = tenant.WithTenantTx(denyBase, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, denyBase, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, _, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{Limit: 25})
 		require.NoError(t, e)
 		for _, item := range items {

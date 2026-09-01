@@ -83,7 +83,7 @@ func listRouter(parentCtx context.Context, res *Resource) chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
@@ -113,7 +113,7 @@ func decodeList(t *testing.T, w *httptest.ResponseRecorder) weeklyInstancesRespo
 }
 
 func listFutureDate(offsetDays int) (string, timezone.Date) {
-	d := timezone.TodayDate().AddDays(offsetDays)
+	d := timezone.NewDate(2026, 8, 24).AddDays(offsetDays)
 	return d.String(), d
 }
 
@@ -185,7 +185,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Empty-Reason-Period")
 	roomID := s.roomID

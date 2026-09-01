@@ -334,7 +334,7 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 	}
 
 	rawDate := r.URL.Query().Get("date")
-	date := timezone.TodayDate()
+	date := rs.todayDate()
 	if rawDate != "" {
 		parsed, err := timezone.ParseDate(rawDate)
 		if err != nil {

@@ -67,6 +67,12 @@ func (s *stubOutboxRepo) ClaimDuePending(_ context.Context, _ int, _ time.Time) 
 	return out, nil
 }
 
+func (s *stubOutboxRepo) CountPending(context.Context) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.due), nil
+}
+
 func (s *stubOutboxRepo) LockSending(_ context.Context, id int64) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -225,7 +231,7 @@ func TestOutboxWorker_RunOnce_NoRows(t *testing.T) {
 
 	repo := &stubOutboxRepo{}
 	mailer := &stubMailer{}
-	w := NewOutboxWorker(OutboxWorkerConfig{
+	w := newMockOutboxWorker(t, OutboxWorkerConfig{
 		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
 	})
 
@@ -234,6 +240,21 @@ func TestOutboxWorker_RunOnce_NoRows(t *testing.T) {
 	assert.Equal(t, 0, n)
 	assert.Empty(t, mailer.sent)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutboxWorker_Backlog(t *testing.T) {
+	t.Parallel()
+
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+	expectAdminTx(mock)
+	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{{}, {}}}
+	worker := newMockOutboxWorker(t, OutboxWorkerConfig{Repo: repo, DB: db})
+
+	backlog, err := worker.Backlog(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, backlog)
 }
 
 // TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent — single
@@ -257,7 +278,7 @@ func TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent(t *testing.T) {
 	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
 	mailer := &stubMailer{}
 
-	w := NewOutboxWorker(OutboxWorkerConfig{
+	w := newMockOutboxWorker(t, OutboxWorkerConfig{
 		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
 	})
 
@@ -296,7 +317,7 @@ func TestOutboxWorker_RunOnce_RowCancelledAfterClaim_SkipsSend(t *testing.T) {
 		cancelledIDs: map[int64]bool{6006: true},
 	}
 	mailer := &stubMailer{}
-	w := NewOutboxWorker(OutboxWorkerConfig{
+	w := newMockOutboxWorker(t, OutboxWorkerConfig{
 		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
 	})
 
@@ -332,7 +353,7 @@ func TestOutboxWorker_RunOnce_RenderError_SchedulesRetry(t *testing.T) {
 	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
 	mailer := &stubMailer{}
 
-	w := NewOutboxWorker(OutboxWorkerConfig{
+	w := newMockOutboxWorker(t, OutboxWorkerConfig{
 		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
 	})
 
@@ -371,7 +392,7 @@ func TestOutboxWorker_RunOnce_SendError_SchedulesRetry(t *testing.T) {
 	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
 	mailer := &stubMailer{err: errors.New("smtp timeout")}
 
-	w := NewOutboxWorker(OutboxWorkerConfig{
+	w := newMockOutboxWorker(t, OutboxWorkerConfig{
 		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 5,
 	})
 
@@ -407,7 +428,7 @@ func TestOutboxWorker_RunOnce_ExhaustedAttempts_MarksFailed(t *testing.T) {
 	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
 	mailer := &stubMailer{err: errors.New("still broken")}
 
-	w := NewOutboxWorker(OutboxWorkerConfig{
+	w := newMockOutboxWorker(t, OutboxWorkerConfig{
 		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
 	})
 
@@ -439,7 +460,7 @@ func TestOutboxWorker_RunOnce_UnknownKind_MarksFailedImmediately(t *testing.T) {
 	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
 	mailer := &stubMailer{}
 
-	w := NewOutboxWorker(OutboxWorkerConfig{
+	w := newMockOutboxWorker(t, OutboxWorkerConfig{
 		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 10,
 	})
 
@@ -468,7 +489,7 @@ func TestOutboxWorker_RunOnce_ClaimError_Bubbles(t *testing.T) {
 
 	repo := &stubOutboxRepo{claimErr: errors.New("db down")}
 	mailer := &stubMailer{}
-	w := NewOutboxWorker(OutboxWorkerConfig{
+	w := newMockOutboxWorker(t, OutboxWorkerConfig{
 		Repo: repo, Registry: NewTemplateRegistry(), Mailer: mailer, DB: db, MaxAttempts: 3,
 	})
 
@@ -505,7 +526,7 @@ func TestOutboxWorker_RunOnce_MultipleRows_OneBadDoesNotStallBatch(t *testing.T)
 
 	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{good1, bad, good2}}
 	mailer := &stubMailer{}
-	w := NewOutboxWorker(OutboxWorkerConfig{
+	w := newMockOutboxWorker(t, OutboxWorkerConfig{
 		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
 	})
 
@@ -539,7 +560,7 @@ func TestOutboxWorker_RunOnce_MissingDependencies_Errors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			w := NewOutboxWorker(tc.cfg)
+			w := newMockOutboxWorker(t, tc.cfg)
 			_, err := w.RunOnce(context.Background(), 10)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.want)

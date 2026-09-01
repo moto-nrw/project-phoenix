@@ -47,7 +47,7 @@ type studentDaySetup struct {
 // arrival / pickup / visit rows on top.
 func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -91,7 +91,7 @@ func studentRouter(parentCtx context.Context, res *Resource, perms []string) chi
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
 			ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
@@ -527,10 +527,9 @@ func (h *queryCounterHook) AfterQuery(context.Context, *bun.QueryEvent) {}
 // TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne locks in the N+1 fix:
 // a 14-day /week must fire at most 7 DB queries (enrolled + instances +
 // visits + 2 schedules + 2 exceptions). Previously this was ~98.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	s := buildStudentDaySetup(t)
 
 	hook := &queryCounterHook{}

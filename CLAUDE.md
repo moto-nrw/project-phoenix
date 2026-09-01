@@ -6,7 +6,7 @@
 
 | Component | Technology |
 |-----------|------------|
-| Backend | Go 1.25+, Chi router, BUN ORM |
+| Backend | Go 1.27.0, Chi router, BUN ORM |
 | Frontend | Next.js 16+, React 19+, Tailwind 4+ |
 | Database | PostgreSQL 17+ (15 domain schemas, SSL, RLS) |
 | Auth | JWT via `AUTH_JWT_EXPIRY` / `AUTH_JWT_REFRESH_EXPIRY` (currently 15m / 168h), MFA, three isolated portals |
@@ -168,7 +168,7 @@ CLI commands (migrate, seed, cleanup) connect via `DB_DSN` as the `postgres` **s
 ### 10. Time Modeling: Match the Type to the Business Meaning
 - **Actual instant** (created_at, checked_in_at): `TIMESTAMPTZ` ↔ `time.Time`, API ISO timestamp
 - **Calendar date** (attendance day, birthday): `DATE` ↔ `timezone.Date` — NEVER `time.Time` — API `YYYY-MM-DD`
-- **Clock time without date** (template start/end): `TIME WITHOUT TIME ZONE`, normalized via `timezone.WallClock()`, API `HH:MM`
+- **Clock time without date** (template start/end): `TIME WITHOUT TIME ZONE`, normalized via `timezone.NormalizeWallClock()`, API `HH:MM`
 
 bun binds every `time.Time` as UTC, so DATE columns modeled as `time.Time` land one day behind around Berlin midnight. `TestDateColumnTypes` fails CI for violations. Full guide: `.claude/rules/calendar-dates.md`.
 
@@ -190,9 +190,9 @@ Shifts recur via `schedule.staff_shift_series` (weekdays + wall-clock window bou
 | Reset DB | `docker compose run server go run . migrate reset` (then seed — see `docs/getting-started.md` for the credential flags) |
 | View logs | `docker compose logs -f server` |
 | Quality check (frontend) | `cd frontend && pnpm run check` |
-| Run backend tests (self-initializing; clones GC'd next run) | `cd backend && go test ./...` |
-| Full backend run incl. immediate clone sweep (gotestsum) | `scripts/test-backend.sh` |
-| Fast unit-only backend run (skips all DB tests) | `cd backend && go test -short ./...` |
+| Run backend tests (self-initializing; clones GC'd next run) | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
+| Full backend run incl. immediate clone sweep (gotestsum) | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
+| Fast unit-only backend run (skips all DB tests) | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` |
 | Test only what changed vs a base ref (backend + frontend) | `scripts/test-changed.sh [origin/development]` |
 | Generate docs | `docker compose run server go run . gendoc --routes` |
 
@@ -209,9 +209,9 @@ template each), and clones one run-stamped database per package.
 end); naked `go test` runs leave their clones to the next run's generation GC.
 Manual container control, if ever needed:
 ```bash
-docker compose --profile test up -d postgres-test        # Start (isolated network)
-docker compose --profile test down                        # Stop (plain `down` won't work)
-cd backend && go run ./internal/testdb/cmd/sweep          # Drop leftover clones now
+docker compose -p project-phoenix --profile test up -d postgres-test  # Start (one container for all worktrees)
+docker compose -p project-phoenix --profile test down                 # Stop (plain `down` won't work)
+cd backend && ../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/sweep  # Drop leftover clones now
 ```
 
 ## No Fallbacks, No Defaults — Fail Fast (MANDATORY)

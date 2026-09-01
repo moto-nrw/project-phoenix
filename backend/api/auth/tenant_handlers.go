@@ -116,7 +116,9 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		AttendanceLogEnabled:       resolved.attendanceLogEnabled,
 		GroupMode:                  resolved.groupMode,
 		OperationalOverviewScope:   resolved.overviewScope,
+		ParentRequestReasonPolicy:  resolved.reasonPolicy,
 		ShowTimetableCounts:        resolved.showTimetableCounts,
+		TimetableEnabled:           resolved.timetableEnabled,
 		WaitlistEnabled:            resolved.waitlistEnabled,
 		EmergencyHealthInfoEnabled: resolved.emergencyHealthInfo,
 	}
@@ -131,7 +133,9 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		careOfferingsEnabled:   true,
 		groupMode:              configModel.GroupModeFixedGroups,
 		overviewScope:          configModel.OverviewScopeOwn,
+		reasonPolicy:           configModel.ReasonPolicyBoth,
 		showTimetableCounts:    true,
+		timetableEnabled:       true,
 		waitlistEnabled:        true,
 		emergencyHealthInfo:    false,
 	}
@@ -148,9 +152,11 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		configModel.KeyAttendanceWebEnabled,
 		configModel.KeyAttendanceLogEnabled,
 		configModel.KeyTimetableShowExpectedChildrenCount,
+		configModel.KeyTimetableEnabled,
 		configModel.KeyEnrollmentWaitlistEnabled,
 		configModel.KeyGroupMode,
 		configModel.KeyOperationalOverviewScope,
+		configModel.KeyParentRequestReasonPolicy,
 		configModel.KeyParentNotesEnabled,
 		configModel.KeyEmergencyListHealthInfo,
 		configModel.KeyStaffMessagingEnabled,
@@ -186,10 +192,12 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	resolved.attendanceWebEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
 	resolved.attendanceLogEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
+	resolved.timetableEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableEnabled, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.emergencyHealthInfo = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
 	resolved.overviewScope = rs.resolveTenantOverviewScope(ctx, tenantID)
+	resolved.reasonPolicy = rs.resolveTenantReasonPolicy(ctx, tenantID)
 
 	// Messaging compose visibility intentionally fails open so it stays in
 	// lockstep with the unread badge, inbox row pills, and reply path.
@@ -234,6 +242,7 @@ func resolveTenantShellSnapshot(
 	resolved.attendanceWebEnabled = resolveBool(configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
 	resolved.attendanceLogEnabled = resolveBool(configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = resolveBool(configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
+	resolved.timetableEnabled = resolveBool(configModel.KeyTimetableEnabled, true, slog.LevelWarn)
 	resolved.waitlistEnabled = resolveBool(configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.parentMessagingEnabled = resolveBool(configModel.KeyParentNotesEnabled, true, slog.LevelWarn)
 	resolved.emergencyHealthInfo = resolveBool(configModel.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
@@ -255,6 +264,9 @@ func resolveTenantShellSnapshot(
 	resolved.overviewScope = normalizeOverviewScope(
 		resolveString(configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, slog.LevelError),
 	)
+	resolved.reasonPolicy = normalizeReasonPolicy(
+		resolveString(configModel.KeyParentRequestReasonPolicy, configModel.ReasonPolicyBoth, slog.LevelError),
+	)
 	return resolved, nil
 }
 
@@ -266,6 +278,18 @@ func normalizeOverviewScope(value string) string {
 		return value
 	default:
 		return configModel.OverviewScopeOwn
+	}
+}
+
+// normalizeReasonPolicy keeps an unknown wire value from reaching the client:
+// anything unrecognised becomes "both", the strictest policy, so the UI asks
+// for a reason the server might require rather than hiding a required field.
+func normalizeReasonPolicy(value string) string {
+	switch value {
+	case configModel.ReasonPolicyNobody, configModel.ReasonPolicyGuardians, configModel.ReasonPolicyStaff:
+		return value
+	default:
+		return configModel.ReasonPolicyBoth
 	}
 }
 
@@ -306,6 +330,15 @@ func (rs *Resource) resolveTenantOverviewScope(ctx context.Context, tenantID int
 		return configModel.OverviewScopeOwn
 	}
 	return normalizeOverviewScope(value)
+}
+
+func (rs *Resource) resolveTenantReasonPolicy(ctx context.Context, tenantID int64) string {
+	value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, configModel.KeyParentRequestReasonPolicy)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, configModel.KeyParentRequestReasonPolicy, err, slog.LevelError)
+		return configModel.ReasonPolicyBoth
+	}
+	return normalizeReasonPolicy(value)
 }
 
 func logTenantResolveSettingFailure(ctx context.Context, tenantID int64, key string, err error, level slog.Level) {

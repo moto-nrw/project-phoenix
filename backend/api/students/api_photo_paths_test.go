@@ -77,11 +77,11 @@ func enablePhotoFeatureForTenant(t *testing.T, tc *testContext) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	require.NoError(t,
-		tc.services.Settings.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
+		tc.resource.SettingsService.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
 		"enable student_photos_enabled",
 	)
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyStudentPhotosEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyStudentPhotosEnabled, nil, nil)
 	})
 }
 
@@ -136,7 +136,7 @@ func readConsentTimestamp(t *testing.T, tc *testContext, studentID int64) bool {
 func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoWithdraw", "Student", "PW1")
@@ -187,7 +187,7 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoGrant", "Student", "PG1")
@@ -229,7 +229,7 @@ func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
 func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoNoOp", "Student", "PN1")
@@ -266,7 +266,7 @@ func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
 func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "ApiPath", "PD1")
 	// Seed a photo file BEFORE the delete so we can confirm it's gone
@@ -302,7 +302,7 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DelNoPhoto", "ApiPath", "DN1")
 
@@ -333,7 +333,7 @@ func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 func TestUpdateStudent_PhotoEnabled_ResponseIncludesPhotoURL(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoResp", "Enabled", "PR1")
@@ -361,7 +361,7 @@ func TestUpdateStudent_PhotoEnabled_ResponseIncludesPhotoURL(t *testing.T) {
 func TestUpdateStudent_PhotoDisabled_ResponseOmitsPhotoURL(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// Deliberately do NOT enable the feature.
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoResp", "Disabled", "PR2")

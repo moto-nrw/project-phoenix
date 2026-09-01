@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -25,7 +24,7 @@ import (
 // setupArrivalScheduleService creates an ArrivalScheduleService with real database connection
 func setupArrivalScheduleService(t *testing.T, db *bun.DB) schedule.ArrivalScheduleService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.ArrivalSchedule
 }
@@ -232,7 +231,7 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 		// Wrap in transaction so partial writes are rolled back on error
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := base.ContextWithTx(ctx, &tx)
+		txCtx := tenant.WithTransactionForTest(ctx, &tx)
 
 		err = service.UpsertBulkStudentArrivalSchedules(txCtx, student.ID, schedules)
 
@@ -259,7 +258,7 @@ func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
 	release := make(chan struct{})
 	lockDone := make(chan error, 1)
 	go func() {
-		lockDone <- tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		lockDone <- testpkg.WithTenantTx(t, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
 			if _, err := repos.Student.FindByIDForUpdate(txCtx, student.ID); err != nil {
 				return err
 			}

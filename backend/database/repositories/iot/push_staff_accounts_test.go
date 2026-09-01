@@ -9,10 +9,10 @@ import (
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // TestPushSubscriptionRepository_FindForStaffAccounts pins the addressing
@@ -30,19 +30,20 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	addressed := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-addressed-%d@example.com", suffix))
 	bystander := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-bystander-%d@example.com", suffix))
 
-	defer testpkg.CleanupAuthFixtures(t, db, addressed.ID, bystander.ID)
-	defer cleanupPushSubscriptions(t, db, addressed.ID, bystander.ID)
-
 	createAccountTenantMapping(t, db, addressed.ID, testpkg.Tenant(t))
 	createAccountTenantMapping(t, db, bystander.ID, testpkg.Tenant(t))
 	assignSystemRole(t, db, addressed.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
 	assignSystemRole(t, db, bystander.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
+	// The school portal is the lehrkraft surface: its pushes require that role.
+	testpkg.AssignLehrkraftSystemRole(t, db, addressed.ID, testpkg.Tenant(t))
 
 	addressedEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/addressed-%d", suffix)
 	bystanderEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/bystander-%d", suffix)
+	schoolEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/school-%d", suffix)
 
 	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, iotModels.PushPortalStaff, addressedEndpoint)))
 	require.NoError(t, repo.Upsert(ctx, newSubscription(t, bystander.ID, iotModels.PushPortalStaff, bystanderEndpoint)))
+	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, iotModels.PushPortalSchool, schoolEndpoint)))
 
 	t.Run("returns only the addressed account's devices", func(t *testing.T) {
 		subs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
@@ -52,6 +53,36 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 			"the named recipient's device must be returned")
 		assert.Empty(t, subscriptionsForAccount(subs, bystander.ID),
 			"a personal notification must not reach a bystander")
+	})
+
+	t.Run("keeps school devices separate from staff devices", func(t *testing.T) {
+		staffSubs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(staffSubs, addressedEndpoint))
+		assert.False(t, hasSubscriptionEndpoint(staffSubs, schoolEndpoint))
+
+		schoolSubs, err := repo.FindForSchoolAccounts(ctx, []int64{addressed.ID})
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(schoolSubs, schoolEndpoint))
+		assert.False(t, hasSubscriptionEndpoint(schoolSubs, addressedEndpoint))
+	})
+
+	t.Run("revoking the lehrkraft role ends school-portal delivery", func(t *testing.T) {
+		// A teacher who also works as Betreuungskraft keeps a staff role after
+		// the school revokes the lehrkraft role. The staff portal stays
+		// reachable for them, moto schule does not — so its pushes must stop.
+		removeLehrkraftSystemRole(t, db, addressed.ID, testpkg.Tenant(t))
+		defer testpkg.AssignLehrkraftSystemRole(t, db, addressed.ID, testpkg.Tenant(t))
+
+		schoolSubs, err := repo.FindForSchoolAccounts(ctx, []int64{addressed.ID})
+		require.NoError(t, err)
+		assert.Empty(t, schoolSubs,
+			"a revoked lehrkraft role must end school-portal push delivery")
+
+		staffSubs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(staffSubs, addressedEndpoint),
+			"the remaining staff role keeps staff-portal delivery")
 	})
 
 	t.Run("empty input returns nothing rather than everything", func(t *testing.T) {
@@ -123,7 +154,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	})
 
 	t.Run("does not reach the same account from another tenant's context", func(t *testing.T) {
-		otherTenantCtx := tenant.WithTenantID(context.Background(), 2)
+		otherTenantCtx := testpkg.TenantContext(2)
 
 		subs, err := repo.FindForStaffAccounts(otherTenantCtx, []int64{addressed.ID})
 		require.NoError(t, err)
@@ -131,4 +162,17 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 		assert.Empty(t, subs,
 			"a device registered at one school must not receive another school's payload")
 	})
+}
+
+// removeLehrkraftSystemRole revokes the lehrkraft system role assignment of an
+// account at the given tenant, the way an admin taking the role away does.
+func removeLehrkraftSystemRole(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	_, err := db.NewDelete().
+		TableExpr("auth.account_roles").
+		Where("account_id = ?", accountID).
+		Where("tenant_id = ?", tenantID).
+		Where(`role_id IN (SELECT id FROM auth.roles WHERE name = ? AND is_system = TRUE)`, "lehrkraft").
+		Exec(context.Background())
+	require.NoError(t, err)
 }

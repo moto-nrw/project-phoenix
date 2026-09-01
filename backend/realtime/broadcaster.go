@@ -31,6 +31,11 @@ type Broadcaster interface {
 	// where each recipient gets their own payload. Fire-and-forget.
 	BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event Event) error
 
+	// BroadcastToSchoolAccounts wakes only the addressed school-portal clients
+	// within one tenant. The school portal has a narrower notification surface
+	// than the staff portal, so callers must opt into this fan-out explicitly.
+	BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event Event) error
+
 	// BroadcastToAll sends an event to every connected client regardless of group subscriptions.
 	// Used for global dashboard count refreshes. Fire-and-forget.
 	BroadcastToAll(event Event) error

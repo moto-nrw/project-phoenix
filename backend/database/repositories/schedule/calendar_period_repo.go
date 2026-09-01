@@ -47,7 +47,7 @@ func (r *CalendarPeriodRepository) FindByTenantID(ctx context.Context) ([]*sched
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by tenant id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -69,7 +69,7 @@ func (r *CalendarPeriodRepository) FindActiveByTenantID(ctx context.Context) ([]
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by tenant id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -93,7 +93,7 @@ func (r *CalendarPeriodRepository) FindByName(ctx context.Context, name string) 
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -115,7 +115,7 @@ func (r *CalendarPeriodRepository) FindByID(ctx context.Context, id any) (*sched
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  opFindByID,
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -153,7 +153,7 @@ func (r *CalendarPeriodRepository) CreateIfAbsent(ctx context.Context, p *schedu
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "create if absent",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -161,7 +161,7 @@ func (r *CalendarPeriodRepository) CreateIfAbsent(ctx context.Context, p *schedu
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "create if absent (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -190,7 +190,7 @@ func (r *CalendarPeriodRepository) FindActiveOverlapping(ctx context.Context, st
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active overlapping",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -218,7 +218,7 @@ func (r *CalendarPeriodRepository) FindActiveOverlappingByType(ctx context.Conte
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active overlapping by type",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -281,7 +281,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "usage counts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

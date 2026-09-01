@@ -34,7 +34,7 @@ func (r *recordingOfferingResyncer) ResyncOfferingSourcedTemplates(_ context.Con
 func TestUpdateStudent_ClassChangeResyncsOfferingSourcedTemplates(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	rec := &recordingOfferingResyncer{}
 	tc.resource.OfferingSourceResyncer = rec
 	tc.resource.LockTemplateRecurrence = func(ctx context.Context) error {
@@ -46,7 +46,7 @@ func TestUpdateStudent_ClassChangeResyncsOfferingSourcedTemplates(t *testing.T) 
 	putStudent(t, tc, student.ID, map[string]any{"school_class": "3a"})
 	require.Len(t, rec.calls, 1,
 		"a class change must resync the offering-sourced templates in the same request")
-	assert.Equal(t, timezone.TodayDate(), rec.calls[0],
+	assert.Equal(t, timezone.NewDate(2026, 8, 24), rec.calls[0],
 		"history stays untouched: the resync boundary is today, like a grade transition")
 
 	putStudent(t, tc, student.ID, map[string]any{"school_class": "3a"})

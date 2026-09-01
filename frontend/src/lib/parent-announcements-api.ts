@@ -34,6 +34,19 @@ interface AnnouncementOption {
   label: string;
 }
 
+/**
+ * How the announcement is delivered. "letter" is the Elternbrief (#2384):
+ * e-mail and confirmation are mandatory and the mail carries the full text.
+ */
+type AnnouncementDeliveryMode = "standard" | "letter";
+
+/**
+ * Who receives the e-mail — a separate axis from who sees the announcement in
+ * the portal. "portal_only" is the default and the safe one; "all_contacts"
+ * additionally reaches guardians that have an address but no portal access.
+ */
+export type AnnouncementEmailAudience = "portal_only" | "all_contacts";
+
 export interface Announcement {
   id: string;
   title: string;
@@ -54,6 +67,13 @@ export interface Announcement {
   /** Set on rows the system wrote, e.g. the cancellation notice (#2601). */
   system_kind?: "care_cancellation";
   options: AnnouncementOption[];
+  delivery_mode: AnnouncementDeliveryMode;
+  email_audience: AnnouncementEmailAudience;
+}
+
+/** True when the announcement is a binding Elternbrief. */
+export function isLetter(announcement: Announcement): boolean {
+  return announcement.delivery_mode === "letter";
 }
 
 /** True when the announcement asks the parents a question. */
@@ -118,6 +138,72 @@ export interface AnnouncementInput {
   response_deadline?: string | null;
   /** Answer labels in display order — the backend assigns the option ids. */
   options?: string[];
+  /**
+   * "letter" makes this an Elternbrief. The backend then forces send_email and
+   * requires_acknowledgement on, so the client need not repeat them.
+   */
+  delivery_mode?: AnnouncementDeliveryMode;
+  email_audience?: AnnouncementEmailAudience;
+}
+
+/**
+ * One addressed person in the recipient matrix. The two channels are reported
+ * separately on purpose (#2384): "die E-Mail ist raus" and "jemand hat in moto
+ * bestätigt" are different facts.
+ *
+ * email_status "sent" means handed to the mail server — label it "Versendet",
+ * never "Zugestellt", until provider delivery events exist (#1937).
+ */
+export interface LetterRecipient {
+  first_name: string;
+  last_name: string;
+  email?: string;
+  /**
+   * "not_sent" means nothing was queued — `reachability` says why. The two are
+   * separate vocabularies on purpose; collapsing them is what would let a
+   * school read "kein Portalzugang" as a delivery failure.
+   */
+  email_status: "not_sent" | "pending" | "sent" | "failed";
+  reachability: "ok" | "no_email" | "no_portal" | "excluded";
+  last_error?: string;
+  sent_at?: string;
+}
+
+/** One reached child with the derived fulfilment of the letter. */
+export interface LetterChild {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  fulfilled: boolean;
+  /**
+   * False when NO guardian of this child can acknowledge in moto. Such a child
+   * is reached by the letter but can never be confirmed — a data gap a reminder
+   * cannot close, so it must never be counted as "offen".
+   */
+  can_confirm: boolean;
+  acknowledged_at?: string;
+  acknowledged_by?: string;
+}
+
+interface LetterSummary {
+  children_total: number;
+  children_confirmable: number;
+  children_fulfilled: number;
+  children_open: number;
+  children_without_portal: number;
+  recipients_total: number;
+  emails_sent: number;
+  emails_pending: number;
+  emails_failed: number;
+  without_email: number;
+  without_portal: number;
+}
+
+export interface LetterStatus {
+  recipients: LetterRecipient[];
+  children: LetterChild[];
+  summary: LetterSummary;
 }
 
 interface ApiResponse<T> {
@@ -290,6 +376,48 @@ export async function remindUnanswered(id: string): Promise<number> {
   return data?.reminded_count ?? 0;
 }
 
+/** The Elternbrief recipient matrix: per person, per child, plus the counts. */
+export async function fetchLetterStatus(id: string): Promise<LetterStatus> {
+  const data = await request<LetterStatus>(
+    `${BASE}/${encodeURIComponent(id)}/letter-status`,
+    undefined,
+    "Status konnte nicht geladen werden",
+  );
+  return (
+    data ?? {
+      recipients: [],
+      children: [],
+      summary: {
+        children_total: 0,
+        children_confirmable: 0,
+        children_fulfilled: 0,
+        children_open: 0,
+        children_without_portal: 0,
+        recipients_total: 0,
+        emails_sent: 0,
+        emails_pending: 0,
+        emails_failed: 0,
+        without_email: 0,
+        without_portal: 0,
+      },
+    }
+  );
+}
+
+/** Re-queue only the mails that failed. Separate from remindUnanswered. */
+export async function resendFailedEmails(id: string): Promise<number> {
+  const data = await request<{ resent_count: number }>(
+    `${BASE}/${encodeURIComponent(id)}/resend-failed`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    },
+    "Erneuter Versand fehlgeschlagen",
+  );
+  return data?.resent_count ?? 0;
+}
+
 export async function fetchAnnouncementRecipients(
   id: string,
 ): Promise<AnnouncementRecipient[]> {
@@ -299,4 +427,81 @@ export async function fetchAnnouncementRecipients(
     "Empfängerliste konnte nicht geladen werden",
   );
   return data ?? [];
+}
+
+/* --- Anhänge (#2890) -------------------------------------------------------
+ *
+ * Eigener Pfad statt einer Unterroute von /api/parent-announcements: die
+ * Bytes gehören der Dateiablage, die Mitteilung steuert nur den
+ * Empfängerkreis bei.
+ */
+
+const ATTACHMENTS_BASE = "/api/announcement-attachments";
+
+export interface AnnouncementAttachment {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
+export interface AnnouncementAttachmentList {
+  attachments: AnnouncementAttachment[];
+  /** Höchstzahl der Anhänge je Mitteilung. */
+  max_count: number;
+  /** Größengrenze je Datei in Bytes. */
+  max_bytes: number;
+  /** false, sobald die Mitteilung veröffentlicht ist. */
+  editable: boolean;
+}
+
+const EMPTY_ATTACHMENTS: AnnouncementAttachmentList = {
+  attachments: [],
+  max_count: 0,
+  max_bytes: 0,
+  editable: false,
+};
+
+export async function fetchAnnouncementAttachments(
+  announcementId: string,
+): Promise<AnnouncementAttachmentList> {
+  const data = await request<AnnouncementAttachmentList>(
+    `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}`,
+    undefined,
+    "Anhänge konnten nicht geladen werden",
+  );
+  return data ?? EMPTY_ATTACHMENTS;
+}
+
+export async function uploadAnnouncementAttachment(
+  announcementId: string,
+  file: File,
+): Promise<AnnouncementAttachment | undefined> {
+  const form = new FormData();
+  form.append("file", file);
+  return request<AnnouncementAttachment>(
+    `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}`,
+    { method: "POST", body: form },
+    "Die Datei konnte nicht hochgeladen werden",
+  );
+}
+
+export async function deleteAnnouncementAttachment(
+  announcementId: string,
+  attachmentId: string,
+): Promise<void> {
+  await request<unknown>(
+    `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}`,
+    { method: "DELETE" },
+    "Der Anhang konnte nicht entfernt werden",
+  );
+}
+
+/** Adresse, unter der das Personal einen Anhang zur Kontrolle öffnet. */
+export function announcementAttachmentDownloadUrl(
+  announcementId: string,
+  attachmentId: string,
+): string {
+  return `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}/download`;
 }

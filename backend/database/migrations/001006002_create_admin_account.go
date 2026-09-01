@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/uptrace/bun"
 )
 
@@ -65,7 +64,7 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Hash the password
-	hashedPassword, err := userpass.HashPassword(adminPassword, userpass.DefaultParams())
+	hashedPassword, err := hashBootstrapPassword(ctx, tx, adminPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}

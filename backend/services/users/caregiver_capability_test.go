@@ -3,6 +3,7 @@ package users_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +37,7 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *services.Factory) {
 func setupServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
 	t.Helper()
 
-	factory, err := services.NewFactory(repositories.NewFactory(db), db, slog.Default())
+	factory, err := services.NewFactoryForTests(repositories.NewFactory(db), db, slog.Default())
 	require.NoError(t, err)
 	return factory
 }
@@ -334,10 +336,9 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.Equal(t, true, after["has_teacher"])
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := context.WithValue(
 		testpkg.Ctx(t),
@@ -387,10 +388,54 @@ func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *tes
 	assert.Equal(t, true, after["has_teacher"])
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
+// The nested request transaction verifies that disable retains its
+// independently committed retry boundary.
+func TestCaregiverCapability_DisableCommitsIndependentlyOfAmbientTransaction(t *testing.T) {
+	t.Parallel()
+
+	db, factory := setupCaregiverFactory(t)
+	tenantID := testpkg.Tenant(t)
+	ctx := testpkg.Ctx(t)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Independent", "Disable")
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "admin")
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "user")
+
+	outerRollback := errors.New("rollback outer request transaction")
+	err := testpkg.WithTenantTx(t, ctx, db, tenantID, func(outerCtx context.Context, _ bun.Tx) error {
+		state, disableErr := factory.CaregiverCapability.DisableCaregiverCapability(outerCtx, account.ID)
+		require.NoError(t, disableErr)
+		assert.False(t, state.HasUserRole)
+		return outerRollback
+	})
+	require.ErrorIs(t, err, outerRollback)
+
+	state, err := factory.CaregiverCapability.GetCaregiverCapability(testpkg.Ctx(t), account.ID)
+	require.NoError(t, err)
+	assert.False(t, state.HasUserRole)
+}
+
+func TestCaregiverCapability_DisableRejectsMissingUnitOfWork(t *testing.T) {
+	t.Parallel()
+
+	db, factory := setupCaregiverFactory(t)
+	tenantID := testpkg.Tenant(t)
+	ctx := tenant.WithTenantID(context.Background(), tenantID)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Standalone", "Disable")
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "admin")
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "user")
+
+	state, err := factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
+	require.ErrorIs(t, err, tenant.ErrRuntimeRequired)
+	assert.Nil(t, state)
+}
+
 func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -425,10 +470,9 @@ func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
 	)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -479,10 +523,9 @@ func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T)
 	assert.False(t, accountHasSystemRole(t, db, account.ID, testpkg.Tenant(t), "user"))
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -553,10 +596,9 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	assert.Equal(t, state.DisableBlockers, blockedErr.Reasons)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -704,10 +746,9 @@ func TestCaregiverCapability_GetSupportsPersonWithoutStaffProfile(t *testing.T) 
 	assert.False(t, state.IsActiveCaregiver)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableReturnsStateWhenUserRoleIsAlreadyMissing(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -725,10 +766,9 @@ func TestCaregiverCapability_DisableReturnsStateWhenUserRoleIsAlreadyMissing(t *
 	assert.False(t, state.IsActiveCaregiver)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableRemovesLegacyTeacherRoleWhenAdminRemains(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -749,10 +789,9 @@ func TestCaregiverCapability_DisableRemovesLegacyTeacherRoleWhenAdminRemains(t *
 	assert.False(t, accountHasSystemRole(t, db, account.ID, testpkg.Tenant(t), "teacher"))
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -782,10 +821,9 @@ func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T)
 	assert.True(t, accountHasSystemRole(t, db, account.ID, testpkg.Tenant(t), "teacher"))
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRole(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(tenantID)

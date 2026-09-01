@@ -33,6 +33,10 @@ func (m *mockAvatarUserContextService) GetCurrentStaff(context.Context) (*users.
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockAvatarUserContextService) HasCurrentStaff(context.Context) (bool, error) {
+	return false, errors.New("not implemented")
+}
+
 func (m *mockAvatarUserContextService) GetNavigationContext(context.Context) (*usercontextsvc.NavigationContext, error) {
 	return nil, errors.New("not implemented")
 }

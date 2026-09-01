@@ -1,42 +1,23 @@
-package config_test
+package config
 
 import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"strings"
-	"sync/atomic"
 	"testing"
 
 	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-type settingValuesSelectCounter struct {
-	count atomic.Int32
-}
-
-func (c *settingValuesSelectCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	query := strings.ToLower(event.Query)
-	if strings.HasPrefix(strings.TrimSpace(query), "select") &&
-		strings.Contains(query, "config.setting_values") {
-		c.count.Add(1)
-	}
-	return ctx
-}
-
-func (*settingValuesSelectCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
-
 func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
-	config.ResetRegistry()
-	t.Cleanup(config.ResetRegistry)
-	registerTestSetting("test.multi_tenant", config.FieldText, "default")
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	registry := config.NewRegistry()
+	registerTestSetting(registry, "test.multi_tenant", config.FieldText, "default")
 
 	db := testpkg.SetupTestDB(t)
 	tenantA := testpkg.UniqueTestTenantID(t)
@@ -44,7 +25,7 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	repository := configRepository.NewSettingValueRepository(db)
+	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	valueA := &config.SettingValue{
 		SettingKey: "test.multi_tenant",
 		Value:      json.RawMessage(`"tenant-a"`),
@@ -55,17 +36,17 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 		Value:      json.RawMessage(`"tenant-b"`),
 	}
 	valueB.SetTenantID(tenantB)
-	require.NoError(t, repository.Upsert(tenant.WithTenantID(context.Background(), tenantA), valueA))
-	require.NoError(t, repository.Upsert(tenant.WithTenantID(context.Background(), tenantB), valueB))
+	require.NoError(t, repository.Upsert(testpkg.ContextForTenant(context.Background(), tenantA), valueA))
+	require.NoError(t, repository.Upsert(testpkg.ContextForTenant(context.Background(), tenantB), valueB))
 	t.Cleanup(func() {
-		_ = repository.Delete(tenant.WithTenantID(context.Background(), tenantA), tenantA, valueA.SettingKey)
-		_ = repository.Delete(tenant.WithTenantID(context.Background(), tenantB), tenantB, valueB.SettingKey)
+		_ = repository.Delete(testpkg.ContextForTenant(context.Background(), tenantA), tenantA, valueA.SettingKey)
+		_ = repository.Delete(testpkg.ContextForTenant(context.Background(), tenantB), tenantB, valueB.SettingKey)
 	})
 
-	counter := &settingValuesSelectCounter{}
-	db.AddQueryHook(counter)
-	service := configService.NewSettingsService(repository, nil, nil, db, slog.Default())
-	batch, ok := service.(configService.BatchSettingsService)
+	selectCount := testpkg.CaptureSettingValueSelects(db)
+	service := NewSettingsService(repository, nil, nil, testpkg.SettingsRuntime(t, db), slog.Default(), registry)
+	testpkg.SetTenantRuntime(t, service, db)
+	batch, ok := service.(BatchSettingsService)
 	require.True(t, ok)
 
 	snapshots, err := batch.ResolveManyForTenants(
@@ -81,6 +62,40 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "tenant-a", resolvedA)
 	assert.Equal(t, "tenant-b", resolvedB)
-	assert.Equal(t, int32(1), counter.count.Load(),
+	assert.Equal(t, int32(1), selectCount(),
 		"tenant count must not affect config.setting_values query count")
+}
+
+func TestEnrollmentEnabledForTenantsPreservesOverrideAndDefault(t *testing.T) {
+	t.Parallel()
+	registry := config.NewRegistry()
+	registerTestSetting(registry, config.KeyEnrollmentEnabled, config.FieldBoolean, false)
+
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
+
+	repository := newInMemoryValueRepo()
+	override := &config.SettingValue{
+		SettingKey: config.KeyEnrollmentEnabled,
+		Value:      json.RawMessage(`true`),
+	}
+	override.SetTenantID(tenantA)
+	require.NoError(t, repository.Upsert(context.Background(), override))
+
+	service := NewSettingsService(repository, nil, nil, testSettingsRuntime{}, slog.Default(), registry)
+	values, err := service.EnrollmentEnabledForTenants(context.Background(), []int64{tenantA, tenantB})
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]bool{tenantA: true, tenantB: false}, values)
+}
+
+func TestEnrollmentEnabledForTenantsFailsWhenDefinitionIsMissing(t *testing.T) {
+	t.Parallel()
+	registry := config.NewRegistry()
+
+	service := NewSettingsService(newInMemoryValueRepo(), nil, nil, testSettingsRuntime{}, slog.Default(), registry)
+
+	_, err := service.EnrollmentEnabledForTenants(context.Background(), []int64{41})
+	var missing *DefinitionNotFoundError
+	require.ErrorAs(t, err, &missing)
+	assert.Equal(t, config.KeyEnrollmentEnabled, missing.Key)
 }

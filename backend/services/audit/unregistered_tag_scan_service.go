@@ -6,11 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 const UnregisteredTagScanRetentionDays = 90
@@ -23,15 +19,22 @@ type UnregisteredTagScanService interface {
 }
 
 type unregisteredTagScanService struct {
-	repo      auditModels.UnregisteredTagScanRepository
-	txHandler *modelBase.TxHandler
+	repo        auditModels.UnregisteredTagScanRepository
+	command     auditModels.Command
+	tenantID    func(context.Context) int64
+	withinAdmin func(context.Context, func(context.Context) error) error
 }
 
-func NewUnregisteredTagScanService(repo auditModels.UnregisteredTagScanRepository, db *bun.DB) UnregisteredTagScanService {
-	return &unregisteredTagScanService{
-		repo:      repo,
-		txHandler: modelBase.NewTxHandler(db),
+type UnregisteredTagScanRuntime struct {
+	TenantID    func(context.Context) int64
+	WithinAdmin func(context.Context, func(context.Context) error) error
+}
+
+func NewUnregisteredTagScanService(repo auditModels.UnregisteredTagScanRepository, command auditModels.Command, runtime UnregisteredTagScanRuntime) (UnregisteredTagScanService, error) {
+	if repo == nil || command == nil || runtime.TenantID == nil || runtime.WithinAdmin == nil {
+		return nil, fmt.Errorf("unregistered tag scan service dependencies are required")
 	}
+	return &unregisteredTagScanService{repo: repo, command: command, tenantID: runtime.TenantID, withinAdmin: runtime.WithinAdmin}, nil
 }
 
 func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, deviceID *int64) error {
@@ -39,7 +42,7 @@ func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, 
 	if normalized == "" {
 		return fmt.Errorf("tag UID is required")
 	}
-	tenantID := tenant.FromContext(ctx)
+	tenantID := s.tenantID(ctx)
 	if tenantID <= 0 {
 		return fmt.Errorf("tenant context is required")
 	}
@@ -49,12 +52,12 @@ func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, 
 		ScannedAt: time.Now(),
 	}
 	scan.SetTenantID(tenantID)
-	return s.repo.Create(ctx, scan)
+	return s.command.Append(ctx, scan)
 }
 
 func (s *unregisteredTagScanService) ListForOperator(ctx context.Context, filter auditModels.UnregisteredTagScanFilter) ([]*auditModels.UnregisteredTagScan, error) {
 	var scans []*auditModels.UnregisteredTagScan
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	err := s.runAdmin(ctx, func(adminCtx context.Context) error {
 		var err error
 		scans, err = s.repo.ListForOperator(adminCtx, filter)
 		return err
@@ -70,9 +73,9 @@ func (s *unregisteredTagScanService) Resolve(ctx context.Context, id, operatorID
 		return nil, fmt.Errorf("operator ID is required")
 	}
 	var scan *auditModels.UnregisteredTagScan
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	err := s.runAdmin(ctx, func(adminCtx context.Context) error {
 		var err error
-		scan, err = s.repo.Resolve(adminCtx, id, operatorID, strutil.TrimPtrToNil(note))
+		scan, err = s.repo.Resolve(adminCtx, id, operatorID, trimPtrToNil(note))
 		return err
 	})
 	return scan, err
@@ -85,12 +88,17 @@ func (s *unregisteredTagScanService) DeleteOlderThan(ctx context.Context, days i
 	return s.repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -days))
 }
 
-// adminDB returns the underlying *bun.DB, or nil when no tx handler is wired
-// (unit-test construction). Passing nil to WithAdminTxOrDirect makes it run
-// fn directly, preserving the old shim's nil guard.
-func (s *unregisteredTagScanService) adminDB() *bun.DB {
-	if s.txHandler == nil {
+func (s *unregisteredTagScanService) runAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return s.withinAdmin(ctx, fn)
+}
+
+func trimPtrToNil(value *string) *string {
+	if value == nil {
 		return nil
 	}
-	return s.txHandler.DB
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }

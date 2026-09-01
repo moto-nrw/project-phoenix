@@ -27,6 +27,9 @@ function announcement(overrides: Partial<Announcement> = {}): Announcement {
     priority: "info",
     requires_acknowledgement: false,
     send_email: false,
+    // #2384 added these two required fields; the backend always sends them.
+    delivery_mode: "standard",
+    email_audience: "portal_only",
     status: "draft",
     active: true,
     created_at: "2026-07-01T08:00:00Z",

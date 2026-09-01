@@ -30,10 +30,15 @@ type AppointmentRepository interface {
 	// for feed-visible appointments so they vanish from interactive calendars but
 	// remain exportable as a durable STATUS:CANCELLED tombstone.
 	SoftDelete(ctx context.Context, appointmentID int64) error
+	// DeleteFeedTombstonesBefore permanently removes expired cancellation and
+	// deletion tombstones. Child rows cascade with the appointment.
+	DeleteFeedTombstonesBefore(ctx context.Context, before time.Time) (int, error)
 	// ListVisible*/ListOrganized* return only live (deleted_at IS NULL) rows.
 	ListVisibleForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
+	// ListCancellationTombstonesForStaff combines organizer and recipient
+	// visibility with lifecycle cutoffs, which generic filters cannot express.
+	ListCancellationTombstonesForStaff(ctx context.Context, staffID int64, since time.Time) ([]*Appointment, error)
 	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*Appointment, error)
-	ListOrganizedByStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
 	// ListCancellationTombstonesForGuardianProfiles returns guardian-visible
 	// appointments cancelled OR soft-deleted on/after `since`, regardless of their
 	// event dates — the feed re-exports them as STATUS:CANCELLED so subscribers

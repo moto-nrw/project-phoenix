@@ -41,7 +41,7 @@ func loadEventsForInstance(t *testing.T, db *bun.DB, ctx context.Context, instan
 func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -75,7 +75,7 @@ func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 	assert.Equal(t, s.staffX, *absence.SubjectStaffID)
 	require.NotNil(t, absence.Reason)
 	assert.Equal(t, "krank", *absence.Reason)
-	assert.Equal(t, date, absence.OccurrenceDate)
+	assert.Equal(t, auditModels.Date(date), absence.OccurrenceDate)
 
 	require.NotNil(t, substitution.SubjectStaffID)
 	assert.Equal(t, s.staffA, *substitution.SubjectStaffID)
@@ -89,7 +89,7 @@ func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 func TestApplyDeviations_PresenceWritesReturnEvent(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -115,7 +115,7 @@ func TestApplyDeviations_PresenceWritesReturnEvent(t *testing.T) {
 func TestApplyDeviations_IdempotentReplayWritesNoEvent(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -139,12 +139,12 @@ func TestApplyDeviations_IdempotentReplayWritesNoEvent(t *testing.T) {
 func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
 	activeGroupRepo := activeRepo.NewGroupRepository(s.db)
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	ag := &activeModel.Group{
 		StartTime:      now,
 		LastActivity:   now,

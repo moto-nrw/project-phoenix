@@ -16,7 +16,6 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -79,7 +78,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-future-end",
@@ -88,7 +87,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 		t, env, offering.ID, "gehzeit-future-end@example.com", "Ende", 2,
 	)
 
-	effectiveFrom := nextWeekday(timezone.TodayDate().AddDays(1), time.Monday)
+	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
 	_, err := env.db.NewUpdate().
 		Model((*enrollmentModels.RequestChildOffering)(nil)).
 		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
@@ -136,7 +135,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	oldOffering := createPickupTimeOffering(t, env, "gehzeit-switch-old",
@@ -147,7 +146,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 		t, env, oldOffering.ID, "gehzeit-switch@example.com", "Wechsel", 2,
 	)
 
-	effectiveFrom := nextWeekday(timezone.TodayDate().AddDays(1), time.Monday)
+	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
 	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
 		ctx,
 		childID,
@@ -188,7 +187,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Zukunft")
 	require.NoError(t, reader.UpsertBulkStudentPickupSchedulesForDate(ctx, studentID, effectiveFrom, []*scheduleModels.StudentPickupSchedule{{
 		StudentID: studentID, Weekday: scheduleModels.WeekdayMonday,
-		PickupTime: timezone.WallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)), CreatedBy: author.ID,
+		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)), CreatedBy: author.ID,
 	}}))
 	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
@@ -311,7 +310,7 @@ func holdOfferingSourceGate(t *testing.T, env *decisionTestEnv) (chan struct{}, 
 	t.Helper()
 	acquired, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
 	go func() {
-		done <- tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+		done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 			if err := scheduleService.LockTenantRecurrenceWrites(ctx, env.db); err != nil {
 				return err
 			}
@@ -334,7 +333,7 @@ func startPickupReset(t *testing.T, env *decisionTestEnv, resetter enrollmentSer
 	t.Helper()
 	done := make(chan error, 1)
 	go func() {
-		done <- tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+		done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 			return resetter.ResetStudentPickupDayToOffering(ctx, studentID, date)
 		})
 	}()

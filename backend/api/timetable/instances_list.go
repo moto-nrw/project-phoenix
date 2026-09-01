@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -479,8 +478,8 @@ func earlyPickupWithin(
 	if !ok {
 		return nil
 	}
-	start := timezone.WallClock(inst.StartTime)
-	end := timezone.WallClock(inst.EndTime)
+	start := timezone.NormalizeWallClock(inst.StartTime)
+	end := timezone.NormalizeWallClock(inst.EndTime)
 	if cutoff.After(start) && cutoff.Before(end) {
 		formatted := cutoff.Format("15:04")
 		return &formatted
@@ -595,7 +594,7 @@ func (rs *Resource) enrichInstance(
 
 func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance, attendance []*scheduleModel.InstanceStudent) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
-	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), authorize.HasEffectiveAdminScope(ctx), time.Now()) &&
+	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), common.HasEffectiveAdminScope(ctx), time.Now()) &&
 		scheduleSvc.AttendanceUnchangedSinceCompletion(inst, attendance)
 }
 

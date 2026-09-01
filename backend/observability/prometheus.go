@@ -1,18 +1,27 @@
 package observability
 
 import (
-	"database/sql"
+	"context"
 	"errors"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+// DBStats is the database-capacity snapshot consumed by metrics. It keeps the
+// public observability interface independent of database/sql and ORM types.
+type DBStats struct {
+	OpenConnections   int
+	InUse             int
+	Idle              int
+	WaitCount         int64
+	WaitDuration      time.Duration
+	MaxIdleClosed     int64
+	MaxLifetimeClosed int64
+}
 
 type SSEStats struct {
 	ClientsByTenant map[int64]int
@@ -32,8 +41,8 @@ type PWAUsageStat struct {
 }
 
 // PWAUsageStatsProvider supplies the standalone-usage counts on scrape.
-// Implementations are expected to cache internally — MetricsHandler calls
-// this on every scrape.
+// Implementations are expected to cache internally because the metrics
+// adapter calls this on every scrape.
 type PWAUsageStatsProvider interface {
 	SnapshotUsageStats() ([]PWAUsageStat, error)
 }
@@ -81,12 +90,191 @@ var (
 		},
 		[]string{"tenant_id", "scope", "method", "route"},
 	)
+	tenantRuntimeEvents = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_tenant_runtime_events_total",
+			Help: "Rejected tenant entry points and tenant transaction failures.",
+		},
+		[]string{"entry_point", "outcome"},
+	)
+	unitOfWorkDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_unit_of_work_duration_seconds",
+			Help:    "Transaction duration by entry point and result.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		},
+		[]string{"entry_point", "result"},
+	)
+	unitOfWorkRollbacks = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_unit_of_work_rollbacks_total",
+			Help: "Rolled-back transactions by entry point.",
+		},
+		[]string{"entry_point"},
+	)
+	unitOfWorkRetries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_unit_of_work_retries_total",
+			Help: "Deadlock and serialization retries owned by an outer UnitOfWork.",
+		},
+		[]string{"entry_point"},
+	)
+	unitOfWorkPoolWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_unit_of_work_pool_wait_seconds",
+			Help:    "Database-pool wait attributed to UnitOfWork execution.",
+			Buckets: []float64{0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"entry_point"},
+	)
+	unitOfWorkLockWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_unit_of_work_lock_wait_seconds",
+			Help:    "Explicit transaction-lock acquisition time by entry point.",
+			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"entry_point"},
+	)
+	workerJobDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_job_duration_seconds",
+			Help:    "Embedded Worker job run duration by stable job ID and outcome.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300},
+		},
+		[]string{"job_id", "outcome"},
+	)
+	settingsLookups = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_settings_lookups_total",
+			Help: "Settings lookups by registry key, cache path, and outcome.",
+		},
+		[]string{"key", "cache", "outcome"},
+	)
+	settingsLookupDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_settings_lookup_duration_seconds",
+			Help:    "Settings resolution duration by registry key.",
+			Buckets: []float64{0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25},
+		},
+		[]string{"key"},
+	)
+	settingsSideEffectFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_settings_side_effect_failures_total",
+			Help: "Transactional settings side-effect failures by registry key.",
+		},
+		[]string{"key"},
+	)
+	mealPlanOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_meal_plan_operations_total", Help: "Meal Plan operations by operation and outcome."},
+		[]string{"operation", "outcome"},
+	)
+	mealPlanDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_meal_plan_operation_duration_seconds", Help: "Meal Plan read and write duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	mealPlanQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_meal_plan_queries_total", Help: "Persistence queries issued by Meal Plan operations."},
+		[]string{"operation"},
+	)
+	mealPlanRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_meal_plan_rows_changed_total", Help: "Rows changed by Meal Plan commands."},
+		[]string{"operation"},
+	)
+	mealPlanStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_meal_plan_statement_duration_seconds",
+			Help:    "Cumulative Meal Plan write-statement duration by operation.",
+			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"operation"},
+	)
+	feedbackOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_operations_total", Help: "Feedback operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	feedbackHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_http_responses_total", Help: "Feedback HTTP responses by surface, actual status class, and stable code."},
+		[]string{"surface", "status_class", "code"},
+	)
+	feedbackDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_feedback_operation_duration_seconds", Help: "Feedback operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	feedbackQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_queries_total", Help: "Persistence queries issued by Feedback operations."},
+		[]string{"operation"},
+	)
+	feedbackRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_rows_changed_total", Help: "Rows changed by Feedback operations, including retention."},
+		[]string{"operation"},
+	)
+	feedbackStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_feedback_statement_duration_seconds",
+			Help:    "Cumulative Feedback write-statement duration by operation, used as a lock-wait upper bound.",
+			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"operation"},
+	)
+	auditAppends = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_appends_total",
+			Help: "Audit append attempts by stable event type and outcome.",
+		},
+		[]string{"event_type", "outcome"},
+	)
+	auditAppendDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_audit_append_duration_seconds",
+			Help:    "Audit append duration by stable event type.",
+			Buckets: []float64{0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"event_type"},
+	)
+	auditRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_rows_total",
+			Help: "Rows appended to Audit ledgers by stable event type.",
+		},
+		[]string{"event_type"},
+	)
+	synchronousDeliveries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_synchronous_deliveries_total",
+			Help: "Fail-closed delivery calls by transport, template, caller, and outcome.",
+		},
+		[]string{"transport", "template", "caller", "outcome"},
+	)
+	synchronousDeliveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_synchronous_delivery_duration_seconds",
+			Help:    "Fail-closed delivery duration by transport, template, and caller.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 45, 60},
+		},
+		[]string{"transport", "template", "caller"},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
 			Help: "Requests rejected by the API rate limiter, split by quota bucket.",
 		},
 		[]string{"bucket"},
+	)
+	authorizationDenials = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_authorization_denials_total",
+			Help: "Authorization denials by stable reason code.",
+		},
+		[]string{"reason"},
+	)
+	authMiddlewareDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_auth_middleware_duration_seconds",
+			Help:    "Security-principal middleware duration by outcome.",
+			Buckets: []float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05},
+		},
+		[]string{"outcome"},
 	)
 	iotRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -147,7 +335,7 @@ var (
 	)
 
 	dbStatsMu        sync.RWMutex
-	dbStatsProvider  DBStatsProvider
+	dbStatsProvider  func() DBStats
 	sseStatsMu       sync.RWMutex
 	sseStatsProvider SSEStatsProvider
 	sseGaugeMu       sync.Mutex
@@ -175,7 +363,35 @@ func init() {
 		appHTTPActive,
 		tenantHTTPRequests,
 		tenantHTTPDuration,
+		tenantRuntimeEvents,
+		unitOfWorkDuration,
+		unitOfWorkRollbacks,
+		unitOfWorkRetries,
+		unitOfWorkPoolWait,
+		unitOfWorkLockWait,
+		workerJobDuration,
+		settingsLookups,
+		settingsLookupDuration,
+		settingsSideEffectFailures,
+		mealPlanOperations,
+		mealPlanDuration,
+		mealPlanQueries,
+		mealPlanRowsChanged,
+		mealPlanStatementDuration,
+		feedbackOperations,
+		feedbackHTTPResponses,
+		feedbackDuration,
+		feedbackQueries,
+		feedbackRowsChanged,
+		feedbackStatementDuration,
+		auditAppends,
+		auditAppendDuration,
+		auditRows,
+		synchronousDeliveries,
+		synchronousDeliveryDuration,
 		rateLimitRejections,
+		authorizationDenials,
+		authMiddlewareDuration,
 		iotRequests,
 		iotDuration,
 		sseBroadcasts,
@@ -188,15 +404,6 @@ func init() {
 	)
 }
 
-func MetricsHandler() http.Handler {
-	handler := promhttp.Handler()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		refreshSSEGauges()
-		refreshPWAGauges()
-		handler.ServeHTTP(w, r)
-	})
-}
-
 func MetricsBearerTokenFromEnv(getenv func(string) string) (string, error) {
 	token := strings.TrimSpace(getenv("METRICS_BEARER_TOKEN"))
 	if token == "" {
@@ -205,19 +412,7 @@ func MetricsBearerTokenFromEnv(getenv func(string) string) (string, error) {
 	return token, nil
 }
 
-func MetricsAuthMiddleware(token string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("Authorization") != "Bearer "+token {
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-func RegisterDBStatsProvider(provider DBStatsProvider) {
+func RegisterDBStatsProvider(provider func() DBStats) {
 	dbStatsMu.Lock()
 	defer dbStatsMu.Unlock()
 	dbStatsProvider = provider
@@ -237,6 +432,13 @@ func RegisterPWAUsageStatsProvider(provider PWAUsageStatsProvider) {
 	pwaStatsProvider = provider
 }
 
+// RefreshGauges updates scrape-time gauges before the HTTP adapter serves the
+// Prometheus registry.
+func RefreshGauges() {
+	refreshSSEGauges()
+	refreshPWAGauges()
+}
+
 func IncActiveHTTPRequests() {
 	appHTTPActive.Inc()
 }
@@ -246,23 +448,161 @@ func DecActiveHTTPRequests() {
 }
 
 func ObserveHTTPRequest(method, route string, status int, duration time.Duration) {
+	method = normalizeHTTPMethod(method)
 	statusClass := StatusClass(status)
 	appHTTPRequests.WithLabelValues(method, route, statusClass).Inc()
 	appHTTPDuration.WithLabelValues(method, route).Observe(duration.Seconds())
 }
 
+func ObserveMealPlanOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, err error) {
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	mealPlanOperations.WithLabelValues(operation, outcome).Inc()
+	mealPlanDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		mealPlanQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		mealPlanRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		mealPlanStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveFeedbackOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	feedbackOperations.WithLabelValues(sanitizeLabel(operation), outcome, sanitizeLabel(code)).Inc()
+	feedbackDuration.WithLabelValues(sanitizeLabel(operation)).Observe(duration.Seconds())
+	if queries > 0 {
+		feedbackQueries.WithLabelValues(sanitizeLabel(operation)).Add(float64(queries))
+	}
+	if rows > 0 {
+		feedbackRowsChanged.WithLabelValues(sanitizeLabel(operation)).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		feedbackStatementDuration.WithLabelValues(sanitizeLabel(operation)).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveFeedbackHTTPResponse(surface string, status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	feedbackHTTPResponses.WithLabelValues(sanitizeLabel(surface), statusClass, sanitizeLabel(code)).Inc()
+}
+
+func ObserveAuditAppend(eventType string, duration time.Duration, rows int, err error) {
+	eventType = sanitizeLabel(eventType)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	auditAppends.WithLabelValues(eventType, outcome).Inc()
+	auditAppendDuration.WithLabelValues(eventType).Observe(duration.Seconds())
+	if rows > 0 {
+		auditRows.WithLabelValues(eventType).Add(float64(rows))
+	}
+}
+
+// ObserveSynchronousDelivery records fail-closed sends without recipient or
+// payload labels. The outcome separates timeouts/cancellation from transport
+// failures so operators can alert on each class independently.
+func ObserveSynchronousDelivery(transport, template, caller string, duration time.Duration, err error) {
+	outcome := "success"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome = "timeout"
+	case errors.Is(err, context.Canceled):
+		outcome = "canceled"
+	case err != nil:
+		outcome = "failure"
+	}
+	transport = sanitizeLabel(transport)
+	template = sanitizeLabel(template)
+	caller = sanitizeLabel(caller)
+	synchronousDeliveries.WithLabelValues(transport, template, caller, outcome).Inc()
+	synchronousDeliveryDuration.WithLabelValues(transport, template, caller).Observe(duration.Seconds())
+}
+
 func ObserveTenantRequest(tenantID int64, scope, method, route string, status int, duration time.Duration, txOutcome string) {
+	method = normalizeHTTPMethod(method)
 	tenant := strconv.FormatInt(tenantID, 10)
 	statusClass := StatusClass(status)
 	tenantHTTPRequests.WithLabelValues(tenant, scope, method, route, statusClass, txOutcome).Inc()
 	tenantHTTPDuration.WithLabelValues(tenant, scope, method, route).Observe(duration.Seconds())
 }
 
+func normalizeHTTPMethod(method string) string {
+	switch strings.ToUpper(method) {
+	case "CONNECT", "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT", "TRACE":
+		return strings.ToUpper(method)
+	default:
+		return "other"
+	}
+}
+
+func RecordTenantRuntimeEvent(entryPoint, outcome string) {
+	tenantRuntimeEvents.WithLabelValues(sanitizeLabel(entryPoint), sanitizeLabel(outcome)).Inc()
+}
+
+func RecordUnitOfWorkEvent(entryPoint, kind, result string, duration time.Duration, retries int) {
+	entryPoint = sanitizeLabel(entryPoint)
+	switch kind {
+	case "transaction":
+		result = sanitizeLabel(result)
+		unitOfWorkDuration.WithLabelValues(entryPoint, result).Observe(duration.Seconds())
+		if result == "rollback" || result == "panic" {
+			unitOfWorkRollbacks.WithLabelValues(entryPoint).Inc()
+		}
+		if retries > 0 {
+			unitOfWorkRetries.WithLabelValues(entryPoint).Add(float64(retries))
+		}
+	case "pool_wait":
+		unitOfWorkPoolWait.WithLabelValues(entryPoint).Observe(duration.Seconds())
+	case "lock_wait":
+		unitOfWorkLockWait.WithLabelValues(entryPoint).Observe(duration.Seconds())
+	}
+}
+
+// RecordWorkerRunEvent records one bounded embedded-job outcome.
+func RecordWorkerRunEvent(jobID, outcome string, duration time.Duration) {
+	workerJobDuration.WithLabelValues(sanitizeLabel(jobID), sanitizeLabel(outcome)).Observe(duration.Seconds())
+}
+
+func ObserveSettingsLookup(key, cache, outcome string, duration time.Duration) {
+	settingsLookups.WithLabelValues(sanitizeLabel(key), sanitizeLabel(cache), sanitizeLabel(outcome)).Inc()
+	settingsLookupDuration.WithLabelValues(sanitizeLabel(key)).Observe(duration.Seconds())
+}
+
+func RecordSettingsSideEffectFailure(key string) {
+	settingsSideEffectFailures.WithLabelValues(sanitizeLabel(key)).Inc()
+}
+
 func RecordRateLimitRejection(bucket string) {
 	rateLimitRejections.WithLabelValues(sanitizeLabel(bucket)).Inc()
 }
 
+func RecordAuthorizationEvent(outcome, reason string, duration time.Duration) {
+	switch reason {
+	case "invalid_principal", "missing_principal", "permission_denied":
+		authorizationDenials.WithLabelValues(reason).Inc()
+	case "":
+	default:
+		authorizationDenials.WithLabelValues("unknown").Inc()
+	}
+	if outcome == "resolved" || outcome == "invalid" {
+		authMiddlewareDuration.WithLabelValues(outcome).Observe(duration.Seconds())
+	}
+}
+
 func ObserveIoTRequest(tenantID int64, method, route string, status int, duration time.Duration, deviceType string) {
+	method = normalizeHTTPMethod(method)
 	tenant := strconv.FormatInt(tenantID, 10)
 	if tenantID <= 0 {
 		tenant = "unknown"
@@ -297,15 +637,6 @@ func StatusClass(status int) string {
 	return strconv.Itoa(status/100) + "xx"
 }
 
-func RoutePattern(r *http.Request) string {
-	if routeCtx := chi.RouteContext(r.Context()); routeCtx != nil {
-		if pattern := routeCtx.RoutePattern(); pattern != "" {
-			return pattern
-		}
-	}
-	return "unmatched"
-}
-
 func sanitizeLabel(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -321,7 +652,7 @@ func outcomeForStatus(status int) string {
 	switch {
 	case status >= 500:
 		return "server_error"
-	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+	case status == 401 || status == 403:
 		return "auth_error"
 	case status >= 400:
 		return "validation_error"
@@ -351,7 +682,7 @@ func (dbStatsCollector) Collect(ch chan<- prometheus.Metric) {
 	if provider == nil {
 		return
 	}
-	stats := provider.Stats()
+	stats := provider()
 	emitDBGauge(ch, dbOpenConnectionsDesc, float64(stats.OpenConnections))
 	emitDBGauge(ch, dbInUseConnectionsDesc, float64(stats.InUse))
 	emitDBGauge(ch, dbIdleConnectionsDesc, float64(stats.Idle))
@@ -424,5 +755,3 @@ func refreshPWAGauges() {
 	}
 	pwaGaugeLabels = current
 }
-
-var _ DBStatsProvider = (*sql.DB)(nil)

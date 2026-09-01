@@ -11,20 +11,21 @@ Day-to-day run/build/migrate commands are Docker-Compose-first — see the root 
 # postgres-test container if needed, builds the template for this branch's
 # migrations hash (phoenix_test_<hash>, so parallel worktrees never share
 # one), and gives each package binary a run-stamped clone.
-../scripts/test-backend.sh          # Full suite via gotestsum + immediate clone sweep (preferred full run)
-go test ./...                       # All tests (works standalone; each binary drops its own clone at exit)
-PHX_TEST_LEFTOVERS=1 go test -v ./services/active   # Also print the leftovers the allowlist tolerates
-PHX_TEST_LEFTOVERS=test go test -parallel 1 ./services/active  # Name the test that leaked, not the package
-PHX_TEST_KEEP_CLONE=1 go test ./services/active     # Keep the clone for a post-mortem (psql into it)
-go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' phx_test_pkg_* clones manually
-go test -short ./...                # Fast inner loop: skips every DB integration test (SetupTestDB t.Skip). NEVER in CI — guts coverage.
-go test ./services/active/... -v    # Specific package
-go test -race ./...                 # Race detection
-go test ./api/auth -run TestLogin   # Specific test
+../scripts/run-go-toolchain.sh ../scripts/test-backend.sh  # Full suite via gotestsum + immediate clone sweep (preferred full run)
+../scripts/run-go-toolchain.sh go test ./...                # All tests (works standalone; each binary drops its own clone at exit)
+PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -v ./services/active  # Also print tolerated leftovers
+PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -parallel 1 ./services/active  # Name the leaking test
+PHX_TEST_KEEP_CLONE=1 ../scripts/run-go-toolchain.sh go test ./services/active  # Keep the clone for a post-mortem
+../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' clones manually
+../scripts/run-go-toolchain.sh go test -short ./...             # Fast inner loop; NEVER in CI — guts coverage.
+../scripts/run-go-toolchain.sh go test ./services/active/... -v # Specific package
+../scripts/run-go-toolchain.sh go test -race ./...              # Race detection
+../scripts/run-go-toolchain.sh go test ./api/auth -run TestLogin # Specific test
 
 # Code Quality (run before committing!)
-golangci-lint run --timeout 10m
-go fmt ./... && goimports -w . && go mod tidy
+../scripts/run-go-toolchain.sh golangci-lint run --timeout 10m
+../scripts/run-go-toolchain.sh go tool goimports -w .
+../scripts/run-go-toolchain.sh go mod tidy
 
 # CLI (run inside the container via `docker compose run server go run . <cmd>`)
 go run . migrate status|validate|reset
@@ -84,7 +85,7 @@ err := r.db.NewSelect().
 ```
 
 ### Transactions and Filters
-Transactions propagate via context (`base.ContextWithTx` / `base.TxFromContext`); repositories pick them up through `base.GetDB(ctx, db)`. For query filters and the generic repository API (`Repository[T]`, `base.Filter` with `Equal`/`ILike`/`In`/pagination), see `.claude/rules/backend-conventions.md` Rule 2 — don't invent per-field finder methods.
+Open tenant transactions through `tenant.TransactionRunner` (or the composition root's `tenant.UnitOfWork`). The runtime propagates the active transaction through context; repositories pick it up through `base.GetDB(ctx, db)`. For query filters and the generic repository API (`Repository[T]`, `base.Filter` with `Equal`/`ILike`/`In`/pagination), see `.claude/rules/backend-conventions.md` Rule 2 — don't invent per-field finder methods.
 
 ### Soft Delete
 `users.Person`, `users.Staff`, and `users.Teacher` carry `deleted_at` with bun's `soft_delete` tag: normal queries auto-filter soft-deleted rows. Staff deletion runs an offboarding service (not a bare delete). Keep this in mind when counting rows or writing raw SQL against these tables.
@@ -94,7 +95,7 @@ Transactions propagate via context (`base.ContextWithTx` / `base.TxFromContext`)
 Every model field mapped to a `DATE` column MUST be `timezone.Date` (or `*timezone.Date`), never `time.Time` — bun binds `time.Time` as UTC and Berlin-midnight dates land one day behind. `TestDateColumnTypes` fails CI on violations. Full API and rules: `.claude/rules/calendar-dates.md`.
 
 Clock values mapped to PostgreSQL `TIME` must pass through
-`timezone.WallClock()`. `TestActivityInstanceWallClockRatchet` blocks raw
+`timezone.NormalizeWallClock()`. `TestActivityInstanceWallClockRatchet` blocks raw
 current-time values in `ActivityInstance.StartTime`/`EndTime`; do not extend an
 allowlist around it.
 
@@ -183,26 +184,18 @@ func TestExample(t *testing.T) {
 ```
 
 - **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`.
-- **No `Cleanup*` calls in new tests**: the clone-per-package lifecycle owns
-  cleanup — a row that belongs to a tenant dies with the clone and no other
-  test ever sees it. 5120 such calls were removed (#2419); per-package counts
-  are ratcheted shrink-only (`cleanupCallBaseline`). Three shapes of teardown
-  legitimately survive, and a new one has to be one of them: a row in a
-  **tenant-less** table (auth.accounts, the RBAC catalog, platform/operator
-  tables) that the leftover gate would otherwise count; a **state reset
-  between subtests** of one test (prefer `testpkg.OwnTenant` for that subtest);
-  and the delete that **is** the test (an ID the code under test must report as
-  missing).
+- **No explicit `Cleanup*` calls**: `cleanupCallBaseline` is empty and the
+  AST-based gate rejects fixture cleanup through any import alias. The package
+  clone owns tenant rows. Tenantless fixture builders register their lifecycle
+  internally; schema-migration tests use `testpkg.OwnTenantRows`; subtests that
+  need isolated state use `testpkg.OwnTenant` / `testpkg.OwnCtx`. If a missing
+  row is the test arrangement, use a production delete operation or reserve an
+  unused sequence ID through a fixture helper.
 - **Every test owns its tenant (#2419)**: a package opts in once, from `TestMain`, with `testpkg.PerTestTenants()`. From then on each top-level test gets its own tenant, every `CreateTest*` fixture it creates lands there, and JWT claims minted through `api/testutil` follow it — so no fixture call and no claims helper needs a tenant argument. Inside a test, `testpkg.Ctx(t)` is the context (the replacement for `TenantContext(1)`) and `testpkg.Tenant(t)` the ID. Subtests share their parent's tenant — which is right when the parent builds the fixtures they read, and wrong for a table of subtests that each create the same kind of row and then assert something tenant-wide about it. Those call `testpkg.OwnTenant(t)` / `testpkg.OwnCtx(t)` as their first line and get a tenant of their own. One edge to know: the rebase happens when claims are *used* (`MintTestJWT`, `WithClaims`), so reading `claims.TenantID` straight off the struct still yields the bootstrap value — inside a test, take the tenant from `testpkg.Tenant(t)`, never from the claims you just built. Two gates hold the line: `db_packages_opt_into_per_test_tenants` fails any package that opens the test database without opting in, and `bootstrap_tenant_ratchet` counts every remaining spelling (`TenantContext(1)`, `WithTenantID(ctx, 1)`, `TenantID: 1`, `SetTenantID(1)`, `…ForTenant(…, 1, …)`, and literal `tenant_id` filters in raw SQL) per package, shrink-only.
-- **Tests are parallel by default (#2419)**: a new top-level test starts with
-  `t.Parallel()`. The `tests_run_in_parallel` gate counts the ones that do not,
-  per package, shrink-only (`serialTestBaseline`). A test may stay serial for
-  exactly five reasons, and it says which one in a comment right above itself:
-  it writes process-global state (env, viper, the settings registry,
-  `os.Stdout`), it changes the schema, it exercises a sweep that queries across
-  tenants without a tenant transaction (RLS never narrows it), it measures a
-  query budget on the shared pool, or it takes a row lock and expects a second
-  transaction to block on it. Anything else gets fixed, not exempted.
+- **Every top-level test is parallel (#2851)**: start it with `t.Parallel()`.
+  The `tests_run_in_parallel` gate has an empty baseline and rejects every
+  exception. Inject process configuration and output; use per-test database
+  clones for schema changes, sweeps, query measurements, and lock tests.
 - **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` and
   post-merge CI run `-p 6 -parallel 8`; changed-only PRs run `-p 4 -parallel 8`.
   The pool per binary is derived from `-test.parallel` plus
@@ -215,15 +208,16 @@ func TestExample(t *testing.T) {
   when rows are left in SHARED state — rows outside the tenants its own tests
   created. Rows in a test's own tenant are not leftovers. The gate runs from
   `TestMain` via `testpkg.Run(m)` (gate: `db_packages_run_the_leftover_gate`),
-  so a bare `go test ./...` is gated exactly like a wrapper run; it costs the
-  package one query at exit (~30-70ms measured). `PHX_TEST_LEFTOVERS=1 go test
-  -v` also prints the pairs `testdb.LeftoverAllowlist` still tolerates;
-  `PHX_TEST_LEFTOVERS=test go test -parallel 1 ./pkg` checks after every test
+  so `../scripts/run-go-toolchain.sh go test ./...` is gated exactly like a
+  full wrapper run; it costs the package one query at exit (~30-70ms measured).
+  `PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -v` also prints
+  the pairs `testdb.LeftoverAllowlist` still tolerates;
+  `PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -parallel 1 ./pkg` checks after every test
   and names the culprit instead of the package.
 - **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The remaining files where both meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, opt the package into per-test tenants instead.
 - The fixture catalog lives in `test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
-- Run the gate locally before pushing: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`
+- Run the gate locally before pushing: `cd backend && ../scripts/run-go-toolchain.sh go test ./test/ -run TestHermeticTestPatterns -v`
 - Never modify existing tests to make new code pass — see `.claude/rules/no-test-modifications.md`.
 
 ## Seed Coverage (MANDATORY)
@@ -273,7 +267,7 @@ s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_ca
 
 ## Email
 
-SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (link bases). With SMTP unset, the factory falls back to `email.NewMockMailer()` which logs metadata (to/subject/template) instead of sending — local dev needs no SMTP. HTML templates live in `backend/templates/email/` (shared chrome: `styles.html`, `header.html`, `footer.html`; feature templates for invitations, password reset, MFA codes, enrollment notifications, operator flows). Email sends are async fire-and-forget; failures are logged, never block API responses. Password hashing/strength helpers: `services/auth/password_helpers.go` — reuse, don't duplicate.
+SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (link bases). With SMTP unset, local development uses `email.NewMockMailer()` to log metadata (to/subject/template); staging and production fail startup. HTML templates live in `backend/templates/email/` (shared chrome: `styles.html`, `header.html`, `footer.html`; feature templates for invitations, password reset, MFA codes, enrollment notifications, operator flows). Most email sends use async `Dispatcher.Dispatch`; fail-closed sends such as MFA challenges use synchronous `Dispatcher.Deliver` and return success only after transport acceptance. Password hashing/strength helpers: `services/auth/password_helpers.go` — reuse, don't duplicate.
 
 **Password-reset rate limit is a cross-layer contract**: 3 requests/hour per email; the backend's `429` + `Retry-After` header drives the live countdown in the frontend's password-reset modal (localStorage-persisted). Changing the window or header silently breaks that UX.
 

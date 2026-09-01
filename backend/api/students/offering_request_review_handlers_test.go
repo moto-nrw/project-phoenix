@@ -79,7 +79,7 @@ func (f *fakeOfferingChangeRequestService) Decide(_ context.Context, input enrol
 }
 
 func (f *fakeOfferingChangeRequestService) EarliestEffectiveFrom(context.Context) (timezone.Date, error) {
-	return timezone.Date{}, nil
+	return timezone.Date(""), nil
 }
 
 func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
@@ -334,4 +334,12 @@ func TestPreviewOfferingChangeRequest_PassesTheChosenDate(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, svc.previewEffectiveFrom)
 	assert.Equal(t, timezone.NewDate(2026, 9, 1), *svc.previewEffectiveFrom)
+}
+
+// Edit is the guardian edit path (#2267); the staff review handlers under
+// test never call it.
+func (f *fakeOfferingChangeRequestService) Edit(
+	context.Context, int64, enrollmentService.CreateOfferingChangeInput, string,
+) (*enrollmentModels.OfferingChangeRequest, error) {
+	return nil, nil
 }

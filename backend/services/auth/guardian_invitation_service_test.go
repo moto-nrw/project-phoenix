@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -11,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -76,6 +76,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 		m(&cfg)
 	}
 	service := authService.NewGuardianInvitationService(cfg)
+	testpkg.SetTenantRuntime(t, service, db)
 
 	cleanup := func() {
 	}
@@ -601,11 +602,15 @@ type constraintFailingEnrollmentBackfiller struct {
 }
 
 func (s *constraintFailingEnrollmentBackfiller) BackfillGuardianAccountID(ctx context.Context, _ int64, _ string) (int, error) {
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
+	raw, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
 		return 0, errors.New("backfill transaction missing")
 	}
-	_, err := (*tx).NewRaw(`
+	tx, ok := raw.(bun.Tx)
+	if !ok {
+		return 0, fmt.Errorf("backfill transaction has type %T", raw)
+	}
+	_, err := tx.NewRaw(`
 		UPDATE enrollment.requests
 		SET guardian_account_id = -1
 		WHERE id = ?
@@ -646,6 +651,7 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 		DB:                   db,
 		Logger:               slog.Default(),
 	})
+	testpkg.SetTenantRuntime(t, service, db)
 
 	cleanup := func() {}
 
@@ -697,7 +703,7 @@ func requireGuardianEnrollmentClaimed(t *testing.T, env *guardianTestEnv, reques
 	assert.Equal(t, accountID, *linkedRequest.GuardianAccountID)
 
 	var enrollments []*parentModels.EnrollmentRequestSummary
-	require.NoError(t, tenant.WithAdminTx(context.Background(), env.db, func(ctx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), env.db, func(ctx context.Context, _ bun.Tx) error {
 		var listErr error
 		enrollments, listErr = env.repos.ParentEnrollmentRequest.ListByAccount(ctx, accountID)
 		return listErr
@@ -754,7 +760,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	require.NoError(t, err)
 
 	var account *authModels.Account
-	err = tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 		var acceptErr error
 		account, acceptErr = env.service.Accept(adminCtx, invitation.Token, authService.GuardianInvitationAcceptData{
 			Password:        strongTestPassword,

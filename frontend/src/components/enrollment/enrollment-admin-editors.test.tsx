@@ -2017,6 +2017,24 @@ describe("CareOfferingsEditor", () => {
 });
 
 describe("PhasesEditor", () => {
+  it("uses the button foreground color for the create action icon", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    const button = await screen.findByRole("button", {
+      name: "Neue Anmeldephase",
+    });
+    const icon = button.querySelector("[data-moto-duotone-tone]");
+
+    expect(icon).toBeInTheDocument();
+    expect(icon).not.toHaveStyle({ color: "#3730A3" });
+    expect(icon?.getAttribute("style")).toContain(
+      "--moto-icon-secondary: currentColor",
+    );
+  });
+
   it("creates a phase, assigns schemas, toggles status, deletes, and completes rollover", async () => {
     mocks.searchParams = new URLSearchParams("assignForm=schema-1");
     mocks.listPhases.mockResolvedValue([phase()]);
@@ -3805,6 +3823,86 @@ describe("EnrollmentFormEditor", () => {
     expect(requiredToggles[0]?.tagName).toBe("BUTTON");
     expect(displayToggles[0]).not.toHaveAttribute("type", "checkbox");
     expect(requiredToggles[0]).not.toHaveAttribute("type", "checkbox");
+  });
+
+  it("saves a required custom checkbox as terms instead of consent", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "Zustimmungsformular" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Zustimmungsformular" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+    );
+
+    // Der neue Custom-Block startet als freiwillige Einwilligung.
+    expect(
+      screen.getByText(
+        "Freiwillige Einwilligung: Eltern können das Formular auch ohne Häkchen abschicken.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Muss bestätigt werden" }),
+    );
+
+    // Der Wechsel zur Pflicht-Bestätigung erklärt sich direkt am Schalter.
+    expect(
+      screen.getByText(
+        "Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können sie das Formular nicht abschicken. Das ist keine freiwillige Einwilligung.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.createSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{ kind: string; required: boolean; source: string }>,
+    ];
+    expect(legalBlocks.filter((block) => block.source === "custom")).toEqual([
+      expect.objectContaining({ kind: "terms", required: true }),
+    ]);
+  });
+
+  it("offers no required toggle for the standard photo consent block", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    // Blockreihenfolge: AGB, Datenschutz, Foto, E-Mail — Foto aufklappen.
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[2]!,
+    );
+
+    expect(
+      screen.getByText(
+        "Freiwillige Einwilligung: Eltern können das Formular auch ohne Häkchen abschicken.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "Muss bestätigt werden" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a simple checkbox-or-notice mode instead of legal block kind names", async () => {

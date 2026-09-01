@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +31,6 @@ func TestStudentPickupScheduleRepository_Create(t *testing.T) {
 
 	t.Run("creates schedule successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -76,7 +76,6 @@ func TestStudentPickupScheduleRepository_FindByID(t *testing.T) {
 
 	t.Run("finds schedule by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -113,7 +112,6 @@ func TestStudentPickupScheduleRepository_FindByStudentID(t *testing.T) {
 
 	t.Run("finds all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday, scheduleModels.WeekdayFriday} {
 			schedule := &scheduleModels.StudentPickupSchedule{
@@ -153,7 +151,6 @@ func TestStudentPickupScheduleRepository_FindByStudentIDAndWeekday(t *testing.T)
 
 	t.Run("finds schedule for specific weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -191,7 +188,6 @@ func TestStudentPickupScheduleRepository_FindByStudentIDsAndWeekday(t *testing.T
 	t.Run("finds schedules for multiple students", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 		for _, studentID := range []int64{student1.ID, student2.ID} {
 			schedule := &scheduleModels.StudentPickupSchedule{
@@ -228,7 +224,6 @@ func TestStudentPickupScheduleRepository_UpsertSchedule(t *testing.T) {
 
 	t.Run("creates new schedule when doesn't exist", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -245,7 +240,6 @@ func TestStudentPickupScheduleRepository_UpsertSchedule(t *testing.T) {
 
 	t.Run("updates existing schedule", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -288,7 +282,6 @@ func TestStudentPickupScheduleRepository_Update(t *testing.T) {
 
 	t.Run("updates schedule successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -344,7 +337,6 @@ func TestStudentPickupScheduleRepository_List(t *testing.T) {
 
 	t.Run("lists all schedules", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayTuesday} {
 			schedule := &scheduleModels.StudentPickupSchedule{
@@ -382,7 +374,6 @@ func TestStudentPickupScheduleRepository_DeleteByStudentID(t *testing.T) {
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday} {
 			schedule := &scheduleModels.StudentPickupSchedule{
@@ -425,7 +416,6 @@ func TestStudentPickupExceptionRepository_Create(t *testing.T) {
 
 	t.Run("creates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
@@ -458,7 +448,6 @@ func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
 
 	t.Run("finds all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		dates := []timezone.Date{
 			timezone.NewDate(2024, 2, 14),
@@ -494,7 +483,6 @@ func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) 
 
 	t.Run("finds only upcoming exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		pastException := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
@@ -532,7 +520,6 @@ func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 
 	t.Run("finds exception for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use Berlin timezone for consistent date handling
 		exceptionDate := timezone.NewDate(2024, 3, 20)
@@ -615,7 +602,7 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInB
 	// timezone can no longer shift the stored or queried day. The SET LOCAL
 	// stays to pin exactly that: the roundtrip is session-TZ-independent.
 	err := db.RunInTx(ctx, nil, func(_ context.Context, tx bun.Tx) error {
-		txCtx := modelBase.ContextWithTx(ctx, &tx)
+		txCtx := tenant.WithTransactionForTest(ctx, &tx)
 		_, err := tx.NewRaw(`SET LOCAL timezone = 'Europe/Berlin'`).Exec(txCtx)
 		if err != nil {
 			return err
@@ -669,7 +656,6 @@ func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
 
 	t.Run("finds exception by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
@@ -705,7 +691,6 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 
 	t.Run("updates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		pickupTime := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentPickupException{
@@ -763,7 +748,6 @@ func TestStudentPickupExceptionRepository_List(t *testing.T) {
 
 	t.Run("lists all exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for i := 1; i <= 3; i++ {
 			exception := &scheduleModels.StudentPickupException{
@@ -801,7 +785,6 @@ func TestStudentPickupExceptionRepository_DeleteByStudentID(t *testing.T) {
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for i := 0; i < 3; i++ {
 			exception := &scheduleModels.StudentPickupException{
@@ -834,14 +817,13 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 
 	t.Run("deletes only past exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create past exceptions (will be deleted)
 		pastExceptionCount := 0
 		for i := -10; i < -5; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.TodayDate().AddDays(i),
+				ExceptionDate: timezone.NewDate(2026, 8, 24).AddDays(i),
 				Reason:        testpkg.StrPtr("Past exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -855,7 +837,7 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.TodayDate().AddDays(i),
+				ExceptionDate: timezone.NewDate(2026, 8, 24).AddDays(i),
 				Reason:        testpkg.StrPtr("Future exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -864,7 +846,7 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 			futureExceptionCount++
 		}
 
-		cutoffDate := timezone.TodayDate()
+		cutoffDate := timezone.NewDate(2026, 8, 24)
 		rowsAffected, err := repo.DeletePastExceptions(ctx, cutoffDate)
 
 		require.NoError(t, err)
@@ -895,7 +877,6 @@ func TestStudentPickupNoteRepository_Create(t *testing.T) {
 
 	t.Run("creates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
@@ -941,7 +922,6 @@ func TestStudentPickupNoteRepository_FindByID(t *testing.T) {
 
 	t.Run("finds note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
@@ -977,7 +957,6 @@ func TestStudentPickupNoteRepository_FindByStudentID(t *testing.T) {
 
 	t.Run("finds all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		dates := []timezone.Date{
 			timezone.NewDate(2024, 2, 14),
@@ -1022,7 +1001,6 @@ func TestStudentPickupNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 
 	t.Run("finds notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		targetDate := timezone.NewDate(2024, 3, 20)
 
@@ -1077,7 +1055,6 @@ func TestStudentPickupNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 	t.Run("finds notes for multiple students on same date", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 		noteDate := timezone.NewDate(2024, 4, 10)
 
@@ -1116,7 +1093,6 @@ func TestStudentPickupNoteRepository_Update(t *testing.T) {
 
 	t.Run("updates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
@@ -1169,7 +1145,6 @@ func TestStudentPickupNoteRepository_List(t *testing.T) {
 
 	t.Run("lists all notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for i := 1; i <= 3; i++ {
 			note := &scheduleModels.StudentPickupNote{
@@ -1207,7 +1182,6 @@ func TestStudentPickupNoteRepository_DeleteByStudentID(t *testing.T) {
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for i := 0; i < 3; i++ {
 			note := &scheduleModels.StudentPickupNote{
@@ -1246,14 +1220,13 @@ func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
 
 	t.Run("deletes only past notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create past notes (will be deleted)
 		pastNoteCount := 0
 		for i := -10; i < -5; i++ {
 			note := &scheduleModels.StudentPickupNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.TodayDate().AddDays(i),
+				NoteDate:  timezone.NewDate(2026, 8, 24).AddDays(i),
 				Content:   "Past note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1267,7 +1240,7 @@ func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			note := &scheduleModels.StudentPickupNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.TodayDate().AddDays(i),
+				NoteDate:  timezone.NewDate(2026, 8, 24).AddDays(i),
 				Content:   "Future note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1276,7 +1249,7 @@ func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
 			futureNoteCount++
 		}
 
-		cutoffDate := timezone.TodayDate()
+		cutoffDate := timezone.NewDate(2026, 8, 24)
 		rowsAffected, err := repo.DeletePastNotes(ctx, cutoffDate)
 
 		require.NoError(t, err)

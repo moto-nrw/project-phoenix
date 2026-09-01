@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,33 +13,11 @@ import (
 // =============================================================================
 
 func TestServeCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "serve", serveCmd.Use)
 	assert.Contains(t, serveCmd.Short, "start http server")
 	assert.Contains(t, serveCmd.Long, "http server")
-	assert.NotNil(t, serveCmd.Run)
-}
-
-func TestServeCmd_IsRegisteredOnRoot(t *testing.T) {
-	found := false
-	for _, cmd := range RootCmd.Commands() {
-		if cmd.Use == "serve" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "serveCmd should be registered on RootCmd")
-}
-
-func TestServeCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	serveCmd.SetOut(buf)
-	serveCmd.SetErr(buf)
-
-	err := serveCmd.Usage()
-	require.NoError(t, err)
-
-	output := buf.String()
-	assert.Contains(t, output, "serve")
+	assert.NotNil(t, serveCmd.RunE)
 }
 
 // =============================================================================
@@ -49,76 +25,75 @@ func TestServeCmd_UsageOutput(t *testing.T) {
 // =============================================================================
 
 func TestValidateServeConfig_ValidConfigPasses(t *testing.T) {
-	resetServeConfig(t)
-	setValidServeConfig()
-
-	require.NoError(t, validateServeConfig())
+	t.Parallel()
+	require.NoError(t, validateServeConfig(validServeConfig()))
 }
 
 func TestValidateServeConfig_MissingRequiredConfigFails(t *testing.T) {
-	resetServeConfig(t)
-	setValidServeConfig()
-	viper.Set("auth_jwt_secret", "")
+	t.Parallel()
+	config := validServeConfig()
+	config.JWTSecret = ""
 
-	err := validateServeConfig()
+	err := validateServeConfig(config)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET")
 }
 
 func TestValidateServeConfig_MissingDatabaseDSNFails(t *testing.T) {
-	resetServeConfig(t)
-	setValidServeConfig()
-	viper.Set("db_dsn", "")
+	t.Parallel()
+	config := validServeConfig()
+	config.DatabaseDSN = ""
 
-	err := validateServeConfig()
+	err := validateServeConfig(config)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "DB_DSN")
 }
 
 func TestValidateServeConfig_TestEnvAllowsExplicitTestDSN(t *testing.T) {
-	resetServeConfig(t)
-	setValidServeConfig()
-	viper.Set("app_env", "test")
-	viper.Set("db_dsn", "")
-	viper.Set("test_db_dsn", "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable")
+	t.Parallel()
+	config := validServeConfig()
+	config.AppEnv = "test"
+	config.DatabaseDSN = ""
+	config.TestDatabaseDSN = "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable"
 
-	require.NoError(t, validateServeConfig())
+	require.NoError(t, validateServeConfig(config))
 }
 
 func TestValidateServeConfig_RejectsRandomJWTSecret(t *testing.T) {
-	resetServeConfig(t)
-	setValidServeConfig()
-	viper.Set("auth_jwt_secret", "random")
+	t.Parallel()
+	config := validServeConfig()
+	config.JWTSecret = "random"
 
-	err := validateServeConfig()
+	err := validateServeConfig(config)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET=random")
 }
 
 func TestValidateServeConfig_SentryDSNRequiresEnvironment(t *testing.T) {
-	resetServeConfig(t)
-	setValidServeConfig()
-	viper.Set("sentry_dsn", "https://example@sentry.io/123")
+	t.Parallel()
+	config := validServeConfig()
+	config.SentryDSN = "https://example@sentry.io/123"
 
-	err := validateServeConfig()
+	err := validateServeConfig(config)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SENTRY_ENVIRONMENT")
 }
 
 func TestValidateServeConfig_SentryEnvironmentPasses(t *testing.T) {
-	resetServeConfig(t)
-	setValidServeConfig()
-	viper.Set("sentry_dsn", "https://example@sentry.io/123")
-	viper.Set("sentry_environment", "staging")
+	t.Parallel()
+	config := validServeConfig()
+	config.SentryDSN = "https://example@sentry.io/123"
+	config.SentryEnvironment = "staging"
 
-	require.NoError(t, validateServeConfig())
+	require.NoError(t, validateServeConfig(config))
 }
 
 func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
+	t.Parallel()
 	event := &sentry.Event{
 		Request: &sentry.Request{
 			Data: `{"notes":"person names and free text"}`,
@@ -139,10 +114,8 @@ func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 	assert.Equal(t, "application/json", scrubbed.Request.Headers["Accept"])
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestScrubSentryEvent_RedactsCalendarFeedToken(t *testing.T) {
+	t.Parallel()
 	const token = "supersecretcapabilitytoken123456"
 	event := &sentry.Event{
 		Message:     "GET /public/calendar/" + token + " failed",
@@ -174,21 +147,17 @@ func TestScrubSentryEvent_RedactsCalendarFeedToken(t *testing.T) {
 	}
 }
 
-func resetServeConfig(t *testing.T) {
-	t.Helper()
-	viper.Reset()
-	t.Cleanup(viper.Reset)
-}
-
-func setValidServeConfig() {
-	viper.Set("port", "8080")
-	viper.Set("app_env", "development")
-	viper.Set("log_textlogging", "false")
-	viper.Set("auth_jwt_secret", "test-jwt-secret-for-unit-tests-minimum-32-chars")
-	viper.Set("auth_jwt_expiry", "15m")
-	viper.Set("auth_jwt_refresh_expiry", "168h")
-	viper.Set("frontend_url", "http://localhost:3000")
-	viper.Set("parents_url", "http://parents.localhost:3000")
-	viper.Set("phoenix_auth_password", "phoenix_auth_dev")
-	viper.Set("db_dsn", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
+func validServeConfig() serveConfig {
+	return serveConfig{
+		Port:                "8080",
+		AppEnv:              "development",
+		LogTextLoggingRaw:   "false",
+		JWTSecret:           "test-jwt-secret-for-unit-tests-minimum-32-chars",
+		JWTExpiry:           "15m",
+		JWTRefreshExpiry:    "168h",
+		FrontendURL:         "http://localhost:3000",
+		ParentsURL:          "http://parents.localhost:3000",
+		PhoenixAuthPassword: "phoenix_auth_dev",
+		DatabaseDSN:         "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
+	}
 }

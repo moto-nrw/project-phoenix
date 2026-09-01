@@ -59,6 +59,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (paren
 			boolValues:   map[string]bool{configModels.KeyGuardianParentCanRemove: canRemove},
 			stringValues: map[string]string{configModels.KeyGuardianParentInviteMode: inviteMode},
 		},
+		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     invites,
 		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
@@ -76,7 +77,7 @@ func TestListRelatedAccounts_ReturnsLinkedWithStatus(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, accounts, 1)
 	assert.Equal(t, chain.GuardianProfileID, accounts[0].GuardianProfileID)
@@ -95,7 +96,7 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "staff-contact")
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 	link := &userModels.StudentGuardian{
 		StudentID:         chain.StudentID,
@@ -106,7 +107,7 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 
-	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 
 	var found *parentService.RelatedAccount
@@ -129,8 +130,8 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "pending-contact")
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 	link := &userModels.StudentGuardian{
 		StudentID:         chain.StudentID,
@@ -152,7 +153,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 	invitation.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
 
-	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 
 	var found *parentService.RelatedAccount
@@ -176,10 +177,10 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "sibling-pending-contact")
 	otherStudent := testpkg.CreateTestStudent(t, db, "Other", "Child", "9z")
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", otherStudent.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", otherStudent.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 	link := &userModels.StudentGuardian{
 		StudentID:         chain.StudentID,
@@ -201,7 +202,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 	invitation.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
 
-	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 
 	var found *parentService.RelatedAccount
@@ -221,7 +222,7 @@ func TestInviteRelatedAccount_DisabledIsRejected(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
+	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrInviteDisabled))
 	assert.Nil(t, invites.lastInvite, "invite service must not be called when disabled")
@@ -234,7 +235,7 @@ func TestInviteRelatedAccount_DirectDelegatesWithoutApproval(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "Neue", "Person", false)
+	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "new@example.test", "Neue", "Person", false)
 	require.NoError(t, err)
 	require.NotNil(t, invites.lastInvite)
 	assert.False(t, invites.lastInvite.RequireApproval, "direct mode must not require approval")
@@ -250,7 +251,7 @@ func TestInviteRelatedAccount_StaffApprovalRequiresApproval(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "", "", false)
+	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "new@example.test", "", "", false)
 	require.NoError(t, err)
 	require.NotNil(t, invites.lastInvite)
 	assert.True(t, invites.lastInvite.RequireApproval, "staff_approval mode must queue for approval")
@@ -265,10 +266,10 @@ func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
 	// A student the account is NOT a guardian of.
 	other := testpkg.CreateTestStudent(t, db, "Not", "Mine", "9z")
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, other.ID, "x@example.test", "", "", false)
+	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, "x@example.test", "", "", false)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrChildNotLinked))
 	assert.Nil(t, invites.lastInvite, "invite must not fire for an unowned child")
@@ -285,7 +286,7 @@ func TestInviteRelatedAccount_AfterCareEndedIsRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	endCareFor(t, db, chain.StudentID)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "", "", false)
+	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "new@example.test", "", "", false)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrChildCareEnded))
 	assert.Nil(t, invites.lastInvite, "no invite may go out for a departed child")
@@ -299,7 +300,7 @@ func TestRemoveRelatedAccount_AfterCareEndedIsRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	endCareFor(t, db, chain.StudentID)
 
-	err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
+	err := svc.RemoveRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrChildCareEnded))
 	assert.Nil(t, invites.lastRevoke, "no access may be revoked for a departed child")
@@ -312,7 +313,7 @@ func TestRemoveRelatedAccount_DisabledIsRejected(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
+	err := svc.RemoveRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrRemoveDisabled))
 	assert.Nil(t, invites.lastRevoke, "revoke must not be called when removal is disabled")
@@ -325,7 +326,7 @@ func TestRemoveRelatedAccount_DisabledInviteModeRejectsStaleRemoveFlag(t *testin
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
+	err := svc.RemoveRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrRemoveDisabled))
 	assert.Nil(t, invites.lastRevoke, "revoke must not be called when invite mode disables management")
@@ -338,7 +339,7 @@ func TestRemoveRelatedAccount_EnabledDelegatesAsParent(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
+	err := svc.RemoveRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, invites.lastRevoke)
 	assert.True(t, invites.lastRevoke.ByParent, "parent removals must set ByParent (primary protection)")
@@ -352,7 +353,7 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeStaffApproval, true)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+		flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
 		assert.True(t, flags.RelatedAccountsInviteEnabled, "non-disabled invite mode → invite enabled")
 		assert.True(t, flags.RelatedAccountsRemoveEnabled)
@@ -362,7 +363,7 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, false)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+		flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
 		assert.False(t, flags.RelatedAccountsInviteEnabled, "disabled mode → invite hidden")
 		assert.False(t, flags.RelatedAccountsRemoveEnabled)
@@ -372,7 +373,7 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, true)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+		flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
 		assert.False(t, flags.RelatedAccountsInviteEnabled)
 		assert.False(t, flags.RelatedAccountsRemoveEnabled, "disabled invite mode must suppress stale remove flag")
@@ -388,6 +389,7 @@ func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsServic
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		Settings:            settings,
+		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     &stubInvites{},
 		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
@@ -404,7 +406,7 @@ func TestInviteRelatedAccount_EmptyEmailRejected(t *testing.T) {
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "   ", "", "", false)
+	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "   ", "", "", false)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrEmailRequired))
 	assert.Nil(t, invites.lastInvite)
@@ -416,7 +418,7 @@ func TestInviteRelatedAccount_InvalidEmailRejected(t *testing.T) {
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "not-an-email", "", "", false)
+	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "not-an-email", "", "", false)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrInvalidInviteInput))
 	assert.Nil(t, invites.lastInvite)
@@ -431,10 +433,10 @@ func TestRelatedAccounts_SettingsErrorsAreSurfaced(t *testing.T) {
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
+	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
 	require.Error(t, err, "invite-mode resolve failure must surface")
 
-	err = svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
+	err = svc.RemoveRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.Error(t, err, "can-remove resolve failure must surface")
 }
 
@@ -480,10 +482,10 @@ func TestListRelatedAccounts_UnownedChildErrors(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestStudent(t, db, "Not", "Owned", "9z")
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 
-	_, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, other.ID)
+	_, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID)
 	require.Error(t, err, "listing an unowned child must be rejected")
 }
 
@@ -494,7 +496,7 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 		svc, db := buildRelAcctServiceInvites(t, configModels.ParentInviteModeDirect, true, failingInvites{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
+		_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
 		require.Error(t, err)
 	})
 
@@ -502,7 +504,7 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 		svc, db := buildRelAcctServiceInvites(t, configModels.ParentInviteModeDirect, true, failingInvites{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
+		err := svc.RemoveRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 		require.Error(t, err)
 	})
 }
@@ -518,7 +520,7 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "active-no-access")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccess", "Account")
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	// Restrictive contact role → empty permission set, no parent_portal.access.
@@ -532,7 +534,7 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 
-	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 
 	var found *parentService.RelatedAccount
@@ -557,8 +559,8 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 	profile := testpkg.CreateTestGuardianProfile(t, db, "no-access-pending")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccessPending", "Account")
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	link := &userModels.StudentGuardian{
@@ -583,7 +585,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 	invitation.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
 
-	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 
 	var found *parentService.RelatedAccount

@@ -118,6 +118,7 @@ func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *t
 		VisitRepo:      activeRepo.NewVisitRepository(db),
 		AttendanceRepo: activeRepo.NewAttendanceRepository(db),
 		DB:             db,
+		Today:          func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	})
 	resyncer := &recordingOfferingResyncer{}
 	service.SetOfferingSourceResyncer(resyncer)
@@ -140,11 +141,11 @@ func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *t
 	require.NoError(t, err)
 	require.Len(t, resyncer.calls, 1,
 		"apply must resync offering-sourced rosters after rewriting school classes")
-	assert.Equal(t, timezone.TodayDate(), resyncer.calls[0])
+	assert.Equal(t, timezone.NewDate(2026, 8, 24), resyncer.calls[0])
 
 	_, err = service.Revert(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
 	require.Len(t, resyncer.calls, 2,
 		"revert must resync in the opposite direction")
-	assert.Equal(t, timezone.TodayDate(), resyncer.calls[1])
+	assert.Equal(t, timezone.NewDate(2026, 8, 24), resyncer.calls[1])
 }

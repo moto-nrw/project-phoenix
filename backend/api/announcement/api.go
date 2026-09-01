@@ -9,13 +9,13 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -49,7 +49,7 @@ func (rs *Resource) Router() chi.Router {
 		// structurally; per-target scoping for a delegated announcer role (e.g.
 		// a group lead limited to their own group) is deliberately deferred.
 		// The parent-news feature flag is still re-checked in the service.
-		announce := authorize.RequiresPermission(permissions.AdminWildcard)
+		announce := common.RequiresPermission(permissions.AdminWildcard)
 		r.With(announce, withTx).Get("/", rs.list)
 		r.With(announce, withTx).Post("/", rs.create)
 		r.With(announce, withTx).Get("/{announcementId}", rs.get)
@@ -64,6 +64,10 @@ func (rs *Resource) Router() chi.Router {
 		r.With(announce, withTx).Get("/{announcementId}/poll-results", rs.pollResults)
 		r.With(announce, withTx).Get("/{announcementId}/poll-children", rs.pollChildren)
 		r.With(announce, withTx).Post("/{announcementId}/remind", rs.remindUnanswered)
+		// Elternbrief (#2384): the recipient matrix — e-mail and moto status per
+		// person, plus which children the letter is already fulfilled for.
+		r.With(announce, withTx).Get("/{announcementId}/letter-status", rs.letterStatus)
+		r.With(announce, withTx).Post("/{announcementId}/resend-failed", rs.resendFailed)
 	})
 
 	return r
@@ -91,6 +95,11 @@ type announcementRequest struct {
 	ResponseType     string     `json:"response_type,omitempty"`
 	ResponseDeadline *time.Time `json:"response_deadline,omitempty"`
 	Options          []string   `json:"options,omitempty"`
+	// delivery_mode "letter" is the Elternbrief (#2384); email_audience widens
+	// the mail beyond the portal audience. Both default server-side when empty,
+	// so pre-#2384 clients keep working unchanged.
+	DeliveryMode  string `json:"delivery_mode,omitempty"`
+	EmailAudience string `json:"email_audience,omitempty"`
 }
 
 // optionResponse is one answer option of a poll.
@@ -123,6 +132,8 @@ type announcementResponse struct {
 	ResponseType            string           `json:"response_type"`
 	ResponseDeadline        *time.Time       `json:"response_deadline,omitempty"`
 	Options                 []optionResponse `json:"options"`
+	DeliveryMode            string           `json:"delivery_mode"`
+	EmailAudience           string           `json:"email_audience"`
 	// SystemKind marks rows the system wrote (cancellation notice, #2601).
 	SystemKind *string `json:"system_kind,omitempty"`
 }
@@ -186,6 +197,8 @@ func toAnnouncementResponse(a *usersModels.ParentAnnouncement) announcementRespo
 		ResponseType:            a.ResponseType,
 		ResponseDeadline:        a.ResponseDeadline,
 		Options:                 toOptionResponses(a.Options),
+		DeliveryMode:            a.DeliveryMode,
+		EmailAudience:           a.EmailAudience,
 		SystemKind:              a.SystemKind,
 	}
 }
@@ -204,6 +217,8 @@ func toInput(req announcementRequest) (announcementService.Input, error) {
 		ResponseType:            req.ResponseType,
 		ResponseDeadline:        req.ResponseDeadline,
 		Options:                 req.Options,
+		DeliveryMode:            req.DeliveryMode,
+		EmailAudience:           req.EmailAudience,
 		Targets:                 make([]announcementService.TargetInput, 0, len(req.Targets)),
 	}
 	for _, t := range req.Targets {
@@ -404,6 +419,85 @@ type pollChildResponse struct {
 	CanAnswer    bool       `json:"can_answer"`
 }
 
+// letterRecipientResponse is one addressed person. The two channels are reported
+// SEPARATELY on purpose: "die E-Mail ist raus" and "jemand hat in moto
+// bestätigt" are different facts, and collapsing them into one status is exactly
+// what would let a school believe a letter arrived when it did not.
+//
+// email_status "sent" means handed to the mail server — the UI must label it
+// "Versendet", never "Zugestellt", until provider delivery events exist (#1937).
+type letterRecipientResponse struct {
+	FirstName    string     `json:"first_name"`
+	LastName     string     `json:"last_name"`
+	Email        *string    `json:"email,omitempty"`
+	EmailStatus  string     `json:"email_status"`
+	Reachability string     `json:"reachability"`
+	LastError    *string    `json:"last_error,omitempty"`
+	SentAt       *time.Time `json:"sent_at,omitempty"`
+}
+
+// letterChildResponse is one reached child with the derived fulfilment.
+type letterChildResponse struct {
+	StudentID      string     `json:"student_id"`
+	FirstName      string     `json:"first_name"`
+	LastName       string     `json:"last_name"`
+	SchoolClass    string     `json:"school_class"`
+	Fulfilled      bool       `json:"fulfilled"`
+	CanConfirm     bool       `json:"can_confirm"`
+	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
+	AcknowledgedBy string     `json:"acknowledged_by,omitempty"`
+}
+
+type letterStatusResponse struct {
+	Recipients []letterRecipientResponse         `json:"recipients"`
+	Children   []letterChildResponse             `json:"children"`
+	Summary    announcementService.LetterSummary `json:"summary"`
+}
+
+func (rs *Resource) letterStatus(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseAnnouncementID(w, r)
+	if !ok {
+		return
+	}
+	status, err := rs.Service.LetterStatus(r.Context(), id)
+	if err != nil {
+		renderAnnouncementError(w, r, err)
+		return
+	}
+	out := letterStatusResponse{
+		Recipients: make([]letterRecipientResponse, 0, len(status.Recipients)),
+		Children:   make([]letterChildResponse, 0, len(status.Children)),
+		Summary:    status.Summary,
+	}
+	for _, rcpt := range status.Recipients {
+		out.Recipients = append(out.Recipients, letterRecipientResponse{
+			FirstName:    rcpt.FirstName,
+			LastName:     rcpt.LastName,
+			Email:        rcpt.RecipientEmail,
+			EmailStatus:  rcpt.EmailStatus,
+			Reachability: rcpt.Reachability,
+			LastError:    rcpt.LastError,
+			SentAt:       rcpt.SentAt,
+		})
+	}
+	for _, child := range status.Children {
+		item := letterChildResponse{
+			StudentID:      strconv.FormatInt(child.StudentID, 10),
+			FirstName:      child.FirstName,
+			LastName:       child.LastName,
+			SchoolClass:    child.SchoolClass,
+			Fulfilled:      child.Fulfilled(),
+			CanConfirm:     child.CanConfirm,
+			AcknowledgedAt: child.AcknowledgedAt,
+		}
+		if item.Fulfilled {
+			item.AcknowledgedBy = strings.TrimSpace(child.AckFirstName + " " + child.AckLastName)
+		}
+		out.Children = append(out.Children, item)
+	}
+	common.Respond(w, r, http.StatusOK, out, "Letter status retrieved")
+}
+
 func (rs *Resource) pollResults(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseAnnouncementID(w, r)
 	if !ok {
@@ -464,12 +558,29 @@ func (rs *Resource) remindUnanswered(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	count, err := rs.Service.RemindUnanswered(r.Context(), id)
+	count, err := rs.Service.RemindOutstanding(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, map[string]int{"reminded_count": count}, "Reminder sent")
+}
+
+// resendFailed re-queues only the failed mails. Deliberately a separate endpoint
+// from /remind: "hat nicht bestätigt" and "die Mail kam nie an" are different
+// problems, and one button for both would nag people whose only issue is a wrong
+// address.
+func (rs *Resource) resendFailed(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseAnnouncementID(w, r)
+	if !ok {
+		return
+	}
+	count, err := rs.Service.ResendFailedEmails(r.Context(), id)
+	if err != nil {
+		renderAnnouncementError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]int{"resent_count": count}, "Failed e-mails re-queued")
 }
 
 func decodeInput(w http.ResponseWriter, r *http.Request) (announcementService.Input, bool) {
@@ -505,6 +616,10 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrPollNotOpen):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "poll_not_open"))
+	case errors.Is(err, announcementService.ErrNotPublished):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_not_published"))
+	case errors.Is(err, announcementService.ErrNothingOutstanding):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrValidation):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:

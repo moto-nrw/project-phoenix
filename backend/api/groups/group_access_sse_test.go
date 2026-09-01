@@ -1,8 +1,8 @@
 // group_access_changed emission tests for every group-side write (#2084).
 //
 // Which groups a staff member may open is the union of education.group_teacher
-// and education.group_substitution (usercontext.GetMyGroups). All four flows
-// below change that set without the affected colleague's client making any
+// and education.group_substitution (usercontext.GetMyGroups). The flows below
+// change that set without the affected colleague's client making any
 // request, and none of them produces a check-in, activity or timetable event —
 // so without this signal their open tab keeps the stale group list.
 //
@@ -22,7 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -33,10 +33,10 @@ import (
 func setupRecordingRouter(t *testing.T) (*testContext, chi.Router, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	tc, router := setupTransferRouter(t)
+	tc, router := setupProtectedRouter(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	aware, ok := tc.services.Education.(interface {
+	aware, ok := tc.resource.EducationService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
 	})
 	require.True(t, ok, "education service must accept a broadcaster")
@@ -69,54 +69,6 @@ func groupLeader(t *testing.T, tc *testContext, label string) (groupID int64, ac
 	return group.ID, account.ID
 }
 
-func TestTransferGroup_BroadcastsGroupAccessChanged(t *testing.T) {
-	t.Parallel()
-
-	tc, router, broadcaster := setupRecordingRouter(t)
-	groupID, accountID := groupLeader(t, tc, "SSETransfer")
-
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "SSETarget", "Staff")
-
-	body := map[string]interface{}{"target_user_id": targetStaff.Person.ID}
-	claims := testutil.TeacherTestClaims(int(accountID))
-	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", groupID), body, claims)
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
-
-	assertGroupAccessChanged(t, broadcaster, "group_transfer", int64(claims.TenantID))
-}
-
-func TestCancelTransfer_BroadcastsGroupAccessChanged(t *testing.T) {
-	t.Parallel()
-
-	tc, router, broadcaster := setupRecordingRouter(t)
-	groupID, accountID := groupLeader(t, tc, "SSECancel")
-
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "SSECancelTarget", "Staff")
-
-	today := timezone.TodayDate()
-	transfer := testpkg.CreateTestGroupSubstitution(t, tc.db, groupID, nil, targetStaff.ID, today, today)
-
-	claims := testutil.TeacherTestClaims(int(accountID))
-	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
-	req := newReq(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/%d", groupID, transfer.ID), nil, claims)
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-
-	// Reported as substitution_delete, not as a distinct cancel label: both the
-	// handover UI and the Vertretungsplan reach the same DeleteSubstitution, and
-	// the service cannot see which caller it was. Accepted deliberately — source
-	// only feeds log review, and threading a label through the service signature
-	// would buy nothing a client acts on.
-	assertGroupAccessChanged(t, broadcaster, "substitution_delete", int64(claims.TenantID))
-}
-
-// Group leadership is the OTHER half of the access union. An admin adding a
-// colleague to a group in the Gruppenverwaltung produces exactly the
-// invisibility a handover does, so it rides the same event.
 func TestUpdateGroupTeachers_BroadcastsGroupAccessChanged(t *testing.T) {
 	t.Parallel()
 
@@ -148,7 +100,7 @@ func TestUpdateGroupTeachers_Unchanged_BroadcastsNothing(t *testing.T) {
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, _ := groupLeader(t, tc, "SSESameTeachers")
 
-	teachers, err := tc.services.Education.GetGroupTeachers(t.Context(), groupID)
+	teachers, err := tc.resource.EducationService.GetGroupTeachers(t.Context(), groupID)
 	require.NoError(t, err)
 	require.Len(t, teachers, 1)
 
@@ -176,19 +128,15 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	groupID, _ := groupLeader(t, tc, "SSETeacherRollback")
 
 	ctx := testpkg.Ctx(t)
-	originalGroup, err := tc.services.Education.GetGroup(ctx, groupID)
+	originalGroup, err := tc.resource.EducationService.GetGroup(ctx, groupID)
 	require.NoError(t, err)
-	originalTeachers, err := tc.services.Education.GetGroupTeachers(ctx, groupID)
+	originalTeachers, err := tc.resource.EducationService.GetGroupTeachers(ctx, groupID)
 	require.NoError(t, err)
 	require.Len(t, originalTeachers, 1)
 
 	candidate := testpkg.CreateTestTeacher(t, tc.db, "SSERollback", "Candidate")
 
-	missing := testpkg.CreateTestTeacher(t, tc.db, "SSERollback", "Missing")
-	missingID := missing.ID
-	// Deleting the second teacher is the ARRANGE step: the request must fail
-	// on the missing ID and roll back. Not a teardown (#2419).
-	testpkg.CleanupTeacherFixtures(t, tc.db, missingID)
+	missingID := testpkg.ReserveMissingTeacherID(t, tc.db)
 
 	body := map[string]interface{}{
 		"name":        fmt.Sprintf("SSETeacherRollback-renamed-%d", groupID),
@@ -199,11 +147,11 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertBadRequest(t, rr)
 
-	updatedGroup, err := tc.services.Education.GetGroup(ctx, groupID)
+	updatedGroup, err := tc.resource.EducationService.GetGroup(ctx, groupID)
 	require.NoError(t, err)
 	assert.Equal(t, originalGroup.Name, updatedGroup.Name, "the group update must roll back with its teacher set")
 
-	updatedTeachers, err := tc.services.Education.GetGroupTeachers(ctx, groupID)
+	updatedTeachers, err := tc.resource.EducationService.GetGroupTeachers(ctx, groupID)
 	require.NoError(t, err)
 	require.Len(t, updatedTeachers, 1)
 	assert.Equal(t, originalTeachers[0].ID, updatedTeachers[0].ID)
@@ -218,11 +166,7 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 
 	candidate := testpkg.CreateTestTeacher(t, tc.db, "SSECreateRollback", "Candidate")
 
-	missing := testpkg.CreateTestTeacher(t, tc.db, "SSECreateRollback", "Missing")
-	missingID := missing.ID
-	// Deleting the second teacher is the ARRANGE step: the request must fail
-	// on the missing ID and roll back. Not a teardown (#2419).
-	testpkg.CleanupTeacherFixtures(t, tc.db, missingID)
+	missingID := testpkg.ReserveMissingTeacherID(t, tc.db)
 
 	groupName := fmt.Sprintf("SSECreateRollback-%d", candidate.ID)
 	claims := testutil.DefaultTestClaims()
@@ -236,11 +180,9 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertBadRequest(t, rr)
 
-	queryOptions := base.NewQueryOptions()
-	queryOptions.Filter.Equal("name", groupName)
-	groupCount, err := tc.services.Education.CountGroups(
+	groupCount, err := tc.resource.EducationService.CountGroups(
 		testpkg.Ctx(t),
-		queryOptions,
+		&educationModels.GroupListQuery{Name: groupName},
 	)
 	require.NoError(t, err)
 	assert.Zero(t, groupCount, "the new group must roll back with its partial teacher set")
@@ -248,10 +190,8 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 		"a rolled-back group creation must not announce a change")
 }
 
-// Deleting a group revokes access for its leaders AND its substitutes. The
-// cascade runs inside services/education, so it would have been invisible to a
-// handler-level emit. It announces once per removed link plus one structural
-// delete — the client debounce collapses the burst into one refetch.
+// Deleting a group revokes access for its leaders. Legacy personnel
+// substitutions still cascade; typed group handovers must be ended first.
 func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 	t.Parallel()
 
@@ -261,7 +201,8 @@ func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 	substituteStaff := testpkg.CreateTestStaff(t, tc.db, "SSEDeleteGroupSub", "Staff")
 
 	today := timezone.TodayDate()
-	testpkg.CreateTestGroupSubstitution(t, tc.db, groupID, nil, substituteStaff.ID, today, today)
+	regularStaffID := substituteStaff.ID
+	testpkg.CreateTestGroupSubstitution(t, tc.db, groupID, &regularStaffID, substituteStaff.ID, today, today)
 
 	claims := testutil.DefaultTestClaims()
 	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
@@ -279,7 +220,6 @@ func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 		sources[*event.Data.Source] = true
 	}
 	assert.True(t, sources["group_teacher_remove"], "the removed leader link must be announced")
-	assert.True(t, sources["substitution_delete"], "the removed substitution must be announced")
 	assert.True(t, sources["group_delete"], "the deleted group list entry must be announced")
 }
 
@@ -301,23 +241,3 @@ func TestDeleteEmptyGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 
 // A rejected handover writes nothing, so it must announce nothing: every
 // client of the school would otherwise pay a refetch for a non-change.
-func TestTransferGroup_NotGroupLeader_BroadcastsNothing(t *testing.T) {
-	t.Parallel()
-
-	tc, router, broadcaster := setupRecordingRouter(t)
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SSENoLeader")
-
-	// Teacher deliberately NOT assigned to the group.
-	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "SSENoLeader", "Teacher")
-
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "SSENoLeaderTarget", "Staff")
-
-	body := map[string]interface{}{"target_user_id": targetStaff.Person.ID}
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertForbidden(t, rr)
-
-	assert.False(t, broadcaster.HasEventType(realtime.EventGroupAccessChanged))
-}

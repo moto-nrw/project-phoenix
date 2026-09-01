@@ -407,4 +407,87 @@ describe("Header", () => {
       expect.any(Function),
     );
   });
+
+  describe("sidebar toggle (#2825)", () => {
+    // Die Testumgebung simuliert einen Desktop-Viewport (vitest.config.ts),
+    // daher ist der Default ohne gespeicherte Wahl "ausgeklappt".
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it("collapses the sidebar and persists the choice", () => {
+      render(<Header />);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Seitenleiste einklappen" }),
+      );
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
+      expect(
+        screen.getByRole("button", { name: "Seitenleiste ausklappen" }),
+      ).toBeInTheDocument();
+    });
+
+    it("expands again from a stored collapsed state", () => {
+      localStorage.setItem("sidebar-collapsed", "true");
+
+      render(<Header />);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Seitenleiste ausklappen" }),
+      );
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("false");
+      expect(
+        screen.getByRole("button", { name: "Seitenleiste einklappen" }),
+      ).toBeInTheDocument();
+    });
+
+    it("is hidden below lg where the sidebar does not exist", () => {
+      render(<Header />);
+
+      expect(
+        screen.getByRole("button", { name: "Seitenleiste einklappen" }),
+      ).toHaveClass("hidden", "lg:inline-flex");
+    });
+
+    it("toggles via Ctrl+B / Cmd+B", () => {
+      render(<Header />);
+
+      fireEvent.keyDown(globalThis.window, { key: "b", ctrlKey: true });
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
+
+      fireEvent.keyDown(globalThis.window, { key: "b", metaKey: true });
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("false");
+    });
+
+    it("leaves Ctrl+B alone while typing in an editable field", () => {
+      render(
+        <div>
+          <Header />
+          <input aria-label="Testfeld" />
+        </div>,
+      );
+
+      // In Eingabefeldern und Editoren bedeutet die Kombination „fett".
+      fireEvent.keyDown(screen.getByLabelText("Testfeld"), {
+        key: "b",
+        ctrlKey: true,
+      });
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
+    });
+
+    it("ignores Ctrl+B with additional modifiers", () => {
+      render(<Header />);
+
+      fireEvent.keyDown(globalThis.window, {
+        key: "b",
+        ctrlKey: true,
+        shiftKey: true,
+      });
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
+    });
+  });
 });

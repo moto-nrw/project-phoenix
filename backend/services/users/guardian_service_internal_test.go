@@ -11,9 +11,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func guardianAmbientTxContext() context.Context {
+	return tenant.WithTransactionForTest(context.Background(), struct{}{})
+}
 
 // --- fakes -----------------------------------------------------------------
 //
@@ -233,7 +238,7 @@ func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
 		lockFn: func(_ context.Context, _ int64) error { return errors.New("lock timeout") },
 	}},
 	}
-	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1)
+	err := svc.DeleteGuardianWithLinks(guardianAmbientTxContext(), 1, []int64{1}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to lock guardian profile")
 }
@@ -248,8 +253,8 @@ func TestDeleteGuardian_WithoutFinancialRepoRefuses(t *testing.T) {
 		lockFn: func(_ context.Context, _ int64) error { return nil },
 	}}}
 	for name, run := range map[string]func() error{
-		"DeleteGuardian":          func() error { return svc.DeleteGuardian(context.Background(), 1, 1) },
-		"DeleteGuardianWithLinks": func() error { return svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1) },
+		"DeleteGuardian":          func() error { return svc.DeleteGuardian(guardianAmbientTxContext(), 1, 1) },
+		"DeleteGuardianWithLinks": func() error { return svc.DeleteGuardianWithLinks(guardianAmbientTxContext(), 1, []int64{1}, 1) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.NotPanics(t, func() {
@@ -274,7 +279,7 @@ func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
 		findFn: func(_ context.Context, _ int64) (*users.GuardianFinancialData, error) { return nil, nil },
 	}},
 	}
-	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1)
+	err := svc.DeleteGuardianWithLinks(guardianAmbientTxContext(), 1, []int64{1}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load guardian links")
 }
@@ -303,7 +308,7 @@ func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 	}
 	// expectedLinkIDs matches the current set, so the stale-preview guard passes
 	// and execution reaches the link-deletion loop, which then fails.
-	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{5}, 1)
+	err := svc.DeleteGuardianWithLinks(guardianAmbientTxContext(), 1, []int64{5}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to remove guardian link")
 }

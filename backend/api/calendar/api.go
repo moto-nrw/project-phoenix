@@ -12,12 +12,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -37,12 +35,16 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+		r.Use(common.SecurityPrincipalMiddleware)
+		withTx := common.TenantTxMiddleware
 
-		own := authorize.RequiresPermission(permissions.CalendarOwn)
-		manage := authorize.RequiresPermission(permissions.CalendarManage)
+		own := common.RequiresPermission(permissions.CalendarOwn)
+		manage := common.RequiresPermission(permissions.CalendarManage)
 		r.With(own, withTx).Get("/my", rs.listMy)
+		r.With(own, withTx).Get("/feed", rs.calendarFeedURL)
+		r.With(own, withTx).Post("/feed/rotate", rs.rotateCalendarFeed)
 		r.With(own, withTx).Get("/appointments/{appointmentId}/overview", rs.appointmentOverview)
 		r.With(own, withTx).Get("/appointments/{appointmentId}/ics", rs.appointmentICS)
 		r.With(manage, withTx).Post("/appointments", rs.createAppointment)
@@ -155,6 +157,30 @@ func (rs *Resource) listMy(w http.ResponseWriter, r *http.Request) {
 		"to":     to.String(),
 		"events": events,
 	}, "Calendar events retrieved")
+}
+
+func (rs *Resource) calendarFeedURL(w http.ResponseWriter, r *http.Request) {
+	httpsURL, webcalURL, err := rs.service.StaffCalendarFeedURL(r.Context())
+	if err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]string{
+		"url":        httpsURL,
+		"webcal_url": webcalURL,
+	}, "Calendar feed URL retrieved")
+}
+
+func (rs *Resource) rotateCalendarFeed(w http.ResponseWriter, r *http.Request) {
+	httpsURL, webcalURL, err := rs.service.RotateStaffCalendarFeed(r.Context())
+	if err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]string{
+		"url":        httpsURL,
+		"webcal_url": webcalURL,
+	}, "Calendar feed URL rotated")
 }
 
 func (rs *Resource) createAppointment(w http.ResponseWriter, r *http.Request) {
@@ -362,17 +388,17 @@ func parseRange(w http.ResponseWriter, r *http.Request) (timezone.Date, timezone
 	toRaw := r.URL.Query().Get("to")
 	if fromRaw == "" || toRaw == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query params are required")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	from, err := timezone.ParseDate(fromRaw)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	to, err := timezone.ParseDate(toRaw)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	return from, to, true
 }
@@ -382,7 +408,7 @@ func parseClock(raw string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("invalid time %q, expected HH:mm", raw)
 	}
-	return timezone.WallClock(t), nil
+	return timezone.NormalizeWallClock(t), nil
 }
 
 func renderCalendarError(w http.ResponseWriter, r *http.Request, err error) {

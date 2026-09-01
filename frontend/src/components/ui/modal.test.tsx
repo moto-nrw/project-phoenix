@@ -67,6 +67,33 @@ describe("Modal", () => {
     );
   });
 
+  it("gives a 255-character title wrapping space without shrinking the close target", async () => {
+    const longTitle = "T".repeat(255);
+
+    render(
+      <TestWrapper>
+        <Modal isOpen={true} onClose={vi.fn()} title={longTitle}>
+          <p>Content</p>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(longTitle).toHaveLength(255);
+    expect(screen.getByRole("heading", { name: longTitle })).toHaveClass(
+      "min-w-0",
+      "flex-1",
+      "wrap-anywhere",
+    );
+    expect(screen.getByRole("button", { name: "Modal schließen" })).toHaveClass(
+      "size-11",
+      "shrink-0",
+    );
+  });
+
   it("should render close button in header when title is provided", async () => {
     render(
       <TestWrapper>

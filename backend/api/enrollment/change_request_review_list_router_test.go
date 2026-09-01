@@ -163,7 +163,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 
 	env := &reviewListEnv{
 		db:        db,
-		router:    resource.Router(),
+		router:    testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()),
 		tenantID:  tenantID,
 		requestID: submitted.Request.ID,
 		childIDs:  []int64{submitted.Children[0].ID, submitted.Children[1].ID},
@@ -229,9 +229,14 @@ type reviewListEnvelope struct {
 			RequestType string    `json:"request_type"`
 			OccurredAt  time.Time `json:"occurred_at"`
 			Data        struct {
-				ID               string         `json:"id"`
-				Status           string         `json:"status"`
-				ChildNames       []string       `json:"child_names"`
+				ID         string   `json:"id"`
+				Status     string   `json:"status"`
+				ChildNames []string `json:"child_names"`
+				Children   []struct {
+					CaseID    string  `json:"case_id"`
+					StudentID *string `json:"student_id"`
+					Name      string  `json:"name"`
+				} `json:"children"`
 				GuardianName     string         `json:"guardian_name"`
 				DecidedByName    string         `json:"decided_by_name"`
 				BaseSnapshot     map[string]any `json:"base_snapshot"`
@@ -298,6 +303,9 @@ func TestChangeRequestReviewList_OpenShowsUndecidedNewestFirst(t *testing.T) {
 		"the open list carries exactly the undecided rows, newest first")
 	assert.Equal(t, "enrollment", page.Data.Items[0].RequestType)
 	assert.Equal(t, []string{"Quirina Zoffenbach", "Xander Zoffenbach"}, page.Data.Items[0].Data.ChildNames)
+	require.Len(t, page.Data.Items[0].Data.Children, 2)
+	assert.NotEmpty(t, page.Data.Items[0].Data.Children[0].CaseID)
+	assert.Equal(t, "Quirina Zoffenbach", page.Data.Items[0].Data.Children[0].Name)
 	assert.Equal(t, "Annegret Zoffenbach", page.Data.Items[0].Data.GuardianName)
 	assert.Nil(t, page.Data.Items[0].Data.DecidedAt, "an open request has no decision")
 	// The list carries what the detail view compares, so it can show the real

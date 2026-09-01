@@ -42,7 +42,7 @@ func (r *OrganizationRepository) FindByID(ctx context.Context, id int64) (*platf
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find organization by id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find organization by id", Err: base.TranslateNotFound(err)}
 	}
 	return organization, nil
 }
@@ -80,7 +80,7 @@ func (r *OrganizationRepository) findByIDWithLock(ctx context.Context, id int64,
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: op, Err: err}
+		return nil, &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
 	}
 	return organization, nil
 }
@@ -110,7 +110,7 @@ func (r *OrganizationRepository) FindBySlug(ctx context.Context, slug string) (*
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find organization by slug", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find organization by slug", Err: base.TranslateNotFound(err)}
 	}
 	return organization, nil
 }
@@ -129,7 +129,7 @@ func (r *OrganizationRepository) Update(ctx context.Context, organization *platf
 		Where(`"organization".id = ?`, organization.ID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update organization", Err: err}
+		return &modelBase.DatabaseError{Op: "update organization", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "update organization")
 }
@@ -150,7 +150,7 @@ func (r *OrganizationRepository) CountByIDs(ctx context.Context, ids []int64) (i
 		Where(`"organization".deleted_at IS NULL`).
 		Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count organizations by ids", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count organizations by ids", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -163,7 +163,7 @@ func (r *OrganizationRepository) List(ctx context.Context) ([]*platform.Organiza
 		OrderExpr(`"organization".name ASC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list organizations", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list organizations", Err: base.TranslateNotFound(err)}
 	}
 	return organizations, nil
 }
@@ -177,7 +177,7 @@ func (r *OrganizationRepository) SoftDelete(ctx context.Context, id int64) error
 		Where(`"organization".deleted_at IS NULL`).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "soft delete organization", Err: err}
+		return &modelBase.DatabaseError{Op: "soft delete organization", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "soft delete organization")
 }
@@ -191,7 +191,7 @@ func (r *OrganizationRepository) Restore(ctx context.Context, id int64) error {
 		Where(`"organization".deleted_at IS NOT NULL`).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "restore organization", Err: err}
+		return &modelBase.DatabaseError{Op: "restore organization", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "restore organization")
 }

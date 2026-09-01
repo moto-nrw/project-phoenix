@@ -83,7 +83,7 @@ func TestClassifyDayLogStudent_NotScheduledAndAbsent(t *testing.T) {
 func TestParseDayLogDateRejectsHistoryWithoutDatedGroupAssignments(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	request := httptest.NewRequest("GET", "/day-log?date="+today.AddDays(-1).String(), nil)
 
 	_, err := parseDayLogDate(request, today)
@@ -129,7 +129,7 @@ func TestDayLogArrivalIsStillPending(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
-	arrival := timezone.WallClock(now.Add(2 * time.Hour))
+	arrival := timezone.NormalizeWallClock(now.Add(2 * time.Hour))
 	row := dayLogStudent{Status: dayLogStatusAbsent}
 
 	clock := dayLogClock{now: now, today: timezone.DateFromTime(now)}
@@ -147,7 +147,7 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 
 	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
 	date := timezone.DateFromTime(now)
-	arrival := timezone.WallClock(now.Add(2 * time.Hour))
+	arrival := timezone.NormalizeWallClock(now.Add(2 * time.Hour))
 	group := &educationModel.Group{Name: "Gruppe A"}
 	group.ID = 1
 	student := &usersModel.Student{}

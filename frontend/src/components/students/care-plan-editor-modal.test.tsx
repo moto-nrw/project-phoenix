@@ -281,6 +281,17 @@ describe("CarePlanEditorModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("toggles a care day when the visible checkbox is clicked", () => {
+    renderEditor({ date: null, arrivalDay: null, pickupDay: null });
+
+    const monday = screen.getByRole("checkbox", { name: "Montag" });
+    expect(monday).toBeChecked();
+
+    fireEvent.click(monday.nextElementSibling!);
+
+    expect(monday).not.toBeChecked();
+  });
+
   it("requires an explicit lasting exception when no offering matches", async () => {
     const onSubmitWeekly = vi
       .fn()
@@ -622,8 +633,8 @@ describe("CarePlanEditorModal", () => {
     });
   });
 
-  it("disables care-day changes when bookings define them", () => {
-    renderEditor({
+  it("changes a booked arrival time without enabling an unbooked day", async () => {
+    const { onSubmitWeekly } = renderEditor({
       date: null,
       arrivalDay: null,
       pickupDay: null,
@@ -635,8 +646,35 @@ describe("CarePlanEditorModal", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Montag")).toBeDisabled();
     expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+    ).toBeEnabled();
+    expect(
       screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-3" }),
     ).toBeDisabled();
+
+    fireEvent.change(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+      { target: { value: "08:45" } },
+    );
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith({
+        arrivalSchedules: [
+          {
+            weekday: 1,
+            inCare: true,
+            expected_arrival: "08:45",
+            notes: "Haupteingang",
+          },
+          { weekday: 2, inCare: true, expected_arrival: "08:15", notes: null },
+        ],
+        pickupSchedules: [
+          { weekday: 1, pickupTime: "15:00", notes: "Bus" },
+          { weekday: 2, pickupTime: "16:00", notes: undefined },
+        ],
+      });
+    });
   });
 
   it("keeps booked care days when clearing their own arrival time", async () => {

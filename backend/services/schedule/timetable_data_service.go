@@ -16,7 +16,6 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -89,6 +88,7 @@ type TimetableDataDependencies struct {
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
 	DB          *bun.DB
+	Today       func() timezone.Date
 }
 
 // TimetableDataService is the service boundary behind api/timetable (issue
@@ -101,6 +101,9 @@ type TimetableDataService struct {
 
 // NewTimetableDataService creates the data facade behind api/timetable.
 func NewTimetableDataService(deps TimetableDataDependencies) *TimetableDataService {
+	if deps.Today == nil {
+		deps.Today = timezone.TodayDate
+	}
 	return &TimetableDataService{deps: deps}
 }
 
@@ -112,7 +115,7 @@ func (s *TimetableDataService) getLogger() *slog.Logger {
 // optionally narrowed to one slot (#1886). Raw IDs — display names resolve in
 // the read path (handler), never in storage.
 func (s *TimetableDataService) ListDeviationEvents(ctx context.Context, from, to timezone.Date, activityGroupID *int64, startTime *string) ([]*auditModel.DeviationEvent, error) {
-	return s.deps.DeviationEventRepo.ListByRange(ctx, from, to, activityGroupID, startTime)
+	return s.deps.DeviationEventRepo.ListByRange(ctx, auditModel.Date(from), auditModel.Date(to), activityGroupID, startTime)
 }
 
 func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStudent, error) {
@@ -139,7 +142,7 @@ func (s *TimetableDataService) GetPartialAbsenceCutoffsForDate(
 	cutoffs := make(map[int64]time.Time, len(rows))
 	for _, row := range rows {
 		if row != nil && row.ExcusedAuto && row.ExcusedFrom != nil {
-			cutoffs[row.StudentID] = timezone.WallClock(*row.ExcusedFrom)
+			cutoffs[row.StudentID] = timezone.NormalizeWallClock(*row.ExcusedFrom)
 		}
 	}
 	return cutoffs, nil
@@ -713,7 +716,7 @@ func (s *TimetableDataService) acquireSpontaneousLock(ctx context.Context, key s
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
 	}
-	if tx, ok := modelBase.TxFromContext(ctx); !ok || tx == nil {
+	if tx, ok := tenant.TransactionFromContext(ctx); !ok || tx == nil {
 		if s.deps.DB == nil {
 			return nil
 		}

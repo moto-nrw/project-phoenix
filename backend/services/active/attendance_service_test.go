@@ -9,7 +9,6 @@
 //
 //	ARRANGE: Create test fixtures (real database records)
 //	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
-//	  defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 //
 //	ACT: Perform the operation under test
 //	  result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
@@ -39,7 +38,6 @@ import (
 //
 // Attendance fixtures are provided by testpkg:
 // - testpkg.CreateTestAttendance(t, db, studentID, staffID, deviceID, checkInTime, checkOutTime)
-// - testpkg.CleanupActivityFixtures automatically cleans up attendance records by student_id
 
 // =============================================================================
 // Model Tests (No Database Required)
@@ -90,7 +88,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
+	service := setupActiveService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create a student (but NO attendance record)
@@ -104,7 +102,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.Equal(t, "not_checked_in", result.Status)
 	// Service uses timezone.TodayDate() — today's Berlin calendar day
-	expectedDate := timezone.TodayDate()
+	expectedDate := timezone.NewDate(2026, 8, 24)
 	assert.Equal(t, expectedDate, result.Date)
 	assert.Nil(t, result.CheckInTime)
 	assert.Nil(t, result.CheckOutTime)

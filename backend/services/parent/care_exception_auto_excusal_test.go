@@ -68,7 +68,7 @@ func loadSlotRow(t *testing.T, db *bun.DB, rowID int64) *scheduleModels.Instance
 		Model(row).
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".id = ?`, rowID).
-		Scan(context.Background())
+		Scan(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)
 	return row
 }
@@ -89,7 +89,7 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 	slot := testpkg.CreateTestInstanceStudent(t, db, block.ID, chain.StudentID, scheduleModels.AttendanceStatusExpected)
 
 	// Parent pulls the pickup forward to 14:45 → the 15:00 block is excused.
-	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID, date, wallClock(14, 45), nil)
+	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, wallClock(14, 45), nil)
 	require.NoError(t, err)
 
 	row := loadSlotRow(t, db, slot.ID)
@@ -107,7 +107,7 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 
 	// The auto excusal must not lock the parent out of their own exception:
 	// moving the time back past the baseline releases the block again.
-	_, err = svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID, date, wallClock(16, 30), nil)
+	_, err = svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, wallClock(16, 30), nil)
 	require.NoError(t, err)
 
 	row = loadSlotRow(t, db, slot.ID)
@@ -130,11 +130,11 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 	})
 	slot := testpkg.CreateTestInstanceStudent(t, db, block.ID, chain.StudentID, scheduleModels.AttendanceStatusExpected)
 
-	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID, date, wallClock(14, 45), nil)
+	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, wallClock(14, 45), nil)
 	require.NoError(t, err)
 	require.Equal(t, scheduleModels.AttendanceStatusAbsent, loadSlotRow(t, db, slot.ID).Status)
 
-	require.NoError(t, svc.DeleteCareException(context.Background(), chain.AccountID, chain.StudentID, date))
+	require.NoError(t, svc.DeleteCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date))
 
 	row := loadSlotRow(t, db, slot.ID)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)

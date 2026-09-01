@@ -2,8 +2,6 @@ package audit
 
 import (
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ResourceType constants for DataAccessLog.ResourceType.
@@ -87,7 +85,7 @@ const (
 // existing convention for other tables in the audit schema.
 type DataAccessLog struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	ActorAccountID int64     `bun:"actor_account_id,notnull" json:"actor_account_id"`
 	ActorRole      string    `bun:"actor_role,notnull" json:"actor_role"`
 	ResourceType   string    `bun:"resource_type,notnull" json:"resource_type"`
@@ -98,22 +96,6 @@ type DataAccessLog struct {
 	// Metadata holds event-specific context (migration 1.15.101).
 	// Mirrors the metadata column on the sibling audit tables.
 	Metadata map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
-}
-
-// GetID implements the base.Entity interface.
-func (d *DataAccessLog) GetID() interface{} {
-	return d.ID
-}
-
-// GetCreatedAt implements the base.Entity interface.
-func (d *DataAccessLog) GetCreatedAt() time.Time {
-	return d.AccessedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface. Access log rows are
-// append-only, so updated_at mirrors accessed_at.
-func (d *DataAccessLog) GetUpdatedAt() time.Time {
-	return d.AccessedAt
 }
 
 // GetMetadata returns the metadata map, lazily initialising it.

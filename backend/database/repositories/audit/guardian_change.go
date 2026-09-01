@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 const guardianChangeTableExpr = `audit.guardian_changes AS "guardian_change"`
 
 type guardianChangeRepository struct {
-	*base.Repository[*audit.GuardianChange]
-	db *bun.DB
+	runtime Runtime
 }
 
-func NewGuardianChangeRepository(db *bun.DB) audit.GuardianChangeRepository {
-	repo := base.NewRepository[*audit.GuardianChange](db, "audit.guardian_changes", "GuardianChange")
-	repo.TenantScoped = true
-	return &guardianChangeRepository{Repository: repo, db: db}
+func NewGuardianChangeRepository(runtime Runtime) audit.GuardianChangeRepository {
+	return &guardianChangeRepository{runtime: requireRuntime(runtime)}
+}
+
+func (r *guardianChangeRepository) Create(ctx context.Context, entry *audit.GuardianChange) error {
+	return NewAppender(r.runtime).Append(ctx, entry)
 }
 
 func (r *guardianChangeRepository) ListByStudentID(ctx context.Context, studentID int64) ([]*audit.GuardianChange, error) {
@@ -28,14 +26,14 @@ func (r *guardianChangeRepository) ListByStudentID(ctx context.Context, studentI
 		return nil, fmt.Errorf("student_id is required")
 	}
 	var rows []*audit.GuardianChange
-	err := base.GetDB(ctx, r.db).NewSelect().
+	err := runtimeDB(ctx, r.runtime).NewSelect().
 		Model(&rows).
 		ModelTableExpr(guardianChangeTableExpr).
 		Where(`"guardian_change".student_id = ?`, studentID).
 		OrderExpr(`"guardian_change".changed_at DESC, "guardian_change".id DESC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardian changes", Err: err}
+		return nil, wrapDatabase("list guardian changes", err)
 	}
 	return rows, nil
 }

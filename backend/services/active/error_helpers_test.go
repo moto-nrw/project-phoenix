@@ -1,7 +1,6 @@
 package active
 
 import (
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -18,10 +17,10 @@ import (
 func TestIsNotFoundError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns true for DatabaseError with sql.ErrNoRows", func(t *testing.T) {
+	t.Run("returns true for DatabaseError with repository not-found", func(t *testing.T) {
 		err := &base.DatabaseError{
 			Op:  "find by id",
-			Err: sql.ErrNoRows,
+			Err: base.ErrNotFound,
 		}
 		assert.True(t, base.IsNoRows(err))
 	})
@@ -43,10 +42,10 @@ func TestIsNotFoundError(t *testing.T) {
 		assert.False(t, base.IsNoRows(nil))
 	})
 
-	t.Run("returns true for wrapped DatabaseError with sql.ErrNoRows", func(t *testing.T) {
+	t.Run("returns true for wrapped DatabaseError with repository not-found", func(t *testing.T) {
 		dbErr := &base.DatabaseError{
 			Op:  "find by id",
-			Err: sql.ErrNoRows,
+			Err: base.ErrNotFound,
 		}
 		// Wrap the error
 		wrappedErr := errors.Join(errors.New("context"), dbErr)
@@ -105,7 +104,7 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		// First insert: succeeds and stays open (exit_time IS NULL).
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-1*time.Minute), nil)
 
-		// Second insert: same (tenant_id=1, student_id, exit_time IS NULL)
+		// Second insert: same (tenant_id, student_id, exit_time IS NULL)
 		// — must be rejected by uniq_active_visits_open_per_student.
 		duplicate := &activeModels.Visit{
 			StudentID:     student.ID,

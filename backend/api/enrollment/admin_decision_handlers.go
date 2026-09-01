@@ -893,15 +893,22 @@ func (rs *Resource) dispatchPostDecisionInvite(parentCtx context.Context, invite
 	// Detach from request lifetime so the goroutine isn't cancelled by
 	// the response writer flushing. Re-attach tenant from the parent so
 	// the invitation service's tenant-scoped writes resolve.
-	tenantID := tenant.FromContext(parentCtx)
-	bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	tenantID, err := tenant.TenantFromContext(parentCtx)
+	if err != nil {
+		slog.Default().Warn("post-decision guardian invitation rejected: missing tenant", slog.String("error", err.Error()))
+		return
+	}
+	bgCtx := context.WithoutCancel(parentCtx)
+	bgCtx = tenant.ContextWithoutTransaction(bgCtx)
+	bgCtx = tenant.ContextWithoutAfterCommitHooks(bgCtx)
+	bgCtx, cancel := context.WithTimeout(bgCtx, 30*time.Second)
 	defer cancel()
-	bgCtx = tenant.WithTenantID(bgCtx, tenantID)
+	bgCtx = tenant.WithTenant(bgCtx, tenantID)
 
 	// Wrap in a tenant tx so the invitation service's repo writes pick
 	// up the right RLS scope. The service has its own RunInTx that
 	// reuses an existing tx context, so this stays a single tx.
-	err := tenant.WithTenantTx(bgCtx, rs.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(bgCtx, rs.db, tenantID.Int64(), func(txCtx context.Context, _ bun.Tx) error {
 		_, e := rs.GuardianInvitationService.Create(txCtx, authService.GuardianInvitationCreateRequest{
 			GuardianProfileID: invite.GuardianProfileID,
 			CreatedBy:         invite.CreatedBy,

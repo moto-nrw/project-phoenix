@@ -9,7 +9,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // dropWorkSessionsSourceColumn rolls back the schema portion of migration
@@ -29,7 +28,7 @@ import (
 // Callers register the returned closure with `defer` so the restore runs
 // however the test exits. See
 // TestWorkSessionsSourceDown_DropsColumnAndConstraint for the same pattern.
-func dropWorkSessionsSourceColumn(t *testing.T, db *bun.DB) func() {
+func dropWorkSessionsSourceColumn(t *testing.T, db *testpkg.DB) func() {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -57,7 +56,7 @@ func dropWorkSessionsSourceColumn(t *testing.T, db *bun.DB) func() {
 // backfill labels pre-existing rows as 'unknown'. created_by/updated_by point
 // at the staff member themselves, matching what WorkSessionService.CheckIn
 // writes in production.
-func insertWorkSession(t *testing.T, db *bun.DB, tenantID, staffID int64, checkInTime time.Time) int64 {
+func insertWorkSession(t *testing.T, db *testpkg.DB, tenantID, staffID int64, checkInTime time.Time) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -72,7 +71,7 @@ func insertWorkSession(t *testing.T, db *bun.DB, tenantID, staffID int64, checkI
 	return id
 }
 
-func workSessionSource(t *testing.T, db *bun.DB, id int64) string {
+func workSessionSource(t *testing.T, db *testpkg.DB, id int64) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -87,11 +86,12 @@ func workSessionSource(t *testing.T, db *bun.DB, id int64) string {
 // labelled 'unknown'. This is the entire backfill contract — no heuristic,
 // no guessing, just an honest sentinel for pre-existing data.
 func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Legacy", "Stamper")
 
@@ -114,11 +114,12 @@ func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
 // must still be able to land 'app' and 'nfc' from WorkSessionService.CheckIn,
 // and the 'unknown' sentinel must remain valid because legacy rows carry it.
 func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Test")
 
@@ -140,11 +141,12 @@ func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
 // bypasses WorkSessionService.CheckIn cannot smuggle a bogus channel into
 // the table.
 func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Reject")
 
@@ -177,6 +179,7 @@ func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
 // re-run Up so sibling tests see the expected schema. A t.Cleanup also
 // re-runs Up as a belt-and-braces net in case the test fails mid-flight.
 func TestWorkSessionsSourceDown_DropsColumnAndConstraint(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	// Defers run LIFO: restore the column FIRST, then close the connection.
 	// Using t.Cleanup here is wrong because Cleanup runs AFTER the test

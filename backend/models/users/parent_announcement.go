@@ -48,6 +48,45 @@ func ValidAnnouncementResponseType(t string) bool {
 	}
 }
 
+// Delivery modes (mirrors the chk_parent_announcements_delivery_mode
+// constraint). "standard" is the Mitteilung every pre-#2384 row is: e-mail and
+// acknowledgement are independent opt-ins and the mail carries only a title and
+// a portal link. "letter" is the Elternbrief: both channels are mandatory (the
+// chk_parent_announcements_letter_channels CHECK enforces it in the database, not
+// just in the service) and the mail carries the full body.
+const (
+	ParentAnnouncementDeliveryStandard = "standard"
+	ParentAnnouncementDeliveryLetter   = "letter"
+)
+
+// E-mail audiences (mirrors the chk_parent_announcements_email_audience
+// constraint). This is deliberately a SEPARATE axis from the portal audience:
+// a letter may be a general notice everyone should receive, or it may carry
+// details only guardians with portal access are meant to see (#2384).
+//
+//	EmailAudiencePortalOnly  — only guardians with parent_portal.access, i.e. the
+//	                           same people who see the announcement in the portal
+//	EmailAudienceAllContacts — additionally every guardian of a reached child that
+//	                           has an address but no portal access; they receive
+//	                           the mail and can never acknowledge
+//
+// PortalOnly is the DEFAULT on purpose: an omission must fall towards not
+// disclosing the body to someone deliberately excluded from the portal.
+const (
+	EmailAudiencePortalOnly  = "portal_only"
+	EmailAudienceAllContacts = "all_contacts"
+)
+
+// ValidAnnouncementDeliveryMode reports whether m is a known delivery mode.
+func ValidAnnouncementDeliveryMode(m string) bool {
+	return m == ParentAnnouncementDeliveryStandard || m == ParentAnnouncementDeliveryLetter
+}
+
+// ValidAnnouncementEmailAudience reports whether a is a known e-mail audience.
+func ValidAnnouncementEmailAudience(a string) bool {
+	return a == EmailAudiencePortalOnly || a == EmailAudienceAllContacts
+}
+
 // Audience target types (mirrors the chk_parent_announcement_targets_type
 // constraint). An announcement's reach is the OR-union of its target rows.
 const (
@@ -114,6 +153,14 @@ type ParentAnnouncement struct {
 	ResponseType     string     `bun:"response_type,notnull,nullzero,default:'none'" json:"response_type"`
 	ResponseDeadline *time.Time `bun:"response_deadline" json:"response_deadline,omitempty"`
 
+	// DeliveryMode turns the announcement into an Elternbrief (#2384) and
+	// EmailAudience widens who receives the mail. Both use nullzero+default for
+	// the same reason ResponseType does: a caller that leaves the field alone
+	// must fall through to the column default rather than insert an empty string
+	// that trips the CHECK constraint.
+	DeliveryMode  string `bun:"delivery_mode,notnull,nullzero,default:'standard'" json:"delivery_mode"`
+	EmailAudience string `bun:"email_audience,notnull,nullzero,default:'portal_only'" json:"email_audience"`
+
 	// SystemKind is set on announcements the system authored (#2601), nil for
 	// everything staff wrote by hand. See ParentAnnouncementSystemKind*.
 	SystemKind *string `bun:"system_kind" json:"system_kind,omitempty"`
@@ -130,6 +177,18 @@ type ParentAnnouncement struct {
 // IsPublished reports whether the announcement has been published (vs draft).
 func (a *ParentAnnouncement) IsPublished() bool {
 	return a.PublishedAt != nil
+}
+
+// IsLetter reports whether the announcement is an Elternbrief — the mode in
+// which both channels are mandatory and the mail carries the full body.
+func (a *ParentAnnouncement) IsLetter() bool {
+	return a.DeliveryMode == ParentAnnouncementDeliveryLetter
+}
+
+// ReachesContactsWithoutPortal reports whether the e-mail goes beyond the portal
+// audience to guardians that have an address but no portal access.
+func (a *ParentAnnouncement) ReachesContactsWithoutPortal() bool {
+	return a.EmailAudience == EmailAudienceAllContacts
 }
 
 // IsSystem reports whether the system authored the announcement.
@@ -300,11 +359,15 @@ type AnnouncementFeedItem struct {
 	PublishedAt             *time.Time `bun:"published_at" json:"published_at,omitempty"`
 	ExpiresAt               *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
 	ResponseType            string     `bun:"response_type" json:"response_type"`
-	ResponseDeadline        *time.Time `bun:"response_deadline" json:"response_deadline,omitempty"`
-	SystemKind              *string    `bun:"system_kind" json:"system_kind,omitempty"`
-	SchoolName              string     `bun:"school_name" json:"school_name"`
-	ReadAt                  *time.Time `bun:"read_at" json:"read_at,omitempty"`
-	AcknowledgedAt          *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
+	// DeliveryMode lets the portal mark an Elternbrief as binding ("Bestätigung
+	// erforderlich") instead of making the parent infer it from
+	// RequiresAcknowledgement alone.
+	DeliveryMode     string     `bun:"delivery_mode" json:"delivery_mode"`
+	ResponseDeadline *time.Time `bun:"response_deadline" json:"response_deadline,omitempty"`
+	SystemKind       *string    `bun:"system_kind" json:"system_kind,omitempty"`
+	SchoolName       string     `bun:"school_name" json:"school_name"`
+	ReadAt           *time.Time `bun:"read_at" json:"read_at,omitempty"`
+	AcknowledgedAt   *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
 
 	// Options and Children are attached by the service for poll items (bun:"-":
 	// they come from separate batched queries, not this row's columns).
@@ -325,6 +388,65 @@ type AnnouncementRecipient struct {
 	Email     string `bun:"email"`
 	FirstName string `bun:"first_name"`
 	LastName  string `bun:"last_name"`
+}
+
+// AnnouncementDeliveryRecipient is one guardian linked to a reached child,
+// resolved WITHOUT the portal-access filter that ResolveAudienceEmails applies.
+// It is the input for the per-recipient delivery rows behind the staff matrix
+// (#2384), which must also show the people that get nothing — a guardian with
+// no address, or one without portal access.
+//
+// HasPortalAccess is true when the guardian can actually see the announcement in
+// moto: a students_guardians link granting parent_portal.access on at least one
+// reached child, a linked account, and an active tenant membership. Only those
+// people can ever acknowledge.
+type AnnouncementDeliveryRecipient struct {
+	GuardianProfileID int64  `bun:"guardian_profile_id"`
+	AccountID         *int64 `bun:"account_id"`
+	FirstName         string `bun:"first_name"`
+	LastName          string `bun:"last_name"`
+	Email             string `bun:"email"`
+	HasPortalAccess   bool   `bun:"has_portal_access"`
+	PortalLocale      string `bun:"portal_locale"`
+}
+
+// AnnouncementLetterChildStatus is one reached child in the Elternbrief view:
+// is the letter fulfilled for this child, and if so, who confirmed it and when.
+//
+// Fulfilment is DERIVED, never stored (#2384). A child counts as fulfilled when
+// any guardian with parent_portal.access on that child has acknowledged the
+// announcement. Because acknowledgement is recorded per ACCOUNT, one
+// confirmation automatically covers every addressed sibling of that guardian —
+// the rule falls out of the existing model instead of needing a second table.
+//
+// AcknowledgedAt nil means still open. The named person is the FIRST to confirm:
+// once the letter is fulfilled, who got there first is the answer to "wer hat
+// für dieses Kind bestätigt".
+type AnnouncementLetterChildStatus struct {
+	StudentID   int64  `bun:"student_id" json:"student_id"`
+	FirstName   string `bun:"first_name" json:"first_name"`
+	LastName    string `bun:"last_name" json:"last_name"`
+	SchoolClass string `bun:"school_class" json:"school_class"`
+	// CanConfirm is false when NO guardian of this child can acknowledge in moto
+	// (no portal access, no linked account, or no active membership). Such a
+	// child is reached by the letter but can never be fulfilled, so counting it
+	// as "offen" would report a gap the school cannot close by reminding — the
+	// fix is to give somebody portal access.
+	CanConfirm     bool       `bun:"can_confirm" json:"can_confirm"`
+	AcknowledgedAt *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
+	AckFirstName   string     `bun:"ack_first_name" json:"ack_first_name,omitempty"`
+	AckLastName    string     `bun:"ack_last_name" json:"ack_last_name,omitempty"`
+}
+
+// Fulfilled reports whether someone has confirmed the letter for this child.
+func (c *AnnouncementLetterChildStatus) Fulfilled() bool { return c.AcknowledgedAt != nil }
+
+// Outstanding reports whether this child is still waiting for a confirmation
+// that could actually arrive. A child nobody can confirm for is NOT outstanding
+// — it is a data gap, and lumping the two together is what made a school-wide
+// letter look almost complete when nearly nobody could confirm.
+func (c *AnnouncementLetterChildStatus) Outstanding() bool {
+	return c.CanConfirm && !c.Fulfilled()
 }
 
 // AnnouncementRecipientStatus is one guardian account in an announcement's
@@ -361,11 +483,22 @@ type ParentAnnouncementRepository interface {
 	Create(ctx context.Context, a *ParentAnnouncement) error
 	Update(ctx context.Context, a *ParentAnnouncement) error
 	FindByID(ctx context.Context, id int64) (*ParentAnnouncement, error)
+	// FindByIDForUpdate reads the row while holding its lock until the
+	// transaction ends. The attachment writes (#2890) use it so that the
+	// "is it still a draft, is it still under the limit" check and the write
+	// that follows cannot be overtaken by a concurrent upload or publish.
+	FindByIDForUpdate(ctx context.Context, id int64) (*ParentAnnouncement, error)
 	Delete(ctx context.Context, id int64) error
 	// ListForTenant returns the tenant's announcements newest-first.
 	// includeInactive controls whether soft-disabled (active=false) rows appear.
 	ListForTenant(ctx context.Context, includeInactive bool) ([]*ParentAnnouncement, error)
 	SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error
+	// ClearEngagement drops the read/acknowledgement and poll-answer rows of an
+	// announcement. Update does it implicitly for a body edit; attaching or
+	// removing a file (#2890) changes the announcement just as much and calls
+	// it explicitly, so no confirmation survives a change to what was
+	// confirmed.
+	ClearEngagement(ctx context.Context, announcementID int64) error
 	// PublishIfDraft atomically flips a draft (published_at IS NULL) to
 	// published and reports whether this call made the change — false when the
 	// row was already published (a concurrent publish won the race), so the
@@ -422,6 +555,26 @@ type ParentAnnouncementRepository interface {
 	// non-empty e-mail) an announcement currently reaches, for the publish-time
 	// e-mail notification.
 	ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipient, error)
+	// UnacknowledgedReminderRecipients returns the guardians of reached children
+	// that nobody has confirmed the Elternbrief for yet — one row per person, not
+	// per child.
+	UnacknowledgedReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementPollReminderRecipient, error)
+	// LetterChildStatuses returns every child the announcement's targets reach —
+	// the FULL reach, not just the portal-visible subset — with the derived
+	// fulfilment state and a CanConfirm flag. A child with no portal-capable
+	// guardian must stay visible and be marked, never silently dropped: a
+	// school-wide letter that reports only the confirmable children reads as
+	// "almost everyone is done" when the opposite is true.
+	LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementLetterChildStatus, error)
+	// ResolveDeliveryRecipients returns EVERY guardian linked to a child the
+	// announcement's student-based targets reach — including those without an
+	// address and those without portal access — so the recipient matrix can show
+	// who gets nothing and why. Unlike ResolveAudienceEmails it applies no
+	// parent_portal.access filter; the caller decides who is mailed from the
+	// announcement's email_audience. The pending_enrollment target is deliberately
+	// not covered: those guardians have no student link, and an Elternbrief may
+	// not target them at all.
+	ResolveDeliveryRecipients(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementDeliveryRecipient, error)
 	// SchoolName returns the tenant's school name (for e-mail greetings/subject).
 	SchoolName(ctx context.Context, tenantID int64) (string, error)
 	// AudienceRecipients returns the guardian accounts an announcement currently

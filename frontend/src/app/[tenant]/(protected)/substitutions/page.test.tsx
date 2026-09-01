@@ -1,1055 +1,313 @@
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  within,
-} from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { formatDate, toISODate } from "~/lib/date-helpers";
-import SubstitutionsPage from "./page";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Hoist mocks
-const { mockToastSuccess } = vi.hoisted(() => ({
-  mockToastSuccess: vi.fn(),
-}));
-
-const { mockCreateSubstitution, mockDeleteSubstitution } = vi.hoisted(() => ({
-  mockCreateSubstitution: vi.fn(),
-  mockDeleteSubstitution: vi.fn(),
-}));
-
-// Mock auth-utils with hasRole that reads session roles
-vi.mock("~/lib/auth-utils", () => ({
-  isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
-    session?.user?.isAdmin ?? false,
-  hasRole: (session: { user?: { isAdmin?: boolean } } | null, role: string) => {
-    if (role === "admin") return session?.user?.isAdmin ?? false;
-    if (role === "user") return !(session?.user?.isAdmin ?? false);
-    return false;
+const mocks = vi.hoisted(() => ({
+  mutate: vi.fn(),
+  create: vi.fn(),
+  end: vi.fn(),
+  success: vi.fn(),
+  openCare: false,
+  overview: {
+    groups: [{ id: "12", name: "Robins Gruppe" }],
+    targets: [{ id: "34", fullName: "Toni Test" }],
+    groupHandovers: [
+      {
+        id: "5",
+        type: "group_handover" as const,
+        groupId: "12",
+        groupName: "Robins Gruppe",
+        substituteStaffId: "34",
+        substituteStaffName: "Toni Test",
+        startDate: "2026-08-31",
+        endDate: "2026-08-31",
+        canEnd: true,
+      },
+    ],
+    runningSupervisions: [
+      {
+        id: "41",
+        name: "Freispiel",
+        roomName: "Atelier",
+        supervisors: [{ id: "11", fullName: "Alex Alt" }],
+        availableTargets: [{ id: "34", fullName: "Toni Test" }],
+        isCurrentUserSupervising: true,
+        canAssign: true,
+      },
+      {
+        id: "42",
+        name: "Mensa",
+        roomName: "Speiseraum",
+        supervisors: [{ id: "13", fullName: "Nora Neu" }],
+        availableTargets: [],
+        isCurrentUserSupervising: false,
+        canAssign: false,
+      },
+    ],
+  },
+  schedule: {
+    appointments: [
+      {
+        id: "77",
+        date: "2026-08-31",
+        startTime: "12:00",
+        endTime: "13:00",
+        title: "Lesezeit",
+        status: "planned",
+        staff: [
+          {
+            assignmentId: "7",
+            id: "11",
+            name: "Alex Alt",
+            isAbsent: true,
+            isSubstitute: false,
+            canEnd: false,
+          },
+        ],
+      },
+    ],
+    staff: [],
   },
 }));
 
-// Mock next-auth
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
+vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
+vi.mock("~/lib/swr", () => ({ useSWRAuth: vi.fn() }));
+vi.mock("~/lib/tenant-context", () => ({
+  useOpenCareGroupMode: () => mocks.openCare,
+  useTenantSlugSafe: () => "test",
+  useTenantRoutingModeSafe: () => "path",
 }));
-
-// Mock next/navigation
-vi.mock("next/navigation", () => ({
-  useRouter: vi.fn(),
-  redirect: vi.fn(),
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ push: vi.fn() }),
 }));
-
-// Mock SWR hooks
-vi.mock("~/lib/swr", () => ({
-  useSWRAuth: vi.fn(),
-  useImmutableSWR: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
-}));
-
-// Mock toast context
 vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({
-    success: mockToastSuccess,
-  }),
+  useToast: () => ({ success: mocks.success }),
 }));
-
-// Mock substitution service
 vi.mock("~/lib/substitution-api", () => ({
   substitutionService: {
-    createSubstitution: mockCreateSubstitution,
-    deleteSubstitution: mockDeleteSubstitution,
+    fetchOverview: vi.fn(),
+    fetchScheduleOverview: vi.fn(),
+    createSubstitution: mocks.create,
+    deleteSubstitution: mocks.end,
   },
 }));
-
-// Mock breadcrumb context used by the page header
-vi.mock("~/lib/breadcrumb-context", () => ({
-  useSetBreadcrumb: vi.fn(),
-  useBreadcrumb: vi.fn(() => ({ breadcrumb: {}, setBreadcrumb: vi.fn() })),
-  BreadcrumbProvider: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
+vi.mock("~/components/active-supervisions/add-supervisor-modal", () => ({
+  AddSupervisorModal: ({ activeGroupId }: { activeGroupId: string }) => (
+    <div role="dialog">Zusätzliche Aufsicht für {activeGroupId}</div>
   ),
 }));
-
-// Mock PageHeaderWithSearch
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({
-    search,
-    filters,
-    onClearAllFilters,
-  }: {
-    search: { value: string; onChange: (v: string) => void };
-    filters?: Array<{
-      id: string;
-      onChange: (v: string | string[]) => void;
-    }>;
-    onClearAllFilters: () => void;
-  }) => {
-    const statusFilter = filters?.find((f) => f.id === "status");
-    return (
-      <div data-testid="page-header">
-        <input
-          data-testid="search-input"
-          value={search.value}
-          onChange={(e) => search.onChange(e.target.value)}
-        />
-        <button
-          type="button"
-          data-testid="filter-available"
-          onClick={() => statusFilter?.onChange("available")}
-        >
-          Available
-        </button>
-        <button
-          type="button"
-          data-testid="filter-substitution"
-          onClick={() => statusFilter?.onChange("substitution")}
-        >
-          In Substitution
-        </button>
-        <button
-          type="button"
-          data-testid="clear-filters"
-          onClick={onClearAllFilters}
-        >
-          Clear
-        </button>
-      </div>
-    );
-  },
-}));
-
-// Mock Modal components
-vi.mock("~/components/ui/modal", () => ({
-  Modal: ({
-    isOpen,
-    onClose,
-    title,
-    children,
-    footer,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
-    children: React.ReactNode;
-    footer?: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="assignment-modal" role="dialog">
-        <h2>{title}</h2>
-        <button type="button" data-testid="modal-close" onClick={onClose}>
-          Close
-        </button>
-        {children}
-        {footer}
-      </div>
-    ) : null,
-  ConfirmationModal: ({
-    isOpen,
-    onClose,
-    onConfirm,
-    title,
-    children,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onConfirm: () => void;
-    title: string;
-    children: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="confirmation-modal" role="dialog">
-        <h2>{title}</h2>
-        {children}
-        <button type="button" data-testid="confirm-end" onClick={onConfirm}>
-          Confirm
-        </button>
-        <button type="button" data-testid="cancel-end" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
-    ) : null,
-}));
-
-// Mock Alert — mirrors the real message-prop API
-vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message }: { message: string }) => (
-    <div data-testid="alert">{message}</div>
-  ),
-}));
-
-// Note: substitution-helpers are not mocked - using actual implementations
 
 import { useSession } from "next-auth/react";
-// eslint-disable-next-line no-restricted-imports -- test mock
-import { useRouter } from "next/navigation";
-import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
-import { useOpenCareGroupMode } from "~/lib/tenant-context";
+import { useSWRAuth } from "~/lib/swr";
+import SubstitutionPage from "./page";
 
-// Test data
-const mockTeachers = [
-  {
-    id: "1",
-    firstName: "Anna",
-    lastName: "Meyer",
-    regularGroup: "Gruppe 2A",
-    inSubstitution: false,
-    substitutionCount: 0,
-    substitutions: [],
-  },
-  {
-    id: "2",
-    firstName: "Ben",
-    lastName: "Schulz",
-    regularGroup: "Gruppe 3B",
-    inSubstitution: true,
-    substitutionCount: 1,
-    substitutions: [
-      {
-        id: "sub-1",
-        groupId: "g1",
-        groupName: "Gruppe 1A",
-        isTransfer: false,
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+function adminSession() {
+  return {
+    data: {
+      user: {
+        roles: ["admin"],
+        permissions: ["schedules:read", "schedules:manage"],
       },
-    ],
-  },
-  {
-    id: "3",
-    firstName: "Clara",
-    lastName: "Fischer",
-    regularGroup: "Gruppe 1C",
-    inSubstitution: true,
-    substitutionCount: 1,
-    substitutions: [
-      {
-        id: "sub-2",
-        groupId: "g2",
-        groupName: "Gruppe 4A",
-        isTransfer: true,
-        startDate: new Date(),
-        endDate: new Date(),
-      },
-    ],
-  },
-];
+    },
+    status: "authenticated",
+  } as never;
+}
 
-const mockGroups = [
-  { id: "g1", name: "Gruppe 1A" },
-  { id: "g2", name: "Gruppe 2B" },
-  { id: "g3", name: "Gruppe 3C" },
-];
+function staffSession() {
+  return {
+    data: {
+      user: { roles: ["user"], permissions: ["schedules:read"] },
+    },
+    status: "authenticated",
+  } as never;
+}
 
-const mockActiveSubstitutions = [
-  {
-    id: "sub-1",
-    groupId: "g1",
-    groupName: "Gruppe 1A",
-    substituteStaffId: "2",
-    substituteStaffName: "Ben Schulz",
-    startDate: new Date(),
-    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    isTransfer: false,
-  },
-  {
-    id: "sub-2",
-    groupId: "g2",
-    groupName: "Gruppe 4A",
-    substituteStaffId: "3",
-    substituteStaffName: "Clara Fischer",
-    startDate: new Date(),
-    endDate: new Date(),
-    isTransfer: true,
-  },
-];
-
-describe("SubstitutionsPage", () => {
-  const mockPush = vi.fn();
-  const mockMutateTeachers = vi.fn();
-  const mockMutateSubstitutions = vi.fn();
-
+describe("SubstitutionPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useRouter).mockReturnValue({ push: mockPush } as never);
+    mocks.openCare = false;
+    mocks.mutate.mockResolvedValue(undefined);
+    mocks.create.mockResolvedValue(undefined);
+    mocks.end.mockResolvedValue(undefined);
+    vi.mocked(useSession).mockReturnValue(adminSession());
+    vi.mocked(useSWRAuth).mockImplementation(
+      (key: string | null) =>
+        ({
+          data: key?.startsWith("substitution-schedule-")
+            ? mocks.schedule
+            : mocks.overview,
+          isLoading: false,
+          error: null,
+          mutate: mocks.mutate,
+        }) as never,
+    );
+  });
+
+  it("shows all three workflows with running and today content first", () => {
+    render(<SubstitutionPage />);
+
+    const running = screen.getByRole("heading", {
+      name: "Laufende Betreuungen",
+    });
+    const appointments = screen.getByRole("heading", { name: "Termine" });
+    const groups = screen.getByRole("heading", { name: "Gruppen" });
+    expect(running.compareDocumentPosition(appointments)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(appointments.compareDocumentPosition(groups)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(screen.getByText("Freispiel")).toBeInTheDocument();
+    expect(screen.getByText("Lesezeit")).toBeInTheDocument();
+    expect(screen.getByText("Robins Gruppe")).toBeInTheDocument();
+  });
+
+  it("opens the additional-supervision flow only for an allowed session", () => {
+    render(<SubstitutionPage />);
+
+    expect(
+      screen.getAllByRole("button", { name: "Betreuer hinzufügen" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByText("Nur zuständige Personen können jemanden hinzufügen."),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuer hinzufügen" }),
+    );
+    expect(screen.getByRole("dialog", { name: "" })).toHaveTextContent("41");
+  });
+
+  it("links an allowed appointment to the existing module flow", () => {
+    render(<SubstitutionPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Vertretung eintragen" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringMatching(
+        /^\/test\/vertretung\?d=\d{4}-\d{2}-\d{2}&block=77$/,
+      ),
+    );
+  });
+
+  it("keeps staff actions within their returned capabilities", () => {
+    vi.mocked(useSession).mockReturnValue(staffSession());
+    render(<SubstitutionPage />);
+
+    expect(
+      screen.queryByRole("link", { name: "Vertretung eintragen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Ein Admin kann die Vertretung eintragen."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gruppe übergeben" }));
+    expect(
+      screen.getByText("Sie können nur eigene Gruppen für heute übergeben."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Startdatum")).not.toBeInTheDocument();
+  });
+
+  it("denies the overview to authenticated accounts without a staff or admin role", () => {
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1", isAdmin: true } },
+      data: { user: { roles: ["guardian"], permissions: [] } },
       status: "authenticated",
     } as never);
 
-    // Default SWR mock setup
-    vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
-      if (key === "substitution-teachers") {
-        return {
-          data: mockTeachers,
-          isLoading: false,
-          error: null,
-          mutate: mockMutateTeachers,
-        } as never;
-      }
-      if (key === "active-substitutions") {
-        return {
-          data: mockActiveSubstitutions,
-          isLoading: false,
-          error: null,
-          mutate: mockMutateSubstitutions,
-        } as never;
-      }
-      return { data: null, isLoading: false, error: null } as never;
-    });
+    render(<SubstitutionPage />);
 
-    vi.mocked(useImmutableSWR).mockReturnValue({
-      data: mockGroups,
-      isLoading: false,
-      error: null,
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(screen.queryByText("Laufende Betreuungen")).not.toBeInTheDocument();
+  });
+
+  it("gives wildcard admins the admin date controls", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { roles: ["user"], permissions: ["admin:*"] } },
+      status: "authenticated",
     } as never);
+
+    render(<SubstitutionPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Gruppe übergeben" }));
+
+    expect(screen.getByLabelText("Startdatum")).toBeInTheDocument();
+    expect(screen.getByLabelText("Enddatum")).toBeInTheDocument();
   });
 
-  describe("open-care gating (#1940)", () => {
-    afterEach(() => {
-      vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
-    });
+  it("keeps the other workflows available for open-care schools", () => {
+    mocks.openCare = true;
+    render(<SubstitutionPage />);
 
-    it("shows the unavailable notice for open-care tenants", () => {
-      vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
-
-      render(<SubstitutionsPage />);
-
-      expect(
-        screen.getByText("Gruppenzugriff nicht verfügbar"),
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByText("Verfügbare pädagogische Fachkräfte"),
-      ).not.toBeInTheDocument();
-    });
+    expect(screen.getByText("Keine Gruppenübergabe nötig")).toBeInTheDocument();
+    expect(screen.getByText("Freispiel")).toBeInTheDocument();
+    expect(screen.getByText("Lesezeit")).toBeInTheDocument();
   });
 
-  describe("Loading and Error States", () => {
-    it("shows loading state while session is loading", () => {
-      vi.mocked(useSession).mockReturnValue({
-        data: null,
-        status: "loading",
-      } as never);
+  it("ends a group handover through the module", async () => {
+    render(<SubstitutionPage />);
 
-      render(<SubstitutionsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Beenden" }));
+    const buttons = screen.getAllByRole("button", { name: "Beenden" });
+    fireEvent.click(buttons[buttons.length - 1]!);
 
-      // RoleGuard (not touched by this migration) gates on session status
-      // itself and renders its own (unmocked) Loading fallback before
-      // SubstitutionPageContent's own status==="loading" branch is ever
-      // reached — so this asserts RoleGuard's real loading output.
-      expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
-    });
+    await waitFor(() => expect(mocks.end).toHaveBeenCalledWith("5"));
+    expect(mocks.mutate).toHaveBeenCalled();
+    expect(mocks.success).toHaveBeenCalledWith("Die Übergabe wurde beendet.");
+  });
 
-    it("shows loading state while teachers are loading", () => {
-      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
-        if (key === "substitution-teachers") {
-          return {
-            data: [],
-            isLoading: true,
-            error: null,
-            mutate: mockMutateTeachers,
-          } as never;
-        }
-        return {
-          data: mockActiveSubstitutions,
+  it("does not present load failures as empty results", () => {
+    vi.mocked(useSWRAuth).mockImplementation(
+      () =>
+        ({
+          data: undefined,
           isLoading: false,
-          error: null,
-          mutate: mockMutateSubstitutions,
-        } as never;
-      });
-
-      render(<SubstitutionsPage />);
-
-      expect(
-        screen.getByLabelText("Fachkräfte werden geladen…"),
-      ).toBeInTheDocument();
-    });
-
-    it("shows error message when data fetch fails", () => {
-      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
-        if (key === "substitution-teachers") {
-          return {
-            data: [],
-            isLoading: false,
-            error: new Error("Network error"),
-            mutate: mockMutateTeachers,
-          } as never;
-        }
-        return {
-          data: [],
-          isLoading: false,
-          error: null,
-          mutate: mockMutateSubstitutions,
-        } as never;
-      });
-
-      render(<SubstitutionsPage />);
-
-      expect(
-        screen.getByText("Fehler beim Laden der Daten."),
-      ).toBeInTheDocument();
-    });
-  });
-
-  describe("Teacher List Rendering", () => {
-    it("renders all teachers in the list", () => {
-      render(<SubstitutionsPage />);
-
-      // Teacher names may appear multiple times (in teacher list AND active substitutions)
-      // so we use getAllByText
-      expect(screen.getAllByText("Anna Meyer").length).toBeGreaterThanOrEqual(
-        1,
-      );
-      expect(screen.getAllByText("Ben Schulz").length).toBeGreaterThanOrEqual(
-        1,
-      );
-      expect(
-        screen.getAllByText("Clara Fischer").length,
-      ).toBeGreaterThanOrEqual(1);
-    });
-
-    it("displays teacher group information", () => {
-      render(<SubstitutionsPage />);
-
-      expect(screen.getByText("Gruppe 2A")).toBeInTheDocument();
-      expect(screen.getByText("Gruppe 3B")).toBeInTheDocument();
-    });
-
-    // "Verfügbar" ist der Normalfall und wird nicht mehr ausgeschrieben: eine
-    // Fachkraft ohne Zuweisung zeigt nur ihre Stammgruppe. Nur ein tatsächlich
-    // vergebener Zugriff steht in der Zeile.
-    it("displays teacher status correctly", () => {
-      render(<SubstitutionsPage />);
-
-      // Ben Schulz hat einen Zugriff auf Gruppe 1A.
-      expect(screen.getByText(/Zugriff: Gruppe 1A/)).toBeInTheDocument();
-
-      // Anna Meyer hat keinen; ihre Zeile trägt keinen Status.
-      expect(screen.queryByText("Verfügbar")).not.toBeInTheDocument();
-    });
-
-    it("shows empty state when no teachers match filter", async () => {
-      render(<SubstitutionsPage />);
-
-      // Get the teacher section
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
-
-      fireEvent.change(screen.getByTestId("search-input"), {
-        target: { value: "nonexistent" },
-      });
-
-      await waitFor(() => {
-        expect(
-          within(teacherSection).getByText("Keine Fachkräfte gefunden"),
-        ).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe("Teacher Card Interaction", () => {
-    it("opens assignment modal when clicking teacher card", async () => {
-      render(<SubstitutionsPage />);
-
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe("Search and Filter", () => {
-    it("filters teachers by search term", async () => {
-      render(<SubstitutionsPage />);
-
-      // Get the teacher section (the section with "Verfügbare pädagogische Fachkräfte" heading)
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
-
-      // Verify Anna is shown initially in teacher section
-      expect(
-        within(teacherSection).getByText("Anna Meyer"),
-      ).toBeInTheDocument();
-
-      // Apply search filter for Anna
-      fireEvent.change(screen.getByTestId("search-input"), {
-        target: { value: "Anna" },
-      });
-
-      // After filtering, only Anna should remain in the teacher section
-      await waitFor(() => {
-        expect(
-          within(teacherSection).getByText("Anna Meyer"),
-        ).toBeInTheDocument();
-      });
-
-      // Ben and Clara should not be in the teacher section (they may exist elsewhere)
-      expect(
-        within(teacherSection).queryByText("Ben Schulz"),
-      ).not.toBeInTheDocument();
-      expect(
-        within(teacherSection).queryByText("Clara Fischer"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("has filter buttons available", () => {
-      render(<SubstitutionsPage />);
-
-      expect(screen.getByTestId("filter-available")).toBeInTheDocument();
-      expect(screen.getByTestId("filter-substitution")).toBeInTheDocument();
-      expect(screen.getByTestId("clear-filters")).toBeInTheDocument();
-    });
-
-    it("clears search when clear filters is clicked", async () => {
-      render(<SubstitutionsPage />);
-
-      // Get the teacher section
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
-
-      // Apply search filter
-      fireEvent.change(screen.getByTestId("search-input"), {
-        target: { value: "Anna" },
-      });
-
-      await waitFor(() => {
-        expect(
-          within(teacherSection).queryByText("Ben Schulz"),
-        ).not.toBeInTheDocument();
-      });
-
-      // Clear filters
-      fireEvent.click(screen.getByTestId("clear-filters"));
-
-      await waitFor(() => {
-        expect(
-          within(teacherSection).getByText("Anna Meyer"),
-        ).toBeInTheDocument();
-        expect(
-          within(teacherSection).getByText("Ben Schulz"),
-        ).toBeInTheDocument();
-        expect(
-          within(teacherSection).getByText("Clara Fischer"),
-        ).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe("Active Substitutions Display", () => {
-    it("displays active transfers (Tagesübergaben) section", () => {
-      render(<SubstitutionsPage />);
-
-      expect(screen.getByText("Tagesübergaben")).toBeInTheDocument();
-    });
-
-    it("displays active substitutions (längerfristige Zugriffe) section", () => {
-      render(<SubstitutionsPage />);
-
-      expect(screen.getByText("Längerfristige Zugriffe")).toBeInTheDocument();
-    });
-
-    it("shows empty state when no active transfers", () => {
-      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
-        if (key === "substitution-teachers") {
-          return {
-            data: mockTeachers,
-            isLoading: false,
-            error: null,
-            mutate: mockMutateTeachers,
-          } as never;
-        }
-        if (key === "active-substitutions") {
-          return {
-            data: mockActiveSubstitutions.filter((s) => !s.isTransfer),
-            isLoading: false,
-            error: null,
-            mutate: mockMutateSubstitutions,
-          } as never;
-        }
-        return { data: null, isLoading: false, error: null } as never;
-      });
-
-      render(<SubstitutionsPage />);
-
-      expect(
-        screen.getByText("Keine aktiven Tagesübergaben"),
-      ).toBeInTheDocument();
-    });
-  });
-
-  describe("Assign Substitution Modal", () => {
-    it("opens assignment modal when clicking teacher card", async () => {
-      render(<SubstitutionsPage />);
-
-      // Open modal by clicking teacher
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-    });
-
-    it("closes assignment modal when clicking close button", async () => {
-      render(<SubstitutionsPage />);
-
-      // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-
-      // Close modal
-      fireEvent.click(screen.getByTestId("modal-close"));
-
-      await waitFor(() => {
-        expect(
-          screen.queryByTestId("assignment-modal"),
-        ).not.toBeInTheDocument();
-      });
-    });
-
-    it("displays group selection dropdown in modal", async () => {
-      render(<SubstitutionsPage />);
-
-      // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-
-      // Check group dropdown exists
-      const groupSelect = screen.getByRole("combobox");
-      expect(groupSelect).toBeInTheDocument();
-    });
-
-    // Der Tage-Stepper (Plus/Minus plus Zahlenfeld) wurde durch den
-    // segmentierten Dauer-Umschalter ersetzt. Geprüft wird weiterhin dieselbe
-    // Fachlichkeit: Voreinstellung ist ein Tag, eine längere Dauer verschiebt
-    // das Enddatum, und der freie Wert ist weiterhin erreichbar.
-    it("displays duration options in modal", async () => {
-      render(<SubstitutionsPage />);
-
-      // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-
-      const durationGroup = screen.getByRole("tablist");
-      expect(
-        within(durationGroup).getByRole("tab", { name: "Heute" }),
-      ).toHaveAttribute("aria-selected", "true");
-
-      for (const label of ["3 Tage", "1 Woche", "Individuell"]) {
-        expect(
-          within(durationGroup).getByRole("tab", { name: label }),
-        ).toHaveAttribute("aria-selected", "false");
-      }
-
-      expect(
-        screen.getByText("Zugriff nur für heute, endet um 23:59 Uhr."),
-      ).toBeInTheDocument();
-    });
-
-    it("shows the resulting end date when a longer duration is selected", async () => {
-      render(<SubstitutionsPage />);
-
-      // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-
-      fireEvent.mouseDown(screen.getByRole("tab", { name: "3 Tage" }), {
-        button: 0,
-      });
-
-      // Der Starttag zählt mit, drei Tage enden also übermorgen.
-      const expectedEnd = new Date();
-      expectedEnd.setDate(expectedEnd.getDate() + 2);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`,
-          ),
-        ).toBeInTheDocument();
-      });
-    });
-
-    it("reveals a day input for the individual duration", async () => {
-      render(<SubstitutionsPage />);
-
-      // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-
-      expect(
-        screen.queryByLabelText("Anzahl der Tage"),
-      ).not.toBeInTheDocument();
-
-      fireEvent.mouseDown(screen.getByRole("tab", { name: "Individuell" }), {
-        button: 0,
-      });
-
-      const dayInput = await screen.findByLabelText("Anzahl der Tage");
-      fireEvent.change(dayInput, { target: { value: "5" } });
-
-      const expectedEnd = new Date();
-      expectedEnd.setDate(expectedEnd.getDate() + 4);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`,
-          ),
-        ).toBeInTheDocument();
-      });
-    });
-
-    it("parses the complete custom duration and rejects fractions", async () => {
-      render(<SubstitutionsPage />);
-
-      fireEvent.click(screen.getByRole("button", { name: /Anna Meyer/i }));
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-
-      fireEvent.mouseDown(screen.getByRole("tab", { name: "Individuell" }), {
-        button: 0,
-      });
-      const dayInput = await screen.findByLabelText("Anzahl der Tage");
-
-      fireEvent.change(dayInput, { target: { value: "1e2" } });
-      expect(dayInput).toHaveValue(100);
-
-      const expectedEnd = new Date();
-      expectedEnd.setDate(expectedEnd.getDate() + 99);
-      const expectedMessage = `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`;
-      expect(screen.getByText(expectedMessage)).toBeInTheDocument();
-
-      fireEvent.change(dayInput, { target: { value: "2.5" } });
-      expect(dayInput).toHaveValue(100);
-      expect(screen.getByText(expectedMessage)).toBeInTheDocument();
-    });
-
-    it("successfully assigns substitution when form is complete", async () => {
-      mockCreateSubstitution.mockResolvedValueOnce({ id: "new-sub" });
-      mockMutateTeachers.mockResolvedValueOnce(undefined);
-      mockMutateSubstitutions.mockResolvedValueOnce(undefined);
-
-      render(<SubstitutionsPage />);
-
-      // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-
-      // Get the modal element to scope our queries
-      const modal = screen.getByTestId("assignment-modal");
-
-      // Select a group — the CustomSelect menu is portaled to document.body,
-      // so options are queried at screen level, not inside the modal element
-      const groupSelect = within(modal).getByRole("combobox");
-      fireEvent.click(groupSelect);
-      fireEvent.click(screen.getByRole("option", { name: "Gruppe 1A" }));
-
-      // Click assign button (the one inside the modal with exact text "Zuweisen")
-      const assignButton = within(modal).getByRole("button", {
-        name: /^Zuweisen$/,
-      });
-      fireEvent.click(assignButton);
-
-      await waitFor(() => {
-        expect(mockCreateSubstitution).toHaveBeenCalled();
-        expect(mockToastSuccess).toHaveBeenCalledWith(
-          expect.stringContaining("Zugriff auf"),
-        );
-      });
-    });
-
-    it("closes modal via cancel button", async () => {
-      render(<SubstitutionsPage />);
-
-      // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
-      });
-
-      // Click cancel
-      const cancelButton = screen.getByRole("button", { name: /Abbrechen/i });
-      fireEvent.click(cancelButton);
-
-      await waitFor(() => {
-        expect(
-          screen.queryByTestId("assignment-modal"),
-        ).not.toBeInTheDocument();
-      });
-    });
-  });
-
-  describe("End Substitution", () => {
-    it("opens confirmation modal when clicking end button", async () => {
-      render(<SubstitutionsPage />);
-
-      // Find end button in active substitutions section
-      const endButtons = screen.getAllByRole("button", { name: /Beenden/i });
-      const firstEndButton = endButtons[0];
-      if (firstEndButton) {
-        fireEvent.click(firstEndButton);
-      }
-
-      await waitFor(() => {
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-        expect(screen.getByText("Zugriff beenden?")).toBeInTheDocument();
-      });
-    });
-
-    it("ends substitution and shows success toast on confirm", async () => {
-      mockDeleteSubstitution.mockResolvedValueOnce(undefined);
-      mockMutateTeachers.mockResolvedValueOnce(undefined);
-      mockMutateSubstitutions.mockResolvedValueOnce(undefined);
-
-      render(<SubstitutionsPage />);
-
-      // Click end button
-      const endButtons = screen.getAllByRole("button", { name: /Beenden/i });
-      const firstEndButton = endButtons[0];
-      if (firstEndButton) {
-        fireEvent.click(firstEndButton);
-      }
-
-      await waitFor(() => {
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-      });
-
-      // Confirm
-      fireEvent.click(screen.getByTestId("confirm-end"));
-
-      await waitFor(() => {
-        expect(mockDeleteSubstitution).toHaveBeenCalled();
-        expect(mockMutateTeachers).toHaveBeenCalled();
-        expect(mockMutateSubstitutions).toHaveBeenCalled();
-        expect(mockToastSuccess).toHaveBeenCalled();
-      });
-    });
-
-    it("closes confirmation modal on cancel", async () => {
-      render(<SubstitutionsPage />);
-
-      // Click end button
-      const endButtons = screen.getAllByRole("button", { name: /Beenden/i });
-      const firstEndButton = endButtons[0];
-      if (firstEndButton) {
-        fireEvent.click(firstEndButton);
-      }
-
-      await waitFor(() => {
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-      });
-
-      // Cancel
-      fireEvent.click(screen.getByTestId("cancel-end"));
-
-      await waitFor(() => {
-        expect(
-          screen.queryByTestId("confirmation-modal"),
-        ).not.toBeInTheDocument();
-      });
-    });
-
-    it("handles error when ending substitution fails", async () => {
-      mockDeleteSubstitution.mockRejectedValueOnce(new Error("Delete failed"));
-
-      render(<SubstitutionsPage />);
-
-      // Click end button
-      const endButtons = screen.getAllByRole("button", { name: /Beenden/i });
-      const firstEndButton = endButtons[0];
-      if (firstEndButton) {
-        fireEvent.click(firstEndButton);
-      }
-
-      await waitFor(() => {
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-      });
-
-      // Confirm
-      fireEvent.click(screen.getByTestId("confirm-end"));
-
-      await waitFor(() => {
-        expect(mockDeleteSubstitution).toHaveBeenCalled();
-        // Error message should be displayed
-        expect(
-          screen.getByText("Fehler beim Beenden des Zugriffs."),
-        ).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe("Status Filter", () => {
-    it("filters by available status", async () => {
-      render(<SubstitutionsPage />);
-
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
-
-      // Initially all teachers shown
-      expect(
-        within(teacherSection).getAllByText(
-          /Anna Meyer|Ben Schulz|Clara Fischer/i,
-        ).length,
-      ).toBeGreaterThan(0);
-
-      // Click available filter
-      fireEvent.click(screen.getByTestId("filter-available"));
-
-      // Only available teachers shown (Anna is not in substitution)
-      await waitFor(() => {
-        expect(
-          within(teacherSection).getByText("Anna Meyer"),
-        ).toBeInTheDocument();
-      });
-    });
-
-    it("filters by substitution status", async () => {
-      render(<SubstitutionsPage />);
-
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
-
-      // Click substitution filter
-      fireEvent.click(screen.getByTestId("filter-substitution"));
-
-      // Only teachers in substitution should be shown (Ben and Clara)
-      await waitFor(() => {
-        expect(
-          within(teacherSection).getByText("Ben Schulz"),
-        ).toBeInTheDocument();
-        expect(
-          within(teacherSection).getByText("Clara Fischer"),
-        ).toBeInTheDocument();
-      });
-
-      // Anna should not be visible (she's available)
-      expect(
-        within(teacherSection).queryByText("Anna Meyer"),
-      ).not.toBeInTheDocument();
-    });
-  });
-
-  describe("Empty Substitutions State", () => {
-    it("shows empty state when no active substitutions", () => {
-      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
-        if (key === "substitution-teachers") {
-          return {
-            data: mockTeachers,
-            isLoading: false,
-            error: null,
-            mutate: mockMutateTeachers,
-          } as never;
-        }
-        if (key === "active-substitutions") {
-          return {
-            data: mockActiveSubstitutions.filter((s) => s.isTransfer),
-            isLoading: false,
-            error: null,
-            mutate: mockMutateSubstitutions,
-          } as never;
-        }
-        return { data: null, isLoading: false, error: null } as never;
-      });
-
-      render(<SubstitutionsPage />);
-
-      expect(
-        screen.getByText("Keine aktiven längerfristigen Zugriffe"),
-      ).toBeInTheDocument();
-    });
-  });
-});
-
-describe("SubstitutionsPage helper functions", () => {
-  it("filters teachers by search term matching name", () => {
-    const teachers = [
-      { firstName: "Anna", lastName: "Meyer" },
-      { firstName: "Ben", lastName: "Schulz" },
-    ];
-
-    const searchTerm = "anna";
-    const filtered = teachers.filter((t) =>
-      `${t.firstName} ${t.lastName}`
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()),
+          error: new Error("offline"),
+          mutate: mocks.mutate,
+        }) as never,
     );
 
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0]?.firstName).toBe("Anna");
+    render(<SubstitutionPage />);
+
+    expect(
+      screen.getByText(/Vertretungen konnten nicht geladen werden/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine laufenden Betreuungen"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Gruppenübergaben"),
+    ).not.toBeInTheDocument();
   });
 
-  it("filters teachers by available status", () => {
-    const teachers = [
-      { id: "1", inSubstitution: false },
-      { id: "2", inSubstitution: true },
-      { id: "3", inSubstitution: false },
-    ];
+  it("shows the standard forbidden page when the group overview denies access", () => {
+    const error = new Error("Vertretungen konnten nicht geladen werden.");
+    error.name = "SubstitutionAccessError";
+    vi.mocked(useSWRAuth).mockImplementation(
+      () =>
+        ({
+          data: undefined,
+          isLoading: false,
+          error,
+          mutate: mocks.mutate,
+        }) as never,
+    );
 
-    const filtered = teachers.filter((t) => !t.inSubstitution);
+    render(<SubstitutionPage />);
 
-    expect(filtered).toHaveLength(2);
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(screen.queryByText("Laufende Betreuungen")).not.toBeInTheDocument();
   });
 
-  it("filters teachers by substitution status", () => {
-    const teachers = [
-      { id: "1", inSubstitution: false },
-      { id: "2", inSubstitution: true },
-      { id: "3", inSubstitution: true },
-    ];
+  it("explains every empty section", () => {
+    mocks.overview.groups = [];
+    mocks.overview.targets = [];
+    mocks.overview.groupHandovers = [];
+    mocks.overview.runningSupervisions = [];
+    mocks.schedule.appointments = [];
+    render(<SubstitutionPage />);
 
-    const filtered = teachers.filter((t) => t.inSubstitution);
-
-    expect(filtered).toHaveLength(2);
-  });
-
-  it("separates transfers from substitutions", () => {
-    const substitutions = [
-      { id: "1", isTransfer: true },
-      { id: "2", isTransfer: false },
-      { id: "3", isTransfer: true },
-      { id: "4", isTransfer: false },
-    ];
-
-    const transfers = substitutions.filter((s) => s.isTransfer);
-    const nonTransfers = substitutions.filter((s) => !s.isTransfer);
-
-    expect(transfers).toHaveLength(2);
-    expect(nonTransfers).toHaveLength(2);
+    expect(screen.getByText("Keine laufenden Betreuungen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Heute keine Terminvertretungen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Keine Gruppenübergaben")).toBeInTheDocument();
+    expect(screen.getByText(/Keine Gruppe verfügbar/)).toBeInTheDocument();
   });
 });

@@ -43,19 +43,41 @@ type StaffInboxThread struct {
 	// CounterpartAccountID / CounterpartName describe the OTHER person in a
 	// direct chat, resolved per viewer — the same thread row renders as "Anna"
 	// for Ben and as "Ben" for Anna.
-	CounterpartAccountID int64      `bun:"counterpart_account_id" json:"counterpart_account_id"`
-	CounterpartName      string     `bun:"counterpart_name" json:"counterpart_name"`
-	LastMessageAt        *time.Time `bun:"last_message_at" json:"last_message_at,omitempty"`
-	LastMessageBody      string     `bun:"last_message_body" json:"last_message_body,omitempty"`
-	LastSenderAccountID  *int64     `bun:"last_sender_account_id" json:"last_sender_account_id,omitempty"`
-	UnreadCount          int        `bun:"unread_count" json:"unread_count"`
+	CounterpartAccountID int64  `bun:"counterpart_account_id" json:"counterpart_account_id"`
+	CounterpartName      string `bun:"counterpart_name" json:"counterpart_name"`
+	// CounterpartRoleKind is resolved by the service (StaffRoleKinds).
+	CounterpartRoleKind string     `bun:"-" json:"counterpart_role_kind"`
+	LastMessageAt       *time.Time `bun:"last_message_at" json:"last_message_at,omitempty"`
+	LastMessageBody     string     `bun:"last_message_body" json:"last_message_body,omitempty"`
+	LastSenderAccountID *int64     `bun:"last_sender_account_id" json:"last_sender_account_id,omitempty"`
+	UnreadCount         int        `bun:"unread_count" json:"unread_count"`
 }
 
 // MessageableStaff is one addressable colleague in the recipient picker.
 type MessageableStaff struct {
 	AccountID int64  `bun:"account_id" json:"account_id"`
 	Name      string `bun:"name" json:"name"`
+	// RoleKind is resolved by the service (StaffRoleKinds), not by the picker
+	// query - see the StaffRoleKind constants.
+	RoleKind string `bun:"-" json:"role_kind"`
 }
+
+// StaffRoleKind tells a reader which side of the school a colleague sits on
+// (#2208). With Lehrkräfte in the same conversations as the OGS team, a name
+// alone no longer says who someone is: a Lehrkraft looking for "the OGS
+// leadership" and a Betreuungskraft answering "the class teacher" both need
+// the kind next to the name. Deliberately coarse - three values, not the
+// school's whole role catalogue.
+const (
+	// StaffRoleKindLehrkraft: holds the platform lehrkraft system role here.
+	StaffRoleKindLehrkraft = "lehrkraft"
+	// StaffRoleKindAdmin: holds an admin-based role here (the OGS leadership
+	// and administration). Wins over lehrkraft for a dual-role account: such
+	// a person answers for the OGS, and that is what a Lehrkraft needs to see.
+	StaffRoleKindAdmin = "admin"
+	// StaffRoleKindStaff: every other colleague (Betreuungskräfte).
+	StaffRoleKindStaff = "staff"
+)
 
 // StaffMessageReadRepository is the tenant-scoped data-access contract for read
 // cursors and the unread projections derived from them. All methods must run
@@ -79,4 +101,8 @@ type StaffMessageReadRepository interface {
 	// ListMessageableStaff filters by - an active tenant mapping alone also
 	// covers guardian accounts, which are not colleagues.
 	IsMessageableStaff(ctx context.Context, accountID int64) (bool, error)
+	// StaffRoleKinds resolves the StaffRoleKind of each account at the
+	// current tenant. Accounts without a role row here come back as
+	// StaffRoleKindStaff; the map always has one entry per requested id.
+	StaffRoleKinds(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 }

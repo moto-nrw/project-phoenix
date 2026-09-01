@@ -2,37 +2,113 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { CalendarDays, Copy, Link, RefreshCw } from "lucide-react";
+import { CalendarDays, Check, Copy, Link, RefreshCw } from "lucide-react";
 
 import { Button, ButtonLink } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
+import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import {
   getParentCalendarFeed,
+  getStaffCalendarFeed,
   rotateParentCalendarFeed,
+  rotateStaffCalendarFeed,
   type CalendarFeedInfo,
 } from "~/lib/personal-calendar-api";
 
+interface CalendarSubscribeCopy {
+  readonly title: string;
+  readonly description: string;
+  readonly showLink: string;
+  readonly createNew: string;
+  readonly subscribe: string;
+  readonly regenerate: string;
+  readonly linkLabel: string;
+  readonly copy: string;
+  readonly copiedButton: string;
+  readonly linkOnce: string;
+  readonly howToTitle: string;
+  readonly howToMac: string;
+  readonly howToApple: string;
+  readonly howToAndroid: string;
+  readonly alreadyActive: string;
+  readonly loadError: string;
+  readonly rotateError: string;
+  readonly regenerated: string;
+  readonly copied: string;
+  readonly copyFailed: string;
+}
+
+interface CalendarSubscribePanelProps {
+  readonly audience?: "parent" | "staff";
+}
+
 /**
- * Parents-portal panel to subscribe an external calendar (Apple/Google/Outlook)
- * to the family Termine. Once subscribed, new, changed and cancelled
- * appointments sync automatically — no per-event import needed.
+ * Shared panel for subscribing an external calendar to parent or staff
+ * appointments. The audience selects only the API and audience-specific copy.
  */
-export function CalendarSubscribePanel() {
+export function CalendarSubscribePanel({
+  audience = "parent",
+}: CalendarSubscribePanelProps) {
   const t = useTranslations("parentCalendarSubscribe");
+  const staffT = useTranslations("staffCalendarSubscribe");
+  const isStaff = audience === "staff";
+  const copy: CalendarSubscribeCopy = {
+    title: t("title"),
+    description: isStaff ? staffT("description") : t("description"),
+    showLink: t("showLink"),
+    createNew: t("createNew"),
+    subscribe: t("subscribe"),
+    regenerate: t("regenerate"),
+    linkLabel: t("linkLabel"),
+    copy: t("copy"),
+    copiedButton: t("copiedButton"),
+    linkOnce: t("linkOnce"),
+    howToTitle: t("howToTitle"),
+    howToMac: t("howToMac"),
+    howToApple: t("howToApple"),
+    howToAndroid: t("howToAndroid"),
+    alreadyActive: t("alreadyActive"),
+    loadError: t("loadError"),
+    rotateError: t("rotateError"),
+    regenerated: t("regenerated"),
+    copied: t("copied"),
+    copyFailed: t("copyFailed"),
+  };
+  const inputId = isStaff
+    ? "staff-calendar-feed-url"
+    : "parent-calendar-feed-url";
+  const loadFeed = isStaff ? getStaffCalendarFeed : getParentCalendarFeed;
+  const rotateFeed = isStaff
+    ? rotateStaffCalendarFeed
+    : rotateParentCalendarFeed;
   const toast = useToast();
   const [feed, setFeed] = useState<CalendarFeedInfo | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { copied, copy: copyToClipboard } = useClipboardCopy(
+    "CalendarSubscribePanel",
+    2000,
+  );
 
   const load = async () => {
     setLoading(true);
     try {
-      setFeed(await getParentCalendarFeed());
+      setFeed(await loadFeed());
       setOpen(true);
-    } catch {
-      toast.error(t("loadError"));
+    } catch (err) {
+      // Showing the link creates it on first use, so the read-only staff
+      // preview blocks this call — say that instead of a generic failure.
+      toast.error(
+        getApiErrorMessage(
+          err,
+          "anzeigen",
+          "den Kalender-Link",
+          copy.loadError,
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -41,48 +117,47 @@ export function CalendarSubscribePanel() {
   const rotate = async () => {
     setLoading(true);
     try {
-      setFeed(await rotateParentCalendarFeed());
-      toast.success(t("regenerated"));
+      setFeed(await rotateFeed());
+      toast.success(copy.regenerated);
     } catch {
-      toast.error(t("rotateError"));
+      toast.error(copy.rotateError);
     } finally {
       setLoading(false);
     }
   };
 
-  const copy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(t("copied"));
-    } catch {
-      toast.error(t("copyFailed"));
+  const copyLink = async (text: string) => {
+    if (await copyToClipboard(text)) {
+      toast.success(copy.copied);
+    } else {
+      toast.error(copy.copyFailed);
     }
   };
 
   return (
     <SectionCard
       icon={CalendarDays}
-      title={t("title")}
-      description={t("description")}
+      title={copy.title}
+      description={copy.description}
       bodyClassName="mt-4"
       actions={
         !open ? (
           <div className="flex w-full justify-end sm:w-auto">
             <Button type="button" size="md" isLoading={loading} onClick={load}>
               <Link className="mr-2 size-4" aria-hidden />
-              {t("showLink")}
+              {copy.showLink}
             </Button>
           </div>
         ) : feed && !feed.url ? (
           <Button type="button" size="md" isLoading={loading} onClick={rotate}>
             <RefreshCw className="mr-2 size-4" aria-hidden />
-            {t("createNew")}
+            {copy.createNew}
           </Button>
         ) : feed?.url ? (
           <>
             <ButtonLink href={feed.webcal_url} size="md">
               <CalendarDays className="mr-2 size-4" aria-hidden />
-              {t("subscribe")}
+              {copy.subscribe}
             </ButtonLink>
             <Button
               type="button"
@@ -92,7 +167,7 @@ export function CalendarSubscribePanel() {
               onClick={rotate}
             >
               <RefreshCw className="mr-2 size-4" aria-hidden />
-              {t("regenerate")}
+              {copy.regenerate}
             </Button>
           </>
         ) : undefined
@@ -105,8 +180,8 @@ export function CalendarSubscribePanel() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div className="min-w-0 flex-1">
                   <Input
-                    id="calendar-feed-url"
-                    label={t("linkLabel")}
+                    id={inputId}
+                    label={copy.linkLabel}
                     readOnly
                     value={feed.url}
                     controlSize="compact"
@@ -117,24 +192,28 @@ export function CalendarSubscribePanel() {
                 <Button
                   type="button"
                   size="md"
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => copy(feed.url)}
+                  variant={copied ? "success" : "outline"}
+                  className="min-w-36 shrink-0"
+                  onClick={() => copyLink(feed.url)}
                 >
-                  <Copy className="mr-2 size-4" aria-hidden />
-                  {t("copy")}
+                  {copied ? (
+                    <Check className="mr-2 size-4" aria-hidden />
+                  ) : (
+                    <Copy className="mr-2 size-4" aria-hidden />
+                  )}
+                  {copied ? copy.copiedButton : copy.copy}
                 </Button>
               </div>
               <p className="mt-1 text-xs leading-5 text-gray-500">
-                {t("linkOnce")}
+                {copy.linkOnce}
               </p>
             </div>
 
             <div className="rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
-              <p className="font-semibold text-gray-700">{t("howToTitle")}</p>
-              <p className="mt-1">{t("howToMac")}</p>
-              <p className="mt-1">{t("howToApple")}</p>
-              <p className="mt-1">{t("howToAndroid")}</p>
+              <p className="font-semibold text-gray-700">{copy.howToTitle}</p>
+              <p className="mt-1">{copy.howToMac}</p>
+              <p className="mt-1">{copy.howToApple}</p>
+              <p className="mt-1">{copy.howToAndroid}</p>
             </div>
           </div>
         ) : null}
@@ -142,7 +221,7 @@ export function CalendarSubscribePanel() {
         {open && feed && !feed.url ? (
           <div className="mt-4">
             <div className="rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
-              {t("alreadyActive")}
+              {copy.alreadyActive}
             </div>
           </div>
         ) : null}

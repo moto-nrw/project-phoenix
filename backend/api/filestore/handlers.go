@@ -337,8 +337,10 @@ func (rs *Resource) retryCleanups(ctx context.Context, folderID int64, actor fil
 	}
 	for _, file := range files {
 		fileID, storedName := file.ID, file.FilenameStored
+		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
+		cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 		tenant.RegisterAfterCommit(ctx, func() {
-			coordinator.CleanupDocument(tenantID, folderID, fileID, storedName, source)
+			coordinator.CleanupDocument(cleanupCtx, tenantID, folderID, fileID, storedName, source)
 		})
 	}
 }
@@ -524,8 +526,10 @@ func (rs *Resource) deleteFile(w http.ResponseWriter, r *http.Request) {
 	if !file.IsFileDeleted() {
 		tenantID := tenant.FromContext(r.Context())
 		id, storedName := file.ID, file.FilenameStored
+		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(r.Context()))
+		cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 		tenant.RegisterAfterCommit(r.Context(), func() {
-			coordinator.CleanupDocument(tenantID, folderID, id, storedName, "delete")
+			coordinator.CleanupDocument(cleanupCtx, tenantID, folderID, id, storedName, "delete")
 		})
 	}
 	common.Respond(w, r, http.StatusOK, map[string]string{"folder_id": idString(folderID)}, "File deleted successfully")

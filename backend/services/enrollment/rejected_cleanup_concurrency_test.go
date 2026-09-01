@@ -14,7 +14,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,11 +57,9 @@ func (r *cleanupLockSignalRepository) FindByIDForUpdate(ctx context.Context, req
 	return r.RequestRepository.FindByIDForUpdate(ctx, requestID)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
@@ -199,11 +196,9 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	require.NoError(t, err)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	repos := repositories.NewFactory(db)
@@ -219,7 +214,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 	}()
 
 	oldReview := time.Now().Add(-60 * 24 * time.Hour)
-	require.NoError(t, tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		phase := &enrollmentModels.Phase{
 			Name:             fmt.Sprintf("cleanup-late-invite-%d", scope.TenantID),
 			Kind:             enrollmentModels.PhaseKindSchoolYear,
@@ -318,7 +313,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 		slog.New(slog.DiscardHandler),
 	)
 	var result enrollmentService.RejectedEnrollmentCleanupResult
-	require.NoError(t, tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		var cleanupErr error
 		result, cleanupErr = cleaner.CleanupRejectedEnrollments(ctx)
 		return cleanupErr

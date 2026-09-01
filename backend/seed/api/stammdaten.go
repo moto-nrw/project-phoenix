@@ -122,6 +122,9 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	if err := s.seedGroups(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed groups: %w", err)
 	}
+	if err := s.seedGroupHandover(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed group handover: %w", err)
+	}
 
 	// 7. Create students
 	if err := s.seedStudents(ctx, result); err != nil {
@@ -257,11 +260,15 @@ func (s *FixedSeeder) loginAsStaff() error {
 }
 
 func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {
-	for _, room := range DemoRooms {
+	// Deliberately outside the status-badge palette: room colors must be
+	// tenant-unique and the API rejects colors reserved for presence states.
+	roomColors := []string{"#1B5E20", "#2E7D32", "#33691E", "#827717", "#E65100", "#BF360C", "#4A148C", "#6A1B9A", "#283593", "#006064", "#37474F"}
+	for index, room := range DemoRooms {
 		body := map[string]any{
 			"name":     room.Name,
 			"capacity": room.Capacity,
 			"category": room.Category, // German category name for display
+			"color":    roomColors[index],
 		}
 
 		// Add building if specified
@@ -356,7 +363,8 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 
 func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 	// Create 10 groups with themed names (typical for German OGS)
-	// Each Pädagogische Fachkraft (demo11-demo20) gets exactly one group
+	// Each Pädagogische Fachkraft gets exactly one group; Wiesengruppe is
+	// additionally assigned to an OGS-Büro teacher.
 	// This ensures every Betreuer sees "Meine Gruppe" in the frontend
 	// Note: OGS-Büro staff (demo1-demo10) are admins and see ALL groups
 	classes := []struct {
@@ -373,10 +381,10 @@ func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 		{key: "schmetterlingsgruppe", name: "Schmetterlingsgruppe", teachers: []string{"Birgit Braun"}},
 		{key: "waldgruppe", name: "Waldgruppe", teachers: []string{"Jörg Krüger"}},
 		{key: "meeresgruppe", name: "Meeresgruppe", teachers: []string{"Heike Hartmann"}},
-		{key: "wiesengruppe", name: "Wiesengruppe", teachers: []string{"Uwe Lange"}},
+		{key: "wiesengruppe", name: "Wiesengruppe", teachers: []string{"Anna Müller"}},
 	}
 
-	for _, class := range classes {
+	for index, class := range classes {
 		// Collect teacher IDs for this group
 		teacherIDsForGroup := []int64{}
 		for _, teacherName := range class.teachers {
@@ -388,6 +396,10 @@ func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 		body := map[string]any{
 			"name":        class.name,
 			"teacher_ids": teacherIDsForGroup,
+		}
+		roomNames := []string{"OGS-Raum 1", "OGS-Raum 2", "OGS-Raum 3", "Kreativraum"}
+		if roomID := s.roomIDs[roomNames[index%len(roomNames)]]; roomID > 0 {
+			body["room_id"] = roomID
 		}
 
 		respBody, err := s.client.Post("/api/groups", body)
@@ -521,6 +533,14 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 			"school_class": student.Class,
 			"group_id":     groupID,
 			"birthday":     birthday,
+		}
+		if i%3 == 0 {
+			body["address_street"] = fmt.Sprintf("Schulstraße %d", i+1)
+			body["address_postal_code"] = "49074"
+			body["address_city"] = "Osnabrück"
+		}
+		if i%4 == 0 {
+			body["photo_consent_given"] = true
 		}
 
 		// Add pickup status (rotate through options)
@@ -664,7 +684,7 @@ func (s *FixedSeeder) getCheckedInStudentIDs() (map[int64]bool, error) {
 }
 
 func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) error {
-	for _, guardian := range DemoGuardians {
+	for index, guardian := range DemoGuardians {
 		guardianKey := fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName)
 
 		// 1. Create guardian profile
@@ -684,6 +704,11 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 		}
 		if guardian.MobilePhone != "" {
 			body["mobile_phone"] = guardian.MobilePhone
+		}
+		if index%3 == 0 {
+			body["address_street"] = fmt.Sprintf("Familienweg %d", index+1)
+			body["address_postal_code"] = "49074"
+			body["address_city"] = "Osnabrück"
 		}
 
 		respBody, err := s.client.Post("/api/guardians", body)
@@ -722,6 +747,16 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 			"is_emergency_contact": true,
 			"can_pickup":           true,
 			"emergency_priority":   1,
+		}
+		if index >= 6 && index%10 == 0 {
+			linkBody["guardian_role"] = "pickup_only"
+			linkBody["relationship_type"] = "relative"
+			linkBody["is_emergency_contact"] = false
+		} else if index >= 6 && index%11 == 0 {
+			linkBody["guardian_role"] = "custom"
+			linkBody["relationship_type"] = "other"
+			linkBody["is_emergency_contact"] = false
+			linkBody["can_pickup"] = false
 		}
 		if !guardian.IsPrimary {
 			linkBody["emergency_priority"] = 2

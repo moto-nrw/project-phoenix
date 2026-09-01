@@ -45,12 +45,12 @@ func conversionRouterWithOpts(parentCtx context.Context, res *Resource, withTena
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
 	if withTenantTx {
-		r.Use(tenant.TenantTxMiddleware(res.DB))
+		r.Use(testpkg.TenantTxMiddleware(res.DB))
 	}
 	r.Post("/instances/{id}/convert-to-series", res.convertInstanceToSeries)
 	r.Get("/instances", res.listInstances)
@@ -61,7 +61,7 @@ func conversionRouterWithOpts(parentCtx context.Context, res *Resource, withTena
 func TestConvertInstanceToSeries_MapsRequestAndResponse(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Period")
 	t.Cleanup(func() {
@@ -98,7 +98,7 @@ func TestConvertInstanceToSeries_MapsRequestAndResponse(t *testing.T) {
 func TestConvertInstanceToSeries_RequiresStartDate(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	converter := &stubInstanceSeriesConverter{}
 	s.res.InstanceSeriesConverter = converter
@@ -114,7 +114,7 @@ func TestConvertInstanceToSeries_RequiresStartDate(t *testing.T) {
 func TestConvertInstanceToSeries_RejectsInvalidID(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	s.res.InstanceSeriesConverter = &stubInstanceSeriesConverter{}
 	router := conversionRouter(s.ctx, s.res)
@@ -126,7 +126,7 @@ func TestConvertInstanceToSeries_RejectsInvalidID(t *testing.T) {
 func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Errors-Period")
 	body := createTemplateBody(s, "Tpl-Convert-Errors")
@@ -138,6 +138,7 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 		err         error
 		wantMessage string
 	}{
+		{name: "inactive calendar period", err: scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod, wantMessage: "instance date must lie within an active calendar period"},
 		{name: "archived category", err: scheduleSvc.ErrCategoryNotAssignable, wantMessage: "category is archived or unavailable"},
 		{name: "archived planning track", err: scheduleSvc.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
 		{name: "education group", err: &scheduleSvc.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
@@ -157,7 +158,7 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Atomic-Period")
 	date := timezone.NewDate(2026, 8, 10) // Monday, matching createTemplateBody.
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -217,7 +218,7 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Source-Period")
 	date := timezone.NewDate(2026, 8, 10) // Monday.
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -292,7 +293,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Rollback-Period")
 	date := timezone.NewDate(2026, 8, 10)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -335,7 +336,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-4xx-Period")
 	// Existing seed is a weekday; conversion start_date moves it onto a
 	// different weekend day → UpdatePlanned returns ErrInstanceWeekend (400)
@@ -379,7 +380,7 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-MarkRollback-Period")
 	t.Cleanup(func() {
@@ -398,7 +399,7 @@ func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := tenant.WithRollbackMarker(tenant.WithTenantID(r.Context(), tenant.FromContext(s.ctx)))
+			ctx := tenant.WithRollbackMarker(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(r.Context()), tenant.FromContext(s.ctx)))
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	})

@@ -67,6 +67,11 @@ func (b *RecordingBroadcaster) BroadcastToStaffAccounts(tenantID int64, accountI
 	return b.record(BroadcastCall{Method: "staff", TenantID: tenantID, AccountIDs: accountIDs, Event: event})
 }
 
+// BroadcastToSchoolAccounts implements realtime.Broadcaster.
+func (b *RecordingBroadcaster) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event realtime.Event) error {
+	return b.record(BroadcastCall{Method: "school", TenantID: tenantID, AccountIDs: accountIDs, Event: event})
+}
+
 // BroadcastToTenantAdmins implements realtime.Broadcaster.
 func (b *RecordingBroadcaster) BroadcastToTenantAdmins(tenantID int64, event realtime.Event) error {
 	return b.record(BroadcastCall{Method: "admin", TenantID: tenantID, Event: event})

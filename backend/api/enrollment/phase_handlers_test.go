@@ -25,7 +25,6 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -111,6 +110,7 @@ func executePhaseJSON(t *testing.T, router chi.Router, method, path string, body
 	} else {
 		req = httptest.NewRequest(method, path, nil)
 	}
+	req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w
@@ -214,10 +214,10 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
 	targetPhase := makePhaseModel(now+300, "Target Tenant Phase")
 	otherPhase := makePhaseModel(now+400, "Other Tenant Phase")
-	require.NoError(t, tenant.WithTenantTx(ctx, db, targetSchool.ID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, targetSchool.ID, func(txCtx context.Context, _ bun.Tx) error {
 		return phaseRepo.Create(txCtx, targetPhase)
 	}))
-	require.NoError(t, tenant.WithTenantTx(ctx, db, otherSchool.ID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, otherSchool.ID, func(txCtx context.Context, _ bun.Tx) error {
 		return phaseRepo.Create(txCtx, otherPhase)
 	}))
 

@@ -44,7 +44,7 @@ func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -72,7 +72,7 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -96,7 +96,7 @@ func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "deactivate",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -152,7 +152,7 @@ func (r *RFIDCardRepository) FindCardWithPerson(ctx context.Context, id string) 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find person by tag ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

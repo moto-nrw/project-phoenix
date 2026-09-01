@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
-// seedAnnouncementsStep creates demo announcements via the operator API.
+// seedAnnouncementsStep creates demo operator announcements.
 type seedAnnouncementsStep struct{}
 
 func (seedAnnouncementsStep) Name() string { return "Seeding announcements" }
@@ -41,15 +39,116 @@ func (seedAnnouncementsStep) Run(ctx context.Context, rt *Runtime) error {
 		},
 	}
 
+	var firstAnnouncementID int64
 	for _, a := range announcements {
-		if _, err := rt.Client.Post("/operator/announcements", a); err != nil {
+		raw, err := rt.Client.Post("/operator/announcements", a)
+		if err != nil {
 			fmt.Printf("  WARNING: failed to create announcement %q: %v\n", a["title"], err)
 			continue
+		}
+		if firstAnnouncementID == 0 {
+			firstAnnouncementID, err = parseEnvelopeStringID(raw)
+			if err != nil {
+				return fmt.Errorf("parse operator announcement: %w", err)
+			}
+		}
+	}
+	if firstAnnouncementID != 0 {
+		rt.Client.BindAuth(rt.TenantAuth)
+		if _, err := rt.Client.Post(fmt.Sprintf("/api/platform/announcements/%d/seen", firstAnnouncementID), nil); err != nil {
+			return fmt.Errorf("mark operator announcement seen: %w", err)
 		}
 	}
 
 	fmt.Printf("  %d announcements created\n", len(announcements))
 	return nil
+}
+
+// seedParentLetterStep runs after parentEnrollmentSeedStep so its portal-only
+// audience resolves the demo guardians and the delivery matrix is populated.
+type seedParentLetterStep struct{}
+
+func (seedParentLetterStep) Name() string { return "Seeding parent letter" }
+
+func (seedParentLetterStep) Run(_ context.Context, rt *Runtime) error {
+	rt.Client.BindAuth(rt.TenantAuth)
+	return seedParentLetter(rt)
+}
+
+func seedParentLetter(rt *Runtime) error {
+	raw, err := rt.Client.Post("/api/parent-announcements/", map[string]any{
+		"title":          "Elternbrief: Ausflug am Freitag",
+		"body":           "Liebe Eltern, am Freitag fahren wir in den Zoo. Bitte bestätigen Sie den Brief im Elternportal.",
+		"priority":       "important",
+		"delivery_mode":  "letter",
+		"email_audience": "portal_only",
+		"targets": []map[string]any{
+			{"target_type": "school_all"},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create parent letter: %w", err)
+	}
+	id, err := parseEnvelopeStringID(raw)
+	if err != nil {
+		return fmt.Errorf("parse parent letter response: %w", err)
+	}
+	// Anhang VOR dem Veröffentlichen: danach ist die Mitteilung unveränderlich
+	// und das Backend lehnt jeden weiteren Anhang ab (#2890). Ohne diese Zeile
+	// ist der Anhangsbereich auf jeder Entwicklungsmaschine leer, und genau der
+	// Teil — was die Eltern am Ende herunterladen — lässt sich dann nirgends
+	// ansehen.
+	if _, err := rt.Client.PostFile(
+		fmt.Sprintf("/api/announcement-attachments/%d", id),
+		"file",
+		"Zoobesuch Einverständnis.pdf",
+		demoPDF("Einverständnis Zoobesuch", []string{
+			"Mein Kind darf am Freitag mit in den Zoo.",
+			"Wir sind um 16:00 Uhr zurück an der Schule.",
+			"Bitte geben Sie festes Schuhwerk und eine Regenjacke mit.",
+		}),
+	); err != nil {
+		return fmt.Errorf("attach file to parent letter: %w", err)
+	}
+
+	publishedRaw, err := rt.Client.Post(fmt.Sprintf("/api/parent-announcements/%d/publish", id), nil)
+	if err != nil {
+		return fmt.Errorf("publish parent letter: %w", err)
+	}
+	publishedAt, err := parseEnvelopePublishedAt(publishedRaw)
+	if err != nil {
+		return fmt.Errorf("parse published parent letter: %w", err)
+	}
+	if len(rt.Parents) > 0 && rt.Adapter != nil {
+		parent := rt.Parents[0]
+		auth, err := rt.Adapter.LoginParent(context.Background(), parent.Email, parent.Password)
+		if err != nil {
+			return fmt.Errorf("login parent to read parent letter: %w", err)
+		}
+		if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/news/%d/read", id), map[string]any{
+			"published_at": publishedAt,
+		}); err != nil {
+			return fmt.Errorf("mark parent letter read: %w", err)
+		}
+		rt.Client.BindAuth(rt.TenantAuth)
+	}
+	fmt.Println("  1 parent letter published")
+	return nil
+}
+
+func parseEnvelopePublishedAt(raw []byte) (time.Time, error) {
+	var envelope struct {
+		Data struct {
+			PublishedAt time.Time `json:"published_at"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return time.Time{}, err
+	}
+	if envelope.Data.PublishedAt.IsZero() {
+		return time.Time{}, fmt.Errorf("published_at missing")
+	}
+	return envelope.Data.PublishedAt, nil
 }
 
 // seedPrivacyConsentsStep creates privacy consent records for all students.
@@ -106,7 +205,13 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 	deviceKey := rt.FixedSeeder.deviceKeys[DemoDevices[0].DeviceID]
 	activityID := rt.FixedSeeder.activityIDs[DemoActivities[0].Name]
 	roomID := rt.FixedSeeder.activityRoomIDs[activityID]
-	staffID := rt.FixedSeeder.staffIDs[rt.FixedSeeder.staffCredentials[0].Name]
+	// The final account is a guest and cannot use staff time tracking. The
+	// penultimate account is regular staff, so the IoT session can create a
+	// genuine NFC work-session block and the cleanup can close it through the
+	// normal staff API. Small test fixtures contain only regular staff.
+	supervisorIndex := max(0, len(rt.FixedSeeder.staffCredentials)-2)
+	supervisor := rt.FixedSeeder.staffCredentials[supervisorIndex]
+	staffID := rt.FixedSeeder.staffIDs[supervisor.Name]
 	if deviceKey == "" || activityID == 0 || roomID == 0 || staffID == 0 {
 		return fmt.Errorf("statistics demo prerequisites not available")
 	}
@@ -150,7 +255,7 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 // Mandanten stehen. Hat die Zeiterfassungs-Historie den heutigen Block schon
 // geschrieben, unterbleibt der NFC-Stempel und es gibt nichts auszubuchen.
 func checkOutStatisticsSupervisor(rt *Runtime) error {
-	cred := rt.FixedSeeder.staffCredentials[0]
+	cred := rt.FixedSeeder.staffCredentials[max(0, len(rt.FixedSeeder.staffCredentials)-2)]
 	previous := rt.Client.auth
 	defer rt.Client.BindAuth(previous)
 
@@ -206,12 +311,12 @@ func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("fixed seeder not available")
 	}
 
-	today := timezone.TodayDate()
+	today := todaySeedDate()
 	// Two children from the tail of the demo cohort, so the exits never
 	// collide with the children the other steps mark sick or check in.
 	plans := []struct {
 		StudentIndex int
-		LastCareDay  timezone.Date
+		LastCareDay  seedDate
 		Reason       string
 		Note         string
 	}{
@@ -351,7 +456,7 @@ func (seedCourseParticipationStep) Run(_ context.Context, rt *Runtime) error {
 
 // createCourseOccurrence books one past date of a course with its roster and
 // returns the new instance ID.
-func createCourseOccurrence(rt *Runtime, title string, date timezone.Date, roomID, activityID int64, studentIDs []int64) (int64, error) {
+func createCourseOccurrence(rt *Runtime, title string, date seedDate, roomID, activityID int64, studentIDs []int64) (int64, error) {
 	body := map[string]any{
 		"date":              date.String(),
 		"start_time":        "14:00",
@@ -396,9 +501,9 @@ func courseAttendanceStatus(courseIndex, dateIndex, studentIndex, dateCount int)
 
 // pastWeekdays returns the last n weekdays before today, oldest first, one
 // per week so the occurrences read as a weekly course.
-func pastWeekdays(n int) []timezone.Date {
-	dates := make([]timezone.Date, 0, n)
-	day := timezone.TodayDate().AddDays(-1)
+func pastWeekdays(n int) []seedDate {
+	dates := make([]seedDate, 0, n)
+	day := todaySeedDate().AddDays(-1)
 	for len(dates) < n {
 		switch day.Weekday() {
 		case time.Saturday, time.Sunday:

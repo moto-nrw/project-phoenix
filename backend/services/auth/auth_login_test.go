@@ -69,20 +69,24 @@ func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
 
 	authCfg, err := auth.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
+	authCfg.Audit = testpkg.NewAuthEventCommand(repos.AuthEvent)
 	svc, err := auth.NewService(repos, authCfg, db, nil)
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, svc, db)
 
 	var mfaSvc auth.MFAService
 	if withMFA {
 		tokenAuth, err := authjwt.NewTokenAuthWithSecret(loginGateJWTSecret)
 		require.NoError(t, err)
 		mfaSvc, err = auth.NewMFAService(auth.MFAServiceConfig{
-			Repos:     repos,
-			TokenAuth: tokenAuth,
-			JWTSecret: loginGateJWTSecret,
-			DB:        db,
+			Repos:      repos,
+			TokenAuth:  tokenAuth,
+			Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
+			JWTSecret:  loginGateJWTSecret,
+			DB:         db,
 		})
 		require.NoError(t, err)
+		testpkg.SetTenantRuntime(t, mfaSvc, db)
 		svc.SetMFAService(mfaSvc)
 	}
 

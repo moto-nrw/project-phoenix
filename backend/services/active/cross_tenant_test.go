@@ -19,7 +19,7 @@ import (
 func createActiveServiceWithCrossTenant(t *testing.T, db *bun.DB) active.Service {
 	t.Helper()
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	return serviceFactory.Active
 }

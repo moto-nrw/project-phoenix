@@ -777,11 +777,9 @@ func TestRolloverService_DecideReview_RejectsUnknownDecision(t *testing.T) {
 
 // --- Deadline worker ---
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_RunDeadlineWorker_TransitionsStatuses(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -820,11 +818,9 @@ func TestRolloverService_RunDeadlineWorker_TransitionsStatuses(t *testing.T) {
 	assert.Empty(t, remainingPending)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_RunDeadlineWorker_IsIdempotent(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -907,11 +903,9 @@ func (f *fakeApproveDecisionService) Decide(ctx context.Context, input enrollmen
 	return &enrollmentService.DecideOutcome{}, nil
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -952,11 +946,9 @@ func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *test
 	assert.Equal(t, 1, stubDecision.calls)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_RunDeadlineWorker_AutoApproveFallbackWithoutDecisionService(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

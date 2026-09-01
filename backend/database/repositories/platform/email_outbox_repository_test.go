@@ -32,7 +32,7 @@ func setupOutboxRepoTest(t *testing.T) (*bun.DB, platformModels.EmailOutboxClean
 // enrollment test helpers.
 func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return fn(ctx)
 	})
 }
@@ -42,8 +42,15 @@ func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context
 // query.
 func runAsAdmin(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	return runAsAdminTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		return fn(ctx)
+	})
+}
+
+func runAsAdminTx(t *testing.T, db *bun.DB, fn func(context.Context, bun.Tx) error) error {
+	t.Helper()
+	return tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, tx bun.Tx) error {
+		return fn(ctx, tx)
 	})
 }
 
@@ -164,9 +171,46 @@ func TestEmailOutboxRepository_FindByID_NotFound(t *testing.T) {
 
 // --- ClaimDuePending --------------------------------------------------
 
-// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
-// claim tests compete for the same global LIMIT and change each other's rows.
+func TestEmailOutboxRepository_CountPending(t *testing.T) {
+	t.Parallel()
+
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("count-pending")
+	defer wipeOutbox(db, tenantID, kind)
+	require.NoError(t, runAsAdminTx(t, db, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, "LOCK TABLE platform.email_outbox IN SHARE ROW EXCLUSIVE MODE"); err != nil {
+			return err
+		}
+		baseline, err := repo.CountPending(ctx)
+		if err != nil {
+			return err
+		}
+		tenantCtx := tenant.WithTenantID(ctx, tenantID)
+		for _, status := range []string{
+			platformModels.EmailOutboxStatusPending,
+			platformModels.EmailOutboxStatusPending,
+			platformModels.EmailOutboxStatusSent,
+			platformModels.EmailOutboxStatusFailed,
+		} {
+			row := makeOutbox(kind)
+			row.Status = status
+			row.NextRetryAt = time.Now().Add(24 * time.Hour)
+			if err := repo.Create(tenantCtx, row); err != nil {
+				return err
+			}
+		}
+		backlog, err := repo.CountPending(ctx)
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, baseline+2, backlog)
+		return nil
+	}))
+}
+
 func TestEmailOutboxRepository_ClaimDuePending_ReturnsRowsAndFlipsToSending(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 
 	// Insert two due pending rows + one future-retry row. Claim should
 	// return exactly the two due ones, with their status flipped.
@@ -219,9 +263,9 @@ func TestEmailOutboxRepository_ClaimDuePending_ReturnsRowsAndFlipsToSending(t *t
 	assert.Equal(t, platformModels.EmailOutboxStatusPending, futureRow.Status)
 }
 
-// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
-// claim tests compete for the same global LIMIT and change each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_LimitCaps(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("limit")
@@ -251,9 +295,9 @@ func TestEmailOutboxRepository_ClaimDuePending_LimitCaps(t *testing.T) {
 	assert.Equal(t, 2, ours, "limit=2 must return at most 2 rows of ours")
 }
 
-// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
-// claim tests compete for the same global LIMIT and change each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_AlreadySendingNotReClaimed(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	// A row already in 'sending' state must NOT be re-claimed — the
 	// status filter is explicit and FOR UPDATE SKIP LOCKED prevents
 	// duplicate work between concurrent workers.
@@ -280,9 +324,9 @@ func TestEmailOutboxRepository_ClaimDuePending_AlreadySendingNotReClaimed(t *tes
 	}
 }
 
-// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
-// claim tests compete for the same global LIMIT and change each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_OrdersByNextRetryAsc(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 
 	// FIFO-ish ordering — oldest next_retry_at first so retries don't
 	// starve.
@@ -319,9 +363,9 @@ func TestEmailOutboxRepository_ClaimDuePending_OrdersByNextRetryAsc(t *testing.T
 		"oldest next_retry_at must be claimed first to avoid starvation")
 }
 
-// Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
-// claim tests compete for the same global LIMIT and change each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_ZeroLimitDefaultsTo25(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	// `if limit <= 0 { limit = 25 }` — caller passing 0 must get the
 	// default budget, not zero results.
 	db, repo, tenantID := setupOutboxRepoTest(t)

@@ -18,6 +18,7 @@ const {
   mockTenantMutate,
   mockUseSWRAuth,
   mockApplyDeviations,
+  mockApplyScheduleSubstitution,
   mockDayListProps,
   mockGridProps,
   mockEditorProps,
@@ -29,6 +30,7 @@ const {
   mockTenantMutate: vi.fn(),
   mockUseSWRAuth: vi.fn(),
   mockApplyDeviations: vi.fn(),
+  mockApplyScheduleSubstitution: vi.fn(),
   mockDayListProps: vi.fn(),
   mockGridProps: vi.fn(),
   mockEditorProps: vi.fn(),
@@ -70,17 +72,19 @@ vi.mock("~/lib/timetable-api", () => ({
   },
 }));
 
+vi.mock("~/lib/substitution-api", () => ({
+  substitutionService: {
+    fetchScheduleOverview: vi.fn(),
+    applyScheduleSubstitution: mockApplyScheduleSubstitution,
+    applyBulkSubstitution: vi.fn(),
+  },
+}));
+
 // Nur den Netzwerk-Fetcher mocken; getSettingValue & Co. bleiben die echten
 // Implementierungen, damit die Tests nicht gegen eine driftende Kopie laufen.
 vi.mock("~/lib/settings-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/settings-api")>()),
   fetchSettingsSchema: vi.fn(),
-}));
-
-vi.mock("~/lib/staff-api", () => ({
-  staffService: {
-    getAllStaff: vi.fn(),
-  },
 }));
 
 vi.mock("~/lib/shift-api", () => ({
@@ -281,8 +285,11 @@ function setupSWR(state: SwrState = {}) {
         ? { isLoading: true }
         : { data: settingsSchema, isLoading: false };
     }
-    if (key === "vertretung-staff-list") {
-      return { data: staffData, error: staffError };
+    if (key.startsWith("vertretung-staff-list-")) {
+      return {
+        data: { appointments: [], staff: staffData },
+        error: staffError,
+      };
     }
     if (key.startsWith("vertretung-gaps")) {
       if (gapsLoading) return { isLoading: true };
@@ -320,6 +327,13 @@ describe("VertretungView", () => {
     mockApplyDeviations.mockResolvedValue({
       instanceId: "42",
       cancelled: true,
+      understaffedAck: false,
+      affectedInstances: [],
+      warnings: [],
+    });
+    mockApplyScheduleSubstitution.mockResolvedValue({
+      instanceId: "42",
+      cancelled: false,
       understaffedAck: false,
       affectedInstances: [],
       warnings: [],
@@ -555,7 +569,7 @@ describe("VertretungView", () => {
     expect(mockTenantMutate.mock.calls.map((c) => c[0] as string)).toEqual([
       "vertretung-week-2026-07-13-2026-07-19",
       "vertretung-gaps-2026-07-15-2026-07-19",
-      "vertretung-staff-list",
+      "vertretung-staff-list-2026-07-13-2026-07-19",
     ]);
   });
 
@@ -606,7 +620,7 @@ describe("VertretungView", () => {
       "",
       "/acme/vertretung?d=2026-07-15&block=42",
     );
-    mockApplyDeviations.mockResolvedValueOnce({
+    mockApplyScheduleSubstitution.mockResolvedValueOnce({
       instanceId: "42",
       cancelled: false,
       understaffedAck: false,
@@ -630,6 +644,17 @@ describe("VertretungView", () => {
 
     fireEvent.click(screen.getByText("editor-save"));
 
+    await waitFor(() =>
+      expect(mockApplyScheduleSubstitution).toHaveBeenCalledWith("42", {
+        substitutions: [
+          {
+            absentStaffId: "11",
+            substituteStaffId: "12",
+            instanceIds: ["42", "43"],
+          },
+        ],
+      }),
+    );
     await waitFor(() =>
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "2 Termine wurden für Anna Alt angepasst.",

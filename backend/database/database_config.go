@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
-
-	"github.com/spf13/viper"
 )
 
 // GetDatabaseDSN returns the explicitly configured database connection string.
@@ -29,15 +27,19 @@ func GetDatabaseDSN() string {
 }
 
 func resolveDatabaseDSN() (string, error) {
-	appEnv := viper.GetString("app_env")
+	return resolveDatabaseDSNFrom(os.Getenv)
+}
+
+func resolveDatabaseDSNFrom(getenv func(string) string) (string, error) {
+	appEnv := getenv("APP_ENV")
 	if appEnv == "test" {
-		if testDSN := viper.GetString("test_db_dsn"); testDSN != "" {
+		if testDSN := getenv("TEST_DB_DSN"); testDSN != "" {
 			return testDSN, nil
 		}
 		return "", fmt.Errorf("APP_ENV=test requires TEST_DB_DSN environment variable")
 	}
 
-	if dsn := viper.GetString("db_dsn"); dsn != "" {
+	if dsn := getenv("DB_DSN"); dsn != "" {
 		return dsn, nil
 	}
 
@@ -55,9 +57,6 @@ func GetServeDSN() string {
 	baseDSN := GetDatabaseDSN()
 
 	password := os.Getenv("PHOENIX_AUTH_PASSWORD")
-	if password == "" {
-		password = viper.GetString("phoenix_auth_password")
-	}
 	if password == "" {
 		slog.Error("PHOENIX_AUTH_PASSWORD is required for serve — set it in your env file after running migration V1.14.1")
 		os.Exit(1)

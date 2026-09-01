@@ -103,9 +103,10 @@ func Render(calendarName string, events []Event) string {
 		writeLine(&b, "X-WR-CALNAME:"+escapeText(calendarName))
 		writeLine(&b, "X-WR-TIMEZONE:"+berlinTZID)
 	}
-	// Only timed events reference TZID=Europe/Berlin (all-day events use
-	// VALUE=DATE), so emit the VTIMEZONE definition just for those.
-	if hasTimedEvent(events) {
+	// Timed events reference TZID=Europe/Berlin. An empty calendar also needs a
+	// component because RFC 5545 requires at least one inside VCALENDAR; using
+	// VTIMEZONE keeps the feed valid without inventing a visible appointment.
+	if len(events) == 0 || hasTimedEvent(events) {
 		b.WriteString(berlinVTimezone)
 	}
 	for _, event := range events {
@@ -227,7 +228,7 @@ func formatDate(d timezone.Date) string {
 }
 
 func formatLocal(d timezone.Date, clock time.Time) string {
-	wc := timezone.WallClock(clock)
+	wc := timezone.NormalizeWallClock(clock)
 	return fmt.Sprintf("%sT%02d%02d%02d", formatDate(d), wc.Hour(), wc.Minute(), wc.Second())
 }
 

@@ -12,7 +12,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -205,7 +204,7 @@ func (f *calendarPeriodValidationFixture) validate(
 ) error {
 	t.Helper()
 	var validationErr error
-	require.NoError(t, tenant.WithTenantTx(f.ctx, f.db, f.tenantID,
+	require.NoError(t, testpkg.WithTenantTx(t, f.ctx, f.db, f.tenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
 			validationErr = f.validator(t).ValidateCalendarPeriodChange(txCtx, periodID, replacement)
 			return nil
@@ -213,11 +212,9 @@ func (f *calendarPeriodValidationFixture) validate(
 	return validationErr
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	fixture := newCalendarPeriodValidationFixture(t)
 	period := fixture.createPeriod(t, "care-period-mutation")
 	fixture.createLinkedTemplate(t, &period.ID, nil)
@@ -241,11 +238,9 @@ func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *tes
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	fixture := newCalendarPeriodValidationFixture(t)
 	period := fixture.createPeriod(t, "care-period-cycle-change")
 	group, _ := fixture.createLinkedTemplate(t, &period.ID, nil)
@@ -266,11 +261,9 @@ func TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap(t *tes
 	assert.ErrorContains(t, err, "does not cover")
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	fixture := newCalendarPeriodValidationFixture(t)
 	period := fixture.createPeriod(t, "care-period-inactive-referenced")
 	_, offering := fixture.createLinkedTemplate(t, &period.ID, nil)
@@ -285,11 +278,9 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDelete(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	fixture := newCalendarPeriodValidationFixture(t)
 	rootPeriod := fixture.createPeriod(t, "care-period-linked-root")
 	successorPeriod := fixture.createPeriod(t, "care-period-linked-successor")
@@ -330,11 +321,9 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDe
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_AllowsCompatibleFallbacks(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	t.Run("period update still contains phase", func(t *testing.T) {
 		fixture := newCalendarPeriodValidationFixture(t)
 		period := fixture.createPeriod(t, "care-period-compatible-update")

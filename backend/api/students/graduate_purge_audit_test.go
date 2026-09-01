@@ -21,7 +21,7 @@ import (
 func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	repos := repositories.NewFactory(tc.db)
 	tc.resource.StudentDeletionService = usersService.NewStudentDeletionService(
 		tc.resource.StudentService,
@@ -31,10 +31,10 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		&testpkg.FeedbackEntryCounterMock{},
 		tc.db,
 	)
 	usersService.WireStudentDeletionCareWithdrawals(tc.resource.StudentDeletionService, repos.CareWithdrawal)
-	tc.resource.GradeTransitionService = tc.services.GradeTransition
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Purge", "Audited", "4a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "graduate-purge-audit@example.com")
@@ -76,7 +76,7 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	assert.Equal(t, 3, dataAudit.RecordsDeleted, "graduate purge deletes the student, person, and retained timetable assignment")
 	assert.Equal(t, usersService.StudentDeletionReasonGraduatePurge, dataAudit.DeletionReason)
 	assert.Equal(t, true, dataAudit.Metadata["student_deletion"])
-	assert.Equal(t, usersModels.StudentDeletionCounts{TimetableAssignments: 1}, deletionAudit.Counts)
+	assert.Equal(t, auditModels.StudentDeletionCounts{TimetableAssignments: 1}, deletionAudit.Counts)
 
 	var assignmentCount int
 	require.NoError(t, tc.db.NewSelect().TableExpr(`schedule.instance_students`).ColumnExpr("COUNT(*)").

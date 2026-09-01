@@ -35,7 +35,7 @@ func (r *StaffShiftSeriesExceptionRepository) Create(ctx context.Context, except
 		On("CONFLICT (tenant_id, series_id, date) DO NOTHING").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "create staff shift series exception", Err: err}
+		return &modelBase.DatabaseError{Op: "create staff shift series exception", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -54,7 +54,7 @@ func (r *StaffShiftSeriesExceptionRepository) FindDatesBySeriesID(ctx context.Co
 
 	query = base.WithTenantFilter(ctx, query, "staff_shift_series_exception")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff shift series exception dates", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff shift series exception dates", Err: base.TranslateNotFound(err)}
 	}
 	dates := make([]timezone.Date, 0, len(rows))
 	for _, row := range rows {
@@ -78,11 +78,11 @@ func (r *StaffShiftSeriesExceptionRepository) RepointToSeriesFrom(ctx context.Co
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "repoint staff shift series exceptions", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "repoint staff shift series exceptions", Err: base.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "repoint staff shift series exceptions", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "repoint staff shift series exceptions", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }

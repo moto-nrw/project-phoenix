@@ -60,7 +60,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 		},
 		slog.Default(),
 	)
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		db:              db,
 		schoolRepo:      platformRepo.NewSchoolRepository(db),
 		pwaUsageCleanup: cleanup,
@@ -75,10 +75,9 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 				configModel.KeyDataCleanupTimeoutMinutes: 30,
 			},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
 
-	s.checkAndRunPWAUsageCleanup(&ScheduledTask{Name: "pwa-usage-cleanup"})
+	s.checkAndRunPWAUsageCleanup(context.Background(), &ScheduledTask{Name: "pwa-usage-cleanup"})
 
 	var portals []string
 	require.NoError(t, db.NewSelect().

@@ -12,16 +12,24 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 const testJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
 
-// newTestMFAService wires a real test-DB-backed MFA service. Settings +
-// Dispatcher are intentionally nil so IsRequired falls through to "off"
-// and StartChallenge logs-and-skips email send (proper template lands
-// in Phase 4).
+type testAuthEventCommand struct {
+	repo auditModels.AuthEventRepository
+}
+
+func (c testAuthEventCommand) Append(ctx context.Context, event any) error {
+	return c.repo.Create(ctx, event.(*auditModels.AuthEvent))
+}
+
+// newTestMFAService wires a real test-DB-backed MFA service. Settings is nil so
+// IsRequired falls through to "off"; Delivery uses the shared capture adapter.
 func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -31,12 +39,15 @@ func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *b
 	require.NoError(t, err)
 
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:     repos,
-		TokenAuth: tokenAuth,
-		JWTSecret: testJWTSecret,
-		DB:        db,
+		Repos:      repos,
+		TokenAuth:  tokenAuth,
+		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
+		JWTSecret:  testJWTSecret,
+		DB:         db,
+		Audit:      testAuthEventCommand{repo: repos.AuthEvent},
 	})
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, svc, db)
 	return svc, repos, db
 }
 
@@ -47,7 +58,6 @@ func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-lifecycle")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	enrolled, err := svc.HasEnrollment(ctx, acc.ID)
 	require.NoError(t, err)
@@ -73,7 +83,6 @@ func TestMFAService_TrustedDeviceFlow(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-trusted")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	// Trust is per-(account, tenant) as of #1430 review item #9 — every
 	// IssueTrustedDevice / VerifyTrustedDevice call needs a real tenant
@@ -107,7 +116,6 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 	svc, repos, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-challenge")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
 
@@ -133,7 +141,6 @@ func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	target := testpkg.CreateTestAccount(t, db, "mfa-svc-admin-target")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, target.ID) })
 
 	// Map target to a tenant so the new cross-tenant guard (#1430 Item #2)
 	// doesn't reject this permission-gate test before the permission check

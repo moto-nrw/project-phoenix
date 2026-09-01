@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -16,25 +13,25 @@ const tableStaffWorkSchedules = "config.staff_work_schedules"
 
 // StaffWorkScheduleRepository implements config.StaffWorkScheduleRepository
 type StaffWorkScheduleRepository struct {
-	db *bun.DB
+	runtime Runtime
 }
 
 // NewStaffWorkScheduleRepository creates a new StaffWorkScheduleRepository
-func NewStaffWorkScheduleRepository(db *bun.DB) config.StaffWorkScheduleRepository {
-	return &StaffWorkScheduleRepository{db: db}
+func NewStaffWorkScheduleRepository(runtime Runtime) config.StaffWorkScheduleRepository {
+	return &StaffWorkScheduleRepository{runtime: runtime}
 }
 
 // GetCurrentByStaffID returns schedule entries where valid_until IS NULL (currently active)
 func (r *StaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*config.StaffWorkSchedule, error) {
 	var entries []*config.StaffWorkSchedule
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id = ?", staffID).
 		Where("valid_until IS NULL").
 		OrderExpr("day_of_week ASC")
 
-	tenantID := tenant.FromContext(ctx)
+	tenantID := r.runtime.TenantID(ctx)
 	if tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
@@ -47,17 +44,18 @@ func (r *StaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, s
 }
 
 // GetByStaffIDAndDate returns schedule entries valid for a specific date
-func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*config.StaffWorkSchedule, error) {
+func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date config.CalendarDate) ([]*config.StaffWorkSchedule, error) {
 	var entries []*config.StaffWorkSchedule
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
+	dateValue := nullableCalendarDate(date)
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id = ?", staffID).
-		Where("valid_from <= ?", date).
-		Where("(valid_until IS NULL OR valid_until > ?)", date).
+		Where("valid_from <= ?", dateValue).
+		Where("(valid_until IS NULL OR valid_until > ?)", dateValue).
 		OrderExpr("day_of_week ASC")
 
-	tenantID := tenant.FromContext(ctx)
+	tenantID := r.runtime.TenantID(ctx)
 	if tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
@@ -72,20 +70,20 @@ func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, s
 // FindByStaffIDsValidInRange returns every schedule entry for the given staff
 // members whose validity window intersects [from, to] (valid_until exclusive,
 // matching GetByStaffIDAndDate).
-func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*config.StaffWorkSchedule, error) {
+func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to config.CalendarDate) ([]*config.StaffWorkSchedule, error) {
 	if len(staffIDs) == 0 {
 		return nil, nil
 	}
 	var entries []*config.StaffWorkSchedule
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id IN (?)", bun.List(staffIDs)).
-		Where("valid_from <= ?", to).
-		Where("(valid_until IS NULL OR valid_until > ?)", from).
+		Where("valid_from <= ?", nullableCalendarDate(to)).
+		Where("(valid_until IS NULL OR valid_until > ?)", nullableCalendarDate(from)).
 		OrderExpr("staff_id ASC, day_of_week ASC")
 
-	tenantID := tenant.FromContext(ctx)
+	tenantID := r.runtime.TenantID(ctx)
 	if tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
@@ -96,15 +94,22 @@ func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Con
 	return entries, nil
 }
 
+func nullableCalendarDate(date config.CalendarDate) any {
+	if date.IsZero() {
+		return nil
+	}
+	return string(date)
+}
+
 // HasScheduleHistory reports whether the staff member has ever had a schedule
 // snapshot, closed-out versions included.
 func (r *StaffWorkScheduleRepository) HasScheduleHistory(ctx context.Context, staffID int64) (bool, error) {
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model((*config.StaffWorkSchedule)(nil)).
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id = ?", staffID)
 
-	tenantID := tenant.FromContext(ctx)
+	tenantID := r.runtime.TenantID(ctx)
 	if tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
@@ -118,14 +123,14 @@ func (r *StaffWorkScheduleRepository) HasScheduleHistory(ctx context.Context, st
 
 // ReplaceSchedule atomically replaces all current schedule entries for a staff member.
 // It sets valid_until on existing entries and inserts the new ones.
-func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule, anchor timezone.Date) error {
-	if err := repoBase.AcquireStaffBalanceLock(ctx, r.db, staffID); err != nil {
+func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule, anchor config.CalendarDate) error {
+	if err := r.runtime.LockStaffBalance(ctx, staffID); err != nil {
 		return err
 	}
-	db := repoBase.GetDB(ctx, r.db)
-	tenantID := tenant.FromContext(ctx)
+	db := r.runtime.DB(ctx)
+	tenantID := r.runtime.TenantID(ctx)
 	now := time.Now()
-	today := timezone.TodayDate()
+	today := config.CalendarDateFromTime(r.runtime.TodayTime())
 
 	for _, e := range entries {
 		e.StaffID = staffID
@@ -192,12 +197,12 @@ func (r *StaffWorkScheduleRepository) FindStaffIDsWithScheduleHistory(ctx contex
 	var rows []struct {
 		StaffID int64 `bun:"staff_id"`
 	}
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		ColumnExpr("DISTINCT staff_id").
 		TableExpr(tableStaffWorkSchedules).
 		Where("staff_id IN (?)", bun.List(staffIDs))
 
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 

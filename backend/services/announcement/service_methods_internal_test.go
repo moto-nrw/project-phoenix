@@ -34,6 +34,10 @@ type mockRepo struct {
 	audienceFn      func(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipientStatus, error)
 	statsFn         func(ctx context.Context, tenantID, announcementID int64) (*usersModels.AnnouncementStats, error)
 
+	// Anhänge (#2890): ClearEngagement wird von den Anhang-Pfaden aufgerufen.
+	clearedEngagement  []int64
+	clearEngagementErr error
+
 	// Poll (#1371). replaceOptions defaults to a no-op when nil so the pre-poll
 	// tests, which never set it, keep exercising Create/Update unchanged.
 	replaceOptions    func(ctx context.Context, tenantID, announcementID int64, options []*usersModels.ParentAnnouncementOption) error
@@ -93,12 +97,25 @@ func (m *mockRepo) Update(ctx context.Context, a *usersModels.ParentAnnouncement
 func (m *mockRepo) FindByID(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
 	return m.findByIDFn(ctx, id)
 }
+
+// FindByIDForUpdate has no lock to take against a mock; it answers from the
+// same source as FindByID so a test can arrange one state for both.
+func (m *mockRepo) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+	return m.findByIDFn(ctx, id)
+}
 func (m *mockRepo) Delete(ctx context.Context, id int64) error { return m.deleteFn(ctx, id) }
 func (m *mockRepo) ListForTenant(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {
 	return m.listForTenantFn(ctx, includeInactive)
 }
 func (m *mockRepo) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
 	return m.setPublishedFn(ctx, id, publishedAt)
+}
+
+// ClearEngagement records the calls the attachment paths (#2890) make; tests
+// that do not care read nothing from it.
+func (m *mockRepo) ClearEngagement(ctx context.Context, announcementID int64) error {
+	m.clearedEngagement = append(m.clearedEngagement, announcementID)
+	return m.clearEngagementErr
 }
 func (m *mockRepo) PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error) {
 	return m.publishIfDraft(ctx, id, publishedAt)
@@ -117,6 +134,26 @@ func (m *mockRepo) AccountMatchesAnnouncement(ctx context.Context, tenantID, ann
 }
 func (m *mockRepo) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipient, error) {
 	return m.resolveEmailsFn(ctx, tenantID, announcementID)
+}
+
+// UnacknowledgedReminderRecipients satisfies the same interface extension.
+func (m *mockRepo) UnacknowledgedReminderRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+	return nil, nil
+}
+
+// LetterChildStatuses satisfies the same interface extension. These tests never
+// drive an Elternbrief, so an empty result is correct rather than a stub that
+// could mask a wrong call path.
+func (m *mockRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementLetterChildStatus, error) {
+	return nil, nil
+}
+
+// ResolveDeliveryRecipients satisfies the interface extension from #2384. These
+// tests drive plain Mitteilungen, which never take the tracked delivery path, so
+// an empty result is the correct answer rather than a stub that could mask a
+// wrong path being taken.
+func (m *mockRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementDeliveryRecipient, error) {
+	return nil, nil
 }
 func (m *mockRepo) SchoolName(ctx context.Context, tenantID int64) (string, error) {
 	return m.schoolNameFn(ctx, tenantID)
@@ -440,6 +477,22 @@ func TestService_Update_TargetsPublishedRace(t *testing.T) {
 	}
 }
 
+// stubPurger stands in for the file side of the attachments (#2890). Delete
+// refuses to run without one, because it must record the cleanup intents for
+// the attachment bytes before the rows cascade away.
+type stubPurger struct {
+	queued []int64
+	count  int
+	err    error
+}
+
+func (p *stubPurger) QueueAttachmentCleanupForAnnouncement(_ context.Context, announcementID int64) error {
+	p.queued = append(p.queued, announcementID)
+	return p.err
+}
+
+func (p *stubPurger) CountAttachments(context.Context, int64) (int, error) { return p.count, p.err }
+
 // --- Delete -----------------------------------------------------------------
 
 func TestService_Delete(t *testing.T) {
@@ -452,6 +505,7 @@ func TestService_Delete(t *testing.T) {
 	}
 	outbox := &stubOutbox{cancelFn: func(_ context.Context, _ string, _ int64, _ string) (int64, error) { cancelled = true; return 2, nil }}
 	svc := NewService(ServiceConfig{Repo: repo, Outbox: outbox})
+	svc.SetAttachmentPurger(&stubPurger{})
 	if err := svc.Delete(context.Background(), testAnnID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}

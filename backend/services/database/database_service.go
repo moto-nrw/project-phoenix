@@ -1,39 +1,58 @@
 package database
 
 import (
-	"cmp"
 	"context"
 	"log/slog"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 )
+
+// StatsDependencies is the composition contract for the statistics service.
+// Authorization and persistence stay in their owning adapters; this service
+// only orchestrates the capabilities and counts it receives.
+type StatsDependencies struct {
+	Students        func(context.Context) (int, error)
+	Teachers        func(context.Context) (int, error)
+	Rooms           func(context.Context) (int, error)
+	Activities      func(context.Context) (int, error)
+	Groups          func(context.Context) (int, error)
+	Roles           func(context.Context) (int, error)
+	Devices         func(context.Context) (int, error)
+	PermissionCount func(context.Context) (int, error)
+}
 
 // databaseService implements the DatabaseService interface
 type databaseService struct {
-	repos  *repositories.Factory
+	deps   StatsDependencies
 	logger *slog.Logger
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *databaseService) getLogger() *slog.Logger {
-	return cmp.Or(s.logger, slog.Default())
+	if s.logger == nil {
+		return slog.Default()
+	}
+	return s.logger
 }
 
 // NewService creates a new DatabaseService instance
-func NewService(repos *repositories.Factory, logger *slog.Logger) DatabaseService {
+func NewService(deps StatsDependencies, logger *slog.Logger) DatabaseService {
 	return &databaseService{
-		repos:  repos,
+		deps:   deps,
 		logger: logger,
 	}
 }
 
 // GetStats returns aggregated counts of all database entities
-func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) {
-	claims := jwt.ClaimsFromCtx(ctx)
+
+func (s *databaseService) GetStats(ctx context.Context, capabilities StatsCapabilities) (*StatsResponse, error) {
+	permissions := StatsPermissions{
+		CanViewStudents: capabilities.ViewStudents(), CanViewTeachers: capabilities.ViewTeachers(),
+		CanViewRooms: capabilities.ViewRooms(), CanViewActivities: capabilities.ViewActivities(),
+		CanViewGroups: capabilities.ViewGroups(), CanViewRoles: capabilities.ViewRoles(),
+		CanViewDevices: capabilities.ViewDevices(), CanViewPermissions: capabilities.ViewPermissionCatalog(),
+		CanViewTimetables: capabilities.ViewTimetables(), CanViewGradeTransitions: capabilities.ViewGradeTransitions(),
+	}
 	response := &StatsResponse{
-		Permissions: StatsPermissions{},
+		Permissions: permissions,
 	}
 
 	// One collector per entity type: permission gate -> CanViewX flag ->
@@ -42,77 +61,29 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 	// collectTeacherStats historically counts Staff (not Teacher) to match
 	// what the personal page actually shows.
 	collectors := []struct {
-		perms   []string
-		canView *bool
+		canView bool
 		label   string
-		count   func() (int, error)
+		count   func(context.Context) (int, error)
 		target  *int
 	}{
-		{[]string{permissions.UsersRead, permissions.UsersList}, &response.Permissions.CanViewStudents, "students",
-			func() (int, error) { xs, err := s.repos.Student.List(ctx, nil); return len(xs), err }, &response.Students},
-		{[]string{permissions.UsersRead, permissions.UsersList}, &response.Permissions.CanViewTeachers, "staff",
-			func() (int, error) { xs, err := s.repos.Staff.List(ctx, nil); return len(xs), err }, &response.Teachers},
-		{[]string{permissions.RoomsRead, permissions.RoomsList}, &response.Permissions.CanViewRooms, "rooms",
-			func() (int, error) { xs, err := s.repos.Room.List(ctx, nil); return len(xs), err }, &response.Rooms},
-		{[]string{permissions.ActivitiesRead, permissions.ActivitiesList}, &response.Permissions.CanViewActivities, "activities",
-			func() (int, error) { xs, err := s.repos.ActivityGroup.List(ctx, nil); return len(xs), err }, &response.Activities},
-		{[]string{permissions.GroupsRead, permissions.GroupsList}, &response.Permissions.CanViewGroups, "groups",
-			func() (int, error) { xs, err := s.repos.Group.List(ctx, nil); return len(xs), err }, &response.Groups},
-		{[]string{permissions.AuthManage}, &response.Permissions.CanViewRoles, "roles",
-			func() (int, error) { xs, err := s.repos.Role.List(ctx, nil); return len(xs), err }, &response.Roles},
-		{[]string{permissions.IOTRead, permissions.IOTManage}, &response.Permissions.CanViewDevices, "devices",
-			func() (int, error) { xs, err := s.repos.Device.List(ctx, nil); return len(xs), err }, &response.Devices},
-		{[]string{permissions.AuthManage}, &response.Permissions.CanViewPermissions, "permissions",
-			func() (int, error) { xs, err := s.repos.Permission.List(ctx, nil); return len(xs), err }, &response.PermissionCount},
+		{response.Permissions.CanViewStudents, "students", s.deps.Students, &response.Students},
+		{response.Permissions.CanViewTeachers, "staff", s.deps.Teachers, &response.Teachers},
+		{response.Permissions.CanViewRooms, "rooms", s.deps.Rooms, &response.Rooms},
+		{response.Permissions.CanViewActivities, "activities", s.deps.Activities, &response.Activities},
+		{response.Permissions.CanViewGroups, "groups", s.deps.Groups, &response.Groups},
+		{response.Permissions.CanViewRoles, "roles", s.deps.Roles, &response.Roles},
+		{response.Permissions.CanViewDevices, "devices", s.deps.Devices, &response.Devices},
+		{response.Permissions.CanViewPermissions, "permissions", s.deps.PermissionCount, &response.PermissionCount},
 	}
 	for _, c := range collectors {
-		if !checkUserPermission(claims, c.perms...) {
+		if !c.canView || c.count == nil {
 			continue
 		}
-		*c.canView = true
-		if n, err := c.count(); err != nil {
+		if n, err := c.count(ctx); err != nil {
 			s.getLogger().ErrorContext(ctx, "Error counting "+c.label, slog.String("error", err.Error()))
 		} else {
 			*c.target = n
 		}
 	}
-	collectTimetableStats(claims, response)
-	collectGradeTransitionStats(claims, response)
-
 	return response, nil
-}
-
-// collectGradeTransitionStats flips CanViewGradeTransitions when the user has
-// the grade_transitions:read permission. Flag-only like timetables — the
-// Jahrgangswechsel card links into a workflow, not a flat list.
-func collectGradeTransitionStats(claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.GradeTransitionsRead) {
-		return
-	}
-	response.Permissions.CanViewGradeTransitions = true
-}
-
-// collectTimetableStats flips CanViewTimetables when the user has the
-// schedules:read or schedules:list permission. No count is exposed because
-// the timetable hub card links into a per-week view, not a flat list.
-func collectTimetableStats(claims jwt.AppClaims, response *StatsResponse) {
-	if !checkUserPermission(claims, permissions.SchedulesRead, permissions.SchedulesList) {
-		return
-	}
-	response.Permissions.CanViewTimetables = true
-}
-
-// checkUserPermission checks if user has any of the given permissions
-func checkUserPermission(claims jwt.AppClaims, requiredPerms ...string) bool {
-	for _, userPerm := range claims.Permissions {
-		if userPerm == permissions.AdminWildcard || userPerm == permissions.FullAccess {
-			return true
-		}
-		for _, required := range requiredPerms {
-			if userPerm == required {
-				return true
-			}
-		}
-	}
-	return false
 }

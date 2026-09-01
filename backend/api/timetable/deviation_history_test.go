@@ -24,7 +24,7 @@ func historyRouter(s *devSetup) chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), tenantID)))
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)))
 		})
 	})
 	r.Get("/deviations/history", s.res.getDeviationHistory)
@@ -34,7 +34,7 @@ func historyRouter(s *devSetup) chi.Router {
 func TestDeviationHistory_ReturnsEventsWithResolvedNames(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -83,7 +83,7 @@ func TestDeviationHistory_ReturnsEventsWithResolvedNames(t *testing.T) {
 func TestDeviationHistory_RejectsInvalidRange(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	hr := historyRouter(s)
 
 	for _, path := range []string{

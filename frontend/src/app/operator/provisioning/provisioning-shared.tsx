@@ -238,10 +238,7 @@ export function CardSkeletons() {
   return (
     <div className="mt-4 space-y-4">
       {Array.from({ length: 3 }, (_, i) => (
-        <div
-          key={i}
-          className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-sm"
-        >
+        <div key={i} className="moto-content-surface rounded-2xl border p-5">
           <div className="space-y-3">
             <Skeleton className="h-5 w-3/5 rounded" />
             <Skeleton className="h-4 w-2/5 rounded" />

@@ -557,8 +557,8 @@ func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate tim
 		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: ErrInvalidDuration}
 	}
 
-	startDate = timezone.WallClock(startDate)
-	endDate = timezone.WallClock(endDate)
+	startDate = timezone.NormalizeWallClock(startDate)
+	endDate = timezone.NormalizeWallClock(endDate)
 
 	// Get all timeframes within the date range
 	existingTimeframes, err := s.timeframeRepo.FindByTimeRange(ctx, startDate, endDate)
@@ -568,7 +568,7 @@ func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate tim
 
 	// Sort timeframes by start time
 	sort.Slice(existingTimeframes, func(i, j int) bool {
-		return timezone.WallClock(existingTimeframes[i].StartTime).Before(timezone.WallClock(existingTimeframes[j].StartTime))
+		return timezone.NormalizeWallClock(existingTimeframes[i].StartTime).Before(timezone.NormalizeWallClock(existingTimeframes[j].StartTime))
 	})
 
 	// Find available slots
@@ -576,7 +576,7 @@ func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate tim
 	currentTime := startDate
 
 	for _, tf := range existingTimeframes {
-		tfStart := timezone.WallClock(tf.StartTime)
+		tfStart := timezone.NormalizeWallClock(tf.StartTime)
 
 		// If there's a gap before this timeframe, add it as an available slot
 		if currentTime.Before(tfStart) {
@@ -595,7 +595,7 @@ func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate tim
 
 		// Update current time to the end of this timeframe
 		if tf.EndTime != nil {
-			currentTime = timezone.WallClock(*tf.EndTime)
+			currentTime = timezone.NormalizeWallClock(*tf.EndTime)
 		} else {
 			// Open-ended timeframe, no more available slots
 			return availableSlots, nil

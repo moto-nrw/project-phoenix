@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -92,7 +91,6 @@ func newSchoolPortalFixture(t *testing.T) (service *Service, account *authModels
 		nil, 0,
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	return service, account, tenantID
@@ -326,8 +324,6 @@ func newMintGuardFixture(t *testing.T) (service *Service, db *bun.DB, account *a
 	require.NoError(t, err)
 	// Cleanup order matters: the account rows reference the school, so the
 	// school teardown has to run after them (t.Cleanup is LIFO).
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
@@ -344,7 +340,7 @@ func runMintGuard(t *testing.T, service *Service, db *bun.DB, accountID, tenantI
 	var claims *accountMetadata
 	guard := service.schoolMintGuard(accountID, tenantID, &claims)
 	var guardErr error
-	txErr := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	txErr := testpkg.WithAdminTx(t, context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
 		// nil account: schoolMintGuard re-reads and locks the row itself,
 		// exactly as it does behind persistTokenInTransaction.
 		guardErr = guard(ctx, nil)
@@ -380,8 +376,6 @@ func TestSchoolMintGuard_ClaimsDropPermissionRevokedMidFlight(t *testing.T) {
 
 	role := testpkg.CreateTestRoleForTenant(t, db, "school-extra", tenantID)
 	permission := testpkg.CreateTestPermission(t, db, "school-extra", "school_extra", "read")
-	t.Cleanup(func() { testpkg.CleanupRoleRecords(t, db, role.ID) })
-	t.Cleanup(func() { testpkg.CleanupPermissionRecords(t, db, permission.ID) })
 
 	rolePermission := &authModels.RolePermission{RoleID: role.ID, PermissionID: permission.ID}
 	_, err := db.NewInsert().Model(rolePermission).ModelTableExpr(`auth.role_permissions`).Exec(context.Background())
@@ -545,7 +539,7 @@ func TestSchoolClaimsPayload_RunsNoLivenessGate(t *testing.T) {
 	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
 
 	var payload *accountMetadata
-	require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 		payload, err = service.schoolClaimsPayloadInTx(adminCtx, account, tenantID)
 		return err
 	}), "the in-rotation claims load must not re-gate: the guard just authorized this mint")
@@ -566,7 +560,6 @@ func TestLoadAccountMetadataForTenant_PersonNameComesFromTargetSchool(t *testing
 	service, db, account, sourceTenantID := newMintGuardFixture(t)
 
 	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 	insertPersonForAccountAtTenant(t, db, sourceTenantID, account.ID, "Quelle", "Schule")
@@ -594,7 +587,6 @@ func TestLoadAccountMetadataForTenant_NoPersonAtTargetFallsBack(t *testing.T) {
 	service, db, account, homeTenantID := newMintGuardFixture(t)
 
 	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 	insertPersonForAccountAtTenant(t, db, homeTenantID, account.ID, "Traeger", "Buero")
@@ -647,11 +639,9 @@ func TestLoadAccountMetadataForTenant_AmbiguousNameAcrossSchools_YieldsNoName(t 
 	service, db, account, homeTenantID := newMintGuardFixture(t)
 
 	secondTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, secondTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, secondTenantID)
 
 	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 	insertPersonForAccountAtTenant(t, db, homeTenantID, account.ID, "Erste", "Schule")
@@ -674,11 +664,9 @@ func TestLoadAccountMetadataForTenant_FallbackIgnoresUnmappedSchools(t *testing.
 	service, db, account, homeTenantID := newMintGuardFixture(t)
 
 	strangerTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, strangerTenantID) })
 	insertPersonForAccountAtTenant(t, db, strangerTenantID, account.ID, "Fremde", "Schule")
 
 	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 	insertPersonForAccountAtTenant(t, db, homeTenantID, account.ID, "Eigene", "Schule")
@@ -708,7 +696,7 @@ func runMintGuardWithOptions(t *testing.T, service *Service, db *bun.DB, account
 	var claims *accountMetadata
 	guard := service.schoolMintGuard(accountID, tenantID, &claims, opts...)
 	var guardErr error
-	txErr := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	txErr := testpkg.WithAdminTx(t, context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
 		guardErr = guard(ctx, nil)
 		return nil
 	})
@@ -726,8 +714,7 @@ func assignAdminRoleAtTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 	assignment.SetTenantID(tenantID)
 	_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
 	require.NoError(t, err)
-	// CleanupAuthFixtures removes auth.account_roles by account_id; the system
-	// role row itself is seeded and must survive.
+	// The assignment inherits account ownership; the seeded system role survives.
 }
 
 // adminSystemRoleID resolves the seeded admin system role.
@@ -806,7 +793,7 @@ func TestSchoolMintGuard_MFAPolicyIsReadInsideTheMintTransaction(t *testing.T) {
 	require.NoError(t, guardErr)
 	require.NotNil(t, claims)
 	require.Len(t, seen, 1, "the policy must be resolved exactly once per mint")
-	tx, ok := modelBase.TxFromContext(seen[0])
+	tx, ok := tenant.TransactionFromContext(seen[0])
 	assert.True(t, ok && tx != nil,
 		"the policy must be resolved on the mint transaction, not from a pre-transaction snapshot")
 }
@@ -954,7 +941,7 @@ func withRecordedPolicyLock(t *testing.T, service *Service, recorder *lockOrderR
 			// The real helper skips silently without an ambient transaction, so
 			// a mint that took the lock on the wrong context would look locked
 			// and be unprotected. Pin that it is the mint's own transaction.
-			tx, ok := modelBase.TxFromContext(ctx)
+			tx, ok := tenant.TransactionFromContext(ctx)
 			assert.True(t, ok && tx != nil,
 				"the policy lock must be taken on the mint transaction")
 			return lockErr

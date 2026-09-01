@@ -16,7 +16,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -393,7 +392,7 @@ func lateInviteTokenFromRequest(r *http.Request) string {
 // remoteIPFromRequest returns the router-selected client IP for captcha
 // verification and submission rate limiting.
 func remoteIPFromRequest(r *http.Request) string {
-	return clientip.GetClientIPString(r)
+	return common.GetClientIPString(r)
 }
 
 // --- status / edit / withdraw handlers (token-gated, public) ---
@@ -849,9 +848,7 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 		childID = v
 	}
 
-	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return rs.RequestService.Withdraw(adminCtx, token, childID)
-	})
+	err := rs.RequestService.Withdraw(r.Context(), token, childID)
 	if err != nil {
 		switch {
 		case errors.Is(err, enrollmentService.ErrRequestNotFound):

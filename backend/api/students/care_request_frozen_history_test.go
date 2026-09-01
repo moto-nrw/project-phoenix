@@ -27,16 +27,16 @@ import (
 func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
 	// The approve path stamps the acting staff resolved from the JWT account,
 	// so the deciding admin needs a real staff record behind their account.
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Paula", "Planerin")
 
-	tenantCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	upsertPickup := func(hour, minute int) {
-		require.NoError(t, tc.services.PickupSchedule.UpsertStudentPickupSchedule(
+		require.NoError(t, tc.resource.PickupScheduleService.UpsertStudentPickupSchedule(
 			tenantCtx,
 			&scheduleModels.StudentPickupSchedule{
 				StudentID:  chain.StudentID,
@@ -51,7 +51,7 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	upsertPickup(15, 0)
 
 	// The guardian requests Monday pickup 16:00.
-	pending, err := tc.services.CareRequests.CreateRequest(
+	pending, err := tc.resource.CareRequestService.CreateRequest(
 		tenantCtx, chain.StudentID, chain.AccountID,
 		map[string]any{"weekdays": []any{
 			map[string]any{"weekday": 1, "pickup": "16:00"},
@@ -60,9 +60,10 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	require.NoError(t, err)
 
 	// Approve through the production decide route.
+	// #2267: reason policy defaults to "both"
 	decideReq, err := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("/care-schedule-change-requests/%d/decide", pending.ID),
-		strings.NewReader(`{"approve":true}`))
+		strings.NewReader(`{"approve":true,"reason":"Passt so"}`))
 	require.NoError(t, err)
 	decideReq.Header.Set("Content-Type", "application/json")
 	rr := authExec(t, tc, decideReq, testutil.AdminTestClaims(int(staffAccount.ID)), []string{"admin:*"})

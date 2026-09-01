@@ -74,7 +74,7 @@ func FormatBerlinClock(t *time.Time) *string {
 	return &formatted
 }
 
-// WallClock returns a new time.Time at year 0001-01-01 UTC with t's own
+// NormalizeWallClock returns a new time.Time at year 0001-01-01 UTC with t's own
 // wall-clock Hour/Minute/Second/Nanosecond preserved in t's existing
 // Location.
 //
@@ -90,8 +90,8 @@ func FormatBerlinClock(t *time.Time) *string {
 // conflict endpoint, and by the conflict handler itself when comparing
 // the exception's modified start_time against the student's resolved
 // arrival.
-func WallClock(t time.Time) time.Time {
-	return time.Date(1, 1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
+func NormalizeWallClock(t time.Time) time.Time {
+	return WallClockFromTime(t).Time()
 }
 
 // SameClockTime compares only the time-of-day components, ignoring the date

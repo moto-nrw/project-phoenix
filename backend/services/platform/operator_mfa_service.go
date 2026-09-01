@@ -100,10 +100,22 @@ type OperatorMFAServiceConfig struct {
 
 type operatorMFAService struct {
 	OperatorMFAServiceConfig
-	mfaSecret []byte
+	mfaSecret     []byte
+	tenantRuntime *tenant.UnitOfWork
 }
 
 var _ OperatorMFAService = (*operatorMFAService)(nil)
+
+func (s *operatorMFAService) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
+}
+
+func (s *operatorMFAService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
+}
 
 // NewOperatorMFAService constructs the service. Returns an error rather
 // than panicking so wiring problems surface at startup.
@@ -176,17 +188,27 @@ func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int6
 		return "", fmt.Errorf("hash email code: %w", err)
 	}
 
+	createdAt := time.Now()
 	challenge := &platform.OperatorMFAEmailChallenge{
 		OperatorID: operatorID,
 		CodeHash:   codeHash,
-		ExpiresAt:  time.Now().Add(OperatorMFAChallengeTTL),
+		ExpiresAt:  createdAt.Add(OperatorMFAChallengeTTL),
+		ConsumedAt: &createdAt,
 		IPAddress:  ip,
 	}
 	if err := s.Repos.OperatorMFAEmailChallenge.Create(ctx, challenge); err != nil {
 		return "", fmt.Errorf("persist email challenge: %w", err)
 	}
 
-	s.dispatchChallengeEmail(ctx, op, plainCode, ip)
+	if err := s.dispatchChallengeEmail(ctx, op, plainCode, ip); err != nil {
+		return "", authService.ErrMFAStatusUnavailable
+	}
+	if err := s.Repos.OperatorMFAEmailChallenge.MarkActive(ctx, challenge.ID); err != nil {
+		s.Logger.Error("failed to activate delivered operator mfa challenge",
+			slog.Int64("challenge_id", challenge.ID),
+			slog.String("error", err.Error()))
+		return "", authService.ErrMFAStatusUnavailable
+	}
 	s.recordAudit(ctx, operatorID, platform.ActionMFAEmailSent, ip, &challenge.ID, nil)
 
 	tokenString, err := s.TokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
@@ -363,7 +385,7 @@ func (s *operatorMFAService) Enroll(ctx context.Context, operatorID int64) error
 // threshold). Mirrors the tenant-side mfaService.Disable cascade.
 // (#1430 review item #7)
 func (s *operatorMFAService) Disable(ctx context.Context, operatorID int64) error {
-	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.Repos.OperatorMFACredential.DeleteByOperatorID(txCtx, operatorID); err != nil {
 			return fmt.Errorf("delete operator credential: %w", err)
 		}
@@ -458,11 +480,9 @@ func (s *operatorMFAService) parseChallengeToken(tokenString string) (*authjwt.M
 	return s.TokenAuth.ParseMFAChallengeJWT(tokenString)
 }
 
-func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *platform.Operator, plainCode string, ip net.IP) {
+func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *platform.Operator, plainCode string, ip net.IP) error {
 	if s.Dispatcher == nil {
-		s.Logger.Warn("email dispatcher unavailable; operator mfa code not sent",
-			slog.Int64("operator_id", op.ID))
-		return
+		return email.ErrDeliveryUnavailable
 	}
 	frontendURL := strings.TrimRight(s.FrontendURL, "/")
 	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
@@ -491,12 +511,18 @@ func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *pla
 		ReferenceID: op.ID,
 		Recipient:   op.Email,
 	}
-	s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	if err := s.Dispatcher.Deliver(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: []time.Duration{time.Second, 5 * time.Second, 15 * time.Second},
 		MaxAttempts:   3,
-	})
+	}); err != nil {
+		s.Logger.Warn("operator mfa challenge delivery failed",
+			slog.Int64("operator_id", op.ID),
+			slog.String("error", err.Error()))
+		return err
+	}
+	return nil
 }
 
 // dispatchTrustedDeviceAddedEmail mirrors the tenant-side notification so

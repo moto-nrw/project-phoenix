@@ -10,8 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"golang.org/x/sync/singleflight"
 )
@@ -41,7 +42,10 @@ type ServiceConfig struct {
 	ParentsURL          string
 	SchoolURL           string
 	PasswordResetExpiry time.Duration
+	RateLimitEnabled    bool
+	TokenAuth           *jwt.TokenAuth
 	Settings            configSvc.SettingsService
+	Audit               auditModels.Command
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig
@@ -78,12 +82,15 @@ type Service struct {
 	parentsURL          string
 	schoolURL           string
 	passwordResetExpiry time.Duration
+	rateLimitEnabled    bool
 	jwtExpiry           time.Duration
 	jwtRefreshExpiry    time.Duration
-	txHandler           *base.TxHandler
+	txHandler           *tenant.TransactionRunner
 	db                  *bun.DB
 	logger              *slog.Logger
 	settings            configSvc.SettingsService
+	audit               auditModels.Command
+	tenantRuntime       *tenant.UnitOfWork
 	// mfaService is optional. When non-nil and an account requires MFA the
 	// login flow returns a challenge token instead of an access/refresh
 	// pair; when nil the gate is bypassed and login behaves as before.
@@ -91,6 +98,25 @@ type Service struct {
 	// AuthService ↔ MFAService construction-order dependency.
 	mfaService MFAService
 	refreshSF  singleflight.Group // deduplicates concurrent token refresh calls
+}
+
+func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
+}
+
+// detachedTenantContext preserves tenant/runtime values while isolating
+// asynchronous work from the request transaction and its commit hooks.
+func detachedTenantContext(ctx context.Context) context.Context {
+	ctx = context.WithoutCancel(ctx)
+	ctx = tenant.ContextWithoutTransaction(ctx)
+	return tenant.ContextWithoutAfterCommitHooks(ctx)
+}
+
+func (s *Service) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
 }
 
 // NewService creates a new auth service with reduced parameter count
@@ -111,9 +137,13 @@ func NewService(
 		return nil, &AuthError{Op: opCreateService, Err: errors.New("database is nil")}
 	}
 
-	tokenAuth, err := jwt.NewTokenAuth()
-	if err != nil {
-		return nil, &AuthError{Op: "create token auth", Err: err}
+	tokenAuth := config.TokenAuth
+	if tokenAuth == nil {
+		var err error
+		tokenAuth, err = jwt.NewTokenAuth()
+		if err != nil {
+			return nil, &AuthError{Op: "create token auth", Err: err}
+		}
 	}
 
 	return &Service{
@@ -125,12 +155,14 @@ func NewService(
 		parentsURL:          config.ParentsURL,
 		schoolURL:           config.SchoolURL,
 		passwordResetExpiry: config.PasswordResetExpiry,
+		rateLimitEnabled:    config.RateLimitEnabled,
 		jwtExpiry:           tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:    tokenAuth.JwtRefreshExpiry,
-		txHandler:           base.NewTxHandler(db),
+		txHandler:           tenant.NewTransactionRunner(),
 		db:                  db,
 		logger:              logger,
 		settings:            config.Settings,
+		audit:               config.Audit,
 	}, nil
 }
 
@@ -149,17 +181,16 @@ func (s *Service) runInTx(
 	ctx context.Context,
 	fn func(txCtx context.Context) error,
 ) error {
+	ctx = s.withTenantRuntime(ctx)
 	if s.txHandler == nil {
 		return fn(ctx)
 	}
 
-	if s.txHandler.DB == nil {
-		if _, ok := base.TxFromContext(ctx); !ok {
-			return fn(ctx)
-		}
+	if tenant.FromContext(ctx) == 0 && tenant.ScopeFromContext(ctx) != "" {
+		return tenant.WithinAdmin(ctx, fn)
 	}
 
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		return fn(txCtx)
 	})
 }

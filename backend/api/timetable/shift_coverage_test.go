@@ -29,7 +29,16 @@ func coverageClock(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
+}
+
+func setupShiftCoverageRoute(t *testing.T) chi.Router {
+	t.Helper()
+	db, services := testutil.SetupAPITest(t)
+	resource := NewResource(Dependencies{TimetableData: services.TimetableData, DB: db})
+	router := chi.NewRouter()
+	router.Mount("/timetable", resource.Router())
+	return router
 }
 
 func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {
@@ -50,7 +59,7 @@ func shiftCoverageRouter(parentCtx context.Context, resource *Resource) chi.Rout
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-			ctx := tenant.WithTenantID(request.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(request.Context()), tenantID)
 			next.ServeHTTP(w, request.WithContext(ctx))
 		})
 	})
@@ -231,15 +240,9 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnlyAccessible(t *testing.T) {
-	testutil.SeedTestJWTConfig()
-	db, services := testutil.SetupAPITest(t)
-	resource := NewResource(Dependencies{TimetableData: services.TimetableData, DB: db})
-	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	t.Parallel()
+	router := setupShiftCoverageRoute(t)
 	claims := testutil.AdminTestClaims(999999)
 	requestBody := `{"dates":["2070-11-03"],"start_time":"09:00","end_time":"10:00","staff_ids":[999999]}`
 

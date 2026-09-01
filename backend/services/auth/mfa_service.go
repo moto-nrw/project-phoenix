@@ -34,7 +34,6 @@ const (
 	MFAEmailRateLimitWindow           = 15 * time.Minute // count of issued codes within this window
 	MFAEmailRateLimitMaxSent          = 3                // max codes per account per window
 	MFATrustedDeviceCookieDefaultDays = 90
-
 	// mfaAuditFallbackIP is the sentinel address written to
 	// audit.auth_events.ip_address when an MFA event has no real client
 	// IP (lockout counter rollover, async verify cleanup, admin disable
@@ -293,12 +292,25 @@ type MFAServiceConfig struct {
 	JWTSecret   string // used to derive the trusted-device HMAC key
 	DB          *bun.DB
 	Logger      *slog.Logger
+	Audit       audit.Command
 }
 
 // MFAService implementation.
 type mfaService struct {
 	MFAServiceConfig
-	mfaSecret []byte
+	mfaSecret     []byte
+	tenantRuntime *tenant.UnitOfWork
+}
+
+func (s *mfaService) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
+}
+
+func (s *mfaService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // Compile-time assertion that mfaService satisfies MFAService.
@@ -458,9 +470,9 @@ func (s *mfaService) resolvePolicy(ctx context.Context, accountID, tenantID int6
 	}
 	var txErr error
 	if inTx {
-		txErr = tenant.WithAdminTxOrDirect(ctx, s.DB, loadOverrides)
+		txErr = tenant.WithAdminTxOrDirect(s.withTenantRuntime(ctx), s.DB, loadOverrides)
 	} else {
-		txErr = tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		txErr = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 			return loadOverrides(txCtx)
 		})
 	}
@@ -600,19 +612,29 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 	// enrollment-confirm and passkey-registration paths look a challenge up
 	// by account instead of by id, and only these columns keep that lookup
 	// from reaching another portal's in-flight code.
+	createdAt := time.Now()
 	challenge := &auth.MFAEmailChallenge{
-		AccountID: accountID,
-		Scope:     scope,
-		TenantID:  tenantID,
-		CodeHash:  codeHash,
-		ExpiresAt: time.Now().Add(MFAChallengeTTL),
-		IPAddress: ip,
+		AccountID:  accountID,
+		Scope:      scope,
+		TenantID:   tenantID,
+		CodeHash:   codeHash,
+		ExpiresAt:  createdAt.Add(MFAChallengeTTL),
+		ConsumedAt: &createdAt,
+		IPAddress:  ip,
 	}
 	if err := s.Repos.MFAEmailChallenge.Create(ctx, challenge); err != nil {
 		return "", fmt.Errorf("persist email challenge: %w", err)
 	}
 
-	s.dispatchChallengeEmail(ctx, account, tenantID, plainCode, ip)
+	if err := s.dispatchChallengeEmail(ctx, account, tenantID, plainCode, ip); err != nil {
+		return "", ErrMFAStatusUnavailable
+	}
+	if err := s.Repos.MFAEmailChallenge.MarkActive(ctx, challenge.ID); err != nil {
+		s.Logger.Error("failed to activate delivered mfa challenge",
+			slog.Int64("challenge_id", challenge.ID),
+			slog.String("error", err.Error()))
+		return "", ErrMFAStatusUnavailable
+	}
 	s.recordAuthEvent(ctx, accountID, tenantID, audit.EventTypeMFAEmailSent, true, ip, "", map[string]any{
 		"challenge_id": challenge.ID,
 	})
@@ -974,7 +996,7 @@ func (s *mfaService) Enroll(ctx context.Context, accountID int64) error {
 // account in a half-disabled state (e.g. credential gone but devices
 // still trusted).
 func (s *mfaService) Disable(ctx context.Context, accountID int64) error {
-	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.Repos.MFACredential.DeleteByAccountID(txCtx, accountID); err != nil {
 			return fmt.Errorf("delete credential: %w", err)
 		}
@@ -1363,7 +1385,7 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 	}
 
 	previous := MFAAdminOverrideNone
-	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.lockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
 			return err
 		}
@@ -1498,7 +1520,7 @@ func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorI
 	}
 
 	previous := MFAAdminOverrideNone
-	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.lockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
 			return err
 		}
@@ -1738,8 +1760,8 @@ func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context, tenantID int6
 	return val
 }
 
-// dispatchChallengeEmail fires the branded MFA code email asynchronously
-// via the existing dispatcher. The HTML template
+// dispatchChallengeEmail sends the branded MFA code through synchronous
+// Delivery. The HTML template
 // (templates/email/mfa-email-code.html) handles formatting; html2text
 // generates the plain-text alternative automatically.
 //
@@ -1747,11 +1769,9 @@ func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context, tenantID int6
 // the user must paste the code into the moto login UI on their own.
 // That kills the most common phishing pattern (a malicious mail with
 // "click here to confirm").
-func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.Account, tenantID int64, plainCode string, ip net.IP) {
+func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.Account, tenantID int64, plainCode string, ip net.IP) error {
 	if s.Dispatcher == nil {
-		s.Logger.Warn("email dispatcher unavailable; mfa code not sent",
-			slog.Int64("account_id", account.ID))
-		return
+		return email.ErrDeliveryUnavailable
 	}
 
 	frontendURL := strings.TrimRight(s.FrontendURL, "/")
@@ -1783,12 +1803,18 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 		ReferenceID: account.ID,
 		Recipient:   account.Email,
 	}
-	s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	if err := s.Dispatcher.Deliver(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
 		MaxAttempts:   3,
-	})
+	}); err != nil {
+		s.Logger.Warn("mfa challenge delivery failed",
+			slog.Int64("account_id", account.ID),
+			slog.String("error", err.Error()))
+		return err
+	}
+	return nil
 }
 
 // dispatchTrustedDeviceAddedEmail notifies the account holder by mail when a
@@ -1906,9 +1932,10 @@ func (s *mfaService) resolveTrustedDeviceHint(ctx context.Context, tenantID int6
 	return true, s.resolveTrustedDeviceDays(ctx, tenantID)
 }
 
-// recordAuthEvent writes to audit.auth_events asynchronously, in a tenant-scoped
-// transaction. Failures are logged but never bubble up to the caller — auditing
-// is best-effort by design.
+// recordAuthEvent appends to audit.auth_events synchronously. It joins the
+// caller's authoritative transaction when one is active; pre-login callers
+// get a tenant-scoped transaction dedicated to the append. Failures are logged
+// because the legacy MFA interface does not expose audit errors.
 //
 // tenantID is required so the login flow (which runs OUTSIDE TenantTxMiddleware
 // and therefore has tenant.FromContext(ctx) == 0) can still produce audit rows.
@@ -1940,39 +1967,30 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID in
 		event.Metadata[k] = v
 	}
 
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				err := fmt.Errorf("panic in mfa audit logging: %v", r)
-				s.Logger.Error("goroutine panic recovered", slog.String("error", err.Error()))
-				sentry.CurrentHub().Recover(r)
-				sentry.Flush(2 * time.Second)
-			}
-		}()
-		if tenantID == 0 {
-			s.Logger.Warn("skipping mfa audit event: no tenant context",
-				slog.Int64("account_id", accountID),
-				slog.String("event_type", eventType),
-			)
-			return
-		}
-		event.SetTenantID(tenantID)
-
-		logCtx, cancel := context.WithTimeout(
-			tenant.WithTenantID(context.Background(), tenantID),
-			5*time.Second,
+	if tenantID == 0 || s.Audit == nil {
+		s.Logger.Error("failed to audit mfa event",
+			slog.String("event_type", eventType),
+			slog.String("error", "tenant or audit command is not configured"),
 		)
-		defer cancel()
-		err := tenant.WithTenantTx(logCtx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-			return s.Repos.AuthEvent.Create(ctx, event)
+		return
+	}
+	event.SetTenantID(tenantID)
+	appendEvent := func(txCtx context.Context) error { return s.Audit.Append(txCtx, event) }
+	var err error
+	if hasAmbientTx(ctx) {
+		err = appendEvent(ctx)
+	} else {
+		auditCtx := tenant.WithTenantID(s.withTenantRuntime(ctx), tenantID)
+		err = tenant.WithTenantTx(auditCtx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			return appendEvent(txCtx)
 		})
-		if err != nil {
-			s.Logger.Error("failed to log mfa audit event",
-				slog.String("event_type", eventType),
-				slog.String("error", err.Error()),
-			)
-		}
-	}()
+	}
+	if err != nil {
+		s.Logger.Error("failed to audit mfa event",
+			slog.String("event_type", eventType),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // AccountBelongsToTenant reports whether the account has a tenant mapping for

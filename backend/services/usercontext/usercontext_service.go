@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -99,6 +100,10 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.
 		sseSettings:        repos.SSESettings,
 		logger:             logger,
 	}
+}
+
+func DatabaseStatsCapabilities(ctx context.Context) authorize.DatabaseStatsCapabilities {
+	return authorize.NewDatabaseStatsCapabilities(jwt.PermissionsFromCtx(ctx))
 }
 
 // getUserIDFromContext extracts the user ID from the JWT context
@@ -210,6 +215,13 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 		cache.storeStaff(key, staff)
 	}
 	return staff, nil
+}
+
+// HasCurrentStaff exposes only the existence fact required by authorization
+// policies, keeping persistence models out of the policy boundary.
+func (s *userContextService) HasCurrentStaff(ctx context.Context) (bool, error) {
+	staff, err := s.GetCurrentStaff(ctx)
+	return err == nil && staff != nil, err
 }
 
 // GetCurrentTeacher retrieves the teacher linked to the currently authenticated user

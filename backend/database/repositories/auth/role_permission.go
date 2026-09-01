@@ -53,7 +53,7 @@ func (r *RolePermissionRepository) Update(ctx context.Context, rolePermission *a
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -71,7 +71,7 @@ func (r *RolePermissionRepository) DeleteByRoleID(ctx context.Context, roleID in
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by role ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -89,7 +89,7 @@ func (r *RolePermissionRepository) DeleteByPermissionID(ctx context.Context, per
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by permission ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

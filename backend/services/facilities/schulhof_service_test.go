@@ -50,11 +50,12 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 		repoFactory.Group,
 		repoFactory.GroupTeacher,
 		repoFactory.ClassTeacher,
-		repoFactory.GroupSubstitution,
 		repoFactory.Room,
 		repoFactory.Teacher,
 		repoFactory.Staff,
 		repoFactory.Student,
+		repoFactory.GroupSubstitution,
+		db,
 	)
 
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
@@ -359,14 +360,7 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	t.Parallel()
 
-	// Use a dedicated DB connection to avoid cross-test interference.
-	// CleanupActivityFixtures silently fails (BUN nil model bug), so stale
-	// active groups from earlier tests can cause findTodayActiveGroup to
-	// return a group that has no visits, yielding StudentCount=0.
 	db := testpkg.SetupTestDB(t)
-
-	// Clean up any Schulhof artifacts left by parallel test packages (e.g. api/iot/checkin)
-	// to ensure findSchulhofActivity returns the activity group created by THIS test.
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.Ctx(t)

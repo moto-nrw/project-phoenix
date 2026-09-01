@@ -55,7 +55,7 @@ func (r *DeviceRepository) FindByID(ctx context.Context, id interface{}) (*iot.D
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -76,7 +76,7 @@ func (r *DeviceRepository) FindByIDForUpdate(ctx context.Context, id int64) (*io
 		For("UPDATE")
 	query = base.WithTenantFilter(ctx, query, "device")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by id for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find by id for update", Err: base.TranslateNotFound(err)}
 	}
 	return device, nil
 }
@@ -100,7 +100,7 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by device ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -123,7 +123,7 @@ func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*io
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by API key",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -146,7 +146,7 @@ func (r *DeviceRepository) FindByType(ctx context.Context, deviceType string) ([
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by type",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -169,7 +169,7 @@ func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceSt
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by status",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -192,7 +192,7 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by registered by",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -251,7 +251,7 @@ func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, st
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update status",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -276,7 +276,7 @@ func (r *DeviceRepository) FindOfflineDevices(ctx context.Context, offlineSince 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find offline devices",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -308,7 +308,7 @@ func (r *DeviceRepository) CountDevicesByType(ctx context.Context) (map[string]i
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count devices by type",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -345,7 +345,7 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]interfac
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -18,6 +19,9 @@ const tableExprCareScheduleChangeRequestsAsReq = `schedule.care_schedule_change_
 // under the current tenant — it was already decided (lost race) or does not
 // exist. Services map this to a 409/404.
 var ErrCareRequestNotPending = schedule.ErrCareRequestNotPending
+
+// ErrCareRequestNotDecided is the repository alias of the model sentinel.
+var ErrCareRequestNotDecided = schedule.ErrCareRequestNotDecided
 
 // ErrCareRequestNotFound is returned when no request row exists under the
 // current tenant.
@@ -59,7 +63,7 @@ func (r *CareScheduleChangeRequestRepository) GetPendingForStudentAndKind(ctx co
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "get pending care schedule change request", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get pending care schedule change request", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -89,12 +93,31 @@ func (r *CareScheduleChangeRequestRepository) listPending(ctx context.Context, k
 	}
 
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
+	weekdayJSON := fmt.Sprintf(`[{"weekday":%d}]`, urgencyWeekday(filters.UrgentDate))
+	query = base.ApplyRequestUrgency(query, filters, `
+		("care_schedule_change_request".request_kind = 'pickup_change'
+			AND "care_schedule_change_request".payload->>'date' = ?)
+		OR ("care_schedule_change_request".request_kind <> 'pickup_change'
+			AND "care_schedule_change_request".payload->'weekdays' @> ?::jsonb)
+	`, filters.UrgentDate, weekdayJSON)
 	query = base.ApplyRequestQueueFilters(query, "care_schedule_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending care schedule change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending care schedule change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
+}
+
+func urgencyWeekday(raw string) int {
+	date, err := time.Parse(time.DateOnly, raw)
+	if err != nil {
+		return 0
+	}
+	weekday := int(date.Weekday())
+	if weekday == 0 {
+		return 7
+	}
+	return weekday
 }
 
 // ListDecidedForTenant returns the tenant's decided care-schedule requests
@@ -117,7 +140,7 @@ func (r *CareScheduleChangeRequestRepository) ListDecidedForTenant(ctx context.C
 	query = base.ApplyRequestQueueFilters(query, "care_schedule_change_request", "updated_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list decided care schedule change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list decided care schedule change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -133,7 +156,7 @@ func (r *CareScheduleChangeRequestRepository) ListRecentForStudentAndKind(ctx co
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
 	query = query.OrderExpr(`"care_schedule_change_request".created_at DESC`).OrderExpr(`"care_schedule_change_request".id DESC`)
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list recent care schedule change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list recent care schedule change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -156,7 +179,7 @@ func (r *CareScheduleChangeRequestRepository) FindPendingByIDForUpdate(ctx conte
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCareRequestNotFound
 		}
-		return nil, &modelBase.DatabaseError{Op: "find pending care schedule change request for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find pending care schedule change request for update", Err: base.TranslateNotFound(err)}
 	}
 	if row.Status != schedule.CareRequestStatusPending {
 		return nil, ErrCareRequestNotPending
@@ -184,7 +207,7 @@ func (r *CareScheduleChangeRequestRepository) FindByIDForUpdate(ctx context.Cont
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCareRequestNotFound
 		}
-		return nil, &modelBase.DatabaseError{Op: "find care schedule change request for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find care schedule change request for update", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -193,6 +216,28 @@ func (r *CareScheduleChangeRequestRepository) FindByIDForUpdate(ctx context.Cont
 // to now for staff decisions; applied_at only when the weekly plan was
 // actually written (approvals). Guardian withdrawals pass reviewedBy = nil
 // and get no reviewer stamp.
+// UpdatePending rewrites a pending request's payload — the guardian edit path
+// (#2267). The pending guard sits in the WHERE clause, so an edit racing a
+// staff decision loses: zero rows affected means the request was decided.
+func (r *CareScheduleChangeRequestRepository) UpdatePending(ctx context.Context, id int64, payload map[string]any) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*schedule.CareScheduleChangeRequest)(nil)).
+		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Set("payload = ?", payload).
+		Set("updated_at = ?", time.Now()).
+		Where(`"care_schedule_change_request".id = ?`, id).
+		Where(`"care_schedule_change_request".status = ?`, schedule.CareRequestStatusPending)
+	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update pending care schedule change request", Err: base.TranslateNotFound(err)}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return ErrCareRequestNotPending
+	}
+	return nil
+}
+
 func (r *CareScheduleChangeRequestRepository) Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy *int64, applied bool) error {
 	now := time.Now()
 	q := base.GetDB(ctx, r.DB).NewUpdate().
@@ -214,7 +259,7 @@ func (r *CareScheduleChangeRequestRepository) Decide(ctx context.Context, id int
 
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "decide care schedule change request", Err: err}
+		return &modelBase.DatabaseError{Op: "decide care schedule change request", Err: base.TranslateNotFound(err)}
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
@@ -238,10 +283,48 @@ func (r *CareScheduleChangeRequestRepository) UpdateDecisionSnapshot(ctx context
 	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update care request decision snapshot", Err: err}
+		return &modelBase.DatabaseError{Op: "update care request decision snapshot", Err: base.TranslateNotFound(err)}
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return ErrCareRequestNotFound
+	}
+	return nil
+}
+
+// Redecide rewrites an already decided row. It is separate from Decide on
+// purpose: Decide only ever touches pending rows, and a correction must not be
+// able to slip past that guard by accident. The WHERE names the two states a
+// correction may start from, so a concurrent care-end close, withdrawal or a
+// second correction cannot be silently overwritten by one prepared earlier.
+func (r *CareScheduleChangeRequestRepository) Redecide(
+	ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool,
+) error {
+	now := time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*schedule.CareScheduleChangeRequest)(nil)).
+		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Set("status = ?", newStatus).
+		Set("decision_reason = ?", reason).
+		Set("reviewed_by = ?", reviewedBy).
+		Set("reviewed_at = ?", now).
+		Set("updated_at = ?", now).
+		Where(`"care_schedule_change_request".id = ?`, id).
+		Where(`"care_schedule_change_request".status IN (?)`, bun.List([]string{
+			schedule.CareRequestStatusApproved,
+			schedule.CareRequestStatusRejected,
+		}))
+	if applied {
+		q = q.Set("applied_at = ?", now)
+	} else {
+		q = q.Set("applied_at = NULL")
+	}
+	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "correct care schedule change request", Err: base.TranslateNotFound(err)}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return ErrCareRequestNotDecided
 	}
 	return nil
 }

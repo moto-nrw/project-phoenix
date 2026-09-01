@@ -30,7 +30,6 @@ func TestMFAService_OperatorSetGlobalMFAOverride_RejectsInvalidValue(t *testing.
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc := testpkg.CreateTestAccount(t, db, "global-invalid")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	require.ErrorIs(t,
 		svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, "force_maybe", "any reason"),
@@ -44,7 +43,6 @@ func TestMFAService_OperatorSetGlobalMFAOverride_RejectsEmptyReason(t *testing.T
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc := testpkg.CreateTestAccount(t, db, "global-empty-reason")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	for _, reason := range []string{"", "   ", "\t\n"} {
 		err := svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, authModel.MFAAdminOverrideForceOff, reason)
@@ -61,7 +59,6 @@ func TestMFAService_OperatorSetGlobalMFAOverride_NoneOnEmptyState(t *testing.T) 
 	ctx := context.Background()
 	svc, repos, db := newTestMFAService(t)
 	acc := testpkg.CreateTestAccount(t, db, "global-none-noop")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, authModel.MFAAdminOverrideNone, "no-op"))
 
@@ -81,7 +78,6 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *t
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "global-force-on-keeps-device")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -107,7 +103,6 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOffRevokesAcrossAllTenants
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "global-force-off-cross-tenant")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
@@ -310,7 +305,6 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock(t *te
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc := testpkg.CreateTestAccount(t, db, "global-override-lock-order")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	// An override row must already exist: the row is what makes this a real
 	// test. Creating one INSERTs and therefore takes the foreign key's own lock

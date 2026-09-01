@@ -4,7 +4,6 @@
 // one supervised group in a single backend request. The wire DTO is minimal by
 // contract — it must never grow personal fields the page does not display.
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
-import type { GroupTransfer } from "~/lib/group-transfer-api";
 
 // Wire types (Go DTOs from backend/api/students/ogs_group_live_handlers.go)
 
@@ -14,6 +13,7 @@ interface OgsLiveWireGroup {
   room_id?: string;
   room_name?: string;
   via_substitution: boolean;
+  is_personal?: boolean;
 }
 
 export interface OgsLiveWireStudent {
@@ -63,6 +63,14 @@ interface OgsLiveWireTransfer {
   end_date: string;
 }
 
+export interface GroupTransfer {
+  substitutionId: string;
+  groupId: string;
+  targetStaffId: string;
+  targetName: string;
+  validUntil: string;
+}
+
 export interface OgsGroupLiveWireResponse {
   groups: OgsLiveWireGroup[];
   group_id?: string;
@@ -81,6 +89,7 @@ interface OgsLiveGroup {
   roomId?: string;
   roomName?: string;
   viaSubstitution: boolean;
+  isPersonal: boolean;
 }
 
 /** Today's effective pickup info for one student (subset the cards render). */
@@ -139,6 +148,7 @@ export function mapOgsGroupLiveResponse(
       roomId: group.room_id,
       roomName: group.room_name,
       viaSubstitution: group.via_substitution,
+      isPersonal: group.is_personal ?? true,
     })),
     groupId: wire.group_id ?? null,
     students: wire.students ?? [],
@@ -160,9 +170,9 @@ export function mapOgsGroupLiveResponse(
 
 /**
  * Fetches the aggregated live view. When a specific group was requested and
- * the backend answers 403 (e.g. a stale localStorage group the user no longer
- * supervises), one fallback request without group_id resolves the caller's
- * first supervised group instead — the page then re-syncs its selection from
+ * the backend answers 403 (e.g. a stale localStorage group the user can no
+ * longer view), one fallback request without group_id resolves the caller's
+ * first visible group instead — the page then re-syncs its selection from
  * the returned groupId.
  */
 export async function fetchOgsGroupLive(

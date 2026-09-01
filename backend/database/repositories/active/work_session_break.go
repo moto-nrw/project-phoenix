@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -53,7 +52,7 @@ func (r *WorkSessionBreakRepository) GetBySessionID(ctx context.Context, session
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get breaks by session ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -76,7 +75,7 @@ func (r *WorkSessionBreakRepository) GetBySessionIDs(ctx context.Context, sessio
 		OrderExpr(`"work_session_break".session_id ASC, "work_session_break".started_at ASC`)
 	query = base.WithTenantFilter(ctx, query, "work_session_break")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get breaks by session IDs", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get breaks by session IDs", Err: base.TranslateNotFound(err)}
 	}
 	for _, brk := range breaks {
 		result[brk.SessionID] = append(result[brk.SessionID], brk)
@@ -102,7 +101,7 @@ func (r *WorkSessionBreakRepository) GetActiveBySessionID(ctx context.Context, s
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "get active break by session ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -111,26 +110,16 @@ func (r *WorkSessionBreakRepository) GetActiveBySessionID(ctx context.Context, s
 
 // EndBreak sets ended_at and duration_minutes on a break
 func (r *WorkSessionBreakRepository) EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Table(tableActiveWorkSessionBreaks).
-		Set("ended_at = ?", endedAt).
-		Set("duration_minutes = ?", durationMinutes).
-		Set("updated_at = ?", time.Now()).
-		Where("id = ? AND ended_at IS NULL", id)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	brk := &active.WorkSessionBreak{
+		Model:           modelBase.Model{ID: id, UpdatedAt: time.Now()},
+		EndedAt:         &endedAt,
+		DurationMinutes: durationMinutes,
 	}
-
-	result, err := query.Exec(ctx)
+	updated, err := r.UpdateColumnsIfNull(ctx, brk, "ended_at", "ended_at", "duration_minutes", "updated_at")
 	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "end break",
-			Err: err,
-		}
+		return base.UpdateOperationError(err, "end break")
 	}
-
-	return base.AssertRowsAffected(result, 1, "end break")
+	return base.AssertRowsAffectedCount(updated, 1, "end break")
 }
 
 // UpdateDuration updates the duration and ended_at of a completed break
@@ -156,7 +145,7 @@ func (r *WorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context, befor
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get expired breaks",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

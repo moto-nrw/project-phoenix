@@ -68,22 +68,6 @@ func TestStaffAvatarPath_InvalidPaths(t *testing.T) {
 	}
 }
 
-func TestCaregiverStaffIDSet(t *testing.T) {
-	t.Parallel()
-
-	set := caregiverStaffIDSet([]*users.ActiveCaregiver{
-		{StaffID: 11},
-		{StaffID: 22},
-		{StaffID: 11},
-	})
-
-	assert.Len(t, set, 2)
-	_, has11 := set[11]
-	_, has22 := set[22]
-	assert.True(t, has11)
-	assert.True(t, has22)
-}
-
 func TestNewPersonResponse_IncludesAvatarAndTag(t *testing.T) {
 	t.Parallel()
 

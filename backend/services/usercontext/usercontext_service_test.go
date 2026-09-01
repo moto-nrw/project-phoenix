@@ -64,6 +64,12 @@ func contextWithTenantClaimsAndRoles(userID int, tenantID int64, roles ...string
 	return context.WithValue(testpkg.TenantContext(tenantID), jwt.CtxClaims, claims)
 }
 
+type fixedBoolResolver bool
+
+func (r fixedBoolResolver) ResolveBool(context.Context, string) (bool, error) {
+	return bool(r), nil
+}
+
 // ============================================================================
 // Core Operations Tests
 // ============================================================================
@@ -856,6 +862,41 @@ func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 1, "Teacher-only role should have at least 1 group")
 	})
+}
+
+func TestParentRequestReviewPolicy_UsesRealTeacherGroupAssignments(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupUserContextService(t, db)
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Request", "Reviewer")
+	ownGroup := testpkg.CreateTestEducationGroup(t, db, "Reviewer's Group")
+	otherGroup := testpkg.CreateTestEducationGroup(t, db, "Another Group")
+	activeSubstitutionGroup := testpkg.CreateTestEducationGroup(t, db, "Active Substitution Group")
+	expiredSubstitutionGroup := testpkg.CreateTestEducationGroup(t, db, "Expired Substitution Group")
+	testpkg.CreateTestGroupTeacher(t, db, ownGroup.ID, teacher.ID)
+	today := timezone.TodayDate()
+	testpkg.CreateTestGroupSubstitution(t, db, activeSubstitutionGroup.ID, nil, teacher.StaffID, today, today.AddDays(1))
+	testpkg.CreateTestGroupSubstitution(t, db, expiredSubstitutionGroup.ID, nil, teacher.StaffID, today.AddDays(-2), today.AddDays(-1))
+
+	ctx := contextWithClaims(t, int(account.ID))
+	policy := usercontextSvc.NewParentRequestReviewPolicy(
+		fixedBoolResolver(true), service, "parent_requests.group_leaders_can_decide",
+	)
+	filter, err := policy.StudentFilter(ctx, []string{"users:update"})
+	require.NoError(t, err)
+
+	assert.True(t, filter(&users.Student{GroupID: &ownGroup.ID}))
+	assert.True(t, filter(&users.Student{GroupID: &activeSubstitutionGroup.ID}))
+	assert.False(t, filter(&users.Student{GroupID: &expiredSubstitutionGroup.ID}))
+	assert.False(t, filter(&users.Student{GroupID: &otherGroup.ID}))
+	assert.False(t, filter(&users.Student{}))
+
+	disabled := usercontextSvc.NewParentRequestReviewPolicy(
+		fixedBoolResolver(false), service, "parent_requests.group_leaders_can_decide",
+	)
+	disabledFilter, err := disabled.StudentFilter(ctx, []string{"users:update"})
+	require.NoError(t, err)
+	assert.False(t, disabledFilter(&users.Student{GroupID: &ownGroup.ID}))
 }
 
 // ============================================================================

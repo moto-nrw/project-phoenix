@@ -51,6 +51,7 @@ type Dependencies struct {
 	SettingsService configSvc.SettingsService
 	DB              *bun.DB
 	Logger          *slog.Logger
+	Now             func() time.Time
 }
 
 type service struct {
@@ -59,6 +60,9 @@ type service struct {
 
 // NewService creates the display service.
 func NewService(deps Dependencies) Service {
+	if deps.Now == nil {
+		deps.Now = timezone.Now
+	}
 	return &service{Dependencies: deps}
 }
 
@@ -300,8 +304,8 @@ func (s *service) Dashboard(ctx context.Context, rawToken string) (*DashboardPay
 // aggregate builds the tenant-scoped dashboard body. Must run inside
 // tenant.WithTenantTx.
 func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
-	now := timezone.Now()
-	today := timezone.TodayDate()
+	now := s.Now()
+	today := timezone.DateFromTime(now)
 
 	rooms, err := s.Facilities.ListRooms(ctx, nil)
 	if err != nil {
@@ -318,7 +322,7 @@ func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
 		return nil, fmt.Errorf("active visits: %w", err)
 	}
 
-	templates, err := s.ActivityGroupRepo.List(ctx, nil)
+	templates, err := s.ActivityGroupRepo.ListWithCategory(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("activity templates: %w", err)
 	}
@@ -440,7 +444,7 @@ func buildRunningActivities(
 
 // buildUpcomingActivities lists today's still-planned instances that start
 // later than now. activity_instances.start_time is a TIME column (wall
-// clock), so the comparison uses timezone.WallClock on both sides.
+// clock), so the comparison uses timezone.NormalizeWallClock on both sides.
 func buildUpcomingActivities(
 	instances []*scheduleModels.ActivityInstance,
 	templates []*activitiesModels.Group,
@@ -452,13 +456,13 @@ func buildUpcomingActivities(
 		templatesByID[t.ID] = t
 	}
 
-	nowWall := timezone.WallClock(now.In(timezone.Berlin))
+	nowWall := timezone.NormalizeWallClock(now.In(timezone.Berlin))
 	upcoming := make([]UpcomingActivity, 0)
 	for _, inst := range instances {
 		if inst.Status != scheduleModels.InstanceStatusPlanned {
 			continue
 		}
-		if timezone.WallClock(inst.StartTime).Before(nowWall) {
+		if timezone.NormalizeWallClock(inst.StartTime).Before(nowWall) {
 			continue
 		}
 
@@ -513,13 +517,13 @@ func (s *service) buildPickupBuckets(
 		return buckets, len(presentIDs)
 	}
 
-	nowWall := timezone.WallClock(now.In(timezone.Berlin))
+	nowWall := timezone.NormalizeWallClock(now.In(timezone.Berlin))
 	counts := make(map[string]int)
 	for _, effective := range times {
 		if effective == nil || effective.PickupTime == nil {
 			continue
 		}
-		if timezone.WallClock(*effective.PickupTime).Before(nowWall) {
+		if timezone.NormalizeWallClock(*effective.PickupTime).Before(nowWall) {
 			continue
 		}
 		counts[effective.PickupTime.Format("15:04")]++

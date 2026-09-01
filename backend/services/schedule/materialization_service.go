@@ -45,7 +45,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -238,7 +237,7 @@ func (s *materializationService) MaterializeForTenant(
 		if tenantID <= 0 {
 			return nil, &ScheduleError{Op: materializeForTenantOp, Err: errors.New("no tenant in context")}
 		}
-		if _, ok := modelBase.TxFromContext(ctx); !ok {
+		if _, ok := tenant.TransactionFromContext(ctx); !ok {
 			return s.materializeForTenantInTransaction(ctx, tenantID, from, to, source)
 		}
 		if err := lockTenantRecurrenceWrites(ctx, s.db); err != nil {
@@ -1116,9 +1115,9 @@ func formatTimeOfDay(t time.Time) string {
 	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
 }
 
-// extractTimeOfDay is a thin wrapper around timezone.WallClock preserved so
-// the local call sites read unchanged. See timezone.WallClock for the
+// extractTimeOfDay is a thin wrapper around timezone.NormalizeWallClock preserved so
+// the local call sites read unchanged. See timezone.NormalizeWallClock for the
 // full rationale on why TIMESTAMPTZ → TIME round-trips need this.
 func extractTimeOfDay(t time.Time) time.Time {
-	return timezone.WallClock(t)
+	return timezone.NormalizeWallClock(t)
 }

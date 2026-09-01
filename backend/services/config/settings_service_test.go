@@ -1,4 +1,4 @@
-package config_test
+package config
 
 import (
 	"context"
@@ -7,13 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -125,13 +119,12 @@ func (m *mockAuditRepo) Create(_ context.Context, entry *config.SettingAuditEntr
 
 // --- Helpers ---
 
-func setupTest(t *testing.T) {
+func setupTest(t *testing.T) *config.Registry {
 	t.Helper()
-	config.ResetRegistry()
-	t.Cleanup(func() { config.ResetRegistry() })
+	return config.NewRegistry()
 }
 
-func registerTestSetting(key string, fieldType config.FieldType, defaultVal any) {
+func registerTestSetting(registry *config.Registry, key string, fieldType config.FieldType, defaultVal any) {
 	def := config.Definition{
 		Key:      key,
 		Label:    "Test " + key,
@@ -145,24 +138,46 @@ func registerTestSetting(key string, fieldType config.FieldType, defaultVal any)
 			Static: []config.SelectOption{{Label: "A", Value: "a"}},
 		}
 	}
-	config.Register(def)
+	registry.Register(def)
 }
 
 func tenantCtx(tenantID int64) context.Context {
-	return tenant.WithTenantID(context.Background(), tenantID)
+	return withTestTenantID(context.Background(), tenantID)
 }
 
-func createService(valueRepo config.SettingValueRepository, auditRepo config.SettingAuditRepository) configSvc.SettingsService {
-	return configSvc.NewSettingsService(valueRepo, auditRepo, nil, nil, slog.Default())
+type testSettingsRuntime struct{}
+
+type testTenantIDKey struct{}
+
+func withTestTenantID(ctx context.Context, tenantID int64) context.Context {
+	return context.WithValue(ctx, testTenantIDKey{}, tenantID)
+}
+
+func (testSettingsRuntime) TenantID(ctx context.Context) int64 {
+	tenantID, _ := ctx.Value(testTenantIDKey{}).(int64)
+	return tenantID
+}
+func (testSettingsRuntime) HasTransaction(context.Context) bool { return false }
+func (testSettingsRuntime) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+	return fn(withTestTenantID(ctx, tenantID))
+}
+func (testSettingsRuntime) WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+func (testSettingsRuntime) AcquireLock(context.Context, string, bool) error { return nil }
+
+func createService(registry *config.Registry, valueRepo config.SettingValueRepository, auditRepo config.SettingAuditRepository) SettingsService {
+	return NewSettingsService(valueRepo, auditRepo, nil, testSettingsRuntime{}, slog.Default(), registry)
 }
 
 // --- Tests ---
 
 func TestResolve_ReturnsDefault_WhenNoOverride(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.timeout", config.FieldNumber, 30)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.timeout", config.FieldNumber, 30)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.Resolve(tenantCtx(1), "test.timeout")
 	require.NoError(t, err)
@@ -170,8 +185,9 @@ func TestResolve_ReturnsDefault_WhenNoOverride(t *testing.T) {
 }
 
 func TestResolve_ReturnsTenantOverride(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.timeout", config.FieldNumber, 30)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.timeout", config.FieldNumber, 30)
 
 	repo := newMockValueRepo()
 	repo.values["1:test.timeout"] = &config.SettingValue{
@@ -180,7 +196,7 @@ func TestResolve_ReturnsTenantOverride(t *testing.T) {
 	}
 	repo.values["1:test.timeout"].TenantID = 1
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	val, err := svc.Resolve(tenantCtx(1), "test.timeout")
 	require.NoError(t, err)
@@ -188,8 +204,9 @@ func TestResolve_ReturnsTenantOverride(t *testing.T) {
 }
 
 func TestResolve_UnknownKey_ReturnsError(t *testing.T) {
-	setupTest(t)
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	t.Parallel()
+	registry := setupTest(t)
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	_, err := svc.Resolve(tenantCtx(1), "nonexistent.key")
 	require.Error(t, err)
@@ -197,10 +214,11 @@ func TestResolve_UnknownKey_ReturnsError(t *testing.T) {
 }
 
 func TestResolve_NoTenantContext_ReturnsDefault(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.flag", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.flag", config.FieldBoolean, true)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.Resolve(context.Background(), "test.flag")
 	require.NoError(t, err)
@@ -208,10 +226,11 @@ func TestResolve_NoTenantContext_ReturnsDefault(t *testing.T) {
 }
 
 func TestResolveString(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.name", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.name", config.FieldText, "default")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveString(tenantCtx(1), "test.name")
 	require.NoError(t, err)
@@ -219,10 +238,11 @@ func TestResolveString(t *testing.T) {
 }
 
 func TestResolveBool(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.enabled", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.enabled", config.FieldBoolean, true)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveBool(tenantCtx(1), "test.enabled")
 	require.NoError(t, err)
@@ -230,9 +250,10 @@ func TestResolveBool(t *testing.T) {
 }
 
 func TestResolveBoolsLoadsOverridesOnceAndFillsDefaults(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.enabled", config.FieldBoolean, true)
-	registerTestSetting("test.disabled", config.FieldBoolean, false)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.enabled", config.FieldBoolean, true)
+	registerTestSetting(registry, "test.disabled", config.FieldBoolean, false)
 
 	repo := newMockValueRepo()
 	repo.values["1:test.enabled"] = &config.SettingValue{
@@ -246,7 +267,7 @@ func TestResolveBoolsLoadsOverridesOnceAndFillsDefaults(t *testing.T) {
 	}
 	repo.values["2:test.disabled"].TenantID = 2
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 	values, err := svc.ResolveBools(tenantCtx(1), []string{
 		"test.enabled",
 		"test.disabled",
@@ -262,33 +283,34 @@ func TestResolveBoolsLoadsOverridesOnceAndFillsDefaults(t *testing.T) {
 }
 
 func TestResolveBoolsFailsClosedForInvalidDefinitionsAndValues(t *testing.T) {
+	t.Parallel()
 	t.Run("unknown key", func(t *testing.T) {
-		setupTest(t)
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 		_, err := svc.ResolveBools(tenantCtx(1), []string{"test.unknown"})
 		require.Error(t, err)
 	})
 
 	t.Run("non-boolean default", func(t *testing.T) {
-		setupTest(t)
-		registerTestSetting("test.text", config.FieldText, "value")
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerTestSetting(registry, "test.text", config.FieldText, "value")
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 		_, err := svc.ResolveBools(tenantCtx(1), []string{"test.text"})
 		require.Error(t, err)
 	})
 
 	t.Run("non-boolean override", func(t *testing.T) {
-		setupTest(t)
-		registerTestSetting("test.enabled", config.FieldBoolean, true)
+		registry := setupTest(t)
+		registerTestSetting(registry, "test.enabled", config.FieldBoolean, true)
 		repo := newMockValueRepo()
 		repo.values["1:test.enabled"] = &config.SettingValue{
 			SettingKey: "test.enabled",
 			Value:      json.RawMessage(`"yes"`),
 		}
 		repo.values["1:test.enabled"].TenantID = 1
-		svc := createService(repo, &mockAuditRepo{})
+		svc := createService(registry, repo, &mockAuditRepo{})
 
 		_, err := svc.ResolveBools(tenantCtx(1), []string{"test.enabled"})
 		require.Error(t, err)
@@ -296,10 +318,11 @@ func TestResolveBoolsFailsClosedForInvalidDefinitionsAndValues(t *testing.T) {
 }
 
 func TestResolveInt(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.count", config.FieldNumber, 42)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.count", config.FieldNumber, 42)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveInt(tenantCtx(1), "test.count")
 	require.NoError(t, err)
@@ -307,8 +330,9 @@ func TestResolveInt(t *testing.T) {
 }
 
 func TestResolveInt_FromOverride(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.count", config.FieldNumber, 42)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.count", config.FieldNumber, 42)
 
 	repo := newMockValueRepo()
 	repo.values["1:test.count"] = &config.SettingValue{
@@ -317,7 +341,7 @@ func TestResolveInt_FromOverride(t *testing.T) {
 	}
 	repo.values["1:test.count"].TenantID = 1
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	val, err := svc.ResolveInt(tenantCtx(1), "test.count")
 	require.NoError(t, err)
@@ -325,12 +349,13 @@ func TestResolveInt_FromOverride(t *testing.T) {
 }
 
 func TestSetValue_StoresValueAndAudit(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.timeout", config.FieldNumber, 30)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.timeout", config.FieldNumber, 30)
 
 	valueRepo := newMockValueRepo()
 	auditRepo := &mockAuditRepo{}
-	svc := createService(valueRepo, auditRepo)
+	svc := createService(registry, valueRepo, auditRepo)
 
 	changedBy := int64(42)
 	err := svc.SetValue(tenantCtx(1), "test.timeout", 60, &changedBy, nil)
@@ -346,8 +371,9 @@ func TestSetValue_StoresValueAndAudit(t *testing.T) {
 }
 
 func TestSetValue_UnknownKey_ReturnsError(t *testing.T) {
-	setupTest(t)
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	t.Parallel()
+	registry := setupTest(t)
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "nonexistent", "val", nil, nil)
 	require.Error(t, err)
@@ -355,9 +381,10 @@ func TestSetValue_UnknownKey_ReturnsError(t *testing.T) {
 }
 
 func TestSetValue_ValidationError_NumberBelowMin(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 	min := float64(10)
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:        "test.min",
 		Type:       config.FieldNumber,
 		Default:    15,
@@ -366,7 +393,7 @@ func TestSetValue_ValidationError_NumberBelowMin(t *testing.T) {
 		Validation: &config.ValidationRules{Min: &min},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.min", 5, nil, nil)
 	require.Error(t, err)
@@ -374,9 +401,10 @@ func TestSetValue_ValidationError_NumberBelowMin(t *testing.T) {
 }
 
 func TestSetValue_ValidationError_NumberAboveMax(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 	max := float64(100)
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:        "test.max",
 		Type:       config.FieldNumber,
 		Default:    50,
@@ -385,7 +413,7 @@ func TestSetValue_ValidationError_NumberAboveMax(t *testing.T) {
 		Validation: &config.ValidationRules{Max: &max},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.max", 200, nil, nil)
 	require.Error(t, err)
@@ -393,8 +421,9 @@ func TestSetValue_ValidationError_NumberAboveMax(t *testing.T) {
 }
 
 func TestResetValue_DeletesOverrideAndAudits(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.timeout", config.FieldNumber, 30)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.timeout", config.FieldNumber, 30)
 
 	valueRepo := newMockValueRepo()
 	valueRepo.values["1:test.timeout"] = &config.SettingValue{
@@ -404,7 +433,7 @@ func TestResetValue_DeletesOverrideAndAudits(t *testing.T) {
 	valueRepo.values["1:test.timeout"].TenantID = 1
 
 	auditRepo := &mockAuditRepo{}
-	svc := createService(valueRepo, auditRepo)
+	svc := createService(registry, valueRepo, auditRepo)
 
 	changedBy := int64(42)
 	err := svc.ResetValue(tenantCtx(1), "test.timeout", &changedBy, nil)
@@ -419,8 +448,9 @@ func TestResetValue_DeletesOverrideAndAudits(t *testing.T) {
 }
 
 func TestResetValue_UnknownKey_ReturnsError(t *testing.T) {
-	setupTest(t)
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	t.Parallel()
+	registry := setupTest(t)
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.ResetValue(tenantCtx(1), "nonexistent", nil, nil)
 	require.Error(t, err)
@@ -428,9 +458,10 @@ func TestResetValue_UnknownKey_ReturnsError(t *testing.T) {
 }
 
 func TestGetSchema_ReturnsGroupedSettings(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:            "ops.enabled",
 		Label:          "Enabled",
 		Type:           config.FieldBoolean,
@@ -440,7 +471,7 @@ func TestGetSchema_ReturnsGroupedSettings(t *testing.T) {
 		SortOrder:      1,
 		ReadPermission: "config:read",
 	})
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:            "ops.time",
 		Label:          "Time",
 		Type:           config.FieldTime,
@@ -451,7 +482,7 @@ func TestGetSchema_ReturnsGroupedSettings(t *testing.T) {
 		ReadPermission: "config:read",
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), []string{"config:read"})
 	require.NoError(t, err)
@@ -464,7 +495,7 @@ func TestGetSchema_ReturnsGroupedSettings(t *testing.T) {
 }
 
 // findSchemaItem returns the resolved setting with the given key, or nil.
-func findSchemaItem(schema *configSvc.SettingsSchema, key string) *configSvc.ResolvedSetting {
+func findSchemaItem(schema *SettingsSchema, key string) *ResolvedSetting {
 	for _, tab := range schema.Tabs {
 		for _, cat := range tab.Categories {
 			for _, item := range cat.Items {
@@ -481,10 +512,11 @@ func findSchemaItem(schema *configSvc.SettingsSchema, key string) *configSvc.Res
 // #1680). Boolean toggles have no reset button, so an override row equal to the
 // registry default has to still report is_default=true.
 func TestGetSchema_IsDefault_NoOverride(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.flag", config.FieldBoolean, false)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.flag", config.FieldBoolean, false)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), nil)
 	require.NoError(t, err)
@@ -494,8 +526,9 @@ func TestGetSchema_IsDefault_NoOverride(t *testing.T) {
 }
 
 func TestGetSchema_IsDefault_BooleanOverrideEqualsDefault(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.flag", config.FieldBoolean, false)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.flag", config.FieldBoolean, false)
 
 	repo := newMockValueRepo()
 	repo.values["1:test.flag"] = &config.SettingValue{
@@ -504,7 +537,7 @@ func TestGetSchema_IsDefault_BooleanOverrideEqualsDefault(t *testing.T) {
 	}
 	repo.values["1:test.flag"].TenantID = 1
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), nil)
 	require.NoError(t, err)
@@ -514,8 +547,9 @@ func TestGetSchema_IsDefault_BooleanOverrideEqualsDefault(t *testing.T) {
 }
 
 func TestGetSchema_IsDefault_BooleanOverrideDiffersFromDefault(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.flag", config.FieldBoolean, false)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.flag", config.FieldBoolean, false)
 
 	repo := newMockValueRepo()
 	repo.values["1:test.flag"] = &config.SettingValue{
@@ -524,7 +558,7 @@ func TestGetSchema_IsDefault_BooleanOverrideDiffersFromDefault(t *testing.T) {
 	}
 	repo.values["1:test.flag"].TenantID = 1
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), nil)
 	require.NoError(t, err)
@@ -539,8 +573,9 @@ func TestGetSchema_IsDefault_BooleanOverrideDiffersFromDefault(t *testing.T) {
 // available to clear an explicit override, so is_default has to report false
 // while a row exists — regardless of whether the value matches the default.
 func TestGetSchema_IsDefault_NumberOverrideEqualsDefault_StaysResettable(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.timeout", config.FieldNumber, 30)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.timeout", config.FieldNumber, 30)
 
 	repo := newMockValueRepo()
 	repo.values["1:test.timeout"] = &config.SettingValue{
@@ -549,7 +584,7 @@ func TestGetSchema_IsDefault_NumberOverrideEqualsDefault_StaysResettable(t *test
 	}
 	repo.values["1:test.timeout"].TenantID = 1
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), nil)
 	require.NoError(t, err)
@@ -559,9 +594,10 @@ func TestGetSchema_IsDefault_NumberOverrideEqualsDefault_StaysResettable(t *test
 }
 
 func TestGetSchema_FiltersByPermission(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:            "admin.secret",
 		Label:          "Secret",
 		Type:           config.FieldText,
@@ -571,7 +607,7 @@ func TestGetSchema_FiltersByPermission(t *testing.T) {
 		ReadPermission: "config:manage",
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	// User without config:manage should not see the setting
 	schema, err := svc.GetSchema(tenantCtx(1), []string{"config:read"})
@@ -580,9 +616,10 @@ func TestGetSchema_FiltersByPermission(t *testing.T) {
 }
 
 func TestGetSchema_PasswordMasked(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "security.pin",
 		Label:    "PIN",
 		Type:     config.FieldPassword,
@@ -598,7 +635,7 @@ func TestGetSchema_PasswordMasked(t *testing.T) {
 	}
 	valueRepo.values["1:security.pin"].TenantID = 1
 
-	svc := createService(valueRepo, &mockAuditRepo{})
+	svc := createService(registry, valueRepo, &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), []string{})
 	require.NoError(t, err)
@@ -609,9 +646,10 @@ func TestGetSchema_PasswordMasked(t *testing.T) {
 }
 
 func TestGetSchema_DependsOn_HidesChild(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "parent.enabled",
 		Label:    "Enabled",
 		Type:     config.FieldBoolean,
@@ -619,7 +657,7 @@ func TestGetSchema_DependsOn_HidesChild(t *testing.T) {
 		Tab:      "test",
 		Category: "deps",
 	})
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "parent.time",
 		Label:    "Time",
 		Type:     config.FieldTime,
@@ -633,7 +671,7 @@ func TestGetSchema_DependsOn_HidesChild(t *testing.T) {
 		},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), []string{})
 	require.NoError(t, err)
@@ -650,9 +688,10 @@ func TestGetSchema_DependsOn_HidesChild(t *testing.T) {
 }
 
 func TestGetSchema_DependsOn_ShowsChild(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "parent2.enabled",
 		Label:    "Enabled",
 		Type:     config.FieldBoolean,
@@ -660,7 +699,7 @@ func TestGetSchema_DependsOn_ShowsChild(t *testing.T) {
 		Tab:      "test",
 		Category: "deps",
 	})
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "parent2.time",
 		Label:    "Time",
 		Type:     config.FieldTime,
@@ -674,7 +713,7 @@ func TestGetSchema_DependsOn_ShowsChild(t *testing.T) {
 		},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), []string{})
 	require.NoError(t, err)
@@ -688,9 +727,10 @@ func TestGetSchema_DependsOn_ShowsChild(t *testing.T) {
 }
 
 func TestGetSchema_DependsOn_UsesHiddenOperatorOnlyParent(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:             "attendance.nfc_enabled",
 		Label:           "NFC",
 		Type:            config.FieldBoolean,
@@ -701,7 +741,7 @@ func TestGetSchema_DependsOn_UsesHiddenOperatorOnlyParent(t *testing.T) {
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 	})
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:             "security.ogs_device_pin",
 		Label:           "PIN",
 		Type:            config.FieldPassword,
@@ -716,7 +756,7 @@ func TestGetSchema_DependsOn_UsesHiddenOperatorOnlyParent(t *testing.T) {
 			Value:     true,
 		},
 	})
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:             "checkout.raumwechsel_enabled",
 		Label:           "Raumwechsel",
 		Type:            config.FieldBoolean,
@@ -733,14 +773,14 @@ func TestGetSchema_DependsOn_UsesHiddenOperatorOnlyParent(t *testing.T) {
 		},
 	})
 
-	tenantID := testpkg.UniqueTestTenantID(t)
+	tenantID := int64(42)
 	valueRepo := newMockValueRepo()
 	valueRepo.values[valueRepo.key(tenantID, "attendance.nfc_enabled")] = &config.SettingValue{
 		SettingKey: "attendance.nfc_enabled",
 		Value:      json.RawMessage(`true`),
 	}
 	valueRepo.values[valueRepo.key(tenantID, "attendance.nfc_enabled")].TenantID = tenantID
-	svc := createService(valueRepo, &mockAuditRepo{})
+	svc := createService(registry, valueRepo, &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(tenantID), []string{"config:read"})
 	require.NoError(t, err)
@@ -753,9 +793,10 @@ func TestGetSchema_DependsOn_UsesHiddenOperatorOnlyParent(t *testing.T) {
 }
 
 func TestGetSchema_DependsOn_HidesChildWhenHiddenOperatorOnlyParentFalse(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:          "attendance.nfc_enabled",
 		Label:        "NFC",
 		Type:         config.FieldBoolean,
@@ -764,7 +805,7 @@ func TestGetSchema_DependsOn_HidesChildWhenHiddenOperatorOnlyParentFalse(t *test
 		Category:     "attendance",
 		AccessPolicy: config.AccessOperatorOnly,
 	})
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "operations.student_daily_checkout_time",
 		Label:    "Checkout time",
 		Type:     config.FieldTime,
@@ -778,7 +819,7 @@ func TestGetSchema_DependsOn_HidesChildWhenHiddenOperatorOnlyParentFalse(t *test
 		},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(42), []string{})
 	require.NoError(t, err)
@@ -790,9 +831,10 @@ func TestGetSchema_DependsOn_HidesChildWhenHiddenOperatorOnlyParentFalse(t *test
 }
 
 func TestGetSchema_DependsOn_HidesGrandchildWhenParentHidden(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "root.enabled",
 		Label:    "Root",
 		Type:     config.FieldBoolean,
@@ -800,7 +842,7 @@ func TestGetSchema_DependsOn_HidesGrandchildWhenParentHidden(t *testing.T) {
 		Tab:      "test",
 		Category: "deps",
 	})
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "child.enabled",
 		Label:    "Child",
 		Type:     config.FieldBoolean,
@@ -813,7 +855,7 @@ func TestGetSchema_DependsOn_HidesGrandchildWhenParentHidden(t *testing.T) {
 			Value:     true,
 		},
 	})
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "grandchild.minutes",
 		Label:    "Grandchild",
 		Type:     config.FieldNumber,
@@ -827,7 +869,7 @@ func TestGetSchema_DependsOn_HidesGrandchildWhenParentHidden(t *testing.T) {
 		},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), []string{})
 	require.NoError(t, err)
@@ -843,7 +885,7 @@ func TestGetSchema_DependsOn_HidesGrandchildWhenParentHidden(t *testing.T) {
 	assert.False(t, visibility["grandchild.minutes"], "grandchild should hide when its parent is hidden")
 }
 
-func schemaVisibility(schema *configSvc.SettingsSchema) map[string]bool {
+func schemaVisibility(schema *SettingsSchema) map[string]bool {
 	visibility := make(map[string]bool)
 	for _, tab := range schema.Tabs {
 		for _, category := range tab.Categories {
@@ -858,8 +900,8 @@ func schemaVisibility(schema *configSvc.SettingsSchema) map[string]bool {
 func TestSettingsError_Unwrap(t *testing.T) {
 	t.Parallel()
 
-	inner := &configSvc.DefinitionNotFoundError{Key: "test"}
-	err := &configSvc.SettingsError{Op: "resolve", Err: inner}
+	inner := &DefinitionNotFoundError{Key: "test"}
+	err := &SettingsError{Op: "resolve", Err: inner}
 
 	assert.Contains(t, err.Error(), "resolve")
 	assert.Contains(t, err.Error(), "test")
@@ -869,38 +911,39 @@ func TestSettingsError_Unwrap(t *testing.T) {
 func TestDefinitionNotFoundError(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.DefinitionNotFoundError{Key: "missing.key"}
+	err := &DefinitionNotFoundError{Key: "missing.key"}
 	assert.Contains(t, err.Error(), "missing.key")
-	assert.ErrorIs(t, err, configSvc.ErrDefinitionNotFound)
+	assert.ErrorIs(t, err, ErrDefinitionNotFound)
 }
 
 func TestInvalidValueError(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.InvalidValueError{Key: "test.key", Reason: "too small"}
+	err := &InvalidValueError{Key: "test.key", Reason: "too small"}
 	assert.Contains(t, err.Error(), "test.key")
 	assert.Contains(t, err.Error(), "too small")
-	assert.ErrorIs(t, err, configSvc.ErrInvalidValue)
+	assert.ErrorIs(t, err, ErrInvalidValue)
 }
 
 func TestPermissionDeniedError(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"}
+	err := &PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"}
 	assert.Contains(t, err.Error(), "admin.setting")
 	assert.Contains(t, err.Error(), "config:manage")
-	assert.ErrorIs(t, err, configSvc.ErrPermissionDenied)
+	assert.ErrorIs(t, err, ErrPermissionDenied)
 }
 
 // --- Additional coverage tests ---
 
 func TestResolve_RepoError_ReturnsError(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
 	repo := newMockValueRepo()
 	repo.err = fmt.Errorf("db connection failed")
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	_, err := svc.Resolve(tenantCtx(1), "test.val")
 	require.Error(t, err)
@@ -908,8 +951,9 @@ func TestResolve_RepoError_ReturnsError(t *testing.T) {
 }
 
 func TestResolveString_FromOverride(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.name", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.name", config.FieldText, "default")
 
 	repo := newMockValueRepo()
 	repo.values["1:test.name"] = &config.SettingValue{
@@ -918,7 +962,7 @@ func TestResolveString_FromOverride(t *testing.T) {
 	}
 	repo.values["1:test.name"].TenantID = 1
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	val, err := svc.ResolveString(tenantCtx(1), "test.name")
 	require.NoError(t, err)
@@ -926,10 +970,11 @@ func TestResolveString_FromOverride(t *testing.T) {
 }
 
 func TestResolveString_NilDefault(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.optional", config.FieldText, nil)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.optional", config.FieldText, nil)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveString(tenantCtx(1), "test.optional")
 	require.NoError(t, err)
@@ -937,8 +982,9 @@ func TestResolveString_NilDefault(t *testing.T) {
 }
 
 func TestResolveBool_FromOverride(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.flag", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.flag", config.FieldBoolean, true)
 
 	repo := newMockValueRepo()
 	repo.values["1:test.flag"] = &config.SettingValue{
@@ -947,7 +993,7 @@ func TestResolveBool_FromOverride(t *testing.T) {
 	}
 	repo.values["1:test.flag"].TenantID = 1
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	val, err := svc.ResolveBool(tenantCtx(1), "test.flag")
 	require.NoError(t, err)
@@ -955,10 +1001,11 @@ func TestResolveBool_FromOverride(t *testing.T) {
 }
 
 func TestResolveBool_NilDefault(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.nilbool", config.FieldBoolean, nil)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.nilbool", config.FieldBoolean, nil)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveBool(tenantCtx(1), "test.nilbool")
 	require.NoError(t, err)
@@ -966,10 +1013,11 @@ func TestResolveBool_NilDefault(t *testing.T) {
 }
 
 func TestResolveInt_NilDefault(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.nilint", config.FieldNumber, nil)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.nilint", config.FieldNumber, nil)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveInt(tenantCtx(1), "test.nilint")
 	require.NoError(t, err)
@@ -977,8 +1025,9 @@ func TestResolveInt_NilDefault(t *testing.T) {
 }
 
 func TestSetValue_WithExistingOverride_RecordsOldValue(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldNumber, 10)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldNumber, 10)
 
 	repo := newMockValueRepo()
 	repo.values["1:test.val"] = &config.SettingValue{
@@ -988,7 +1037,7 @@ func TestSetValue_WithExistingOverride_RecordsOldValue(t *testing.T) {
 	repo.values["1:test.val"].TenantID = 1
 
 	auditRepo := &mockAuditRepo{}
-	svc := createService(repo, auditRepo)
+	svc := createService(registry, repo, auditRepo)
 
 	err := svc.SetValue(tenantCtx(1), "test.val", 30, nil, nil)
 	require.NoError(t, err)
@@ -1000,11 +1049,12 @@ func TestSetValue_WithExistingOverride_RecordsOldValue(t *testing.T) {
 }
 
 func TestSetValue_AuditError_DoesNotFail(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
 	auditRepo := &mockAuditRepo{err: fmt.Errorf("audit write failed")}
-	svc := createService(newMockValueRepo(), auditRepo)
+	svc := createService(registry, newMockValueRepo(), auditRepo)
 
 	// Should succeed even if audit fails (audit is best-effort)
 	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil, nil)
@@ -1012,8 +1062,9 @@ func TestSetValue_AuditError_DoesNotFail(t *testing.T) {
 }
 
 func TestResetValue_NilChangedBy(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
 	repo := newMockValueRepo()
 	repo.values["1:test.val"] = &config.SettingValue{
@@ -1023,7 +1074,7 @@ func TestResetValue_NilChangedBy(t *testing.T) {
 	repo.values["1:test.val"].TenantID = 1
 
 	auditRepo := &mockAuditRepo{}
-	svc := createService(repo, auditRepo)
+	svc := createService(registry, repo, auditRepo)
 
 	err := svc.ResetValue(tenantCtx(1), "test.val", nil, nil)
 	require.NoError(t, err)
@@ -1031,9 +1082,10 @@ func TestResetValue_NilChangedBy(t *testing.T) {
 }
 
 func TestGetSchema_WritableFlag(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:             "test.readonly",
 		Label:           "ReadOnly",
 		Type:            config.FieldText,
@@ -1044,7 +1096,7 @@ func TestGetSchema_WritableFlag(t *testing.T) {
 		WritePermission: "config:update",
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	// User with read but not update
 	schema, err := svc.GetSchema(tenantCtx(1), []string{"config:read"})
@@ -1061,9 +1113,10 @@ func TestGetSchema_WritableFlag(t *testing.T) {
 }
 
 func TestGetSchema_DependsOn_NeqCondition(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "p.mode",
 		Label:    "Mode",
 		Type:     config.FieldText,
@@ -1071,7 +1124,7 @@ func TestGetSchema_DependsOn_NeqCondition(t *testing.T) {
 		Tab:      "test",
 		Category: "deps",
 	})
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "p.manual_config",
 		Label:    "Manual Config",
 		Type:     config.FieldText,
@@ -1085,7 +1138,7 @@ func TestGetSchema_DependsOn_NeqCondition(t *testing.T) {
 		},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), []string{})
 	require.NoError(t, err)
@@ -1099,8 +1152,9 @@ func TestGetSchema_DependsOn_NeqCondition(t *testing.T) {
 }
 
 func TestSetValue_ValidationRequired(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:        "test.required",
 		Type:       config.FieldText,
 		Default:    "default",
@@ -1109,7 +1163,7 @@ func TestSetValue_ValidationRequired(t *testing.T) {
 		Validation: &config.ValidationRules{Required: true},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.required", nil, nil, nil)
 	require.Error(t, err)
@@ -1117,9 +1171,10 @@ func TestSetValue_ValidationRequired(t *testing.T) {
 }
 
 func TestSetValue_NonNumberForNumberField(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 	min := float64(1)
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:        "test.num",
 		Type:       config.FieldNumber,
 		Default:    5,
@@ -1128,7 +1183,7 @@ func TestSetValue_NonNumberForNumberField(t *testing.T) {
 		Validation: &config.ValidationRules{Min: &min},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.num", "not_a_number", nil, nil)
 	require.Error(t, err)
@@ -1138,10 +1193,11 @@ func TestSetValue_NonNumberForNumberField(t *testing.T) {
 // --- Additional coverage: typed resolver edge cases ---
 
 func TestResolveString_NonStringValue(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.numstr", config.FieldNumber, 42)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.numstr", config.FieldNumber, 42)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	// Default is int 42, ResolveString should convert it
 	val, err := svc.ResolveString(tenantCtx(1), "test.numstr")
@@ -1150,26 +1206,29 @@ func TestResolveString_NonStringValue(t *testing.T) {
 }
 
 func TestResolveString_ErrorFromResolve(t *testing.T) {
-	setupTest(t)
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	t.Parallel()
+	registry := setupTest(t)
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	_, err := svc.ResolveString(tenantCtx(1), "nonexistent")
 	require.Error(t, err)
 }
 
 func TestResolveBool_ErrorFromResolve(t *testing.T) {
-	setupTest(t)
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	t.Parallel()
+	registry := setupTest(t)
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	_, err := svc.ResolveBool(tenantCtx(1), "nonexistent")
 	require.Error(t, err)
 }
 
 func TestResolveBool_NonBoolValue(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.notbool", config.FieldText, "hello")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.notbool", config.FieldText, "hello")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveBool(tenantCtx(1), "test.notbool")
 	require.Error(t, err) // type mismatch now returns an error
@@ -1177,18 +1236,20 @@ func TestResolveBool_NonBoolValue(t *testing.T) {
 }
 
 func TestResolveInt_ErrorFromResolve(t *testing.T) {
-	setupTest(t)
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	t.Parallel()
+	registry := setupTest(t)
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	_, err := svc.ResolveInt(tenantCtx(1), "nonexistent")
 	require.Error(t, err)
 }
 
 func TestResolveInt_NonNumericValue(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.notint", config.FieldText, "hello")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.notint", config.FieldText, "hello")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	val, err := svc.ResolveInt(tenantCtx(1), "test.notint")
 	require.Error(t, err) // type mismatch now returns an error
@@ -1196,8 +1257,9 @@ func TestResolveInt_NonNumericValue(t *testing.T) {
 }
 
 func TestResolveInt_IntValue(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.intval", config.FieldNumber, 0)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.intval", config.FieldNumber, 0)
 
 	repo := newMockValueRepo()
 	repo.values["1:test.intval"] = &config.SettingValue{
@@ -1206,7 +1268,7 @@ func TestResolveInt_IntValue(t *testing.T) {
 	}
 	repo.values["1:test.intval"].TenantID = 1
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	val, err := svc.ResolveInt(tenantCtx(1), "test.intval")
 	require.NoError(t, err)
@@ -1214,12 +1276,13 @@ func TestResolveInt_IntValue(t *testing.T) {
 }
 
 func TestSetValue_RepoUpsertError(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
 	repo := newMockValueRepo()
 	repo.err = fmt.Errorf("upsert failed")
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil, nil)
 	require.Error(t, err)
@@ -1227,12 +1290,13 @@ func TestSetValue_RepoUpsertError(t *testing.T) {
 }
 
 func TestResetValue_RepoDeleteError(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
 	repo := newMockValueRepo()
 	repo.err = fmt.Errorf("delete failed")
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	err := svc.ResetValue(tenantCtx(1), "test.val", nil, nil)
 	require.Error(t, err)
@@ -1240,11 +1304,12 @@ func TestResetValue_RepoDeleteError(t *testing.T) {
 }
 
 func TestSetValue_NilChangedBy(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
 	auditRepo := &mockAuditRepo{}
-	svc := createService(newMockValueRepo(), auditRepo)
+	svc := createService(registry, newMockValueRepo(), auditRepo)
 
 	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil, nil)
 	require.NoError(t, err)
@@ -1253,11 +1318,12 @@ func TestSetValue_NilChangedBy(t *testing.T) {
 }
 
 func TestResetValue_AuditError_DoesNotFail(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
 	auditRepo := &mockAuditRepo{err: fmt.Errorf("audit write failed")}
-	svc := createService(newMockValueRepo(), auditRepo)
+	svc := createService(registry, newMockValueRepo(), auditRepo)
 
 	// Should succeed even if audit fails
 	err := svc.ResetValue(tenantCtx(1), "test.val", nil, nil)
@@ -1269,10 +1335,11 @@ func TestResetValue_AuditError_DoesNotFail(t *testing.T) {
 // =============================================================================
 
 func TestSetValue_BooleanRejectsString(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.flag", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.flag", config.FieldBoolean, true)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.flag", "yes", nil, nil)
 	require.Error(t, err)
@@ -1280,20 +1347,22 @@ func TestSetValue_BooleanRejectsString(t *testing.T) {
 }
 
 func TestSetValue_BooleanAcceptsBool(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.flag", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.flag", config.FieldBoolean, true)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.flag", false, nil, nil)
 	require.NoError(t, err)
 }
 
 func TestSetValue_TimeRejectsInvalidFormat(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.time", config.FieldTime, "18:00")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.time", config.FieldTime, "18:00")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.time", "25:99", nil, nil)
 	require.Error(t, err)
@@ -1301,10 +1370,11 @@ func TestSetValue_TimeRejectsInvalidFormat(t *testing.T) {
 }
 
 func TestSetValue_TimeRejectsNonString(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.time", config.FieldTime, "18:00")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.time", config.FieldTime, "18:00")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.time", 1800, nil, nil)
 	require.Error(t, err)
@@ -1312,20 +1382,22 @@ func TestSetValue_TimeRejectsNonString(t *testing.T) {
 }
 
 func TestSetValue_TimeAcceptsValidTime(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.time", config.FieldTime, "18:00")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.time", config.FieldTime, "18:00")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.time", "14:30", nil, nil)
 	require.NoError(t, err)
 }
 
 func TestSetValue_DateRejectsInvalidFormat(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.date", config.FieldDate, "")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.date", config.FieldDate, "")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.date", "01.08.2026", nil, nil)
 	require.Error(t, err)
@@ -1333,28 +1405,31 @@ func TestSetValue_DateRejectsInvalidFormat(t *testing.T) {
 }
 
 func TestSetValue_DateAcceptsValidDate(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.date", config.FieldDate, "")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.date", config.FieldDate, "")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.date", "2026-08-01", nil, nil)
 	require.NoError(t, err)
 }
 
 func TestSetValue_DateAcceptsEmptyDate(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.date", config.FieldDate, "")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.date", config.FieldDate, "")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.date", "", nil, nil)
 	require.NoError(t, err)
 }
 
 func TestSetValue_SelectRejectsInvalidOption(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:      "test.sel",
 		Type:     config.FieldSelect,
 		Default:  "a",
@@ -1368,7 +1443,7 @@ func TestSetValue_SelectRejectsInvalidOption(t *testing.T) {
 		},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.sel", "c", nil, nil)
 	require.Error(t, err)
@@ -1376,8 +1451,9 @@ func TestSetValue_SelectRejectsInvalidOption(t *testing.T) {
 }
 
 func TestSetValue_SelectAcceptsValidOption(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:      "test.sel",
 		Type:     config.FieldSelect,
 		Default:  "a",
@@ -1391,17 +1467,18 @@ func TestSetValue_SelectAcceptsValidOption(t *testing.T) {
 		},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.sel", "b", nil, nil)
 	require.NoError(t, err)
 }
 
 func TestSetValue_TextRejectsNonString(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.text", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.text", config.FieldText, "default")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "test.text", 123, nil, nil)
 	require.Error(t, err)
@@ -1409,9 +1486,10 @@ func TestSetValue_TextRejectsNonString(t *testing.T) {
 }
 
 func TestSetValue_TextPatternValidation(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 	pattern := `^\d{1,4}$`
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:        "payroll.lohnart_test",
 		Label:      "Lohnart",
 		Type:       config.FieldText,
@@ -1421,7 +1499,7 @@ func TestSetValue_TextPatternValidation(t *testing.T) {
 		Validation: &config.ValidationRules{Pattern: &pattern, AllowEmpty: true},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	for _, tc := range []struct {
 		name    string
@@ -1450,9 +1528,10 @@ func TestSetValue_TextPatternValidation(t *testing.T) {
 // =============================================================================
 
 func TestSetValue_PINRejectsMoreThan4Digits(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 	pinPattern := `^\d{4}$`
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:        "security.ogs_device_pin",
 		Label:      "PIN",
 		Type:       config.FieldPassword,
@@ -1462,7 +1541,7 @@ func TestSetValue_PINRejectsMoreThan4Digits(t *testing.T) {
 		Validation: &config.ValidationRules{Pattern: &pinPattern},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "123456", nil, nil)
 	require.Error(t, err)
@@ -1470,9 +1549,10 @@ func TestSetValue_PINRejectsMoreThan4Digits(t *testing.T) {
 }
 
 func TestSetValue_PINRejectsNonNumeric(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 	pinPattern := `^\d{4}$`
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:        "security.ogs_device_pin",
 		Label:      "PIN",
 		Type:       config.FieldPassword,
@@ -1482,7 +1562,7 @@ func TestSetValue_PINRejectsNonNumeric(t *testing.T) {
 		Validation: &config.ValidationRules{Pattern: &pinPattern},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "abcd", nil, nil)
 	require.Error(t, err)
@@ -1490,9 +1570,10 @@ func TestSetValue_PINRejectsNonNumeric(t *testing.T) {
 }
 
 func TestSetValue_PINAccepts4Digits(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 	pinPattern := `^\d{4}$`
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:        "security.ogs_device_pin",
 		Label:      "PIN",
 		Type:       config.FieldPassword,
@@ -1502,16 +1583,17 @@ func TestSetValue_PINAccepts4Digits(t *testing.T) {
 		Validation: &config.ValidationRules{Pattern: &pinPattern},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "1234", nil, nil)
 	require.NoError(t, err)
 }
 
 func TestSetValue_PINRejectsEmpty(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 	pinPattern := `^\d{4}$`
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:        "security.ogs_device_pin",
 		Label:      "PIN",
 		Type:       config.FieldPassword,
@@ -1521,7 +1603,7 @@ func TestSetValue_PINRejectsEmpty(t *testing.T) {
 		Validation: &config.ValidationRules{Pattern: &pinPattern},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.SetValue(tenantCtx(1), "security.ogs_device_pin", "", nil, nil)
 	require.Error(t, err)
@@ -1533,8 +1615,9 @@ func TestSetValue_PINRejectsEmpty(t *testing.T) {
 // =============================================================================
 
 func TestSetValue_PermissionDenied(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:             "admin.setting",
 		Label:           "Admin",
 		Type:            config.FieldText,
@@ -1544,20 +1627,21 @@ func TestSetValue_PermissionDenied(t *testing.T) {
 		WritePermission: "config:manage",
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	// User with config:update but NOT config:manage
 	err := svc.SetValue(tenantCtx(1), "admin.setting", "new", nil, []string{"config:update"})
 	require.Error(t, err)
 
-	var permErr *configSvc.PermissionDeniedError
+	var permErr *PermissionDeniedError
 	assert.ErrorAs(t, err, &permErr)
 	assert.Equal(t, "config:manage", permErr.RequiredPermission)
 }
 
 func TestSetValue_PermissionGranted(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:             "admin.setting",
 		Label:           "Admin",
 		Type:            config.FieldText,
@@ -1567,7 +1651,7 @@ func TestSetValue_PermissionGranted(t *testing.T) {
 		WritePermission: "config:manage",
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	// User WITH config:manage
 	err := svc.SetValue(tenantCtx(1), "admin.setting", "new", nil, []string{"config:update", "config:manage"})
@@ -1575,8 +1659,9 @@ func TestSetValue_PermissionGranted(t *testing.T) {
 }
 
 func TestSetValue_NilPermissions_SkipsCheck(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:             "admin.setting",
 		Label:           "Admin",
 		Type:            config.FieldText,
@@ -1586,7 +1671,7 @@ func TestSetValue_NilPermissions_SkipsCheck(t *testing.T) {
 		WritePermission: "config:manage",
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	// nil permissions = system caller, skips check
 	err := svc.SetValue(tenantCtx(1), "admin.setting", "new", nil, nil)
@@ -1594,8 +1679,9 @@ func TestSetValue_NilPermissions_SkipsCheck(t *testing.T) {
 }
 
 func TestResetValue_PermissionDenied(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:             "admin.setting",
 		Label:           "Admin",
 		Type:            config.FieldText,
@@ -1605,12 +1691,12 @@ func TestResetValue_PermissionDenied(t *testing.T) {
 		WritePermission: "config:manage",
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	err := svc.ResetValue(tenantCtx(1), "admin.setting", nil, []string{"config:update"})
 	require.Error(t, err)
 
-	var permErr *configSvc.PermissionDeniedError
+	var permErr *PermissionDeniedError
 	assert.ErrorAs(t, err, &permErr)
 }
 
@@ -1619,8 +1705,9 @@ func TestResetValue_PermissionDenied(t *testing.T) {
 // =============================================================================
 
 func TestHasTenantOverride_ReturnsTrueWhenExists(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
 	repo := newMockValueRepo()
 	repo.values["1:test.val"] = &config.SettingValue{
@@ -1629,7 +1716,7 @@ func TestHasTenantOverride_ReturnsTrueWhenExists(t *testing.T) {
 	}
 	repo.values["1:test.val"].TenantID = 1
 
-	svc := createService(repo, &mockAuditRepo{})
+	svc := createService(registry, repo, &mockAuditRepo{})
 
 	has, err := svc.HasTenantOverride(tenantCtx(1), "test.val")
 	require.NoError(t, err)
@@ -1637,10 +1724,11 @@ func TestHasTenantOverride_ReturnsTrueWhenExists(t *testing.T) {
 }
 
 func TestHasTenantOverride_ReturnsFalseWhenNotExists(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	has, err := svc.HasTenantOverride(tenantCtx(1), "test.val")
 	require.NoError(t, err)
@@ -1648,10 +1736,11 @@ func TestHasTenantOverride_ReturnsFalseWhenNotExists(t *testing.T) {
 }
 
 func TestHasTenantOverride_ReturnsFalseWithNoTenant(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.val", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.val", config.FieldText, "default")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	has, err := svc.HasTenantOverride(context.Background(), "test.val")
 	require.NoError(t, err)
@@ -1663,9 +1752,10 @@ func TestHasTenantOverride_ReturnsFalseWithNoTenant(t *testing.T) {
 // =============================================================================
 
 func TestGetSchema_EmptyPasswordNotMasked(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "security.pin",
 		Label:    "PIN",
 		Type:     config.FieldPassword,
@@ -1675,7 +1765,7 @@ func TestGetSchema_EmptyPasswordNotMasked(t *testing.T) {
 	})
 
 	// No override — empty default should NOT be masked
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	schema, err := svc.GetSchema(tenantCtx(1), []string{})
 	require.NoError(t, err)
@@ -1690,10 +1780,11 @@ func TestGetSchema_EmptyPasswordNotMasked(t *testing.T) {
 // =============================================================================
 
 func TestSetValue_NoTenantContext(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.guard", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.guard", config.FieldText, "default")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	// context.Background() has no tenant
 	err := svc.SetValue(context.Background(), "test.guard", "value", nil, nil)
 	require.Error(t, err)
@@ -1701,10 +1792,11 @@ func TestSetValue_NoTenantContext(t *testing.T) {
 }
 
 func TestResetValue_NoTenantContext(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.guard", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.guard", config.FieldText, "default")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	err := svc.ResetValue(context.Background(), "test.guard", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no tenant context")
@@ -1715,20 +1807,22 @@ func TestResetValue_NoTenantContext(t *testing.T) {
 // =============================================================================
 
 func TestResolveInt_FractionalFloat(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.frac", config.FieldNumber, 30.5)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.frac", config.FieldNumber, 30.5)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	_, err := svc.ResolveInt(tenantCtx(1), "test.frac")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fractional part")
 }
 
 func TestResolveInt_WholeFloat(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.whole", config.FieldNumber, 30.0)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.whole", config.FieldNumber, 30.0)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	val, err := svc.ResolveInt(tenantCtx(1), "test.whole")
 	require.NoError(t, err)
 	assert.Equal(t, 30, val)
@@ -1739,28 +1833,31 @@ func TestResolveInt_WholeFloat(t *testing.T) {
 // =============================================================================
 
 func TestResolveString_NonStringCoercion(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.coerce", config.FieldNumber, 42)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.coerce", config.FieldNumber, 42)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	val, err := svc.ResolveString(tenantCtx(1), "test.coerce")
 	require.NoError(t, err)
 	assert.Equal(t, "42", val)
 }
 
 func TestResolveString_NilValue(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.nilstr", config.FieldText, nil)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.nilstr", config.FieldText, nil)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	val, err := svc.ResolveString(tenantCtx(1), "test.nilstr")
 	require.NoError(t, err)
 	assert.Equal(t, "", val)
 }
 
 func TestSetValue_SelectRejectsInvalidWithMarshalable(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:      "test.sel2",
 		Label:    "Sel2",
 		Type:     config.FieldSelect,
@@ -1775,25 +1872,27 @@ func TestSetValue_SelectRejectsInvalidWithMarshalable(t *testing.T) {
 		},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	err := svc.SetValue(tenantCtx(1), "test.sel2", "c", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a valid option")
 }
 
 func TestHasTenantOverride_NoTenantContext(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.override", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.override", config.FieldText, "default")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	has, err := svc.HasTenantOverride(context.Background(), "test.override")
 	require.NoError(t, err)
 	assert.False(t, has)
 }
 
 func TestSetValue_RequiredFieldRejectsNil(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:        "test.required",
 		Label:      "Required",
 		Type:       config.FieldText,
@@ -1803,45 +1902,49 @@ func TestSetValue_RequiredFieldRejectsNil(t *testing.T) {
 		Validation: &config.ValidationRules{Required: true},
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	err := svc.SetValue(tenantCtx(1), "test.required", nil, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "required")
 }
 
 func TestSetValue_BoolRejectsNonBool(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.boolval", config.FieldBoolean, true)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.boolval", config.FieldBoolean, true)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	err := svc.SetValue(tenantCtx(1), "test.boolval", "not a bool", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected a boolean")
 }
 
 func TestSetValue_TimeRejectsNumericValue(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.timeval", config.FieldTime, "12:00")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.timeval", config.FieldTime, "12:00")
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	err := svc.SetValue(tenantCtx(1), "test.timeval", 123, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected a time string")
 }
 
 func TestSetValue_NumberRejectsString(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.numval", config.FieldNumber, 10)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.numval", config.FieldNumber, 10)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	err := svc.SetValue(tenantCtx(1), "test.numval", "not a number", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected a number")
 }
 
 func TestSetValue_PasswordRejectsNumeric(t *testing.T) {
-	setupTest(t)
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
 		Key:      "test.pwd",
 		Label:    "Password",
 		Type:     config.FieldPassword,
@@ -1850,81 +1953,77 @@ func TestSetValue_PasswordRejectsNumeric(t *testing.T) {
 		Category: "test",
 	})
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	err := svc.SetValue(tenantCtx(1), "test.pwd", 12345, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected a string")
 }
 
 func TestResolveString_UnknownKey(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	_, err := svc.ResolveString(tenantCtx(1), "nonexistent.key")
 	require.Error(t, err)
 }
 
-// --- Mock school repository for login image tests ---
+// --- Mock school-settings store for login image tests ---
 
-// newMockSchoolRepo wires a testpkg.SchoolRepoMock to reproduce the exact
-// behavior of the old hand-rolled mockSchoolRepo: FindByID (and its
-// ForShare/ForUpdate aliases) return the stored school when its ID matches,
-// "school not found" otherwise, or err when set; Update stores the new
-// school (mutating what subsequent FindByID calls return); Create returns
-// err. All other methods keep the SchoolRepoMock zero-value defaults
-// (nil, nil / 0, nil), matching the old mock's always-nil behavior.
-func newMockSchoolRepo(school *platform.School, err error) *testpkg.SchoolRepoMock {
-	m := &testpkg.SchoolRepoMock{}
-	current := school
+type mockSchoolSettingsStore struct {
+	id       int64
+	settings string
+	err      error
+}
 
-	findByID := func(_ context.Context, id int64) (*platform.School, error) {
-		if err != nil {
-			return nil, err
-		}
-		if current == nil || current.ID != id {
-			return nil, fmt.Errorf("school not found")
-		}
-		return current, nil
+func newMockSchoolRepo(school *mockSchoolSettingsStore, err error) *mockSchoolSettingsStore {
+	if school == nil {
+		school = &mockSchoolSettingsStore{}
 	}
+	school.err = err
+	return school
+}
 
-	m.FindByIDFn = findByID
-	m.FindByIDForShareFn = findByID
-	m.FindByIDForUpdateFn = findByID
-	m.CreateFn = func(_ context.Context, _ *platform.School) error {
+func (s *mockSchoolSettingsStore) FindSettings(_ context.Context, schoolID int64) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	if s.id != schoolID {
+		return "", fmt.Errorf("school not found")
+	}
+	return s.settings, nil
+}
+
+func (s *mockSchoolSettingsStore) UpdateSettings(_ context.Context, schoolID int64, update func(string) (string, error)) error {
+	settings, err := s.FindSettings(context.Background(), schoolID)
+	if err != nil {
 		return err
 	}
-	m.UpdateFn = func(_ context.Context, s *platform.School) error {
-		if err != nil {
-			return err
-		}
-		current = s
-		return nil
-	}
-
-	return m
+	s.settings, err = update(settings)
+	return err
 }
 
 func createServiceWithSchoolRepo(
+	registry *config.Registry,
 	valueRepo config.SettingValueRepository,
 	auditRepo config.SettingAuditRepository,
-	schoolRepo platform.SchoolRepository,
-) configSvc.SettingsService {
-	return configSvc.NewSettingsService(valueRepo, auditRepo, schoolRepo, nil, slog.Default())
+	schoolRepo SchoolSettingsStore,
+) SettingsService {
+	return NewSettingsService(valueRepo, auditRepo, schoolRepo, testSettingsRuntime{}, slog.Default(), registry)
 }
 
-func newSchool(id int64, settings string) *platform.School {
-	s := &platform.School{Settings: settings}
-	s.ID = id
-	return s
+func newSchool(id int64, settings string) *mockSchoolSettingsStore {
+	return &mockSchoolSettingsStore{id: id, settings: settings}
 }
 
 // --- Login image tests ---
 
 func TestGetLoginImageURL_NoImage(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
 	schoolRepo := newMockSchoolRepo(newSchool(42, ""), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+	svc := createServiceWithSchoolRepo(registry, newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
 	require.NoError(t, err)
@@ -1932,10 +2031,11 @@ func TestGetLoginImageURL_NoImage(t *testing.T) {
 }
 
 func TestGetLoginImageURL_EmptyObject(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
 	schoolRepo := newMockSchoolRepo(newSchool(42, "{}"), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+	svc := createServiceWithSchoolRepo(registry, newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
 	require.NoError(t, err)
@@ -1943,10 +2043,11 @@ func TestGetLoginImageURL_EmptyObject(t *testing.T) {
 }
 
 func TestGetLoginImageURL_NullLiteral(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
 	schoolRepo := newMockSchoolRepo(newSchool(42, "null"), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+	svc := createServiceWithSchoolRepo(registry, newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
 	require.NoError(t, err)
@@ -1954,11 +2055,12 @@ func TestGetLoginImageURL_NullLiteral(t *testing.T) {
 }
 
 func TestGetLoginImageURL_WithImage(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
 	settings := `{"loginImageUrl":"/uploads/tenant/42/login.jpg","other":"value"}`
 	schoolRepo := newMockSchoolRepo(newSchool(42, settings), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+	svc := createServiceWithSchoolRepo(registry, newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
 	require.NoError(t, err)
@@ -1966,32 +2068,23 @@ func TestGetLoginImageURL_WithImage(t *testing.T) {
 }
 
 func TestGetLoginImageURL_InvalidTenantID(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
 	schoolRepo := newMockSchoolRepo(newSchool(42, `{"loginImageUrl":"/img.jpg"}`), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+	svc := createServiceWithSchoolRepo(registry, newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 0)
 	require.NoError(t, err)
 	assert.Equal(t, "", url)
 }
 
-func TestGetLoginImageURL_NegativeTenantID(t *testing.T) {
-	setupTest(t)
-
-	schoolRepo := newMockSchoolRepo(newSchool(42, `{"loginImageUrl":"/img.jpg"}`), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
-
-	url, err := svc.GetLoginImageURL(context.Background(), -1)
-	require.NoError(t, err)
-	assert.Equal(t, "", url)
-}
-
 func TestGetLoginImageURL_CorruptJSON(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
 	schoolRepo := newMockSchoolRepo(newSchool(42, "not json"), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+	svc := createServiceWithSchoolRepo(registry, newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	_, err := svc.GetLoginImageURL(context.Background(), 42)
 	require.Error(t, err)
@@ -1999,10 +2092,11 @@ func TestGetLoginImageURL_CorruptJSON(t *testing.T) {
 }
 
 func TestGetLoginImageURL_RepoError(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
 	schoolRepo := newMockSchoolRepo(nil, fmt.Errorf("database connection lost"))
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+	svc := createServiceWithSchoolRepo(registry, newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	_, err := svc.GetLoginImageURL(context.Background(), 42)
 	require.Error(t, err)
@@ -2010,164 +2104,15 @@ func TestGetLoginImageURL_RepoError(t *testing.T) {
 }
 
 func TestGetLoginImageURL_SettingsWithOtherKeysButNoImage(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 
 	schoolRepo := newMockSchoolRepo(newSchool(42, `{"theme":"dark","lang":"de"}`), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
+	svc := createServiceWithSchoolRepo(registry, newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
 	require.NoError(t, err)
 	assert.Equal(t, "", url)
-}
-
-// --- SetLoginImageURL / ClearLoginImageURL integration tests ---
-// These require a real DB because updateSchoolSetting uses tenant.WithAdminTx.
-
-func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *platform.School, func()) {
-	t.Helper()
-
-	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.Ctx(t)
-
-	// Create a dedicated org + school to avoid polluting shared test state.
-	// IDs from the unique-tenant counter, not from time.Now().UnixNano(): two
-	// parallel tests entering this helper in the same microsecond collided on
-	// organizations_pkey (#2419).
-	orgID := testpkg.UniqueTestTenantID(t)
-	schoolID := testpkg.UniqueTestTenantID(t)
-	orgRepo := platformRepo.NewOrganizationRepository(db)
-	org := &platform.Organization{
-		Model:  modelBase.Model{ID: orgID},
-		Name:   fmt.Sprintf("LoginImgOrg %d", orgID),
-		Slug:   fmt.Sprintf("loginimg-org-%d", orgID),
-		Active: true,
-	}
-	require.NoError(t, orgRepo.Create(ctx, org))
-
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	school := &platform.School{
-		Model:          modelBase.Model{ID: schoolID},
-		OrganizationID: org.ID,
-		Name:           fmt.Sprintf("LoginImgSchool %d", schoolID),
-		Slug:           fmt.Sprintf("loginimg-%d", schoolID),
-		Subdomain:      fmt.Sprintf("loginimg-%d", schoolID),
-		Active:         true,
-	}
-	require.NoError(t, schoolRepo.Create(ctx, school))
-
-	svc := configSvc.NewSettingsService(
-		newMockValueRepo(), &mockAuditRepo{}, schoolRepo, db, slog.Default(),
-	)
-
-	cleanup := func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, school.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
-	}
-
-	return svc, school, cleanup
-}
-
-func TestSetLoginImageURL_Success(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	imageURL := "/uploads/login-images/test_abc.jpg"
-	oldURL, err := svc.SetLoginImageURL(context.Background(), school.ID, imageURL)
-	require.NoError(t, err)
-	assert.Equal(t, "", oldURL, "first set should return empty old URL")
-
-	// Verify it was persisted
-	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, imageURL, got)
-}
-
-func TestSetLoginImageURL_ReplacesExisting(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	first := "/uploads/login-images/first.jpg"
-	second := "/uploads/login-images/second.jpg"
-
-	_, err := svc.SetLoginImageURL(context.Background(), school.ID, first)
-	require.NoError(t, err)
-
-	oldURL, err := svc.SetLoginImageURL(context.Background(), school.ID, second)
-	require.NoError(t, err)
-	assert.Equal(t, first, oldURL, "should return previous URL for cleanup")
-
-	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, second, got)
-}
-
-func TestSetLoginImageURL_PreservesOtherSettings(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	// Pre-populate the school with other settings via direct SQL
-	ctx := testpkg.Ctx(t)
-	db := testpkg.SetupTestDB(t)
-	_, err := db.ExecContext(ctx,
-		`UPDATE platform.schools SET settings = '{"theme":"dark","lang":"de"}' WHERE id = ?`,
-		school.ID)
-	require.NoError(t, err)
-
-	imageURL := "/uploads/login-images/preserve.jpg"
-	_, err = svc.SetLoginImageURL(context.Background(), school.ID, imageURL)
-	require.NoError(t, err)
-
-	// Verify other keys survived the update
-	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, imageURL, got)
-}
-
-func TestClearLoginImageURL_Success(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	imageURL := "/uploads/login-images/to-clear.jpg"
-	_, err := svc.SetLoginImageURL(context.Background(), school.ID, imageURL)
-	require.NoError(t, err)
-
-	oldURL, err := svc.ClearLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, imageURL, oldURL, "should return removed URL for cleanup")
-
-	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "", got, "image should be removed")
-}
-
-func TestClearLoginImageURL_NoExistingImage(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	oldURL, err := svc.ClearLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "", oldURL, "clearing when no image exists should return empty")
-}
-
-func TestSetLoginImageURL_NonexistentSchool(t *testing.T) {
-	t.Parallel()
-
-	svc, _, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	_, err := svc.SetLoginImageURL(context.Background(), 999999999, "/uploads/test.jpg")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "find school")
 }
 
 // TestSetValue_SlotListCutoffPair_CrossFieldValidation covers the #1565-review
@@ -2176,15 +2121,16 @@ func TestSetLoginImageURL_NonexistentSchool(t *testing.T) {
 // 500 every pickup list). A valid pair, and any pair reached in a consistent
 // edit order, is accepted.
 func TestSetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
-	registerCutoffs := func() {
-		registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
-		registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
+	t.Parallel()
+	registerCutoffs := func(registry *config.Registry) {
+		registerTestSetting(registry, config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
+		registerTestSetting(registry, config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
 	}
 
 	t.Run("long cutoff not after short is rejected", func(t *testing.T) {
-		setupTest(t)
-		registerCutoffs()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCutoffs(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 		err := svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "14:00", nil, nil)
 		require.Error(t, err)
@@ -2192,9 +2138,9 @@ func TestSetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
 	})
 
 	t.Run("equal cutoffs are rejected", func(t *testing.T) {
-		setupTest(t)
-		registerCutoffs()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCutoffs(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 		err := svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "16:00", nil, nil)
 		require.Error(t, err)
@@ -2202,18 +2148,18 @@ func TestSetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
 	})
 
 	t.Run("valid pair is accepted", func(t *testing.T) {
-		setupTest(t)
-		registerCutoffs()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCutoffs(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "17:00", nil, nil))
 	})
 
 	t.Run("window can be shifted later via a consistent edit order", func(t *testing.T) {
-		setupTest(t)
-		registerCutoffs()
+		registry := setupTest(t)
+		registerCutoffs(registry)
 		repo := newMockValueRepo()
-		svc := createService(repo, &mockAuditRepo{})
+		svc := createService(registry, repo, &mockAuditRepo{})
 
 		// Setting the short cutoff past the current long cutoff first is refused,
 		// but setting the long cutoff first, then the short cutoff, succeeds.
@@ -2228,16 +2174,17 @@ func TestSetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
 // invert the effective pair even though SetValue guards it. The reset must be
 // validated the same way, or it 500s every pickup list until repaired.
 func TestResetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
-	registerCutoffs := func() {
-		registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
-		registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
+	t.Parallel()
+	registerCutoffs := func(registry *config.Registry) {
+		registerTestSetting(registry, config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
+		registerTestSetting(registry, config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
 	}
 
 	t.Run("reset that inverts the effective pair is rejected", func(t *testing.T) {
-		setupTest(t)
-		registerCutoffs()
+		registry := setupTest(t)
+		registerCutoffs(registry)
 		repo := newMockValueRepo()
-		svc := createService(repo, &mockAuditRepo{})
+		svc := createService(registry, repo, &mockAuditRepo{})
 
 		// Valid overrides: short 18:00, long 19:00.
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
@@ -2256,10 +2203,10 @@ func TestResetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
 	})
 
 	t.Run("reset that keeps a valid pair is accepted", func(t *testing.T) {
-		setupTest(t)
-		registerCutoffs()
+		registry := setupTest(t)
+		registerCutoffs(registry)
 		repo := newMockValueRepo()
-		svc := createService(repo, &mockAuditRepo{})
+		svc := createService(registry, repo, &mockAuditRepo{})
 
 		// Valid overrides: short 18:00, long 19:00. Resetting the short cutoff
 		// restores 14:30, which is still before the long 19:00 → allowed.
@@ -2278,7 +2225,7 @@ func TestResetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
 // settings service via the exported setter on the concrete type (reachable
 // from this external test package through an interface assertion, the same
 // way the factory wires it).
-func setClassRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restricted bool) {
+func setClassRestrictionGuard(t *testing.T, svc SettingsService, restricted bool) {
 	t.Helper()
 	guarded, ok := svc.(interface {
 		SetClassRestrictionGuard(func(context.Context) (bool, error))
@@ -2294,15 +2241,16 @@ func setClassRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restr
 // the eligibility gate rejects every submission with class_not_eligible. This
 // is the inverse of the phase-side validateEligibleClassesCollectable guard.
 func TestSetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
-	registerCollectionKeys := func() {
-		registerTestSetting(config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
-		registerTestSetting(config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, true)
+	t.Parallel()
+	registerCollectionKeys := func(registry *config.Registry) {
+		registerTestSetting(registry, config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
+		registerTestSetting(registry, config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, true)
 	}
 
 	t.Run("disabling concrete-class collection is rejected while a restricted phase exists", func(t *testing.T) {
-		setupTest(t)
-		registerCollectionKeys()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCollectionKeys(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setClassRestrictionGuard(t, svc, true)
 
 		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil)
@@ -2311,9 +2259,9 @@ func TestSetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
 	})
 
 	t.Run("disabling grade-level collection is likewise rejected", func(t *testing.T) {
-		setupTest(t)
-		registerCollectionKeys()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCollectionKeys(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setClassRestrictionGuard(t, svc, true)
 
 		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, false, nil, nil)
@@ -2322,27 +2270,27 @@ func TestSetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
 	})
 
 	t.Run("keeping collection effective is allowed even with a restricted phase", func(t *testing.T) {
-		setupTest(t)
-		registerCollectionKeys()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCollectionKeys(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setClassRestrictionGuard(t, svc, true)
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, true, nil, nil))
 	})
 
 	t.Run("disabling is allowed when no restricted phase exists", func(t *testing.T) {
-		setupTest(t)
-		registerCollectionKeys()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCollectionKeys(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setClassRestrictionGuard(t, svc, false)
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil))
 	})
 
 	t.Run("no guard wired skips the check", func(t *testing.T) {
-		setupTest(t)
-		registerCollectionKeys()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCollectionKeys(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil))
 	})
@@ -2353,12 +2301,13 @@ func TestSetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
 // registry default, which can disable collection even though SetValue guards
 // it. The reset must be validated the same way and the override must survive.
 func TestResetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
-	setupTest(t)
+	t.Parallel()
+	registry := setupTest(t)
 	// grade default true, class default false: resetting class restores false,
 	// which disables concrete-class collection.
-	registerTestSetting(config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
-	registerTestSetting(config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, false)
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	registerTestSetting(registry, config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
+	registerTestSetting(registry, config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, false)
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	// Enable the class override first (no restricted phase yet, so allowed).
 	setClassRestrictionGuard(t, svc, false)
@@ -2378,7 +2327,7 @@ func TestResetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
 
 // setGradeRestrictionGuard wires the enrollment grade-restriction probe, the
 // counterpart of setClassRestrictionGuard above (#1663).
-func setGradeRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restricted bool) {
+func setGradeRestrictionGuard(t *testing.T, svc SettingsService, restricted bool) {
 	t.Helper()
 	guarded, ok := svc.(interface {
 		SetGradeRestrictionGuard(func(context.Context) (bool, error))
@@ -2393,15 +2342,16 @@ func setGradeRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restr
 // toggle must be refused, while disabling concrete-class collection stays
 // allowed for such a phase.
 func TestSetValue_GradeCollectionGuard_CrossFieldValidation(t *testing.T) {
-	registerCollectionKeys := func() {
-		registerTestSetting(config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
-		registerTestSetting(config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, true)
+	t.Parallel()
+	registerCollectionKeys := func(registry *config.Registry) {
+		registerTestSetting(registry, config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
+		registerTestSetting(registry, config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, true)
 	}
 
 	t.Run("disabling grade-level collection is rejected while a grade-restricted phase exists", func(t *testing.T) {
-		setupTest(t)
-		registerCollectionKeys()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCollectionKeys(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setGradeRestrictionGuard(t, svc, true)
 
 		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, false, nil, nil)
@@ -2410,9 +2360,9 @@ func TestSetValue_GradeCollectionGuard_CrossFieldValidation(t *testing.T) {
 	})
 
 	t.Run("disabling concrete-class collection stays allowed for a grade-restricted phase", func(t *testing.T) {
-		setupTest(t)
-		registerCollectionKeys()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCollectionKeys(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setGradeRestrictionGuard(t, svc, true)
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil),
@@ -2420,18 +2370,18 @@ func TestSetValue_GradeCollectionGuard_CrossFieldValidation(t *testing.T) {
 	})
 
 	t.Run("enabling grade-level collection is never blocked", func(t *testing.T) {
-		setupTest(t)
-		registerCollectionKeys()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCollectionKeys(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setGradeRestrictionGuard(t, svc, true)
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, true, nil, nil))
 	})
 
 	t.Run("disabling is allowed when no grade-restricted phase exists", func(t *testing.T) {
-		setupTest(t)
-		registerCollectionKeys()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCollectionKeys(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setGradeRestrictionGuard(t, svc, false)
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, false, nil, nil))
@@ -2440,7 +2390,7 @@ func TestSetValue_GradeCollectionGuard_CrossFieldValidation(t *testing.T) {
 
 // setGradeCapGuard wires the highest-restricted-grade probe, the third #1663
 // enrollment probe next to setClassRestrictionGuard / setGradeRestrictionGuard.
-func setGradeCapGuard(t *testing.T, svc configSvc.SettingsService, highest int) {
+func setGradeCapGuard(t *testing.T, svc SettingsService, highest int) {
 	t.Helper()
 	guarded, ok := svc.(interface {
 		SetGradeCapGuard(func(context.Context) (int, error))
@@ -2454,14 +2404,15 @@ func setGradeCapGuard(t *testing.T, svc configSvc.SettingsService, highest int) 
 // itself to. The form offers grades 1..cap and submit re-checks the cap, so
 // such a phase would accept no submission at all (#1663).
 func TestSetValue_GradeLevelCapGuard_CrossFieldValidation(t *testing.T) {
-	registerCap := func() {
-		registerTestSetting(config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
+	t.Parallel()
+	registerCap := func(registry *config.Registry) {
+		registerTestSetting(registry, config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
 	}
 
 	t.Run("lowering the cap below a live grade restriction is rejected", func(t *testing.T) {
-		setupTest(t)
-		registerCap()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCap(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setGradeCapGuard(t, svc, 6)
 
 		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, 4, nil, nil)
@@ -2470,9 +2421,9 @@ func TestSetValue_GradeLevelCapGuard_CrossFieldValidation(t *testing.T) {
 	})
 
 	t.Run("lowering to exactly the restricted grade is allowed", func(t *testing.T) {
-		setupTest(t)
-		registerCap()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCap(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setGradeCapGuard(t, svc, 6)
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, 6, nil, nil),
@@ -2480,18 +2431,18 @@ func TestSetValue_GradeLevelCapGuard_CrossFieldValidation(t *testing.T) {
 	})
 
 	t.Run("raising the cap is never blocked", func(t *testing.T) {
-		setupTest(t)
-		registerCap()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCap(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setGradeCapGuard(t, svc, 6)
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, 10, nil, nil))
 	})
 
 	t.Run("no grade-restricted phase leaves the cap free", func(t *testing.T) {
-		setupTest(t)
-		registerCap()
-		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		registry := setupTest(t)
+		registerCap(registry)
+		svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 		setGradeCapGuard(t, svc, 0)
 
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentGradeLevelMax, 1, nil, nil))
@@ -2502,9 +2453,10 @@ func TestSetValue_GradeLevelCapGuard_CrossFieldValidation(t *testing.T) {
 // SetValue would — so it must be validated the same way and the override must
 // survive the rejection.
 func TestResetValue_GradeLevelCapGuard_CrossFieldValidation(t *testing.T) {
-	setupTest(t)
-	registerTestSetting(config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
-	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 
 	// Raise the cap to 6 first (no restricted phase yet, so allowed).
 	setGradeCapGuard(t, svc, 0)

@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,10 +46,6 @@ func TestPermissionRepository_LockAccountPermissionSourcesForTenant(t *testing.T
 	rolePermission := testpkg.CreateTestPermission(t, db, fmt.Sprintf("perm-lock-role-%d", unique), "perm_lock_role", "read")
 
 	// Cleanup is LIFO: the association rows go first, the tenant last.
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() { testpkg.CleanupPermissionRecords(t, db, directPermission.ID, rolePermission.ID) })
-	t.Cleanup(func() { testpkg.CleanupRoleRecords(t, db, role.ID) })
 
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
@@ -75,7 +72,7 @@ func TestPermissionRepository_LockAccountPermissionSourcesForTenant(t *testing.T
 		defer func() { _ = holder.Rollback() }()
 
 		require.NoError(t, repo.LockAccountPermissionSourcesForTenant(
-			modelBase.ContextWithTx(ctx, &holder), account.ID, tenantID))
+			tenant.WithTransactionForTest(ctx, &holder), account.ID, tenantID))
 
 		err = runWithLockTimeout(ctx, db, "200ms", func(txCtx context.Context) error {
 			_, execErr := repoBase.GetDB(txCtx, db).ExecContext(txCtx,
@@ -102,7 +99,7 @@ func TestPermissionRepository_LockAccountPermissionSourcesForTenant(t *testing.T
 		defer func() { _ = holder.Rollback() }()
 
 		require.NoError(t, repo.LockAccountPermissionSourcesForTenant(
-			modelBase.ContextWithTx(ctx, &holder), account.ID, tenantID))
+			tenant.WithTransactionForTest(ctx, &holder), account.ID, tenantID))
 
 		err = runWithLockTimeout(ctx, db, "200ms", func(txCtx context.Context) error {
 			_, execErr := repoBase.GetDB(txCtx, db).ExecContext(txCtx,
@@ -122,7 +119,7 @@ func TestPermissionRepository_LockAccountPermissionSourcesForTenant(t *testing.T
 		defer func() { _ = holder.Rollback() }()
 
 		require.NoError(t, repo.LockAccountPermissionSourcesForTenant(
-			modelBase.ContextWithTx(ctx, &holder), account.ID, tenantID))
+			tenant.WithTransactionForTest(ctx, &holder), account.ID, tenantID))
 
 		err = runWithLockTimeout(ctx, db, "500ms", func(txCtx context.Context) error {
 			return repo.LockAccountPermissionSourcesForTenant(txCtx, account.ID, tenantID)
@@ -145,7 +142,7 @@ func runWithLockTimeout(ctx context.Context, db *bun.DB, timeout string, fn func
 		return err
 	}
 
-	return fn(modelBase.ContextWithTx(ctx, &tx))
+	return fn(tenant.WithTransactionForTest(ctx, &tx))
 }
 
 // isLockTimeoutError reports whether PostgreSQL refused the lock request due to

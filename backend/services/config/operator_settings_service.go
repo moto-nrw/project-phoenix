@@ -6,11 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // errPresenceModeSwitchBlockedMsg is the German user-facing copy returned when
@@ -31,8 +27,16 @@ var ErrPresenceModeSwitchBlocked = errors.New(errPresenceModeSwitchBlockedMsg)
 // OpenAttendanceChecker reports whether any student is checked in for a given
 // calendar day. Implemented by active.Service.
 type OpenAttendanceChecker interface {
-	HasOpenAttendanceOn(ctx context.Context, day timezone.Date) (bool, error)
+	HasOpenAttendanceOn(ctx context.Context, day config.CalendarDate) (bool, error)
 }
+
+type OperatorSettingsRuntime interface {
+	WithinTenant(context.Context, int64, func(context.Context) error) error
+	AfterCommit(context.Context, func())
+	Today() config.CalendarDate
+}
+
+type SettingsChangedNotifier func(context.Context, int64, string)
 
 // OperatorValueSetHook runs in the same tenant transaction as an operator
 // setting write. The returned closure runs after commit and is meant for
@@ -56,11 +60,11 @@ type OperatorSettingsService interface {
 }
 
 type operatorSettingsService struct {
-	settings    SettingsService
-	db          *bun.DB
-	broadcaster realtime.Broadcaster
-	attendance  OpenAttendanceChecker
-	logger      *slog.Logger
+	settings   SettingsService
+	runtime    OperatorSettingsRuntime
+	notify     SettingsChangedNotifier
+	attendance OpenAttendanceChecker
+	logger     *slog.Logger
 }
 
 // NewOperatorSettingsService constructs the operator settings orchestrator.
@@ -68,8 +72,8 @@ type operatorSettingsService struct {
 // the SSE fan-out; attendance is only consulted for the presence-mode guard.
 func NewOperatorSettingsService(
 	settings SettingsService,
-	db *bun.DB,
-	broadcaster realtime.Broadcaster,
+	runtime OperatorSettingsRuntime,
+	notify SettingsChangedNotifier,
 	attendance OpenAttendanceChecker,
 	logger *slog.Logger,
 ) OperatorSettingsService {
@@ -77,11 +81,11 @@ func NewOperatorSettingsService(
 		logger = slog.Default()
 	}
 	return &operatorSettingsService{
-		settings:    settings,
-		db:          db,
-		broadcaster: broadcaster,
-		attendance:  attendance,
-		logger:      logger,
+		settings:   settings,
+		runtime:    runtime,
+		notify:     notify,
+		attendance: attendance,
+		logger:     logger,
 	}
 }
 
@@ -99,8 +103,11 @@ func (s *operatorSettingsService) SetValue(ctx context.Context, schoolID int64, 
 		)
 	}
 
-	return tenant.WithTenantTx(ctx, s.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-		if err := CheckPresenceModeSwitch(txCtx, s.attendance, key, force); err != nil {
+	if s.runtime == nil {
+		return ErrRuntimeUnavailable
+	}
+	return s.runtime.WithinTenant(ctx, schoolID, func(txCtx context.Context) error {
+		if err := CheckPresenceModeSwitch(txCtx, s.attendance, s.runtime.Today(), key, force); err != nil {
 			return err
 		}
 		if err := s.settings.SetValue(txCtx, key, value, &changedBy, nil); err != nil {
@@ -111,7 +118,7 @@ func (s *operatorSettingsService) SetValue(ctx context.Context, schoolID int64, 
 			if err != nil {
 				return err
 			}
-			tenant.RegisterAfterCommit(txCtx, cb)
+			s.runtime.AfterCommit(txCtx, cb)
 		}
 		s.scheduleBroadcast(txCtx, schoolID, key)
 		return nil
@@ -122,17 +129,20 @@ func (s *operatorSettingsService) SetValue(ctx context.Context, schoolID int64, 
 // keys that need reset-specific side effects (e.g. purging student photos when
 // student_photos_enabled resets to its default-off state).
 func (s *operatorSettingsService) ResetValue(ctx context.Context, schoolID int64, key string, changedBy int64, hook OperatorValueSetHook) error {
-	return tenant.WithTenantTx(ctx, s.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
+	if s.runtime == nil {
+		return ErrRuntimeUnavailable
+	}
+	return s.runtime.WithinTenant(ctx, schoolID, func(txCtx context.Context) error {
 		if err := s.settings.ResetValue(txCtx, key, &changedBy, nil); err != nil {
 			return err
 		}
 		if hook != nil && resetReplaysHook(key) {
-			if def := config.GetDefinition(key); def != nil {
+			if def := definitionFor(s.settings, key); def != nil {
 				cb, err := hook(txCtx, schoolID, key, def.Default)
 				if err != nil {
 					return err
 				}
-				tenant.RegisterAfterCommit(txCtx, cb)
+				s.runtime.AfterCommit(txCtx, cb)
 			}
 		}
 		s.scheduleBroadcast(txCtx, schoolID, key)
@@ -143,14 +153,11 @@ func (s *operatorSettingsService) ResetValue(ctx context.Context, schoolID int64
 // scheduleBroadcast queues the cross-portal tenant_settings_changed SSE event
 // to fire after the tenant transaction commits. No-op without a broadcaster.
 func (s *operatorSettingsService) scheduleBroadcast(ctx context.Context, tenantID int64, key string) {
-	if s.broadcaster == nil || tenantID == 0 {
+	if s.notify == nil || tenantID == 0 {
 		return
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
-			Source: &key,
-		})
-		_ = s.broadcaster.BroadcastToTenant(tenantID, event)
+	s.runtime.AfterCommit(ctx, func() {
+		s.notify(ctx, tenantID, key)
 	})
 }
 
@@ -169,7 +176,7 @@ func resetReplaysHook(key string) bool {
 // presence mode mid-day (stale open visits, SSE events mis-keyed, device UX
 // inconsistent with the tenant it's authenticated for) is far larger than any
 // other operator setting.
-func CheckPresenceModeSwitch(ctx context.Context, checker OpenAttendanceChecker, key string, force bool) error {
+func CheckPresenceModeSwitch(ctx context.Context, checker OpenAttendanceChecker, today config.CalendarDate, key string, force bool) error {
 	if key != config.KeyPresenceMode {
 		return nil
 	}
@@ -186,7 +193,6 @@ func CheckPresenceModeSwitch(ctx context.Context, checker OpenAttendanceChecker,
 	// "yesterday" while open rows for the new Berlin day already exist under
 	// "today" — the guard would silently let the switch through in exactly the
 	// window it's supposed to block.
-	today := timezone.TodayDate()
 	exists, err := checker.HasOpenAttendanceOn(ctx, today)
 	if err != nil {
 		return fmt.Errorf("failed to check active attendance before mode switch: %w", err)

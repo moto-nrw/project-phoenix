@@ -32,7 +32,7 @@ func makeCheckoutRequest(t *testing.T, studentID int64, token string) *http.Requ
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	return req
+	return req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 }
 
 func TestCheckoutStudent_Integration(t *testing.T) {
@@ -43,7 +43,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 	checkoutPermissions := []string{permissions.VisitsUpdate}
 
 	t.Run("closes attendance and ends open visit in one request", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Checkout", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "Checkout", "Student", "5a")
@@ -90,7 +90,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 	})
 
 	t.Run("second checkout is a safe no-op", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
+		handler := setupCheckinRoute(t, db)
 
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "DoubleCheckout", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "DoubleCheckout", "Student", "5b")

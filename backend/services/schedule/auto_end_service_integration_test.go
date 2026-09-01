@@ -13,7 +13,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +44,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 
 	autoEnd := scheduleSvc.NewAutoEndService(s.repos.ActivityInstance, s.svc)
 	var result *scheduleSvc.AutoEndResult
-	err = tenant.WithTenantTx(context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
 		result, runErr = autoEnd.RunForTenant(txCtx, autoEndNow, 15*time.Minute)
 		return runErr
@@ -99,7 +98,7 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	go func() {
 		ready.Done()
 		<-start
-		manualErr <- tenant.WithTenantTx(context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		manualErr <- testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			_, completeErr := svc.Complete(txCtx, instance.ID)
 			return completeErr
 		})
@@ -108,7 +107,7 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 		ready.Done()
 		<-start
 		var result *scheduleSvc.AutoEndResult
-		err := tenant.WithTenantTx(context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		err := testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			var runErr error
 			result, runErr = autoEnd.RunForTenant(txCtx, autoEndNow, 15*time.Minute)
 			return runErr
@@ -134,7 +133,7 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	assert.Equal(t, 1-automatic.Completed, automatic.SkippedConcurrent)
 
 	var repeated *scheduleSvc.AutoEndResult
-	err = tenant.WithTenantTx(context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
 		repeated, runErr = autoEnd.RunForTenant(txCtx, autoEndNow, 15*time.Minute)
 		return runErr
@@ -143,13 +142,15 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	require.NotNil(t, repeated)
 	assert.Zero(t, repeated.Completed)
 
-	completedEvents := 0
-	for _, call := range broadcaster.CallsByMethod("tenant") {
-		if call.Event.Type == realtime.EventInstanceCompleted {
-			completedEvents++
+	require.Eventually(t, func() bool {
+		completedEvents := 0
+		for _, call := range broadcaster.CallsByMethod("tenant") {
+			if call.Event.Type == realtime.EventInstanceCompleted {
+				completedEvents++
+			}
 		}
-	}
-	assert.Equal(t, 1, completedEvents, "parallel completion must emit one completion event")
+		return completedEvents == 1
+	}, time.Second, 10*time.Millisecond, "parallel completion must emit one completion event")
 }
 
 func TestAutoEnd_IsTenantIsolated(t *testing.T) {
@@ -187,7 +188,7 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 
 	autoEnd := scheduleSvc.NewAutoEndService(s.repos.ActivityInstance, s.svc)
 	var result *scheduleSvc.AutoEndResult
-	err = tenant.WithTenantTx(context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
 		result, runErr = autoEnd.RunForTenant(txCtx, autoEndNow, 15*time.Minute)
 		return runErr

@@ -22,7 +22,6 @@ import (
 )
 
 // Hermetic test: fixtures are real DB rows created per subtest under a unique
-// tenant and cleaned up via testpkg.Cleanup* helpers. Each subtest is
 // self-contained.
 
 // -----------------------------------------------------------------------------
@@ -68,7 +67,9 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
+		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	})
 	require.NoError(t, err)
 
 	svc := scheduleSvc.NewMaterializationService(
@@ -97,8 +98,8 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(materializeDate.Year-1, 8, 1),
-		EndDate:         timezone.NewDate(materializeDate.Year+1, 7, 31),
+		StartDate:       timezone.NewDate(materializeDate.Year()-1, 8, 1),
+		EndDate:         timezone.NewDate(materializeDate.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -389,7 +390,7 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	svc := scheduleSvc.NewMaterializationService(
 		repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.StudentEnrollment,
@@ -427,7 +428,7 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	svc := scheduleSvc.NewMaterializationService(
 		repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.StudentEnrollment,

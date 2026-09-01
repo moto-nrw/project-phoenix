@@ -28,6 +28,11 @@ var dashboardPerms = []string{"groups:read", "schedules:read", "users:read"}
 
 type dashboardEnvelope struct {
 	Data struct {
+		BusinessDay                  string `json:"business_day"`
+		SpontaneousStartAvailability struct {
+			Available     bool   `json:"available"`
+			BlockedReason string `json:"blocked_reason"`
+		} `json:"spontaneous_start_availability"`
 		Groups []struct {
 			ID        string  `json:"id"`
 			RoomID    *string `json:"room_id"`
@@ -89,8 +94,7 @@ func decodeDashboard(t *testing.T, body []byte) *dashboardEnvelope {
 // does).
 func setupDashboardContext(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
-	tc.resource.SupervisionDashboardService = tc.services.SupervisionDashboard
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -129,15 +133,24 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, checkIn, nil)
 
 	settingsCtx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
-	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
-		_ = tc.services.Settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
 	})
 
 	envelope := dashboardExec(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
 	data := envelope.Data
+	day, err := timezone.ParseDate(data.BusinessDay)
+	require.NoError(t, err)
+	if weekday := day.Weekday(); weekday == time.Saturday || weekday == time.Sunday {
+		assert.False(t, data.SpontaneousStartAvailability.Available)
+		assert.Equal(t, "weekend", data.SpontaneousStartAvailability.BlockedReason)
+	} else {
+		assert.True(t, data.SpontaneousStartAvailability.Available)
+		assert.Empty(t, data.SpontaneousStartAvailability.BlockedReason)
+	}
 
 	// Supervised session with bulk-loaded room info.
 	require.Len(t, data.Groups, 1)
@@ -246,10 +259,9 @@ func (h *dashboardQueryCounter) count() int {
 // per-student N+1 regressions: the query count must not grow with the number
 // of checked-in students, and the total per request stays under a fixed
 // budget.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestSupervisionDashboard_QueryBudget(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashBudget", "Leader")
@@ -333,6 +345,9 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	t.Parallel()
 	tc, router := setupDashboardContext(t)
+	require.NoError(t, tc.resource.SettingsService.SetValue(
+		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
+	))
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashErr", "Leader")
 	room := testpkg.CreateTestRoom(t, tc.db, "DashErrRoom")

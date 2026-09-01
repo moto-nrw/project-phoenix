@@ -22,13 +22,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
 // groupsAPI.Resource.Router) succeeds in CI environments without a populated
-// .env. Required because setupTestContext constructs the resource, and the
+// .env. Required because setupGroupsRoute constructs the resource, and the
 // tests mint real signed JWTs via testutil.MintTestJWT.
 func init() {
 	testutil.SeedTestJWTConfig()
@@ -51,12 +50,11 @@ func newReq(t *testing.T, method, target string, body interface{}, claims jwt.Ap
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *groupsAPI.Resource
 }
 
-// setupTestContext creates test resources for groups handler tests
-func setupTestContext(t *testing.T) *testContext {
+// setupGroupsRoute creates test resources for groups handler tests
+func setupGroupsRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
@@ -72,7 +70,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -84,7 +81,7 @@ func setupTestContext(t *testing.T) *testContext {
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
 
-	tc := setupTestContext(t)
+	tc := setupGroupsRoute(t)
 
 	router := chi.NewRouter()
 	router.Mount("/groups", tc.resource.Router())
@@ -504,49 +501,6 @@ func TestGetGroupSupervisors_NotFound(t *testing.T) {
 // GET GROUP SUBSTITUTIONS TESTS
 // =============================================================================
 
-func TestGetGroupSubstitutions_Success(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionsTest")
-
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/substitutions", group.ID), nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestGetGroupSubstitutions_WithDate(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionsDateTest")
-
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/substitutions?date=2024-01-15", group.ID), nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestGetGroupSubstitutions_NotFound(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupProtectedRouter(t)
-
-	req := newReq(t, "GET", "/groups/999999/substitutions", nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertNotFound(t, rr)
-}
-
-// =============================================================================
-// GET GROUP STUDENTS ROOM STATUS TESTS
-// =============================================================================
-
 func TestGetGroupStudentsRoomStatus_RequiresSupervisor(t *testing.T) {
 	t.Parallel()
 
@@ -592,7 +546,7 @@ func TestGetGroupStudentsRoomStatus_InvalidID(t *testing.T) {
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupGroupsRoute(t)
 	router := tc.resource.Router()
 	require.NotNil(t, router, "Router should return a valid chi.Router")
 }
@@ -753,148 +707,6 @@ func TestGetGroupSupervisors_InvalidID(t *testing.T) {
 
 // =============================================================================
 // GET GROUP SUBSTITUTIONS ADDITIONAL TESTS
-// =============================================================================
-
-func TestGetGroupSubstitutions_InvalidID(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupProtectedRouter(t)
-
-	req := newReq(t, "GET", "/groups/invalid/substitutions", nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertBadRequest(t, rr)
-}
-
-func TestGetGroupSubstitutions_InvalidDate(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "InvalidDateTest")
-
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/substitutions?date=invalid-date", group.ID), nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Invalid date format should return bad request or be ignored
-	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-}
-
-// =============================================================================
-// TRANSFER GROUP TESTS
-// =============================================================================
-
-func setupTransferRouter(t *testing.T) (*testContext, chi.Router) {
-	t.Helper()
-
-	tc := setupTestContext(t)
-
-	// Transfer routes are part of Resource.Router(); mount the full router so
-	// the transfer endpoints run through their production wiring. The transfer
-	// routes carry no RequiresPermission check (authorization is ownership-based
-	// in the handler), matching the old permission-free transfer router.
-	router := chi.NewRouter()
-	router.Mount("/groups", tc.resource.Router())
-
-	return tc, router
-}
-
-func TestTransferGroup_RequiresTeacher(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferTest")
-
-	body := map[string]interface{}{
-		"target_user_id": 1,
-	}
-
-	// Regular user (not teacher) should get forbidden
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.DefaultTestClaims())
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertForbidden(t, rr)
-}
-
-func TestTransferGroup_InvalidGroupID(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupTransferRouter(t)
-
-	body := map[string]interface{}{
-		"target_user_id": 1,
-	}
-
-	req := newReq(t, "POST", "/groups/invalid/transfer", body, testutil.DefaultTestClaims())
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertBadRequest(t, rr)
-}
-
-func TestTransferGroup_MissingTargetUserID(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferMissingTarget")
-
-	// Create teacher with account for context
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "Teacher")
-
-	// Assign teacher to the group
-	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-
-	body := map[string]interface{}{
-		"target_user_id": 0, // Invalid - must be positive
-	}
-
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertBadRequest(t, rr)
-}
-
-func TestCancelSpecificTransfer_RequiresTeacher(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelTransferTest")
-
-	// Regular user (not teacher) should get forbidden
-	req := newReq(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/1", group.ID), nil, testutil.DefaultTestClaims())
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertForbidden(t, rr)
-}
-
-func TestCancelSpecificTransfer_InvalidGroupID(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupTransferRouter(t)
-
-	req := newReq(t, "DELETE", "/groups/invalid/transfer/1", nil, testutil.DefaultTestClaims())
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertBadRequest(t, rr)
-}
-
-func TestCancelSpecificTransfer_InvalidSubstitutionID(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelInvalidSubst")
-
-	req := newReq(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/invalid", group.ID), nil, testutil.DefaultTestClaims())
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertBadRequest(t, rr)
-}
-
-// =============================================================================
-// ROOM STATUS WITH ADMIN ACCESS TESTS
 // =============================================================================
 
 func TestGetGroupStudentsRoomStatus_WithAdmin(t *testing.T) {
@@ -1062,93 +874,6 @@ func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-// =============================================================================
-// AUTHORIZATION HELPER TESTS - isUserGroupLeader
-// =============================================================================
-
-func TestTransferGroup_AsGroupLeader_Success(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "LeaderTransferTest")
-
-	// Create teacher (group leader) with account for context
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Leader", "Teacher")
-
-	// Assign teacher to the group (makes them group leader)
-	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-
-	// Create target staff to transfer to
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Target", "Staff")
-
-	body := map[string]interface{}{
-		"target_user_id": targetStaff.Person.ID, // Target user ID is the person ID
-	}
-
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Should succeed since teacher is group leader (returns 201 Created for new substitution)
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
-}
-
-func TestTransferGroup_NotGroupLeader(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "NotLeaderTest")
-
-	// Create teacher WITHOUT assigning to group (not a group leader)
-	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "NotLeader", "Teacher")
-
-	// Create target staff
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Target", "Staff")
-
-	body := map[string]interface{}{
-		"target_user_id": targetStaff.Person.ID,
-	}
-
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Should fail since teacher is not assigned to this group
-	testutil.AssertForbidden(t, rr)
-}
-
-func TestTransferGroup_CannotTransferToSelf(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SelfTransferTest")
-
-	// Create teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Self", "Transfer")
-
-	// Assign teacher to group
-	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-
-	// Try to transfer to self (using their own person ID)
-	body := map[string]interface{}{
-		"target_user_id": teacher.Staff.Person.ID,
-	}
-
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Should fail - can't transfer to self
-	testutil.AssertBadRequest(t, rr)
-}
-
-// =============================================================================
-// AUTHORIZATION HELPER TESTS - userHasGroupAccess via Substitution
-// =============================================================================
-
 func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 	t.Parallel()
 
@@ -1188,152 +913,3 @@ func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 // =============================================================================
 // TRANSFER CANCEL TESTS
 // =============================================================================
-
-func TestCancelSpecificTransfer_AsGroupLeader(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelTransferLeader")
-
-	// Create teacher (group leader) with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Cancel", "Leader")
-
-	// Assign teacher to group
-	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-
-	// Create target staff
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Cancel", "Target")
-
-	// Create a transfer (substitution with nil regularStaffID = transfer)
-	today := timezone.TodayDate()
-	transfer := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, targetStaff.ID, today, today)
-
-	req := newReq(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/%d", group.ID, transfer.ID), nil, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestCancelSpecificTransfer_NotFound(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelNotFound")
-
-	// Create teacher (group leader) with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Cancel", "NotFound")
-
-	// Assign teacher to group
-	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-
-	// Try to cancel non-existent transfer
-	req := newReq(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/999999", group.ID), nil, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertNotFound(t, rr)
-}
-
-// =============================================================================
-// TRANSFER TARGET VALIDATION TESTS
-// =============================================================================
-
-func TestTransferGroup_TargetNotStaff(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "TargetNotStaff")
-
-	// Create teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "ToNonStaff")
-
-	// Assign teacher to group
-	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-
-	// Create a student (not staff)
-	student := testpkg.CreateTestStudent(t, tc.db, "Not", "Staff", "1a")
-
-	// Get person ID for student
-	var personID int64
-	err := tc.db.NewSelect().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Column("person_id").
-		Where(`"student".id = ?`, student.ID).
-		Scan(context.Background(), &personID)
-	require.NoError(t, err)
-
-	// Try to transfer to student (who is not staff)
-	body := map[string]interface{}{
-		"target_user_id": personID,
-	}
-
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Should fail - target is not staff
-	testutil.AssertBadRequest(t, rr)
-}
-
-func TestTransferGroup_TargetNotFound(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "TargetNotFound")
-
-	// Create teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "ToNotFound")
-
-	// Assign teacher to group
-	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-
-	body := map[string]interface{}{
-		"target_user_id": 999999, // Non-existent person ID
-	}
-
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Should fail - target not found
-	testutil.AssertNotFound(t, rr)
-}
-
-func TestTransferGroup_DuplicateTransfer(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupTransferRouter(t)
-
-	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "DuplicateTransfer")
-
-	// Create teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Dup", "Transfer")
-
-	// Assign teacher to group
-	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-
-	// Create target staff
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Dup", "Target")
-
-	// Create existing transfer to target
-	today := timezone.TodayDate()
-	testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, targetStaff.ID, today, today)
-
-	// Try to transfer again to same target
-	body := map[string]interface{}{
-		"target_user_id": targetStaff.Person.ID,
-	}
-
-	req := newReq(t, "POST", fmt.Sprintf("/groups/%d/transfer", group.ID), body, testutil.TeacherTestClaims(int(account.ID)))
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Should fail - already transferred to this person
-	testutil.AssertBadRequest(t, rr)
-}

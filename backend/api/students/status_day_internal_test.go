@@ -45,7 +45,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	const actorID = 23
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	t.Run("planned status write keeps the whole submission together", func(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
@@ -378,12 +378,14 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 
 	db := testpkg.SetupTestDB(t)
 
-	resource := newStatusDayTestResource(db)
+	resource := newStatusDayTestResource(db, func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	})
 	notifier := &recordingAbsenceNotifier{}
 	resource.AbsenceNotifier = notifier
 	student := testpkg.CreateTestStudent(t, db, "StatusToday", "Student", "ST1")
 	router := statusDayTestRouter(resource)
-	today := timezone.TodayDate().Format(dateFormatYYYYMMDD)
+	today := timezone.NewDate(2026, 8, 24).Format(dateFormatYYYYMMDD)
 
 	sickReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 		"status": active.StudentStatusDaySick,
@@ -419,7 +421,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	require.Equal(t, http.StatusConflict, excusedRR.Code)
 	require.Len(t, notifier.reports, 1, "a conflict must not notify or overwrite")
 
-	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.TodayDate(), timezone.TodayDate())
+	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, active.StudentStatusDaySick, rows[0].Status)
@@ -451,7 +453,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	classTripRR := executeStatusDayHandler(t, router, classTripReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusConflict, classTripRR.Code)
 
-	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.TodayDate(), timezone.TodayDate())
+	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, active.StudentStatusDayExcused, rows[0].Status)
@@ -467,7 +469,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	classTripAfterDeleteRR := executeStatusDayHandler(t, router, classTripAfterDeleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, classTripAfterDeleteRR.Code)
 
-	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.TodayDate(), timezone.TodayDate())
+	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, active.StudentStatusDayClassTrip, rows[0].Status)
@@ -682,13 +684,18 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	})
 }
 
-func newStatusDayTestResource(db *bun.DB) *Resource {
+func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource {
 	repoFactory := repositories.NewFactory(db)
+	var clock func() time.Time
+	if len(clocks) > 0 {
+		clock = clocks[0]
+	}
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: repoFactory.Student}),
 		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
-		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil),
+		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, clock),
 		Logger:                  slog.Default(),
+		Now:                     clock,
 		DB:                      db,
 	})
 }
@@ -782,7 +789,8 @@ func executeStatusDayHandler(tb testing.TB, router chi.Router, req *http.Request
 	// Claims carrying the bootstrap tenant follow the test into its own
 	// tenant (#2419), mirroring testutil.WithClaims.
 	claims.TenantID = testpkg.RebaseTenantID(tb, claims.TenantID)
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	ctx := testpkg.WithPackageTenantRuntime(req.Context())
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
 	ctx = tenant.WithTenantID(ctx, claims.TenantID)
 	req = req.WithContext(ctx)

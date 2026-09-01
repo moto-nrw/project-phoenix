@@ -64,7 +64,7 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 // path (the explicit isAdmin argument) from ever becoming the way in.
 func operationActor(ctx context.Context) (accountID int64, isAdmin bool) {
 	claims := jwt.ClaimsFromCtx(ctx)
-	if authorize.IsAssignmentBoundPortal(ctx) {
+	if common.IsAssignmentBoundPortal(ctx) {
 		return int64(claims.ID), false
 	}
 	return int64(claims.ID), claims.IsAdmin
@@ -77,7 +77,7 @@ func (rs *Resource) operationsActiveSessions(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
-	result, err := rs.OperationsService.ActiveSessions(r.Context(), timezone.TodayDate())
+	result, err := rs.OperationsService.ActiveSessions(r.Context(), rs.todayDate())
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -94,7 +94,7 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	today := timezone.TodayDate()
+	today := rs.todayDate()
 	date := today
 	if raw := r.URL.Query().Get("date"); raw != "" {
 		parsed, err := timezone.ParseDate(raw)
@@ -140,7 +140,7 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc
 		opts.Limit = value
 	}
 	if raw := query.Get("scope"); raw != "" {
-		if raw != scheduleSvc.PlannedNowScopePast {
+		if raw != scheduleSvc.PlannedNowScopePast && raw != scheduleSvc.PlannedNowScopeDay {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid scope")))
 			return opts, false
 		}
@@ -208,7 +208,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) operationsReopen(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		claims := jwt.ClaimsFromCtx(r.Context())
-		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), authorize.HasEffectiveAdminScope(r.Context()), instanceID)
+		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), common.HasEffectiveAdminScope(r.Context()), instanceID)
 		if err != nil {
 			return nil, err
 		}
@@ -229,8 +229,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	if !ok {
 		return
 	}
-	window, err := spontaneousStartWorkdayWindow(rs.Now())
-	if err != nil {
+	if _, err := spontaneousStartWorkdayWindow(rs.Now()); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
@@ -250,9 +249,25 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 
 	req.StaffIDs = appendUniquePositive(req.StaffIDs, currentStaffID)
 	createdBy := currentStaffID
+	// Room and caller validation can span a Berlin day boundary. Capture the
+	// authoritative start window immediately before the first write-capable
+	// step so a request that crosses into a weekend cannot mutate anything.
+	window, err := spontaneousStartWorkdayWindow(rs.Now())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	activityGroupID, err := rs.resolveSpontaneousActivityGroupID(r.Context(), req.Title, req.ActivityGroupID, createdBy)
 	if err != nil {
 		renderSpontaneousActivityResolutionError(w, r, err)
+		return
+	}
+	// Activity resolution can create metadata and therefore cross a Berlin day
+	// boundary. Recheck immediately before creating the activity instance.
+	window, err = spontaneousStartWorkdayWindow(rs.Now())
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -562,7 +577,7 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 }
 
 func canViewOperationPickupTimes(ctx context.Context) bool {
-	return authorize.IsAssignmentBoundPortal(ctx) ||
+	return common.IsAssignmentBoundPortal(ctx) ||
 		authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx))
 }
 
@@ -666,6 +681,8 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 		errors.Is(err, scheduleSvc.ErrInstanceStartTooEarly), errors.Is(err, scheduleSvc.ErrInstanceStartExpired),
 		errors.Is(err, scheduleSvc.ErrInstanceCompleteEarly):
 		common.RenderError(w, r, common.ErrorConflict(err))
+	case errors.Is(err, scheduleSvc.ErrInstanceWeekend):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrCompletionConfirmationStale):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
 	case errors.Is(err, scheduleSvc.ErrInstanceNotFound):
