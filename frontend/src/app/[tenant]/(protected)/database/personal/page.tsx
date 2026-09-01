@@ -27,7 +27,7 @@ import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-moda
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { RoleGuard } from "~/components/auth/role-guard";
-import { hasPermission } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
@@ -123,6 +123,14 @@ function TeachersPageContent() {
   // Konto, nicht am Personal-Datensatz. Ohne diese Berechtigungen antwortet
   // das Backend mit 403, also zeigen wir die Aktionen erst gar nicht an.
   const canDeleteStaff = hasPermission(sessionData, "users:delete");
+  // Seit #2906 erreicht die Seite auch, wer nur staff:manage hat. Die beiden
+  // Import-Wege bleiben der Leitung bzw. der Zeitwirtschaft vorbehalten —
+  // ohne diese Rechte antwortet das Backend mit 403.
+  const canImportStaff = hasEffectiveAdminScope(sessionData);
+  const canImportOpeningBalances = hasPermission(
+    sessionData,
+    "time_tracking:manage",
+  );
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
   const tenantMutate = useTenantMutate();
@@ -340,26 +348,30 @@ function TeachersPageContent() {
                     options={STAFF_GROUPING_OPTIONS}
                     onChange={handleGroupingChange}
                   />
-                  <Link
-                    href="/database/personal/import"
-                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Importieren
-                  </Link>
+                  {canImportStaff ? (
+                    <Link
+                      href="/database/personal/import"
+                      className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Importieren
+                    </Link>
+                  ) : null}
                 </>
               ) : null}
               {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
                   Begründung, deshalb im Menü statt als weiterer Button. */}
-              <OverflowMenu
-                ariaLabel="Weitere Import-Aktionen"
-                items={[
-                  {
-                    label: "Eröffnungssalden importieren",
-                    href: "/database/personal/opening-balances",
-                    onClick: () => undefined,
-                  },
-                ]}
-              />
+              {canImportOpeningBalances ? (
+                <OverflowMenu
+                  ariaLabel="Weitere Import-Aktionen"
+                  items={[
+                    {
+                      label: "Eröffnungssalden importieren",
+                      href: "/database/personal/opening-balances",
+                      onClick: () => undefined,
+                    },
+                  ]}
+                />
+              ) : null}
               {canManageUsers ? (
                 <DatabaseCreateAction
                   label="Personal"

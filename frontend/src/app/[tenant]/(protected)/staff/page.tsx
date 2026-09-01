@@ -845,17 +845,26 @@ function StaffPageContent() {
                     const pendingRequestCount =
                       pendingByStaff.get(Number(staffMember.id)) ?? 0;
 
-                    // Die Karte führt nur dann ins Profil, wenn dort auch ein
-                    // Reiter freigeschaltet ist: Unterlagen oder Stammdaten
-                    // (#2906). staff:manage allein öffnet keinen Reiter — der
-                    // Datensatz wird in der Datenverwaltung gepflegt.
-                    const canNavigateToStaff =
+                    // Die Karte führt nur dann weiter, wenn dort auch etwas
+                    // freigeschaltet ist: das Profil mit Unterlagen oder
+                    // Stammdaten, sonst der Personal-Datensatz in der
+                    // Datenverwaltung (staff:manage, #2906).
+                    const profileTabAvailable =
                       userIsAdmin || canAccessDocuments || canEditStammdaten;
+                    const canNavigateToStaff =
+                      profileTabAvailable || canManageStaffRecords;
                     const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${canNavigateToStaff ? "cursor-pointer" : ""}`;
-                    const navigateToStaff = () =>
+                    const navigateToStaff = () => {
+                      if (!profileTabAvailable) {
+                        router.push(
+                          `/database/personal?staff=${staffMember.id}`,
+                        );
+                        return;
+                      }
                       router.push(
                         `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
                       );
+                    };
 
                     return (
                       <div

@@ -8,13 +8,19 @@ vi.mock("next-auth/react", () => ({
   useSession: (...args: unknown[]) => mockUseSession(...args),
 }));
 
+const mockPathname = vi.fn(() => "/test-tenant/database/students");
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  usePathname: () => mockPathname(),
 }));
 
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
+  hasPermission: (
+    session: { user?: { permissions?: string[] } } | null,
+    permission: string,
+  ) => session?.user?.permissions?.includes(permission) ?? false,
   hasEffectiveAdminScope: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   hasRole: (
@@ -65,6 +71,43 @@ describe("DatabaseLayout", () => {
         "Du verfügst nicht über die notwendigen Berechtigungen, um die Datenverwaltung aufzurufen.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("database-content")).not.toBeInTheDocument();
+  });
+
+  it("lets staff:manage without admin scope reach the personnel page (#2906)", () => {
+    mockPathname.mockReturnValue("/test-tenant/database/personal");
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { isAdmin: false, token: "tok", permissions: ["staff:manage"] },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByTestId("database-content")).toBeInTheDocument();
+  });
+
+  it("keeps the rest of the database area closed for staff:manage (#2906)", () => {
+    mockPathname.mockReturnValue("/test-tenant/database/students");
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { isAdmin: false, token: "tok", permissions: ["staff:manage"] },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
     expect(screen.queryByTestId("database-content")).not.toBeInTheDocument();
   });
 
