@@ -272,12 +272,15 @@ func sendRenderedEmail(ctx context.Context, mailer email.Mailer, recipient deliv
 	if message == nil {
 		return errors.New("renderer returned no email message")
 	}
-	contextMailer, ok := mailer.(email.ContextMailer)
-	if !ok {
-		return errors.New("mailer does not support cancellation")
-	}
 	message.To = email.NewEmail(recipient.Name, recipient.Address)
-	return contextMailer.SendContext(ctx, *message)
+	contextMailer, ok := mailer.(email.ContextMailer)
+	if ok {
+		return contextMailer.SendContext(ctx, *message)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return mailer.Send(*message)
 }
 
 func (p *deliveryProvider) applyReplyTo(ctx context.Context, intent delivery.ClaimedIntent, message *email.Message) {
