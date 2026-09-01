@@ -261,7 +261,7 @@ export function PersonalizationTab() {
 
               {isUploading ? (
                 <div className="pointer-events-none flex flex-col items-center gap-3">
-                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-green-600" />
+                  <div className="border-t-moto-green h-10 w-10 animate-spin rounded-full border-4 border-gray-300" />
                   <p className="text-sm text-gray-600">
                     Bild wird hochgeladen…
                   </p>

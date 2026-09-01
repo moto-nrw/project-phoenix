@@ -27,6 +27,12 @@ describe("ui-kit/no-generic-brand-colors", () => {
     expect(lintLiteral("bg-red-50 hover:text-blue-600")).toHaveLength(2);
   });
 
+  it("rejects directional generic border colors", () => {
+    expect(lintLiteral("border-t-green-600 border-s-blue-500")).toHaveLength(
+      2,
+    );
+  });
+
   it("accepts semantic moto color tokens", () => {
     expect(lintLiteral("bg-moto-red-soft text-moto-red-strong")).toHaveLength(
       0,

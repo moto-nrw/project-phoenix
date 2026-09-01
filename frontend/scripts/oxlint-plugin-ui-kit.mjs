@@ -45,7 +45,7 @@ const OVERLAY_BASELINE = new Map([
 ]);
 
 const BRAND_COLOR_RE =
-  /\b(?:text|bg|border|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+(?:\/(?:\d+|\[[^\]\s]+\]))?(?![\w-])/g;
+  /\b(?:text|bg|border(?:-[trblxyse])?|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+(?:\/(?:\d+|\[[^\]\s]+\]))?(?![\w-])/g;
 const FIXED_RE = /\bfixed\b/;
 const INSET_0_RE = /\binset-0\b/;
 const ROUNDED_3XL_RE = /\brounded-3xl\b/g;
