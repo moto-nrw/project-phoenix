@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Check, Download, FileSpreadsheet, FileText, Info } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Info } from "lucide-react";
 import {
   BIRTHDAY_MONTH_OPTIONS,
   STUDENT_EXPORT_COLUMNS,
@@ -20,6 +20,8 @@ import {
 import { parseMultiValueParam } from "~/lib/multi-value-param";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Modal } from "~/components/ui/modal";
 
 const logger = createLogger({ component: "StudentExportModal" });
@@ -421,38 +423,15 @@ function ExportToggleCheckbox({
   onChange: () => void;
 }>) {
   return (
-    <label
-      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
-        checked
-          ? "border-gray-300 bg-gray-50"
-          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="sr-only"
-      />
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        <Check
-          className={`h-3.5 w-3.5 text-white transition-opacity ${
-            checked ? "opacity-100" : "opacity-0"
-          }`}
-        />
-      </span>
+    <ChoiceTile selected={checked} className="min-h-11">
+      <Checkbox checked={checked} onChange={onChange} />
       <span className="min-w-0 flex-1 leading-snug">
         <span>{label}</span>
         <span className="mt-0.5 block text-xs leading-snug font-normal text-gray-500">
           {description}
         </span>
       </span>
-    </label>
+    </ChoiceTile>
   );
 }
 
@@ -466,32 +445,12 @@ function ExportColumnCheckbox({
   onChange: () => void;
 }>) {
   return (
-    <label
+    <ChoiceTile
       title={column.description}
-      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
-        checked
-          ? "border-gray-300 bg-gray-50"
-          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-      }`}
+      selected={checked}
+      className="min-h-11"
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="sr-only"
-      />
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        <Check
-          className={`h-3.5 w-3.5 text-white transition-opacity ${
-            checked ? "opacity-100" : "opacity-0"
-          }`}
-        />
-      </span>
+      <Checkbox checked={checked} onChange={onChange} />
       <span className="min-w-0 flex-1 leading-snug">
         <span className="flex items-center gap-1.5">
           <span>{column.label}</span>
@@ -501,6 +460,6 @@ function ExportColumnCheckbox({
           {column.description}
         </span>
       </span>
-    </label>
+    </ChoiceTile>
   );
 }

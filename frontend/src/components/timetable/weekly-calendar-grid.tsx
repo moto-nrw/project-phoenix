@@ -526,7 +526,7 @@ export function WeeklyCalendarGrid({
 
         {emptyState && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
-            <div className="moto-content-surface max-w-sm rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 text-center shadow-sm backdrop-blur">
+            <div className="moto-content-surface max-w-sm rounded-2xl border px-4 py-3 text-center shadow-sm">
               <h3 className="text-sm font-semibold text-gray-900">
                 {emptyState.title}
               </h3>
