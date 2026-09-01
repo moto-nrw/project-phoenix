@@ -115,6 +115,7 @@ func assertMessageIsRequestCreatedPill(t *testing.T, db *testpkg.DB, messageID i
 // activity was the open request must fall back to the newest previewable
 // message (the earlier chat message) once the request becomes a hidden pill.
 func TestMigrateOpenCareRequests_RecomputesStalePreview(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -151,6 +152,7 @@ func TestMigrateOpenCareRequests_RecomputesStalePreview(t *testing.T) {
 // message was the open request has no previewable message left after the
 // cutover, so the preview is cleared to the fresh-thread empty state.
 func TestMigrateOpenCareRequests_ClearsPreviewWhenOnlyMessage(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

@@ -23,6 +23,7 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type settingValuesQueryCounter struct {
@@ -40,10 +41,9 @@ func (c *settingValuesQueryCounter) BeforeQuery(ctx context.Context, event *bun.
 
 func (*settingValuesQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
 
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 

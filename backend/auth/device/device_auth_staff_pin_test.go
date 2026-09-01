@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -42,8 +41,6 @@ func newStaffPINTestRouter(
 	handler http.HandlerFunc,
 ) (*chi.Mux, string) {
 	t.Helper()
-	lastSeenWriteCache = sync.Map{}
-	t.Setenv("OGS_DEVICE_PIN", "device-pin")
 
 	mockIoT := newMockIoTService()
 	apiKey := "staff-pin-auth-api-key"
@@ -55,7 +52,7 @@ func newStaffPINTestRouter(
 	mockIoT.addDevice(apiKey, dev)
 
 	router := chi.NewRouter()
-	router.Use(DeviceAuthenticator(mockIoT, nil, authenticator, nil))
+	router.Use(DeviceAuthenticator(mockIoT, nil, authenticator, nil, "device-pin"))
 	router.Get("/test", handler)
 	return router, apiKey
 }
@@ -71,8 +68,8 @@ func newStaffPINTestRequest(apiKey, staffPIN string) *http.Request {
 	return req
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticatorSetsCredentialBoundStaffContext(t *testing.T) {
+	t.Parallel()
 	staff := &users.Staff{}
 	staff.ID = 42
 	staff.TenantID = 7
@@ -93,8 +90,8 @@ func TestDeviceAuthenticatorSetsCredentialBoundStaffContext(t *testing.T) {
 	assert.Equal(t, "personal-pin", authenticator.pin)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticatorIgnoresLegacyStaffIDWithoutCredential(t *testing.T) {
+	t.Parallel()
 	authenticator := &stubStaffPINAuthenticator{}
 	handlerCalled := false
 	router, apiKey := newStaffPINTestRouter(t, authenticator, func(w http.ResponseWriter, r *http.Request) {
@@ -111,8 +108,8 @@ func TestDeviceAuthenticatorIgnoresLegacyStaffIDWithoutCredential(t *testing.T) 
 	assert.Zero(t, authenticator.calls)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticatorRejectsInvalidStaffCredential(t *testing.T) {
+	t.Parallel()
 	authenticator := &stubStaffPINAuthenticator{err: errors.New("invalid credential")}
 	handlerCalled := false
 	router, apiKey := newStaffPINTestRouter(t, authenticator, func(w http.ResponseWriter, _ *http.Request) {
@@ -128,8 +125,8 @@ func TestDeviceAuthenticatorRejectsInvalidStaffCredential(t *testing.T) {
 	assert.Equal(t, 1, authenticator.calls)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceAuthenticatorRejectsCrossTenantStaff(t *testing.T) {
+	t.Parallel()
 	staff := &users.Staff{}
 	staff.ID = 42
 	staff.TenantID = 8

@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -30,6 +29,10 @@ type CaptchaServiceConfig struct {
 	Logger     *slog.Logger
 	HTTPClient *http.Client
 	VerifyURL  string // override for tests; defaults to Turnstile siteverify URL
+
+	RequireCaptcha bool
+	SecretKey      string
+	SiteKey        string
 }
 
 const turnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -47,6 +50,13 @@ type CaptchaService struct {
 	logger     *slog.Logger
 	httpClient *http.Client
 	verifyURL  string
+	fallbacks  captchaFallbacks
+}
+
+type captchaFallbacks struct {
+	requireCaptcha bool
+	secretKey      string
+	siteKey        string
 }
 
 // NewCaptchaService wires a Turnstile-backed verifier. A nil HTTPClient
@@ -70,6 +80,11 @@ func NewCaptchaService(cfg CaptchaServiceConfig) *CaptchaService {
 		logger:     logger,
 		httpClient: httpClient,
 		verifyURL:  verifyURL,
+		fallbacks: captchaFallbacks{
+			requireCaptcha: cfg.RequireCaptcha,
+			secretKey:      strings.TrimSpace(cfg.SecretKey),
+			siteKey:        strings.TrimSpace(cfg.SiteKey),
+		},
 	}
 }
 
@@ -80,8 +95,7 @@ func (s *CaptchaService) IsEnabled(ctx context.Context) bool {
 	if s.settings == nil {
 		return false
 	}
-	fallback := strings.TrimSpace(os.Getenv("ENROLLMENT_REQUIRE_CAPTCHA")) == "true"
-	return config.ResolveBoolOrDefault(ctx, s.settings, configModel.KeyEnrollmentRequireCaptcha, fallback, nil)
+	return config.ResolveBoolOrDefault(ctx, s.settings, configModel.KeyEnrollmentRequireCaptcha, s.fallbacks.requireCaptcha, nil)
 }
 
 // Verify validates `token` against the configured provider for the tenant in
@@ -138,8 +152,7 @@ func (s *CaptchaService) Verify(ctx context.Context, token, remoteIP string) err
 }
 
 func (s *CaptchaService) resolveSecret(ctx context.Context) string {
-	fallback := strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SECRET_KEY"))
-	return config.ResolveStringOrDefault(ctx, s.settings, configModel.KeyEnrollmentCaptchaSecretKey, fallback, nil)
+	return config.ResolveStringOrDefault(ctx, s.settings, configModel.KeyEnrollmentCaptchaSecretKey, s.fallbacks.secretKey, nil)
 }
 
 // SiteKey returns the public Cloudflare Turnstile site key for the tenant in
@@ -148,6 +161,5 @@ func (s *CaptchaService) resolveSecret(ctx context.Context) string {
 // to expose on a public endpoint — it's the same value that lives in the
 // rendered widget markup.
 func (s *CaptchaService) SiteKey(ctx context.Context) string {
-	fallback := strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SITE_KEY"))
-	return config.ResolveStringOrDefault(ctx, s.settings, configModel.KeyEnrollmentCaptchaSiteKey, fallback, nil)
+	return config.ResolveStringOrDefault(ctx, s.settings, configModel.KeyEnrollmentCaptchaSiteKey, s.fallbacks.siteKey, nil)
 }

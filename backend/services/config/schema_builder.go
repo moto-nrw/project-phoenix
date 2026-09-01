@@ -41,7 +41,7 @@ func buildSchemaWithScope(
 	userPermissions []string,
 	isOperator bool,
 ) (*SettingsSchema, error) {
-	defs := config.AllDefinitions()
+	defs := svc.registry.AllDefinitions()
 
 	// Resolve all values for dependency evaluation, then filter the output
 	// separately. Tenant-visible settings can depend on operator-only
@@ -139,7 +139,7 @@ func buildSchemaWithScope(
 	tabSet := make(map[string]bool)
 
 	for _, resolved := range outputMap {
-		def := config.GetDefinition(resolved.Key)
+		def := svc.registry.GetDefinition(resolved.Key)
 		if def == nil {
 			continue
 		}

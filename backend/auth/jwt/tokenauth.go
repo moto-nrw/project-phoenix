@@ -98,10 +98,19 @@ func resolveRandomSecret() (string, error) {
 
 // NewTokenAuthWithSecret creates a TokenAuth with a specific secret
 func NewTokenAuthWithSecret(secret string) (*TokenAuth, error) {
+	return NewTokenAuthWithDurations(
+		secret,
+		viper.GetDuration("auth_jwt_expiry"),
+		viper.GetDuration("auth_jwt_refresh_expiry"),
+	)
+}
+
+// NewTokenAuthWithDurations creates an instance from explicit configuration.
+func NewTokenAuthWithDurations(secret string, expiry, refreshExpiry time.Duration) (*TokenAuth, error) {
 	a := &TokenAuth{
 		JwtAuth:          jwtauth.New("HS256", []byte(secret), nil),
-		JwtExpiry:        viper.GetDuration("auth_jwt_expiry"),
-		JwtRefreshExpiry: viper.GetDuration("auth_jwt_refresh_expiry"),
+		JwtExpiry:        expiry,
+		JwtRefreshExpiry: refreshExpiry,
 	}
 
 	return a, nil

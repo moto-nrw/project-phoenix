@@ -53,6 +53,7 @@ func insertShiftTypeRaw(t *testing.T, db *testpkg.DB, tenantID int64, name strin
 // activities.categories.shift_type_id column + cross-schema tenant FK, Down
 // removes them, and the round-trip is idempotent (#1837 follow-up / #1836).
 func TestCategoryShiftTypeMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -81,6 +82,7 @@ func TestCategoryShiftTypeMigration(t *testing.T) {
 // rejects pointing a category at a shift type from a different tenant, and
 // accepts a same-tenant reference.
 func TestCategoryShiftTypeFKEnforcesTenantIsolation(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

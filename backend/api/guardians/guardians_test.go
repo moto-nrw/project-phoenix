@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -41,8 +40,12 @@ type testContext struct {
 }
 
 // setupGuardiansRoute initializes test database, services, and resource.
-func setupGuardiansRoute(t *testing.T) *testContext {
+func setupGuardiansRoute(t *testing.T, appEnvs ...string) *testContext {
 	t.Helper()
+	var appEnv string
+	if len(appEnvs) > 0 {
+		appEnv = appEnvs[0]
+	}
 
 	db, svc := testutil.SetupAPITest(t)
 
@@ -55,6 +58,7 @@ func setupGuardiansRoute(t *testing.T) *testContext {
 		svc.Education,
 		svc.UserContext,
 		db,
+		appEnv,
 	)
 
 	return &testContext{
@@ -1122,18 +1126,14 @@ func TestSendInvitation_Unauthorized_NoClaims(t *testing.T) {
 	testutil.AssertUnauthorized(t, rr)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestSendInvitation_SeedTokenHeaderDoesNotExposeTokenOutsideLocalDev(t *testing.T) {
-	ctx := setupGuardiansRoute(t)
-
-	prevEnv := viper.GetString("app_env")
-	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
-
-	router := ctx.resource.Router()
+	t.Parallel()
 
 	for _, appEnv := range []string{"production", "staging", "preview", "developement", ""} {
 		t.Run(fmt.Sprintf("app_env=%q", appEnv), func(t *testing.T) {
-			viper.Set("app_env", appEnv)
+			t.Parallel()
+			ctx := setupGuardiansRoute(t, appEnv)
+			router := ctx.resource.Router()
 
 			guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "invite-"+appEnv)
 

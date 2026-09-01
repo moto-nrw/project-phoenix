@@ -88,7 +88,7 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	poll := seedPublishedPollWithTargets(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil,
 		[]*usersModels.ParentAnnouncementTarget{{
 			TargetType:  usersModels.AnnouncementTargetStudent,
@@ -97,7 +97,7 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 		"Ja", "Nein")
 	require.Len(t, poll.Options, 2)
 
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	// The feed carries the question, its options and the one child this guardian
 	// may answer for — unanswered at first.
@@ -146,11 +146,11 @@ func TestAnnouncementPoll_CareEndedChildCannotRespond(t *testing.T) {
 	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
 
 	endCareFor(t, db, chain.StudentID)
-	err := svc.RespondToAnnouncement(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, poll.ID, chain.StudentID,
+	err := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, poll.ID, chain.StudentID,
 		[]int64{poll.Options[0].ID}, *poll.PublishedAt)
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 }
@@ -164,7 +164,7 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 	_, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	poll := seedPublishedPollWithTargets(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil,
 		[]*usersModels.ParentAnnouncementTarget{{
 			TargetType:  usersModels.AnnouncementTargetStudent,
@@ -176,7 +176,7 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 		Set("permissions = ?", `{"parent_portal.access": true}`).
 		Where("student_id = ?", chain.StudentID).
 		Where("guardian_profile_id = ?", chain.GuardianProfileID).
-		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		Exec(testpkg.WithTestTenantRuntime(t, context.Background()))
 	require.NoError(t, err)
 
 	results, err := repos.ParentAnnouncement.PollResults(seedCtx, chain.TenantID, poll.ID)
@@ -204,9 +204,9 @@ func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	require.NoError(t, svc.RespondToAnnouncement(ctx, chain.AccountID, poll.ID, chain.StudentID, []int64{poll.Options[0].ID}, *poll.PublishedAt))
 	require.NoError(t, svc.RespondToAnnouncement(ctx, chain.AccountID, poll.ID, chain.StudentID, []int64{poll.Options[1].ID}, *poll.PublishedAt))
@@ -233,7 +233,7 @@ func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	future := time.Now().Add(time.Hour)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, &future, "Ja", "Nein")
 
@@ -245,10 +245,10 @@ func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
 		TableExpr("users.parent_announcements").
 		Set("response_deadline = ?", past).
 		Where("id = ?", poll.ID).
-		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		Exec(testpkg.WithTestTenantRuntime(t, context.Background()))
 	require.NoError(t, err)
 
-	respondErr := svc.RespondToAnnouncement(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, poll.ID, chain.StudentID, []int64{poll.Options[0].ID}, *poll.PublishedAt)
+	respondErr := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, poll.ID, chain.StudentID, []int64{poll.Options[0].ID}, *poll.PublishedAt)
 	assert.ErrorIs(t, respondErr, parentService.ErrPollClosed)
 }
 
@@ -261,10 +261,10 @@ func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestStudent(t, db, "Mila", "Fremd", "2b")
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
 
-	err := svc.RespondToAnnouncement(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, poll.ID, other.ID, []int64{poll.Options[0].ID}, *poll.PublishedAt)
+	err := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, poll.ID, other.ID, []int64{poll.Options[0].ID}, *poll.PublishedAt)
 	assert.ErrorIs(t, err, parentService.ErrChildNotAnswerable)
 }
 
@@ -276,10 +276,10 @@ func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
 
-	err := svc.RespondToAnnouncement(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, ann.ID, chain.StudentID, nil, *ann.PublishedAt)
+	err := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, ann.ID, chain.StudentID, nil, *ann.PublishedAt)
 	assert.ErrorIs(t, err, parentService.ErrAnnouncementNotAPoll)
 }
 
@@ -292,9 +292,9 @@ func TestAnnouncementPoll_UnansweredPollStaysInUnreadCount(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	require.NoError(t, svc.MarkAnnouncementRead(ctx, chain.AccountID, poll.ID, *poll.PublishedAt))
 	count, err := svc.UnreadAnnouncementCount(ctx, chain.AccountID)
