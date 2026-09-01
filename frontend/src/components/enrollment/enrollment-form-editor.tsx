@@ -1704,7 +1704,7 @@ function DeleteSchemaDialog({
       confirmText="Löschen"
       cancelText="Abbrechen"
       isConfirmLoading={deleting}
-      confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+      confirmVariant="danger"
     >
       <div className="space-y-3 text-sm leading-6 text-gray-600">
         <p>

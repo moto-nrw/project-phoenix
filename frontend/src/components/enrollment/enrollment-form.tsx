@@ -4864,7 +4864,7 @@ function WeekdayMultiModeInput({
         title={tr("structured.weekdayMultiModeUniformConfirmTitle")}
         confirmText={tr("structured.weekdayMultiModeUniformConfirmCta")}
         cancelText={tr("structured.weekdayMultiModeUniformConfirmCancel")}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red/90"
+        confirmVariant="danger"
       >
         {tr("structured.weekdayMultiModeUniformConfirmBody")}
       </ConfirmationModal>
