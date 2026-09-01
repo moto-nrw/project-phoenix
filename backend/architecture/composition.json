@@ -20917,7 +20917,7 @@
       "declaration": "TestInvitationTokenRepository_InvalidateByTenantID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        608
+        624
       ],
       "tables": []
     },
@@ -20927,7 +20927,7 @@
       "declaration": "TestInvitationTokenRepository_List_NoFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        418
       ],
       "tables": []
     },
@@ -20937,7 +20937,7 @@
       "declaration": "TestInvitationTokenRepository_List_WithEmailFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        426
+        442
       ],
       "tables": []
     },
@@ -20947,7 +20947,7 @@
       "declaration": "TestInvitationTokenRepository_List_WithPendingFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        456
+        472
       ],
       "tables": []
     },
@@ -20967,7 +20967,7 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        489
+        505
       ],
       "tables": []
     },
@@ -20977,7 +20977,7 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_WithError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        520
+        536
       ],
       "tables": []
     },
@@ -20987,7 +20987,7 @@
       "declaration": "TestInvitationTokenRepository_Update_NilReturnsError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        588
+        604
       ],
       "tables": []
     },
@@ -20997,7 +20997,7 @@
       "declaration": "TestInvitationTokenRepository_Update_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        555
+        571
       ],
       "tables": []
     },

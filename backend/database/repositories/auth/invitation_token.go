@@ -221,8 +221,11 @@ func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
-		Where(`expires_at <= ?`, now).
-		WhereOr(`used_at IS NOT NULL`)
+		WhereGroup(" AND ", func(group *bun.DeleteQuery) *bun.DeleteQuery {
+			return group.
+				Where(`expires_at <= ?`, now).
+				WhereOr(`used_at IS NOT NULL`)
+		})
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
