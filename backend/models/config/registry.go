@@ -240,12 +240,6 @@ func (r *Registry) GetDefinition(key string) *Definition {
 	return r.definitions[key]
 }
 
-// AllDefinitions returns a deep copy of all registered definitions.
-// Callers cannot mutate the registry through the returned pointers.
-func AllDefinitions() map[string]*Definition {
-	return defaultRegistry.AllDefinitions()
-}
-
 func (r *Registry) AllDefinitions() map[string]*Definition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

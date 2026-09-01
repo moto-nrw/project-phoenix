@@ -144,17 +144,21 @@ func ValidateMigrations() error {
 	return nil
 }
 
-// PrintMigrationPlan prints the full migration plan
-func PrintMigrationPlan() {
-	PrintMigrationPlanTo(os.Stdout)
+// PrintMigrationPlan prints the full migration plan.
+func PrintMigrationPlan() error {
+	return PrintMigrationPlanTo(os.Stdout)
 }
 
 // PrintMigrationPlanTo writes the full migration plan to output.
-func PrintMigrationPlanTo(output io.Writer) {
+func PrintMigrationPlanTo(output io.Writer) error {
 	migrations := RegisteredMigrations()
 
-	fmt.Fprintln(output, "Migration Plan:")
-	fmt.Fprintln(output, "===============")
+	if _, err := fmt.Fprintln(output, "Migration Plan:"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(output, "==============="); err != nil {
+		return err
+	}
 
 	for i, m := range migrations {
 		deps := strings.Join(m.DependsOn, ", ")
@@ -162,10 +166,13 @@ func PrintMigrationPlanTo(output io.Writer) {
 			deps = "none"
 		}
 
-		fmt.Fprintf(output, "%d. V%s - %s (Dependencies: %s)\n", i+1, m.Version, m.Description, deps)
+		if _, err := fmt.Fprintf(output, "%d. V%s - %s (Dependencies: %s)\n", i+1, m.Version, m.Description, deps); err != nil {
+			return err
+		}
 	}
 
-	fmt.Fprintln(output, "===============")
+	_, err := fmt.Fprintln(output, "===============")
+	return err
 }
 
 // DetectVersionCollisions scans migration source files for both semantic version

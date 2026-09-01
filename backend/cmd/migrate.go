@@ -110,15 +110,19 @@ var migrateValidateCmd = &cobra.Command{
 	},
 }
 
-func runMigrationValidation(output io.Writer, detect, validate func() error, printPlan func(io.Writer)) error {
+func runMigrationValidation(output io.Writer, detect, validate func() error, printPlan func(io.Writer) error) error {
 	if err := detect(); err != nil {
 		return fmt.Errorf("migration version collision check failed: %w", err)
 	}
 	if err := validate(); err != nil {
 		return fmt.Errorf("migration validation failed: %w", err)
 	}
-	fmt.Fprintln(output, "All migrations validated successfully!")
-	printPlan(output)
+	if _, err := fmt.Fprintln(output, "All migrations validated successfully!"); err != nil {
+		return fmt.Errorf("write migration validation result: %w", err)
+	}
+	if err := printPlan(output); err != nil {
+		return fmt.Errorf("print migration plan: %w", err)
+	}
 	return nil
 }
 

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,8 +44,6 @@ type lastSeenDebounceState struct {
 type LastSeenDebouncer struct{ cache sync.Map }
 
 func NewLastSeenDebouncer() *LastSeenDebouncer { return &LastSeenDebouncer{} }
-
-func newLastSeenDebouncer() *LastSeenDebouncer { return NewLastSeenDebouncer() }
 
 // DeviceFromCtx retrieves the authenticated device from request context.
 func DeviceFromCtx(ctx context.Context) *iot.Device {
@@ -377,26 +374,6 @@ func serveAuthenticatedDeviceRequest(
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// DeviceAuthenticator validates device API keys and the global OGS PIN.
-// It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
-// Optional X-Staff-ID attribution requires a matching X-Staff-Auth-PIN; after
-// verification the middleware sets staff context for downstream handlers.
-// Rejects requests for devices belonging to soft-deleted schools.
-// pinResolver is optional — if nil, falls back to OGS_DEVICE_PIN env var.
-func DeviceAuthenticator(
-	iotService iotSvc.Service,
-	schools SchoolLookup,
-	staffPINAuthenticator StaffPINAuthenticator,
-	pinResolver PINResolver,
-	fallbackPIN ...string,
-) func(http.Handler) http.Handler {
-	pin := os.Getenv("OGS_DEVICE_PIN")
-	if len(fallbackPIN) > 0 {
-		pin = fallbackPIN[0]
-	}
-	return DeviceAuthenticatorWithDebouncer(iotService, schools, staffPINAuthenticator, pinResolver, pin, NewLastSeenDebouncer())
-}
-
 // DeviceAuthenticatorWithDebouncer is DeviceAuthenticator with an injected
 // last-seen debouncer for routes that must share update state.
 func DeviceAuthenticatorWithDebouncer(
@@ -438,16 +415,6 @@ func deviceAuthenticator(
 			)
 		})
 	}
-}
-
-// DeviceOnlyAuthenticator is a middleware that validates only device API keys.
-// It requires only Authorization: Bearer <api_key> header (no staff PIN required).
-// The middleware sets device context for downstream handlers.
-// This is used for endpoints that need device authentication but not staff authentication,
-// such as getting the list of available teachers for login selection.
-// Rejects requests for devices belonging to soft-deleted schools.
-func DeviceOnlyAuthenticator(iotService iotSvc.Service, schools SchoolLookup) func(http.Handler) http.Handler {
-	return DeviceOnlyAuthenticatorWithDebouncer(iotService, schools, NewLastSeenDebouncer())
 }
 
 // DeviceOnlyAuthenticatorWithDebouncer is DeviceOnlyAuthenticator with an

@@ -356,12 +356,12 @@ func printStudentBreakdown(output io.Writer, header string, countHeader string, 
 		return
 	}
 
-	fmt.Fprintf(output, "\n%s:\n", header)
+	mustFprintf(output, "\n%s:\n", header)
 	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintf(w, "Student ID\t%s\n", countHeader)
+	_ = mustFprintf(w, "Student ID\t%s\n", countHeader)
 
 	for studentID, count := range data {
-		_, _ = fmt.Fprintf(w, "%d\t%d\n", studentID, count)
+		_ = mustFprintf(w, "%d\t%d\n", studentID, count)
 	}
 
 	if err := w.Flush(); err != nil {
@@ -375,12 +375,12 @@ func printDateBreakdown(output io.Writer, data map[string]int) {
 		return
 	}
 
-	fmt.Fprintln(output, "\nPer-date breakdown:")
+	mustFprintln(output, "\nPer-date breakdown:")
 	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "Date\tRecords")
+	_ = mustFprintln(w, "Date\tRecords")
 
 	for date, count := range data {
-		_, _ = fmt.Fprintf(w, "%s\t%d\n", date, count)
+		_ = mustFprintf(w, "%s\t%d\n", date, count)
 	}
 
 	if err := w.Flush(); err != nil {
@@ -394,19 +394,19 @@ func printStudentBreakdownWithTotal(output io.Writer, countHeader string, data m
 		return
 	}
 
-	fmt.Fprintln(output, "\nPer-student breakdown:")
+	mustFprintln(output, "\nPer-student breakdown:")
 	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', tabwriter.AlignRight)
-	_, _ = fmt.Fprintf(w, "Student ID\t%s\t\n", countHeader)
-	_, _ = fmt.Fprintln(w, "----------\t----------------\t")
+	_ = mustFprintf(w, "Student ID\t%s\t\n", countHeader)
+	_ = mustFprintln(w, "----------\t----------------\t")
 
 	total := 0
 	for studentID, count := range data {
-		_, _ = fmt.Fprintf(w, "%d\t%d\t\n", studentID, count)
+		_ = mustFprintf(w, "%d\t%d\t\n", studentID, count)
 		total += count
 	}
 
-	_, _ = fmt.Fprintln(w, "----------\t----------------\t")
-	_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
+	_ = mustFprintln(w, "----------\t----------------\t")
+	_ = mustFprintf(w, "TOTAL\t%d\t\n", total)
 
 	if err := w.Flush(); err != nil {
 		log.Printf(errFlushWriter, err)
@@ -419,19 +419,19 @@ func printMonthlyBreakdownWithTotal(output io.Writer, header string, data map[st
 		return
 	}
 
-	fmt.Fprintf(output, "\n%s:\n", header)
+	mustFprintf(output, "\n%s:\n", header)
 	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', tabwriter.AlignRight)
-	_, _ = fmt.Fprintln(w, "Month\tExpired Visits\t")
-	_, _ = fmt.Fprintln(w, "-------\t--------------\t")
+	_ = mustFprintln(w, "Month\tExpired Visits\t")
+	_ = mustFprintln(w, "-------\t--------------\t")
 
 	var total int64
 	for month, count := range data {
-		_, _ = fmt.Fprintf(w, "%s\t%d\t\n", month, count)
+		_ = mustFprintf(w, "%s\t%d\t\n", month, count)
 		total += count
 	}
 
-	_, _ = fmt.Fprintln(w, "-------\t--------------\t")
-	_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
+	_ = mustFprintln(w, "-------\t--------------\t")
+	_ = mustFprintf(w, "TOTAL\t%d\t\n", total)
 
 	if err := w.Flush(); err != nil {
 		log.Printf(errFlushWriter, err)
@@ -445,11 +445,11 @@ func printRecentDeletions(output io.Writer, deletions []recentDeletionRow) {
 	}
 
 	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', tabwriter.AlignRight)
-	_, _ = fmt.Fprintln(w, "Date\tRecords Deleted\tStudents\t")
-	_, _ = fmt.Fprintln(w, "----------\t---------------\t--------\t")
+	_ = mustFprintln(w, "Date\tRecords Deleted\tStudents\t")
+	_ = mustFprintln(w, "----------\t---------------\t--------\t")
 
 	for _, d := range deletions {
-		_, _ = fmt.Fprintf(w, "%s\t%d\t%d\t\n", d.Date, d.RecordsDeleted, d.StudentCount)
+		_ = mustFprintf(w, "%s\t%d\t%d\t\n", d.Date, d.RecordsDeleted, d.StudentCount)
 	}
 
 	if err := w.Flush(); err != nil {
