@@ -50,8 +50,11 @@ export const SIDEBAR_NAV_GAP = "space-y-1";
 // Fokusring liegt deshalb innen (ring-inset), damit er nicht abgeschnitten
 // wird — Links und Bereichs-Schalter tragen denselben Ring wie der
 // Kit-Button.
+// justify-start steht ausdrücklich hier: der Bereichs-Schalter ist ein
+// Kit-Button, und dessen Grundklassen zentrieren den Inhalt. Beide Zeilenarten
+// beginnen links am Icon.
 const ROW_BASE =
-  "group relative flex h-10 w-full items-center overflow-hidden rounded-lg px-3 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none";
+  "group relative flex h-10 w-full items-center justify-start overflow-hidden rounded-lg px-3 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none";
 
 const ROW_ACTIVE = "bg-gray-100 font-semibold text-gray-900";
 const ROW_INACTIVE =

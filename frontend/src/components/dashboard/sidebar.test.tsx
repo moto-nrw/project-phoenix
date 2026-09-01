@@ -2241,6 +2241,34 @@ describe("Sidebar", () => {
       }
     });
 
+    it("gibt Bereichs-Schaltern dasselbe Raster wie den Links", () => {
+      render(<Sidebar />);
+
+      // Die Kopfzeile eines Bereichs ist ein Kit-Button, trägt aber das
+      // Zeilenraster der Seitenleiste. Die Grundklassen des Buttons dürfen
+      // dabei nicht durchschlagen: keine zentrierte Ausrichtung, keine
+      // eigene Innenbreite, kein transparenter Grund über dem Aktiv-Zustand.
+      const header = screen.getByRole("button", { name: "Eltern" });
+      for (const token of ["h-10", "px-3", "rounded-lg", "justify-start"]) {
+        expect(header.className).toContain(token);
+      }
+      for (const token of ["px-4", "justify-center"]) {
+        expect(header.className).not.toContain(token);
+      }
+    });
+
+    it("hält den Aktiv-Zustand über den Grundklassen des Buttons", () => {
+      mockUsePathname.mockReturnValue("/eltern");
+
+      render(<Sidebar />);
+
+      // Der graue Grund des aktiven Bereichs darf nicht vom bg-transparent
+      // der Ghost-Variante überschrieben werden.
+      const header = screen.getByRole("button", { name: "Eltern" });
+      expect(header.className).toContain("bg-gray-100");
+      expect(header.className).not.toContain("bg-transparent");
+    });
+
     it("animiert Hülle und Inhalt mit derselben Bewegung", () => {
       const { container } = render(<Sidebar />);
 
@@ -2274,7 +2302,23 @@ describe("Sidebar", () => {
       expect(screen.getByLabelText("Aktivitäten")).toBeInTheDocument();
     });
 
+    // "Weitere Gruppen" erscheint nur, wenn es Gruppen gibt, die der Person
+    // nicht selbst zugeordnet sind.
+    const withOtherGroups = () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [{ id: "1", name: "Eulen", is_personal: false }],
+        refresh: vi.fn(),
+      });
+    };
+
     it("zeigt im Streifen kein zweites, gleich aussehendes Gruppen-Icon", () => {
+      withOtherGroups();
       localStorage.setItem("sidebar-collapsed", "true");
 
       render(<Sidebar />);
@@ -2287,6 +2331,26 @@ describe("Sidebar", () => {
       expect(
         screen.queryByRole("button", { name: "Weitere Gruppen" }),
       ).not.toBeInTheDocument();
+    });
+
+    it("zeigt das zweite Gruppen-Icon auch während des Einklappens nicht", () => {
+      withOtherGroups();
+
+      render(<Sidebar />);
+      expect(
+        screen.getByRole("button", { name: "Weitere Gruppen" }),
+      ).toBeInTheDocument();
+
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "true");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+
+      // Die Bezeichnungen stehen noch (sie blenden gerade aus) — der zweite
+      // Bereich ist trotzdem schon weg, sonst stünden für die Dauer der
+      // Bewegung zwei gleiche Icons untereinander.
+      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
+      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
     });
 
     it("hält geschlossene Bereiche aus der Tastaturreihenfolge heraus", () => {

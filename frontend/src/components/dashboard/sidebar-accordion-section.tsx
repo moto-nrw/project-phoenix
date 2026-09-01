@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { Button } from "~/components/ui/button";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   SIDEBAR_ICON_CLASSES,
@@ -65,9 +66,15 @@ export function SidebarAccordionSection({
 
   return (
     <div>
-      {/* Kopfzeile des Bereichs — ein Kasten mit Icon, Bezeichnung, Chevron */}
-      <button
+      {/* Kopfzeile des Bereichs — ein Kasten mit Icon, Bezeichnung, Chevron.
+          Kit-Button (variant="ghost", size="md") mit dem Zeilenraster der
+          Seitenleiste: Grundverhalten, Hover und Fokusring kommen aus dem Kit,
+          Höhe, Abstände und Aktiv-Zustand aus sidebar-geometry — derselben
+          Quelle wie bei den Navigationslinks daneben. */}
+      <Button
         type="button"
+        variant="ghost"
+        size="md"
         onClick={onToggle}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -75,7 +82,7 @@ export function SidebarAccordionSection({
             onToggle();
           }
         }}
-        className={`${sidebarRowClasses({ isActive })} cursor-pointer appearance-none border-0 bg-transparent`}
+        className={`${sidebarRowClasses({ isActive })} cursor-pointer`}
         aria-expanded={bodyExpanded}
         {...(collapsed ? { title: label, "aria-label": label } : {})}
       >
@@ -149,7 +156,7 @@ export function SidebarAccordionSection({
             <UnreadBadge count={badgeCount} />
           </span>
         )}
-      </button>
+      </Button>
 
       {/* Bereichsinhalt — Höhenwechsel über CSS-Grid */}
       <div
