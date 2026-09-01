@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/wneessen/go-mail"
@@ -16,6 +17,8 @@ type SMTPMailer struct {
 	client      *mail.Client
 	defaultFrom Email
 }
+
+const smtpShutdownTimeout = time.Second
 
 // NewMailer returns a configured SMTP Mailer.
 func NewMailer() (Mailer, error) {
@@ -167,6 +170,7 @@ func (m *SMTPMailer) sendMessageContext(ctx context.Context, msg *mail.Msg) erro
 		if err == nil {
 			// SMTP has accepted the message before QUIT. A failed graceful close
 			// must not turn that acceptance into a retry (and duplicate email).
+			_ = client.UpdateDeadline(smtpShutdownTimeout)
 			if closeErr := m.client.CloseWithSMTPClient(client); closeErr != nil {
 				_ = client.Close()
 			}

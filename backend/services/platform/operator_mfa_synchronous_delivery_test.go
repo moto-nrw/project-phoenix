@@ -6,7 +6,6 @@ import (
 	"net"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,24 +13,10 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-type retryingOperatorChallengeRepo struct {
-	platformModels.OperatorMFAEmailChallengeRepository
-	calls int
-}
-
-func (r *retryingOperatorChallengeRepo) MarkConsumed(ctx context.Context, id int64, at time.Time) error {
-	r.calls++
-	if r.calls == 1 {
-		return errors.New("temporary cleanup failure")
-	}
-	return r.OperatorMFAEmailChallengeRepository.MarkConsumed(ctx, id, at)
-}
 
 type cancelingOperatorMFAMailer struct {
 	cancel   context.CancelFunc
@@ -75,32 +60,4 @@ func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 	assert.Equal(t, int32(1), mailer.attempts.Load())
 	_, activeErr := repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(context.Background(), operator.ID)
 	require.Error(t, activeErr, "the undelivered operator code must not remain redeemable")
-}
-
-func TestOperatorMFAStartChallengeRetriesChallengeInvalidation(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
-	retryingRepo := &retryingOperatorChallengeRepo{OperatorMFAEmailChallengeRepository: repos.OperatorMFAEmailChallenge}
-	repos.OperatorMFAEmailChallenge = retryingRepo
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
-	require.NoError(t, err)
-	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
-		Repos:      repos,
-		TokenAuth:  tokenAuth,
-		Dispatcher: email.NewDispatcher(&cancelingOperatorMFAMailer{cancel: func() {}}, nil),
-		JWTSecret:  operatorMFATestJWTSecret,
-		DB:         db,
-	})
-	require.NoError(t, err)
-	testpkg.SetTenantRuntime(t, svc, db)
-	operator := testpkg.CreateTestOperator(t, db)
-
-	_, err = svc.StartChallenge(context.Background(), operator.ID, nil)
-
-	require.ErrorIs(t, err, authService.ErrMFAStatusUnavailable)
-	assert.Equal(t, 2, retryingRepo.calls)
-	_, activeErr := retryingRepo.FindActiveByOperatorID(context.Background(), operator.ID)
-	require.Error(t, activeErr)
 }

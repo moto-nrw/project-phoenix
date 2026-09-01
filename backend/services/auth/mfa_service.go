@@ -34,8 +34,6 @@ const (
 	MFAEmailRateLimitWindow           = 15 * time.Minute // count of issued codes within this window
 	MFAEmailRateLimitMaxSent          = 3                // max codes per account per window
 	MFATrustedDeviceCookieDefaultDays = 90
-	mfaChallengeCleanupTimeout        = 5 * time.Second
-
 	// mfaAuditFallbackIP is the sentinel address written to
 	// audit.auth_events.ip_address when an MFA event has no real client
 	// IP (lockout counter rollover, async verify cleanup, admin disable
@@ -614,20 +612,25 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 	// enrollment-confirm and passkey-registration paths look a challenge up
 	// by account instead of by id, and only these columns keep that lookup
 	// from reaching another portal's in-flight code.
+	createdAt := time.Now()
 	challenge := &auth.MFAEmailChallenge{
-		AccountID: accountID,
-		Scope:     scope,
-		TenantID:  tenantID,
-		CodeHash:  codeHash,
-		ExpiresAt: time.Now().Add(MFAChallengeTTL),
-		IPAddress: ip,
+		AccountID:  accountID,
+		Scope:      scope,
+		TenantID:   tenantID,
+		CodeHash:   codeHash,
+		ExpiresAt:  createdAt.Add(MFAChallengeTTL),
+		ConsumedAt: &createdAt,
+		IPAddress:  ip,
 	}
 	if err := s.Repos.MFAEmailChallenge.Create(ctx, challenge); err != nil {
 		return "", fmt.Errorf("persist email challenge: %w", err)
 	}
 
 	if err := s.dispatchChallengeEmail(ctx, account, tenantID, plainCode, ip); err != nil {
-		s.invalidateUndeliveredChallenge(ctx, challenge.ID, accountID, tenantID, ip)
+		return "", ErrMFAStatusUnavailable
+	}
+	if err := s.Repos.MFAEmailChallenge.MarkActive(ctx, challenge.ID); err != nil {
+		s.Logger.Error("failed to activate delivered mfa challenge", slog.Int64("challenge_id", challenge.ID), slog.String("error", err.Error()))
 		return "", ErrMFAStatusUnavailable
 	}
 	s.recordAuthEvent(ctx, accountID, tenantID, audit.EventTypeMFAEmailSent, true, ip, "", map[string]any{
@@ -1810,33 +1813,6 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 		return err
 	}
 	return nil
-}
-
-func (s *mfaService) invalidateUndeliveredChallenge(ctx context.Context, challengeID, accountID, tenantID int64, ip net.IP) {
-	// Detach request cancellation but preserve tenant/runtime values: the row
-	// must be consumed even when cancellation is what stopped the transport.
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mfaChallengeCleanupTimeout)
-	defer cancel()
-	var err error
-	for attempt := 0; attempt < 3; attempt++ {
-		err = s.Repos.MFAEmailChallenge.MarkConsumed(cleanupCtx, challengeID, time.Now())
-		if err == nil {
-			break
-		}
-		if cleanupCtx.Err() != nil || attempt == 2 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if err != nil {
-		s.Logger.Error("failed to invalidate undelivered mfa challenge",
-			slog.Int64("account_id", accountID),
-			slog.Int64("challenge_id", challengeID),
-			slog.String("error", err.Error()))
-	}
-	s.recordAuthEvent(cleanupCtx, accountID, tenantID, audit.EventTypeMFAEmailSent, false, ip, "delivery failed", map[string]any{
-		"challenge_id": challengeID,
-	})
 }
 
 // dispatchTrustedDeviceAddedEmail notifies the account holder by mail when a

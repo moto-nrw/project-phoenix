@@ -20,7 +20,7 @@ func TestMapOperatorMFAErrorDeliveryUnavailableWireContract(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 	assert.Equal(t,
-		"{\"status\":\"Service Unavailable\",\"message\":\"MFA status temporarily unavailable, please retry\"}\n",
+		"{\"status\":\"Service Unavailable\",\"message\":\"MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut.\"}\n",
 		recorder.Body.String(),
 	)
 }

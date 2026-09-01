@@ -25778,7 +25778,7 @@
       "declaration": "newSynchronousDeliveryMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        60
+        46
       ],
       "tables": []
     },
@@ -28960,17 +28960,7 @@
       "declaration": "TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/platform/operator_mfa_synchronous_delivery_test.go",
-      "declaration": "TestOperatorMFAStartChallengeRetriesChallengeInvalidation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        84
+        40
       ],
       "tables": []
     },
