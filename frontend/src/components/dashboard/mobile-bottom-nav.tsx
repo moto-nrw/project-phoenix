@@ -483,6 +483,19 @@ const additionalNavItems: AdditionalNavItem[] = [
 
 const NFC_ONLY_HREFS = new Set<string>(["/activities"]);
 
+// Nav-Einträge, die im binären Anwesenheitsmodus verborgen bleiben (#2915).
+// Gleiche fachliche Regel wie die Desktop-Sidebar (dortiges
+// BINARY_HIDDEN_HREFS plus das separat gegatete Aufsicht-Accordion): Räume,
+// Aktivitäten und Aufsicht sind Raum-/Besuchs-Konzepte ohne Bedeutung, wenn
+// eine Schule nur in der Schule / nicht in der Schule erfasst. Die Seiten
+// sperrt der BinaryModeGuard — ein Nav-Eintrag dorthin endet auf einer
+// 404-Seite.
+const BINARY_HIDDEN_HREFS = new Set<string>([
+  "/rooms",
+  "/activities",
+  "/active-supervisions",
+]);
+
 interface MobileBottomNavProps {
   readonly className?: string;
 }
@@ -644,6 +657,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
+  const isBinaryMode = presenceMode === "binary";
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
@@ -673,6 +687,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const filteredMainItemsByMode = filteredMainItems.filter(
     (item) =>
       (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
+      // Binärer Anwesenheitsmodus (#2915): dieselbe Sichtbarkeitsregel wie in
+      // der Desktop-Sidebar.
+      !(isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) &&
       (item.href !== "/ogs-groups" ||
         userIsCaregiver ||
         userHasEffectiveAdminScope) &&
@@ -707,6 +724,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
+    // Binärer Anwesenheitsmodus (#2915): auch im Mehr-Menü kein Link auf eine
+    // Seite, die der BinaryModeGuard sperrt.
+    if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
     if (
       isPlanningPageHref(item.href) &&
       item.href !== "/calendar-periods" &&
