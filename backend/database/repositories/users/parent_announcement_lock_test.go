@@ -13,13 +13,16 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// Deliberately NOT parallel: this test holds a row lock while a second
-// transaction waits for it.
-//
 // The lock is what makes the attachment upload safe (#2890): the upload checks
 // "still a draft" and "still under the limit" and writes afterwards, so a
 // second upload must wait rather than pass the same check.
+//
+// Parallel despite the deliberate lock contention: both transactions queue on
+// one row of this test's own tenant, which no other test can reach, so nothing
+// outside waits on it.
 func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	repo := usersRepo.NewParentAnnouncementRepository(db)
