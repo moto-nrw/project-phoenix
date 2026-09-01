@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { SSEEvent, SSEHookOptions } from "~/lib/sse-types";
+import type { SSEEvent, SSEHookOptions, SSEHookState } from "~/lib/sse-types";
 import { act, renderHook } from "@testing-library/react";
 
 // Mock dependencies
@@ -295,6 +295,42 @@ describe("useGlobalSSE", () => {
           reconnectKey: 2,
         }),
       );
+    });
+
+    it("revalidates the supervision dashboard after an SSE reconnect", () => {
+      let connectionState: SSEHookState = {
+        status: "connected",
+        isConnected: true,
+        error: null,
+        reconnectAttempts: 0,
+      };
+      vi.mocked(useSSE).mockImplementation(() => connectionState);
+
+      const { rerender } = renderHook(() => useGlobalSSE());
+      vi.mocked(mutate).mockClear();
+
+      connectionState = {
+        status: "reconnecting",
+        isConnected: false,
+        error: "SSE-Verbindungsfehler",
+        reconnectAttempts: 1,
+      };
+      rerender();
+
+      connectionState = {
+        status: "connected",
+        isConnected: true,
+        error: null,
+        reconnectAttempts: 0,
+      };
+      rerender();
+
+      expect(
+        matchedKeys([
+          "tenant:active-supervision-dashboard-0-224",
+          "tenant:timetable-week-2026-09-01",
+        ]),
+      ).toEqual(["tenant:active-supervision-dashboard-0-224"]);
     });
   });
 
