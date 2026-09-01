@@ -888,7 +888,9 @@ function SidebarContent({
   // Zähler an der Zeile. Ausgeklappt steht er rechts neben der Bezeichnung
   // und blendet mit ihr aus; eingeklappt sitzt er als Punkt auf der Ecke des
   // Icons und blendet gegengleich ein. Zwei Blenden über dieselbe Dauer statt
-  // eines Sprungs von rechts auf die Ecke (#2923).
+  // eines Sprungs von rechts auf die Ecke (#2923). Für die Dauer der Blende
+  // stehen beide im Baum; der ausblendende ist `aria-hidden`, sonst läse ein
+  // Vorleseprogramm die Zahl zweimal.
   const renderRequestsBadge = () => {
     if (requestsPendingCount <= 0) return null;
     const ariaLabel = `${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`;
@@ -896,6 +898,7 @@ function SidebarContent({
       <>
         {labelsMounted && (
           <span
+            aria-hidden={!labelsVisible}
             className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
           >
             <NotificationBadge
@@ -907,6 +910,7 @@ function SidebarContent({
         )}
         {collapsed && (
           <span
+            aria-hidden={labelsVisible}
             className={`absolute top-1 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
           >
             <NotificationBadge
@@ -1033,7 +1037,14 @@ function SidebarContent({
     () => groups.filter((group) => group.is_personal === false),
     [groups],
   );
-  const [otherGroupsExpanded, setOtherGroupsExpanded] = useState(false);
+  // `null` heißt: der Unterbereich richtet sich nach der geöffneten Gruppe.
+  // Ein Klick setzt ihn auf `true`/`false` und übersteuert die Auswahl damit.
+  // Ohne diese Übersteuerung hielte eine geöffnete fremde Gruppe "Weitere
+  // Gruppen" dauerhaft offen — "Meine Gruppen" ließe sich dann gar nicht mehr
+  // aufklappen, auch nicht über das Icon im eingeklappten Streifen (#2923).
+  const [otherGroupsExpanded, setOtherGroupsExpanded] = useState<
+    boolean | null
+  >(null);
 
   // On child pages (e.g. student detail with ?from=/ogs-groups), determine
   // which sub-item should stay highlighted using the last selection from localStorage.
@@ -1050,7 +1061,7 @@ function SidebarContent({
       group.id.toString() === childGroupId,
   );
   const areOtherGroupsExpanded =
-    expanded === "groups" && (otherGroupsExpanded || hasSelectedOtherGroup);
+    expanded === "groups" && (otherGroupsExpanded ?? hasSelectedOtherGroup);
   const childRoomId = useLocalStorageValue(
     "sidebar-last-room",
     childFromParam?.startsWith("/active-supervisions") ?? false,
@@ -1062,7 +1073,7 @@ function SidebarContent({
 
   useEffect(() => {
     if (expanded !== "groups") {
-      setOtherGroupsExpanded(false);
+      setOtherGroupsExpanded(null);
     }
   }, [expanded]);
 
@@ -1104,7 +1115,10 @@ function SidebarContent({
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
   // Reads localStorage at click-time so the page loads with the right param immediately.
   const handleGroupsToggle = useCallback(() => {
-    if (expanded === "groups" && otherGroupsExpanded) {
+    if (
+      expanded === "groups" &&
+      (otherGroupsExpanded ?? hasSelectedOtherGroup)
+    ) {
       setOtherGroupsExpanded(false);
       return;
     }
@@ -1119,7 +1133,15 @@ function SidebarContent({
         router.push(`/ogs-groups?group=${groupId}`);
       }
     }
-  }, [expanded, otherGroupsExpanded, pathname, personalGroups, router, toggle]);
+  }, [
+    expanded,
+    hasSelectedOtherGroup,
+    otherGroupsExpanded,
+    pathname,
+    personalGroups,
+    router,
+    toggle,
+  ]);
 
   const handleSupervisionsToggle = useCallback(() => {
     toggle("supervisions");
@@ -1403,7 +1425,9 @@ function SidebarContent({
                     if (expanded !== "groups") {
                       toggle("groups");
                     }
-                    setOtherGroupsExpanded((current) => !current);
+                    setOtherGroupsExpanded(
+                      (current) => !(current ?? hasSelectedOtherGroup),
+                    );
                   }}
                   isActive={isAccordionSectionActive(
                     "/ogs-groups",

@@ -2434,14 +2434,91 @@ describe("Sidebar", () => {
       // Unterbereich.
       fireEvent.click(screen.getByRole("button", { name: "Meine Gruppen" }));
 
-      await waitFor(() =>
+      // "Weitere Gruppen" kommt erst mit den Bezeichnungen dazu, deshalb
+      // beide Erwartungen in derselben Wartebedingung.
+      await waitFor(() => {
         expect(
           screen.getByText("Meine Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "true"),
+        ).toHaveAttribute("aria-expanded", "true");
+        expect(
+          screen.getByText("Weitere Gruppen").closest("button"),
+        ).toHaveAttribute("aria-expanded", "false");
+      });
+    });
+
+    it("öffnet Meine Gruppen auch bei geöffneter fremder Gruppe", async () => {
+      // Die geöffnete Gruppe ist eine fremde — "Weitere Gruppen" steht
+      // deshalb offen. Das Icon im Streifen heißt trotzdem "Meine Gruppen"
+      // und muss genau die öffnen.
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
       );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+      localStorage.setItem("sidebar-collapsed", "true");
+
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Meine Gruppen" }));
+
+      // "Weitere Gruppen" kommt erst mit den Bezeichnungen dazu, deshalb
+      // beide Erwartungen in derselben Wartebedingung.
+      await waitFor(() => {
+        expect(
+          screen.getByText("Meine Gruppen").closest("button"),
+        ).toHaveAttribute("aria-expanded", "true");
+        expect(
+          screen.getByText("Weitere Gruppen").closest("button"),
+        ).toHaveAttribute("aria-expanded", "false");
+      });
+    });
+
+    it("nennt den Zähler während der Bewegung nur einmal", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "users:update" ||
+          permission === "users:delete" ||
+          permission === "vacation:approve",
+      );
+      mockUseChangeRequestsPending.mockReturnValue({
+        unreadCount: 9,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+      mockUseChangeRequestAccess.mockReturnValue({
+        canOpenRequestsPage: true,
+      } as ReturnType<typeof useChangeRequestAccess>);
+
+      render(<Sidebar />);
+
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "true");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+
+      // Beide Zähler stehen für die Dauer der Gegenblende im Baum — der
+      // ausblendende ist unsichtbar und darf deshalb auch nicht vorgelesen
+      // werden.
+      const badges = screen.getAllByLabelText("9 offene Anfragen");
+      expect(badges).toHaveLength(2);
       expect(
-        screen.getByText("Weitere Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "false");
+        badges.filter(
+          (badge) =>
+            badge.parentElement?.getAttribute("aria-hidden") !== "true",
+        ),
+      ).toHaveLength(1);
     });
 
     it("hält geschlossene Bereiche aus der Tastaturreihenfolge heraus", () => {
