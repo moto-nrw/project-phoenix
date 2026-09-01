@@ -9,11 +9,7 @@
  */
 
 import type { AppLocale } from "~/i18n/locales";
-import type {
-  ConsentKey,
-  ConsentRecord,
-  ConsentState,
-} from "~/lib/consent-types";
+import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
 import { createLogger } from "~/lib/logger";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
@@ -39,8 +35,6 @@ export interface Child {
   readonly school_name: string;
   readonly school_slug: string;
 }
-
-export type ChildConsentKey = ConsentKey;
 
 export type ChildConsentState = ConsentState;
 
