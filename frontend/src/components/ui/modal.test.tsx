@@ -804,6 +804,45 @@ describe("ConfirmationModal", () => {
     }
   });
 
+  it("draws the loading spinner in the confirm button's own text color", async () => {
+    render(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          title="Confirm"
+          confirmVariant="warning"
+          isConfirmLoading={true}
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const confirm = screen.getByRole("button", { name: /Wird geladen/ });
+    // warning and success buttons use dark text; a hard-coded white spinner
+    // would fail contrast on the orange and green backgrounds.
+    expect(confirm).toHaveClass("bg-moto-orange", "text-gray-950");
+
+    const spinner = confirm.querySelector("svg");
+    expect(spinner).not.toBeNull();
+    expect(spinner).toHaveClass("animate-spin");
+    expect(spinner?.getAttribute("class")).not.toContain("text-white");
+    expect(spinner?.querySelector("circle")).toHaveAttribute(
+      "stroke",
+      "currentColor",
+    );
+    expect(spinner?.querySelector("path")).toHaveAttribute(
+      "fill",
+      "currentColor",
+    );
+  });
+
   it("dims the page with the shared backdrop tint once entered", async () => {
     render(
       <TestWrapper>

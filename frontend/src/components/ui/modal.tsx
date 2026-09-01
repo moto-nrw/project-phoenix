@@ -584,7 +584,7 @@ export function ConfirmationModal({
         {isConfirmLoading ? (
           <span className="flex items-center justify-center gap-2">
             <svg
-              className="h-4 w-4 animate-spin text-white"
+              className="h-4 w-4 animate-spin"
               fill="none"
               viewBox="0 0 24 24"
             >
