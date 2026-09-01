@@ -11,7 +11,7 @@ vi.mock("next-auth/react", () => ({
       user: {
         id: "1",
         token: "test-token",
-        permissions: ["users:manage", "staff:manage"],
+        permissions: ["users:manage", "users:delete", "staff:manage"],
       },
       expires: "2099-01-01",
     },
@@ -133,7 +133,7 @@ vi.mock("@/components/teachers/staff-master-detail", () => ({
     selectedTeacher?: { name: string } | null;
     onSelect: (id: string | null) => void;
     onEditClick: () => void;
-    onDeleteClick: () => void;
+    onDeleteClick?: () => void;
     onUpdateNotes: (notes: string) => Promise<void>;
     onManageCaregiver?: () => void;
   }) => (
@@ -166,13 +166,15 @@ vi.mock("@/components/teachers/staff-master-detail", () => ({
           >
             Edit
           </button>
-          <button
-            type="button"
-            data-testid="trigger-delete"
-            onClick={onDeleteClick}
-          >
-            Delete
-          </button>
+          {onDeleteClick ? (
+            <button
+              type="button"
+              data-testid="trigger-delete"
+              onClick={onDeleteClick}
+            >
+              Delete
+            </button>
+          ) : null}
           <button
             type="button"
             data-testid="trigger-deselect"
@@ -334,7 +336,7 @@ describe("TeachersPage", () => {
         user: {
           id: "1",
           token: "test-token",
-          permissions: ["users:manage", "staff:manage"],
+          permissions: ["users:manage", "users:delete", "staff:manage"],
         },
         expires: "2099-01-01",
       },
@@ -493,6 +495,32 @@ describe("TeachersPage", () => {
       expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
     });
     expect(screen.queryByTestId("trigger-notes")).not.toBeInTheDocument();
+  });
+
+  it("hides delete and the account actions without users:delete / users:manage", async () => {
+    setSelectedStaff("1");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["users:read", "staff:manage"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("trigger-delete")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("trigger-caregiver")).not.toBeInTheDocument();
+    // Der Datensatz selbst bleibt mit staff:manage bearbeitbar.
+    expect(screen.getByTestId("trigger-notes")).toBeInTheDocument();
   });
 
   it("hides invitation controls without users:manage", () => {

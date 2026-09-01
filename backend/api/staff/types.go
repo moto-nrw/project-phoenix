@@ -157,10 +157,11 @@ func newPersonResponse(person *users.Person, email string, avatar string) *Perso
 // The context decides how much of the record goes on the wire: everyone who
 // may see the directory at all (users:read) gets the minimal colleague view —
 // name, avatar, account role, teacher flag, work e-mail and today's presence
-// state. Everything beyond that is added per tier (#2906): the staff record
-// (notes, free-text qualifications) for whoever maintains it, the
-// personnel-file data (employment type, absence reason, NFC tag) for the
-// personnel and time-management roles. Redaction lives here, in the single
+// state. Everything beyond that is added per tier (#2906): the private staff
+// notes for whoever maintains the staff record (staff:manage), the free-text
+// qualifications and the personnel-file data (employment type, absence
+// reason, NFC tag) for the personnel and time-management roles. Redaction
+// lives here, in the single
 // constructor every staff response goes through, so a new endpoint cannot
 // forget it.
 func newStaffResponse(ctx context.Context, staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) StaffResponse {
@@ -198,7 +199,7 @@ func buildStaffResponse(access staffFieldAccess, staff *users.Staff, isTeacher b
 // StaffResponse — a new field is visible to every colleague until it is
 // listed here.
 func redactStaffFields(response *StaffResponse, access staffFieldAccess) {
-	if !access.record {
+	if !access.notes {
 		response.StaffNotes = ""
 	}
 	if !access.personnel {
@@ -229,10 +230,9 @@ func buildTeacherResponse(access staffFieldAccess, staff *users.Staff, teacher *
 		Qualifications: teacher.Qualifications,
 	}
 
-	// Free-text qualifications belong to the staff record its maintainer
-	// writes; Specialization and Role are the pedagogical labels the group and
-	// substitution screens display.
-	if !access.record {
+	// Free-text qualifications are personnel data; Specialization and Role are
+	// the pedagogical labels the group and substitution screens display.
+	if !access.qualifications {
 		response.Qualifications = ""
 	}
 

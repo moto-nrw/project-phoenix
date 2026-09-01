@@ -37,7 +37,7 @@ interface StaffMasterDetailProps {
   // Optional: ohne staff:manage gibt PUT /api/staff/{id} 403, deshalb wird
   // die Bearbeiten-Schaltflaeche dann gar nicht erst angeboten (#2906).
   onEditClick?: () => void;
-  onDeleteClick: () => void;
+  onDeleteClick?: () => void;
   onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
@@ -160,7 +160,7 @@ export function StaffMasterDetail({
 interface StaffDetailContentProps {
   teacher: Teacher;
   onEditClick?: () => void;
-  onDeleteClick: () => void;
+  onDeleteClick?: () => void;
   onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
@@ -190,7 +190,7 @@ function StaffDetailContent({
           Bearbeiten
         </button>
       ) : null}
-      <DetailDeleteButton onClick={onDeleteClick} />
+      {onDeleteClick ? <DetailDeleteButton onClick={onDeleteClick} /> : null}
     </>
   );
 

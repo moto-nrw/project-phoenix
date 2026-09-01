@@ -1599,11 +1599,19 @@ func TestBetreuerRoleSeesOnlyTheMinimalColleagueView(t *testing.T) {
 		assert.NotContains(t, rr.Body.String(), `"tag_id"`, path)
 	}
 
-	// The personnel tier still sees it.
+	// The private staff notes follow the permission that writes them: only
+	// staff:manage reads them back. Maintaining the personnel file
+	// (staff:stammdaten) opens the personnel-file fields, not the notes.
 	rr := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet,
-		fmt.Sprintf("/staff/%d", colleague.ID), nil, testutil.WithJWTBearer(authToken(t, "staff:stammdaten"))))
+		fmt.Sprintf("/staff/%d", colleague.ID), nil, testutil.WithJWTBearer(authToken(t, "staff:manage", "users:read"))))
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "Geheime Personalnotiz")
+
+	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet,
+		fmt.Sprintf("/staff/%d", colleague.ID), nil, testutil.WithJWTBearer(authToken(t, "staff:stammdaten"))))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.NotContains(t, rr.Body.String(), "Geheime Personalnotiz",
+		"staff:stammdaten maintains the personnel file, not the private staff notes")
 }
 
 // TestPersonnelPermissionsReachTheStaffDirectory pins that the two personnel

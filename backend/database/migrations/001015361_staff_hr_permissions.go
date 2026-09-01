@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	staffHRPermissionsVersion     = "1.15.360"
+	staffHRPermissionsVersion     = "1.15.361"
 	staffHRPermissionsDescription = "Split staff personnel access out of users:update into staff:stammdaten / staff:documents / staff:manage (#2906)"
 
 	staffStammdatenPermissionName = "staff:stammdaten"

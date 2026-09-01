@@ -19,10 +19,15 @@ import (
 // also carried everything else, because the response was built
 // unconditionally.
 type staffFieldAccess struct {
-	// record covers the staff record a personnel administrator maintains:
-	// the staff notes and the free-text qualifications — exactly the fields
-	// PUT /api/staff/{id} writes.
-	record bool
+	// notes covers the private staff notes an OGS-Leitung keeps on a
+	// colleague. They are the most sensitive part of the staff record, so
+	// they stay with the permission that writes them (staff:manage) instead
+	// of following everybody who maintains the personnel file.
+	notes bool
+	// qualifications covers the free-text qualifications on the teacher
+	// record. Those are personnel data proper, so maintaining the personnel
+	// file (staff:stammdaten) reads them too.
+	qualifications bool
 	// personnel covers the personnel-file data: employment type, today's
 	// absence reason including the school's own wording, and the NFC tag.
 	// Being allowed to change a staff record (staff:manage) does not entitle
@@ -33,14 +38,21 @@ type staffFieldAccess struct {
 }
 
 // staffFieldAccessFromCtx reads the caller's tiers off the JWT permissions.
-// authorize.HasPermission is wildcard aware, so admin:* matches both tiers.
+// authorize.HasPermission is wildcard aware, so admin:* matches every tier.
 func staffFieldAccessFromCtx(ctx context.Context) staffFieldAccess {
-	granted := jwt.PermissionsFromCtx(ctx)
+	return staffFieldAccessFor(jwt.PermissionsFromCtx(ctx))
+}
+
+// staffFieldAccessFor is staffFieldAccessFromCtx on a plain permission list,
+// so the tier mapping can be tested without importing auth/jwt — which the
+// architecture ratchet forbids in api/staff internal tests.
+func staffFieldAccessFor(granted []string) staffFieldAccess {
 	has := func(required string) bool { return authorize.HasPermission(required, granted) }
 
 	return staffFieldAccess{
-		record:    has(permissions.StaffManage) || has(permissions.StaffStammdaten),
-		personnel: has(permissions.StaffStammdaten) || has(permissions.TimeTrackingManage),
+		notes:          has(permissions.StaffManage),
+		qualifications: has(permissions.StaffManage) || has(permissions.StaffStammdaten),
+		personnel:      has(permissions.StaffStammdaten) || has(permissions.TimeTrackingManage),
 	}
 }
 

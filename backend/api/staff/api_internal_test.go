@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -86,7 +87,7 @@ func TestNewStaffResponse_PersonnelTierSeesFullRecord(t *testing.T) {
 
 	employmentType := users.EmploymentTypePartTime
 	tagID := "04A1B2C3"
-	response := buildStaffResponse(staffFieldAccess{record: true, personnel: true}, &users.Staff{
+	response := buildStaffResponse(staffFieldAccess{notes: true, qualifications: true, personnel: true}, &users.Staff{
 		Model:          base.Model{ID: 42},
 		PersonID:       420,
 		StaffNotes:     "Vertretung montags",
@@ -141,7 +142,7 @@ func TestNewStaffResponse_RecordTierWithoutPersonnelTier(t *testing.T) {
 
 	employmentType := users.EmploymentTypePartTime
 	tagID := "04A1B2C3"
-	response := buildStaffResponse(staffFieldAccess{record: true}, &users.Staff{
+	response := buildStaffResponse(staffFieldAccess{notes: true, qualifications: true}, &users.Staff{
 		Model:          base.Model{ID: 42},
 		PersonID:       420,
 		StaffNotes:     "Vertretung montags",
@@ -154,6 +155,28 @@ func TestNewStaffResponse_RecordTierWithoutPersonnelTier(t *testing.T) {
 	assert.Nil(t, response.EmploymentType)
 	require.NotNil(t, response.Person)
 	assert.Empty(t, response.Person.TagID)
+}
+
+// staff:stammdaten maintains the personnel file — qualifications and the
+// personnel-file fields — but the private staff notes stay with the
+// permission that writes them, staff:manage (#2906).
+func TestStaffFieldAccess_StammdatenDoesNotReadStaffNotes(t *testing.T) {
+	t.Parallel()
+
+	access := staffFieldAccessFor([]string{permissions.UsersRead, permissions.StaffStammdaten})
+
+	assert.False(t, access.notes, "staff:stammdaten must not read the private staff notes")
+	assert.True(t, access.qualifications)
+	assert.True(t, access.personnel)
+
+	response := buildStaffResponse(access, &users.Staff{
+		Model:      base.Model{ID: 42},
+		PersonID:   420,
+		StaffNotes: "Vertretung montags",
+	}, false, false, "", "sick", "user", "", "")
+
+	assert.Empty(t, response.StaffNotes)
+	assert.Equal(t, "sick", response.AbsenceType)
 }
 
 // The time-management view reads today's absence reason, but not the notes the
@@ -192,7 +215,7 @@ func TestNewTeacherResponse_DirectoryTierRedactsQualifications(t *testing.T) {
 	assert.Equal(t, "Sport", redacted.Specialization)
 	assert.Equal(t, "Gruppenleitung", redacted.Role)
 
-	full := buildTeacherResponse(staffFieldAccess{record: true, personnel: true}, staff, teacher, false, "", "", "", "", "")
+	full := buildTeacherResponse(staffFieldAccess{notes: true, qualifications: true, personnel: true}, staff, teacher, false, "", "", "", "", "")
 	assert.Equal(t, "Erzieherin, Erste-Hilfe-Kurs 2025", full.Qualifications)
 }
 
@@ -200,7 +223,7 @@ func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
 	t.Parallel()
 
 	employmentType := users.EmploymentTypePartTime
-	response := buildStaffResponse(staffFieldAccess{record: true, personnel: true}, &users.Staff{
+	response := buildStaffResponse(staffFieldAccess{notes: true, qualifications: true, personnel: true}, &users.Staff{
 		Model:          base.Model{ID: 42},
 		PersonID:       420,
 		EmploymentType: &employmentType,

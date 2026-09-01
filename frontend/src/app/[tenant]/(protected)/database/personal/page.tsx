@@ -119,6 +119,10 @@ function TeachersPageContent() {
   // Personalnotizen am Mitarbeiter-Datensatz: staff:manage (#2906), nicht
   // mehr users:update — das hält jede Betreuungskraft für die Kinderdaten.
   const canManageStaffRecords = hasPermission(sessionData, "staff:manage");
+  // Löschen und die Kontoaktionen (Betreuer-Konto, 2-Faktor, Rolle) hängen am
+  // Konto, nicht am Personal-Datensatz. Ohne diese Berechtigungen antwortet
+  // das Backend mit 403, also zeigen wir die Aktionen erst gar nicht an.
+  const canDeleteStaff = hasPermission(sessionData, "users:delete");
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
   const tenantMutate = useTenantMutate();
@@ -388,20 +392,24 @@ function TeachersPageContent() {
             selectedTeacher={selectedTeacher}
             onSelect={handleSelectTeacher}
             onEditClick={canManageStaffRecords ? handleEditClick : undefined}
-            onDeleteClick={handleDeleteClick}
+            onDeleteClick={canDeleteStaff ? handleDeleteClick : undefined}
             onUpdateNotes={
               canManageStaffRecords ? handleUpdateNotes : undefined
             }
             onManageCaregiver={
-              selectedTeacher?.account_id
+              canManageUsers && selectedTeacher?.account_id
                 ? handleManageCaregiverClick
                 : undefined
             }
             onManageMFA={
-              selectedTeacher?.account_id ? handleManageMFAClick : undefined
+              canManageUsers && selectedTeacher?.account_id
+                ? handleManageMFAClick
+                : undefined
             }
             onManageRole={
-              selectedTeacher?.account_id ? handleManageRoleClick : undefined
+              canManageUsers && selectedTeacher?.account_id
+                ? handleManageRoleClick
+                : undefined
             }
           />
         </div>
