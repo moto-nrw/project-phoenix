@@ -142,13 +142,15 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	require.NotNil(t, repeated)
 	assert.Zero(t, repeated.Completed)
 
-	completedEvents := 0
-	for _, call := range broadcaster.CallsByMethod("tenant") {
-		if call.Event.Type == realtime.EventInstanceCompleted {
-			completedEvents++
+	require.Eventually(t, func() bool {
+		completedEvents := 0
+		for _, call := range broadcaster.CallsByMethod("tenant") {
+			if call.Event.Type == realtime.EventInstanceCompleted {
+				completedEvents++
+			}
 		}
-	}
-	assert.Equal(t, 1, completedEvents, "parallel completion must emit one completion event")
+		return completedEvents == 1
+	}, time.Second, 10*time.Millisecond, "parallel completion must emit one completion event")
 }
 
 func TestAutoEnd_IsTenantIsolated(t *testing.T) {
