@@ -39,6 +39,7 @@ func bulkRouter(parentCtx context.Context, res *Resource) chi.Router {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(res.DB))
 	r.Post("/substitutions/bulk", res.applyBulkSubstitution)
 	return r
 }

@@ -69,6 +69,7 @@ func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
 
 	authCfg, err := auth.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
+	authCfg.Audit = testpkg.NewAuthEventCommand(repos.AuthEvent)
 	svc, err := auth.NewService(repos, authCfg, db, nil)
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, svc, db)

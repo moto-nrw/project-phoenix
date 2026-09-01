@@ -1,10 +1,9 @@
-package audit_test
+package audit
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,42 +15,42 @@ import (
 func TestStudentDocumentFieldRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	field := audit.StudentDocumentField("attest")
+	field := StudentDocumentField("attest")
 	assert.Equal(t, "document_attest", field)
-	assert.Equal(t, "attest", audit.StudentDocumentCategoryFromField(field))
-	assert.True(t, audit.IsStudentDocumentField(field))
+	assert.Equal(t, "attest", StudentDocumentCategoryFromField(field))
+	assert.True(t, IsStudentDocumentField(field))
 }
 
 func TestStudentDocumentCategoryFromFieldIgnoresOtherFields(t *testing.T) {
 	t.Parallel()
 
 	// An ordinary field carries no category...
-	assert.Empty(t, audit.StudentDocumentCategoryFromField(audit.StudentFieldHealthInfo))
-	assert.False(t, audit.IsStudentDocumentField(audit.StudentFieldHealthInfo))
+	assert.Empty(t, StudentDocumentCategoryFromField(StudentFieldHealthInfo))
+	assert.False(t, IsStudentDocumentField(StudentFieldHealthInfo))
 
 	// ...and neither does the legacy categoryless form. A reader that cannot
 	// name the category must fall back to "show only to a caller who may see
 	// every category", so an unreadable label never passes as visible.
-	assert.Empty(t, audit.StudentDocumentCategoryFromField(audit.StudentFieldDocument))
-	assert.True(t, audit.IsStudentDocumentField(audit.StudentFieldDocument))
+	assert.Empty(t, StudentDocumentCategoryFromField(StudentFieldDocument))
+	assert.True(t, IsStudentDocumentField(StudentFieldDocument))
 }
 
 func TestStudentFieldEditValidateAcceptsDocumentFields(t *testing.T) {
 	t.Parallel()
 
 	newValue := "Ärztliches Attest: Attest.pdf"
-	edit := &audit.StudentFieldEdit{
+	edit := &StudentFieldEdit{
 		StudentID:    91,
 		EditedBy:     7,
 		EditedByName: "Test Person",
-		FieldName:    audit.StudentDocumentField("attest"),
+		FieldName:    StudentDocumentField("attest"),
 		NewValue:     &newValue,
 		CreatedAt:    time.Now(),
 	}
 	require.NoError(t, edit.Validate())
 
 	// The legacy categoryless form stays storable so old rows keep validating.
-	edit.FieldName = audit.StudentFieldDocument
+	edit.FieldName = StudentFieldDocument
 	require.NoError(t, edit.Validate())
 
 	// A prefix-less unknown field is still rejected: the shape check must not

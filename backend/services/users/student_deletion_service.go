@@ -363,7 +363,18 @@ func (s *studentDeletionService) createAudit(
 		StudentID:      studentID,
 		ActorAccountID: actorAccountID,
 		Reason:         reason,
-		Counts:         counts,
+		Counts: auditModels.StudentDeletionCounts{
+			TimetableAssignments: counts.TimetableAssignments,
+			ActivityEnrollments:  counts.ActivityEnrollments,
+			AttendanceRecords:    counts.AttendanceRecords,
+			CareSchedules:        counts.CareSchedules,
+			GuardianLinks:        counts.GuardianLinks,
+			CompanionLinks:       counts.CompanionLinks,
+			Communications:       counts.Communications,
+			Consents:             counts.Consents,
+			EnrollmentReferences: counts.EnrollmentReferences,
+			OtherRecords:         counts.OtherRecords,
+		},
 	})
 }
 

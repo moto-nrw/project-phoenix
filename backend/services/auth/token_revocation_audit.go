@@ -43,6 +43,9 @@ func (s *Service) auditRevokedTokens(ctx context.Context, tokens []*authModels.T
 	if ipAddress == "" {
 		ipAddress = internalRevocationAuditIP
 	}
+	if s.audit == nil {
+		return fmt.Errorf("audit token revocation: command is not configured")
+	}
 	groups := make(map[string]*revocationGroup)
 	for _, token := range tokens {
 		familyID := token.FamilyID
@@ -75,7 +78,7 @@ func (s *Service) auditRevokedTokens(ctx context.Context, tokens []*authModels.T
 		event.SetMetadata("family_fingerprint", rotation.FamilyFingerprint(group.familyID))
 		event.SetMetadata("reason", reason)
 		event.SetMetadata("revoked_token_count", group.count)
-		if err := s.repos.AuthEvent.Create(ctx, event); err != nil {
+		if err := s.audit.Append(ctx, event); err != nil {
 			return fmt.Errorf("audit token revocation: %w", err)
 		}
 	}
@@ -208,8 +211,8 @@ func (s *Service) scheduleAccountWideRevoke(ctx context.Context, accountID int64
 }
 
 func (s *Service) recordPendingAccountWideWipe(ctx context.Context, accountID int64, reason string) error {
-	if s.repos.AuthEvent == nil {
-		return nil
+	if s.audit == nil {
+		return fmt.Errorf("audit pending account-wide wipe: command is not configured")
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
@@ -219,7 +222,7 @@ func (s *Service) recordPendingAccountWideWipe(ctx context.Context, accountID in
 	event.SetTenantID(tenantID)
 	event.SetMetadata("reason", reason)
 	event.SetMetadata("pending_account_wide_wipe", true)
-	return s.repos.AuthEvent.Create(ctx, event)
+	return s.audit.Append(ctx, event)
 }
 
 func (s *Service) queuePushCleanup(ctx context.Context, accountID int64, tokens []*authModels.Token, reason string) {
@@ -324,7 +327,7 @@ func (s *Service) finishScheduledAccountWideWipe(ctx context.Context, accountID 
 			return err
 		}
 		if skip {
-			return nil
+			return s.completeAccountWideWipes(txCtx, claimed)
 		}
 		if !cutoff.IsZero() {
 			if s.repos.Account != nil && reason != "account_deactivated" {
@@ -346,10 +349,13 @@ func (s *Service) finishScheduledAccountWideWipe(ctx context.Context, accountID 
 			if newer {
 				pushReason = "pending_wipe"
 			}
-			return nil
+			return s.completeAccountWideWipes(txCtx, claimed)
 		}
 		tokens, err = s.deleteAllAccountTokensInCtx(txCtx, accountID, reason, ipAddress, userAgent)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.completeAccountWideWipes(txCtx, claimed)
 	}
 	if tenant.IsAdminTx(ctx) {
 		if err := run(ctx); err != nil {
@@ -404,7 +410,29 @@ func (s *Service) markAccountWideWipeCompleted(ctx context.Context, accountID in
 	if s.repos.AuthEvent == nil {
 		return nil
 	}
-	return s.repos.AuthEvent.MarkAccountWideWipeCompleted(ctx, accountID)
+	pending, err := s.repos.AuthEvent.ClaimPendingAccountWideWipes(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	return s.completeAccountWideWipes(ctx, pending)
+}
+
+func (s *Service) completeAccountWideWipes(ctx context.Context, pending []auditModels.PendingAccountWideWipe) error {
+	if len(pending) == 0 {
+		return nil
+	}
+	if s.audit == nil {
+		return fmt.Errorf("audit account-wide wipe completion: command is not configured")
+	}
+	for _, wipe := range pending {
+		event := auditModels.NewAuthEvent(wipe.AccountID, auditModels.EventTypeAccountWideWipeCompleted, true, internalRevocationAuditIP)
+		event.SetTenantID(wipe.TenantID)
+		event.SetMetadata("pending_event_id", wipe.EventID)
+		if err := s.audit.Append(ctx, event); err != nil {
+			return fmt.Errorf("audit account-wide wipe completion: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *Service) deleteAllAccountTokensInCtx(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {

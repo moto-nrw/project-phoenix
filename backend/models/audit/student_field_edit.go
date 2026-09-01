@@ -5,8 +5,6 @@ import (
 	"errors"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // StudentFieldEdit records a single field change on a student profile for the
@@ -18,7 +16,7 @@ import (
 // keeps the change-history read a single-table query with no join.
 type StudentFieldEdit struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	StudentID    int64     `bun:"student_id,notnull" json:"student_id"`
 	EditedBy     int64     `bun:"edited_by,notnull" json:"edited_by"`
 	EditedByName string    `bun:"edited_by_name,notnull" json:"edited_by_name"`

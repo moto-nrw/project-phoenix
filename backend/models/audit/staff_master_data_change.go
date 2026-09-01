@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Stammdaten sections (#1423). Section names are part of the audit wire
@@ -38,9 +35,8 @@ const (
 // normally a staff ID; bank-and-tax updates record the authenticated payroll
 // account ID because that actor need not have a staff mapping.
 type StaffMasterDataChange struct {
-	bun.BaseModel `bun:"schema:audit,table:staff_master_data_changes"`
-	ID            int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	ID int64 `bun:"id,pk,autoincrement" json:"id"`
+	TenantModel
 	StaffID    int64     `bun:"staff_id,notnull" json:"staff_id"`
 	ChangedBy  int64     `bun:"changed_by,notnull" json:"changed_by"`
 	Section    string    `bun:"section,notnull" json:"section"`

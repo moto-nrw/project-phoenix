@@ -76,7 +76,13 @@ type UnitOfWork struct {
 // mask its private transaction context. It keeps context-key ownership inside
 // the adapter that reads the key.
 func (uow UnitOfWork) WithTransactionDetacher(detach func(context.Context) context.Context) UnitOfWork {
-	uow.withoutTx = detach
+	previous := uow.withoutTx
+	uow.withoutTx = func(ctx context.Context) context.Context {
+		if previous != nil {
+			ctx = previous(ctx)
+		}
+		return detach(ctx)
+	}
 	return uow
 }
 
@@ -84,8 +90,20 @@ func (uow UnitOfWork) WithContextAdapters(
 	withTenant func(context.Context, int64) context.Context,
 	withTransaction func(context.Context, any) context.Context,
 ) UnitOfWork {
-	uow.withTenant = withTenant
-	uow.withTransaction = withTransaction
+	previousTenant := uow.withTenant
+	uow.withTenant = func(ctx context.Context, tenantID int64) context.Context {
+		if previousTenant != nil {
+			ctx = previousTenant(ctx, tenantID)
+		}
+		return withTenant(ctx, tenantID)
+	}
+	previousTransaction := uow.withTransaction
+	uow.withTransaction = func(ctx context.Context, transaction any) context.Context {
+		if previousTransaction != nil {
+			ctx = previousTransaction(ctx, transaction)
+		}
+		return withTransaction(ctx, transaction)
+	}
 	return uow
 }
 

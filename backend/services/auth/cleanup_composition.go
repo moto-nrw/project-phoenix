@@ -19,6 +19,7 @@ type CleanupDependencies struct {
 	Token                  authModels.TokenRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	AuthEvent              auditModels.AuthEventRepository
+	Audit                  auditModels.Command
 	PushSubscription       iotModels.PushSubscriptionRepository
 	DB                     *bun.DB
 	Logger                 *slog.Logger
@@ -36,6 +37,7 @@ func NewCleanupService(deps CleanupDependencies) *Service {
 		},
 		db:     deps.DB,
 		logger: deps.Logger,
+		audit:  deps.Audit,
 	}
 	service.SetTenantRuntime(deps.TenantRuntime)
 	return service
