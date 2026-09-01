@@ -178,7 +178,7 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// AbsenceType does, so it follows the same personnel check the response
 	// constructors make (#2906).
 	absenceTypeLabel := ""
-	if canSeeStaffPersonnelFields(r.Context()) {
+	if staffFieldAccessFromCtx(r.Context()).personnel {
 		absenceTypeLabel = rs.loadAbsenceLabelMap(r.Context())[staff.ID]
 	}
 

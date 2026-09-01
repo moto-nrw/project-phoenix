@@ -157,17 +157,19 @@ func newPersonResponse(person *users.Person, email string, avatar string) *Perso
 // The context decides how much of the record goes on the wire: everyone who
 // may see the directory at all (users:read) gets the minimal colleague view —
 // name, avatar, account role, teacher flag, work e-mail and today's presence
-// state. The personnel-file fields (staff notes, employment type, absence
-// reason, NFC tag, free-text qualifications) are added only for the personnel
-// administrators (#2906). Redaction lives here, in the single constructor
-// every staff response goes through, so a new endpoint cannot forget it.
+// state. Everything beyond that is added per tier (#2906): the staff record
+// (notes, free-text qualifications) for whoever maintains it, the
+// personnel-file data (employment type, absence reason, NFC tag) for the
+// personnel and time-management roles. Redaction lives here, in the single
+// constructor every staff response goes through, so a new endpoint cannot
+// forget it.
 func newStaffResponse(ctx context.Context, staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) StaffResponse {
-	return buildStaffResponse(canSeeStaffPersonnelFields(ctx), staff, isTeacher, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
+	return buildStaffResponse(staffFieldAccessFromCtx(ctx), staff, isTeacher, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
 }
 
-// buildStaffResponse is newStaffResponse with the personnel decision already
-// made, so the mapping can be tested without minting a JWT context.
-func buildStaffResponse(showPersonnel bool, staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) StaffResponse {
+// buildStaffResponse is newStaffResponse with the tier decision already made,
+// so the mapping can be tested without minting a JWT context.
+func buildStaffResponse(access staffFieldAccess, staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) StaffResponse {
 	response := StaffResponse{
 		ID:              staff.ID,
 		PersonID:        staff.PersonID,
@@ -186,36 +188,38 @@ func buildStaffResponse(showPersonnel bool, staff *users.Staff, isTeacher bool, 
 		response.Person = newPersonResponse(staff.Person, email, avatar)
 	}
 
-	if !showPersonnel {
-		redactStaffPersonnelFields(&response)
-	}
+	redactStaffFields(&response, access)
 
 	return response
 }
 
-// redactStaffPersonnelFields strips the personnel-file fields from a staff
-// response, leaving the minimal colleague view (#2906). Keep the field list
-// in sync with StaffResponse — a new field is visible to every colleague
-// until it is listed here.
-func redactStaffPersonnelFields(response *StaffResponse) {
-	response.StaffNotes = ""
-	response.AbsenceType = ""
-	response.AbsenceTypeLabel = ""
-	response.EmploymentType = nil
-	if response.Person != nil {
-		response.Person.TagID = ""
+// redactStaffFields strips whatever the caller's tiers do not cover, leaving
+// the minimal colleague view (#2906). Keep the field lists in sync with
+// StaffResponse — a new field is visible to every colleague until it is
+// listed here.
+func redactStaffFields(response *StaffResponse, access staffFieldAccess) {
+	if !access.record {
+		response.StaffNotes = ""
+	}
+	if !access.personnel {
+		response.AbsenceType = ""
+		response.AbsenceTypeLabel = ""
+		response.EmploymentType = nil
+		if response.Person != nil {
+			response.Person.TagID = ""
+		}
 	}
 }
 
 // newTeacherResponse creates a teacher response
 func newTeacherResponse(ctx context.Context, staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) TeacherResponse {
-	return buildTeacherResponse(canSeeStaffPersonnelFields(ctx), staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
+	return buildTeacherResponse(staffFieldAccessFromCtx(ctx), staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
 }
 
-// buildTeacherResponse is newTeacherResponse with the personnel decision
-// already made — see buildStaffResponse.
-func buildTeacherResponse(showPersonnel bool, staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) TeacherResponse {
-	staffResponse := buildStaffResponse(showPersonnel, staff, true, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
+// buildTeacherResponse is newTeacherResponse with the tier decision already
+// made — see buildStaffResponse.
+func buildTeacherResponse(access staffFieldAccess, staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) TeacherResponse {
+	staffResponse := buildStaffResponse(access, staff, true, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
 
 	response := TeacherResponse{
 		StaffResponse:  staffResponse,
@@ -225,9 +229,10 @@ func buildTeacherResponse(showPersonnel bool, staff *users.Staff, teacher *users
 		Qualifications: teacher.Qualifications,
 	}
 
-	// Free-text qualifications are HR-file data; Specialization and Role are
-	// the pedagogical labels the group and substitution screens display.
-	if !showPersonnel {
+	// Free-text qualifications belong to the staff record its maintainer
+	// writes; Specialization and Role are the pedagogical labels the group and
+	// substitution screens display.
+	if !access.record {
 		response.Qualifications = ""
 	}
 

@@ -86,7 +86,7 @@ func TestNewStaffResponse_PersonnelTierSeesFullRecord(t *testing.T) {
 
 	employmentType := users.EmploymentTypePartTime
 	tagID := "04A1B2C3"
-	response := buildStaffResponse(true, &users.Staff{
+	response := buildStaffResponse(staffFieldAccess{record: true, personnel: true}, &users.Staff{
 		Model:          base.Model{ID: 42},
 		PersonID:       420,
 		StaffNotes:     "Vertretung montags",
@@ -110,7 +110,7 @@ func TestNewStaffResponse_DirectoryTierRedactsPersonnelFields(t *testing.T) {
 
 	employmentType := users.EmploymentTypePartTime
 	tagID := "04A1B2C3"
-	response := buildStaffResponse(false, &users.Staff{
+	response := buildStaffResponse(staffFieldAccess{}, &users.Staff{
 		Model:          base.Model{ID: 42},
 		PersonID:       420,
 		StaffNotes:     "Vertretung montags",
@@ -133,6 +133,47 @@ func TestNewStaffResponse_DirectoryTierRedactsPersonnelFields(t *testing.T) {
 	assert.Equal(t, "working", response.WorkStatus)
 }
 
+// staff:manage maintains the staff record — notes and qualifications — and
+// nothing else: the personnel-file data (employment type, absence reason, NFC
+// tag) stays with the personnel and time-management roles (#2906).
+func TestNewStaffResponse_RecordTierWithoutPersonnelTier(t *testing.T) {
+	t.Parallel()
+
+	employmentType := users.EmploymentTypePartTime
+	tagID := "04A1B2C3"
+	response := buildStaffResponse(staffFieldAccess{record: true}, &users.Staff{
+		Model:          base.Model{ID: 42},
+		PersonID:       420,
+		StaffNotes:     "Vertretung montags",
+		EmploymentType: &employmentType,
+		Person:         &users.Person{Model: base.Model{ID: 420}, FirstName: "Mara", LastName: "Kühn", TagID: &tagID},
+	}, false, false, "", "sick", "user", "mara@example.com", "")
+
+	assert.Equal(t, "Vertretung montags", response.StaffNotes)
+	assert.Empty(t, response.AbsenceType)
+	assert.Nil(t, response.EmploymentType)
+	require.NotNil(t, response.Person)
+	assert.Empty(t, response.Person.TagID)
+}
+
+// The time-management view reads today's absence reason, but not the notes the
+// staff record's maintainer writes.
+func TestNewStaffResponse_PersonnelTierWithoutRecordTier(t *testing.T) {
+	t.Parallel()
+
+	employmentType := users.EmploymentTypePartTime
+	response := buildStaffResponse(staffFieldAccess{personnel: true}, &users.Staff{
+		Model:          base.Model{ID: 42},
+		PersonID:       420,
+		StaffNotes:     "Vertretung montags",
+		EmploymentType: &employmentType,
+	}, false, false, "", "sick", "user", "", "")
+
+	assert.Empty(t, response.StaffNotes)
+	assert.Equal(t, "sick", response.AbsenceType)
+	require.NotNil(t, response.EmploymentType)
+}
+
 // Free-text qualifications are personnel-file data; the pedagogical labels the
 // group and substitution screens render are not.
 func TestNewTeacherResponse_DirectoryTierRedactsQualifications(t *testing.T) {
@@ -146,12 +187,12 @@ func TestNewTeacherResponse_DirectoryTierRedactsQualifications(t *testing.T) {
 		Qualifications: "Erzieherin, Erste-Hilfe-Kurs 2025",
 	}
 
-	redacted := buildTeacherResponse(false, staff, teacher, false, "", "", "", "", "")
+	redacted := buildTeacherResponse(staffFieldAccess{}, staff, teacher, false, "", "", "", "", "")
 	assert.Empty(t, redacted.Qualifications)
 	assert.Equal(t, "Sport", redacted.Specialization)
 	assert.Equal(t, "Gruppenleitung", redacted.Role)
 
-	full := buildTeacherResponse(true, staff, teacher, false, "", "", "", "", "")
+	full := buildTeacherResponse(staffFieldAccess{record: true, personnel: true}, staff, teacher, false, "", "", "", "", "")
 	assert.Equal(t, "Erzieherin, Erste-Hilfe-Kurs 2025", full.Qualifications)
 }
 
@@ -159,7 +200,7 @@ func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
 	t.Parallel()
 
 	employmentType := users.EmploymentTypePartTime
-	response := buildStaffResponse(true, &users.Staff{
+	response := buildStaffResponse(staffFieldAccess{record: true, personnel: true}, &users.Staff{
 		Model:          base.Model{ID: 42},
 		PersonID:       420,
 		EmploymentType: &employmentType,
@@ -178,7 +219,7 @@ func TestStaffResponse_PersonIDIsDecimalString(t *testing.T) {
 
 	const bigPersonID = int64(9007199254740993) // 2^53 + 1
 
-	encoded, err := json.Marshal(buildStaffResponse(false, &users.Staff{
+	encoded, err := json.Marshal(buildStaffResponse(staffFieldAccess{}, &users.Staff{
 		Model:    base.Model{ID: 42},
 		PersonID: bigPersonID,
 	}, false, false, "", "", "", "", ""))

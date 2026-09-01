@@ -11,29 +11,37 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// canSeeStaffPersonnelFields reports whether the caller may see the
-// personnel-file fields of the staff directory — staff notes, employment
-// type, today's absence reason, the NFC tag and free-text qualifications.
+// staffFieldAccess splits the staff directory into the two tiers a caller can
+// be entitled to beyond the minimal colleague view.
 //
-// Everyone with users:read may see the directory itself: the group,
-// substitution and supervision screens need names. Before #2906 the same
-// read also carried the personnel data, because the response was built
-// unconditionally. The authority is now the personnel tier: staff:manage or
-// staff:stammdaten (the roles that maintain the record) and
-// time_tracking:manage (the management view). HasPermission is wildcard
-// aware, so admin:* matches.
-func canSeeStaffPersonnelFields(ctx context.Context) bool {
+// Everyone with users:read may read the directory itself — the group,
+// substitution and supervision screens need names. Before #2906 the same read
+// also carried everything else, because the response was built
+// unconditionally.
+type staffFieldAccess struct {
+	// record covers the staff record a personnel administrator maintains:
+	// the staff notes and the free-text qualifications — exactly the fields
+	// PUT /api/staff/{id} writes.
+	record bool
+	// personnel covers the personnel-file data: employment type, today's
+	// absence reason including the school's own wording, and the NFC tag.
+	// Being allowed to change a staff record (staff:manage) does not entitle
+	// anybody to read those; maintaining the personnel file
+	// (staff:stammdaten) and the time-management view (time_tracking:manage)
+	// do.
+	personnel bool
+}
+
+// staffFieldAccessFromCtx reads the caller's tiers off the JWT permissions.
+// authorize.HasPermission is wildcard aware, so admin:* matches both tiers.
+func staffFieldAccessFromCtx(ctx context.Context) staffFieldAccess {
 	granted := jwt.PermissionsFromCtx(ctx)
-	for _, required := range []string{
-		permissions.StaffManage,
-		permissions.StaffStammdaten,
-		permissions.TimeTrackingManage,
-	} {
-		if authorize.HasPermission(required, granted) {
-			return true
-		}
+	has := func(required string) bool { return authorize.HasPermission(required, granted) }
+
+	return staffFieldAccess{
+		record:    has(permissions.StaffManage) || has(permissions.StaffStammdaten),
+		personnel: has(permissions.StaffStammdaten) || has(permissions.TimeTrackingManage),
 	}
-	return false
 }
 
 // =============================================================================
@@ -110,7 +118,7 @@ type staffResponseBuilder struct {
 // today's absence names the reason just as AbsenceType does.
 func (b *staffResponseBuilder) buildResponse(ctx context.Context) interface{} {
 	label := b.absenceTypeLabel
-	if !canSeeStaffPersonnelFields(ctx) {
+	if !staffFieldAccessFromCtx(ctx).personnel {
 		label = ""
 	}
 	if b.isTeacher && b.teacher != nil {
