@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,10 +29,8 @@ func (c testAuthEventCommand) Append(ctx context.Context, event any) error {
 	return c.repo.Create(ctx, event.(*auditModels.AuthEvent))
 }
 
-// newTestMFAService wires a real test-DB-backed MFA service. Settings +
-// Dispatcher are intentionally nil so IsRequired falls through to "off"
-// and StartChallenge logs-and-skips email send (proper template lands
-// in Phase 4).
+// newTestMFAService wires a real test-DB-backed MFA service with a successful
+// capturing dispatcher so StartChallenge exercises the delivered-code path.
 func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -38,13 +38,19 @@ func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *b
 	repos := repositories.NewFactory(db)
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(testJWTSecret)
 	require.NoError(t, err)
+	mailer := testpkg.NewCapturingMailer()
+	dispatcher := email.NewDispatcher(mailer, slog.Default())
+	dispatcher.SetDefaults(1, []time.Duration{time.Millisecond})
 
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:     repos,
-		TokenAuth: tokenAuth,
-		JWTSecret: testJWTSecret,
-		DB:        db,
-		Audit:     testAuthEventCommand{repo: repos.AuthEvent},
+		Repos:       repos,
+		TokenAuth:   tokenAuth,
+		Dispatcher:  dispatcher,
+		DefaultFrom: email.NewEmail("Moto Tests", "tests@example.test"),
+		FrontendURL: "https://moto.test/",
+		JWTSecret:   testJWTSecret,
+		DB:          db,
+		Audit:       testAuthEventCommand{repo: repos.AuthEvent},
 	})
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, svc, db)
