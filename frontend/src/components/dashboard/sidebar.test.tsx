@@ -2383,6 +2383,67 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
     });
 
+    it("blendet das zweite Gruppen-Icon erst mit den Bezeichnungen wieder ein", async () => {
+      withOtherGroups();
+      localStorage.setItem("sidebar-collapsed", "true");
+
+      render(<Sidebar />);
+
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "false");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+
+      // Erst wenn die Bezeichnungen einblenden, kommt der zweite Bereich
+      // dazu — sonst stünden die beiden gleichen Icons noch unbeschriftet
+      // untereinander.
+      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByText("Weitere Gruppen")).toBeInTheDocument(),
+      );
+    });
+
+    it("öffnet über das Gruppen-Icon wieder Meine Gruppen", async () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+      fireEvent.click(screen.getByText("Weitere Gruppen"));
+
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "true");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+      await waitFor(() =>
+        expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument(),
+      );
+
+      // Das Icon im Streifen heißt "Meine Gruppen"; danach müssen die
+      // eigenen Gruppen offen stehen und nicht der zuletzt gewählte
+      // Unterbereich.
+      fireEvent.click(screen.getByRole("button", { name: "Meine Gruppen" }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByText("Meine Gruppen").closest("button"),
+        ).toHaveAttribute("aria-expanded", "true"),
+      );
+      expect(
+        screen.getByText("Weitere Gruppen").closest("button"),
+      ).toHaveAttribute("aria-expanded", "false");
+    });
+
     it("hält geschlossene Bereiche aus der Tastaturreihenfolge heraus", () => {
       render(<Sidebar />);
 

@@ -923,8 +923,14 @@ function SidebarContent({
 
   // Gemeinsame Klapp-Eigenschaften jedes Akkordeon-Bereichs. Der Klick aus
   // dem eingeklappten Streifen heraus klappt die Leiste auf und öffnet den
-  // Bereich — sein Inhalt passt nicht in 64px Breite.
-  const sectionProps = (accordion: string, onToggle: () => void) => ({
+  // Bereich — sein Inhalt passt nicht in 64px Breite. `onExpandFromRail`
+  // räumt dabei den Unterzustand des Bereichs auf, den der Streifen nicht
+  // zeigen konnte.
+  const sectionProps = (
+    accordion: string,
+    onToggle: () => void,
+    onExpandFromRail?: () => void,
+  ) => ({
     collapsed,
     labelsMounted,
     labelsVisible,
@@ -934,6 +940,7 @@ function SidebarContent({
         return;
       }
       onExpandSidebar();
+      onExpandFromRail?.();
       if (expanded !== accordion) onToggle();
     },
   });
@@ -1335,7 +1342,13 @@ function SidebarContent({
                 label="Meine Gruppen"
                 activeColor="text-moto-green"
                 isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
-                {...sectionProps("groups", handleGroupsToggle)}
+                {...sectionProps("groups", handleGroupsToggle, () =>
+                  // Das Icon im Streifen heißt "Meine Gruppen". Ohne diesen
+                  // Rücksetzer öffnet es die Leiste im zuletzt gewählten
+                  // Unterbereich "Weitere Gruppen" — die eigenen Gruppen
+                  // blieben dann zu, obwohl man sie angeklickt hat.
+                  setOtherGroupsExpanded(false),
+                )}
                 isActive={isAccordionSectionActive(
                   "/ogs-groups",
                   Boolean(currentGroupParam) ||
@@ -1370,8 +1383,10 @@ function SidebarContent({
                   im Streifen stünden zwei nicht unterscheidbare Icons
                   untereinander, deshalb bleibt der zweite dort weg — schon
                   während der Bewegung, sonst stehen die beiden gleichen Icons
-                  für die Dauer der Blende doch untereinander. */}
-              {otherGroups.length > 0 && !collapsed && (
+                  für die Dauer der Blende doch untereinander. Beim Aufklappen
+                  kommt der Bereich erst mit den Bezeichnungen dazu, die ihn
+                  von "Meine Gruppen" unterscheiden. */}
+              {otherGroups.length > 0 && !collapsed && labelsVisible && (
                 <SidebarAccordionSection
                   icon={GROUP_NAV_ICON}
                   concept="groups"
