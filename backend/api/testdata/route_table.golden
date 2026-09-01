@@ -96,6 +96,7 @@ DELETE /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 DELETE /operator/schools/{id}/accounts/{accountId}/mfa/
 DELETE /operator/schools/{id}/settings/values/{key}
 DELETE /parent/me/children/{studentId}/care-exception
+DELETE /parent/me/children/{studentId}/meal-participation/{date}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
@@ -267,6 +268,8 @@ GET /api/me/profile/avatar/{filename}
 GET /api/me/staff
 GET /api/me/teacher
 GET /api/meal-plan/
+GET /api/meal-plan/participants
+GET /api/meal-plan/participants/export
 GET /api/messages/
 GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
@@ -518,6 +521,7 @@ GET /parent/me/children/{studentId}/features
 GET /parent/me/children/{studentId}/guardians
 GET /parent/me/children/{studentId}/master-data
 GET /parent/me/children/{studentId}/master-data/requests
+GET /parent/me/children/{studentId}/meal-participation
 GET /parent/me/children/{studentId}/meal-plan
 GET /parent/me/children/{studentId}/pickup-change-requests
 GET /parent/me/children/{studentId}/related-accounts
@@ -1000,6 +1004,8 @@ PUT /parent/me/children/{studentId}/excused-requests/{requestId}
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
 PUT /parent/me/children/{studentId}/master-data/requests/{requestId}
+PUT /parent/me/children/{studentId}/meal-participation
+PUT /parent/me/children/{studentId}/meal-participation/{date}
 PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 PUT /parent/me/notification-preferences/{type}

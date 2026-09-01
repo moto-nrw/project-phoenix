@@ -12,6 +12,10 @@ import "@testing-library/jest-dom/vitest";
 const mocks = vi.hoisted(() => ({
   getChildFeatures: vi.fn(),
   getChildMealPlan: vi.fn(),
+  getMealParticipation: vi.fn(),
+  replaceMealParticipationSchedule: vi.fn(),
+  setMealParticipationDay: vi.fn(),
+  clearMealParticipationDay: vi.fn(),
   listMyChildren: vi.fn(),
   today: "2026-08-12",
 }));
@@ -19,6 +23,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("~/lib/parent-api", () => ({
   getChildFeatures: mocks.getChildFeatures,
   getChildMealPlan: mocks.getChildMealPlan,
+  getMealParticipation: mocks.getMealParticipation,
+  replaceMealParticipationSchedule: mocks.replaceMealParticipationSchedule,
+  setMealParticipationDay: mocks.setMealParticipationDay,
+  clearMealParticipationDay: mocks.clearMealParticipationDay,
   listMyChildren: mocks.listMyChildren,
 }));
 
@@ -36,10 +44,15 @@ describe("ParentMealPlanPage", () => {
       {
         student_id: "child-1",
         tenant_id: "school-1",
+        first_name: "Mia",
+        last_name: "Muster",
         school_name: "OGS Am Berg",
       },
     ]);
-    mocks.getChildFeatures.mockResolvedValue({ meal_plan_enabled: true });
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: false,
+    });
     mocks.getChildMealPlan.mockResolvedValue([]);
   });
 
@@ -49,7 +62,7 @@ describe("ParentMealPlanPage", () => {
     render(<ParentMealPlanPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Essensplan", level: 1 }),
+      screen.getByRole("heading", { name: "Mittagessen", level: 1 }),
     ).toBeInTheDocument();
     const loadingStatus = screen.getByRole("status", {
       name: "Essensplan wird geladen",
@@ -70,7 +83,7 @@ describe("ParentMealPlanPage", () => {
     render(<ParentMealPlanPage />);
 
     expect(
-      await screen.findByRole("heading", { name: "Essensplan", level: 1 }),
+      await screen.findByRole("heading", { name: "Mittagessen", level: 1 }),
     ).toBeInTheDocument();
     expect(screen.getByText("Essen in der OGS")).toBeInTheDocument();
 
@@ -184,6 +197,48 @@ describe("ParentMealPlanPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the cutoff and changes one lunch day", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [1, 3],
+      effective_from: "2026-08-10",
+      cutoff_time: "09:00",
+      days: [
+        {
+          date: "2026-08-12",
+          participating: false,
+          source: "none",
+          changeable: true,
+        },
+      ],
+    });
+    mocks.setMealParticipationDay.mockResolvedValue(undefined);
+
+    render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Wann isst Mia Muster mit?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Änderungen für den gleichen Tag sind bis 09:00 Uhr möglich.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+    await waitFor(() => {
+      expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
+        "child-1",
+        "2026-08-12",
+        true,
+      );
+    });
+  });
+
   it("distinguishes missing children from a disabled school meal plan", async () => {
     mocks.listMyChildren.mockResolvedValue([]);
 
@@ -205,7 +260,10 @@ describe("ParentMealPlanPage", () => {
         school_name: "OGS Am Berg",
       },
     ]);
-    mocks.getChildFeatures.mockResolvedValue({ meal_plan_enabled: false });
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: false,
+      meal_registration_enabled: false,
+    });
     rerender(<ParentMealPlanPage key="disabled-school" />);
 
     expect(

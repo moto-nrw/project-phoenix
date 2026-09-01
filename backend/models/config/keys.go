@@ -125,6 +125,8 @@ const (
 	KeySessionInactivityTimeoutMin           = "operations.session_inactivity_timeout_minutes"
 	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
 	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
+	KeyMealRegistrationEnabled               = "operations.meal_registration_enabled"
+	KeyMealRegistrationCutoffTime            = "operations.meal_registration_cutoff_time"
 	KeyStatusFlagClearTime                   = "operations.status_flag_clear_time"
 	KeySickClearMode                         = "operations.sick_clear_mode"
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"

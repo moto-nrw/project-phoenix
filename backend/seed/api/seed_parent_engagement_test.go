@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,6 +58,8 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/settings/values/guardians.parent_invite_mode",
 		"/parent/me/children/44/master-data/guardian_profile/preferred_contact_method",
 		"/parent/me/children/44/master-data/requests",
+		"/parent/me/children/44/meal-participation",
+		"/parent/me/children/44/meal-participation/" + nextWeekday(todaySeedDate().AddDays(1).UTCMidnight(), time.Monday).Format(seedDateLayout),
 	}, paths)
 	assert.Equal(t, "Können Sie bitte prüfen, ob die neue Abholzeit eingetragen ist?", message["body"])
 }

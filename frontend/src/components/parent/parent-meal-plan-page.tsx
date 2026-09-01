@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, Utensils } from "lucide-react";
 
@@ -9,14 +9,20 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
+import { Checkbox } from "~/components/ui/checkbox";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getChildFeatures,
   getChildMealPlan,
+  getMealParticipation,
   listMyChildren,
-  type Child,
+  replaceMealParticipationSchedule,
+  setMealParticipationDay,
+  clearMealParticipationDay,
+  type MealParticipation,
   type MealPlanEntry,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
@@ -25,10 +31,12 @@ const logger = createLogger({ component: "ParentMealPlanPage" });
 
 // One school the parent has a child at, with a representative child used for the
 // per-child (school-scoped) backend calls.
-interface SchoolOption {
+interface ChildOption {
   tenantId: string;
   schoolName: string;
   studentId: string;
+  childName: string;
+  registrationEnabled: boolean;
 }
 
 function mondayISOFromOffset(todayISO: string, weekOffset: number): string {
@@ -172,13 +180,263 @@ function MealPlanLoadingSection({ loadingLabel }: { loadingLabel: string }) {
   );
 }
 
+const participationWeekdays = [1, 2, 3, 4, 5] as const;
+
+function ParticipationCard({
+  studentId,
+  childName,
+  today,
+}: Readonly<{ studentId: string; childName: string; today: string }>) {
+  const t = useTranslations("parentMealPlan");
+  const locale = useLocale();
+  const [participation, setParticipation] = useState<MealParticipation | null>(
+    null,
+  );
+  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+
+  const range = useMemo(() => {
+    const monday = mondayISOFromOffset(today, 0);
+    const end = parseISODate(monday);
+    end.setDate(end.getDate() + 11);
+    return { from: monday, to: toISODate(end) };
+  }, [today]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const value = await getMealParticipation(studentId, range.from, range.to);
+      setParticipation(value);
+      setWeekdays(value.weekdays);
+    } catch (loadError) {
+      logger.error("parent_meal_participation_load_failed", {
+        error:
+          loadError instanceof Error ? loadError.message : String(loadError),
+      });
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [range.from, range.to, studentId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function toggleWeekday(weekday: number) {
+    setWeekdays((current) =>
+      current.includes(weekday)
+        ? current.filter((value) => value !== weekday)
+        : [...current, weekday].sort((a, b) => a - b),
+    );
+  }
+
+  async function saveRegularDays() {
+    setSaving(true);
+    try {
+      await replaceMealParticipationSchedule(studentId, weekdays);
+      await load();
+    } catch (saveError) {
+      logger.error("parent_meal_participation_schedule_failed", {
+        error:
+          saveError instanceof Error ? saveError.message : String(saveError),
+      });
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function changeDay(
+    date: string,
+    participating: boolean,
+    reset = false,
+  ) {
+    setSaving(true);
+    try {
+      if (reset) await clearMealParticipationDay(studentId, date);
+      else await setMealParticipationDay(studentId, date, participating);
+      await load();
+    } catch (saveError) {
+      logger.error("parent_meal_participation_day_failed", {
+        error:
+          saveError instanceof Error ? saveError.message : String(saveError),
+      });
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      <h2 className="text-lg font-semibold text-gray-900">
+        {t("participationTitle", { name: childName })}
+      </h2>
+      <p className="mt-1 text-sm text-gray-600">
+        {participation
+          ? t("participationCutoff", { time: participation.cutoff_time })
+          : t("participationDescription")}
+      </p>
+      {participation ? (
+        <p className="mt-1 text-sm text-gray-600">
+          {t("participationSickness", { time: participation.cutoff_time })}
+        </p>
+      ) : null}
+
+      {error ? (
+        <div className="mt-4 space-y-3">
+          <Alert type="error" message={t("participationError")} />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            {t("retry")}
+          </Button>
+        </div>
+      ) : loading || !participation ? (
+        <div className="mt-4 space-y-3" aria-label={t("participationLoading")}>
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-28 w-full rounded-xl" />
+        </div>
+      ) : (
+        <div className="mt-5 space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">
+              {t("regularDays")}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">{t("regularDaysHint")}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {participationWeekdays.map((weekday) => (
+                <label
+                  key={weekday}
+                  className="moto-content-surface flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-800 shadow-sm"
+                >
+                  <Checkbox
+                    checked={weekdays.includes(weekday)}
+                    onChange={() => toggleWeekday(weekday)}
+                    disabled={saving}
+                  />
+                  {t(`weekday${weekday}`)}
+                </label>
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="primary"
+              size="touch"
+              className="mt-3 w-full sm:w-auto"
+              onClick={() => void saveRegularDays()}
+              disabled={saving}
+              isLoading={saving}
+              loadingText={t("saving")}
+            >
+              {t("saveRegularDays")}
+            </Button>
+            {participation.effective_from ? (
+              <p className="mt-2 text-xs text-gray-500">
+                {t("regularEffective", {
+                  date: parseISODate(
+                    participation.effective_from,
+                  ).toLocaleDateString(locale),
+                })}
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">
+              {t("individualDays")}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {t("individualDaysHint")}
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {participation.days.map((day) => {
+                const date = parseISODate(day.date);
+                return (
+                  <div
+                    key={day.date}
+                    className="moto-content-surface rounded-xl border border-gray-200 p-3 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {date.toLocaleDateString(locale, {
+                            weekday: "long",
+                            day: "2-digit",
+                            month: "2-digit",
+                          })}
+                        </p>
+                        <p className="mt-0.5 text-sm text-gray-600">
+                          {day.source === "sick"
+                            ? t("cancelledBySickNote")
+                            : day.participating
+                              ? t("registered")
+                              : t("notRegistered")}
+                        </p>
+                      </div>
+                      {!day.changeable ? (
+                        <StatusBadge
+                          label={t("closed")}
+                          tone="gray"
+                          showDot={false}
+                        />
+                      ) : null}
+                    </div>
+                    {day.changeable && day.source !== "sick" ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant={
+                            day.participating ? "outline_danger" : "success"
+                          }
+                          size="compact"
+                          disabled={saving}
+                          onClick={() =>
+                            void changeDay(day.date, !day.participating)
+                          }
+                        >
+                          {day.participating ? t("unregister") : t("register")}
+                        </Button>
+                        {day.source === "override" ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="compact"
+                            disabled={saving}
+                            onClick={() =>
+                              void changeDay(day.date, false, true)
+                            }
+                          >
+                            {t("useRegular")}
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function ParentMealPlanPage() {
   const t = useTranslations("parentMealPlan");
   const locale = useLocale();
 
-  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [schools, setSchools] = useState<ChildOption[]>([]);
   const [hasLinkedChildren, setHasLinkedChildren] = useState(false);
-  const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState<0 | 1>(0);
   const [entries, setEntries] = useState<MealPlanEntry[]>([]);
   // The Monday the current `entries` were loaded for. Used to detect when
@@ -214,33 +472,29 @@ export function ParentMealPlanPage() {
       setSchoolsError(false);
       try {
         const children = await listMyChildren();
-        // One representative child per school (tenant).
-        const byTenant = new Map<string, Child>();
-        for (const child of children) {
-          if (!byTenant.has(child.tenant_id))
-            byTenant.set(child.tenant_id, child);
-        }
-        const reps = [...byTenant.values()];
         // Let a failed feature lookup reject the whole resolution. A transient
         // 500/session/proxy error must surface as an error, never be treated
         // as meal_plan_enabled: false (which silently removes the school).
         const features = await Promise.all(
-          reps.map((c) => getChildFeatures(c.student_id)),
+          children.map((child) => getChildFeatures(child.student_id)),
         );
-        const enabled: SchoolOption[] = [];
-        reps.forEach((c, i) => {
-          if (features[i]?.meal_plan_enabled) {
+        const enabled: ChildOption[] = [];
+        children.forEach((child, index) => {
+          if (features[index]?.meal_plan_enabled) {
             enabled.push({
-              tenantId: c.tenant_id,
-              schoolName: c.school_name,
-              studentId: c.student_id,
+              tenantId: child.tenant_id,
+              schoolName: child.school_name,
+              studentId: child.student_id,
+              childName: `${child.first_name} ${child.last_name}`,
+              registrationEnabled:
+                features[index]?.meal_registration_enabled === true,
             });
           }
         });
         if (cancelled) return;
         setHasLinkedChildren(children.length > 0);
         setSchools(enabled);
-        setSelectedTenant(enabled[0]?.tenantId ?? null);
+        setSelectedStudent(enabled[0]?.studentId ?? null);
       } catch (err) {
         if (cancelled) return;
         logger.error("parent_meal_plan_schools_failed", {
@@ -257,8 +511,9 @@ export function ParentMealPlanPage() {
   }, []);
 
   const selectedSchool = useMemo(
-    () => schools.find((s) => s.tenantId === selectedTenant) ?? null,
-    [schools, selectedTenant],
+    () =>
+      schools.find((school) => school.studentId === selectedStudent) ?? null,
+    [schools, selectedStudent],
   );
 
   // Switching schools must drop the previous school's menu immediately, or it
@@ -268,7 +523,7 @@ export function ParentMealPlanPage() {
   useEffect(() => {
     setEntries([]);
     setLoadedMonday(null);
-  }, [selectedTenant]);
+  }, [selectedStudent]);
 
   // Load the selected school's week. A slower response from a previous
   // school/week selection must never overwrite the current one, so each run
@@ -355,13 +610,13 @@ export function ParentMealPlanPage() {
         actions={
           schools.length > 1 ? (
             <CustomSelect
-              value={selectedTenant ?? ""}
+              value={selectedStudent ?? ""}
               options={schools.map((school) => ({
-                value: school.tenantId,
-                label: school.schoolName,
+                value: school.studentId,
+                label: `${school.childName} · ${school.schoolName}`,
               }))}
-              onChange={setSelectedTenant}
-              ariaLabel={t("school")}
+              onChange={setSelectedStudent}
+              ariaLabel={t("child")}
               className="w-full sm:w-60"
             />
           ) : undefined
@@ -387,105 +642,162 @@ export function ParentMealPlanPage() {
           className="moto-content-surface rounded-2xl border px-5 shadow-sm backdrop-blur-md"
         />
       ) : (
-        <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-          <nav
-            aria-label={t("weekNavigation")}
-            className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={t("previousWeek")}
-              disabled={!weekReady || weekOffset === 0}
-              onClick={() => setWeekOffset(0)}
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            </Button>
-            <div
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-              className="min-w-40 text-center"
-            >
-              <p className="text-sm font-semibold text-gray-900">
-                {t("calendarWeek", { week: isoWeek(mondayISO) })}
-                <span className="ml-1.5 text-gray-500">
-                  · {weekOffset === 0 ? t("thisWeek") : t("nextWeek")}
-                </span>
-              </p>
-              <p className="text-xs text-gray-500">{weekRange}</p>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={t("nextWeek")}
-              disabled={!weekReady || weekOffset === 1}
-              onClick={() => setWeekOffset(1)}
-            >
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </nav>
-
-          {!weekReady ? (
-            <MealPlanWeekSkeleton loadingLabel={t("loading")} />
-          ) : weekError ? (
-            <div className="p-4">
-              <Alert type="error" message={t("loadError")} />
-            </div>
-          ) : weekIsEmpty ? (
-            <EmptyState
-              icon={<Utensils className="h-10 w-10" />}
-              title={
-                weekOffset === 0
-                  ? t("emptyThisWeekTitle")
-                  : t("emptyNextWeekTitle")
-              }
-              description={t("emptyWeek")}
-              className="px-5"
+        <>
+          {selectedSchool?.registrationEnabled ? (
+            <ParticipationCard
+              studentId={selectedSchool.studentId}
+              childName={selectedSchool.childName}
+              today={today}
             />
-          ) : (
-            <>
-              {/* Mobile: today first, then the rest of the week as a list. */}
-              <div className="md:hidden">
-                {todayInWeek &&
-                  (() => {
-                    const dishes = dishesByDate.get(today) ?? [];
-                    return (
-                      <div className="overflow-hidden border-b border-gray-200">
-                        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-                          <div className="text-sm font-semibold text-gray-900">
-                            {weekdayLabel(today)}
-                          </div>
-                          <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                            {t("today")}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-2.5 p-3">
-                          {dishes.length > 0 ? (
-                            dishes.map((entry) => (
-                              <DishCard key={entry.position} entry={entry} />
-                            ))
-                          ) : (
-                            <p className="py-3 text-center text-sm text-gray-300">
-                              {t("noMeal")}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
+          ) : null}
+          <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+            <nav
+              aria-label={t("weekNavigation")}
+              className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t("previousWeek")}
+                disabled={!weekReady || weekOffset === 0}
+                onClick={() => setWeekOffset(0)}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              <div
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className="min-w-40 text-center"
+              >
+                <p className="text-sm font-semibold text-gray-900">
+                  {t("calendarWeek", { week: isoWeek(mondayISO) })}
+                  <span className="ml-1.5 text-gray-500">
+                    · {weekOffset === 0 ? t("thisWeek") : t("nextWeek")}
+                  </span>
+                </p>
+                <p className="text-xs text-gray-500">{weekRange}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t("nextWeek")}
+                disabled={!weekReady || weekOffset === 1}
+                onClick={() => setWeekOffset(1)}
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </nav>
 
-                <div className="overflow-hidden">
-                  <div className="divide-y divide-gray-100">
-                    {weekDates
-                      .filter((date) => !(todayInWeek && date === today))
-                      .map((date) => {
-                        const dishes = dishesByDate.get(date) ?? [];
-                        return (
-                          <div key={date} className="flex gap-3 px-4 py-3">
-                            <div className="w-20 shrink-0">
+            {!weekReady ? (
+              <MealPlanWeekSkeleton loadingLabel={t("loading")} />
+            ) : weekError ? (
+              <div className="p-4">
+                <Alert type="error" message={t("loadError")} />
+              </div>
+            ) : weekIsEmpty ? (
+              <EmptyState
+                icon={<Utensils className="h-10 w-10" />}
+                title={
+                  weekOffset === 0
+                    ? t("emptyThisWeekTitle")
+                    : t("emptyNextWeekTitle")
+                }
+                description={t("emptyWeek")}
+                className="px-5"
+              />
+            ) : (
+              <>
+                {/* Mobile: today first, then the rest of the week as a list. */}
+                <div className="md:hidden">
+                  {todayInWeek &&
+                    (() => {
+                      const dishes = dishesByDate.get(today) ?? [];
+                      return (
+                        <div className="overflow-hidden border-b border-gray-200">
+                          <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
+                            <div className="text-sm font-semibold text-gray-900">
+                              {weekdayLabel(today)}
+                            </div>
+                            <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                              {t("today")}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-2.5 p-3">
+                            {dishes.length > 0 ? (
+                              dishes.map((entry) => (
+                                <DishCard key={entry.position} entry={entry} />
+                              ))
+                            ) : (
+                              <p className="py-3 text-center text-sm text-gray-300">
+                                {t("noMeal")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                  <div className="overflow-hidden">
+                    <div className="divide-y divide-gray-100">
+                      {weekDates
+                        .filter((date) => !(todayInWeek && date === today))
+                        .map((date) => {
+                          const dishes = dishesByDate.get(date) ?? [];
+                          return (
+                            <div key={date} className="flex gap-3 px-4 py-3">
+                              <div className="w-20 shrink-0">
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {weekdayLabel(date)}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {shortDate(date)}
+                                </div>
+                              </div>
+                              <div className="min-w-0 flex-1 space-y-1.5">
+                                {dishes.length > 0 ? (
+                                  dishes.map((entry) => (
+                                    <div key={entry.position}>
+                                      <p className="text-sm leading-snug font-medium text-gray-900">
+                                        {entry.dish}
+                                      </p>
+                                      {entry.note ? (
+                                        <p className="text-xs leading-snug text-gray-500">
+                                          {entry.note}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-sm text-gray-300">
+                                    {t("noMeal")}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop: full five-column week grid. */}
+                <div className="hidden md:block">
+                  <div className="grid grid-cols-5 divide-x divide-gray-200">
+                    {weekDates.map((date) => {
+                      const dishes = dishesByDate.get(date) ?? [];
+                      const isToday = date === today;
+                      return (
+                        <div
+                          key={date}
+                          className={`flex flex-col ${
+                            isToday ? "bg-moto-green/[0.04]" : ""
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
+                            <div>
                               <div className="text-sm font-semibold text-gray-900">
                                 {weekdayLabel(date)}
                               </div>
@@ -493,85 +805,37 @@ export function ParentMealPlanPage() {
                                 {shortDate(date)}
                               </div>
                             </div>
-                            <div className="min-w-0 flex-1 space-y-1.5">
-                              {dishes.length > 0 ? (
-                                dishes.map((entry) => (
-                                  <div key={entry.position}>
-                                    <p className="text-sm leading-snug font-medium text-gray-900">
-                                      {entry.dish}
-                                    </p>
-                                    {entry.note ? (
-                                      <p className="text-xs leading-snug text-gray-500">
-                                        {entry.note}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="text-sm text-gray-300">
-                                  {t("noMeal")}
-                                </p>
-                              )}
-                            </div>
+                            {isToday && (
+                              <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                                {t("today")}
+                              </span>
+                            )}
                           </div>
-                        );
-                      })}
+
+                          <div className="flex flex-1 flex-col gap-2.5 p-3">
+                            {dishes.length > 0 ? (
+                              dishes.map((entry) => (
+                                <DishCard
+                                  key={entry.position}
+                                  entry={entry}
+                                  highlight={isToday}
+                                />
+                              ))
+                            ) : (
+                              <p className="py-6 text-center text-sm text-gray-300">
+                                {t("noMeal")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-
-              {/* Desktop: full five-column week grid. */}
-              <div className="hidden md:block">
-                <div className="grid grid-cols-5 divide-x divide-gray-200">
-                  {weekDates.map((date) => {
-                    const dishes = dishesByDate.get(date) ?? [];
-                    const isToday = date === today;
-                    return (
-                      <div
-                        key={date}
-                        className={`flex flex-col ${
-                          isToday ? "bg-moto-green/[0.04]" : ""
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-                          <div>
-                            <div className="text-sm font-semibold text-gray-900">
-                              {weekdayLabel(date)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {shortDate(date)}
-                            </div>
-                          </div>
-                          {isToday && (
-                            <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                              {t("today")}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-1 flex-col gap-2.5 p-3">
-                          {dishes.length > 0 ? (
-                            dishes.map((entry) => (
-                              <DishCard
-                                key={entry.position}
-                                entry={entry}
-                                highlight={isToday}
-                              />
-                            ))
-                          ) : (
-                            <p className="py-6 text-center text-sm text-gray-300">
-                              {t("noMeal")}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-        </section>
+              </>
+            )}
+          </section>
+        </>
       )}
     </ParentPage>
   );

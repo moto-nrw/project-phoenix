@@ -828,7 +828,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyMealPlanEnabled,
 		Label:           "Essensplan",
-		Description:     "Wenn aktiviert, kann das Team pro Tag ein Gericht mit optionalem Hinweis hinterlegen. Eltern sehen den Essensplan für die aktuelle und nächste Woche im Elternportal.",
+		Description:     "Wenn eingeschaltet, kann das Team pro Tag ein Gericht mit optionalem Hinweis hinterlegen. Eltern sehen den Essensplan für die aktuelle und nächste Woche im Elternportal.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -836,6 +836,34 @@ func init() {
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       68,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyMealRegistrationEnabled,
+		Label:           "Anmeldung zum Mittagessen",
+		Description:     "Wenn eingeschaltet, können Eltern feste Wochentage und einzelne Tage für das Mittagessen festlegen. Das Team erhält daraus eine Tagesliste für die Küche.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       69,
+		DependsOn:       config.DependsOnEq(config.KeyMealPlanEnabled, true),
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyMealRegistrationCutoffTime,
+		Label:           "Änderungsfrist für das Mittagessen",
+		Description:     "Bis zu dieser Uhrzeit können Eltern die Anmeldung für den gleichen Tag ändern. Spätere Krankmeldungen ändern die Küchenliste nicht mehr.",
+		Type:            config.FieldTime,
+		Default:         "09:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       70,
+		DependsOn:       config.DependsOnEq(config.KeyMealRegistrationEnabled, true),
 	})
 
 	// Parent broadcast announcements (#1669). When on, staff with the

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 type seedOperationsDemoStep struct{}
@@ -22,6 +24,9 @@ func (seedOperationsDemoStep) Run(_ context.Context, rt *Runtime) error {
 	rt.Client.BindAuth(rt.TenantAuth)
 
 	today := todaySeedDate()
+	if err := enableMealRegistration(rt); err != nil {
+		return err
+	}
 	if err := seedClosingDay(rt, today); err != nil {
 		return err
 	}
@@ -32,6 +37,18 @@ func (seedOperationsDemoStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	fmt.Println("  1 closing day, 1 meal plan and 1 staff shift created")
+	return nil
+}
+
+func enableMealRegistration(rt *Runtime) error {
+	for _, key := range []string{
+		configModels.KeyMealPlanEnabled,
+		configModels.KeyMealRegistrationEnabled,
+	} {
+		if _, err := rt.Client.Put("/api/settings/values/"+key, map[string]any{"value": true}); err != nil {
+			return fmt.Errorf("enable %s: %w", key, err)
+		}
+	}
 	return nil
 }
 

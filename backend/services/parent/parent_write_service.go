@@ -59,7 +59,9 @@ var (
 	// arbitrary future weeks on the staff page, but those are drafts; the
 	// parents portal only ever exposes this week and next, so a request for any
 	// other week is refused rather than leaking an unpublished menu.
-	ErrMealPlanWeekOutOfRange = errors.New("parent: meal plan week is outside the viewable range")
+	ErrMealPlanWeekOutOfRange      = errors.New("parent: meal plan week is outside the viewable range")
+	ErrMealRegistrationDisabled    = errors.New("parent: meal registration disabled for this school")
+	ErrMealParticipationOutOfRange = errors.New("parent: meal participation date is outside the changeable range")
 	// ErrNoDates means the sick-note request carried no dates.
 	ErrNoDates = errors.New("parent: at least one date is required")
 	// ErrInvalidStatus means the absence status was neither sick nor excused.
@@ -781,6 +783,10 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
 	}
+	mealRegistration, err := s.mealRegistrationAvailableForTenant(ctx, child.tenantID)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve meal-registration setting: %w", err)
+	}
 	news, err := resolveBool(configModels.KeyParentNewsEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve parent-news setting: %w", err)
@@ -809,6 +815,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 			SickRequiresApproval:    sickApproval,
 			ExcusedRequiresApproval: excusedApproval,
 			MealPlanEnabled:         mealPlan,
+			MealRegistrationEnabled: false,
 			NewsEnabled:             news,
 		}, nil
 	}
@@ -829,6 +836,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		MasterDataContactEditEnabled: canEditMasterData && guardianManagement,
 		MasterDataRequestEnabled:     masterRequest && child.hasPermission(authorize.GuardianPermissionMasterDataRequest),
 		MealPlanEnabled:              mealPlan,
+		MealRegistrationEnabled:      mealRegistration,
 		NewsEnabled:                  news,
 		ReasonRequired:               usersSvc.ReasonRequiredFor(reasonPolicy, false),
 	}, nil
@@ -988,6 +996,110 @@ func (s *service) mealPlanAvailableForTenant(ctx context.Context, tenantID int64
 		return resolveErr
 	})
 	return available, err
+}
+
+func (s *service) mealRegistrationAvailableForTenant(ctx context.Context, tenantID int64) (bool, error) {
+	if s.MealPlan == nil {
+		return false, errors.New("parent: meal plan capability is required")
+	}
+	var available bool
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var resolveErr error
+		available, resolveErr = s.MealPlan.RegistrationAvailable(txCtx)
+		return resolveErr
+	})
+	if errors.Is(err, mealplanModule.ErrDisabled) {
+		return false, nil
+	}
+	return available, err
+}
+
+func (s *service) MealParticipation(ctx context.Context, accountID, studentID int64, from, to timezone.Date) (mealplanModule.ParticipationPlan, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	if err != nil {
+		return mealplanModule.ParticipationPlan{}, err
+	}
+	currentMonday := s.todayDate().StartOfISOWeek()
+	if from.Before(currentMonday) || to.After(currentMonday.AddDays(11)) || to.Before(from) {
+		return mealplanModule.ParticipationPlan{}, ErrMealParticipationOutOfRange
+	}
+	var plan mealplanModule.ParticipationPlan
+	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var readErr error
+		plan, readErr = s.MealPlan.Participation(txCtx, studentID, mealplanModule.Date(from.String()), mealplanModule.Date(to.String()))
+		return readErr
+	})
+	if err != nil {
+		return mealplanModule.ParticipationPlan{}, mapMealParticipationError(err)
+	}
+	return plan, nil
+}
+
+func (s *service) ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []mealplanModule.Weekday) (mealplanModule.Date, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	if err != nil {
+		return "", err
+	}
+	if err := child.requireCareRunning(); err != nil {
+		return "", err
+	}
+	var effectiveFrom mealplanModule.Date
+	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
+		var writeErr error
+		effectiveFrom, writeErr = s.MealPlan.ReplaceParticipationSchedule(txCtx, mealplanModule.ReplaceParticipationSchedule{StudentID: studentID, GuardianAccountID: accountID, Weekdays: weekdays})
+		return writeErr
+	})
+	if err != nil {
+		return "", mapMealParticipationError(err)
+	}
+	return effectiveFrom, nil
+}
+
+func (s *service) SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error {
+	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
+		return s.MealPlan.SetParticipationForDay(txCtx, mealplanModule.SetParticipationDay{StudentID: studentID, GuardianAccountID: accountID, Date: mealplanModule.Date(date.String()), Participating: participating})
+	})
+}
+
+func (s *service) ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error {
+	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
+		return s.MealPlan.ClearParticipationForDay(txCtx, mealplanModule.SetParticipationDay{StudentID: studentID, GuardianAccountID: accountID, Date: mealplanModule.Date(date.String())})
+	})
+}
+
+func (s *service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, change func(context.Context) error) error {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	if err != nil {
+		return err
+	}
+	if err := child.requireCareRunning(); err != nil {
+		return err
+	}
+	today := s.todayDate()
+	if date.Before(today) || date.After(today.StartOfISOWeek().AddDays(11)) {
+		return ErrMealParticipationOutOfRange
+	}
+	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
+		return change(txCtx)
+	})
+	return mapMealParticipationError(err)
+}
+
+func mapMealParticipationError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, mealplanModule.ErrDisabled), errors.Is(err, mealplanModule.ErrRegistrationDisabled):
+		return ErrMealRegistrationDisabled
+	default:
+		return err
+	}
 }
 
 // SubmitCareException sets the guardian-authored pickup and/or arrival override

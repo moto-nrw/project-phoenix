@@ -66,10 +66,12 @@ import (
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
@@ -83,6 +85,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -134,6 +137,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		Observe: func(observation mealplanCompose.Observation) {
 			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
 		},
+		Now: timezone.Now,
 	})
 	if err != nil {
 		return nil, nil, nil, err
@@ -177,6 +181,9 @@ var mealPlanErrorRules = []apiCommon.ErrorRule{
 	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("feature_disabled"))},
 	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
 	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
+	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("meal_registration_disabled"))},
+	{Target: mealplanModule.ErrInvalidParticipation, Render: apiCommon.ErrorInvalidRequest},
+	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedRenderer(apiCommon.ErrorConflict, errors.New("meal_participation_cutoff_passed"))},
 }
 
 func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
@@ -190,6 +197,9 @@ func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI
 			apiCommon.ProtectedTenantGroup(router, db, register)
 		},
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
+			if access == mealplanAPI.AccessParticipants {
+				return apiCommon.RequiresAllPermissions(permissions.ConfigRead, permissions.UsersRead)
+			}
 			if access == mealplanAPI.AccessRead {
 				return apiCommon.RequireConfigRead()
 			}
@@ -202,7 +212,39 @@ func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI
 		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
 			renderMealPlanFailure(w, r, err, internalMessage)
 		},
+		ExportDailyList: renderMealParticipationExport,
 	})
+}
+
+func renderMealParticipationExport(list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
+	rows := make([]listexport.Row, 0, len(list.Participants))
+	for _, participant := range list.Participants {
+		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
+			listexport.ColumnStudentName:  listexport.SanitizeUserText(participant.LastName + ", " + participant.FirstName),
+			listexport.ColumnStudentClass: listexport.SanitizeUserText(participant.SchoolClass),
+		}})
+	}
+	date, err := timezone.ParseDate(string(list.Date))
+	if err != nil {
+		return mealplanAPI.ExportFile{}, err
+	}
+	document := listexport.Document{
+		Title:       "Mittagessen – Tagesliste",
+		Subtitle:    "Tagesliste für den " + date.Format("02.01.2006"),
+		GeneratedAt: timezone.Now(),
+		Filters:     []string{"Änderungsfrist: " + list.CutoffTime + " Uhr", fmt.Sprintf("%d Kinder", len(rows))},
+		Columns: []listexport.Column{
+			{ID: listexport.ColumnStudentName, Label: "Kind"},
+			{ID: listexport.ColumnStudentClass, Label: "Klasse"},
+		},
+		Rows:   rows,
+		Footer: "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
+	}
+	file, err := listexport.NewService().Render(document, listexport.Format(format), "mittagessen-"+string(list.Date))
+	if err != nil {
+		return mealplanAPI.ExportFile{}, err
+	}
+	return mealplanAPI.ExportFile{Data: file.Data, ContentType: file.ContentType, Filename: file.Filename}, nil
 }
 
 func newFeedbackResource(module *feedbackModule.Module, db *bun.DB) *feedbackAPI.Resource {

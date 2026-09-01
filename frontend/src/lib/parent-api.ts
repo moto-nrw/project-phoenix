@@ -260,6 +260,7 @@ export interface ChildFeatures {
   // Missing = the strictest reading, see lib/parent-request-reason.ts.
   readonly reason_required?: boolean;
   readonly meal_plan_enabled: boolean;
+  readonly meal_registration_enabled: boolean;
   // STATE, not a capability: the child has a pending change request (master data
   // or care schedule) awaiting an OGS decision. Lets the overview badge the
   // Stammdaten entry without fetching the full request payloads.
@@ -802,6 +803,62 @@ export async function getChildMealPlan(
     `/api/parent/me/children/${encodeURIComponent(
       studentId,
     )}/meal-plan?week_start=${encodeURIComponent(weekStart)}`,
+  );
+}
+
+export type MealParticipationSource = "none" | "regular" | "override" | "sick";
+
+export interface MealParticipationDay {
+  readonly date: string;
+  readonly participating: boolean;
+  readonly source: MealParticipationSource;
+  readonly changeable: boolean;
+}
+
+export interface MealParticipation {
+  readonly weekdays: number[];
+  readonly effective_from?: string;
+  readonly cutoff_time: string;
+  readonly days: MealParticipationDay[];
+}
+
+export async function getMealParticipation(
+  studentId: string,
+  from: string,
+  to: string,
+): Promise<MealParticipation> {
+  return getJson<MealParticipation>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  );
+}
+
+export async function replaceMealParticipationSchedule(
+  studentId: string,
+  weekdays: number[],
+): Promise<{ effective_from: string }> {
+  return putJson<{ effective_from: string }>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation`,
+    { weekdays },
+  );
+}
+
+export async function setMealParticipationDay(
+  studentId: string,
+  date: string,
+  participating: boolean,
+): Promise<void> {
+  await putJson<unknown>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation/${encodeURIComponent(date)}`,
+    { participating },
+  );
+}
+
+export async function clearMealParticipationDay(
+  studentId: string,
+  date: string,
+): Promise<void> {
+  await deleteJson<unknown>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation/${encodeURIComponent(date)}`,
   );
 }
 

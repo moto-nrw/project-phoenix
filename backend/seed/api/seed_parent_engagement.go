@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 type seedParentEngagementStep struct{}
@@ -32,8 +33,28 @@ func (seedParentEngagementStep) Run(ctx context.Context, rt *Runtime) error {
 	if err := seedParentMasterData(rt, auth, studentID); err != nil {
 		return err
 	}
+	if err := seedParentMealParticipation(rt, auth, studentID); err != nil {
+		return err
+	}
 	rt.Client.BindAuth(rt.TenantAuth)
-	fmt.Println("  1 parent preference, 1 conversation, 1 audited contact and 1 master-data request created")
+	fmt.Println("  1 parent preference, 1 conversation, 1 audited contact, 1 master-data request and lunch participation created")
+	return nil
+}
+
+func seedParentMealParticipation(rt *Runtime, auth AuthRef, studentID int64) error {
+	basePath := fmt.Sprintf("/parent/me/children/%d/meal-participation", studentID)
+	if _, err := rt.Client.PutWithAuth(auth, basePath, map[string]any{
+		"weekdays": []int{1, 2, 3, 4, 5},
+	}); err != nil {
+		return fmt.Errorf("seed regular meal participation: %w", err)
+	}
+
+	nextMonday := nextWeekday(todaySeedDate().AddDays(1).UTCMidnight(), time.Monday)
+	if _, err := rt.Client.PutWithAuth(auth, basePath+"/"+nextMonday.Format(seedDateLayout), map[string]any{
+		"participating": false,
+	}); err != nil {
+		return fmt.Errorf("seed meal participation exception: %w", err)
+	}
 	return nil
 }
 

@@ -71,6 +71,21 @@ func (f *fakeMealPlan) Week(context.Context, mealplanModule.Date) ([]mealplanMod
 	}
 	return f.entries, nil
 }
+func (f *fakeMealPlan) RegistrationAvailable(context.Context) (bool, error) {
+	return f.available, f.err
+}
+func (f *fakeMealPlan) Participation(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error) {
+	return mealplanModule.ParticipationPlan{}, f.err
+}
+func (f *fakeMealPlan) ReplaceParticipationSchedule(context.Context, mealplanModule.ReplaceParticipationSchedule) (mealplanModule.Date, error) {
+	return "2026-09-07", f.err
+}
+func (f *fakeMealPlan) SetParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
+	return f.err
+}
+func (f *fakeMealPlan) ClearParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
+	return f.err
+}
 
 func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 	t.Parallel()
@@ -113,6 +128,25 @@ func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.ErrorIs(t, err, parentService.ErrMealPlanDisabled)
+}
+
+func TestMealParticipationWrites_CareEndedChildIsRejected(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	endCareFor(t, db, chain.StudentID)
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	_, err := svc.ReplaceMealParticipationSchedule(ctx, chain.AccountID, chain.StudentID, []mealplanModule.Weekday{mealplanModule.Monday})
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+
+	err = svc.SetMealParticipationDay(ctx, chain.AccountID, chain.StudentID, timezone.NewDate(2026, 8, 25), true)
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+
+	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, timezone.NewDate(2026, 8, 25))
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 }
 
 // TestMealPlanWeek_PastWeekOutOfRange asserts parents cannot reach a staff draft
@@ -187,4 +221,16 @@ func TestChildFeatures_ReflectsMealPlanSetting(t *testing.T) {
 	flags, err = svcOff.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, flags.MealPlanEnabled)
+}
+
+func TestMealParticipationRejectsChildWithoutGuardianAccess(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
+
+	_, err := svc.MealParticipation(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 9, 4))
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, parentService.ErrMealRegistrationDisabled)
 }

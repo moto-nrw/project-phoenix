@@ -211,6 +211,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
 		r.Get("/me/children/{studentId}/today", rs.getChildTodayStatus)
 		r.Get("/me/children/{studentId}/meal-plan", rs.getChildMealPlan)
+		r.Get("/me/children/{studentId}/meal-participation", rs.getMealParticipation)
+		r.Put("/me/children/{studentId}/meal-participation", rs.replaceMealParticipation)
+		r.Put("/me/children/{studentId}/meal-participation/{date}", rs.setMealParticipationDay)
+		r.Delete("/me/children/{studentId}/meal-participation/{date}", rs.clearMealParticipationDay)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
 		// Excused-absence approval requests (#1845): pending/decided requests the

@@ -66,8 +66,10 @@ type fakeParentService struct {
 	gotTodayAccount int64
 	gotTodayStudent int64
 
-	mealPlanRows []mealplanModule.Entry
-	mealPlanErr  error
+	mealPlanRows         []mealplanModule.Entry
+	mealPlanErr          error
+	mealParticipation    mealplanModule.ParticipationPlan
+	mealParticipationErr error
 }
 
 // GetChildTodayStatus haelt das Double am Service-Interface. Ohne gesetzten
@@ -148,6 +150,18 @@ func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parent
 }
 func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]mealplanModule.Entry, error) {
 	return f.mealPlanRows, f.mealPlanErr
+}
+func (f *fakeParentService) MealParticipation(context.Context, int64, int64, timezone.Date, timezone.Date) (mealplanModule.ParticipationPlan, error) {
+	return f.mealParticipation, f.mealParticipationErr
+}
+func (f *fakeParentService) ReplaceMealParticipationSchedule(context.Context, int64, int64, []mealplanModule.Weekday) (mealplanModule.Date, error) {
+	return "2026-09-07", nil
+}
+func (f *fakeParentService) SetMealParticipationDay(context.Context, int64, int64, timezone.Date, bool) error {
+	return nil
+}
+func (f *fakeParentService) ClearMealParticipationDay(context.Context, int64, int64, timezone.Date) error {
+	return nil
 }
 func (f *fakeParentService) ListRelatedAccounts(context.Context, int64, int64) ([]*parentService.RelatedAccount, error) {
 	return nil, nil
@@ -329,6 +343,14 @@ func mealPlanRequest() *http.Request {
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
 }
 
+func mealParticipationRequest() *http.Request {
+	req := withClaims(httptest.NewRequest(http.MethodGet,
+		"/me/children/77/meal-participation?from=2026-08-24&to=2026-09-04", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
 func TestGetChildMealPlan_ResponseContract(t *testing.T) {
 	t.Parallel()
 
@@ -362,6 +384,20 @@ func TestGetChildMealPlan_DisabledContract(t *testing.T) {
 		"error":"parent: meal plan disabled for this school",
 		"code":"meal_plan_disabled"
 	}`, w.Body.String())
+}
+
+func TestGetMealParticipation_ResponseContract(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{ParentService: &fakeParentService{mealParticipation: mealplanModule.ParticipationPlan{
+		Weekdays: []mealplanModule.Weekday{mealplanModule.Monday, mealplanModule.Wednesday}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00",
+		Days: []mealplanModule.ParticipationDay{{Date: "2026-08-24", Participating: true, Source: mealplanModule.ParticipationRegular, Changeable: false}},
+	}}}
+	w := httptest.NewRecorder()
+
+	rs.getMealParticipation(w, mealParticipationRequest())
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":false}]},"message":"Meal participation retrieved"}`, w.Body.String())
 }
 
 func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {

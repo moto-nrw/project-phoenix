@@ -92,6 +92,7 @@ function features(overrides: Partial<ChildFeatures> = {}): ChildFeatures {
     master_data_contact_edit_enabled: true,
     master_data_request_enabled: true,
     meal_plan_enabled: true,
+    meal_registration_enabled: false,
     has_open_change_request: false,
     parent_news_enabled: true,
     ...overrides,

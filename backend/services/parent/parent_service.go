@@ -43,6 +43,11 @@ import (
 type MealPlan interface {
 	Available(context.Context) (bool, error)
 	Week(context.Context, mealplanModule.Date) ([]mealplanModule.Entry, error)
+	RegistrationAvailable(context.Context) (bool, error)
+	Participation(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error)
+	ReplaceParticipationSchedule(context.Context, mealplanModule.ReplaceParticipationSchedule) (mealplanModule.Date, error)
+	SetParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error
+	ClearParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error
 }
 
 // Service is the public contract consumed by HTTP handlers.
@@ -148,6 +153,10 @@ type Service interface {
 	// the child's tenant: when the feature is off it returns
 	// ErrMealPlanDisabled so the portal can hide the section.
 	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]mealplanModule.Entry, error)
+	MealParticipation(ctx context.Context, accountID, studentID int64, from, to timezone.Date) (mealplanModule.ParticipationPlan, error)
+	ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []mealplanModule.Weekday) (mealplanModule.Date, error)
+	SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error
+	ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error
 
 	// SubmitCareExceptionWithReason requires a
 	// concrete pickup time and stores the parent's explanation with it. Arrival
@@ -354,7 +363,8 @@ type ChildFeatureFlags struct {
 	// MealPlanEnabled is true when the school maintains a meal plan
 	// (operations.meal_plan_enabled), so the portal can show the read-only
 	// Essensplan section for this child's school.
-	MealPlanEnabled bool
+	MealPlanEnabled         bool
+	MealRegistrationEnabled bool
 	// HasOpenChangeRequest is STATE, not a capability: true when the child has at
 	// least one pending change request (master data OR care schedule) awaiting an
 	// OGS decision. It rides along on the features fetch (the one call the child

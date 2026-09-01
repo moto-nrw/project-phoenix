@@ -7,11 +7,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -298,6 +300,7 @@ type ChildFeaturesResponse struct {
 	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
 	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
 	MealPlanEnabled              bool `json:"meal_plan_enabled"`
+	MealRegistrationEnabled      bool `json:"meal_registration_enabled"`
 	// HasOpenChangeRequest is STATE (not a capability): the child has a pending
 	// change request awaiting an OGS decision, so the overview can badge the
 	// Stammdaten entry.
@@ -342,6 +345,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
 		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
 		MealPlanEnabled:              flags.MealPlanEnabled,
+		MealRegistrationEnabled:      flags.MealRegistrationEnabled,
 		HasOpenChangeRequest:         flags.HasOpenChangeRequest,
 		NewsEnabled:                  flags.NewsEnabled,
 		ReasonRequired:               flags.ReasonRequired,
@@ -356,6 +360,28 @@ type MealPlanEntryResponse struct {
 	Position int     `json:"position"`
 	Dish     string  `json:"dish"`
 	Note     *string `json:"note,omitempty"`
+}
+
+type MealParticipationDayResponse struct {
+	Date          string `json:"date"`
+	Participating bool   `json:"participating"`
+	Source        string `json:"source"`
+	Changeable    bool   `json:"changeable"`
+}
+
+type MealParticipationResponse struct {
+	Weekdays      []mealplanModule.Weekday       `json:"weekdays"`
+	EffectiveFrom string                         `json:"effective_from,omitempty"`
+	CutoffTime    string                         `json:"cutoff_time"`
+	Days          []MealParticipationDayResponse `json:"days"`
+}
+
+type ReplaceMealParticipationRequest struct {
+	Weekdays []mealplanModule.Weekday `json:"weekdays"`
+}
+
+type SetMealParticipationDayRequest struct {
+	Participating *bool `json:"participating"`
 }
 
 // getChildMealPlan returns the Monday-Friday meal plan for the child's school
@@ -393,6 +419,106 @@ func (rs *Resource) getChildMealPlan(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Meal plan retrieved")
+}
+
+func (rs *Resource) getMealParticipation(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	from, fromErr := timezone.ParseDate(r.URL.Query().Get("from"))
+	to, toErr := timezone.ParseDate(r.URL.Query().Get("to"))
+	if fromErr != nil || toErr != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to must be in YYYY-MM-DD format")))
+		return
+	}
+	plan, err := rs.ParentService.MealParticipation(r.Context(), accountID, studentID, from, to)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, mealParticipationResponse(plan), "Meal participation retrieved")
+}
+
+func (rs *Resource) replaceMealParticipation(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	var request ReplaceMealParticipationRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
+		return
+	}
+	effectiveFrom, err := rs.ParentService.ReplaceMealParticipationSchedule(r.Context(), accountID, studentID, request.Weekdays)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]string{"effective_from": string(effectiveFrom)}, "Regular meal participation saved")
+}
+
+func (rs *Resource) setMealParticipationDay(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	date, err := timezone.ParseDate(chi.URLParam(r, "date"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be in YYYY-MM-DD format")))
+		return
+	}
+	var request SetMealParticipationDayRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.Participating == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("participating is required")))
+		return
+	}
+	if err := rs.ParentService.SetMealParticipationDay(r.Context(), accountID, studentID, date, *request.Participating); err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Meal participation day saved")
+}
+
+func (rs *Resource) clearMealParticipationDay(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	date, err := timezone.ParseDate(chi.URLParam(r, "date"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be in YYYY-MM-DD format")))
+		return
+	}
+	if err := rs.ParentService.ClearMealParticipationDay(r.Context(), accountID, studentID, date); err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Meal participation day reset")
+}
+
+func mealParticipationResponse(plan mealplanModule.ParticipationPlan) MealParticipationResponse {
+	days := make([]MealParticipationDayResponse, 0, len(plan.Days))
+	for _, day := range plan.Days {
+		days = append(days, MealParticipationDayResponse{Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable})
+	}
+	return MealParticipationResponse{Weekdays: plan.Weekdays, EffectiveFrom: string(plan.EffectiveFrom), CutoffTime: plan.CutoffTime, Days: days}
 }
 
 // --- shared helpers ---
@@ -457,6 +583,14 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "meal_plan_disabled"))
 	case errors.Is(err, parentService.ErrMealPlanWeekOutOfRange):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "meal_plan_week_out_of_range"))
+	case errors.Is(err, parentService.ErrMealRegistrationDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "meal_registration_disabled"))
+	case errors.Is(err, parentService.ErrMealParticipationOutOfRange):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "meal_participation_out_of_range"))
+	case errors.Is(err, mealplanModule.ErrParticipationCutoff):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "meal_participation_cutoff_passed"))
+	case errors.Is(err, mealplanModule.ErrInvalidParticipation):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_meal_participation"))
 	case errors.Is(err, parentService.ErrPickupChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))
 	case errors.Is(err, parentService.ErrMasterDataEditDisabled):
