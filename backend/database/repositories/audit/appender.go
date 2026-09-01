@@ -65,11 +65,11 @@ func appendEvent(ctx context.Context, db bun.IDB, event any) (string, error) {
 	case *auditModels.EnrollmentRestoration:
 		table, query = "audit.enrollment_restorations", db.NewInsert().Model(value).ModelTableExpr("audit.enrollment_restorations")
 	case *auditModels.FileEvent:
-		table, query = "audit.file_events", db.NewInsert().Model(value).ModelTableExpr("audit.file_events")
+		table, query = "audit.file_events", db.NewInsert().Model(value).ModelTableExpr("audit.file_event_ledger")
 	case *auditModels.GuardianChange:
 		table, query = "audit.guardian_changes", db.NewInsert().Model(value).ModelTableExpr("audit.guardian_changes")
 	case *auditModels.GuardianFinancialChange:
-		table, query = "audit.guardian_financial_changes", db.NewInsert().Model(value).ModelTableExpr("audit.guardian_financial_changes")
+		table, query = "audit.guardian_financial_changes", db.NewInsert().Model(value).ModelTableExpr("audit.guardian_financial_change_ledger")
 	case *auditModels.PersonnelNumberChange:
 		table, query = "audit.personnel_number_changes", db.NewInsert().Model(value).ModelTableExpr("audit.personnel_number_changes")
 	case *auditModels.StaffMasterDataChange:

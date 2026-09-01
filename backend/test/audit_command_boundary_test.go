@@ -54,6 +54,18 @@ func TestAuditAppenderAttributesTenantAndDatabaseEnforcesAppendOnlyRLS(t *testin
 		VALUES (?, ?, 'login', TRUE, '192.0.2.4')`, otherTenant, account.ID)
 }
 
+func TestAuditOwnedAppendViewsRejectMutation(t *testing.T) {
+	t.Parallel()
+
+	db := SetupTestDB(t)
+	tenantID := Tenant(t)
+
+	assertAuditTenantWriteDenied(t, db, tenantID, "permission denied", `UPDATE audit.file_event_ledger SET detail = detail WHERE FALSE`)
+	assertAuditTenantWriteDenied(t, db, tenantID, "permission denied", `DELETE FROM audit.file_event_ledger WHERE FALSE`)
+	assertAuditTenantWriteDenied(t, db, tenantID, "permission denied", `UPDATE audit.guardian_financial_change_ledger SET note = note WHERE FALSE`)
+	assertAuditTenantWriteDenied(t, db, tenantID, "permission denied", `DELETE FROM audit.guardian_financial_change_ledger WHERE FALSE`)
+}
+
 func assertAuditTenantWriteDenied(t *testing.T, db *bun.DB, tenantID int64, expected, query string, args ...any) {
 	t.Helper()
 	err := WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, tx bun.Tx) error {

@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"testing"
 
@@ -17,7 +16,7 @@ func (event *cleanupAuditTestEvent) SetTenantID(id int64) { event.tenantID = id 
 func TestCleanupAuditCommandRequiresProducerTransaction(t *testing.T) {
 	t.Parallel()
 
-	command, err := NewCleanupAuditCommand(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	command, err := NewCleanupAuditCommand(slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 
 	event := &cleanupAuditTestEvent{tenantID: 1}

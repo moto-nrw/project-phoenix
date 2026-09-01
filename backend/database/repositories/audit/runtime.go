@@ -50,17 +50,6 @@ func runtimeTenantID(ctx context.Context, runtime Runtime) int64 {
 	return tenantID
 }
 
-func tenantDatabase(ctx context.Context, runtime Runtime) (bun.IDB, int64, error) {
-	db, tenantID, err := database(ctx, runtime)
-	if err != nil {
-		return nil, 0, err
-	}
-	if tenantID <= 0 {
-		return nil, 0, errors.New("audit repository: tenant is required")
-	}
-	return db, tenantID, nil
-}
-
 func prepareTenant(ctx context.Context, runtime Runtime, event interface {
 	GetTenantID() int64
 	SetTenantID(int64)

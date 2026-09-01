@@ -9,7 +9,7 @@ import (
 
 const (
 	auditCommandViewsVersion     = "1.15.357"
-	auditCommandViewsDescription = "Create Audit time-tracking projection (#2655)"
+	auditCommandViewsDescription = "Create Audit-owned append and time-tracking views (#2655)"
 )
 
 func init() {
@@ -22,6 +22,19 @@ func init() {
 
 func auditCommandViewsUp(ctx context.Context, db *bun.DB) error {
 	_, err := db.NewRaw(`
+		CREATE VIEW audit.file_event_ledger WITH (security_invoker = true) AS
+		SELECT id, tenant_id, folder_id, file_id, action, actor_account_id,
+			actor_name, detail, created_at, updated_at
+		FROM audit.file_events;
+
+		CREATE VIEW audit.guardian_financial_change_ledger WITH (security_invoker = true) AS
+		SELECT id, tenant_id, guardian_profile_id, student_id, changed_by,
+			field_name, old_value, new_value, note, occurred_at
+		FROM audit.guardian_financial_changes;
+
+		GRANT SELECT, INSERT ON audit.file_event_ledger TO phoenix_tenant, phoenix_admin;
+		GRANT SELECT, INSERT ON audit.guardian_financial_change_ledger TO phoenix_tenant, phoenix_admin;
+
 		CREATE VIEW audit.time_tracking_audit_log WITH (security_invoker = true) AS
 		SELECT e.tenant_id, e.created_at AS occurred_at, 'session_edit'::text AS source,
 			MIN(e.id) AS entry_id, e.staff_id, ARRAY[e.staff_id] AS staff_ids,
@@ -121,6 +134,8 @@ func auditCommandViewsUp(ctx context.Context, db *bun.DB) error {
 func auditCommandViewsDown(ctx context.Context, db *bun.DB) error {
 	_, err := db.NewRaw(`
 		DROP VIEW IF EXISTS audit.time_tracking_audit_log;
+		DROP VIEW IF EXISTS audit.guardian_financial_change_ledger;
+		DROP VIEW IF EXISTS audit.file_event_ledger;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("drop Audit command views: %w", err)

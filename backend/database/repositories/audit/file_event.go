@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 )
 
-const fileEventTableExpr = `audit.file_events AS "file_event"`
+const fileEventTableExpr = `audit.file_event_ledger AS "file_event"`
 
 type fileEventRepository struct {
 	runtime Runtime

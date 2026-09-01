@@ -156,7 +156,11 @@ func auditDate(date *timezone.Date) *auditModels.Date {
 	if date == nil {
 		return nil
 	}
-	value := auditModels.Date(*date)
+	if date.IsZero() {
+		value := auditModels.Date("")
+		return &value
+	}
+	value := auditModels.NewDate(date.Year(), date.Month(), date.Day())
 	return &value
 }
 
