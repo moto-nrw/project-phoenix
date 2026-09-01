@@ -129,9 +129,7 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 				participating = false
 			}
 			if participating {
-				list.Participants = append(list.Participants, domain.DailyParticipant{
-					StudentID: candidate.StudentID, FirstName: candidate.FirstName, LastName: candidate.LastName, SchoolClass: candidate.SchoolClass,
-				})
+				list.Participants = append(list.Participants, domain.DailyParticipant(candidate))
 			}
 		}
 		return stats, nil

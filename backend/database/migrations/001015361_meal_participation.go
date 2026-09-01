@@ -31,7 +31,11 @@ func mealParticipationUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
-			slog.Warn("migration rollback failed", "migration", mealParticipationVersion, "error", rollbackErr)
+			slog.Warn(
+				"migration rollback failed",
+				"migration", mealParticipationVersion,
+				"error", rollbackErr,
+			)
 		}
 	}()
 
