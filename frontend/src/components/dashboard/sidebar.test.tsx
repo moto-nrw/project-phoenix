@@ -2274,6 +2274,21 @@ describe("Sidebar", () => {
       expect(screen.getByLabelText("Aktivitäten")).toBeInTheDocument();
     });
 
+    it("zeigt im Streifen kein zweites, gleich aussehendes Gruppen-Icon", () => {
+      localStorage.setItem("sidebar-collapsed", "true");
+
+      render(<Sidebar />);
+
+      // "Weitere Gruppen" trägt dasselbe Icon wie "Meine Gruppen" — ohne
+      // Bezeichnung wären das zwei nicht unterscheidbare Schaltflächen.
+      expect(
+        screen.getByRole("button", { name: "Meine Gruppen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Weitere Gruppen" }),
+      ).not.toBeInTheDocument();
+    });
+
     it("hält geschlossene Bereiche aus der Tastaturreihenfolge heraus", () => {
       render(<Sidebar />);
 

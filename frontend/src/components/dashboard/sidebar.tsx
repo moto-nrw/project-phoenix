@@ -1351,7 +1351,12 @@ function SidebarContent({
                   />
                 ))}
               </SidebarAccordionSection>
-              {otherGroups.length > 0 && (
+              {/* "Weitere Gruppen" trägt dasselbe Icon wie "Meine Gruppen".
+                  Ausgeklappt trennen die Bezeichnungen die beiden Bereiche;
+                  im Streifen stünden zwei nicht unterscheidbare Icons
+                  untereinander, deshalb bleibt der zweite dort weg. Er
+                  blendet mit den Bezeichnungen aus, statt zu verschwinden. */}
+              {otherGroups.length > 0 && (!collapsed || labelsMounted) && (
                 <SidebarAccordionSection
                   icon={GROUP_NAV_ICON}
                   concept="groups"
