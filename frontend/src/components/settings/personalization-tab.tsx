@@ -214,7 +214,7 @@ export function PersonalizationTab() {
                 type="button"
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:opacity-50"
+                className="border-moto-red/20 text-moto-red hover:bg-moto-red-soft inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-sm font-medium shadow-sm transition-colors disabled:opacity-50"
               >
                 {isDeleting ? "Wird entfernt…" : "Bild entfernen"}
               </button>
@@ -240,7 +240,7 @@ export function PersonalizationTab() {
             <fieldset
               className={`relative m-0 rounded-xl border-2 border-dashed p-4 text-center transition-all duration-300 sm:p-8 ${
                 isDragging
-                  ? "border-green-500 bg-green-50"
+                  ? "border-moto-green bg-moto-green-soft"
                   : "border-gray-300 bg-gray-50 hover:border-gray-400"
               }`}
               onDragEnter={handleDragEnter}
@@ -256,7 +256,7 @@ export function PersonalizationTab() {
                 onClick={handleZoneClick}
                 onKeyDown={handleKeyDown}
                 aria-label="Bild hochladen — ziehen Sie eine Datei hierher oder klicken Sie zum Auswählen"
-                className="absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:outline-none"
+                className="focus:ring-moto-green absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent focus:ring-2 focus:ring-offset-2 focus:outline-none"
               />
 
               {isUploading ? (
@@ -269,7 +269,7 @@ export function PersonalizationTab() {
               ) : (
                 <div className="pointer-events-none flex flex-col items-center gap-3">
                   <ImageUp
-                    className={`h-12 w-12 transition-colors ${isDragging ? "text-green-500" : "text-gray-400"}`}
+                    className={`h-12 w-12 transition-colors ${isDragging ? "text-moto-green-strong" : "text-gray-400"}`}
                     strokeWidth={1.5}
                     aria-hidden
                   />

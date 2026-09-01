@@ -595,7 +595,7 @@ function DatePickerCalendar({
             "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected:
             "text-white [&>button]:bg-gray-900 [&>button:hover]:bg-gray-800",
-          today: "font-bold text-blue-600",
+          today: "font-bold text-moto-blue-strong",
           outside: "text-gray-300",
           disabled: "text-gray-300 cursor-not-allowed",
         }}
@@ -650,7 +650,7 @@ function MultipleDatePickerCalendar({
             "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected:
             "text-white [&>button]:bg-gray-900 [&>button:hover]:bg-gray-800",
-          today: "font-bold text-blue-600",
+          today: "font-bold text-moto-blue-strong",
           outside: "text-gray-300",
           disabled: "text-gray-300 cursor-not-allowed",
         }}

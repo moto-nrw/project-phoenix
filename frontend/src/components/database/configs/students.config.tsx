@@ -185,27 +185,27 @@ export const studentsConfig = defineEntityConfig<Student>({
       badges: [
         {
           label: "Im Haus",
-          color: "bg-green-400/80",
+          color: "bg-moto-green-light/80",
           showWhen: (student) => isPresentLocation(student.current_location),
         },
         {
           label: "Unterwegs",
-          color: "bg-fuchsia-400/80",
+          color: "bg-moto-magenta-light/80",
           showWhen: (student) => isTransitLocation(student.current_location),
         },
         {
           label: "Schulhof",
-          color: "bg-yellow-400/80",
+          color: "bg-moto-amber-light/80",
           showWhen: (student) => isSchoolyardLocation(student.current_location),
         },
         {
           label: "Zuhause",
-          color: "bg-red-400/80",
+          color: "bg-moto-red/80",
           showWhen: (student) => isHomeLocation(student.current_location),
         },
         {
           label: "Bus",
-          color: "bg-orange-400/80",
+          color: "bg-moto-orange/80",
           showWhen: (student) => !!student.bus,
         },
       ],
@@ -214,7 +214,7 @@ export const studentsConfig = defineEntityConfig<Student>({
     sections: [
       {
         title: "Persönliche Daten",
-        titleColor: "text-blue-800",
+        titleColor: "text-moto-blue-strong",
         items: [
           {
             label: "Vorname",
@@ -248,7 +248,7 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Erziehungsberechtigte",
-        titleColor: "text-purple-800",
+        titleColor: "text-moto-purple-strong",
         items: [
           {
             label: "Name",
@@ -273,7 +273,7 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Status",
-        titleColor: "text-green-800",
+        titleColor: "text-moto-green-strong",
         columns: 2,
         items: [
           {
@@ -372,7 +372,7 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Datenverwaltung",
-        titleColor: "text-yellow-800",
+        titleColor: "text-moto-amber-strong",
         items: [
           {
             label: "Datenschutzeinstellungen",

@@ -207,11 +207,11 @@ export function getActivityStatusColor(
 ): string {
   switch (status) {
     case "active":
-      return "bg-green-500";
+      return "bg-moto-green";
     case "full":
-      return "bg-amber-500";
+      return "bg-moto-amber";
     case "ending_soon":
-      return "bg-orange-500";
+      return "bg-moto-orange";
     default:
       return "bg-gray-500";
   }
@@ -220,11 +220,11 @@ export function getActivityStatusColor(
 export function getGroupStatusColor(status: ActiveGroupInfo["status"]): string {
   switch (status) {
     case "active":
-      return "bg-green-500";
+      return "bg-moto-green";
     case "transitioning":
-      return "bg-amber-500";
+      return "bg-moto-amber";
     case "preparing":
-      return "bg-blue-500";
+      return "bg-moto-blue";
     default:
       return "bg-gray-500";
   }

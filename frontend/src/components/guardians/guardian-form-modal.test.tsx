@@ -563,16 +563,16 @@ describe("GuardianFormModal", () => {
 
     // First name input should have red border
     const firstNameInput = screen.getByPlaceholderText("Max");
-    expect(firstNameInput.className).toContain("border-red-400");
+    expect(firstNameInput.className).toContain("border-moto-red/40");
 
     // Last name input should NOT have red border
-    expect(lastNameInput.className).not.toContain("border-red-400");
+    expect(lastNameInput.className).not.toContain("border-moto-red/40");
 
     // Email should NOT have red border
     const emailInput = screen.getByPlaceholderText(
       "max.mustermann@example.com",
     );
-    expect(emailInput.className).not.toContain("border-red-400");
+    expect(emailInput.className).not.toContain("border-moto-red/40");
   });
 
   it("highlights only the last-name field when last name is empty", async () => {
@@ -595,8 +595,8 @@ describe("GuardianFormModal", () => {
     });
 
     const lastNameInput = screen.getByPlaceholderText("Mustermann");
-    expect(lastNameInput.className).toContain("border-red-400");
-    expect(firstNameInput.className).not.toContain("border-red-400");
+    expect(lastNameInput.className).toContain("border-moto-red/40");
+    expect(firstNameInput.className).not.toContain("border-moto-red/40");
   });
 
   it("highlights email and phone fields when no contact method provided", async () => {
@@ -628,10 +628,10 @@ describe("GuardianFormModal", () => {
     const emailInput = screen.getByPlaceholderText(
       "max.mustermann@example.com",
     );
-    expect(emailInput.className).toContain("border-red-400");
+    expect(emailInput.className).toContain("border-moto-red/40");
 
     const phoneInput = screen.getByPlaceholderText("+49 170 1234567");
-    expect(phoneInput.className).toContain("border-red-400");
+    expect(phoneInput.className).toContain("border-moto-red/40");
   });
 
   it("clears field errors on next submit attempt", async () => {
@@ -652,7 +652,7 @@ describe("GuardianFormModal", () => {
     });
 
     const firstNameInput = screen.getByPlaceholderText("Max");
-    expect(firstNameInput.className).toContain("border-red-400");
+    expect(firstNameInput.className).toContain("border-moto-red/40");
 
     // Fill first name and submit again — first name error should clear, last name error appears
     fireEvent.change(firstNameInput, { target: { value: "Test" } });
@@ -663,7 +663,7 @@ describe("GuardianFormModal", () => {
     });
 
     // First name should no longer be highlighted
-    expect(firstNameInput.className).not.toContain("border-red-400");
+    expect(firstNameInput.className).not.toContain("border-moto-red/40");
   });
 
   it("shows contact validation error when no contact provided", async () => {

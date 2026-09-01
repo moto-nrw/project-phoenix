@@ -127,7 +127,7 @@ export const roomsConfig = defineEntityConfig<Room>({
     sections: [
       {
         title: "Raumdetails",
-        titleColor: "text-green-800",
+        titleColor: "text-moto-green-strong",
         items: [
           {
             label: "Raumname",
