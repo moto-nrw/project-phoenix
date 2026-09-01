@@ -22,6 +22,7 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -97,9 +98,9 @@ type TenantSettingsResolver interface {
 
 // OperatorProvisioningService handles operator-led tenant provisioning.
 type OperatorProvisioningService interface {
-	CreateOrganization(ctx context.Context, organization *platform.Organization, operatorID int64, clientIP net.IP) (*platform.Organization, error)
-	ListOrganizations(ctx context.Context) ([]*platform.Organization, error)
-	UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platform.Organization, error)
+	CreateOrganization(ctx context.Context, organization *organizationModule.CreateOrganization, operatorID int64, clientIP net.IP) (*organizationModule.Organization, error)
+	ListOrganizations(ctx context.Context) ([]organizationModule.Organization, error)
+	UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*organizationModule.Organization, error)
 	CreateSchool(ctx context.Context, school *platform.School, operatorID int64, clientIP net.IP) (*platform.School, error)
 	ListSchools(ctx context.Context) ([]*platform.School, error)
 	UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error)
@@ -197,7 +198,7 @@ func (s *operatorProvisioningService) withAdminTx(ctx context.Context, fn func(c
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
 type OperatorProvisioningServiceConfig struct {
-	OrganizationRepo      platform.OrganizationRepository
+	Organizations         organizationModule.Capability
 	SchoolRepo            platform.SchoolRepository
 	SummariesRepo         platform.OperatorSummariesRepository
 	CategoryRepo          activityModels.CategoryRepository
@@ -240,35 +241,22 @@ func (s *operatorProvisioningService) getLogger() *slog.Logger {
 	return cmp.Or(s.Logger, slog.Default())
 }
 
-func (s *operatorProvisioningService) CreateOrganization(ctx context.Context, organization *platform.Organization, operatorID int64, clientIP net.IP) (*platform.Organization, error) {
+func (s *operatorProvisioningService) CreateOrganization(ctx context.Context, organization *organizationModule.CreateOrganization, operatorID int64, clientIP net.IP) (*organizationModule.Organization, error) {
 	if organization == nil {
 		return nil, &InvalidDataError{Err: fmt.Errorf("organization is required")}
 	}
-	if err := organization.Validate(); err != nil {
-		return nil, &InvalidDataError{Err: err}
-	}
 
-	var created *platform.Organization
+	var created *organizationModule.Organization
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		existing, findErr := s.OrganizationRepo.FindBySlug(adminCtx, organization.Slug)
-		if findErr != nil {
-			return findErr
+		value, createErr := s.Organizations.CreateOrganization(adminCtx, *organization)
+		if createErr != nil {
+			return mapOrganizationCapabilityError(createErr, 0)
 		}
-		if existing != nil {
-			return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
-		}
-		if createErr := s.OrganizationRepo.Create(adminCtx, organization); createErr != nil {
-			if modelBase.IsUniqueViolation(createErr) {
-				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
-			}
-			return createErr
-		}
-		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceOrganization, &organization.ID, clientIP, map[string]any{
-			"name": organization.Name,
-			"slug": organization.Slug,
+		created = &value
+		return s.recordAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceOrganization, &created.ID, clientIP, map[string]any{
+			"name": created.Name,
+			"slug": created.Slug,
 		})
-		created = organization
-		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -276,20 +264,16 @@ func (s *operatorProvisioningService) CreateOrganization(ctx context.Context, or
 	return created, nil
 }
 
-func (s *operatorProvisioningService) ListOrganizations(ctx context.Context) ([]*platform.Organization, error) {
-	return s.OrganizationRepo.List(ctx)
+func (s *operatorProvisioningService) ListOrganizations(ctx context.Context) ([]organizationModule.Organization, error) {
+	return s.Organizations.ListOrganizations(ctx)
 }
 
-func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platform.Organization, error) {
-	var updated *platform.Organization
+func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*organizationModule.Organization, error) {
+	var updated *organizationModule.Organization
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		// See locking contract on OrganizationRepository.FindByIDForShare.
-		existing, err := s.OrganizationRepo.FindByIDForShare(adminCtx, id)
+		existing, err := s.Organizations.FindOrganizationForMutation(adminCtx, id)
 		if err != nil {
-			return err
-		}
-		if existing == nil {
-			return &OrganizationNotFoundError{OrganizationID: id}
+			return mapOrganizationCapabilityError(err, id)
 		}
 		if existing.IsDeleted() {
 			return &OrganizationAlreadyDeletedError{OrganizationID: id}
@@ -297,37 +281,24 @@ func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id
 
 		changes := map[string]any{}
 
-		if req.Slug != existing.Slug {
-			taken, findErr := s.OrganizationRepo.FindBySlug(adminCtx, req.Slug)
-			if findErr != nil {
-				return findErr
-			}
-			if taken != nil && taken.ID != id {
-				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
-			}
-			changes["slug"] = map[string]string{"old": existing.Slug, "new": req.Slug}
+		value, updateErr := s.Organizations.UpdateOrganization(adminCtx, organizationModule.UpdateOrganization{
+			ID: id, Name: req.Name, Slug: req.Slug, Active: req.Active,
+		})
+		if updateErr != nil {
+			return mapOrganizationCapabilityError(updateErr, id)
 		}
-		if req.Name != existing.Name {
-			changes["name"] = map[string]string{"old": existing.Name, "new": req.Name}
+		if value.Slug != existing.Slug {
+			changes["slug"] = map[string]string{"old": existing.Slug, "new": value.Slug}
 		}
-		if req.Active != existing.Active {
-			changes["active"] = map[string]bool{"old": existing.Active, "new": req.Active}
+		if value.Name != existing.Name {
+			changes["name"] = map[string]string{"old": existing.Name, "new": value.Name}
 		}
-
-		existing.Name = req.Name
-		existing.Slug = req.Slug
-		existing.Active = req.Active
-
-		if updateErr := s.OrganizationRepo.Update(adminCtx, existing); updateErr != nil {
-			if modelBase.IsUniqueViolation(updateErr) {
-				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
-			}
-			return &InvalidDataError{Err: updateErr}
+		if value.Active != existing.Active {
+			changes["active"] = map[string]bool{"old": existing.Active, "new": value.Active}
 		}
 
-		s.logAction(adminCtx, operatorID, platform.ActionUpdate, platform.ResourceOrganization, &id, clientIP, changes)
-		updated = existing
-		return nil
+		updated = &value
+		return s.recordAction(adminCtx, operatorID, platform.ActionUpdate, platform.ResourceOrganization, &id, clientIP, changes)
 	})
 	if err != nil {
 		return nil, err
@@ -399,13 +370,9 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		changes := map[string]any{}
 
 		if req.OrganizationID != existing.OrganizationID {
-			// See locking contract on OrganizationRepository.FindByIDForShare.
-			org, orgErr := s.OrganizationRepo.FindByIDForShare(adminCtx, req.OrganizationID)
+			org, orgErr := s.Organizations.FindOrganizationForSchoolMutation(adminCtx, req.OrganizationID)
 			if orgErr != nil {
-				return orgErr
-			}
-			if org == nil {
-				return &OrganizationNotFoundError{OrganizationID: req.OrganizationID}
+				return mapOrganizationCapabilityError(orgErr, req.OrganizationID)
 			}
 			if org.IsDeleted() {
 				return &OrganizationDeletedError{OrganizationID: req.OrganizationID}
@@ -698,12 +665,9 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 func (s *operatorProvisioningService) ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error) {
 	var result []authModels.OrgAccountInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
+		_, findErr := s.Organizations.FindOrganization(adminCtx, organizationID)
 		if findErr != nil {
-			return findErr
-		}
-		if org == nil {
-			return &OrganizationNotFoundError{OrganizationID: organizationID}
+			return mapOrganizationCapabilityError(findErr, organizationID)
 		}
 		accounts, listErr := s.AccountTenantRepo.ListAccountsByOrganizationID(adminCtx, organizationID)
 		if listErr != nil {
@@ -780,12 +744,9 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 func (s *operatorProvisioningService) ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error) {
 	var result []OperatorDeviceInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
+		org, findErr := s.Organizations.FindOrganization(adminCtx, organizationID)
 		if findErr != nil {
-			return findErr
-		}
-		if org == nil {
-			return &OrganizationNotFoundError{OrganizationID: organizationID}
+			return mapOrganizationCapabilityError(findErr, organizationID)
 		}
 		if org.IsDeleted() {
 			return &OrganizationDeletedError{OrganizationID: organizationID}
@@ -1409,13 +1370,9 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 }
 
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {
-	// See locking contract on OrganizationRepository.FindByIDForShare.
-	org, err := s.OrganizationRepo.FindByIDForShare(ctx, school.OrganizationID)
+	org, err := s.Organizations.FindOrganizationForSchoolMutation(ctx, school.OrganizationID)
 	if err != nil {
-		return err
-	}
-	if org == nil {
-		return &OrganizationNotFoundError{OrganizationID: school.OrganizationID}
+		return mapOrganizationCapabilityError(err, school.OrganizationID)
 	}
 	if org.IsDeleted() {
 		return &OrganizationDeletedError{OrganizationID: school.OrganizationID}
@@ -1561,6 +1518,16 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 }
 
 func (s *operatorProvisioningService) logAction(ctx context.Context, operatorID int64, action, resourceType string, resourceID *int64, clientIP net.IP, changes map[string]any) {
+	if err := s.recordAction(ctx, operatorID, action, resourceType, resourceID, clientIP, changes); err != nil {
+		s.getLogger().Error(
+			"failed to create operator audit log",
+			slog.Any("error", err),
+			slog.String("resource_type", resourceType),
+		)
+	}
+}
+
+func (s *operatorProvisioningService) recordAction(ctx context.Context, operatorID int64, action, resourceType string, resourceID *int64, clientIP net.IP, changes map[string]any) error {
 	entry := &platform.OperatorAuditLog{
 		OperatorID:   operatorID,
 		Action:       action,
@@ -1569,17 +1536,19 @@ func (s *operatorProvisioningService) logAction(ctx context.Context, operatorID 
 		RequestIP:    clientIP,
 	}
 	if len(changes) > 0 {
-		if payload, err := json.Marshal(changes); err == nil {
-			entry.Changes = payload
+		payload, err := json.Marshal(changes)
+		if err != nil {
+			return fmt.Errorf("encode operator audit log changes: %w", err)
 		}
+		entry.Changes = payload
+	}
+	if s.AuditLogRepo == nil {
+		return errors.New("operator audit log repository is required")
 	}
 	if err := s.AuditLogRepo.Create(ctx, entry); err != nil {
-		s.getLogger().Error(
-			"failed to create operator audit log",
-			slog.Any("error", err),
-			slog.String("resource_type", resourceType),
-		)
+		return fmt.Errorf("create operator audit log: %w", err)
 	}
+	return nil
 }
 
 // isLookupNotFound reports whether a repository FindByID-style error means
@@ -1718,13 +1687,9 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 			return &SchoolNotDeletedError{SchoolID: schoolID}
 		}
 
-		// See locking contract on OrganizationRepository.FindByIDForShare.
-		parentOrg, orgErr := s.OrganizationRepo.FindByIDForShare(adminCtx, school.OrganizationID)
+		parentOrg, orgErr := s.Organizations.FindOrganizationForSchoolMutation(adminCtx, school.OrganizationID)
 		if orgErr != nil {
-			return orgErr
-		}
-		if parentOrg == nil {
-			return &OrganizationNotFoundError{OrganizationID: school.OrganizationID}
+			return mapOrganizationCapabilityError(orgErr, school.OrganizationID)
 		}
 		if parentOrg.IsDeleted() {
 			return &OrganizationDeletedError{OrganizationID: school.OrganizationID}
@@ -1753,72 +1718,54 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 // has non-deleted schools — the operator must delete each school individually first.
 func (s *operatorProvisioningService) SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		// See locking contract on OrganizationRepository.FindByIDForShare — this
-		// FOR UPDATE serializes against concurrent school mutations that take FOR SHARE.
-		org, err := s.OrganizationRepo.FindByIDForUpdate(adminCtx, organizationID)
+		org, err := s.Organizations.SoftDeleteOrganization(adminCtx, organizationID)
 		if err != nil {
-			return err
-		}
-		if org == nil {
-			return &OrganizationNotFoundError{OrganizationID: organizationID}
-		}
-		if org.IsDeleted() {
-			return &OrganizationAlreadyDeletedError{OrganizationID: organizationID}
+			return mapOrganizationCapabilityError(err, organizationID)
 		}
 
-		// Block deletion if the organization still has non-deleted schools.
-		schoolCount, err := s.SchoolRepo.CountNonDeletedByOrganizationID(adminCtx, organizationID)
-		if err != nil {
-			return fmt.Errorf("count schools for organization %d: %w", organizationID, err)
-		}
-		if schoolCount > 0 {
-			return &OrganizationHasSchoolsError{OrganizationID: organizationID, SchoolCount: schoolCount}
-		}
-
-		if err := s.OrganizationRepo.SoftDelete(adminCtx, organizationID); err != nil {
-			if isRowsAffectedMismatch(err) {
-				return &OrganizationAlreadyDeletedError{OrganizationID: organizationID}
-			}
-			return err
-		}
-
-		s.logAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourceOrganization, &organizationID, clientIP, map[string]any{
+		return s.recordAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourceOrganization, &organizationID, clientIP, map[string]any{
 			"name": org.Name,
 			"slug": org.Slug,
 		})
-		return nil
 	})
 }
 
 // RestoreOrganization returns a soft-deleted organization to its pre-deletion state.
 func (s *operatorProvisioningService) RestoreOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		// Lock symmetry with SoftDeleteOrganization: FOR UPDATE serializes restore
-		// against a concurrent soft-delete of the same row.
-		org, err := s.OrganizationRepo.FindByIDForUpdate(adminCtx, organizationID)
+		org, err := s.Organizations.RestoreOrganization(adminCtx, organizationID)
 		if err != nil {
-			return err
-		}
-		if org == nil {
-			return &OrganizationNotFoundError{OrganizationID: organizationID}
-		}
-		if !org.IsDeleted() {
-			return &OrganizationNotDeletedError{OrganizationID: organizationID}
+			return mapOrganizationCapabilityError(err, organizationID)
 		}
 
-		if err := s.OrganizationRepo.Restore(adminCtx, organizationID); err != nil {
-			if isRowsAffectedMismatch(err) {
-				return &OrganizationNotDeletedError{OrganizationID: organizationID}
-			}
-			return err
-		}
-
-		s.logAction(adminCtx, operatorID, platform.ActionRestore, platform.ResourceOrganization, &organizationID, clientIP, map[string]any{
+		return s.recordAction(adminCtx, operatorID, platform.ActionRestore, platform.ResourceOrganization, &organizationID, clientIP, map[string]any{
 			"name": org.Name,
 			"slug": org.Slug,
 		})
-		return nil
 	})
+}
+
+func mapOrganizationCapabilityError(err error, organizationID int64) error {
+	switch {
+	case errors.Is(err, organizationModule.ErrOrganizationNotFound):
+		return &OrganizationNotFoundError{OrganizationID: organizationID}
+	case errors.Is(err, organizationModule.ErrOrganizationSlugConflict):
+		return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
+	case errors.Is(err, organizationModule.ErrOrganizationAlreadyDeleted):
+		return &OrganizationAlreadyDeletedError{OrganizationID: organizationID}
+	case errors.Is(err, organizationModule.ErrOrganizationNotDeleted):
+		return &OrganizationNotDeletedError{OrganizationID: organizationID}
+	case errors.Is(err, organizationModule.ErrOrganizationHasSchools):
+		var hasSchools *organizationModule.OrganizationHasSchoolsError
+		if errors.As(err, &hasSchools) {
+			return &OrganizationHasSchoolsError{OrganizationID: organizationID, SchoolCount: hasSchools.SchoolCount}
+		}
+		return &OrganizationHasSchoolsError{OrganizationID: organizationID}
+	case errors.Is(err, organizationModule.ErrInvalidOrganization):
+		return &InvalidDataError{Err: err}
+	default:
+		return err
+	}
 }
 
 func mapSchoolCreateConflict(ctx context.Context, schoolRepo platform.SchoolRepository, school *platform.School) error {

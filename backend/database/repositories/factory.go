@@ -216,7 +216,6 @@ type Factory struct {
 	BookingConsistency           auditModels.BookingConsistencyRepository
 
 	// Platform domain (operator dashboard)
-	Organization             platformModels.OrganizationRepository
 	Operator                 platformModels.OperatorRepository
 	Announcement             platformModels.AnnouncementRepository
 	AnnouncementView         platformModels.AnnouncementViewRepository
@@ -534,7 +533,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		BookingConsistency:           audit.NewBookingConsistencyRepository(auditRepositoryRuntime),
 
 		// Platform repositories
-		Organization:             platformRepo.NewOrganizationRepository(db),
 		Operator:                 platformRepo.NewOperatorRepository(db),
 		Announcement:             platformRepo.NewAnnouncementRepository(db),
 		AnnouncementView:         platformRepo.NewAnnouncementViewRepository(db),

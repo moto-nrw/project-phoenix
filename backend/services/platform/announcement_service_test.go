@@ -97,7 +97,7 @@ func newTestAnnouncementService(overrides func(m *testAnnouncementMocks)) platfo
 		AnnouncementRepo:     m.announcementRepo,
 		AnnouncementViewRepo: m.viewRepo,
 		AuditLogRepo:         m.auditLogRepo,
-		OrgRepo:              m.orgRepo,
+		Organizations:        m.orgRepo,
 		SchoolRepo:           m.schoolRepo,
 		DB:                   &bun.DB{},
 		Logger:               slog.Default(),

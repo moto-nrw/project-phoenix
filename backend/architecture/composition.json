@@ -441,17 +441,17 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 118,
+          "line": 120,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 221,
+          "line": 233,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 706,
+          "line": 718,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +461,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 342,
+          "line": 354,
           "declaration": "New"
         }
       ]
@@ -471,12 +471,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 118,
+          "line": 120,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 218,
+          "line": 230,
           "declaration": "type API"
         }
       ]
@@ -561,27 +561,27 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 411,
+          "line": 412,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 429,
+          "line": 431,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 14,
+          "line": 16,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 18,
+          "line": 24,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 25,
+          "line": 35,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
@@ -16614,7 +16614,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        342
+        354
       ],
       "tables": []
     },

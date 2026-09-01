@@ -59,12 +59,9 @@ func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) (
 // does not exist.
 func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error) {
 	return adminTxValue(ctx, s, func(adminCtx context.Context) ([]*SchoolSummary, error) {
-		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
+		_, findErr := s.Organizations.FindOrganization(adminCtx, organizationID)
 		if findErr != nil {
-			return nil, findErr
-		}
-		if org == nil {
-			return nil, &OrganizationNotFoundError{OrganizationID: organizationID}
+			return nil, mapOrganizationCapabilityError(findErr, organizationID)
 		}
 		return s.SummariesRepo.SchoolSummariesByOrganization(adminCtx, organizationID)
 	})
@@ -127,12 +124,9 @@ func (s *operatorProvisioningService) GetSchoolPWAUsage(ctx context.Context, sch
 func (s *operatorProvisioningService) ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
+		_, findErr := s.Organizations.FindOrganization(adminCtx, organizationID)
 		if findErr != nil {
-			return findErr
-		}
-		if org == nil {
-			return &OrganizationNotFoundError{OrganizationID: organizationID}
+			return mapOrganizationCapabilityError(findErr, organizationID)
 		}
 		persons, scanErr := s.SummariesRepo.PersonsByOrganization(adminCtx, organizationID)
 		if scanErr != nil {

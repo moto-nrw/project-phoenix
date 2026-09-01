@@ -61,7 +61,6 @@ func TestOperatorSummariesRepository_PWAUsage(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UnixNano()
 
-	orgRepo := platformRepo.NewOrganizationRepository(db)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 
 	org := &platformModels.Organization{
@@ -70,7 +69,7 @@ func TestOperatorSummariesRepository_PWAUsage(t *testing.T) {
 		Slug:   fmt.Sprintf("pwa-usage-%d", now),
 		Active: true,
 	}
-	require.NoError(t, orgRepo.Create(ctx, org))
+	testpkg.CreateTestOrganization(t, db, org)
 
 	mkSchool := func(id int64, tag string) *platformModels.School {
 		s := &platformModels.School{
