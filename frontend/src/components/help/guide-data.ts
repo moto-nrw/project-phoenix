@@ -1191,6 +1191,27 @@ export const appChapters: readonly GuideChapter[] = [
         printCompact: true,
       },
       {
+        id: "mitarbeiter-vorschau",
+        title: "Ansicht eines Mitarbeitenden",
+        icon: Eye,
+        summary:
+          "Zeigt Admins moto so, wie eine bestimmte Person Ihrer Schule es sieht — mit deren Menü, Seiten und Daten. In der Vorschau ist nur Lesen möglich.",
+        steps: [
+          "Oben rechts auf Ihr Profil tippen und `Ansicht eines Mitarbeitenden` wählen.",
+          "Die Person auswählen und `Vorschau starten` tippen.",
+          "moto zeigt jetzt die Ansicht dieser Person. Ein orangefarbener Streifen oben nennt die Person und bleibt auf jeder Seite sichtbar.",
+          "In der Vorschau können Sie nichts ändern, anlegen oder löschen. Seiten, die die Person nicht sieht, sehen auch Sie in der Vorschau nicht.",
+          "Über `Vorschau beenden` im Streifen kehren Sie zu Ihrer eigenen Ansicht zurück. Auch ein Schulwechsel oder das Abmelden beendet die Vorschau.",
+        ],
+        callout: {
+          title: "Wofür die Vorschau gedacht ist",
+          body: "Wenn eine Betreuungskraft anruft und etwas nicht findet: Vorschau starten und dieselbe Seite ansehen. So sehen Sie sofort, was die Person sieht, und können am Telefon helfen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Vorschau-Modus mit orangefarbenem Hinweisstreifen oben, der die gewählte Person nennt und die Schaltfläche Vorschau beenden trägt.",
+      },
+      {
         id: "eroeffnungssalden-import",
         title: "Eröffnungssalden gesammelt importieren",
         icon: Download,

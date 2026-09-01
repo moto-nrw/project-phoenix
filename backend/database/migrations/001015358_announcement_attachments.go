@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	announcementAttachmentsVersion     = "1.15.357"
+	announcementAttachmentsVersion     = "1.15.358"
 	announcementAttachmentsDescription = "Dateien an Elternmitteilungen anhängen und im Elternportal herunterladen (#2890)"
 )
 

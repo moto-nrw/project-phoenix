@@ -50,6 +50,12 @@ const (
 	EventTypeTenantAccessGranted = "tenant_access_granted"
 	EventTypeTenantAccessRevoked = "tenant_access_revoked"
 	EventTypeTenantRoleChanged   = "tenant_role_changed"
+
+	// Admin staff-view preview (#2893). Written against the ADMIN's account —
+	// never the previewed staff member's — with the target in the metadata,
+	// so the trail shows who looked through whose eyes and when.
+	EventTypeStaffPreviewStarted = "staff_preview_started"
+	EventTypeStaffPreviewEnded   = "staff_preview_ended"
 )
 
 // Validate ensures auth event is valid
@@ -78,7 +84,8 @@ func (ae *AuthEvent) Validate() error {
 		EventTypeMFALocked, EventTypeMFARecoveryUsed, EventTypeMFADisabled,
 		EventTypeMFATrustedDeviceAdded, EventTypeMFAAdminOverride,
 		EventTypeTenantAccessGranted, EventTypeTenantAccessRevoked,
-		EventTypeTenantRoleChanged:
+		EventTypeTenantRoleChanged,
+		EventTypeStaffPreviewStarted, EventTypeStaffPreviewEnded:
 		// Valid types
 	default:
 		return errors.New("invalid event type")

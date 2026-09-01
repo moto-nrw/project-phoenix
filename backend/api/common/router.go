@@ -26,6 +26,10 @@ func ProtectedTenantGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 	r.Group(func(gr chi.Router) {
 		gr.Use(tokenAuth.Verifier())
 		gr.Use(jwt.Authenticator)
+		// Write block for admin staff-view preview tokens (#2893). Directly
+		// after the Authenticator: it only reads the parsed claims and must
+		// reject before any transaction middleware can run.
+		gr.Use(ReadOnlyPreviewMiddleware)
 		gr.Use(jwt.TenantMiddleware)
 		gr.Use(SecurityPrincipalMiddleware)
 		// Request-scoped settings memo cache (issue #2065) and identity memo
@@ -68,6 +72,9 @@ func ProtectedSchoolGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 	r.Group(func(gr chi.Router) {
 		gr.Use(tokenAuth.Verifier())
 		gr.Use(jwt.Authenticator)
+		// Preview tokens are never school-scope, so SchoolMiddleware already
+		// rejects them — this is defense-in-depth mirroring the tenant group.
+		gr.Use(ReadOnlyPreviewMiddleware)
 		gr.Use(jwt.SchoolMiddleware)
 		gr.Use(SecurityPrincipalMiddleware)
 		gr.Use(RequestSettingsCacheMiddleware)

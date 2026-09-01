@@ -38,6 +38,8 @@ export interface JwtPayload {
   tenant_id?: number;
   org_id?: number;
   scope?: string;
+  read_only?: boolean;
+  acting_admin_id?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -57,6 +59,13 @@ declare module "next-auth" {
       tenantId?: number;
       orgId?: number;
       scope?: string;
+      // Admin staff-view preview (#2893): true while the session renders the
+      // tenant portal through a read-only preview token; previewTargetName /
+      // previewTargetAccountId identify the previewed staff member for the
+      // banner and the end-of-preview audit call.
+      isPreview?: boolean;
+      previewTargetName?: string;
+      previewTargetAccountId?: string;
     } & DefaultSession["user"];
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
@@ -89,6 +98,16 @@ declare module "next-auth" {
     refreshRecoveryProof?: string;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
     needsRefresh?: boolean;
+    // Admin staff-view preview (#2893). While previewTargetAccountId is set,
+    // `token`/`tokenExpiry` hold the READ-ONLY preview token and the admin's
+    // own access token is parked in previewAdminToken; `refreshToken` stays
+    // the admin's — no refresh token ever exists in the target's name.
+    previewTargetAccountId?: string;
+    previewTargetName?: string;
+    previewAdminToken?: string;
+    previewAdminTokenExpiry?: number;
+    previewAdminId?: string;
+    previewAdminEmail?: string;
   }
 }
 
@@ -165,6 +184,10 @@ function syncTokenFromPayload(
   token.isAdmin = payload.is_admin ?? false;
   token.scope = payload.scope;
   token.name = buildDisplayName(payload, (token.email as string) ?? "");
+  // Kept in sync alongside name: the staff-preview swap (#2893) rides this
+  // helper too, and session.user.firstName must follow the token's identity —
+  // entering, renewing, and leaving a preview included.
+  token.firstName = payload.first_name;
   // Operator JWTs store email as username; keep session in sync after email change.
   // Tenant-scoped users don't need this: their email comes from the NextAuth
   // sign-in flow (authorize callback) and doesn't change via JWT refresh —
@@ -636,6 +659,354 @@ export const _testHelpers = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Admin staff-view preview (#2893)
+//
+// While a preview is active, `token.token` holds the READ-ONLY preview JWT
+// (the target staff member's identity + permissions, minted by the backend),
+// the admin's own access token is parked in `previewAdminToken`, and
+// `refreshToken` stays the admin's. The preview lives only as long as the
+// admin session: near expiry the callback refreshes the ADMIN token and asks
+// the backend for a fresh preview token — no refresh token ever exists in
+// the target's name.
+// ---------------------------------------------------------------------------
+
+const PREVIEW_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+const PREVIEW_ADMIN_TOKEN_MIN_TTL_MS = 60 * 1000;
+const PREVIEW_REMINT_TIMEOUT_MS = 5_000;
+
+interface PreviewStartUpdate {
+  accessToken: string;
+  expiresIn: number;
+  // Account IDs are int64 on the backend and stay strings on this side —
+  // a JavaScript number would round IDs beyond 2^53.
+  targetAccountId: string;
+  targetName: string;
+}
+
+function isPreviewStartUpdate(value: unknown): value is PreviewStartUpdate {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.accessToken === "string" &&
+    typeof v.expiresIn === "number" &&
+    typeof v.targetAccountId === "string" &&
+    v.targetAccountId.length > 0 &&
+    typeof v.targetName === "string"
+  );
+}
+
+function isPreviewActive(token: Record<string, unknown>): boolean {
+  return typeof token.previewTargetAccountId === "string";
+}
+
+/** Swap the session onto the preview token, parking the admin's own state. */
+function applyPreviewStart(
+  token: Record<string, unknown>,
+  update: PreviewStartUpdate,
+): void {
+  const payload = parseJwtPayload(update.accessToken);
+  // Only genuine read-only preview tokens may be injected here — anything
+  // else would smuggle a full session under the preview flag. The session
+  // stays as it is, so the session object returned to the client carries no
+  // preview; performStartStaffPreview reads that, closes the just-recorded
+  // preview in the audit trail, and reports the failure instead of reloading.
+  if (!payload?.read_only) {
+    logger.warn("staff_preview_start_rejected", {
+      reason: "token is not a read-only preview token",
+    });
+    return;
+  }
+  token.previewAdminToken = token.token;
+  token.previewAdminTokenExpiry = token.tokenExpiry;
+  token.previewAdminId = token.id;
+  token.previewAdminEmail = token.email;
+  token.previewTargetAccountId = update.targetAccountId;
+  token.previewTargetName = update.targetName;
+  token.token = update.accessToken;
+  token.tokenExpiry = Date.now() + update.expiresIn * 1000;
+  token.id = String(payload.id);
+  if (payload.sub) token.email = payload.sub;
+  syncTokenFromPayload(token, payload);
+  logger.info("staff_preview_started", {
+    target_account_id: update.targetAccountId,
+  });
+}
+
+/** Restore the parked admin state and clear every preview field. */
+function restoreAdminFromPreview(token: Record<string, unknown>): void {
+  token.token = (token.previewAdminToken as string | undefined) ?? "";
+  token.tokenExpiry = token.previewAdminTokenExpiry;
+  token.id = token.previewAdminId;
+  token.email = token.previewAdminEmail;
+  const adminToken = token.token as string;
+  const payload = adminToken ? parseJwtPayload(adminToken) : null;
+  if (payload) syncTokenFromPayload(token, payload);
+  token.previewTargetAccountId = undefined;
+  token.previewTargetName = undefined;
+  token.previewAdminToken = undefined;
+  token.previewAdminTokenExpiry = undefined;
+  token.previewAdminId = undefined;
+  token.previewAdminEmail = undefined;
+  logger.info("staff_preview_ended");
+}
+
+/**
+ * Refresh the ADMIN's token pair while a preview is active. Shares the
+ * module-level cache and in-flight dedup with the regular refresh path (same
+ * key scheme), so concurrent callbacks never rotate the same refresh token
+ * twice.
+ */
+async function refreshAdminTokenForPreview(
+  token: Record<string, unknown>,
+): Promise<RefreshAttempt> {
+  const currentRefreshToken = token.refreshToken as string | undefined;
+  if (!currentRefreshToken) return { status: "terminal" };
+  const currentRecoveryProof =
+    typeof token.refreshRecoveryProof === "string" &&
+    token.refreshRecoveryProof.length > 0
+      ? token.refreshRecoveryProof
+      : deriveRefreshRecoveryProof(currentRefreshToken);
+  token.refreshRecoveryProof = currentRecoveryProof;
+  const refreshKey = `${currentRefreshToken}\0${currentRecoveryProof}`;
+
+  pruneRefreshCache();
+
+  const cached = refreshCacheMap.get(refreshKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return {
+      status: "success",
+      result: cached.result,
+      recoveryProof: cached.recoveryProof,
+      refreshTokenExpiresAt: cached.refreshTokenExpiresAt,
+    };
+  }
+
+  const inflight = activeRefreshes.get(refreshKey);
+  if (inflight) return inflight;
+
+  const refreshPromise = (async (): Promise<RefreshAttempt> => {
+    try {
+      const auditHeaders = await getRefreshAuditHeaders();
+      const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${currentRefreshToken}`,
+          "Content-Type": "application/json",
+          "X-Refresh-Recovery-Proof": currentRecoveryProof,
+          ...auditHeaders,
+        },
+        signal: AbortSignal.timeout(PREVIEW_REMINT_TIMEOUT_MS),
+      });
+
+      if (response.ok) {
+        const tokens = (await response.json()) as RefreshResult;
+        const successorRecoveryProof = deriveRefreshRecoveryProof(
+          tokens.refresh_token,
+        );
+        const successorExpiresAt = refreshTokenExpiresAt(tokens.refresh_token);
+        if (successorExpiresAt === null) {
+          return { status: "transient" };
+        }
+        refreshCacheMap.set(refreshKey, {
+          result: tokens,
+          recoveryProof: successorRecoveryProof,
+          refreshTokenExpiresAt: successorExpiresAt,
+          expiresAt: Date.now() + REFRESH_CACHE_TTL_MS,
+        });
+        return {
+          status: "success",
+          result: tokens,
+          recoveryProof: successorRecoveryProof,
+          refreshTokenExpiresAt: successorExpiresAt,
+        };
+      }
+      logger.warn("staff_preview_admin_refresh_failed", {
+        status: response.status,
+      });
+      return response.status === 401 || response.status === 403
+        ? { status: "terminal" }
+        : { status: "transient" };
+    } catch (err) {
+      logger.warn("staff_preview_admin_refresh_error", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { status: "transient" };
+    } finally {
+      activeRefreshes.delete(refreshKey);
+    }
+  })();
+
+  activeRefreshes.set(refreshKey, refreshPromise);
+  return refreshPromise;
+}
+
+/**
+ * Record the end of a preview that the SESSION ended on its own — the target
+ * lost eligibility, or the admin session itself died. The interactive
+ * "Vorschau beenden" button posts the same call from the browser; this is the
+ * same ending, just without a click, and it must reach the audit trail the
+ * same way. The endpoint is public and token-proved: the signed preview token
+ * is the credential, so the end is recordable even when every admin token has
+ * expired (laptop closed for a week mid-preview). Best effort: the preview is
+ * over regardless of what this call answers, and the backend records one end
+ * per preview instance however often it is asked (unique index on the
+ * preview id).
+ */
+async function recordPreviewEnd(
+  previewToken: string | undefined,
+): Promise<void> {
+  if (!previewToken) return;
+  try {
+    // Same audit context the regular refresh path forwards: without it the
+    // automatic end lands with the Docker-internal IP and Node as browser.
+    const auditHeaders = await getRefreshAuditHeaders();
+    const response = await fetch(
+      `${getServerApiUrl()}/auth/staff-preview/end`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auditHeaders },
+        body: JSON.stringify({ preview_token: previewToken }),
+        signal: AbortSignal.timeout(PREVIEW_REMINT_TIMEOUT_MS),
+      },
+    );
+    if (!response.ok) {
+      logger.warn("staff_preview_auto_end_not_recorded", {
+        status: response.status,
+      });
+    }
+  } catch (err) {
+    logger.warn("staff_preview_auto_end_error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
+ * End a preview because the SESSION is lost, not because anyone clicked:
+ * the admin refresh failed terminally or the refresh token expired. The
+ * session callback strips the token right after, so this is the last moment
+ * the preview token is in hand — without recording here, the audit trail
+ * keeps a "started" that never ends.
+ *
+ * Best effort, in this order: record first (the signed preview token is the
+ * credential — no admin token needs to be alive for it), then restore the
+ * admin state so no preview field survives into the dead session.
+ */
+async function endPreviewOnSessionLoss(
+  token: Record<string, unknown>,
+): Promise<void> {
+  await recordPreviewEnd(token.token as string | undefined);
+  restoreAdminFromPreview(token);
+}
+
+/**
+ * Keep an active preview session alive: refresh the admin token when needed
+ * and re-mint the preview token near its expiry. Returns true while the
+ * preview stays active (caller returns the token) and false when the preview
+ * ended (caller falls through to the regular refresh path with the restored
+ * admin state).
+ */
+async function maintainPreviewSession(
+  token: Record<string, unknown>,
+  now: number,
+): Promise<boolean> {
+  const previewExpiry = (token.tokenExpiry as number | undefined) ?? 0;
+  if (now < previewExpiry - PREVIEW_REFRESH_BUFFER_MS) return true;
+
+  // Step 1: a fresh admin access token to re-mint with.
+  let adminAccessToken = token.previewAdminToken as string | undefined;
+  const adminExpiry =
+    (token.previewAdminTokenExpiry as number | undefined) ?? 0;
+  if (!adminAccessToken || now > adminExpiry - PREVIEW_ADMIN_TOKEN_MIN_TTL_MS) {
+    const attempt = await refreshAdminTokenForPreview(token);
+    if (attempt.status === "success") {
+      token.refreshToken = attempt.result.refresh_token;
+      token.refreshRecoveryProof = attempt.recoveryProof;
+      token.refreshTokenExpiry = attempt.refreshTokenExpiresAt;
+      token.previewAdminToken = attempt.result.access_token;
+      token.previewAdminTokenExpiry = Date.now() + accessTokenExpiry;
+      adminAccessToken = attempt.result.access_token;
+    } else if (attempt.status === "terminal") {
+      // The admin session itself is gone — everything ends, preview included.
+      // The preview still gets its end event before the session is stripped.
+      await endPreviewOnSessionLoss(token);
+      token.error = "RefreshTokenError";
+      token.needsRefresh = true;
+      return true;
+    } else {
+      return true; // transient — retry on the next callback
+    }
+  }
+
+  // Step 2: re-mint the preview token as the admin. No dedup needed — the
+  // mint does not rotate anything, a concurrent double-mint is harmless.
+  try {
+    const remintAuditHeaders = await getRefreshAuditHeaders();
+    const response = await fetch(`${getServerApiUrl()}/auth/staff-preview`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${adminAccessToken}`,
+        "Content-Type": "application/json",
+        // A re-mint normally continues the same preview and writes no start
+        // event — but if the backend ever treats it as a new one, the audit
+        // row must carry the real client, not the Docker-internal hop.
+        ...remintAuditHeaders,
+      },
+      // The expiring token comes along as previous_token: it proves this is
+      // the SAME preview instance, so the backend renews it instead of
+      // recording a second "preview started" in the audit trail.
+      body: JSON.stringify({
+        account_id: token.previewTargetAccountId,
+        previous_token: token.token,
+      }),
+      signal: AbortSignal.timeout(PREVIEW_REMINT_TIMEOUT_MS),
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as {
+        access_token: string;
+        expires_in: number;
+        target_name: string;
+      };
+      token.token = data.access_token;
+      token.tokenExpiry = Date.now() + data.expires_in * 1000;
+      token.previewTargetName = data.target_name;
+      const payload = parseJwtPayload(data.access_token);
+      if (payload) {
+        token.id = String(payload.id);
+        if (payload.sub) token.email = payload.sub;
+        syncTokenFromPayload(token, payload);
+      }
+      logger.info("staff_preview_token_reminted");
+      return true;
+    }
+
+    if (response.status === 401) {
+      // Stale admin access token — drop it so the next callback refreshes.
+      token.previewAdminToken = undefined;
+      token.previewAdminTokenExpiry = undefined;
+      return true;
+    }
+
+    // 403/404/…: the target is no longer previewable (deactivated, role
+    // changed, admin rights revoked) — end the preview, back to admin. This
+    // ending is as real as one the admin clicks, so it gets the same audit
+    // entry: without it the trail would show a preview that started and never
+    // ended. Recorded BEFORE the restore, while the preview token is still in
+    // hand — it is the proof of which preview is being closed.
+    logger.warn("staff_preview_remint_rejected", { status: response.status });
+    await recordPreviewEnd(token.token as string | undefined);
+    restoreAdminFromPreview(token);
+    return false;
+  } catch (err) {
+    logger.warn("staff_preview_remint_error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return true; // transient — retry on the next callback
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Shared callbacks
 // ---------------------------------------------------------------------------
 
@@ -807,6 +1178,20 @@ export const sharedJwtCallback: NonNullable<
       // RefreshTokenError is NOT set and the user keeps their session.
       token.tokenExpiry = Date.now() + (REFRESH_BUFFER_MS - 60_000);
     }
+    // Admin staff-view preview (#2893): enter with the freshly minted
+    // read-only token, leave by restoring the parked admin state. A start
+    // while a preview is already active is ignored — it would overwrite the
+    // parked admin tokens with preview tokens.
+    if (
+      update.previewStart !== undefined &&
+      !isPreviewActive(token) &&
+      isPreviewStartUpdate(update.previewStart)
+    ) {
+      applyPreviewStart(token, update.previewStart);
+    }
+    if (update.previewEnd === true && isPreviewActive(token)) {
+      restoreAdminFromPreview(token);
+    }
   }
 
   // Check if refresh token is expired
@@ -817,6 +1202,11 @@ export const sharedJwtCallback: NonNullable<
     logger.warn("refresh token expired", {
       expires_at: new Date(token.refreshTokenExpiry as number).toISOString(),
     });
+    // A running preview ends with the session it hangs on — and it ends in
+    // the audit trail too, before the session callback drops the token.
+    if (isPreviewActive(token)) {
+      await endPreviewOnSessionLoss(token);
+    }
     token.error = "RefreshTokenExpired";
     token.needsRefresh = true;
     return token;
@@ -829,6 +1219,17 @@ export const sharedJwtCallback: NonNullable<
   // Once terminal, the session callback strips both tokens and requires login.
   if (token.error === "RefreshTokenError") {
     return token;
+  }
+
+  // Admin staff-view preview (#2893): while active, the preview branch owns
+  // token maintenance (admin refresh + preview re-mint). Only when the
+  // preview just ended does control fall through, so the restored admin
+  // token can refresh below if it is stale.
+  if (isPreviewActive(token)) {
+    const stillPreviewing = await maintainPreviewSession(token, Date.now());
+    if (stillPreviewing) {
+      return token;
+    }
   }
 
   // Proactive token refresh
@@ -1039,6 +1440,10 @@ export const sharedSessionCallback: NonNullable<
       tenantId: token.tenantId as number | undefined,
       orgId: token.orgId as number | undefined,
       scope: token.scope as string | undefined,
+      isPreview: isPreviewActive(token),
+      previewTargetName: token.previewTargetName as string | undefined,
+      previewTargetAccountId: token.previewTargetAccountId as
+        string | undefined,
     },
   };
 };
