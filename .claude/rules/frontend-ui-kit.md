@@ -60,7 +60,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 
 | You need… | Use | Import from |
 |---|---|---|
-| Button / CTA | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `success` `ghost`; sizes `sm` `base` `lg` `xl` (page-level), `md` (modal-footer / in-form action height, `px-4 py-2 text-sm`) + `compact` `icon` (flat dense chrome). Pass `type="button"` outside forms. | `~/components/ui/button` |
+| Button / CTA | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `warning` (proceed despite a side effect, orange) `success` `ghost`; sizes `sm` `base` `lg` `xl` (page-level), `md` (modal-footer / in-form action height, `px-4 py-2 text-sm`) + `compact` `icon` (flat dense chrome). Pass `type="button"` outside forms. | `~/components/ui/button` |
 | Text input | `Input` | `~/components/ui/input` |
 | Checkbox | `Checkbox` — brand-green (`#83CD2D`) checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
 | Inline alert / banner | `Alert` (`type`, `message`) | `~/components/ui/alert` |

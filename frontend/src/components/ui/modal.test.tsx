@@ -744,7 +744,9 @@ describe("ConfirmationModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("should apply custom confirmButtonClass", async () => {
+  // #2932: the footer buttons are the kit Button (size="md"), so the confirm
+  // tone is a variant, not a caller-supplied class string.
+  it("should apply the danger confirm variant", async () => {
     render(
       <TestWrapper>
         <ConfirmationModal
@@ -752,7 +754,7 @@ describe("ConfirmationModal", () => {
           onClose={vi.fn()}
           onConfirm={vi.fn()}
           title="Delete"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
+          confirmVariant="danger"
         >
           <p>Delete?</p>
         </ConfirmationModal>
@@ -764,7 +766,65 @@ describe("ConfirmationModal", () => {
     });
 
     const confirmButton = screen.getByRole("button", { name: "Bestätigen" });
-    expect(confirmButton).toHaveClass("bg-red-600");
+    expect(confirmButton).toHaveClass("bg-moto-red", "text-white");
+    expect(confirmButton.className).not.toContain("bg-gray-900");
+  });
+
+  it("renders the footer from the kit Button at the modal size", async () => {
+    render(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          title="Confirm"
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const confirm = screen.getByRole("button", { name: "Bestätigen" });
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+
+    // Default tone stays the neutral primary variant.
+    expect(confirm).toHaveClass("bg-gray-900", "text-white");
+    // Cancel is the outline variant: no filled background.
+    expect(cancel).toHaveClass("ring-1", "ring-gray-300", "text-gray-700");
+
+    for (const button of [confirm, cancel]) {
+      // size="md": modal-footer height, not the oversized page sizes.
+      expect(button).toHaveClass("rounded-lg", "px-4", "py-2", "text-sm");
+      // The hand-rolled hover:scale-105 wobble is gone.
+      expect(button.className).not.toContain("scale-105");
+    }
+  });
+
+  it("dims the page with the shared backdrop tint once entered", async () => {
+    render(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          title="Confirm"
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(
+      screen.getByRole("button", { name: /hintergrund.*schließen/i }),
+    ).toHaveClass("bg-black/40", "backdrop-blur-sm");
   });
 
   it("renders an opted-in modal as a dismissible bottom sheet on phones", async () => {

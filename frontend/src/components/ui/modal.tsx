@@ -15,7 +15,12 @@ import {
   DrawerTitle,
 } from "~/components/ui/drawer";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
-import { OVERLAY_BACKDROP_CLASS } from "./overlay-styles";
+import {
+  OVERLAY_BACKDROP_CLASS,
+  OVERLAY_BACKDROP_TINT_CLASS,
+  OVERLAY_BACKDROP_TINT_HIDDEN_CLASS,
+} from "./overlay-styles";
+import { Button } from "./button";
 
 // Shared a11y contract for all modal dialogs (also consumed by form-modal).
 export const dialogAriaProps = {
@@ -346,7 +351,9 @@ function DialogModal({
           disabled={isDismissDisabled || isBackdropDismissDisabled}
           aria-label={backdropLabel}
           className={`absolute inset-0 cursor-default border-none bg-transparent p-0 ${OVERLAY_BACKDROP_CLASS} transition-all duration-200 ease-out ${
-            isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
+            isAnimating && !isExiting
+              ? OVERLAY_BACKDROP_TINT_CLASS
+              : OVERLAY_BACKDROP_TINT_HIDDEN_CLASS
           }`}
           style={{
             animation:
@@ -490,6 +497,8 @@ function DialogModal({
   return modalContent;
 }
 
+export type ConfirmVariant = "primary" | "danger" | "warning" | "success";
+
 // A specialized confirmation modal with yes/no buttons
 interface ConfirmationModalProps {
   readonly isOpen: boolean;
@@ -510,7 +519,12 @@ interface ConfirmationModalProps {
   readonly isDismissDisabled?: boolean;
   /** Forwarded to Modal — backdrop taps do not close the confirmation. */
   readonly isBackdropDismissDisabled?: boolean;
-  readonly confirmButtonClass?: string;
+  /**
+   * Tone of the confirm button, mapped onto the kit Button variants:
+   * `primary` (neutral, default), `danger` (delete / irreversible),
+   * `warning` (proceed despite a side effect), `success` (publish / release).
+   */
+  readonly confirmVariant?: ConfirmVariant;
   /**
    * Text shown on the confirm button while isConfirmLoading. Defaults to
    * German; pass a translated string on localized surfaces.
@@ -536,7 +550,7 @@ export function ConfirmationModal({
   isConfirmDisabled = false,
   isDismissDisabled = false,
   isBackdropDismissDisabled = false,
-  confirmButtonClass = "bg-gray-900 hover:bg-gray-700",
+  confirmVariant = "primary",
   loadingText = "Wird geladen...",
   closeLabel,
   backdropLabel,
@@ -544,20 +558,26 @@ export function ConfirmationModal({
 }: ConfirmationModalProps) {
   const modalFooter = (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onClose}
         disabled={isDismissDisabled}
-        className={`${mobileSheet ? "hidden sm:block" : ""} flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:shadow-none`}
+        className={`flex-1 whitespace-nowrap disabled:cursor-not-allowed ${
+          mobileSheet ? "hidden sm:inline-flex" : ""
+        }`}
       >
         {cancelText}
-      </button>
+      </Button>
 
-      <button
+      <Button
         type="button"
+        variant={confirmVariant}
+        size="md"
         onClick={onConfirm}
         disabled={isConfirmLoading || isConfirmDisabled}
-        className={`flex-1 rounded-lg px-4 py-2 whitespace-nowrap ${confirmButtonClass} text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100`}
+        className="flex-1 whitespace-nowrap disabled:cursor-not-allowed"
       >
         {isConfirmLoading ? (
           <span className="flex items-center justify-center gap-2">
@@ -585,7 +605,7 @@ export function ConfirmationModal({
         ) : (
           confirmText
         )}
-      </button>
+      </Button>
     </>
   );
 
