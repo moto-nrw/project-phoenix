@@ -229,6 +229,14 @@ describe("ParentMealPlanPage", () => {
         "Änderungen für den gleichen Tag sind bis 09:00 Uhr möglich.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Eine bestätigte Krankmeldung bis 09:00 Uhr meldet Ihr Kind für diesen Tag vom Mittagessen ab. Eine spätere Krankmeldung ändert die Küchenliste nicht mehr.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("parentMealPlan.participationSickness"),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
     await waitFor(() => {
       expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
