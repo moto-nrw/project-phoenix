@@ -144,10 +144,12 @@ export default function StaffDetailContent() {
     hasPermission(session, "vacation:approve");
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
-  const canEditStammdaten = hasPermission(session, "users:update");
-  // Deliberately NOT users:read: the sections carry HR-file data (birthday,
-  // private address, contract terms), and users:read is held by everyone who
-  // may see the staff list at all — mirrors the backend route gate.
+  const canEditStammdaten = hasPermission(session, "staff:stammdaten");
+  // Deliberately NOT users:read or users:update: the sections carry HR-file
+  // data (birthday, private address, contract terms). users:read is held by
+  // everyone who may see the staff list at all, users:update by the
+  // Betreuer-Standardrolle for the child data (#2906) — mirrors the backend
+  // route gate.
   const canViewStammdatenSections =
     canEdit || canManageTimeTracking || canEditStammdaten;
   // Klassen-Zuweisung (#1772): Spiegel der Backend-Gates — Lesen users:read,
@@ -161,7 +163,7 @@ export default function StaffDetailContent() {
   // to exactly the categories the caller may see.
   const canViewDocuments =
     canEdit ||
-    canEditStammdaten ||
+    hasPermission(session, "staff:documents") ||
     canViewFinancial ||
     hasPermission(session, "staff_documents:health");
   const requestedTab = searchParams.get("tab");

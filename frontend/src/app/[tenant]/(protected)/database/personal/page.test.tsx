@@ -11,7 +11,7 @@ vi.mock("next-auth/react", () => ({
       user: {
         id: "1",
         token: "test-token",
-        permissions: ["users:manage"],
+        permissions: ["users:manage", "staff:manage"],
       },
       expires: "2099-01-01",
     },
@@ -180,13 +180,15 @@ vi.mock("@/components/teachers/staff-master-detail", () => ({
           >
             Close
           </button>
-          <button
-            type="button"
-            data-testid="trigger-notes"
-            onClick={() => void onUpdateNotes("Updated note")}
-          >
-            Save Notes
-          </button>
+          {onUpdateNotes ? (
+            <button
+              type="button"
+              data-testid="trigger-notes"
+              onClick={() => void onUpdateNotes("Updated note")}
+            >
+              Save Notes
+            </button>
+          ) : null}
           {onManageCaregiver ? (
             <button
               type="button"
@@ -332,7 +334,7 @@ describe("TeachersPage", () => {
         user: {
           id: "1",
           token: "test-token",
-          permissions: ["users:manage"],
+          permissions: ["users:manage", "staff:manage"],
         },
         expires: "2099-01-01",
       },
@@ -465,6 +467,32 @@ describe("TeachersPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("invitation-form")).toBeInTheDocument();
     });
+  });
+
+  // #2906: Personalnotizen gehören zum Mitarbeiter-Datensatz und brauchen
+  // staff:manage. Ohne die Berechtigung darf die Oberfläche die Aktion nicht
+  // anbieten — das Backend antwortet dort mit 403.
+  it("hides the notes editor without staff:manage", async () => {
+    setSelectedStaff("1");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["users:read", "users:update"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("trigger-notes")).not.toBeInTheDocument();
   });
 
   it("hides invitation controls without users:manage", () => {

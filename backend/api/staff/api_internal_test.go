@@ -88,12 +88,87 @@ func TestResource_CrossStaffTimeAndAbsenceReadsRejectUsersRead(t *testing.T) {
 	}
 }
 
+// A caller on the personnel tier sees the whole record.
+func TestNewStaffResponse_PersonnelTierSeesFullRecord(t *testing.T) {
+	t.Parallel()
+
+	employmentType := users.EmploymentTypePartTime
+	tagID := "04A1B2C3"
+	response := buildStaffResponse(true, &users.Staff{
+		Model:          base.Model{ID: 42},
+		PersonID:       420,
+		StaffNotes:     "Vertretung montags",
+		EmploymentType: &employmentType,
+		Person:         &users.Person{Model: base.Model{ID: 420}, FirstName: "Mara", LastName: "Kühn", TagID: &tagID},
+	}, false, false, "", "sick", "user", "mara@example.com", "")
+
+	assert.Equal(t, "Vertretung montags", response.StaffNotes)
+	assert.Equal(t, "sick", response.AbsenceType)
+	require.NotNil(t, response.EmploymentType)
+	require.NotNil(t, response.Person)
+	assert.Equal(t, tagID, response.Person.TagID)
+	assert.Equal(t, "mara@example.com", response.Person.Email)
+}
+
+// The minimal colleague view: an ordinary Betreuer holding only users:read
+// sees name, work e-mail, account role and today's presence — never the
+// personnel-file fields (#2906).
+func TestNewStaffResponse_DirectoryTierRedactsPersonnelFields(t *testing.T) {
+	t.Parallel()
+
+	employmentType := users.EmploymentTypePartTime
+	tagID := "04A1B2C3"
+	response := buildStaffResponse(false, &users.Staff{
+		Model:          base.Model{ID: 42},
+		PersonID:       420,
+		StaffNotes:     "Vertretung montags",
+		EmploymentType: &employmentType,
+		Person:         &users.Person{Model: base.Model{ID: 420}, FirstName: "Mara", LastName: "Kühn", TagID: &tagID},
+	}, false, true, "working", "sick", "user", "mara@example.com", "avatar.png")
+
+	assert.Empty(t, response.StaffNotes)
+	assert.Empty(t, response.AbsenceType)
+	assert.Nil(t, response.EmploymentType)
+	require.NotNil(t, response.Person)
+	assert.Empty(t, response.Person.TagID)
+
+	// The minimal view stays useful.
+	assert.Equal(t, "Mara", response.Person.FirstName)
+	assert.Equal(t, "mara@example.com", response.Person.Email)
+	assert.Equal(t, "avatar.png", response.Person.Avatar)
+	assert.Equal(t, "user", response.AccountRole)
+	assert.True(t, response.WasPresentToday)
+	assert.Equal(t, "working", response.WorkStatus)
+}
+
+// Free-text qualifications are personnel-file data; the pedagogical labels the
+// group and substitution screens render are not.
+func TestNewTeacherResponse_DirectoryTierRedactsQualifications(t *testing.T) {
+	t.Parallel()
+
+	staff := &users.Staff{Model: base.Model{ID: 42}, PersonID: 420}
+	teacher := &users.Teacher{
+		Model:          base.Model{ID: 7},
+		Specialization: "Sport",
+		Role:           "Gruppenleitung",
+		Qualifications: "Erzieherin, Erste-Hilfe-Kurs 2025",
+	}
+
+	redacted := buildTeacherResponse(false, staff, teacher, false, "", "", "", "", "")
+	assert.Empty(t, redacted.Qualifications)
+	assert.Equal(t, "Sport", redacted.Specialization)
+	assert.Equal(t, "Gruppenleitung", redacted.Role)
+
+	full := buildTeacherResponse(true, staff, teacher, false, "", "", "", "", "")
+	assert.Equal(t, "Erzieherin, Erste-Hilfe-Kurs 2025", full.Qualifications)
+}
+
 // Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
 	t.Parallel()
 
 	employmentType := users.EmploymentTypePartTime
-	response := newStaffResponse(&users.Staff{
+	response := buildStaffResponse(true, &users.Staff{
 		Model:          base.Model{ID: 42},
 		PersonID:       420,
 		EmploymentType: &employmentType,
@@ -113,7 +188,7 @@ func TestStaffResponse_PersonIDIsDecimalString(t *testing.T) {
 
 	const bigPersonID = int64(9007199254740993) // 2^53 + 1
 
-	encoded, err := json.Marshal(newStaffResponse(&users.Staff{
+	encoded, err := json.Marshal(buildStaffResponse(false, &users.Staff{
 		Model:    base.Model{ID: 42},
 		PersonID: bigPersonID,
 	}, false, false, "", "", "", "", ""))

@@ -154,9 +154,11 @@ function StaffPageContent() {
   // users:read: sie zeigt Arbeitszeitdaten identifizierbarer Personen.
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
   const canReadUsers = hasPermission(session, "users:read");
+  // Personalunterlagen hängen an staff:documents, nicht mehr an users:update
+  // (#2906): users:update hält die Betreuer-Standardrolle für die Kinderdaten.
   const canAccessDocuments =
     userIsAdmin ||
-    hasPermission(session, "users:update") ||
+    hasPermission(session, "staff:documents") ||
     hasPermission(session, "staff:financial") ||
     hasPermission(session, "staff_documents:health");
   // Document-only roles have no other staff view to navigate from. Roles that

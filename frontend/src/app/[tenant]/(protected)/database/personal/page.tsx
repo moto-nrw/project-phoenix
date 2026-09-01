@@ -116,6 +116,9 @@ function TeachersPageContent() {
   });
   const accessToken = sessionData?.user?.token ?? "";
   const canManageUsers = hasPermission(sessionData, "users:manage");
+  // Personalnotizen am Mitarbeiter-Datensatz: staff:manage (#2906), nicht
+  // mehr users:update — das hält jede Betreuungskraft für die Kinderdaten.
+  const canManageStaffRecords = hasPermission(sessionData, "staff:manage");
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
   const tenantMutate = useTenantMutate();
@@ -386,7 +389,9 @@ function TeachersPageContent() {
             onSelect={handleSelectTeacher}
             onEditClick={handleEditClick}
             onDeleteClick={handleDeleteClick}
-            onUpdateNotes={handleUpdateNotes}
+            onUpdateNotes={
+              canManageStaffRecords ? handleUpdateNotes : undefined
+            }
             onManageCaregiver={
               selectedTeacher?.account_id
                 ? handleManageCaregiverClick

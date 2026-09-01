@@ -209,6 +209,29 @@ const (
 	ResourceStaff = "staff"
 
 	StaffFinancial = ResourceStaff + ":financial"
+
+	// StaffStammdaten gates the personnel master data of OTHER staff members
+	// (birthday, gender, private address, emergency contact, contract dates,
+	// weekly hours, employment type, qualifications) — issue #2906.
+	// Deliberately its own permission instead of users:update: migration 1.9.4
+	// grants users:update to the plain `user` (Betreuer) role, which is what
+	// every ordinary supervisor holds, so using it as the HR gate handed the
+	// whole staff personnel file to every colleague. Bank & tax data stays
+	// separate behind StaffFinancial.
+	StaffStammdaten = ResourceStaff + ":stammdaten"
+
+	// StaffDocuments gates the general personnel documents (Arbeitsvertrag,
+	// Zeugnis, Bewerbung, Sonstiges) — issue #2906, same reasoning as
+	// StaffStammdaten. AU-Bescheinigungen (StaffDocumentsHealth) and
+	// Lohnabrechnungen (StaffFinancial) remain separately protected.
+	StaffDocuments = ResourceStaff + ":documents"
+
+	// StaffManage gates writes to another person's general staff record —
+	// PUT /api/staff/{id} (staff notes, teacher flag, qualifications) and the
+	// vacation quota. Issue #2906: these are personnel-administration writes,
+	// not the child-data writes users:update was granted to the Betreuer role
+	// for.
+	StaffManage = ResourceStaff + ":" + ActionManage
 )
 
 // Staff document permissions (#1424). staff_documents:health gates the

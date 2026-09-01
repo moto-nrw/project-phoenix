@@ -36,7 +36,7 @@ interface StaffMasterDetailProps {
   onSelect: (id: string | null) => void;
   onEditClick: () => void;
   onDeleteClick: () => void;
-  onUpdateNotes: (notes: string) => Promise<void>;
+  onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
   onManageRole?: () => void;
@@ -159,7 +159,7 @@ interface StaffDetailContentProps {
   teacher: Teacher;
   onEditClick: () => void;
   onDeleteClick: () => void;
-  onUpdateNotes: (notes: string) => Promise<void>;
+  onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
   onManageRole?: () => void;
@@ -225,7 +225,7 @@ function StaffDetailContent({
 
 interface StaffStammdatenTabProps {
   teacher: Teacher;
-  onUpdateNotes: (notes: string) => Promise<void>;
+  onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
   onManageRole?: () => void;
@@ -307,22 +307,28 @@ function StaffStammdatenTab({
         </InfoSection>
       ) : null}
 
-      <InfoSection
-        title="Notizen"
-        icon={
-          <MotoDuotoneIcon
-            icon={MOTO_CONCEPTS.feedback.icon}
-            tone={MOTO_CONCEPTS.feedback.tone}
-            size={18}
+      {/* Personalnotizen gehören zum Mitarbeiter-Datensatz und brauchen
+          staff:manage (#2906). Ohne die Berechtigung liefert das Backend das
+          Feld gar nicht erst aus, also entfällt die Sektion komplett statt
+          eine Bearbeiten-Schaltfläche anzubieten, die 403 zurückgibt. */}
+      {onUpdateNotes ? (
+        <InfoSection
+          title="Notizen"
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.feedback.icon}
+              tone={MOTO_CONCEPTS.feedback.tone}
+              size={18}
+            />
+          }
+          accentColor="green"
+        >
+          <InlineNotesEditor
+            initialNotes={teacher.staff_notes ?? ""}
+            onSave={onUpdateNotes}
           />
-        }
-        accentColor="green"
-      >
-        <InlineNotesEditor
-          initialNotes={teacher.staff_notes ?? ""}
-          onSave={onUpdateNotes}
-        />
-      </InfoSection>
+        </InfoSection>
+      ) : null}
 
       {teacher.created_at || teacher.updated_at ? (
         <InfoSection

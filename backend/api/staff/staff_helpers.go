@@ -4,9 +4,37 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
+
+// canSeeStaffPersonnelFields reports whether the caller may see the
+// personnel-file fields of the staff directory — staff notes, employment
+// type, today's absence reason, the NFC tag and free-text qualifications.
+//
+// Everyone with users:read may see the directory itself: the group,
+// substitution and supervision screens need names. Before #2906 the same
+// read also carried the personnel data, because the response was built
+// unconditionally. The authority is now the personnel tier: staff:manage or
+// staff:stammdaten (the roles that maintain the record) and
+// time_tracking:manage (the management view). HasPermission is wildcard
+// aware, so admin:* matches.
+func canSeeStaffPersonnelFields(ctx context.Context) bool {
+	granted := jwt.PermissionsFromCtx(ctx)
+	for _, required := range []string{
+		permissions.StaffManage,
+		permissions.StaffStammdaten,
+		permissions.TimeTrackingManage,
+	} {
+		if authorize.HasPermission(required, granted) {
+			return true
+		}
+	}
+	return false
+}
 
 // =============================================================================
 // LIST STAFF HELPERS - Reduce complexity of listStaff handler (S3776)
@@ -76,15 +104,22 @@ type staffResponseBuilder struct {
 	avatar           string
 }
 
-// buildResponse returns the appropriate response type based on teacher status
-func (b *staffResponseBuilder) buildResponse() interface{} {
+// buildResponse returns the appropriate response type based on teacher status.
+// The absence-type label is applied after construction, so it repeats the
+// personnel check the constructors make (#2906) — the school's own wording for
+// today's absence names the reason just as AbsenceType does.
+func (b *staffResponseBuilder) buildResponse(ctx context.Context) interface{} {
+	label := b.absenceTypeLabel
+	if !canSeeStaffPersonnelFields(ctx) {
+		label = ""
+	}
 	if b.isTeacher && b.teacher != nil {
-		response := newTeacherResponse(b.staff, b.teacher, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
-		response.AbsenceTypeLabel = b.absenceTypeLabel
+		response := newTeacherResponse(ctx, b.staff, b.teacher, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
+		response.AbsenceTypeLabel = label
 		return response
 	}
-	response := newStaffResponse(b.staff, false, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
-	response.AbsenceTypeLabel = b.absenceTypeLabel
+	response := newStaffResponse(ctx, b.staff, false, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
+	response.AbsenceTypeLabel = label
 	return response
 }
 
@@ -154,7 +189,7 @@ func (rs *Resource) processStaffForListOptimized(
 		avatar:           avatar,
 	}
 
-	return builder.buildResponse(), true
+	return builder.buildResponse(ctx), true
 }
 
 // =============================================================================

@@ -179,13 +179,13 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Check if this staff member is also a teacher
 	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		response := newTeacherResponse(staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
+		response := newTeacherResponse(r.Context(), staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 		response.AbsenceTypeLabel = absenceTypeLabel
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
-	response := newStaffResponse(staff, false, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
+	response := newStaffResponse(r.Context(), staff, false, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 	response.AbsenceTypeLabel = absenceTypeLabel
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
@@ -382,20 +382,20 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	staff.Person = person
 
 	if teacherCreationFailed {
-		response := newStaffResponse(staff, false, false, "", "", "", "", "")
+		response := newStaffResponse(r.Context(), staff, false, false, "", "", "", "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
 		return
 	}
 
 	if isTeacher {
 		// Return teacher response
-		response := newTeacherResponse(staff, teacher, false, "", "", "", "", "")
+		response := newTeacherResponse(r.Context(), staff, teacher, false, "", "", "", "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Teacher created successfully")
 		return
 	}
 
 	// Return staff response
-	response := newStaffResponse(staff, isTeacher, false, "", "", "", "", "")
+	response := newStaffResponse(r.Context(), staff, isTeacher, false, "", "", "", "", "")
 	common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully")
 }
 
@@ -435,7 +435,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, message := updateStaffResponseFor(staff, teacher, action)
+	response, message := updateStaffResponseFor(r.Context(), staff, teacher, action)
 	common.Respond(w, r, http.StatusOK, response, message)
 }
 
