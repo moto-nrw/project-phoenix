@@ -5,6 +5,7 @@ import {
   screen,
   fireEvent,
   waitFor,
+  within,
 } from "@testing-library/react";
 
 const mockRouterPush = vi.fn();
@@ -129,6 +130,7 @@ import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending"
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
+import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -236,6 +238,11 @@ describe("Sidebar", () => {
       mockIsAdmin(session),
     );
     restoreDefaultHasPermission();
+    vi.mocked(useMessagesUnread).mockReturnValue({
+      unreadCount: 0,
+      isLoading: false,
+      refresh: vi.fn(),
+    });
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseNFCEnabled.mockReturnValue(true);
     mockUseOpenCareGroupMode.mockReturnValue(false);
@@ -2519,6 +2526,83 @@ describe("Sidebar", () => {
             badge.parentElement?.getAttribute("aria-hidden") !== "true",
         ),
       ).toHaveLength(1);
+    });
+
+    it("markiert den Bereich im Streifen auch bei geöffnetem Unterpunkt", () => {
+      // Ausgeklappt trägt der Unterpunkt "Räume" die Markierung, die
+      // Kopfzeile bleibt deshalb ungrau. Im Streifen ist der Unterpunkt nicht
+      // sichtbar — dort muss der Bereich selbst markiert sein, sonst steht
+      // die Leiste ganz ohne Hinweis da, wo man gerade ist.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUsePathname.mockReturnValue("/database/rooms");
+
+      const { unmount } = render(<Sidebar />);
+      expect(
+        screen.getByRole("button", { name: "Datenverwaltung" }).className,
+      ).not.toContain("bg-gray-100");
+      unmount();
+
+      localStorage.setItem("sidebar-collapsed", "true");
+      render(<Sidebar />);
+
+      expect(
+        screen.getByRole("button", { name: "Datenverwaltung" }).className,
+      ).toContain("bg-gray-100");
+    });
+
+    it("nennt den Sammelzähler eines Bereichs während der Bewegung nur einmal", () => {
+      vi.mocked(useMessagesUnread).mockReturnValue({
+        unreadCount: 4,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "true");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+
+      // Für die Dauer der Gegenblende stehen beide Zähler im Baum; der
+      // ausblendende ist unsichtbar und darf nicht mitgelesen werden.
+      const header = screen.getByText("Eltern").closest("button");
+      const badges = within(header!).getAllByLabelText(
+        "4 ungelesene Nachrichten",
+      );
+      expect(badges).toHaveLength(2);
+      expect(
+        badges.filter(
+          (badge) =>
+            badge.parentElement?.getAttribute("aria-hidden") !== "true",
+        ),
+      ).toHaveLength(1);
+    });
+
+    it("hält die Zeile 'Weitere Gruppen' bis zum Ende der Bewegung frei", async () => {
+      withOtherGroups();
+
+      const { container } = render(<Sidebar />);
+      const placeholder = () =>
+        container.querySelector(
+          'div[aria-hidden="true"].grid > div > div.h-10',
+        );
+
+      act(() => {
+        localStorage.setItem("sidebar-collapsed", "true");
+        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
+      });
+
+      // Der zweite Gruppen-Bereich ist sofort weg (zwei gleiche Icons wären
+      // nicht unterscheidbar), sein Platz bleibt aber stehen und geht mit
+      // derselben Kurve auf null — sonst rutschen alle Zeilen darunter
+      // mitten in der Breitenänderung eine Zeile hoch.
+      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
+      expect(placeholder()).toBeInTheDocument();
+
+      // Nach der Bewegung ist auch der Platzhalter weg.
+      await waitFor(() => expect(placeholder()).not.toBeInTheDocument());
     });
 
     it("hält geschlossene Bereiche aus der Tastaturreihenfolge heraus", () => {

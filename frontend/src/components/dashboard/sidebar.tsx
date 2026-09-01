@@ -1407,7 +1407,11 @@ function SidebarContent({
                   während der Bewegung, sonst stehen die beiden gleichen Icons
                   für die Dauer der Blende doch untereinander. Beim Aufklappen
                   kommt der Bereich erst mit den Bezeichnungen dazu, die ihn
-                  von "Meine Gruppen" unterscheiden. */}
+                  von "Meine Gruppen" unterscheiden.
+                  Damit die Zeilen darunter beim Einklappen nicht sofort um
+                  eine Zeilenhöhe hochspringen, bleibt für die Dauer der
+                  Bewegung ein leerer Platzhalter stehen, dessen Höhe mit
+                  derselben Kurve auf null geht wie die Breite der Leiste. */}
               {otherGroups.length > 0 && !collapsed && labelsVisible && (
                 <SidebarAccordionSection
                   icon={GROUP_NAV_ICON}
@@ -1455,6 +1459,20 @@ function SidebarContent({
                   ))}
                 </SidebarAccordionSection>
               )}
+              {otherGroups.length > 0 &&
+                labelsMounted &&
+                (collapsed || !labelsVisible) && (
+                  <div
+                    aria-hidden="true"
+                    className={`grid motion-safe:transition-[grid-template-rows] motion-safe:duration-200 motion-safe:ease-in-out ${
+                      labelsVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="h-10" />
+                    </div>
+                  </div>
+                )}
             </>
           )}
 

@@ -63,6 +63,12 @@ export function SidebarAccordionSection({
   const showActiveIcon = isIconActive ?? isActive;
   // Im Streifen ist der Bereichsinhalt nie offen.
   const bodyExpanded = isExpanded && !collapsed;
+  // Ausgeklappt bleibt die Kopfzeile unmarkiert, sobald ein Unterpunkt
+  // ausgewählt ist — dort trägt der Unterpunkt die Markierung. Im Streifen
+  // sind die Unterpunkte nicht sichtbar; ohne diese Zeile stünde der Bereich
+  // dort ganz ohne Markierung da, obwohl man in ihm ist — etwa auf
+  // /database/rooms oder /ogs-groups?group=… (#2923).
+  const rowActive = collapsed ? showActiveIcon : isActive;
 
   return (
     <div>
@@ -82,7 +88,7 @@ export function SidebarAccordionSection({
             onToggle();
           }
         }}
-        className={`${sidebarRowClasses({ isActive })} cursor-pointer`}
+        className={`${sidebarRowClasses({ isActive: rowActive })} cursor-pointer`}
         aria-expanded={bodyExpanded}
         {...(collapsed ? { title: label, "aria-label": label } : {})}
       >
@@ -122,9 +128,13 @@ export function SidebarAccordionSection({
           <>
             <span className={sidebarLabelClasses(labelsVisible)}>{label}</span>
             {/* Sammelzähler auf der geschlossenen Kopfzeile; sobald der
-                Bereich offen ist, übernehmen die Zähler der Unterpunkte. */}
+                Bereich offen ist, übernehmen die Zähler der Unterpunkte.
+                Für die Dauer der Blende steht er neben dem Zähler im
+                Streifen; der ausblendende ist `aria-hidden`, sonst läse ein
+                Vorleseprogramm die Zahl zweimal (#2923). */}
             {!bodyExpanded && (
               <span
+                aria-hidden={!labelsVisible}
                 className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
               >
                 <UnreadBadge count={badgeCount} />
@@ -151,6 +161,7 @@ export function SidebarAccordionSection({
             nichts überlagert. */}
         {collapsed && badgeCount > 0 && (
           <span
+            aria-hidden={labelsVisible}
             className={`absolute top-1 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
           >
             <UnreadBadge count={badgeCount} />
