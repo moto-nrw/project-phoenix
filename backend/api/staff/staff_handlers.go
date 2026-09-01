@@ -174,7 +174,13 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	rs.ensureStaffPerson(r.Context(), staff)
 	accountRole, accountEmail, accountAvatar := rs.loadStaffAccountInfo(r.Context(), staff)
 	wasPresentToday, workStatus, absenceType := rs.resolveStaffPresence(r.Context(), staff)
-	absenceTypeLabel := rs.loadAbsenceLabelMap(r.Context())[staff.ID]
+	// The school's own wording for today's absence names the reason just as
+	// AbsenceType does, so it follows the same personnel check the response
+	// constructors make (#2906).
+	absenceTypeLabel := ""
+	if canSeeStaffPersonnelFields(r.Context()) {
+		absenceTypeLabel = rs.loadAbsenceLabelMap(r.Context())[staff.ID]
+	}
 
 	// Check if this staff member is also a teacher
 	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)

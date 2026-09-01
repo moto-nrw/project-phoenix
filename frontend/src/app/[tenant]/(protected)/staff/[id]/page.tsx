@@ -142,6 +142,10 @@ export default function StaffDetailContent() {
     canEdit ||
     canManageTimeTracking ||
     hasPermission(session, "vacation:approve");
+  // Urlaubsanspruch (#2906): Spiegel des Backend-Gates auf
+  // PUT /{id}/vacation/quota — staff:manage oder time_tracking:manage.
+  const canEditVacationQuota =
+    canEdit || canManageTimeTracking || hasPermission(session, "staff:manage");
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
   const canEditStammdaten = hasPermission(session, "staff:stammdaten");
@@ -355,6 +359,7 @@ export default function StaffDetailContent() {
                 <AbwesenheitenTab
                   staffId={staffId}
                   canEdit={canEdit}
+                  canEditQuota={canEditVacationQuota}
                   canManageSickReports={canManageTimeTracking}
                   staff={staff}
                 />

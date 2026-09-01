@@ -34,7 +34,9 @@ interface StaffMasterDetailProps {
   selectedId: string | null;
   selectedTeacher: Teacher | null;
   onSelect: (id: string | null) => void;
-  onEditClick: () => void;
+  // Optional: ohne staff:manage gibt PUT /api/staff/{id} 403, deshalb wird
+  // die Bearbeiten-Schaltflaeche dann gar nicht erst angeboten (#2906).
+  onEditClick?: () => void;
   onDeleteClick: () => void;
   onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
@@ -157,7 +159,7 @@ export function StaffMasterDetail({
 
 interface StaffDetailContentProps {
   teacher: Teacher;
-  onEditClick: () => void;
+  onEditClick?: () => void;
   onDeleteClick: () => void;
   onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
@@ -178,14 +180,16 @@ function StaffDetailContent({
 
   const headerActions = (
     <>
-      <button
-        type="button"
-        onClick={onEditClick}
-        className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        <Pencil className="h-3.5 w-3.5" aria-hidden />
-        Bearbeiten
-      </button>
+      {onEditClick ? (
+        <button
+          type="button"
+          onClick={onEditClick}
+          className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden />
+          Bearbeiten
+        </button>
+      ) : null}
       <DetailDeleteButton onClick={onDeleteClick} />
     </>
   );

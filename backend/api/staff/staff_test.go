@@ -1605,3 +1605,57 @@ func TestBetreuerRoleSeesOnlyTheMinimalColleagueView(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "Geheime Personalnotiz")
 }
+
+// TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording pins the second half of
+// acceptance criterion 4: the school's own Abwesenheitsart wording (#2403)
+// names today's absence reason just as absence_type does, so it follows the
+// same personnel gate on BOTH staff read paths — the list and the single
+// record (#2906).
+func TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	colleague := testpkg.CreateTestStaff(t, ctx.db, "Abwesende", "Kollegin")
+	tenantCtx := testpkg.Ctx(t)
+	repos := repositories.NewFactory(ctx.db)
+
+	absenceType := &active.StaffAbsenceType{
+		Name:     "Regenerationstag",
+		BaseType: active.AbsenceTypeOther,
+		IsActive: true,
+	}
+	absenceType.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.StaffAbsenceType.Create(tenantCtx, absenceType))
+
+	today := timezone.TodayDate()
+	absence := &active.StaffAbsence{
+		StaffID:       colleague.ID,
+		AbsenceType:   active.AbsenceTypeOther,
+		AbsenceTypeID: &absenceType.ID,
+		DateStart:     today,
+		DateEnd:       today,
+		Status:        active.AbsenceStatusApproved,
+		CreatedBy:     colleague.ID,
+	}
+	absence.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.StaffAbsence.Create(tenantCtx, absence))
+
+	betreuer := testutil.WithJWTBearer(authToken(t, betreuerPermissions...))
+	for _, path := range []string{"/staff", fmt.Sprintf("/staff/%d", colleague.ID)} {
+		rr := testutil.ExecuteRequest(ctx.router,
+			testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, betreuer))
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.NotContains(t, rr.Body.String(), "Regenerationstag",
+			"%s must not carry the school's absence wording for the Betreuer tier", path)
+		assert.NotContains(t, rr.Body.String(), `"absence_type_label"`, path)
+	}
+
+	// The personnel tier still sees it on both paths.
+	personnel := testutil.WithJWTBearer(authToken(t, "users:read", "staff:stammdaten"))
+	for _, path := range []string{"/staff", fmt.Sprintf("/staff/%d", colleague.ID)} {
+		rr := testutil.ExecuteRequest(ctx.router,
+			testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, personnel))
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "Regenerationstag", path)
+	}
+}

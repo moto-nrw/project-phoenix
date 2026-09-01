@@ -387,7 +387,7 @@ function TeachersPageContent() {
             selectedId={selectedId}
             selectedTeacher={selectedTeacher}
             onSelect={handleSelectTeacher}
-            onEditClick={handleEditClick}
+            onEditClick={canManageStaffRecords ? handleEditClick : undefined}
             onDeleteClick={handleDeleteClick}
             onUpdateNotes={
               canManageStaffRecords ? handleUpdateNotes : undefined
