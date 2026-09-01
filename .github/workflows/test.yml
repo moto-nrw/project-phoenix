@@ -74,8 +74,10 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Test affected-package selection
-        run: scripts/backend-affected-packages_test.sh
+      - name: Test backend test scripts
+        run: |
+          scripts/backend-affected-packages_test.sh
+          scripts/test-changed_test.sh
 
       - name: Restore migrated DB snapshot
         id: db-snapshot

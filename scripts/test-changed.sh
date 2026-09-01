@@ -46,6 +46,10 @@ if [ "${#affected[@]}" -gt 0 ]; then
   echo "==> go test (${#affected[@]} affected packages; -p $package_workers, GOMAXPROCS $binary_cpus, -parallel $test_workers)"
   PHX_TEST_RUN_ID=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
   export PHX_TEST_RUN_ID
+  # Resolve the server and migrated template once for the complete run. Package
+  # binaries clone from this template instead of contending for lifecycle setup.
+  PHX_TEST_TEMPLATE=$(cd backend && go run ./internal/testdb/cmd/bootstrap)
+  export PHX_TEST_TEMPLATE
   backend_go_phase=1
   backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
   summarize_backend_go_failure() {

@@ -114,6 +114,7 @@ jobs:
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/test-backend.sh'
               - 'scripts/test-changed.sh'
+              - 'scripts/test-changed_test.sh'
             frontend-test-infra:
               - 'frontend/package.json'
               - 'frontend/pnpm-lock.yaml'
