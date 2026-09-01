@@ -5,8 +5,6 @@ import (
 	"errors"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Audited attendance fields. These are exactly the three columns the
@@ -48,8 +46,8 @@ const CorrectionReasonMaxLength = 500
 // ActorAccountID is nulled when the acting account is deleted later; the name
 // snapshot preserves who corrected the entry.
 type AttendanceCorrection struct {
-	base.Model `bun:"schema:audit,table:attendance_corrections"`
-	base.TenantModel
+	Model
+	TenantModel
 	InstanceID        int64   `bun:"instance_id,notnull" json:"instance_id"`
 	StudentID         int64   `bun:"student_id,notnull" json:"student_id"`
 	ActorAccountID    *int64  `bun:"actor_account_id" json:"actor_account_id,omitempty"`

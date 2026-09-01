@@ -20189,56 +20189,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/audit/attendance_correction_repository_test.go",
-      "declaration": "TestAttendanceCorrectionRepository_CountByInstanceAndStudents",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        117
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/attendance_correction_repository_test.go",
-      "declaration": "TestAttendanceCorrectionRepository_CreateBatchAndList",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        66
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/attendance_correction_repository_test.go",
-      "declaration": "TestAttendanceCorrectionRepository_CreateBatchEmptyIsNoOp",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        87
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/attendance_correction_repository_test.go",
-      "declaration": "TestAttendanceCorrectionRepository_CreateBatchRejectsInvalidRow",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        101
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/audit/attendance_correction_repository_test.go",
-      "declaration": "TestAttendanceCorrectionRepository_IsolatesTenants",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        143
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/auth/account_mfa_atomic_test.go",
       "declaration": "TestAccountRepository_IncrementMFAAttempts_AtomicUnderRace",
       "target": "database/repositories.NewFactory",

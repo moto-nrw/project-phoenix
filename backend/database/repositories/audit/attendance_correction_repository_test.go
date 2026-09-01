@@ -1,23 +1,15 @@
-package audit_test
+package audit
 
 import (
-	"context"
-	"fmt"
 	"testing"
-	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/audit"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// correctionFixture builds the two rows a correction references. The audit row
+// correctionFixture holds the two rows a correction references. The audit row
 // carries real foreign keys, so a fabricated instance/student id would be
 // rejected by the database rather than by the repository.
 type correctionFixture struct {
@@ -25,32 +17,22 @@ type correctionFixture struct {
 	studentID  int64
 }
 
-func newCorrectionFixture(t *testing.T, db *bun.DB, ctx context.Context, tenantID int64) correctionFixture {
+// newCorrectionFixture takes the tenant explicitly: the isolation test needs a
+// pair that belongs to somebody else.
+func newCorrectionFixture(t *testing.T, tenantID int64) correctionFixture {
 	t.Helper()
-
-	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("AC-Room-%d", time.Now().UnixNano()))
-	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "AC-Stu", "Child", "2a")
-
-	// Built inline rather than through CreateTestActivityInstance: the
-	// cross-tenant case needs the instance in a tenant other than the test's
-	// own, and the fixture has no ForTenant variant.
-	instance := &scheduleModels.ActivityInstance{
-		Date:      timezone.NewDate(2026, 4, 22),
-		Title:     "AC-Instance",
-		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
-		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
-		RoomID:    room.ID,
-		Status:    scheduleModels.InstanceStatusCompleted,
-	}
-	instance.SetTenantID(tenantID)
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
-
-	return correctionFixture{instanceID: instance.ID, studentID: student.ID}
+	instanceID, studentID := testpkg.CreateTestCompletedInstanceWithStudentForTenant(
+		t, testpkg.SetupTestDB(t), tenantID)
+	return correctionFixture{instanceID: instanceID, studentID: studentID}
 }
 
-func newCorrection(fixture correctionFixture, field, reason string) *auditModels.AttendanceCorrection {
-	return &auditModels.AttendanceCorrection{
+func newCorrectionRepo(t *testing.T) audit.AttendanceCorrectionRepository {
+	t.Helper()
+	return NewAttendanceCorrectionRepository(NewRuntime(testpkg.SetupTestDB(t), auditTestTenantID))
+}
+
+func newCorrection(fixture correctionFixture, field, reason string) *audit.AttendanceCorrection {
+	return &audit.AttendanceCorrection{
 		InstanceID: fixture.instanceID,
 		StudentID:  fixture.studentID,
 		FieldName:  field,
@@ -61,14 +43,13 @@ func newCorrection(fixture correctionFixture, field, reason string) *auditModels
 func TestAttendanceCorrectionRepository_CreateBatchAndList(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).AttendanceCorrection
-	fixture := newCorrectionFixture(t, db, ctx, testpkg.Tenant(t))
+	repo := newCorrectionRepo(t)
+	fixture := newCorrectionFixture(t, testpkg.Tenant(t))
 
-	require.NoError(t, repo.CreateBatch(ctx, []*auditModels.AttendanceCorrection{
-		newCorrection(fixture, auditModels.AttendanceFieldStatus, "Verwechslung"),
-		newCorrection(fixture, auditModels.AttendanceFieldNote, "Verwechslung"),
+	require.NoError(t, repo.CreateBatch(ctx, []*audit.AttendanceCorrection{
+		newCorrection(fixture, audit.AttendanceFieldStatus, "Verwechslung"),
+		newCorrection(fixture, audit.AttendanceFieldNote, "Verwechslung"),
 	}))
 
 	rows, err := repo.ListByInstanceAndStudent(ctx, fixture.instanceID, fixture.studentID)
@@ -83,11 +64,10 @@ func TestAttendanceCorrectionRepository_CreateBatchAndList(t *testing.T) {
 func TestAttendanceCorrectionRepository_CreateBatchEmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).AttendanceCorrection
+	repo := newCorrectionRepo(t)
 
 	require.NoError(t, repo.CreateBatch(testpkg.Ctx(t), nil))
-	require.NoError(t, repo.CreateBatch(testpkg.Ctx(t), []*auditModels.AttendanceCorrection{}))
+	require.NoError(t, repo.CreateBatch(testpkg.Ctx(t), []*audit.AttendanceCorrection{}))
 }
 
 // A row that would be unreadable must not reach the table — the repository
@@ -96,13 +76,12 @@ func TestAttendanceCorrectionRepository_CreateBatchEmptyIsNoOp(t *testing.T) {
 func TestAttendanceCorrectionRepository_CreateBatchRejectsInvalidRow(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).AttendanceCorrection
-	fixture := newCorrectionFixture(t, db, ctx, testpkg.Tenant(t))
+	repo := newCorrectionRepo(t)
+	fixture := newCorrectionFixture(t, testpkg.Tenant(t))
 
-	noReason := newCorrection(fixture, auditModels.AttendanceFieldNote, "")
-	require.Error(t, repo.CreateBatch(ctx, []*auditModels.AttendanceCorrection{noReason}))
+	noReason := newCorrection(fixture, audit.AttendanceFieldNote, "")
+	require.Error(t, repo.CreateBatch(ctx, []*audit.AttendanceCorrection{noReason}))
 
 	rows, err := repo.ListByInstanceAndStudent(ctx, fixture.instanceID, fixture.studentID)
 	require.NoError(t, err)
@@ -112,22 +91,21 @@ func TestAttendanceCorrectionRepository_CreateBatchRejectsInvalidRow(t *testing.
 func TestAttendanceCorrectionRepository_CountByInstanceAndStudents(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).AttendanceCorrection
-	fixture := newCorrectionFixture(t, db, ctx, testpkg.Tenant(t))
-	untouched := testpkg.CreateTestStudentForTenant(t, db, testpkg.Tenant(t), "AC-Stu", "Untouched", "2a")
+	repo := newCorrectionRepo(t)
+	fixture := newCorrectionFixture(t, testpkg.Tenant(t))
+	untouched := newCorrectionFixture(t, testpkg.Tenant(t))
 
-	require.NoError(t, repo.CreateBatch(ctx, []*auditModels.AttendanceCorrection{
-		newCorrection(fixture, auditModels.AttendanceFieldStatus, "Grund"),
-		newCorrection(fixture, auditModels.AttendanceFieldNote, "Grund"),
+	require.NoError(t, repo.CreateBatch(ctx, []*audit.AttendanceCorrection{
+		newCorrection(fixture, audit.AttendanceFieldStatus, "Grund"),
+		newCorrection(fixture, audit.AttendanceFieldNote, "Grund"),
 	}))
 
 	counts, err := repo.CountByInstanceAndStudents(ctx, fixture.instanceID,
-		[]int64{fixture.studentID, untouched.ID})
+		[]int64{fixture.studentID, untouched.studentID})
 	require.NoError(t, err)
 	assert.Equal(t, 2, counts[fixture.studentID])
-	assert.NotContains(t, counts, untouched.ID, "a child without corrections is absent, not zero")
+	assert.NotContains(t, counts, untouched.studentID, "a child without corrections is absent, not zero")
 
 	empty, err := repo.CountByInstanceAndStudents(ctx, fixture.instanceID, nil)
 	require.NoError(t, err)
@@ -139,20 +117,19 @@ func TestAttendanceCorrectionRepository_CountByInstanceAndStudents(t *testing.T)
 func TestAttendanceCorrectionRepository_IsolatesTenants(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).AttendanceCorrection
+	repo := newCorrectionRepo(t)
 
 	ownCtx := testpkg.Ctx(t)
-	own := newCorrectionFixture(t, db, ownCtx, testpkg.Tenant(t))
-	require.NoError(t, repo.CreateBatch(ownCtx, []*auditModels.AttendanceCorrection{
-		newCorrection(own, auditModels.AttendanceFieldNote, "eigener Mandant"),
+	own := newCorrectionFixture(t, testpkg.Tenant(t))
+	require.NoError(t, repo.CreateBatch(ownCtx, []*audit.AttendanceCorrection{
+		newCorrection(own, audit.AttendanceFieldNote, "eigener Mandant"),
 	}))
 
-	otherScope := testpkg.NewTenantScope(t, db)
+	otherScope := testpkg.NewTenantScope(t, testpkg.SetupTestDB(t))
 	otherCtx := otherScope.Context()
-	other := newCorrectionFixture(t, db, otherCtx, otherScope.TenantID)
-	require.NoError(t, repo.CreateBatch(otherCtx, []*auditModels.AttendanceCorrection{
-		newCorrection(other, auditModels.AttendanceFieldNote, "fremder Mandant"),
+	other := newCorrectionFixture(t, otherScope.TenantID)
+	require.NoError(t, repo.CreateBatch(otherCtx, []*audit.AttendanceCorrection{
+		newCorrection(other, audit.AttendanceFieldNote, "fremder Mandant"),
 	}))
 
 	rows, err := repo.ListByInstanceAndStudent(ownCtx, other.instanceID, other.studentID)

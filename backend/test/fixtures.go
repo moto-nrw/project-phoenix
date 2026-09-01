@@ -2575,6 +2575,33 @@ func TodayDate() timezone.Date {
 // instance; override via opts for lifecycle-edge tests.
 func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
 	tb.Helper()
+	return CreateTestActivityInstanceForTenant(tb, db, fixtureTenantID(tb), date, roomID, opts)
+}
+
+// CreateTestCompletedInstanceWithStudentForTenant builds the pair an
+// attendance-correction row points at — a COMPLETED instance and a child — in
+// an explicit tenant, and returns their ids. Audit-package tests need real
+// foreign keys but may not import the schedule domain, so the calendar date
+// and the status stay on this side of the fixture boundary.
+func CreateTestCompletedInstanceWithStudentForTenant(tb testing.TB, db *bun.DB, tenantID int64) (instanceID, studentID int64) {
+	tb.Helper()
+
+	suffix := uniqueFixtureSuffix()
+	room := CreateTestRoomForTenant(tb, db, tenantID, fmt.Sprintf("AC-Room-%d", suffix))
+	student := CreateTestStudentForTenant(tb, db, tenantID, "AC-Stu", fmt.Sprintf("Child-%d", suffix), "2a")
+	instance := CreateTestActivityInstanceForTenant(tb, db, tenantID,
+		timezone.NewDate(2026, 4, 22), room.ID, ActivityInstanceOpts{
+			Title:  fmt.Sprintf("AC-Instance-%d", suffix),
+			Status: schedule.InstanceStatusCompleted,
+		})
+	return instance.ID, student.ID
+}
+
+// CreateTestActivityInstanceForTenant stamps an explicit tenant instead of the
+// test's own. Tenant-isolation tests need a row that demonstrably belongs to
+// somebody else; every other caller wants CreateTestActivityInstance.
+func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int64, date timezone.Date, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
+	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -2608,7 +2635,7 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 		Status:           status,
 		IsSpontaneous:    opts.IsSpontaneous,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.SetTenantID(tenantID)
 
 	_, err := db.NewInsert().
 		Model(row).
