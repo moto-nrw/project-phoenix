@@ -798,11 +798,23 @@ func runRepositoryCheck(t *testing.T, repo, baseRef string) (string, error) {
 
 func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	output, err := processOutput(dir, nil, "git", append([]string{"-C", dir}, args...)...)
+	output, err := processOutput(dir, gitTestEnvironment(), "git", append([]string{"-C", dir}, args...)...)
 	if err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, output)
 	}
 	return string(output)
+}
+
+func gitTestEnvironment() []string {
+	var environment []string
+	for _, variable := range os.Environ() {
+		if strings.HasPrefix(variable, "GIT_CONFIG=") || strings.HasPrefix(variable, "GIT_CONFIG_COUNT=") ||
+			strings.HasPrefix(variable, "GIT_CONFIG_KEY_") || strings.HasPrefix(variable, "GIT_CONFIG_VALUE_") {
+			continue
+		}
+		environment = append(environment, variable)
+	}
+	return environment
 }
 
 func readFile(t *testing.T, path string) string {
