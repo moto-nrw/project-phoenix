@@ -952,6 +952,39 @@ func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
 	assert.False(t, mockService.updateCalled, "second request inside debounce window should skip last seen write")
 }
 
+func TestDeviceAuthenticators_ShareLastSeenDebouncer(t *testing.T) {
+	t.Parallel()
+
+	mockService := newMockIoTService()
+	const apiKey = "shared-debouncer-key"
+	mockService.addDevice(apiKey, &iot.Device{
+		ID:         1,
+		DeviceID:   "shared-debouncer-device",
+		DeviceType: "terminal",
+		Status:     iot.DeviceStatusActive,
+	})
+
+	debouncer := NewLastSeenDebouncer()
+	deviceOnly := chi.NewRouter()
+	deviceOnly.Use(DeviceOnlyAuthenticatorWithDebouncer(mockService, nil, debouncer))
+	deviceOnly.Get("/test", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	deviceAndPIN := chi.NewRouter()
+	deviceAndPIN.Use(DeviceAuthenticatorWithDebouncer(mockService, nil, nil, nil, "", debouncer))
+	deviceAndPIN.Get("/test", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	request := func(router http.Handler) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+	request(deviceOnly)
+	assert.True(t, mockService.updateCalled)
+
+	mockService.updateCalled = false
+	request(deviceAndPIN)
+	assert.False(t, mockService.updateCalled, "shared debouncer should suppress the second write")
+}
+
 // =============================================================================
 // PIN Timing Attack Resistance Tests
 // =============================================================================

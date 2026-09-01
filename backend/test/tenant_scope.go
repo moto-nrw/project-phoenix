@@ -71,7 +71,8 @@ func Tenant(tb testing.TB) int64 {
 // TenantContext(1) in migrated tests.
 func Ctx(tb testing.TB) context.Context {
 	tb.Helper()
-	return tenant.WithTenantID(testRuntimeContext(tb), Tenant(tb))
+	tenantID := Tenant(tb)
+	return tenant.WithTenantID(testRuntimeContext(tb), tenantID)
 }
 
 // fixtureTenantID returns the tenant a fixture created by tb belongs to: the
@@ -107,7 +108,8 @@ func OwnTenant(tb testing.TB) int64 {
 // OwnCtx is OwnTenant plus the context scoped to it.
 func OwnCtx(tb testing.TB) context.Context {
 	tb.Helper()
-	return tenant.WithTenantID(testRuntimeContext(tb), OwnTenant(tb))
+	tenantID := OwnTenant(tb)
+	return tenant.WithTenantID(testRuntimeContext(tb), tenantID)
 }
 
 // ownTenantScopes holds the full names of the subtests that claimed a tenant

@@ -56,6 +56,7 @@ import (
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
 	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
@@ -702,6 +703,7 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 
 // initializeAPIResources initializes all API resource instances
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
+	deviceLastSeenDebouncer := device.NewLastSeenDebouncer()
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
@@ -745,6 +747,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		IoTService:                   api.Services.IoT,
 		StaffPINAuthenticator:        api.Services.StaffPINAuth,
 		DevicePINFallback:            os.Getenv("OGS_DEVICE_PIN"),
+		DeviceLastSeenDebouncer:      deviceLastSeenDebouncer,
 		PickupScheduleService:        api.Services.PickupSchedule,
 		PartialAbsenceService:        api.Services.PartialAbsence,
 		ArrivalScheduleService:       api.Services.ArrivalSchedule,
@@ -905,15 +908,16 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		FeedbackResponseObserver: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
-		PickupScheduleService: api.Services.PickupSchedule,
-		SchoolService:         api.Services.Schools,
-		TimetableDataService:  api.Services.TimetableData,
-		TimetableBridge:       api.Services.TimetableBridge,
-		UnregisteredTagScans:  api.Services.UnregisteredTagScans,
-		Broadcaster:           api.Services.RealtimeHub,
-		Logger:                logger.With("handler", "iot"),
-		DailyCheckoutFallback: os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
-		DB:                    db,
+		PickupScheduleService:   api.Services.PickupSchedule,
+		SchoolService:           api.Services.Schools,
+		TimetableDataService:    api.Services.TimetableData,
+		TimetableBridge:         api.Services.TimetableBridge,
+		UnregisteredTagScans:    api.Services.UnregisteredTagScans,
+		Broadcaster:             api.Services.RealtimeHub,
+		Logger:                  logger.With("handler", "iot"),
+		DailyCheckoutFallback:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
+		DB:                      db,
+		DeviceLastSeenDebouncer: deviceLastSeenDebouncer,
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.SSE.SetSchoolAccess(api.Services.Auth)

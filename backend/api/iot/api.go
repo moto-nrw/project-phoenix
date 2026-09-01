@@ -63,6 +63,7 @@ type ServiceDependencies struct {
 	Logger                   *slog.Logger
 	DailyCheckoutFallback    string
 	DB                       *bun.DB
+	DeviceLastSeenDebouncer  *device.LastSeenDebouncer
 }
 
 // Resource defines the IoT API resource
@@ -118,7 +119,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps the handler in a tenant-scoped transaction
 	// so downstream queries run as phoenix_tenant with RLS enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolService))
+		r.Use(device.DeviceOnlyAuthenticatorWithDebouncer(rs.IoTService, rs.SchoolService, rs.DeviceLastSeenDebouncer))
 		r.Use(iotMetricsMiddleware)
 		r.Use(common.TenantTxMiddleware)
 
@@ -138,11 +139,13 @@ func (rs *Resource) Router() chi.Router {
 	// binds staff identity to a verified account PIN. TenantTxMiddleware then
 	// wraps each handler in a tenant-scoped transaction.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(
+		r.Use(device.DeviceAuthenticatorWithDebouncer(
 			rs.IoTService,
 			rs.SchoolService,
 			rs.StaffPINAuthenticator,
 			rs.pinResolver(),
+			"",
+			rs.DeviceLastSeenDebouncer,
 		))
 		r.Use(iotMetricsMiddleware)
 		r.Use(common.TenantTxMiddleware)

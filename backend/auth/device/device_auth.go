@@ -42,9 +42,11 @@ type lastSeenDebounceState struct {
 	writeInFlight bool
 }
 
-type lastSeenDebouncer struct{ cache sync.Map }
+type LastSeenDebouncer struct{ cache sync.Map }
 
-func newLastSeenDebouncer() *lastSeenDebouncer { return &lastSeenDebouncer{} }
+func NewLastSeenDebouncer() *LastSeenDebouncer { return &LastSeenDebouncer{} }
+
+func newLastSeenDebouncer() *LastSeenDebouncer { return NewLastSeenDebouncer() }
 
 // DeviceFromCtx retrieves the authenticated device from request context.
 func DeviceFromCtx(ctx context.Context) *iot.Device {
@@ -122,7 +124,7 @@ func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.
 // updateDeviceLastSeen updates the device's last seen timestamp, logging any errors.
 // Uses device.ID (PK, globally unique) for the debounce cache key and DB update
 // to avoid cross-tenant collisions when device_id strings overlap.
-func (d *lastSeenDebouncer) updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *iot.Device) {
+func (d *LastSeenDebouncer) updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *iot.Device) {
 	now := time.Now()
 	device.LastSeen = &now
 
@@ -144,7 +146,7 @@ func (d *lastSeenDebouncer) updateDeviceLastSeen(r *http.Request, iotService iot
 	state.mu.Unlock()
 }
 
-func (d *lastSeenDebouncer) getOrCreateLastSeenState(id int64) *lastSeenDebounceState {
+func (d *LastSeenDebouncer) getOrCreateLastSeenState(id int64) *lastSeenDebounceState {
 	if existing, ok := d.cache.Load(id); ok {
 		if state, ok := existing.(*lastSeenDebounceState); ok {
 			return state
@@ -157,7 +159,7 @@ func (d *lastSeenDebouncer) getOrCreateLastSeenState(id int64) *lastSeenDebounce
 	return actualState
 }
 
-func (d *lastSeenDebouncer) persistLastSeen(ctx context.Context, iotService iotSvc.Service, id int64, observedAt time.Time, state *lastSeenDebounceState) {
+func (d *LastSeenDebouncer) persistLastSeen(ctx context.Context, iotService iotSvc.Service, id int64, observedAt time.Time, state *lastSeenDebounceState) {
 	if err := iotService.UpdateDeviceLastSeenAt(ctx, id, observedAt); err != nil {
 		slog.Warn("failed to update device last seen time",
 			slog.Int64("device_pk", id),
@@ -180,7 +182,7 @@ func (d *lastSeenDebouncer) persistLastSeen(ctx context.Context, iotService iotS
 	state.mu.Unlock()
 }
 
-func (d *lastSeenDebouncer) flushDeferredLastSeen(iotService iotSvc.Service, id int64, state *lastSeenDebounceState) {
+func (d *LastSeenDebouncer) flushDeferredLastSeen(iotService iotSvc.Service, id int64, state *lastSeenDebounceState) {
 	state.mu.Lock()
 	latestSeen := state.latestSeen
 	lastPersisted := state.lastPersisted
@@ -195,7 +197,7 @@ func (d *lastSeenDebouncer) flushDeferredLastSeen(iotService iotSvc.Service, id 
 	d.persistLastSeen(context.Background(), iotService, id, latestSeen, state)
 }
 
-func (d *lastSeenDebouncer) scheduleDeferredFlushLocked(iotService iotSvc.Service, id int64, state *lastSeenDebounceState, now time.Time) {
+func (d *LastSeenDebouncer) scheduleDeferredFlushLocked(iotService iotSvc.Service, id int64, state *lastSeenDebounceState, now time.Time) {
 	if state.writeInFlight || state.flushTimer != nil || state.lastPersisted.IsZero() || !state.latestSeen.After(state.lastPersisted) {
 		return
 	}
@@ -328,7 +330,7 @@ func serveAuthenticatedDeviceRequest(
 	staffPINAuthenticator StaffPINAuthenticator,
 	pinResolver PINResolver,
 	fallbackPIN string,
-	debouncer *lastSeenDebouncer,
+	debouncer *LastSeenDebouncer,
 	observeMissingTenant func(context.Context, error),
 ) {
 	device, errResp := extractAndValidateAPIKey(r, iotService)
@@ -392,7 +394,23 @@ func DeviceAuthenticator(
 	if len(fallbackPIN) > 0 {
 		pin = fallbackPIN[0]
 	}
-	return deviceAuthenticator(iotService, schools, staffPINAuthenticator, pinResolver, pin, newLastSeenDebouncer(), tenant.ObserveMissingTenant)
+	return DeviceAuthenticatorWithDebouncer(iotService, schools, staffPINAuthenticator, pinResolver, pin, NewLastSeenDebouncer())
+}
+
+// DeviceAuthenticatorWithDebouncer is DeviceAuthenticator with an injected
+// last-seen debouncer for routes that must share update state.
+func DeviceAuthenticatorWithDebouncer(
+	iotService iotSvc.Service,
+	schools SchoolLookup,
+	staffPINAuthenticator StaffPINAuthenticator,
+	pinResolver PINResolver,
+	fallbackPIN string,
+	debouncer *LastSeenDebouncer,
+) func(http.Handler) http.Handler {
+	if debouncer == nil {
+		debouncer = NewLastSeenDebouncer()
+	}
+	return deviceAuthenticator(iotService, schools, staffPINAuthenticator, pinResolver, fallbackPIN, debouncer, tenant.ObserveMissingTenant)
 }
 
 func deviceAuthenticator(
@@ -401,7 +419,7 @@ func deviceAuthenticator(
 	staffPINAuthenticator StaffPINAuthenticator,
 	pinResolver PINResolver,
 	fallbackPIN string,
-	debouncer *lastSeenDebouncer,
+	debouncer *LastSeenDebouncer,
 	observeMissingTenant func(context.Context, error),
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -429,13 +447,22 @@ func deviceAuthenticator(
 // such as getting the list of available teachers for login selection.
 // Rejects requests for devices belonging to soft-deleted schools.
 func DeviceOnlyAuthenticator(iotService iotSvc.Service, schools SchoolLookup) func(http.Handler) http.Handler {
-	return deviceOnlyAuthenticator(iotService, schools, newLastSeenDebouncer(), tenant.ObserveMissingTenant)
+	return DeviceOnlyAuthenticatorWithDebouncer(iotService, schools, NewLastSeenDebouncer())
+}
+
+// DeviceOnlyAuthenticatorWithDebouncer is DeviceOnlyAuthenticator with an
+// injected last-seen debouncer for routes that must share update state.
+func DeviceOnlyAuthenticatorWithDebouncer(iotService iotSvc.Service, schools SchoolLookup, debouncer *LastSeenDebouncer) func(http.Handler) http.Handler {
+	if debouncer == nil {
+		debouncer = NewLastSeenDebouncer()
+	}
+	return deviceOnlyAuthenticator(iotService, schools, debouncer, tenant.ObserveMissingTenant)
 }
 
 func deviceOnlyAuthenticator(
 	iotService iotSvc.Service,
 	schools SchoolLookup,
-	debouncer *lastSeenDebouncer,
+	debouncer *LastSeenDebouncer,
 	observeMissingTenant func(context.Context, error),
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
