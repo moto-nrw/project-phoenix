@@ -1078,7 +1078,10 @@ func (s *Service) buildJWTClaims(
 	return appClaims, refreshClaims
 }
 
-// generateAndLogTokens generates JWT token pair and logs the authentication event
+// generateAndLogTokens generates JWT token pair and records the authentication
+// event. Token persistence has already committed before this function runs, so
+// audit failures are best effort: reporting one as a login failure would leave
+// the caller with an issued refresh token but no successful response.
 func (s *Service) generateAndLogTokens(
 	ctx context.Context,
 	accountID int64,
@@ -1093,7 +1096,11 @@ func (s *Service) generateAndLogTokens(
 
 	if ipAddress != "" {
 		if err := s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, ""); err != nil {
-			return "", "", &AuthError{Op: "audit authentication", Err: err}
+			s.getLogger().Error("failed to audit authenticated session",
+				slog.Int64("account_id", accountID),
+				slog.String("event_type", eventType),
+				slog.Any("error", err),
+			)
 		}
 	}
 

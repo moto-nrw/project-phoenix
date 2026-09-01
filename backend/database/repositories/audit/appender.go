@@ -89,7 +89,7 @@ func appendEvent(ctx context.Context, db bun.IDB, event any) (string, error) {
 	default:
 		return "event", fmt.Errorf("unsupported event type %T", event)
 	}
-	_, err := query.Returning("*").Exec(ctx)
+	_, err := query.Exec(ctx)
 	return table, err
 }
 
