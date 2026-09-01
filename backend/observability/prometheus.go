@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -238,6 +239,21 @@ var (
 		},
 		[]string{"event_type"},
 	)
+	synchronousDeliveries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_synchronous_deliveries_total",
+			Help: "Fail-closed delivery calls by transport, template, caller, and outcome.",
+		},
+		[]string{"transport", "template", "caller", "outcome"},
+	)
+	synchronousDeliveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_synchronous_delivery_duration_seconds",
+			Help:    "Fail-closed delivery duration by transport, template, and caller.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 45, 60},
+		},
+		[]string{"transport", "template", "caller"},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
@@ -371,6 +387,8 @@ func init() {
 		auditAppends,
 		auditAppendDuration,
 		auditRows,
+		synchronousDeliveries,
+		synchronousDeliveryDuration,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -490,6 +508,26 @@ func ObserveAuditAppend(eventType string, duration time.Duration, rows int, err 
 	if rows > 0 {
 		auditRows.WithLabelValues(eventType).Add(float64(rows))
 	}
+}
+
+// ObserveSynchronousDelivery records fail-closed sends without recipient or
+// payload labels. The outcome separates timeouts/cancellation from transport
+// failures so operators can alert on each class independently.
+func ObserveSynchronousDelivery(transport, template, caller string, duration time.Duration, err error) {
+	outcome := "success"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome = "timeout"
+	case errors.Is(err, context.Canceled):
+		outcome = "canceled"
+	case err != nil:
+		outcome = "failure"
+	}
+	transport = sanitizeLabel(transport)
+	template = sanitizeLabel(template)
+	caller = sanitizeLabel(caller)
+	synchronousDeliveries.WithLabelValues(transport, template, caller, outcome).Inc()
+	synchronousDeliveryDuration.WithLabelValues(transport, template, caller).Observe(duration.Seconds())
 }
 
 func ObserveTenantRequest(tenantID int64, scope, method, route string, status int, duration time.Duration, txOutcome string) {

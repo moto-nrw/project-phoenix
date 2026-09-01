@@ -380,6 +380,8 @@ func currentFactoryConfig() FactoryConfig {
 
 type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)
 
+type DeliveryObserver func(transport, template, caller string, duration time.Duration, err error)
+
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
 	if store == nil || logger == nil || observe == nil {
 		return nil, errors.New("audit command store, logger, and observer are required")
@@ -414,12 +416,13 @@ func NewFactoryWithModules(
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
+	observeDelivery DeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil {
-		return nil, errors.New("meal plan, feedback, and Audit capabilities with their binders and observer are required")
+	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil {
+		return nil, errors.New("meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -432,6 +435,7 @@ func newFactory(
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
+	observeDelivery DeliveryObserver,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -500,7 +504,7 @@ func newFactory(
 	}
 	repos.RouteAuditWrites(auditCommand)
 
-	dispatcher := email.NewDispatcher(mailer, emailLogger)
+	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
 
 	defaultFrom := email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
 	if defaultFrom.Address == "" {
@@ -2270,6 +2274,7 @@ func newFactory(
 		db,
 		repos.FileFolder,
 		repos.File,
+		repos.AnnouncementAttachment,
 		repos.FileEvent,
 		settingsService,
 		logger.With("service", "filestore"),
@@ -2435,9 +2440,10 @@ func newFactory(
 	if !vapidConfig.Configured() {
 		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
 	}
-	notificationsService := notifications.NewService(
+	notificationsService := notifications.NewServiceWithDeliveryObserver(
 		settingsService,
 		logger.With("service", "notifications"),
+		notifications.DeliveryObserver(observeDelivery),
 		notifications.NewSSEChannel(realtimeHub, notifications.WithGuardianChildAccess(
 			db, repos.StudentGuardian, logger.With("channel", "sse"))),
 		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
@@ -2611,6 +2617,16 @@ func newFactory(
 	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
 		setter.SetGuardianNoticePublisher(parentAnnouncementService)
 	}
+
+	// Anhänge an Elternmitteilungen (#2890). Die Datei gehört der Dateiablage,
+	// der Empfängerkreis der Mitteilung — beide Seiten zeigen aufeinander, also
+	// werden sie hier verbunden, wo alle drei Dienste existieren. Ohne diese
+	// Verdrahtung verweigern die Anhang-Pfade den Dienst, statt ohne Prüfung zu
+	// entscheiden.
+	if setter, ok := fileStoreService.(filestore.AnnouncementPortSetter); ok {
+		setter.SetAnnouncementPorts(parentAnnouncementService, parentService)
+	}
+	parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:      repos.Organization,

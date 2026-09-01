@@ -2017,6 +2017,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Kinder` zeigt bei einem Kind direkt dieses Kind, bei mehreren einen Umschalter oben. Der Bereich hat vier Abschnitte: `Heute`, `Gebuchte Betreuung`, `Daten von {Name}` und `Eltern und Abholberechtigte`.",
           "`Kalender` ist eine Terminliste nach `Diese Woche`, `Nächste Woche` und `Später`. Zusagen und Absagen stehen direkt in der Zeile.",
           "Hinter `Mehr` liegen `Elternbriefe`, Essensplan, Einstellungen, eine neue Anmeldung und das Abmelden. Ein ungelesener Elternbrief wird trotzdem sichtbar: sein Zähler liegt auf dem Symbol `Mehr` und der Elternbrief erscheint zusätzlich auf der Startseite. Verbindliche Elternbriefe sind mit `Bestätigung erforderlich` gekennzeichnet – dort zählt nur die Bestätigung im Elternportal, nicht die E-Mail.",
+          "Hat die Schule Dateien angehängt, stehen sie in der geöffneten Nachricht unter `Dateien zu dieser Nachricht`. Ein Tipp auf den Namen öffnet oder speichert die Datei. Es ist immer der Anhang zu genau dieser Nachricht – eine allgemeine Dateiablage für Eltern gibt es nicht.",
         ],
         callout: {
           title: "Was es nicht mehr gibt",
@@ -2093,9 +2094,10 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen und auf `Mitteilung` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail einer Mitteilung enthält nur den Titel und einen Link ins Elternportal – soll der vollständige Text mitgeschickt werden, nutzen Sie stattdessen einen `Elternbrief`.",
+          "Noch im Schritt `Inhalt`: unter `Dateien anhängen` mit `Datei auswählen` bis zu fünf Dateien anhängen (PDF, DOCX, XLSX, PPTX, PNG, JPEG, je bis 25 MB). Die Dateien sehen genau die Eltern, die auch die Mitteilung bekommen. Sie liegen im Elternportal zum Herunterladen bereit und gehen nicht per E-Mail mit; die E-Mail weist nur darauf hin.",
           "Schritt `Empfänger`: Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
           "Mit `Als Entwurf speichern` für später sichern oder mit `Veröffentlichen` direkt an die Eltern geben. Veröffentlichte Mitteilungen erscheinen sofort im Elternportal der erreichten Eltern.",
-          "Entwürfe lassen sich aus der Liste bearbeiten und über `Veröffentlichen` freigeben. Nach dem Veröffentlichen ist keine Bearbeitung mehr möglich; über `Zurückziehen` wird eine Mitteilung wieder zum Entwurf und aus dem Elternportal entfernt.",
+          "Entwürfe lassen sich aus der Liste bearbeiten und über `Veröffentlichen` freigeben. Nach dem Veröffentlichen ist keine Bearbeitung mehr möglich – auch Anhänge lassen sich dann weder hinzufügen noch entfernen; über `Zurückziehen` wird eine Mitteilung wieder zum Entwurf und aus dem Elternportal entfernt. Achtung: Wer nach dem Zurückziehen einen Anhang ändert, setzt damit die Lesebestätigungen zurück – die Eltern bestätigen dann erneut.",
           "Ein Tipp auf eine Mitteilung öffnet die Detailansicht mit dem vollständigen Text und der Statistik: wie viele der erreichten Eltern sie gelesen und (falls verlangt) bestätigt haben, inklusive Liste, welche Bezugsperson noch aussteht.",
         ],
         callout: {
@@ -2116,6 +2118,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen, oben auf `Elternbriefe` wechseln und auf `Elternbrief` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Der Kasten `Beim Veröffentlichen passiert automatisch` zeigt, was fest zum Elternbrief gehört: Portal, E-Mail mit vollem Text und Bestätigung durch die Eltern. Diese drei Punkte lassen sich nicht abwählen.",
           "Unter `Wer erhält die E-Mail?` wählen: `Nur mit Portalzugang` (Standard) schickt die E-Mail ausschließlich an Bezugspersonen mit Elternportal-Zugang. `Alle Bezugspersonen` schickt sie zusätzlich an hinterlegte Bezugspersonen ohne Portalzugang – praktisch für allgemeine Informationen, aber ungeeignet für sensible Angaben.",
+          "Dateien anhängen geht wie bei einer Mitteilung, im Schritt `Inhalt` unter `Dateien anhängen`. Auch beim Elternbrief bleibt die Datei im Elternportal: Der Brieftext geht per E-Mail mit, die Datei nicht. Das gilt besonders bei `Alle Bezugspersonen` – Personen ohne Portalzugang können die Datei nicht öffnen.",
           "Schritt `Empfänger`: Zielgruppe wählen wie bei einer Mitteilung. Eltern mit offener Anmeldung stehen hier nicht zur Verfügung, weil für sie noch kein Kind verknüpft ist.",
           "Nach `Veröffentlichen` öffnet ein Tipp auf den Brief die Statusansicht: oben `x von y Kindern bestätigt`, darunter die Liste der Kinder und die Liste der Empfänger.",
           "In der Empfängerliste stehen E-Mail-Status und moto-Status getrennt nebeneinander. `Versendet` heißt: die E-Mail wurde an den Mailserver übergeben. Ob sie im Postfach angekommen ist, kann moto derzeit nicht bestätigen.",

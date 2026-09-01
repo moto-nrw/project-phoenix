@@ -446,12 +446,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 220,
+          "line": 221,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 705,
+          "line": 706,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +461,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 341,
+          "line": 342,
           "declaration": "New"
         }
       ]
@@ -476,7 +476,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 217,
+          "line": 218,
           "declaration": "type API"
         }
       ]
@@ -521,7 +521,7 @@
         },
         {
           "file": "services/auth/mfa_service.go",
-          "line": 287,
+          "line": 286,
           "declaration": "type MFAServiceConfig"
         },
         {
@@ -561,12 +561,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 409,
+          "line": 411,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 426,
+          "line": 429,
           "declaration": "newFactory"
         },
         {
@@ -16614,7 +16614,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        341
+        342
       ],
       "tables": []
     },
@@ -25658,7 +25658,7 @@
       "declaration": "TestVerifyCodeForAccount_RefusesForeignPortalChallenge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        122
+        123
       ],
       "tables": [
         "auth.mfa_email_challenges"
@@ -25753,7 +25753,7 @@
       "declaration": "TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        241
+        243
       ],
       "tables": []
     },
@@ -25763,7 +25763,7 @@
       "declaration": "newExtraMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        28
       ],
       "tables": []
     },
@@ -25783,7 +25783,17 @@
       "declaration": "newTestMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        38
+        37
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/auth/mfa_synchronous_delivery_test.go",
+      "declaration": "newSynchronousDeliveryMFAService",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        46
       ],
       "tables": []
     },
@@ -28955,7 +28965,17 @@
       "declaration": "newTestOperatorMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        26
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/platform/operator_mfa_synchronous_delivery_test.go",
+      "declaration": "TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        40
       ],
       "tables": []
     },
