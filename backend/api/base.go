@@ -1160,6 +1160,12 @@ func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 	// children.
 	a.Router.Mount("/parent-sse", a.SSE.ParentRouter())
 
+	// Anhänge, die Eltern zu einer Mitteilung herunterladen (#2890). Root
+	// gemountet wie /parent-sse, weil /parent ein Catch-all-Mount ist, und mit
+	// ParentMiddleware authentifiziert. Der Empfängerkreis der Mitteilung
+	// entscheidet; wer nicht dazugehört, bekommt 404.
+	a.Router.Mount("/parent-news-attachments", a.FileStore.ParentAnnouncementAttachmentRouter())
+
 	// School-portal SSE stream (#2208): account-addressed triggers only
 	// (Team-Chat), authenticated with SchoolMiddleware. Root-mounted for the
 	// same reason as /parent-sse.
@@ -1184,6 +1190,11 @@ func (a *API) registerTenantRoutes() {
 		// Tagesinformationen (#2180): lesen alle Mitarbeitenden, schreiben Admins.
 		r.Mount("/staff-notices", a.StaffNotices.Router())
 		r.Mount("/files", a.FileStore.Router())
+
+		// Anhänge an Elternmitteilungen (#2890). Eigener Pfad statt einer
+		// Route unter /parent-announcements: die Bytes gehören der
+		// Dateiablage, die Mitteilung steuert nur den Empfängerkreis bei.
+		r.Mount("/announcement-attachments", a.FileStore.AnnouncementAttachmentRouter())
 
 		// Mount guardian resources
 		r.Mount("/guardians", a.Guardians.Router())

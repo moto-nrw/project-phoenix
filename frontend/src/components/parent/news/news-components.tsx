@@ -23,11 +23,15 @@ import { Radio } from "~/components/ui/radio";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { AttachmentList } from "~/components/ui/attachment-list";
 import {
   ParentApiError,
   type ParentAnnouncement,
+  type ParentAnnouncementAttachment,
   type ParentAnnouncementPollChild,
   acknowledgeAnnouncement,
+  announcementAttachmentDownloadUrl,
+  listAnnouncementAttachments,
   markAnnouncementRead,
   respondToAnnouncement,
 } from "~/lib/parent-api";
@@ -529,6 +533,98 @@ export function NewsCard({
   );
 }
 
+/**
+ * Files the school attached to this message (#2890).
+ *
+ * Loaded when the message is opened, not with the feed: the file only matters
+ * once somebody is reading, and the school's audience rule is checked per
+ * message.
+ *
+ * A failed load is shown, not swallowed: silence looks exactly like "this
+ * message has no file", so a family would never learn that a document exists
+ * and would never try again. The message carries the retry.
+ *
+ * The list is cleared before each load, so switching from one message to the
+ * next never shows the previous message's file names next to download links
+ * that already point at the new message.
+ *
+ * It says "zu dieser Nachricht" rather than something like "Dateiablage": this
+ * is one message's attachment, not the entrance to a folder the family could
+ * browse.
+ */
+function NewsAttachments({
+  item,
+}: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
+  const t = useTranslations("parentDashboard");
+  const [attachments, setAttachments] = useState<
+    ParentAnnouncementAttachment[]
+  >([]);
+  const [failed, setFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAttachments([]);
+    setFailed(false);
+    void listAnnouncementAttachments(item.id)
+      .then((list) => {
+        if (!cancelled) setAttachments(list);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.error("parent_announcement_attachments_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, reloadToken]);
+
+  if (failed) {
+    return (
+      <div className="mt-4 border-t border-gray-100 pt-4">
+        <Alert
+          type="error"
+          message={t("newsAttachmentsError")}
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setReloadToken((n) => n + 1)}
+            >
+              {t("newsAttachmentsRetry")}
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (attachments.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-4">
+      <p className="text-sm font-semibold text-gray-900">
+        {t("newsAttachmentsTitle")}
+      </p>
+      <p className="mt-0.5 mb-3 text-sm text-gray-500">
+        {t("newsAttachmentsHint")}
+      </p>
+      <AttachmentList
+        attachments={attachments}
+        downloadUrl={(attachmentId) =>
+          announcementAttachmentDownloadUrl(item.id, attachmentId)
+        }
+        downloadLabel={t("newsAttachmentsDownload")}
+        openLabel={t("newsAttachmentsOpen")}
+      />
+    </div>
+  );
+}
+
 function NewsMessageSection({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
@@ -554,6 +650,8 @@ function NewsMessageSection({
       <p className="mt-4 text-base leading-7 whitespace-pre-line text-gray-800">
         <LinkifiedText text={item.body} />
       </p>
+
+      <NewsAttachments item={item} />
 
       {item.link_url && (
         <a
