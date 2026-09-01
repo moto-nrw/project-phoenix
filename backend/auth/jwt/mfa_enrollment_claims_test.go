@@ -15,7 +15,7 @@ const enrollmentTestSecret = "test-secret-must-be-at-least-32-characters-long"
 func TestMFAEnrollmentClaims_TenantRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
+	ta, err := newTestTokenAuth(t, enrollmentTestSecret)
 	require.NoError(t, err)
 
 	in := MFAEnrollmentClaims{
@@ -50,7 +50,7 @@ func TestMFAEnrollmentClaims_TenantRoundTrip(t *testing.T) {
 func TestMFAEnrollmentClaims_PlatformRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
+	ta, err := newTestTokenAuth(t, enrollmentTestSecret)
 	require.NoError(t, err)
 
 	tokenString, err := ta.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{
@@ -115,7 +115,7 @@ func TestMFAEnrollmentClaims_RejectsNonPendingToken(t *testing.T) {
 func TestParseMFAEnrollmentJWT_TenantRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
+	ta, err := newTestTokenAuth(t, enrollmentTestSecret)
 	require.NoError(t, err)
 
 	tokenString, err := ta.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{
@@ -135,7 +135,7 @@ func TestParseMFAEnrollmentJWT_TenantRoundTrip(t *testing.T) {
 func TestParseMFAEnrollmentJWT_RejectsGarbage(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
+	ta, err := newTestTokenAuth(t, enrollmentTestSecret)
 	require.NoError(t, err)
 	_, err = ta.ParseMFAEnrollmentJWT("not-a-jwt")
 	assert.Error(t, err)
@@ -144,7 +144,7 @@ func TestParseMFAEnrollmentJWT_RejectsGarbage(t *testing.T) {
 func TestParseMFAEnrollmentJWT_RejectsExpired(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
+	ta, err := newTestTokenAuth(t, enrollmentTestSecret)
 	require.NoError(t, err)
 
 	tokenString, err := ta.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{
@@ -163,7 +163,7 @@ func TestParseMFAEnrollmentJWT_RejectsRegularAccessToken(t *testing.T) {
 	// A regular access JWT happens to be valid signed JSON but lacks
 	// mfa_enrollment_pending — ParseMFAEnrollmentJWT must reject it so a
 	// regular session token can never authorize /auth/mfa/enroll/*.
-	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
+	ta, err := newTestTokenAuth(t, enrollmentTestSecret)
 	require.NoError(t, err)
 
 	_, tokenString, err := ta.JwtAuth.Encode(map[string]any{

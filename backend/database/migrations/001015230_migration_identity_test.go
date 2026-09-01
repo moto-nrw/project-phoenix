@@ -8,6 +8,7 @@ import (
 )
 
 func TestPublishedMigrationVersionsRemainStable(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		got  string
@@ -30,5 +31,6 @@ func TestPublishedMigrationVersionsRemainStable(t *testing.T) {
 }
 
 func TestPushSubscriptionsDownPreservesExistingTable(t *testing.T) {
+	t.Parallel()
 	require.NoError(t, pushSubscriptionsDown(context.Background(), nil))
 }

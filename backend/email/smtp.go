@@ -3,12 +3,11 @@ package email
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/wneessen/go-mail"
 )
 
@@ -16,76 +15,83 @@ import (
 type SMTPMailer struct {
 	client      *mail.Client
 	defaultFrom Email
+	templates   *template.Template
+	logger      *slog.Logger
+}
+
+type MailerConfig struct {
+	Host        string
+	Port        int
+	User        string
+	Password    string
+	DefaultFrom Email
+	TemplateDir string
+	Logger      *slog.Logger
+	AppEnv      string
 }
 
 const smtpShutdownTimeout = time.Second
 
 // NewMailer returns a configured SMTP Mailer.
-func NewMailer() (Mailer, error) {
-	smtp := struct {
-		Host     string
-		Port     int
-		User     string
-		Password string
-	}{
-		viper.GetString("email_smtp_host"),
-		viper.GetInt("email_smtp_port"),
-		viper.GetString("email_smtp_user"),
-		viper.GetString("email_smtp_password"),
+func NewMailer(cfg MailerConfig) (Mailer, error) {
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.Default()
 	}
 
-	appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	appEnv := strings.ToLower(strings.TrimSpace(cfg.AppEnv))
 	if appEnv == "test" {
 		return NewMockMailer(), nil
 	}
-	if smtp.Host == "" {
+	if cfg.Host == "" {
 		switch appEnv {
 		case "production", "staging":
 			return nil, fmt.Errorf("EMAIL_SMTP_HOST is required when APP_ENV=%s", appEnv)
 		}
 		return NewMockMailer(), nil
 	}
-	if err := parseTemplates(); err != nil {
+	templates, err := parseTemplates(cfg.TemplateDir)
+	if err != nil {
 		return nil, err
 	}
-
-	defaultFrom := NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
 
 	// Configure TLS and auth based on port and credentials
 	var clientOpts []mail.Option
 	switch {
-	case smtp.User == "" && smtp.Password == "":
+	case cfg.User == "" && cfg.Password == "":
 		// No credentials: plain SMTP without TLS (e.g., Mailpit on port 1025)
 		clientOpts = []mail.Option{
-			mail.WithPort(smtp.Port),
+			mail.WithPort(cfg.Port),
 			mail.WithTLSPolicy(mail.NoTLS),
 		}
-	case smtp.Port == 465:
+	case cfg.Port == 465:
 		// Port 465: Implicit SSL/TLS (SSL from connection start)
 		clientOpts = []mail.Option{
 			mail.WithSSLPort(false), // Use implicit SSL
 			mail.WithSMTPAuth(mail.SMTPAuthPlain),
-			mail.WithUsername(smtp.User),
-			mail.WithPassword(smtp.Password),
+			mail.WithUsername(cfg.User),
+			mail.WithPassword(cfg.Password),
 		}
 	default:
 		// Port 587: STARTTLS (upgrade to TLS after connect)
 		clientOpts = []mail.Option{
-			mail.WithPort(smtp.Port),
+			mail.WithPort(cfg.Port),
 			mail.WithSMTPAuth(mail.SMTPAuthPlain),
-			mail.WithUsername(smtp.User),
-			mail.WithPassword(smtp.Password),
+			mail.WithUsername(cfg.User),
+			mail.WithPassword(cfg.Password),
 			mail.WithTLSPolicy(mail.TLSMandatory),
 		}
 	}
 
-	client, err := mail.NewClient(smtp.Host, clientOpts...)
+	client, err := mail.NewClient(cfg.Host, clientOpts...)
 	if err != nil {
 		return nil, err
 	}
 	s := &SMTPMailer{
 		client:      client,
-		defaultFrom: defaultFrom,
+		defaultFrom: cfg.DefaultFrom,
+		templates:   templates,
+		logger:      logger,
 	}
 	return s, nil
 }
@@ -94,7 +100,7 @@ func NewMailer() (Mailer, error) {
 // wire. Split out of Send so the header contract (From, Reply-To,
 // List-Unsubscribe) is testable without an SMTP dial.
 func (m *SMTPMailer) buildMessage(email Message) (*mail.Msg, error) {
-	if err := email.parse(); err != nil {
+	if err := email.parse(m.templates); err != nil {
 		return nil, err
 	}
 
@@ -140,19 +146,19 @@ func (m *SMTPMailer) SendContext(ctx context.Context, email Message) error {
 		return err
 	}
 
-	slog.Default().Info("sending email",
+	m.logger.Info("sending email",
 		slog.String("to", email.To.Address),
 		slog.String("subject", email.Subject),
 		slog.String("template", email.Template))
 	err = m.sendMessageContext(ctx, msg)
 	if err != nil {
-		slog.Default().Error("email send failed",
+		m.logger.Error("email send failed",
 			slog.String("to", email.To.Address),
 			slog.Any("error", err),
 		)
 		return err
 	}
-	slog.Default().Info("email sent successfully",
+	m.logger.Info("email sent successfully",
 		slog.String("to", email.To.Address))
 
 	return nil

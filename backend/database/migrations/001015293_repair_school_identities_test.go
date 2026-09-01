@@ -14,6 +14,7 @@ import (
 // (#2222). The repair must attach the staff record to exactly that person, and
 // give a caregiver-tier role its profile too.
 func TestRepairSchoolIdentities(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -51,6 +52,7 @@ func TestRepairSchoolIdentities(t *testing.T) {
 // it gets a staff record and no caregiver profile, which leaves its groups and
 // supervisions empty: the same bug one level down.
 func TestRepairSchoolIdentitiesCoversLegacyTeacherRole(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -99,6 +101,7 @@ func ensureLegacySystemTeacherRole(t *testing.T, db *testpkg.DB) int64 {
 // An account whose access was revoked keeps its person row on purpose, but must
 // not be silently re-staffed by the repair.
 func TestRepairSchoolIdentitiesSkipsInactiveAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -200,6 +203,7 @@ func liveStaffCount(t *testing.T, db *testpkg.DB, personID int64) int {
 // tenant predicates stop being belt-and-braces and start being the only thing
 // holding the invariant up, which is worth failing a test over.
 func TestRepairSchoolIdentitiesTenantScopingIsEnforcedBySchema(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -277,6 +281,7 @@ func liveTeacherCount(t *testing.T, db *testpkg.DB, personID int64) int {
 // person at this school and staffs it, by tier, exactly as the provisioning
 // would have.
 func TestRepairSchoolIdentitiesCreatesPersonFromMappedSchool(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	homeTenantID := testpkg.UniqueTestTenantID(t)
@@ -318,6 +323,7 @@ func TestRepairSchoolIdentitiesCreatesPersonFromMappedSchool(t *testing.T) {
 // entitled to pick one, so the account falls through to the report instead of
 // getting a guessed identity.
 func TestRepairSchoolIdentitiesSkipsAmbiguousNameAcrossSchools(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	firstTenantID := testpkg.UniqueTestTenantID(t)
@@ -445,6 +451,7 @@ func personLastName(t *testing.T, db *testpkg.DB, personID int64) string {
 // Lehrkraft role would leave those in the half-written state this migration
 // exists to end, and unreported too, since their staff record does get created.
 func TestRepairSchoolIdentitiesCaregiverProfileIsDecidedPerRole(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -476,6 +483,7 @@ func TestRepairSchoolIdentitiesCaregiverProfileIsDecidedPerRole(t *testing.T) {
 // then still broken, so it has to reach the report — otherwise the run looks
 // clean while the account stays unusable.
 func TestRepairSchoolIdentitiesReportsStudentLinkedIdentity(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -569,6 +577,7 @@ func markPersonAsStudent(t *testing.T, db *testpkg.DB, tenantID, personID int64)
 // put on a child's person would collect a caregiver profile here even though the
 // staff step declined to create one for it.
 func TestRepairSchoolIdentitiesSkipsStudentPersonForCaregiverProfile(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)

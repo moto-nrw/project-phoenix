@@ -14,7 +14,7 @@ import (
 func TestAllSettingsRegistered(t *testing.T) {
 	t.Parallel()
 
-	all := config.AllDefinitions()
+	all := config.DefaultRegistry().AllDefinitions()
 
 	expectedKeys := []string{
 		"operations.session_end_enabled",

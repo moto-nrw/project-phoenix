@@ -45,7 +45,7 @@ Usage:
   SEED_PARENT_PASSWORD='<password>' docker compose run server ./main seed-parents
   docker compose run server ./main seed-parents --count 8 --password '<password>'`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		if err := assertLocalDevEnv(); err != nil {
+		if err := assertLocalDevEnv(os.Getenv("APP_ENV")); err != nil {
 			log.Fatal(err)
 		}
 
@@ -76,14 +76,14 @@ Usage:
 // command can never create loginable guardian accounts against a deployed
 // database. It writes through DB_DSN, so refusing by APP_ENV alone is the
 // only signal available before connecting.
-func assertLocalDevEnv() error {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) {
+func assertLocalDevEnv(appEnv string) error {
+	switch strings.ToLower(strings.TrimSpace(appEnv)) {
 	case "", "local", "development", "dev", "test":
 		return nil
 	default:
 		return fmt.Errorf(
 			"seed-parents is dev-only; refusing to run with APP_ENV=%q (allowed: development, test, local, or unset)",
-			os.Getenv("APP_ENV"),
+			appEnv,
 		)
 	}
 }

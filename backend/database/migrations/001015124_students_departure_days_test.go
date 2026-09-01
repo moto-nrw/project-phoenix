@@ -29,6 +29,7 @@ func departureDaysColumnExists(t *testing.T, db *testpkg.DB) bool {
 // pickup winning on a contradictory day, and the column survives a Down/Up
 // round-trip.
 func TestStudentsDepartureDaysMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

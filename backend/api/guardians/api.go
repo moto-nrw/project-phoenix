@@ -24,6 +24,7 @@ type Resource struct {
 	// after construction like the other export-capable resources.
 	ListExportService *listexport.RendererService
 	db                *bun.DB
+	appEnv            string
 }
 
 // NewResource creates a new guardians resource
@@ -34,6 +35,7 @@ func NewResource(
 	educationService educationSvc.Service,
 	userContextService userContextSvc.UserContextService,
 	db *bun.DB,
+	appEnv string,
 ) *Resource {
 	return &Resource{
 		GuardianService:    guardianService,
@@ -42,6 +44,7 @@ func NewResource(
 		EducationService:   educationService,
 		UserContextService: userContextService,
 		db:                 db,
+		appEnv:             appEnv,
 	}
 }
 
