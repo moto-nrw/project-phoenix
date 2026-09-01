@@ -39,11 +39,14 @@ outside_dir="$fixture/outside-dir"
 mkdir -p "$outside_dir/scripts"
 printf '#!/usr/bin/env bash\necho outside\n' >"$outside_dir/scripts/test-backend.sh"
 chmod +x "$outside_dir/scripts/test-backend.sh"
+printf 'module example.test/project\n\ngo 1.25\n' >"$repo/backend/go.mod"
 printf 'package backend\n' >"$repo/backend/doc.go"
 mkdir -p "$repo/backend/scripts"
 printf '#!/usr/bin/env bash\necho tracked\n' >"$repo/backend/scripts/new"
 mkdir -p "$repo/backend/cmd/tracked"
-printf 'package main\nfunc main() {}\n' >"$repo/backend/cmd/tracked/main.go"
+mkdir -p "$repo/backend/lib"
+printf 'package lib\n' >"$repo/backend/lib/lib.go"
+printf 'package main\nimport _ "example.test/project/lib"\nfunc main() {}\n' >"$repo/backend/cmd/tracked/main.go"
 chmod +x "$repo/scripts/run-go-toolchain.sh" "$repo/scripts/test-backend.sh" "$repo/scripts/env-check.sh" "$repo/backend/scripts/new"
 git -C "$repo" add -A
 git -C "$repo" commit -qm fixture
@@ -128,10 +131,14 @@ assert_bash allow "$repo" '/usr/bin/git --version'
 assert_bash allow "$repo" '/usr/bin/env'
 assert_bash allow "$repo" 'if true; then :; fi'
 assert_bash allow "$repo" 'cd backend | scripts/test-backend.sh'
+(cd "$repo/backend" && go list -deps -json ./cmd/tracked >/dev/null)
 assert_bash allow "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
 printf 'package main\n' >"$repo/backend/cmd/tracked/untracked.go"
 assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
 rm "$repo/backend/cmd/tracked/untracked.go"
+printf 'package lib\n' >"$repo/backend/lib/untracked.go"
+assert_bash deny "$repo" 'cd backend && ../scripts/run-go-toolchain.sh go run ./cmd/tracked'
+rm "$repo/backend/lib/untracked.go"
 
 # --- unvetted execution: denied ---
 assert_bash deny "$repo" './scripts/new.sh'
@@ -172,6 +179,7 @@ assert_bash deny "$repo" 'scripts/run-go-toolchain.sh go run ./untracked.go'
 assert_bash deny "$repo" 'not-a-command-guard-test'
 assert_bash_path deny "$repo" "$fixture/bin:$PATH" 'evil'
 assert_bash deny "$repo" 'cd backend | ./scripts/new'
+assert_bash deny "$repo" 'case x in x) ./scripts/new.sh;; esac'
 
 # --- inline payloads and eval: denied, incl. the -lc flag cluster ---
 assert_bash deny "$repo" "bash -c 'echo hi'"

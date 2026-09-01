@@ -110,12 +110,25 @@ case "$tool" in
             deny "Blocked: only git-tracked scripts inside this repository may be executed (got: $1)."
         }
 
-        # Absolute executables from standard system tool directories are not
-        # repository scripts. Other paths remain subject to script vetting.
+        # System-tool directories may supply compiled tools, but never shell
+        # scripts. Other paths remain subject to repository script vetting.
+        is_script_file() {
+            local first=''
+            IFS= read -r first < "$1" || true
+            [[ "$first" = '#!'* ]]
+        }
+
+        vet_trusted_binary() {
+            [[ -x "$1" && ! -d "$1" ]] && ! is_script_file "$1"
+        }
+
         vet_executable() {
             local target
             case "$1" in
-                /bin/* | /sbin/* | /usr/bin/* | /usr/sbin/* | /usr/local/bin/* | /opt/homebrew/bin/* | /nix/store/* | */node_modules/@openai/codex-*/vendor/*/codex-path/rg)
+                /bin/* | /sbin/* | /usr/bin/* | /usr/sbin/* | /usr/local/bin/* | /opt/homebrew/bin/* | */node_modules/@openai/codex-*/vendor/*/codex-path/rg)
+                    vet_trusted_binary "$1"
+                    ;;
+                /nix/store/*)
                     [[ -x "$1" && ! -d "$1" ]]
                     ;;
                 */.devbox/nix/profile/default/bin/*)
@@ -151,8 +164,31 @@ case "$tool" in
             esac
         }
 
+        vet_go_dependencies() {
+            local tok=$1 go_path files go_file rel
+            go_path=$(command -v go 2>/dev/null) || deny_untracked go
+            vet_executable "$go_path" || deny_untracked go
+            files=$(cd "$curdir" && "$go_path" list -deps -json "$tok" |
+                jq -r --arg root "$root" '
+                    select(.Dir == $root or (.Dir | startswith($root + "/"))) |
+                    .Dir as $dir |
+                    (.GoFiles[]?, .CgoFiles[]?, .CFiles[]?, .CXXFiles[]?, .MFiles[]?, .HFiles[]?, .SFiles[]?, .SysoFiles[]?, .EmbedFiles[]?) |
+                    $dir + "/" + .
+                ') || deny_untracked "$tok"
+            [[ -n "$files" ]] || deny_untracked "$tok"
+            while IFS= read -r go_file; do
+                [[ -n "$go_file" ]] || continue
+                rel=${go_file#"$root"/}
+                git -C "$root" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1 || deny_untracked "$go_file"
+            done <<EOF
+$files
+EOF
+        }
+
         vet_go_run() {
-            local tok=${1:-} path go_file rel found=
+            local tok source
+            tok=${1:-}
+            source=$tok
             [[ -n "$tok" ]] || deny "Blocked: go run needs a tracked package or Go source file."
             reject_dynamic_executable "$tok"
             case "$tok" in
@@ -166,22 +202,13 @@ case "$tool" in
                         vet_script "$tok" || deny_untracked "$tok"
                         shift
                     done
+                    vet_go_dependencies "$source"
                     return 0
                     ;;
                 .|./*|../*|/*) ;;
                 *) deny "Blocked: go run may execute only a tracked local package or Go source file." ;;
             esac
-            path=$(cd -P "$curdir" 2>/dev/null && cd -P "$tok" 2>/dev/null && pwd) || deny_untracked "$tok"
-            case "$path" in "$root"/*) ;; *) deny_untracked "$tok" ;; esac
-            while IFS= read -r go_file; do
-                [[ -n "$go_file" ]] || continue
-                found=1
-                rel=${go_file#"$root"/}
-                git -C "$root" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1 || deny_untracked "$go_file"
-            done <<EOF
-$(find "$path" -maxdepth 1 -type f -name '*.go' -print)
-EOF
-            [[ -n "$found" ]] || deny_untracked "$tok"
+            vet_go_dependencies "$tok"
         }
 
         vet_go_command() {
@@ -321,7 +348,7 @@ EOF
                 reject_dynamic_executable "$first"
             done
             case "$first" in
-                function)
+                function|case)
                     deny "Blocked: shell function definitions cannot be inspected by the absolute-rule guard. Write the command out directly."
                     ;;
                 *'()'|*'(){'*)
