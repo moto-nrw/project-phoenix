@@ -12,6 +12,7 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,10 +29,11 @@ func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, i
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
 	require.NoError(t, err)
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:     repos,
-		TokenAuth: tokenAuth,
-		JWTSecret: extraJWTSecret,
-		DB:        db,
+		Repos:      repos,
+		TokenAuth:  tokenAuth,
+		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
+		JWTSecret:  extraJWTSecret,
+		DB:         db,
 	})
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, svc, db)
