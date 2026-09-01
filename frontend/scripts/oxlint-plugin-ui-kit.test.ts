@@ -37,7 +37,7 @@ describe("ui-kit/no-hand-rolled-overlay", () => {
 });
 
 describe("ui-kit/no-hand-rolled-surface", () => {
-  it("reports a hand-built card surface in a file without a baseline", () => {
+  it("reports a hand-built card surface anywhere outside the kit", () => {
     const result = lintSource(
       `
       function Probe() {
