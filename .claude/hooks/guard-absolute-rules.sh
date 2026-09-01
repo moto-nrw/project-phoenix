@@ -14,9 +14,21 @@
 # on stdout plus exit code 2 with the reason on stderr (Claude Code honors
 # the JSON, Codex the exit code). Anything it cannot parse passes through.
 #
+# Script execution: a file may be executed (bare, ./, bash/sh/zsh, source)
+# only when it resolves inside this repository (worktrees included) and git
+# tracks it - to get a script tracked it must pass lefthook, CI and review.
+# Untracked or out-of-repo scripts, `bash -c` wrappers and `eval` stay
+# blocked because their payload cannot be inspected here. Accepted residual
+# risk, on purpose: an agent may edit a tracked script and run it before
+# committing; refusing dirty scripts would block the legitimate
+# edit-then-test loop, so lefthook/CI/review remain the backstop for what
+# lands. The four rule regexes below still scan the whole command string
+# regardless of how a command is invoked.
+#
 # Note: Codex intercepts only the shell tool in PreToolUse, so the Edit/Write
 # halves of rules 2 and 3 guard the Claude side only; lefthook stays the
-# backstop there.
+# backstop there. The tracked-script check resolves paths against the
+# payload's cwd (Claude); Codex payloads without cwd fall back to $PWD.
 #
 # Kept bash-3.2 compatible (macOS /bin/bash).
 
@@ -47,18 +59,99 @@ case "$tool" in
         # wrapped clients (python/node/bash -c) without maintaining a
         # bypassable list of network binaries.
         cmd_lower=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
-        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])((/[^[:space:]]*/)?(bash|sh|zsh)[[:space:]]+(-[^[:space:]]+[[:space:]]+)?[^-[:space:]][^[:space:]]*\.sh|\./[^[:space:]]+\.sh)([[:space:]]|$)'; then
-            deny "Blocked: script execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
+
+        # Script execution: only git-tracked files inside this repository may
+        # be run. Segments are processed left to right; `cd` segments move
+        # the resolution cwd so `cd backend && ../scripts/x.sh` resolves
+        # correctly. Any resolution failure blocks (fail closed).
+        curdir=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null) || curdir=""
+        [[ -n "$curdir" && -d "$curdir" ]] || curdir=$PWD
+        root=$(git -C "$curdir" rev-parse --show-toplevel 2>/dev/null) || root=${CLAUDE_PROJECT_DIR:-}
+        if [[ -n "$root" ]]; then
+            root=$(cd -P "$root" 2>/dev/null && pwd) || root=""
         fi
-        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(python([0-9.]*)?|node)[[:space:]]+'; then
-            deny "Blocked: interpreter execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
-        fi
-        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;])[[:space:]]*(eval|source|\.)[[:space:]]'; then
-            deny "Blocked: dynamic shell execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
-        fi
-        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(bash|sh)[[:space:]]+-c([[:space:]]|$)'; then
-            deny "Blocked: shell wrappers cannot be safely inspected by the absolute-rule guard. Run the command directly."
-        fi
+
+        # vet_script TOKEN: true iff TOKEN resolves to a git-tracked file
+        # inside $root. cd -P normalizes .., . and symlinks without realpath.
+        vet_script() {
+            local tok=$1 dir base abs rel
+            [[ -n "$root" ]] || return 1
+            case "$tok" in
+                */*) dir=${tok%/*} base=${tok##*/} ;;
+                *) dir=. base=$tok ;;
+            esac
+            abs=$(cd -P "$curdir" 2>/dev/null && cd -P "$dir" 2>/dev/null && printf '%s/%s' "$PWD" "$base") || return 1
+            case "$abs" in
+                "$root"/*) rel=${abs#"$root"/} ;;
+                *) return 1 ;;
+            esac
+            [[ -f "$abs" ]] || return 1
+            git -C "$root" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1
+        }
+
+        deny_untracked() {
+            deny "Blocked: only git-tracked scripts inside this repository may be executed (got: $1)."
+        }
+
+        set -f # word-split segments without globbing
+        while IFS= read -r segment; do
+            # shellcheck disable=SC2086
+            set -- $segment
+            [[ $# -gt 0 ]] || continue
+            # skip FOO=1 env-assignment prefixes
+            while [[ ${1:-} == *=* && ${1%%=*} != */* ]]; do
+                shift || break
+            done
+            [[ $# -gt 0 ]] || continue
+            first=${1:-}
+            first=${first//\"/}
+            first=${first//\'/}
+            case "${first##*/}" in
+                cd)
+                    # keep resolution honest for `cd backend && ../scripts/x.sh`
+                    next=${2:-.}
+                    next=${next//\"/}
+                    next=${next//\'/}
+                    if moved=$(cd -P "$curdir" 2>/dev/null && cd -P "$next" 2>/dev/null && pwd); then
+                        curdir=$moved
+                    fi
+                    continue
+                    ;;
+                eval)
+                    deny "Blocked: eval builds its command at runtime and cannot be inspected by the absolute-rule guard. Write the command out directly."
+                    ;;
+                bash | sh | zsh | source | .)
+                    shift
+                    while [[ ${1:-} == -* ]]; do
+                        case "$1" in
+                            -*c*) deny "Blocked: inline shell payloads (-c) cannot be inspected by the absolute-rule guard. Write the command out directly." ;;
+                        esac
+                        shift || break
+                    done
+                    [[ $# -gt 0 ]] || continue
+                    tok=${1//\"/}
+                    tok=${tok//\'/}
+                    vet_script "$tok" || deny_untracked "$tok"
+                    ;;
+                *.sh)
+                    vet_script "$first" || deny_untracked "$first"
+                    ;;
+                *)
+                    continue
+                    ;;
+            esac
+            # a vetted wrapper (run-go-toolchain.sh) may only pass vetted scripts on
+            for tok in "$@"; do
+                tok=${tok//\"/}
+                tok=${tok//\'/}
+                case "$tok" in
+                    *.sh) vet_script "$tok" || deny_untracked "$tok" ;;
+                esac
+            done
+        done <<EOF
+$(printf '%s' "$cmd" | tr ';|&' '\n')
+EOF
+        set +f
         if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(curl|wget|xh|httpie|https?|nc|ncat|wscat|fetch)([[:space:]]|$)' &&
             printf '%s' "$cmd" | grep -Eq '\$[({[:alpha:]_]|<\(|`'; then
             deny "Blocked: network commands with shell expansion may construct a production hostname. Use localhost; only a human may target production."

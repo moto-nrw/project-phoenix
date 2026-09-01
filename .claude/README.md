@@ -15,8 +15,12 @@ Shared [Claude Code](https://claude.ai/code) configuration for this repo. Everyt
 │   ├── check-env-files.sh      #   env file security check on session start
 │   ├── guard-absolute-rules.sh #   PreToolUse guard: blocks moto-app.de/moto.nrw
 │   │                           #   requests, hand-edits of *.sops.env, DISABLE
-│   │                           #   ROW LEVEL SECURITY in migrations, and
-│   │                           #   git commit --no-verify
+│   │                           #   ROW LEVEL SECURITY in migrations, git commit
+│   │                           #   --no-verify, and script execution outside the
+│   │                           #   repo: only git-tracked scripts under this repo
+│   │                           #   may run; bash -c and eval stay blocked
+│   ├── guard-absolute-rules_test.sh # hermetic allow/deny table for the guard
+│   │                           #   (also run in CI next to the selector test)
 │   ├── skill-reminder.sh       #   nudges active skill usage, area-aware
 │   └── subagent-reminder.sh
 │                               # (the Stop hooks live outside:
@@ -35,7 +39,9 @@ Codex mirrors all of this: `.codex/hooks.json` wires the same scripts (every
 `.codex/hooks/*.sh` is a symlink into `.claude/hooks/`). One known gap: Codex
 intercepts only the shell tool in PreToolUse, so the Edit/Write halves of
 `guard-absolute-rules.sh` (sops files, RLS in migrations) fire on the Claude
-side only; lefthook remains the backstop there.
+side only; lefthook remains the backstop there. The guard's tracked-script
+check resolves paths against the payload's `cwd` (Claude); Codex payloads
+without a `cwd` fall back to the hook process's working directory.
 
 ## Skills are area-scoped
 

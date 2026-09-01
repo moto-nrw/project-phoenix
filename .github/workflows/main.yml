@@ -114,6 +114,8 @@ jobs:
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/test-backend.sh'
               - 'scripts/test-changed.sh'
+              - '.claude/hooks/guard-absolute-rules.sh'
+              - '.claude/hooks/guard-absolute-rules_test.sh'
             frontend-test-infra:
               - 'frontend/package.json'
               - 'frontend/pnpm-lock.yaml'
