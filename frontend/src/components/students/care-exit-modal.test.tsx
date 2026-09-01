@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModalProvider } from "~/components/dashboard/modal-context";
 import type { CareExitImpact, CareExitPreview } from "~/lib/care-exit-api";
@@ -103,6 +103,8 @@ function pickReason(label: string) {
 
 describe("CareExitModal", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-08-30T12:00:00+02:00"));
     vi.clearAllMocks();
     mockPreview.mockResolvedValue(preview());
     mockConfirm.mockResolvedValue({
@@ -118,6 +120,10 @@ describe("CareExitModal", () => {
       rosterRowsRemoved: 0,
       bookingsEnded: 0,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("says that the last care day still counts", () => {
