@@ -42,6 +42,44 @@ afterEach(() => {
   }
 });
 
+describe("ui-kit/no-hand-rolled-surface", () => {
+  it("reports a hand-built card surface outside the baseline", () => {
+    const result = lintSource(
+      `
+      function Probe() {
+        return <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm" />;
+      }
+      void Probe;
+    `,
+      "src/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-hand-rolled-surface\)/g)).toHaveLength(1);
+  });
+
+  it("accepts moto-content-surface and non-card shapes", () => {
+    const result = lintSource(
+      `
+      function Probe() {
+        return <>
+          <div className="moto-content-surface rounded-2xl border p-4 shadow-sm" />
+          <button className="rounded-lg border border-gray-300 bg-white px-4 py-2" />
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4" />
+        </>;
+      }
+      void Probe;
+    `,
+      "src/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status, output).toBe(0);
+    expect(output).not.toContain("no-hand-rolled-surface");
+  });
+});
+
 describe("ui-kit/require-checkbox-label", () => {
   it("reports sibling labels and aria-label-only checkboxes", () => {
     const result = lintSource(`

@@ -22,6 +22,7 @@
     "logging-safety/no-serialized-context": "error",
     "ui-kit/no-generic-brand-colors": "error",
     "ui-kit/no-hand-rolled-overlay": "error",
+    "ui-kit/no-hand-rolled-surface": "error",
     "ui-kit/require-checkbox-label": "error",
     "ui-kit/no-rounded-3xl": "error",
     "react/react-in-jsx-scope": "off",
