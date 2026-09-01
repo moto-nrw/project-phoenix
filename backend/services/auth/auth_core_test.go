@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -682,9 +682,9 @@ func TestAuthService_Logout(t *testing.T) {
 
 		staffEndpoint := fmt.Sprintf("https://fcm.googleapis.com/logout-staff-%d", account.ID)
 		for _, tenantID := range []int64{tenant.FromContext(ctx), secondaryTenantID} {
-			subscription := &iotModels.PushSubscription{
+			subscription := &deliveryModels.PushSubscription{
 				AccountID: account.ID,
-				Portal:    iotModels.PushPortalStaff,
+				Portal:    deliveryModels.PushPortalStaff,
 				Endpoint:  staffEndpoint,
 				P256dh:    "p256dh-key",
 				Auth:      "auth-key",
@@ -708,10 +708,10 @@ func TestAuthService_Logout(t *testing.T) {
 		require.Error(t, err)
 
 		staffCount, err := db.NewSelect().
-			Model((*iotModels.PushSubscription)(nil)).
+			Model((*deliveryModels.PushSubscription)(nil)).
 			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
 			Where("account_id = ?", account.ID).
-			Where("portal = ?", iotModels.PushPortalStaff).
+			Where("portal = ?", deliveryModels.PushPortalStaff).
 			Count(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 1, staffCount, "logout clears unbound staff push at the session school only")

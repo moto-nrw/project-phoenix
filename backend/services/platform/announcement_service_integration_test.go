@@ -27,17 +27,22 @@ func setupAnnouncementService(t *testing.T) (platformSvc.AnnouncementService, *b
 	announcementRepo := reposPlatform.NewAnnouncementRepository(db)
 	viewRepo := reposPlatform.NewAnnouncementViewRepository(db)
 	auditLogRepo := reposPlatform.NewOperatorAuditLogRepository(db)
-	orgRepo := reposPlatform.NewOrganizationRepository(db)
 	schoolRepo := reposPlatform.NewSchoolRepository(db)
 
 	svc := platformSvc.NewAnnouncementService(platformSvc.AnnouncementServiceConfig{
 		AnnouncementRepo:     announcementRepo,
 		AnnouncementViewRepo: viewRepo,
 		AuditLogRepo:         auditLogRepo,
-		OrgRepo:              orgRepo,
-		SchoolRepo:           schoolRepo,
-		DB:                   db,
-		Logger:               slog.Default(),
+		Organizations: &mockOrgRepoShared{countByIDsFn: func(ctx context.Context, ids []int64) (int, error) {
+			return db.NewSelect().Model((*platform.Organization)(nil)).
+				ModelTableExpr(`platform.organizations AS "organization"`).
+				Where(`"organization".id IN (?)`, bun.List(ids)).
+				Where(`"organization".deleted_at IS NULL`).
+				Count(ctx)
+		}},
+		SchoolRepo: schoolRepo,
+		DB:         db,
+		Logger:     slog.Default(),
 	})
 
 	return svc, db

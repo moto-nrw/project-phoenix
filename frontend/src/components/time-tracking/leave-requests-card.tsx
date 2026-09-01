@@ -308,7 +308,7 @@ export function LeaveRequestsCard() {
         confirmText="Stornieren"
         cancelText="Behalten"
         isConfirmLoading={cancelSubmitting}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+        confirmVariant="danger"
       >
         {cancelTarget && (
           <div className="space-y-2 text-sm text-gray-700">

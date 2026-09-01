@@ -27,6 +27,12 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -51,13 +57,11 @@ import (
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
 	"github.com/moto-nrw/project-phoenix/services/platform"
-	"github.com/moto-nrw/project-phoenix/services/pwa"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
@@ -230,13 +234,12 @@ type Factory struct {
 	OperatorPasskey         platform.OperatorPasskeyService
 	UnregisteredTagScans    auditService.UnregisteredTagScanService
 
-	// Email outbox (parent-enrollment PR 5) - shared across features.
-	// EmailOutbox enqueues from feature code; EmailOutboxWorker drains
-	// the table on a scheduler tick; EmailTemplateRegistry holds the
-	// kind→Renderer mapping populated at startup.
+	// Delivery owns the leased email and push outboxes. EmailOutbox keeps the
+	// legacy producer API while EmailOutboxWorker drains both transports.
 	EmailOutbox           *platform.OutboxService
-	EmailOutboxWorker     *platform.OutboxWorker
+	EmailOutboxWorker     *deliveryModule.Worker
 	EmailTemplateRegistry *platform.TemplateRegistry
+	Delivery              *deliveryModule.Module
 
 	// Display domain (info-point dashboards, issue #1325)
 	Display display.Service
@@ -381,6 +384,7 @@ func currentFactoryConfig() FactoryConfig {
 type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)
 
 type DeliveryObserver func(transport, template, caller string, duration time.Duration, err error)
+type DurableDeliveryObserver func(transport, template, operation string, duration time.Duration, count int, err error)
 
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
 	if store == nil || logger == nil || observe == nil {
@@ -411,18 +415,20 @@ func NewFactoryWithModules(
 	repos *repositories.Factory,
 	db *bun.DB,
 	logger *slog.Logger,
+	organizations organizationtenancy.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
+	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil {
-		return nil, errors.New("meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -430,12 +436,14 @@ func newFactory(
 	db *bun.DB,
 	logger *slog.Logger,
 	cfg FactoryConfig,
+	organizations organizationtenancy.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
+	observeDurableDelivery DurableDeliveryObserver,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -561,7 +569,7 @@ func newFactory(
 	passwordResetTokenExpiry := time.Duration(passwordResetExpiryMinutes) * time.Minute
 
 	// Create realtime hub for SSE broadcasting (single shared instance)
-	realtimeHub := realtime.NewHub(logger.With("component", "sse-hub"))
+	realtimeHub := deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
 
 	// Product analytics (PostHog) — no-op when POSTHOG_API_KEY is unset
 	tracker, err := analytics.New(
@@ -1558,19 +1566,37 @@ func newFactory(
 		Logger:            authLogger,
 	})
 
-	// Email outbox (parent-enrollment PR 5). Declared here so the
-	// guardian invitation service can wire OutboxEnqueuer below.
+	// Delivery composition is declared here so legacy email producers and the
+	// guardian invitation service share the same durable capability.
 	emailTemplateRegistry := platform.NewTemplateRegistry()
-	emailOutboxService := platform.NewOutboxService(repos.EmailOutbox)
-	emailOutboxWorker := platform.NewOutboxWorker(platform.OutboxWorkerConfig{
-		Repo:        repos.EmailOutbox,
-		Registry:    emailTemplateRegistry,
-		Mailer:      mailer,
-		MaxAttempts: 6, // pushed by scheduler from settings each tick
-		Logger:      logger.With("service", "outbox"),
-		DB:          db,
+	vapidConfig := notifications.VAPIDConfig{
+		PublicKey: strings.TrimSpace(cfg.VAPIDPublicKey), PrivateKey: strings.TrimSpace(cfg.VAPIDPrivateKey),
+		Subscriber: strings.TrimSpace(cfg.VAPIDSubscriber),
+	}
+	if err := vapidConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)
+	}
+	deliveryRuntime, err := deliveryCompose.New(deliveryCompose.Dependencies{
+		DB:     db,
+		People: guardianDisplayResolver{query: guardianService},
+		Provider: &deliveryProvider{
+			registry: emailTemplateRegistry, mailer: mailer, mailIdentity: tenantMailIdentity,
+			push: deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{
+				Subscriber: vapidConfig.Subscriber, PublicKey: vapidConfig.PublicKey, PrivateKey: vapidConfig.PrivateKey,
+			}, newExpiredPushSubscriptionCleaner(db, repos.PushSubscription)),
+			logger: logger.With("service", "delivery"), db: db,
+			pushAuthorized: newPushAuthorizationChecker(db, repos.PushSubscription),
+		},
+		Observe: func(observation deliveryModule.Observation) {
+			observeDurableDelivery(string(observation.Transport), observation.Template, observation.Operation, observation.Duration, observation.Count, observation.Err)
+		},
 	})
-	emailOutboxWorker.SetMailIdentityResolver(tenantMailIdentity)
+	if err != nil {
+		return nil, fmt.Errorf("initialize delivery module: %w", err)
+	}
+	emailOutboxWorker := deliveryRuntime.Worker
+	emailOutboxWorker.SetMaxAttempts(6)
+	emailOutboxService := platform.NewOutboxService(durableEmailAdapter{module: deliveryRuntime.Module})
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo:       repos.GuardianInvitation,
@@ -1779,6 +1805,7 @@ func newFactory(
 	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
 		repos.UnregisteredTagScan,
 		auditCommand,
+		organizations,
 		auditService.UnregisteredTagScanRuntime{
 			TenantID: tenant.FromContext,
 			WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error {
@@ -1955,7 +1982,7 @@ func newFactory(
 		AnnouncementRepo:     repos.Announcement,
 		AnnouncementViewRepo: repos.AnnouncementView,
 		AuditLogRepo:         repos.OperatorAuditLog,
-		OrgRepo:              repos.Organization,
+		Organizations:        organizations,
 		SchoolRepo:           repos.School,
 		DB:                   db,
 		Logger:               platformLogger,
@@ -1984,12 +2011,19 @@ func newFactory(
 		repos.EnrollmentDeletionAudit,
 		db,
 		logger.With("service", "enrollment-deletion"),
+		enrollmentDeliveryAdapter{module: deliveryRuntime.Module, tenantID: func(ctx context.Context) (int64, error) {
+			id, err := tenant.TenantFromContext(ctx)
+			return id.Int64(), err
+		}},
 	)
 	enrollmentRejectedCleanupService := enrollment.NewRejectedEnrollmentCleanupService(
 		repos.Request,
 		repos.RequestChild,
 		repos.LateInvite,
-		repos.EmailOutbox,
+		enrollmentDeliveryAdapter{module: deliveryRuntime.Module, tenantID: func(ctx context.Context) (int64, error) {
+			id, err := tenant.TenantFromContext(ctx)
+			return id.Int64(), err
+		}},
 		settingsService,
 		db,
 		logger.With("service", "enrollment-rejected-cleanup"),
@@ -2429,14 +2463,6 @@ func newFactory(
 	// The notification router and the consent service are built here, ahead of
 	// their consumers: messaging, the calendar (#1671) and the announcement
 	// producer all need them, and messaging is constructed first.
-	vapidConfig := notifications.VAPIDConfig{
-		PublicKey:  strings.TrimSpace(cfg.VAPIDPublicKey),
-		PrivateKey: strings.TrimSpace(cfg.VAPIDPrivateKey),
-		Subscriber: strings.TrimSpace(cfg.VAPIDSubscriber),
-	}
-	if err := vapidConfig.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)
-	}
 	if !vapidConfig.Configured() {
 		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
 	}
@@ -2446,7 +2472,10 @@ func newFactory(
 		notifications.DeliveryObserver(observeDelivery),
 		notifications.NewSSEChannel(realtimeHub, notifications.WithGuardianChildAccess(
 			db, repos.StudentGuardian, logger.With("channel", "sse"))),
-		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
+		notifications.NewDurableWebPushChannel(
+			db, repos.PushSubscription, vapidConfig,
+			durablePushAdapter{module: deliveryRuntime.Module}, logger.With("channel", "web_push"),
+		),
 	)
 	notificationPreferencesService := notifications.NewPreferenceService(
 		repos.NotificationPreference,
@@ -2533,6 +2562,7 @@ func newFactory(
 		UserContext:            userContextService,
 		DB:                     db,
 		Outbox:                 emailOutboxService,
+		PushOutbox:             durablePushAdapter{module: deliveryRuntime.Module},
 		SchoolRepo:             repos.School,
 		Settings:               settingsService,
 		AccountRepo:            repos.Account,
@@ -2601,7 +2631,7 @@ func newFactory(
 		Outbox:      emailOutboxService,
 		Notifier:    notificationsService,
 		Preferences: notificationPreferencesService,
-		Deliveries:  repos.EmailDelivery,
+		Deliveries:  announcementDeliveryAdapter{module: deliveryRuntime.Module},
 		ParentsURL:  parentsURL,
 		Logger:      logger.With("service", "announcement"),
 	})
@@ -2629,7 +2659,7 @@ func newFactory(
 	parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
-		OrganizationRepo:      repos.Organization,
+		Organizations:         organizations,
 		SchoolRepo:            repos.School,
 		SummariesRepo:         repos.OperatorSummaries,
 		CategoryRepo:          repos.ActivityCategory,
@@ -2757,7 +2787,7 @@ func newFactory(
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
 	workTimeModelService.SetChangeNotifier(func(ctx context.Context) {
-		realtime.QueueStaffTimeTrackingChanged(ctx, realtimeHub, nil)
+		realtimeevents.QueueStaffTimeTrackingChanged(ctx, realtimeHub, nil)
 	})
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,
@@ -3035,6 +3065,7 @@ func newFactory(
 		EmailOutbox:           emailOutboxService,
 		EmailOutboxWorker:     emailOutboxWorker,
 		EmailTemplateRegistry: emailTemplateRegistry,
+		Delivery:              deliveryRuntime.Module,
 
 		EnrollmentFormSchema:      enrollmentFormSchemaService,
 		EnrollmentCareOffering:    enrollmentCareOfferingService,

@@ -31,7 +31,7 @@ func TestUnregisteredTagScanRepository_FindByID(t *testing.T) {
 	require.Equal(t, scan.TenantID, found.SchoolID)
 	require.NotEmpty(t, found.SchoolName)
 	require.NotZero(t, found.OrganizationID)
-	require.NotEmpty(t, found.OrganizationName)
+	require.Empty(t, found.OrganizationName, "organization names are resolved by the owner capability in the service")
 	require.NotNil(t, found.DeviceIdentifier)
 	require.Equal(t, device.DeviceID, *found.DeviceIdentifier)
 	require.NotNil(t, found.DeviceName)
