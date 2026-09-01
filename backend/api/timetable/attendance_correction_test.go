@@ -86,7 +86,7 @@ func correctionPath(s *patchSetup) string {
 
 func loadTrail(t *testing.T, s *patchSetup) []*auditModel.AttendanceCorrection {
 	t.Helper()
-	rows, err := auditRepo.NewAttendanceCorrectionRepository(testpkg.SetupTestDB(t)).
+	rows, err := auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(testpkg.SetupTestDB(t), auditModel.TenantIDFromContext)).
 		ListByInstanceAndStudent(s.ctx, s.instanceID, s.studentID)
 	require.NoError(t, err)
 	return rows

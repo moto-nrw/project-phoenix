@@ -122,7 +122,7 @@ func (s *TimetableDataService) getLogger() *slog.Logger {
 // optionally narrowed to one slot (#1886). Raw IDs — display names resolve in
 // the read path (handler), never in storage.
 func (s *TimetableDataService) ListDeviationEvents(ctx context.Context, from, to timezone.Date, activityGroupID *int64, startTime *string) ([]*auditModel.DeviationEvent, error) {
-	return s.deps.DeviationEventRepo.ListByRange(ctx, from, to, activityGroupID, startTime)
+	return s.deps.DeviationEventRepo.ListByRange(ctx, auditModel.Date(from), auditModel.Date(to), activityGroupID, startTime)
 }
 
 func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStudent, error) {

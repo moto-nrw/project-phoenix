@@ -1179,7 +1179,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Freizeitausgleich eintragen` im Reiter `Abwesenheiten` einen ganzen freien Zeitraum oder einen halben einzelnen Tag direkt für die Person erfassen. Das Stundenkonto sinkt um die ausfallende Sollzeit. Bei einem halben Tag muss die gearbeitete Hälfte als Arbeitszeit erfasst sein; nicht erfasste Zeit bleibt als Minus bestehen. Mitarbeitende können diesen Eintrag nur ansehen, nicht selbst anlegen, ändern oder löschen.",
           "Vor dem Speichern zeigt das Fenster den aktuellen Stand des Stundenkontos, den Abzug für den Eintrag und den Stand danach. Bereits geplanter Freizeitausgleich ist eingerechnet. Fällt das Konto unter null, warnt moto und fragt nach einer Bestätigung per Häkchen. Nach Absprache mit dem Träger ist die Buchung trotzdem möglich, das Konto darf ins Minus laufen.",
           'Eigene Bezeichnungen für Abwesenheiten legt die Leitung direkt im Feld `Art der Abwesenheit` an: den gewünschten Namen eintippen und `„…" hinzufügen` wählen. Die Bezeichnung ist danach sofort ausgewählt und steht für alle weiteren Abwesenheiten dieser Einrichtung zur Verfügung. Über die Symbole neben einem eigenen Eintrag lässt er sich umbenennen oder deaktivieren; bereits eingetragene Abwesenheiten behalten ihre Bezeichnung. Die vier Standardarten (`Urlaub`, `Krank`, `Fortbildung`, `Sonstige`) sowie `Freizeitausgleich` sind fest vorgegeben und lassen sich nicht ändern.',
-          "Eine eigene Bezeichnung ist eine benannte Unterart von `Sonstige` und wird genauso berechnet: Sie verändert weder den Urlaubsanspruch noch die Sollzeit oder das Stundenkonto. Für Urlaubstage bleibt also `Urlaub` die richtige Wahl.",
+          "Eine eigene Abwesenheitsart wird wie `Sonstige` berechnet. Sie kann ein eigenes Jahreskontingent haben. Den Anspruch ändern Sie im Mitarbeiterprofil.",
           "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert reguläre Schichten und markiert Betreuungsblöcke als abwesend. Bereits eingetragene Vertretungsschichten bleiben bestehen und müssen manuell geprüft werden. Ein halber Krankheitstag gilt immer für ein einzelnes Datum und ändert Dienst- und Betreuungsplan nicht automatisch. Beim Löschen der Krankmeldung werden nur Schichten und Blöcke ohne eingetragenen Ersatz automatisch wiederhergestellt.",
         ],
         callout: {
@@ -1190,6 +1190,27 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Mitarbeiterprofil mit Tabs für Übersicht, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten.",
         printCompact: true,
+      },
+      {
+        id: "mitarbeiter-vorschau",
+        title: "Ansicht eines Mitarbeitenden",
+        icon: Eye,
+        summary:
+          "Zeigt Admins moto so, wie eine bestimmte Person Ihrer Schule es sieht — mit deren Menü, Seiten und Daten. In der Vorschau ist nur Lesen möglich.",
+        steps: [
+          "Oben rechts auf Ihr Profil tippen und `Ansicht eines Mitarbeitenden` wählen.",
+          "Die Person auswählen und `Vorschau starten` tippen.",
+          "moto zeigt jetzt die Ansicht dieser Person. Ein orangefarbener Streifen oben nennt die Person und bleibt auf jeder Seite sichtbar.",
+          "In der Vorschau können Sie nichts ändern, anlegen oder löschen. Seiten, die die Person nicht sieht, sehen auch Sie in der Vorschau nicht.",
+          "Über `Vorschau beenden` im Streifen kehren Sie zu Ihrer eigenen Ansicht zurück. Auch ein Schulwechsel oder das Abmelden beendet die Vorschau.",
+        ],
+        callout: {
+          title: "Wofür die Vorschau gedacht ist",
+          body: "Wenn eine Betreuungskraft anruft und etwas nicht findet: Vorschau starten und dieselbe Seite ansehen. So sehen Sie sofort, was die Person sieht, und können am Telefon helfen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Vorschau-Modus mit orangefarbenem Hinweisstreifen oben, der die gewählte Person nennt und die Schaltfläche Vorschau beenden trägt.",
       },
       {
         id: "eroeffnungssalden-import",

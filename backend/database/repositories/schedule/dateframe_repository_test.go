@@ -93,7 +93,6 @@ func TestDateframeRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		found, err := repo.FindByID(ctx, dateframe.ID)
 		require.NoError(t, err)
@@ -126,7 +125,6 @@ func TestDateframeRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		dateframe.Name = "Updated Name"
 		dateframe.Description = "Updated Description"
@@ -197,7 +195,6 @@ func TestDateframeRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		dateframes, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -231,7 +228,6 @@ func TestDateframeRepository_FindByName(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		found, err := repo.FindByName(ctx, uniqueName)
 		require.NoError(t, err)
@@ -250,7 +246,6 @@ func TestDateframeRepository_FindByName(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		found, err := repo.FindByName(ctx, "casesensitive test")
 		require.NoError(t, err)
@@ -282,7 +277,6 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Check a date in the middle
 		checkDate := time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC)
@@ -310,7 +304,6 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Check start date
 		dateframes, err := repo.FindByDate(ctx, startDate)
@@ -334,7 +327,6 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Check a date way outside the range
 		checkDate := time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)
@@ -371,7 +363,6 @@ func TestDateframeRepository_FindOverlapping(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Search for range that overlaps
 		searchStart := time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC)
@@ -401,7 +392,6 @@ func TestDateframeRepository_FindOverlapping(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Search overlaps with end of dateframe
 		searchStart := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -431,7 +421,6 @@ func TestDateframeRepository_FindOverlapping(t *testing.T) {
 		}
 		err := repo.Create(ctx, dateframe)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.dateframes", dateframe.ID)
 
 		// Search for completely different time range
 		searchStart := time.Date(2024, 10, 1, 0, 0, 0, 0, time.UTC)

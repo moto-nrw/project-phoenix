@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Sources of an offering adjustment. A direct correction is the office
@@ -25,7 +23,7 @@ const (
 // child's care-offering selection. Rows are append-only.
 type EnrollmentOfferingAdjustment struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	RequestID                   int64           `bun:"request_id,notnull" json:"request_id"`
 	RequestChildID              int64           `bun:"request_child_id,notnull" json:"request_child_id"`
 	StudentID                   int64           `bun:"student_id,notnull" json:"student_id"`
@@ -43,10 +41,17 @@ type EnrollmentOfferingAdjustment struct {
 
 type EnrollmentOfferingAdjustmentRepository interface {
 	Create(ctx context.Context, entry *EnrollmentOfferingAdjustment) error
+	CountForDeletion(ctx context.Context, requestID int64, requestChildID *int64) (int, error)
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*EnrollmentOfferingAdjustment, error)
 	// ListDirectForTenant returns the tenant's direct corrections, newest
 	// change first, keyset paginated on (changed_at, id). A zero BeforeInstant
 	// starts at the top; Limit is taken literally, so callers probing for a next
 	// page ask for limit+1.
-	ListDirectForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*EnrollmentOfferingAdjustment, error)
+	ListDirectForTenant(ctx context.Context, filters DirectAdjustmentFilter) ([]*EnrollmentOfferingAdjustment, error)
+}
+
+type DirectAdjustmentFilter struct {
+	BeforeInstant time.Time
+	BeforeID      int64
+	Limit         int
 }

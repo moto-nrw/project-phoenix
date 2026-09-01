@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // PersonnelNumberChange is an append-only audit row for a change to a staff
@@ -15,9 +12,8 @@ import (
 // in the same tenant transaction as the update — no change without a trace,
 // same contract as audit.time_tracking_deletions.
 type PersonnelNumberChange struct {
-	bun.BaseModel `bun:"schema:audit,table:personnel_number_changes"`
-	ID            int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	ID int64 `bun:"id,pk,autoincrement" json:"id"`
+	TenantModel
 	StaffID    int64     `bun:"staff_id,notnull" json:"staff_id"`
 	ChangedBy  int64     `bun:"changed_by,notnull" json:"changed_by"`
 	OldValue   string    `bun:"old_value,notnull" json:"old_value"`

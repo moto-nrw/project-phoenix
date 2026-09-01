@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -34,14 +33,6 @@ import (
 const (
 	whereIDEquals                 = "id = ?"
 	whereIDIn                     = "id IN (?)"
-	whereIDOrAccountID            = "id = ? OR account_id = ?"
-	whereAccountIDIn              = "account_id IN (?)"
-	whereTenantIDIn               = "tenant_id IN (?)"
-	tableUsersTeachers            = "users.teachers"
-	tableUsersStaff               = "users.staff"
-	tableUsersPersons             = "users.persons"
-	tableActiveVisits             = "active.visits"
-	tableUsersRFIDCards           = "users.rfid_cards"
 	tableEducationGradeTransition = "education.grade_transitions"
 	testEmailFormat               = "%s-%d@test.local"
 )
@@ -67,71 +58,72 @@ func uniqueFixtureSuffix() int64 {
 // the collision surfaces on whatever unique index the name happens to hit.
 func UniqueSuffix() int64 { return uniqueFixtureSuffix() }
 
-// cleanupDelete executes a delete query and logs any errors.
-// This provides visibility into cleanup failures without causing test failures.
-func cleanupDelete(tb testing.TB, query *bun.DeleteQuery, table string) {
-	_, err := query.Exec(context.Background())
-	if err != nil {
-		tb.Logf("cleanup %s: %v", table, err)
+// InsertAuditTestWorkSession keeps Audit adapter tests on the neutral fixture
+// boundary instead of importing the Bun ORM directly.
+func InsertAuditTestWorkSession(ctx context.Context, db *bun.DB, session any) error {
+	fixture, ok := session.(interface{ PrepareAuditWorkSession(int64) })
+	if !ok {
+		return fmt.Errorf("audit work-session fixture preparation is required")
 	}
+	fixture.PrepareAuditWorkSession(audit.TenantIDFromContext(ctx))
+	_, err := db.NewInsert().Model(session).ModelTableExpr(`active.work_sessions AS "work_session"`).Exec(ctx)
+	return err
 }
 
-func withCleanupTenant(query *bun.DeleteQuery, tenantID int64) *bun.DeleteQuery {
-	if tenantID <= 0 {
-		return query
-	}
-	return query.Where("tenant_id = ?", tenantID)
-}
-
-func deleteStaffCaregiverBindings(
-	tb testing.TB,
-	db *bun.DB,
-	staffID int64,
-	teacherID int64,
-	tenantID int64,
-) {
+// CreateAuditAdjustmentChain creates only the foreign-key chain required by
+// enrollment-offering audit rows and returns phase, request, and child IDs.
+func CreateAuditAdjustmentChain(tb testing.TB, db *bun.DB) (int64, int64, int64) {
 	tb.Helper()
+	phaseID := CreateTestEnrollmentPhase(tb, db).ID
+	tenantID := fixtureTenantID(tb)
+	ctx := TenantContext(tenantID)
+	var requestID int64
+	err := db.NewRaw(`
+		INSERT INTO enrollment.requests (
+			tenant_id, phase_id, guardian_first_name, guardian_last_name,
+			guardian_email, consent_flags, legal_blocks_snapshot, custom_data,
+			source_metadata, status_token, submitted_at
+		) VALUES (?, ?, 'Anna', 'Audit', ?, '{}'::jsonb, '[]'::jsonb,
+			'{}'::jsonb, '{}'::jsonb, ?, NOW())
+		RETURNING id
+	`, tenantID, phaseID,
+		fmt.Sprintf("audit-adjustment-%d@example.test", uniqueFixtureSuffix()),
+		fmt.Sprintf("audit-adjustment-%d", uniqueFixtureSuffix()),
+	).Scan(ctx, &requestID)
+	require.NoError(tb, err)
+	childID := CreateAuditAdjustmentChild(tb, db, requestID)
+	return phaseID, requestID, childID
+}
 
-	if staffID <= 0 {
-		return
-	}
+func CreateAuditAdjustmentChild(tb testing.TB, db *bun.DB, requestID int64) int64 {
+	tb.Helper()
+	tenantID := fixtureTenantID(tb)
+	ctx := TenantContext(tenantID)
+	var childID int64
+	err := db.NewRaw(`
+		INSERT INTO enrollment.request_children (
+			tenant_id, request_id, first_name, last_name, date_of_birth,
+			custom_data, status, activation_mode
+		) VALUES (?, ?, 'Lina', ?, DATE '2018-04-15', '{}'::jsonb, 'approved', 'scheduled')
+		RETURNING id
+	`, tenantID, requestID, fmt.Sprintf("Audit%d", uniqueFixtureSuffix())).Scan(ctx, &childID)
+	require.NoError(tb, err)
+	return childID
+}
 
-	cleanupDelete(tb, withCleanupTenant(db.NewDelete().
-		TableExpr("active.group_supervisors").
-		Where("staff_id = ?", staffID), tenantID),
-		"active.group_supervisors")
-
-	cleanupDelete(tb, withCleanupTenant(db.NewDelete().
-		TableExpr("activities.supervisors").
-		Where("staff_id = ?", staffID), tenantID),
-		"activities.supervisors")
-
-	cleanupDelete(tb, withCleanupTenant(db.NewDelete().
-		TableExpr("education.group_substitution").
-		Where("regular_staff_id = ? OR substitute_staff_id = ?", staffID, staffID), tenantID),
-		"education.group_substitution")
-
-	groupTeacherDelete := db.NewDelete().TableExpr("education.group_teacher")
-	if teacherID > 0 {
-		groupTeacherDelete = groupTeacherDelete.Where("teacher_id = ?", teacherID)
-	} else if tenantID > 0 {
-		groupTeacherDelete = groupTeacherDelete.Where(
-			"teacher_id IN (SELECT id FROM users.teachers WHERE staff_id = ? AND tenant_id = ?)",
-			staffID,
-			tenantID,
-		)
-	} else {
-		groupTeacherDelete = groupTeacherDelete.Where(
-			"teacher_id IN (SELECT id FROM users.teachers WHERE staff_id = ?)",
-			staffID,
-		)
-	}
-	cleanupDelete(tb, withCleanupTenant(groupTeacherDelete, tenantID), "education.group_teacher")
+func OrganizationIDForSchool(tb testing.TB, db *bun.DB, schoolID int64) int64 {
+	tb.Helper()
+	var organizationID int64
+	require.NoError(tb, db.NewRaw(
+		"SELECT organization_id FROM platform.schools WHERE id = ?", schoolID,
+	).Scan(context.Background(), &organizationID))
+	require.NotZero(tb, organizationID)
+	return organizationID
 }
 
 // Fixture helpers for hermetic testing. Each helper creates a real database record
 // with proper relationships and returns the created entity with its real ID.
-// Tests should call these to create test data, then defer cleanup.
+// The package clone owns their row lifecycle; tests do not delete them.
 
 // CreateTestActivityCategory creates a real activity category in the database
 func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activities.Category {
@@ -429,373 +421,6 @@ func CreateTestAttendanceForDate(tb testing.TB, db *bun.DB, studentID, staffID, 
 	return attendance
 }
 
-// CleanupActivityFixtures removes activity-related and education-related test fixtures from the database.
-// Pass activity group IDs, device IDs, room IDs, education group IDs, teacher IDs, or any combination.
-// This is typically called in a defer statement to ensure cleanup happens.
-//
-// Implicit tenant scope: deletes are confined to the default test tenant (id=1).
-// Tests that build fixtures in a different tenant must call
-// CleanupActivityFixturesForTenant instead.
-//
-// Example:
-//
-//	activity := CreateTestActivityGroup(t, db, "Test")
-//	device := CreateTestDevice(t, db, "dev-001")
-//	room := CreateTestRoom(t, db, "Room 1")
-//	defer CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
-func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
-	tb.Helper()
-	CleanupActivityFixturesForTenant(tb, db, fixtureTenantID(tb), ids...)
-}
-
-// CleanupActivityFixturesForTenant is the tenant-scoped variant of
-// CleanupActivityFixtures. Every DELETE is constrained to the supplied tenant_id,
-// so a test running in an isolated tenant cannot have its rows clobbered by a
-// concurrent test package whose call to CleanupActivityFixtures (tenant 1)
-// happens to pass an int64 that numerically matches one of this test's
-// auto-incremented fixture IDs.
-//
-// Use this together with the *ForTenant fixture builders when a test must run
-// in a non-default tenant for isolation reasons.
-func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64, ids ...int64) {
-	tb.Helper()
-
-	if len(ids) == 0 {
-		return
-	}
-
-	// Batch delete all fixtures matching the IDs.
-	// Each DELETE is paired with `tenant_id = ?` so cross-package raw-id
-	// collisions (e.g. tenant 1's staff_id == tenant 99001's active_group_id)
-	// cannot delete the wrong tenant's data.
-
-	for _, id := range ids {
-		// Try to delete from each table type
-		// Errors are logged but don't fail tests since we don't know which table each ID belongs to
-
-		// ========================================
-		// Education domain cleanup (FK-dependent order)
-		// ========================================
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("audit.substitution_changes").
-			Where("group_id = ? OR target_staff_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			"audit.substitution_changes")
-
-		// Delete from education.group_teacher (depends on group and teacher)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("education.group_teacher").
-			Where("group_id = ? OR teacher_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			"education.group_teacher")
-
-		// Delete from education.group_substitution (depends on group and staff)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("education.group_substitution").
-			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id).
-			Where("tenant_id = ?", tenantID),
-			"education.group_substitution")
-
-		// Delete from users.teachers (depends on staff)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersTeachers).
-			Where("id = ? OR staff_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			tableUsersTeachers)
-
-		// Delete from education.groups
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("education.groups").
-			Where(whereIDEquals, id).
-			Where("tenant_id = ?", tenantID),
-			"education.groups")
-
-		// ========================================
-		// Active domain cleanup
-		// ========================================
-
-		// Delete from active.visits by direct ID, by student_id, or by active_group_id
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableActiveVisits).
-			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id).
-			Where("tenant_id = ?", tenantID),
-			tableActiveVisits)
-
-		// Delete from active.visits (cascade cleanup via activities.groups reference)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableActiveVisits).
-			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ? AND tenant_id = ?)", id, tenantID).
-			Where("tenant_id = ?", tenantID),
-			"active.visits (cascade)")
-
-		// Delete from active.group_supervisors before active.groups or users.staff
-		// can cascade into it. Match only FK columns: matching the row's own
-		// PK against a generic entity ID can delete unrelated supervisor rows
-		// when auto-increment IDs collide across domains.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("active.group_supervisors").
-			Where("staff_id = ? OR group_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			"active.group_supervisors")
-
-		// Delete from active.groups by direct ID or by reference.
-		// room_id reference is required so facilities.rooms can be deleted
-		// without tripping fk_active_groups_room_tenant.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("active.groups").
-			Where("id = ? OR group_id = ? OR device_id = ? OR room_id = ?", id, id, id, id).
-			Where("tenant_id = ?", tenantID),
-			"active.groups")
-
-		// ========================================
-		// Activities domain cleanup
-		// ========================================
-
-		// Delete from activities.supervisors before activities.groups or
-		// users.staff can cascade into it.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("activities.supervisors").
-			Where("staff_id = ? OR group_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			"activities.supervisors")
-
-		// Delete from activities.student_enrollments (depends on activities.groups)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("activities.student_enrollments").
-			Where("activity_group_id = ?", id).
-			Where("tenant_id = ?", tenantID),
-			"activities.student_enrollments")
-
-		// Delete from activities.groups by ID, by category_id, or by created_by.
-		// created_by reference is required so users.staff can be deleted without
-		// tripping fk_activity_groups_created_by_tenant.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("activities.groups").
-			Where("id = ? OR category_id = ? OR created_by = ?", id, id, id).
-			Where("tenant_id = ?", tenantID),
-			"activities.groups")
-
-		// Delete from activities.categories (now safe after groups referencing them are deleted)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("activities.categories").
-			Where(whereIDEquals, id).
-			Where("tenant_id = ?", tenantID),
-			"activities.categories")
-
-		// ========================================
-		// IoT domain cleanup
-		// ========================================
-
-		// Delete from iot.devices, but never the WEB-MANUAL-001 system device
-		// (migration 1.7.5). Web-originated check-ins fall back to it, so
-		// deleting it would break TestSchoolCheckin_* on every parallel run
-		// where another test cleanup happens to pass its DB id.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("iot.devices").
-			Where(whereIDEquals, id).
-			Where("device_id != ?", "WEB-MANUAL-001").
-			Where("tenant_id = ?", tenantID),
-			"iot.devices")
-
-		// ========================================
-		// Facilities domain cleanup
-		// ========================================
-
-		// Delete from facilities.rooms, but never the system default room
-		// (id=1, created by SetupTestDB). Concurrent test packages depend on it.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("facilities.rooms").
-			Where(whereIDEquals, id).
-			Where("id != ?", 1).
-			Where("tenant_id = ?", tenantID),
-			"facilities.rooms")
-
-		// ========================================
-		// Users domain cleanup (FK-dependent order)
-		// ========================================
-
-		// Delete from users.guests (depends on staff)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("users.guests").
-			Where("id = ? OR staff_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			"users.guests")
-
-		// Delete from users.profiles (depends on account)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("users.profiles").
-			Where(whereIDOrAccountID, id, id).
-			Where("tenant_id = ?", tenantID),
-			"users.profiles")
-
-		// Delete from active.attendance by student_id or device_id.
-		// device_id reference is required so iot.devices can be deleted without
-		// tripping fk_attendance_device_tenant.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("active.attendance").
-			Where("student_id = ? OR device_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			"active.attendance")
-
-		// Delete from users.students
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("users.students").
-			Where(whereIDEquals, id).
-			Where("tenant_id = ?", tenantID),
-			"users.students")
-
-		// Delete from active.work_sessions referencing this staff. The IoT
-		// supervisor flow auto-creates a work_session via EnsureCheckedIn
-		// when StartActivitySession runs in tests; the FK to users.staff has
-		// no ON DELETE CASCADE, so the row must be cleared first.
-		// active.work_session_breaks and audit.work_session_edits cascade
-		// via session_id ON DELETE CASCADE.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("active.work_sessions").
-			Where("staff_id = ? OR created_by = ? OR updated_by = ?", id, id, id).
-			Where("tenant_id = ?", tenantID),
-			"active.work_sessions")
-
-		// Delete from users.staff, but never the system staff fixture
-		// (id=1, created by SetupTestDB). Tests across parallel packages share it.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersStaff).
-			Where(whereIDEquals, id).
-			Where("id != ?", 1).
-			Where("tenant_id = ?", tenantID),
-			tableUsersStaff)
-
-		// Delete from users.persons (last, as it's referenced by students and staff).
-		// Skip the system person fixture (id=1, created by SetupTestDB) for the
-		// same reason as users.staff above.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersPersons).
-			Where(whereIDEquals, id).
-			Where("id != ?", 1).
-			Where("tenant_id = ?", tenantID),
-			tableUsersPersons)
-
-		// NOTE: Auth domain cleanup intentionally omitted here.
-		// Use CleanupAuthFixtures(accountIDs...) for auth cleanup.
-		// Reason: Using generic IDs against auth tables causes cross-domain
-		// collisions (e.g., student ID 5 would delete role ID 5).
-
-		// ========================================
-		// Users domain extended cleanup
-		// ========================================
-
-		// Delete from users.privacy_consents (by student_id)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("users.privacy_consents").
-			Where("id = ? OR student_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			"users.privacy_consents")
-
-		// Delete from users.persons_guardians (by person_id or guardian_account_id)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("users.persons_guardians").
-			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id).
-			Where("tenant_id = ?", tenantID),
-			"users.persons_guardians")
-
-		// Delete from users.students_guardians before users.guardian_profiles.
-		// Since migration 1.15.127 the link → guardian FK is ON DELETE RESTRICT
-		// (was CASCADE), so a guardian that is still linked cannot be deleted.
-		// Clearing the link here keeps teardown order-independent: without it,
-		// deleting guardian_profiles ahead of the student in the id list would
-		// trip the FK and leave an orphan. (The link → student FK is CASCADE, so
-		// deleting the student also clears it, but that only helps when the
-		// student id is processed first.)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("users.students_guardians").
-			Where("student_id = ? OR guardian_profile_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			"users.students_guardians")
-
-		// Delete from users.guardian_profiles
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("users.guardian_profiles").
-			Where(whereIDEquals, id).
-			Where("tenant_id = ?", tenantID),
-			"users.guardian_profiles")
-
-		// Delete from users.rfid_cards (note: string ID, but try as int64)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersRFIDCards).
-			Where(whereIDEquals, fmt.Sprintf("%d", id)).
-			Where("tenant_id = ?", tenantID),
-			tableUsersRFIDCards)
-	}
-}
-
-// CleanupAuthFixtures removes auth account fixtures and their related records.
-// Pass account IDs only - this will cascade delete:
-//   - auth.tokens (by account_id)
-//   - auth.account_roles (by account_id)
-//   - auth.account_permissions (by account_id)
-//   - auth.accounts (by id)
-//
-// NOTE: This does NOT touch auth.roles, auth.permissions, or auth.role_permissions
-// since those are not account-specific. Use CleanupTableRecords for those if needed.
-func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
-	tb.Helper()
-
-	if len(accountIDs) == 0 {
-		return
-	}
-
-	// Use IN clause for efficiency instead of loop
-	// Delete tokens first (depends on accounts)
-	cleanupDelete(tb, db.NewDelete().
-		Table("auth.tokens").
-		Where(whereAccountIDIn, bun.List(accountIDs)),
-		"auth.tokens")
-
-	// Delete account_tenants (by account_id)
-	cleanupDelete(tb, db.NewDelete().
-		Table("auth.account_tenants").
-		Where(whereAccountIDIn, bun.List(accountIDs)),
-		"auth.account_tenants")
-
-	// Delete account_roles (by account_id only - never by role_id!)
-	cleanupDelete(tb, db.NewDelete().
-		Table("auth.account_roles").
-		Where(whereAccountIDIn, bun.List(accountIDs)),
-		"auth.account_roles")
-
-	// Delete account_permissions (by account_id only - never by permission_id!)
-	cleanupDelete(tb, db.NewDelete().
-		Table("auth.account_permissions").
-		Where(whereAccountIDIn, bun.List(accountIDs)),
-		"auth.account_permissions")
-
-	// Delete grade_transitions that reference these accounts (created_by FK)
-	cleanupDelete(tb, db.NewDelete().
-		Table(tableEducationGradeTransition).
-		Where("created_by IN (?)", bun.List(accountIDs)),
-		tableEducationGradeTransition)
-
-	// Finally delete the accounts themselves
-	cleanupDelete(tb, db.NewDelete().
-		Table("auth.accounts").
-		Where(whereIDIn, bun.List(accountIDs)),
-		"auth.accounts")
-}
-
-// CleanupParentAccountFixtures removes parent accounts by their IDs.
-func CleanupParentAccountFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
-	tb.Helper()
-
-	if len(accountIDs) == 0 {
-		return
-	}
-
-	cleanupDelete(tb, db.NewDelete().
-		Table("auth.accounts_parents").
-		Where(whereIDIn, bun.List(accountIDs)),
-		"auth.accounts_parents")
-}
-
 // ============================================================================
 // Education Domain Fixtures
 // ============================================================================
@@ -852,6 +477,20 @@ func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string) *u
 	teacher.Staff = staff
 
 	return teacher
+}
+
+// ReserveMissingTeacherID advances the real teacher sequence without creating
+// a row. It gives missing-row tests a valid, collision-free ID without a
+// hardcoded sentinel or create-then-delete arrangement.
+func ReserveMissingTeacherID(tb testing.TB, db *bun.DB) int64 {
+	tb.Helper()
+
+	var id int64
+	err := db.NewSelect().
+		ColumnExpr("nextval(pg_get_serial_sequence('users.teachers', 'id'))").
+		Scan(Ctx(tb), &id)
+	require.NoError(tb, err)
+	return id
 }
 
 // CreateTestGroupTeacher creates a group-teacher assignment in the database.
@@ -980,80 +619,8 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 	return supervisor
 }
 
-// CleanupAccount removes an account and related auth records from the database.
-//
-// Stops at the auth schema. An account created through a flow that provisions
-// its school identity (registration, link-to-tenant, invitation acceptance)
-// also owns rows in users.*; pair this with CleanupSchoolIdentity.
-func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
-	tb.Helper()
-
-	CleanupAuthFixtures(tb, db, accountID)
-}
-
-// CleanupAccountWithIdentity removes an account together with the school
-// identity provisioned for it — the pairing tests need after registration,
-// link-to-tenant, or invitation acceptance. Exists so the ordering constraint
-// documented on CleanupSchoolIdentity is not every caller's problem.
-func CleanupAccountWithIdentity(tb testing.TB, db *bun.DB, accountID int64) {
-	tb.Helper()
-
-	CleanupSchoolIdentity(tb, db, accountID)
-	CleanupAccount(tb, db, accountID)
-}
-
-// CleanupSchoolIdentity removes the person → staff → teacher chain that gets
-// provisioned for an account at a school (#2222).
-//
-// Call it BEFORE CleanupAccount: the persons are found through their
-// account_id, which the account row's deletion takes with it.
-func CleanupSchoolIdentity(tb testing.TB, db *bun.DB, accountIDs ...int64) {
-	tb.Helper()
-
-	if len(accountIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var personIDs []int64
-	if err := db.NewSelect().
-		TableExpr(tableUsersPersons).
-		ColumnExpr("id").
-		Where(whereAccountIDIn, bun.List(accountIDs)).
-		Scan(ctx, &personIDs); err != nil || len(personIDs) == 0 {
-		return
-	}
-
-	var staffIDs []int64
-	_ = db.NewSelect().
-		TableExpr(tableUsersStaff).
-		ColumnExpr("id").
-		Where("person_id IN (?)", bun.List(personIDs)).
-		Scan(ctx, &staffIDs)
-
-	if len(staffIDs) > 0 {
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersTeachers).
-			Where("staff_id IN (?)", bun.List(staffIDs)),
-			tableUsersTeachers)
-
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersStaff).
-			Where("id IN (?)", bun.List(staffIDs)),
-			tableUsersStaff)
-	}
-
-	cleanupDelete(tb, db.NewDelete().
-		TableExpr(tableUsersPersons).
-		Where("id IN (?)", bun.List(personIDs)),
-		tableUsersPersons)
-}
-
-// CleanupRoleRecords removes roles and their role-permission/account-role associations.
-// Deliberately separate from CleanupAccount, which never deletes by role ID.
-func CleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
+// cleanupRoleRecords removes roles and their role-permission/account-role associations.
+func cleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
 	tb.Helper()
 	if len(roleIDs) == 0 {
 		return
@@ -1061,28 +628,27 @@ func CleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
 
 	ctx := TenantContext(fixtureTenantID(tb))
 
-	_, _ = db.NewDelete().
+	_, err := db.NewDelete().
 		TableExpr("auth.role_permissions").
 		Where("role_id IN (?)", bun.List(roleIDs)).
 		Exec(ctx)
+	require.NoError(tb, err)
 
-	_, _ = db.NewDelete().
+	_, err = db.NewDelete().
 		TableExpr("auth.account_roles").
 		Where("role_id IN (?)", bun.List(roleIDs)).
 		Exec(ctx)
+	require.NoError(tb, err)
 
-	_, err := db.NewDelete().
+	_, err = db.NewDelete().
 		TableExpr("auth.roles").
 		Where("id IN (?)", bun.List(roleIDs)).
 		Exec(ctx)
-	if err != nil {
-		tb.Logf("Warning: failed to cleanup roles: %v", err)
-	}
+	require.NoError(tb, err)
 }
 
-// CleanupPermissionRecords removes permissions and their role/account associations.
-// Deliberately separate from CleanupAccount, which never deletes by permission ID.
-func CleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64) {
+// cleanupPermissionRecords removes permissions and their role/account associations.
+func cleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64) {
 	tb.Helper()
 	if len(permissionIDs) == 0 {
 		return
@@ -1090,159 +656,23 @@ func CleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64)
 
 	ctx := TenantContext(fixtureTenantID(tb))
 
-	_, _ = db.NewDelete().
+	_, err := db.NewDelete().
 		TableExpr("auth.role_permissions").
 		Where("permission_id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
+	require.NoError(tb, err)
 
-	_, _ = db.NewDelete().
+	_, err = db.NewDelete().
 		TableExpr("auth.account_permissions").
 		Where("permission_id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
+	require.NoError(tb, err)
 
-	_, err := db.NewDelete().
+	_, err = db.NewDelete().
 		TableExpr("auth.permissions").
 		Where("id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
-	if err != nil {
-		tb.Logf("Warning: failed to cleanup permissions: %v", err)
-	}
-}
-
-// CleanupStaffFixtures removes staff fixtures from the database.
-// Pass a staff ID and it will clean up the staff, person, and any related records.
-// If the staff has an account, call CleanupAuthFixtures separately with the account ID.
-func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
-	tb.Helper()
-
-	if len(staffIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	for _, staffID := range staffIDs {
-		// First get the staff to find the person ID
-		// Use TableExpr and ColumnExpr to generate valid SQL
-		var staff struct {
-			PersonID int64 `bun:"person_id"`
-			TenantID int64 `bun:"tenant_id"`
-		}
-		_ = db.NewSelect().
-			Model(&staff).
-			TableExpr(tableUsersStaff).
-			ColumnExpr("person_id", "tenant_id").
-			Where(whereIDEquals, staffID).
-			Scan(ctx)
-
-		deleteStaffCaregiverBindings(tb, db, staffID, 0, staff.TenantID)
-
-		// Delete teacher if exists (depends on staff)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersTeachers).
-			Where("staff_id = ?", staffID),
-			tableUsersTeachers)
-
-		// Delete staff
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersStaff).
-			Where(whereIDEquals, staffID),
-			tableUsersStaff)
-
-		// Delete person if we found one
-		if staff.PersonID > 0 {
-			cleanupDelete(tb, db.NewDelete().
-				TableExpr(tableUsersPersons).
-				Where(whereIDEquals, staff.PersonID),
-				tableUsersPersons)
-		}
-	}
-}
-
-// CleanupTeacherFixtures removes teacher fixtures from the database.
-// Pass a teacher ID and it will clean up the full chain: teacher -> staff -> person.
-// Also cleans up the associated account via CleanupAuthFixtures.
-func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
-	tb.Helper()
-
-	if len(teacherIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	for _, teacherID := range teacherIDs {
-		// Get the teacher to find the staff ID
-		// Use TableExpr and ColumnExpr to generate valid SQL
-		var teacher struct {
-			StaffID  int64 `bun:"staff_id"`
-			TenantID int64 `bun:"tenant_id"`
-		}
-		_ = db.NewSelect().
-			Model(&teacher).
-			TableExpr(tableUsersTeachers).
-			ColumnExpr("staff_id", "tenant_id").
-			Where(whereIDEquals, teacherID).
-			Scan(ctx)
-
-		// Get the staff to find the person ID and account ID
-		var staff struct {
-			PersonID int64 `bun:"person_id"`
-			TenantID int64 `bun:"tenant_id"`
-		}
-		_ = db.NewSelect().
-			Model(&staff).
-			TableExpr(tableUsersStaff).
-			ColumnExpr("person_id", "tenant_id").
-			Where(whereIDEquals, teacher.StaffID).
-			Scan(ctx)
-
-		// Get the person to find the account ID
-		var person struct {
-			AccountID *int64 `bun:"account_id"`
-		}
-		_ = db.NewSelect().
-			Model(&person).
-			TableExpr(tableUsersPersons).
-			ColumnExpr("account_id").
-			Where(whereIDEquals, staff.PersonID).
-			Scan(ctx)
-
-		tenantID := teacher.TenantID
-		if tenantID == 0 {
-			tenantID = staff.TenantID
-		}
-		deleteStaffCaregiverBindings(tb, db, teacher.StaffID, teacherID, tenantID)
-
-		// Delete teacher
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr(tableUsersTeachers).
-			Where(whereIDEquals, teacherID),
-			tableUsersTeachers)
-
-		// Delete staff
-		if teacher.StaffID > 0 {
-			cleanupDelete(tb, db.NewDelete().
-				TableExpr(tableUsersStaff).
-				Where(whereIDEquals, teacher.StaffID),
-				tableUsersStaff)
-		}
-
-		// Delete person
-		if staff.PersonID > 0 {
-			cleanupDelete(tb, db.NewDelete().
-				TableExpr(tableUsersPersons).
-				Where(whereIDEquals, staff.PersonID),
-				tableUsersPersons)
-		}
-
-		// Delete account if exists
-		if person.AccountID != nil && *person.AccountID > 0 {
-			CleanupAuthFixtures(tb, db, *person.AccountID)
-		}
-	}
+	require.NoError(tb, err)
 }
 
 // CreateTestPersonWithAccountID creates a person linked to an existing account ID.
@@ -1297,6 +727,44 @@ func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *auth.Account {
 
 	claimAccountForTest(tb, db, account.ID)
 	return account
+}
+
+// OwnTestAccount claims a surviving account when the test finishes. Service
+// and repository tests can exercise a genuinely unmapped account while the
+// package gate can still attribute any surviving account-owned rows.
+func OwnTestAccount(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		var exists bool
+		err := db.NewSelect().
+			ColumnExpr("EXISTS (SELECT 1 FROM auth.accounts WHERE id = ?)", accountID).
+			Scan(context.Background(), &exists)
+		require.NoError(tb, err)
+		if exists {
+			EnsureAccountTenant(tb, db, accountID, fixtureTenantID(tb))
+		}
+	})
+}
+
+// OwnTestAccountWithIdentity owns an account whose school identity already
+// carries the test tenant. The account mapping is the only missing ownership
+// link because identity rows have tenant_id themselves.
+func OwnTestAccountWithIdentity(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+	OwnTestAccount(tb, db, accountID)
+}
+
+// OwnTestPasswordResetTokensForEmail registers teardown for reset tokens a
+// password-reset service path creates without returning their IDs.
+func OwnTestPasswordResetTokensForEmail(tb testing.TB, db *bun.DB, email string) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.NewDelete().
+			Table("auth.password_reset_tokens").
+			Where("account_id IN (SELECT id FROM auth.accounts WHERE email = ?)", email).
+			Exec(context.Background())
+		require.NoError(tb, err)
+	})
 }
 
 // claimAccountForTest maps a fixture account to the tenant of the test that
@@ -1480,9 +948,8 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 // account_tenants mapping for tenant 1 and the base "user" role (which carries
 // calendar:own via migration 1.15.171), mirroring a real onboarded staff
 // account so FindReachableCalendarStaffIDs treats them as invitable. Use this in
-// calendar tests wherever staff must be selectable recipients. Cleanup: the
-// added rows are removed by CleanupAuthFixtures (account_tenants + account_roles
-// by account_id), which calendar tests already call for the account.
+// calendar tests wherever staff must be selectable recipients. The added rows
+// inherit ownership from the account's test-tenant mapping.
 func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *auth.Account) {
 	tb.Helper()
 
@@ -1646,7 +1113,7 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 
 	// A system role has tenant_id NULL — shared state for every test in the
 	// binary, so it goes away again with the test that made it (#2419).
-	tb.Cleanup(func() { CleanupRoleRecords(tb, db, role.ID) })
+	tb.Cleanup(func() { cleanupRoleRecords(tb, db, role.ID) })
 
 	return role
 }
@@ -1654,8 +1121,7 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 // AssignLehrkraftSystemRole assigns the seeded lehrkraft system role (#1772)
 // to the account, scoped to the given tenant. The role is created by
 // migration in every schema the tests run against, so the lookup must
-// succeed. Cleanup: CleanupAuthFixtures removes auth.account_roles rows by
-// account_id.
+// succeed. The account-role row inherits the account's test ownership.
 func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID int64) {
 	tb.Helper()
 
@@ -1711,9 +1177,16 @@ func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action stri
 	// auth.permissions is part of the clone-wide RBAC catalog and carries no
 	// tenant, so this row is shared state: the fixture takes it back itself
 	// (#2419).
-	tb.Cleanup(func() { CleanupPermissionRecords(tb, db, permission.ID) })
+	OwnTestPermission(tb, db, permission.ID)
 
 	return permission
+}
+
+// OwnTestPermission registers exact-ID teardown for a permission created
+// through a service or repository path.
+func OwnTestPermission(tb testing.TB, db *bun.DB, permissionID int64) {
+	tb.Helper()
+	tb.Cleanup(func() { cleanupPermissionRecords(tb, db, permissionID) })
 }
 
 // CreateTestToken creates an auth token for testing.
@@ -2072,22 +1545,6 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 	return invitation
 }
 
-// CleanupInvitationFixtures removes invitation tokens from the database.
-func CleanupInvitationFixtures(tb testing.TB, db *bun.DB, invitationIDs ...int64) {
-	tb.Helper()
-
-	if len(invitationIDs) == 0 {
-		return
-	}
-
-	for _, id := range invitationIDs {
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("auth.invitation_tokens").
-			Where(whereIDEquals, id),
-			"auth.invitation_tokens")
-	}
-}
-
 // GetOrCreateTestRole returns the role called name: this tenant's own if it
 // has one, otherwise the system role of that name (the RBAC catalog every
 // clone inherits from the template), and it creates a tenant-owned one when
@@ -2283,7 +1740,7 @@ func ensureTestTenant(ctx context.Context, db *bun.DB, tenantID int64) error {
 
 // CreateTestTenant creates an organization + school pair that nobody else
 // shares and returns the school id (= tenant id) plus its subdomain. Pair it
-// with CleanupTestTenant.
+// with cleanupTestTenant.
 //
 // Prefer this over EnsureTestTenant(db, 42) whenever a test mutates the school
 // row itself — flipping `active`, stamping `deleted_at` — or asserts on
@@ -2320,60 +1777,6 @@ func CreateTestTenant(tb testing.TB, db *bun.DB) (tenantID int64, subdomain stri
 	require.NoError(tb, err, "Failed to create test school")
 
 	return tenantID, subdomain
-}
-
-// CleanupTestTenant removes the school + owning organization rows created by
-// CreateTestTenant, plus the audit rows that reference the school. Call it
-// AFTER the account cleanup that owns the account_tenants and account_roles
-// rows, otherwise the school delete trips their FKs.
-func CleanupTestTenant(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
-	tb.Helper()
-
-	if len(tenantIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// The organization id is not the school id, so resolve it before the
-	// school rows disappear.
-	var orgIDs []int64
-	if err := db.NewSelect().
-		ColumnExpr("DISTINCT organization_id").
-		TableExpr("platform.schools").
-		Where(whereIDIn, bun.List(tenantIDs)).
-		Scan(ctx, &orgIDs); err != nil {
-		tb.Logf("cleanup lookup platform.schools organization_id: %v", err)
-	}
-
-	// Auth events are written from a detached goroutine, so a row can still
-	// land between the test body and this cleanup; deleting them first keeps
-	// the school delete from failing on the FK.
-	cleanupDelete(tb, db.NewDelete().
-		Table("audit.auth_events").
-		Where(whereTenantIDIn, bun.List(tenantIDs)),
-		"audit.auth_events")
-
-	// ensureTestTenant provisions the virtual WEB-MANUAL-001 device the same
-	// way a real school gets one, so the school row cannot be deleted while it
-	// is still there (devices_tenant_id_fkey).
-	cleanupDelete(tb, db.NewDelete().
-		Table("iot.devices").
-		Where(whereTenantIDIn, bun.List(tenantIDs)),
-		"iot.devices")
-
-	cleanupDelete(tb, db.NewDelete().
-		Table("platform.schools").
-		Where(whereIDIn, bun.List(tenantIDs)),
-		"platform.schools")
-
-	if len(orgIDs) > 0 {
-		cleanupDelete(tb, db.NewDelete().
-			Table("platform.organizations").
-			Where(whereIDIn, bun.List(orgIDs)),
-			"platform.organizations")
-	}
 }
 
 // MapAccountToTenant creates an active account_tenants mapping without
@@ -2587,33 +1990,6 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 	require.NoError(tb, err, "Failed to create test token for tenant")
 
 	return token
-}
-
-// CreateTestFeedbackEntryForTenant creates a feedback entry belonging to a specific tenant.
-// Requires an existing student ID within the same tenant.
-func CreateTestFeedbackEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *feedback.Entry {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	now := time.Now()
-
-	entry := &feedback.Entry{
-		Value:     feedback.ValuePositive,
-		Day:       timezone.DateFromTime(now),
-		Time:      now,
-		StudentID: studentID,
-	}
-	entry.SetTenantID(tenantID)
-
-	err := db.NewInsert().
-		Model(entry).
-		ModelTableExpr(`feedback.entries`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test feedback entry for tenant")
-
-	return entry
 }
 
 // CreateTestStaffForTenant creates a staff member (and person) belonging to a specific tenant.
@@ -2864,9 +2240,76 @@ func CreateTestDataDeletionForTenant(tb testing.TB, db *bun.DB, tenantID int64, 
 	return deletion
 }
 
-// CleanupTenantTestData removes all test data for the specified tenant IDs
-// from all tenant-scoped tables, in FK-safe order.
-func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
+// OwnTenantRows registers the exceptional row lifecycle needed by tests that
+// mutate schema or run tenant-wide migrations inside a shared package clone.
+// Ordinary tests rely on clone disposal instead; callers use this only when a
+// later test's global constraint would otherwise inspect the earlier rows.
+func OwnTenantRows(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
+	tb.Helper()
+	tb.Cleanup(func() { cleanupTenantTestData(tb, db, tenantIDs...) })
+}
+
+func discoverTenantTables(ctx context.Context, db bun.IDB) ([]string, error) {
+	var tables []string
+	err := db.NewSelect().
+		TableExpr("information_schema.columns AS c").
+		ColumnExpr("format('%I.%I', c.table_schema, c.table_name)").
+		Join("JOIN information_schema.tables AS t ON t.table_schema = c.table_schema AND t.table_name = c.table_name").
+		Where("c.column_name = 'tenant_id'").
+		Where("c.table_schema NOT IN ('pg_catalog', 'information_schema')").
+		Where("t.table_type = 'BASE TABLE'").
+		OrderExpr("c.table_schema, c.table_name").
+		Scan(ctx, &tables)
+	return tables, err
+}
+
+func discoverUnscopedAccountTables(ctx context.Context, db bun.IDB) ([]string, error) {
+	var tables []string
+	err := db.NewSelect().
+		TableExpr("information_schema.columns AS c").
+		ColumnExpr("format('%I.%I', c.table_schema, c.table_name)").
+		Join("JOIN information_schema.tables AS t ON t.table_schema = c.table_schema AND t.table_name = c.table_name").
+		Where("c.column_name = 'account_id'").
+		Where("c.table_schema NOT IN ('pg_catalog', 'information_schema')").
+		Where("t.table_type = 'BASE TABLE'").
+		Where("NOT EXISTS (SELECT 1 FROM information_schema.columns tenant_column WHERE tenant_column.table_schema = c.table_schema AND tenant_column.table_name = c.table_name AND tenant_column.column_name = 'tenant_id')").
+		OrderExpr("c.table_schema, c.table_name").
+		Scan(ctx, &tables)
+	return tables, err
+}
+
+type unscopedTenantDependent struct {
+	Child         string `bun:"child"`
+	Parent        string `bun:"parent"`
+	JoinPredicate string `bun:"join_predicate"`
+}
+
+func discoverUnscopedTenantDependents(ctx context.Context, db bun.IDB) ([]unscopedTenantDependent, error) {
+	var dependents []unscopedTenantDependent
+	err := db.NewSelect().
+		TableExpr("pg_constraint AS c").
+		ColumnExpr("format('%I.%I', child_namespace.nspname, child.relname) AS child").
+		ColumnExpr("format('%I.%I', parent_namespace.nspname, parent.relname) AS parent").
+		ColumnExpr("string_agg(format('child.%I = parent.%I', child_column.attname, parent_column.attname), ' AND ' ORDER BY key.ordinality) AS join_predicate").
+		Join("JOIN pg_class AS child ON child.oid = c.conrelid").
+		Join("JOIN pg_namespace AS child_namespace ON child_namespace.oid = child.relnamespace").
+		Join("JOIN pg_class AS parent ON parent.oid = c.confrelid").
+		Join("JOIN pg_namespace AS parent_namespace ON parent_namespace.oid = parent.relnamespace").
+		Join("JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS key(child_attnum, parent_attnum, ordinality) ON TRUE").
+		Join("JOIN pg_attribute AS child_column ON child_column.attrelid = child.oid AND child_column.attnum = key.child_attnum").
+		Join("JOIN pg_attribute AS parent_column ON parent_column.attrelid = parent.oid AND parent_column.attnum = key.parent_attnum").
+		Where("c.contype = 'f'").
+		Where("NOT EXISTS (SELECT 1 FROM pg_attribute candidate_column WHERE candidate_column.attrelid = child.oid AND candidate_column.attname = 'tenant_id' AND candidate_column.attnum > 0 AND NOT candidate_column.attisdropped)").
+		Where("EXISTS (SELECT 1 FROM pg_attribute candidate_column WHERE candidate_column.attrelid = parent.oid AND candidate_column.attname = 'tenant_id' AND candidate_column.attnum > 0 AND NOT candidate_column.attisdropped)").
+		GroupExpr("child_namespace.nspname, child.relname, parent_namespace.nspname, parent.relname, c.oid").
+		OrderExpr("child_namespace.nspname, child.relname, c.oid").
+		Scan(ctx, &dependents)
+	return dependents, err
+}
+
+// cleanupTenantTestData removes all test data for the specified tenant IDs
+// from all tenant-scoped tables in one isolated test-database transaction.
+func cleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 	tb.Helper()
 
 	if len(tenantIDs) == 0 {
@@ -2876,40 +2319,100 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Delete in reverse-FK order (children before parents).
-	// Each delete is best-effort; failures are logged but do not fail the test.
-	tables := []string{
-		"feedback.entries",
-		"auth.tokens",
-		"schedule.timeframes",
-		"iot.devices",
-		"audit.data_deletions",
-		"audit.auth_events",
-		"active.visits",
-		"active.group_supervisors",
-		"active.groups",
-		"activities.student_enrollments",
-		"activities.groups",
-		"schedule.planning_tracks",
-		"activities.categories",
-		"education.group_teacher",
-		"education.group_substitution",
-		"education.groups",
-		"users.students",
-		"users.staff",
-		"users.persons",
-		"facilities.rooms",
-	}
-
-	for _, table := range tables {
-		_, err := db.NewDelete().
-			TableExpr(table).
-			Where("tenant_id IN (?)", bun.List(tenantIDs)).
-			Exec(ctx)
-		if err != nil {
-			tb.Logf("cleanup %s for tenants %v: %v", table, tenantIDs, err)
+	err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		var accountIDs []int64
+		if err := tx.NewSelect().
+			TableExpr("auth.account_tenants").
+			Column("account_id").
+			Group("account_id").
+			Having("bool_and(tenant_id IN (?))", bun.List(tenantIDs)).
+			Scan(ctx, &accountIDs); err != nil {
+			return err
 		}
-	}
+		var organizationIDs []int64
+		if err := tx.NewSelect().
+			TableExpr("platform.schools").
+			Column("organization_id").
+			Where("id IN (?)", bun.List(tenantIDs)).
+			Scan(ctx, &organizationIDs); err != nil {
+			return err
+		}
+
+		// Delete tenantless rows that depend on tenant-owned parents before FK
+		// enforcement is suspended. Examples are auth.role_permissions and
+		// config.work_time_model_entries.
+		dependents, err := discoverUnscopedTenantDependents(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, dependent := range dependents {
+			statement := fmt.Sprintf(
+				"DELETE FROM %s AS child USING %s AS parent WHERE parent.tenant_id IN (?) AND %s",
+				dependent.Child, dependent.Parent, dependent.JoinPredicate)
+			if _, err := tx.NewRaw(statement, bun.List(tenantIDs)).Exec(ctx); err != nil {
+				return fmt.Errorf("cleanup %s through %s for tenants %v: %w", dependent.Child, dependent.Parent, tenantIDs, err)
+			}
+		}
+
+		// Some tenant tables have intentional cyclic FKs. This superuser-only
+		// test transaction disables their triggers locally, so the setting is
+		// rolled back with the transaction and cannot leak to another test.
+		if _, err := tx.ExecContext(ctx, "SET LOCAL session_replication_role = replica"); err != nil {
+			return err
+		}
+
+		tables, err := discoverTenantTables(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, table := range tables {
+			if _, err := tx.NewDelete().
+				TableExpr(table).
+				Where("tenant_id IN (?)", bun.List(tenantIDs)).
+				Exec(ctx); err != nil {
+				return fmt.Errorf("cleanup %s for tenants %v: %w", table, tenantIDs, err)
+			}
+		}
+		if _, err := tx.NewDelete().
+			TableExpr("platform.schools").
+			Where("id IN (?)", bun.List(tenantIDs)).
+			Exec(ctx); err != nil {
+			return fmt.Errorf("cleanup platform.schools %v: %w", tenantIDs, err)
+		}
+		if len(organizationIDs) > 0 {
+			if _, err := tx.NewDelete().
+				TableExpr("platform.organizations").
+				Where("id IN (?)", bun.List(organizationIDs)).
+				Where("NOT EXISTS (SELECT 1 FROM platform.schools WHERE organization_id = platform.organizations.id)").
+				Exec(ctx); err != nil {
+				return fmt.Errorf("cleanup platform.organizations %v: %w", organizationIDs, err)
+			}
+		}
+		if len(accountIDs) == 0 {
+			return nil
+		}
+
+		accountTables, err := discoverUnscopedAccountTables(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, table := range accountTables {
+			if _, err := tx.NewDelete().
+				TableExpr(table).
+				Where("account_id IN (?)", bun.List(accountIDs)).
+				Exec(ctx); err != nil {
+				return fmt.Errorf("cleanup %s for accounts %v: %w", table, accountIDs, err)
+			}
+		}
+		if _, err := tx.NewDelete().
+			TableExpr("auth.accounts").
+			Where("id IN (?)", bun.List(accountIDs)).
+			Exec(ctx); err != nil {
+			return fmt.Errorf("cleanup auth.accounts %v: %w", accountIDs, err)
+		}
+		return nil
+	})
+	require.NoError(tb, err)
 }
 
 // ============================================================================
@@ -3119,8 +2622,7 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 // [start, end]. The period is created INACTIVE so it cannot collide with the
 // active-period invariants other tests rely on; callers that only need an id to
 // stamp on a materialized instance want exactly this. Names must be unique per
-// tenant — pass a suffixed one. Clean up with CleanupTableRecords(…,
-// "schedule.calendar_periods", id).
+// tenant — pass a suffixed one. The tenant-owned row dies with the clone.
 func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end timezone.Date) *schedule.CalendarPeriod {
 	tb.Helper()
 
@@ -3202,7 +2704,7 @@ type StaffShiftOpts struct {
 
 // CreateTestStaffShift inserts a Dienstplan shift (schedule.staff_shifts) for
 // the staff member on the given date, tenant 1. created_by is stamped with the
-// staff's own id. Cleanup: CleanupTableRecords(t, db, "schedule.staff_shifts", row.ID).
+// staff's own id. The tenant-owned row dies with the clone.
 func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date timezone.Date, opts StaffShiftOpts) *schedule.StaffShift {
 	tb.Helper()
 
@@ -3297,8 +2799,7 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 // CreateTestStudentStatusDay inserts one reported broad day status (sick /
 // excused / class trip) for a student on a date. Callers that pass its ID into
 // InstanceStudentOpts.StudentStatusDayID reproduce the state ApplyStatusDay
-// leaves behind: a slot absence the day status owns. Clean up with
-// CleanupStudentStatusDays.
+// leaves behind: a slot absence the day status owns. The package clone owns it.
 func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, status string) *active.StudentStatusDay {
 	tb.Helper()
 
@@ -3373,8 +2874,8 @@ type ParentChain struct {
 }
 
 // CreateTestParentGuardianChain wires the full parent→child chain for
-// tenant 1 and returns the IDs. Use CleanupParentGuardianChain (deferred)
-// to tear it down.
+// tenant 1 and returns the IDs. Its account-to-tenant mapping lets the package
+// clone attribute the otherwise tenantless account rows.
 func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -3456,7 +2957,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 }
 
 // CreateTestEnrollmentPhase creates a minimal active enrollment phase for
-// tenant 1 covering the current school year, with cleanup registered.
+// the current test tenant covering the current school year.
 func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
 	tb.Helper()
 	ctx := TenantContext(fixtureTenantID(tb))
@@ -3474,14 +2975,11 @@ func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
 	if err != nil {
 		tb.Fatalf("create test enrollment phase: %v", err)
 	}
-	tb.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("enrollment.phases").Where("id = ?", phase.ID).Exec(context.Background())
-	})
 	return phase
 }
 
 // CreateTestCareOffering creates a minimal active care offering in the given
-// phase (fixed Mo-Fr), with cleanup registered.
+// phase (fixed Mo-Fr).
 func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name string) *enrollment.CareOffering {
 	tb.Helper()
 	ctx := TenantContext(fixtureTenantID(tb))
@@ -3499,9 +2997,6 @@ func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name strin
 	if err != nil {
 		tb.Fatalf("create test care offering: %v", err)
 	}
-	tb.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("enrollment.care_offerings").Where("id = ?", offering.ID).Exec(context.Background())
-	})
 	return offering
 }
 
@@ -3528,21 +3023,23 @@ func CreateTestClassListEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64
 		tb.Fatalf("create test class list entry: %v", err)
 	}
 	tb.Cleanup(func() {
-		CleanupClassListEntryFixtures(tb, db, entry.ID)
+		cleanupClassListEntryFixtures(tb, db, entry.ID)
 	})
 	return entry
 }
 
-// CleanupClassListEntryFixtures removes class-list entries and their audit
+// cleanupClassListEntryFixtures removes class-list entries and their audit
 // trail rows. Safe to call for already-deleted entries.
-func CleanupClassListEntryFixtures(tb testing.TB, db *bun.DB, entryIDs ...int64) {
+func cleanupClassListEntryFixtures(tb testing.TB, db *bun.DB, entryIDs ...int64) {
 	tb.Helper()
 	if len(entryIDs) == 0 {
 		return
 	}
 	ctx := context.Background()
-	_, _ = db.NewDelete().TableExpr("audit.class_list_entry_changes").Where("entry_id IN (?)", bun.List(entryIDs)).Exec(ctx)
-	_, _ = db.NewDelete().TableExpr("users.class_list_entries").Where("id IN (?)", bun.List(entryIDs)).Exec(ctx)
+	_, err := db.NewDelete().TableExpr("audit.class_list_entry_changes").Where("entry_id IN (?)", bun.List(entryIDs)).Exec(ctx)
+	require.NoError(tb, err)
+	_, err = db.NewDelete().TableExpr("users.class_list_entries").Where("id IN (?)", bun.List(entryIDs)).Exec(ctx)
+	require.NoError(tb, err)
 }
 
 // CreateTestCoGuardianForStudent adds a SECOND portal guardian to a child that

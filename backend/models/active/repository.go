@@ -452,6 +452,15 @@ type StaffAbsenceTypeRepository interface {
 	IsInUse(ctx context.Context, id int64) (bool, error)
 }
 
+type StaffAbsenceTypeAllowanceRepository interface {
+	base.Repository[*StaffAbsenceTypeAllowance]
+	Upsert(ctx context.Context, allowance *StaffAbsenceTypeAllowance) error
+}
+
+type StaffAbsenceTypeAllowanceChangeRepository interface {
+	base.Repository[*StaffAbsenceTypeAllowanceChange]
+}
+
 // StaffBalanceAdjustmentRepository defines operations for Stundenkonto
 // correction transactions (#1420).
 type StaffBalanceAdjustmentRepository interface {

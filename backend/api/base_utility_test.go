@@ -304,7 +304,7 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 
 func setupOperatorInvitationRoute(t *testing.T) chi.Router {
 	t.Helper()
-	db, serviceFactory := testutil.SetupAPITest(t)
+	db, serviceFactory, feedback := testutil.SetupFeedbackAPITest(t)
 	repoFactory := repositories.NewFactory(db)
 	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
 	initializeAPIResources(api, repoFactory, db, slog.Default())
@@ -315,6 +315,7 @@ func setupOperatorInvitationRoute(t *testing.T) chi.Router {
 	})
 	require.NoError(t, err)
 	api.MealPlan = newMealPlanResource(mealPlan, db)
+	api.Feedback = newFeedbackResource(feedback, db)
 	api.registerRoutesWithRateLimiting()
 	return api.Router
 }

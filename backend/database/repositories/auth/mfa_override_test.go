@@ -31,7 +31,6 @@ func newOverrideRepoTestFixtures(t *testing.T) (
 	ctx context.Context,
 	repo auth.MFAOverrideRepository,
 	accountID, tenantID int64,
-	cleanup func(),
 ) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -43,25 +42,19 @@ func newOverrideRepoTestFixtures(t *testing.T) (
 
 	repo = authRepo.NewMFAOverrideRepository(db)
 
-	cleanup = func() {
+	t.Cleanup(func() {
 		rows, err := repo.ListByAccount(ctx, account.ID)
-		if err != nil {
-			t.Logf("teardown: list overrides: %v", err)
-		}
+		require.NoError(t, err)
 		for _, row := range rows {
 			if row.IsGlobal() {
 				err = repo.DeleteGlobal(ctx, account.ID)
 			} else {
 				err = repo.DeleteTenant(ctx, account.ID, *row.TenantID)
 			}
-			if err != nil {
-				t.Logf("teardown: delete override: %v", err)
-			}
+			require.NoError(t, err)
 		}
-		testpkg.CleanupTenantTestData(t, db, tenantID)
-		testpkg.CleanupAccount(t, db, account.ID)
-	}
-	return ctx, repo, account.ID, tenantID, cleanup
+	})
+	return ctx, repo, account.ID, tenantID
 }
 
 // --- UpsertGlobal -----------------------------------------------------
@@ -69,8 +62,7 @@ func newOverrideRepoTestFixtures(t *testing.T) (
 func TestMFAOverrideRepository_UpsertGlobal_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
 	require.NoError(t, repo.UpsertGlobal(ctx, &auth.MFAOverride{
 		AccountID: accountID,
@@ -91,8 +83,7 @@ func TestMFAOverrideRepository_UpsertGlobal_HappyPath(t *testing.T) {
 func TestMFAOverrideRepository_UpsertGlobal_UpdatesExistingRow(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
 	require.NoError(t, repo.UpsertGlobal(ctx, &auth.MFAOverride{
 		AccountID: accountID,
@@ -120,8 +111,7 @@ func TestMFAOverrideRepository_UpsertGlobal_UpdatesExistingRow(t *testing.T) {
 func TestMFAOverrideRepository_UpsertGlobal_NilRejected(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, _, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, _, _ := newOverrideRepoTestFixtures(t)
 
 	err := repo.UpsertGlobal(ctx, nil)
 	require.Error(t, err)
@@ -131,8 +121,7 @@ func TestMFAOverrideRepository_UpsertGlobal_NilRejected(t *testing.T) {
 func TestMFAOverrideRepository_UpsertGlobal_ValidationBranches(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
 	tid := tenantID
 	cases := map[string]*auth.MFAOverride{
@@ -169,8 +158,7 @@ func TestMFAOverrideRepository_UpsertGlobal_ValidationBranches(t *testing.T) {
 func TestMFAOverrideRepository_UpsertTenant_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
 	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
 		AccountID: accountID,
@@ -193,8 +181,7 @@ func TestMFAOverrideRepository_UpsertTenant_HappyPath(t *testing.T) {
 func TestMFAOverrideRepository_UpsertTenant_UpdatesExistingRow(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
 	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
@@ -217,8 +204,7 @@ func TestMFAOverrideRepository_UpsertTenant_UpdatesExistingRow(t *testing.T) {
 func TestMFAOverrideRepository_UpsertTenant_NilRejected(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, _, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, _, _ := newOverrideRepoTestFixtures(t)
 
 	require.Error(t, repo.UpsertTenant(ctx, nil))
 }
@@ -226,8 +212,7 @@ func TestMFAOverrideRepository_UpsertTenant_NilRejected(t *testing.T) {
 func TestMFAOverrideRepository_UpsertTenant_ValidationBranches(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
 	zero := int64(0)
 	tid := tenantID
@@ -267,8 +252,7 @@ func TestMFAOverrideRepository_UpsertTenant_ValidationBranches(t *testing.T) {
 func TestMFAOverrideRepository_FindGlobal_ReturnsNilWhenAbsent(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
 	got, err := repo.FindGlobal(ctx, accountID)
 	require.NoError(t, err)
@@ -278,8 +262,7 @@ func TestMFAOverrideRepository_FindGlobal_ReturnsNilWhenAbsent(t *testing.T) {
 func TestMFAOverrideRepository_FindByAccountAndTenant_ReturnsNilWhenAbsent(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
 	got, err := repo.FindByAccountAndTenant(ctx, accountID, tenantID)
 	require.NoError(t, err)
@@ -289,8 +272,7 @@ func TestMFAOverrideRepository_FindByAccountAndTenant_ReturnsNilWhenAbsent(t *te
 func TestMFAOverrideRepository_FindByAccountAndTenant_TenantIDZeroIsBlocked(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
 	// Write a global row so a buggy implementation would surface it
 	// through the zero-tenant path. Repository must short-circuit
@@ -311,8 +293,7 @@ func TestMFAOverrideRepository_FindByAccountAndTenant_TenantIDZeroIsBlocked(t *t
 func TestMFAOverrideRepository_DeleteGlobal_RemovesRow(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
 	require.NoError(t, repo.UpsertGlobal(ctx, &auth.MFAOverride{
 		AccountID: accountID,
@@ -329,8 +310,7 @@ func TestMFAOverrideRepository_DeleteGlobal_RemovesRow(t *testing.T) {
 func TestMFAOverrideRepository_DeleteGlobal_NoopWhenAbsent(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
 	// Idempotent: delete-without-row is not an error.
 	require.NoError(t, repo.DeleteGlobal(ctx, accountID))
@@ -339,8 +319,7 @@ func TestMFAOverrideRepository_DeleteGlobal_NoopWhenAbsent(t *testing.T) {
 func TestMFAOverrideRepository_DeleteTenant_RemovesRow(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
 	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
@@ -356,8 +335,7 @@ func TestMFAOverrideRepository_DeleteTenant_RemovesRow(t *testing.T) {
 func TestMFAOverrideRepository_DeleteTenant_TenantIDZeroRejected(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
 	require.Error(t, repo.DeleteTenant(ctx, accountID, 0))
 }
@@ -367,8 +345,7 @@ func TestMFAOverrideRepository_DeleteTenant_TenantIDZeroRejected(t *testing.T) {
 func TestMFAOverrideRepository_ListByAccount_GlobalRowComesFirst(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
 	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
@@ -391,8 +368,7 @@ func TestMFAOverrideRepository_ListByAccount_GlobalRowComesFirst(t *testing.T) {
 func TestMFAOverrideRepository_ListByAccount_EmptyWhenNone(t *testing.T) {
 	t.Parallel()
 
-	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
+	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
 	rows, err := repo.ListByAccount(ctx, accountID)
 	require.NoError(t, err)

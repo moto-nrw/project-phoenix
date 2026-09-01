@@ -15,6 +15,7 @@ import (
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 )
@@ -88,8 +89,8 @@ func testTimetableDataWithOfferingCallbacks(
 		ValidateCareOfferingSeries: validateCareOfferingSeries,
 		ValidateOfferingSource:     validateOfferingSource,
 		ResyncOfferingRoster:       resyncOfferingRoster,
-		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(db),
-		AttendanceCorrectionRepo:   auditRepo.NewAttendanceCorrectionRepository(db),
+		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
+		AttendanceCorrectionRepo:   auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		PersonRepo:                 usersRepo.NewPersonRepository(db),
 		ConflictAckRepo:            scheduleRepo.NewTimetableConflictAckRepository(db),
 		RecoveryRepo:               scheduleRepo.NewActivityRecoveryRepository(db),

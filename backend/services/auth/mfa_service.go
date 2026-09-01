@@ -293,6 +293,7 @@ type MFAServiceConfig struct {
 	JWTSecret   string // used to derive the trusted-device HMAC key
 	DB          *bun.DB
 	Logger      *slog.Logger
+	Audit       audit.Command
 }
 
 // MFAService implementation.
@@ -1918,9 +1919,10 @@ func (s *mfaService) resolveTrustedDeviceHint(ctx context.Context, tenantID int6
 	return true, s.resolveTrustedDeviceDays(ctx, tenantID)
 }
 
-// recordAuthEvent writes to audit.auth_events asynchronously, in a tenant-scoped
-// transaction. Failures are logged but never bubble up to the caller — auditing
-// is best-effort by design.
+// recordAuthEvent appends to audit.auth_events synchronously. It joins the
+// caller's authoritative transaction when one is active; pre-login callers
+// get a tenant-scoped transaction dedicated to the append. Failures are logged
+// because the legacy MFA interface does not expose audit errors.
 //
 // tenantID is required so the login flow (which runs OUTSIDE TenantTxMiddleware
 // and therefore has tenant.FromContext(ctx) == 0) can still produce audit rows.
@@ -1952,40 +1954,30 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID in
 		event.Metadata[k] = v
 	}
 
-	detachedCtx := detachedTenantContext(s.withTenantRuntime(ctx))
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				err := fmt.Errorf("panic in mfa audit logging: %v", r)
-				s.Logger.Error("goroutine panic recovered", slog.String("error", err.Error()))
-				sentry.CurrentHub().Recover(r)
-				sentry.Flush(2 * time.Second)
-			}
-		}()
-		if tenantID == 0 {
-			s.Logger.Warn("skipping mfa audit event: no tenant context",
-				slog.Int64("account_id", accountID),
-				slog.String("event_type", eventType),
-			)
-			return
-		}
-		event.SetTenantID(tenantID)
-
-		logCtx, cancel := context.WithTimeout(
-			tenant.WithTenantID(detachedCtx, tenantID),
-			5*time.Second,
+	if tenantID == 0 || s.Audit == nil {
+		s.Logger.Error("failed to audit mfa event",
+			slog.String("event_type", eventType),
+			slog.String("error", "tenant or audit command is not configured"),
 		)
-		defer cancel()
-		err := tenant.WithTenantTx(s.withTenantRuntime(logCtx), s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-			return s.Repos.AuthEvent.Create(ctx, event)
+		return
+	}
+	event.SetTenantID(tenantID)
+	appendEvent := func(txCtx context.Context) error { return s.Audit.Append(txCtx, event) }
+	var err error
+	if hasAmbientTx(ctx) {
+		err = appendEvent(ctx)
+	} else {
+		auditCtx := tenant.WithTenantID(s.withTenantRuntime(ctx), tenantID)
+		err = tenant.WithTenantTx(auditCtx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			return appendEvent(txCtx)
 		})
-		if err != nil {
-			s.Logger.Error("failed to log mfa audit event",
-				slog.String("event_type", eventType),
-				slog.String("error", err.Error()),
-			)
-		}
-	}()
+	}
+	if err != nil {
+		s.Logger.Error("failed to audit mfa event",
+			slog.String("event_type", eventType),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // AccountBelongsToTenant reports whether the account has a tenant mapping for

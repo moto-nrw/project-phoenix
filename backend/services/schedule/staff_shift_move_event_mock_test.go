@@ -7,7 +7,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
@@ -29,11 +28,11 @@ func (m *shiftMoveEventRepo) Create(_ context.Context, event *auditModels.Deviat
 	return nil
 }
 
-func (*shiftMoveEventRepo) ListByRange(context.Context, timezone.Date, timezone.Date, *int64, *string) ([]*auditModels.DeviationEvent, error) {
+func (*shiftMoveEventRepo) ListByRange(context.Context, auditModels.Date, auditModels.Date, *int64, *string) ([]*auditModels.DeviationEvent, error) {
 	return nil, nil
 }
 
-func (*shiftMoveEventRepo) DeleteOlderThan(context.Context, timezone.Date) (int64, error) {
+func (*shiftMoveEventRepo) DeleteOlderThan(context.Context, auditModels.Date) (int64, error) {
 	return 0, nil
 }
 

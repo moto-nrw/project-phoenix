@@ -381,7 +381,7 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 		}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
 
 		checkedAt := time.Date(2026, 10, 10, 13, 5, 0, 0, time.UTC)
 		updated, err := repo.UpdateAttendanceFromCheckin(ctx, inst.ID, student.ID, checkedAt)
@@ -397,7 +397,6 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 
 	t.Run("no-op when row is already present (monotonicity)", func(t *testing.T) {
 		other := testpkg.CreateTestStudent(t, db, "Tom", fmt.Sprintf("Mono-%d", time.Now().UnixNano()), "3a")
-		defer testpkg.CleanupActivityFixtures(t, db, other.ID)
 
 		firstCheckin := time.Date(2026, 10, 10, 13, 0, 0, 0, time.UTC)
 		row := &scheduleModels.InstanceStudent{
@@ -408,7 +407,6 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 		}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
 		laterCheckin := time.Date(2026, 10, 10, 14, 30, 0, 0, time.UTC)
 		updated, err := repo.UpdateAttendanceFromCheckin(ctx, inst.ID, other.ID, laterCheckin)
@@ -425,7 +423,6 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 
 	t.Run("reopen re-stamps check-in and blocks superseded checkouts", func(t *testing.T) {
 		other := testpkg.CreateTestStudent(t, db, "Ria", fmt.Sprintf("Reentry-%d", time.Now().UnixNano()), "3a")
-		defer testpkg.CleanupActivityFixtures(t, db, other.ID)
 
 		firstCheckin := time.Date(2026, 10, 10, 13, 0, 0, 0, time.UTC)
 		firstCheckout := firstCheckin.Add(time.Hour)
@@ -438,7 +435,6 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 		}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
 		// Re-entry two hours after the first checkout reopens the slot and
 		// re-stamps checked_in_at (session boundary).
@@ -471,7 +467,6 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 
 	t.Run("no-op when no matching row (walk-in)", func(t *testing.T) {
 		walkin := testpkg.CreateTestStudent(t, db, "Kim", fmt.Sprintf("Walk-%d", time.Now().UnixNano()), "3a")
-		defer testpkg.CleanupActivityFixtures(t, db, walkin.ID)
 
 		// walkin student has NO instance_students row — mirror should be a no-op
 		// returning (false, nil) rather than an error.
@@ -597,7 +592,6 @@ func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(
 		row := &scheduleModels.InstanceStudent{InstanceID: inst.ID, StudentID: student.ID, Status: scheduleModels.AttendanceStatusExpected}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 		instanceByStatus[status] = inst
 	}
 
@@ -823,7 +817,6 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsDecidedOutcomes(t *test
 	for studentID, row := range rows {
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 		refs = append(refs, scheduleModels.StudentInstanceRef{StudentID: studentID, InstanceID: inst.ID})
 	}
 
@@ -1014,9 +1007,7 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 
 	t.Run("substatus-only edit clears partial provenance and stamps manual", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Substatus-%d", time.Now().UnixNano()))
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 		partial := testpkg.CreateTestPickupException(t, db, student.ID, inst.Date, staff.ID, "13:00", "Termin")
-		defer testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", partial.ID)
 
 		row.PickupExceptionID = &partial.ID
 		row.Status = scheduleModels.AttendanceStatusAbsent
@@ -1591,7 +1582,6 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
 		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
@@ -1604,7 +1594,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		sick := scheduleModels.AttendanceSubstatusSick
 		row := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID, absent,
 			testpkg.InstanceStudentOpts{StudentStatusDayID: &statusDay.ID})
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
 		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID,
 			scheduleModels.AttendanceFieldPatch{Substatus: &sick}))
 
@@ -1624,7 +1614,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
 
 		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
@@ -1645,7 +1635,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
 
 		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
@@ -1665,7 +1655,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
 
 		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
@@ -1680,8 +1670,9 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	})
 
 	t.Run("tenant isolation leaves other tenants alone", func(t *testing.T) {
-		testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
+		row := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
 			scheduleModels.AttendanceStatusExpected)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
 
 		removed, err := repo.ArchivePlannedByStudentIDsFrom(
 			testpkg.TenantContext(999), transition.ID, []int64{graduate.ID}, today, time.Now())
@@ -1735,12 +1726,10 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRo
 		stored, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
 		require.NoError(t, err)
 		require.NotNil(t, stored.ManualStatusAt, "the PATCH must record that a human decided this row")
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, stored.ID)) })
 		// Take the row back at the end of the SUBTEST: schedule.instance_students
 		// is unique on (instance, student) and the next subtest sets up the same
 		// pair again (#2419).
-		t.Cleanup(func() {
-			testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
-		})
 		return stored
 	}
 

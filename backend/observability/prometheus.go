@@ -188,6 +188,56 @@ var (
 		},
 		[]string{"operation"},
 	)
+	feedbackOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_operations_total", Help: "Feedback operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	feedbackHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_http_responses_total", Help: "Feedback HTTP responses by surface, actual status class, and stable code."},
+		[]string{"surface", "status_class", "code"},
+	)
+	feedbackDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_feedback_operation_duration_seconds", Help: "Feedback operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	feedbackQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_queries_total", Help: "Persistence queries issued by Feedback operations."},
+		[]string{"operation"},
+	)
+	feedbackRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_feedback_rows_changed_total", Help: "Rows changed by Feedback operations, including retention."},
+		[]string{"operation"},
+	)
+	feedbackStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_feedback_statement_duration_seconds",
+			Help:    "Cumulative Feedback write-statement duration by operation, used as a lock-wait upper bound.",
+			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"operation"},
+	)
+	auditAppends = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_appends_total",
+			Help: "Audit append attempts by stable event type and outcome.",
+		},
+		[]string{"event_type", "outcome"},
+	)
+	auditAppendDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_audit_append_duration_seconds",
+			Help:    "Audit append duration by stable event type.",
+			Buckets: []float64{0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"event_type"},
+	)
+	auditRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_rows_total",
+			Help: "Rows appended to Audit ledgers by stable event type.",
+		},
+		[]string{"event_type"},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
@@ -312,6 +362,15 @@ func init() {
 		mealPlanQueries,
 		mealPlanRowsChanged,
 		mealPlanStatementDuration,
+		feedbackOperations,
+		feedbackHTTPResponses,
+		feedbackDuration,
+		feedbackQueries,
+		feedbackRowsChanged,
+		feedbackStatementDuration,
+		auditAppends,
+		auditAppendDuration,
+		auditRows,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -392,6 +451,44 @@ func ObserveMealPlanOperation(operation string, duration time.Duration, queries,
 	}
 	if statementDuration > 0 {
 		mealPlanStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveFeedbackOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	feedbackOperations.WithLabelValues(sanitizeLabel(operation), outcome, sanitizeLabel(code)).Inc()
+	feedbackDuration.WithLabelValues(sanitizeLabel(operation)).Observe(duration.Seconds())
+	if queries > 0 {
+		feedbackQueries.WithLabelValues(sanitizeLabel(operation)).Add(float64(queries))
+	}
+	if rows > 0 {
+		feedbackRowsChanged.WithLabelValues(sanitizeLabel(operation)).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		feedbackStatementDuration.WithLabelValues(sanitizeLabel(operation)).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveFeedbackHTTPResponse(surface string, status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	feedbackHTTPResponses.WithLabelValues(sanitizeLabel(surface), statusClass, sanitizeLabel(code)).Inc()
+}
+
+func ObserveAuditAppend(eventType string, duration time.Duration, rows int, err error) {
+	eventType = sanitizeLabel(eventType)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	auditAppends.WithLabelValues(eventType, outcome).Inc()
+	auditAppendDuration.WithLabelValues(eventType).Observe(duration.Seconds())
+	if rows > 0 {
+		auditRows.WithLabelValues(eventType).Add(float64(rows))
 	}
 }
 

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "prerequisites": ["#2642"],
+  "owner_and_capability": "Example Owner — Example capability",
+  "affected_packages": ["modules/example"],
+  "affected_tables": ["example.records"],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "Switch the only caller and remove the old provider in one deploy.",
+  "tests": ["Facade contract, RLS, rollback, and repository-failure tests."],
+  "runtime_evidence": {
+    "source": "Review attachment containing the raw tracer export.",
+    "workload": "100 reads and 100 writes against a hermetic PostgreSQL tenant.",
+    "thresholds": "No query growth, errors, deadlocks, or unexplained p95 regression.",
+    "query_count": "Read: 1; write: 2 queries per operation.",
+    "latency_p50": "Read: 2 ms; write: 4 ms.",
+    "latency_p95": "Read: 3 ms; write: 6 ms.",
+    "errors": "0/200 operations; 0%.",
+    "pool_wait": "0 waits; 0 ms total.",
+    "lock_wait": "No PostgreSQL Lock wait events observed during the workload.",
+    "deadlocks": "0 deadlocks and 0 serialization retries.",
+    "job_duration": "Not applicable: this capability has no Worker path.",
+    "job_retries": "Not applicable: this capability has no Worker path.",
+    "job_backlog": "Not applicable: this capability has no Worker path."
+  },
+  "rollback_and_cleanup": "Revert caller wiring; remove the old adapter after the observation window.",
+  "exit_criterion": "All callers use one provider and the listed ratchet keys are absent."
+}

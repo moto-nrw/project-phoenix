@@ -17,17 +17,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func cleanupPushSubscriptions(t *testing.T, db *bun.DB, accountIDs ...int64) {
-	t.Helper()
-	ctx := context.Background()
-	_, err := db.NewDelete().
-		Model((*iotModels.PushSubscription)(nil)).
-		ModelTableExpr("iot.push_subscriptions").
-		Where("account_id IN (?)", bun.List(accountIDs)).
-		Exec(ctx)
-	require.NoError(t, err)
-}
-
 func createAccountTenantMapping(t *testing.T, db *bun.DB, accountID, tenantID int64) {
 	t.Helper()
 	now := time.Now()
@@ -172,8 +161,6 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-%d@example.com", time.Now().UnixNano()))
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-parent-%d@example.com", time.Now().UnixNano()))
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID, guardian.ID)
-	defer cleanupPushSubscriptions(t, db, account.ID, guardian.ID)
 	createAccountTenantMapping(t, db, account.ID, testpkg.Tenant(t))
 	createAccountTenantMapping(t, db, guardian.ID, testpkg.Tenant(t))
 	assignSystemRole(t, db, account.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
@@ -237,7 +224,6 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("child scope answers parent_portal.access for that child", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer cleanupPushSubscriptions(t, db, chain.AccountID)
 
 		chainCtx := testpkg.TenantContext(chain.TenantID)
 		childEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/child-%d", time.Now().UnixNano())
@@ -618,6 +604,9 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	t.Run("guardian finder excludes subscriptions without a tenant mapping", func(t *testing.T) {
 		// Pending-enrollment-only recipients have no mapping for the school.
 		// Even a stale subscription row must therefore stay out of Web Push.
+		t.Cleanup(func() {
+			testpkg.EnsureAccountTenant(t, db, guardian.ID, tenant.FromContext(ctx))
+		})
 		_, err := db.NewDelete().
 			TableExpr("auth.account_tenants").
 			Where("account_id = ?", guardian.ID).
@@ -641,8 +630,6 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 	directAdmin := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-direct-admin-%d@example.com", time.Now().UnixNano()))
 	roleAdmin := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-role-admin-%d@example.com", time.Now().UnixNano()))
 	ordinary := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-ordinary-%d@example.com", time.Now().UnixNano()))
-	defer testpkg.CleanupAuthFixtures(t, db, directAdmin.ID, roleAdmin.ID, ordinary.ID)
-	defer cleanupPushSubscriptions(t, db, directAdmin.ID, roleAdmin.ID, ordinary.ID)
 
 	for accountID, suffix := range map[int64]string{
 		directAdmin.ID: "direct-admin",
@@ -680,7 +667,6 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 	require.NoError(t, err)
 
 	wildcardRole := testpkg.CreateTestRole(t, db, "Push Full Access")
-	defer testpkg.CleanupRoleRecords(t, db, wildcardRole.ID)
 	_, err = db.NewInsert().
 		Model(&authModels.RolePermission{RoleID: wildcardRole.ID, PermissionID: fullAccessID}).
 		ModelTableExpr("auth.role_permissions").

@@ -228,6 +228,32 @@ func TestAdminCreateStaffAbsence_RejectsVacationType(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing.T) {
+	t.Parallel()
+
+	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
+	ctx := testpkg.Ctx(t)
+	absenceType := &activeModels.StaffAbsenceType{
+		Name:             "Sonderurlaub",
+		BaseType:         activeModels.AbsenceTypeOther,
+		IsActive:         true,
+		AllowanceEnabled: true,
+		OverrunPolicy:    activeModels.AbsenceTypeOverrunBlock,
+	}
+	absenceType.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsenceType.Create(ctx, absenceType))
+
+	tomorrow := timezone.TodayDate().AddDays(1)
+	rec := postAbsence(t, tc, token, subjectID, map[string]any{
+		"absence_type":    "other",
+		"absence_type_id": absenceType.ID,
+		"date_start":      tomorrow.String(),
+		"date_end":        tomorrow.String(),
+	})
+
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+}
+
 // #2873: the comp-time preview endpoint returns the Stundenkonto projection
 // for the modal. The subject has no schedule targets, so every value is zero
 // — the point here is the wire contract and the manager permission gate.

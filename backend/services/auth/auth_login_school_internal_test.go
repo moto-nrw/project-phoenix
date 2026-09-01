@@ -91,7 +91,6 @@ func newSchoolPortalFixture(t *testing.T) (service *Service, account *authModels
 		nil, 0,
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	return service, account, tenantID
@@ -325,8 +324,6 @@ func newMintGuardFixture(t *testing.T) (service *Service, db *bun.DB, account *a
 	require.NoError(t, err)
 	// Cleanup order matters: the account rows reference the school, so the
 	// school teardown has to run after them (t.Cleanup is LIFO).
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
@@ -379,8 +376,6 @@ func TestSchoolMintGuard_ClaimsDropPermissionRevokedMidFlight(t *testing.T) {
 
 	role := testpkg.CreateTestRoleForTenant(t, db, "school-extra", tenantID)
 	permission := testpkg.CreateTestPermission(t, db, "school-extra", "school_extra", "read")
-	t.Cleanup(func() { testpkg.CleanupRoleRecords(t, db, role.ID) })
-	t.Cleanup(func() { testpkg.CleanupPermissionRecords(t, db, permission.ID) })
 
 	rolePermission := &authModels.RolePermission{RoleID: role.ID, PermissionID: permission.ID}
 	_, err := db.NewInsert().Model(rolePermission).ModelTableExpr(`auth.role_permissions`).Exec(context.Background())
@@ -565,7 +560,6 @@ func TestLoadAccountMetadataForTenant_PersonNameComesFromTargetSchool(t *testing
 	service, db, account, sourceTenantID := newMintGuardFixture(t)
 
 	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 	insertPersonForAccountAtTenant(t, db, sourceTenantID, account.ID, "Quelle", "Schule")
@@ -593,7 +587,6 @@ func TestLoadAccountMetadataForTenant_NoPersonAtTargetFallsBack(t *testing.T) {
 	service, db, account, homeTenantID := newMintGuardFixture(t)
 
 	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 	insertPersonForAccountAtTenant(t, db, homeTenantID, account.ID, "Traeger", "Buero")
@@ -646,11 +639,9 @@ func TestLoadAccountMetadataForTenant_AmbiguousNameAcrossSchools_YieldsNoName(t 
 	service, db, account, homeTenantID := newMintGuardFixture(t)
 
 	secondTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, secondTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, secondTenantID)
 
 	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 	insertPersonForAccountAtTenant(t, db, homeTenantID, account.ID, "Erste", "Schule")
@@ -673,11 +664,9 @@ func TestLoadAccountMetadataForTenant_FallbackIgnoresUnmappedSchools(t *testing.
 	service, db, account, homeTenantID := newMintGuardFixture(t)
 
 	strangerTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, strangerTenantID) })
 	insertPersonForAccountAtTenant(t, db, strangerTenantID, account.ID, "Fremde", "Schule")
 
 	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 	insertPersonForAccountAtTenant(t, db, homeTenantID, account.ID, "Eigene", "Schule")
@@ -725,8 +714,7 @@ func assignAdminRoleAtTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 	assignment.SetTenantID(tenantID)
 	_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
 	require.NoError(t, err)
-	// CleanupAuthFixtures removes auth.account_roles by account_id; the system
-	// role row itself is seeded and must survive.
+	// The assignment inherits account ownership; the seeded system role survives.
 }
 
 // adminSystemRoleID resolves the seeded admin system role.

@@ -44,7 +44,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
-	"github.com/moto-nrw/project-phoenix/services/feedback"
 	"github.com/moto-nrw/project-phoenix/services/filestore"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
@@ -105,6 +104,7 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 type Factory struct {
 	settingsRuntimeDB         *bun.DB
 	Auth                      auth.AuthService
+	Audit                     auditModels.Command
 	StaffPINAuth              auth.StaffPINAuthenticator
 	MFA                       auth.MFAService
 	Passkey                   auth.PasskeyService
@@ -130,7 +130,6 @@ type Factory struct {
 	WC                        facilities.WCService
 	Invitation                auth.InvitationService
 	GuardianInvitation        auth.GuardianInvitationService
-	Feedback                  feedback.Service
 	IoT                       iot.Service
 	Checkin                   *iotcheckin.CheckinService
 	StaffClock                *staffclock.Service
@@ -309,16 +308,67 @@ func (f *Factory) SetSettingsObservers(
 
 type MealPlanSettingsBinder func(func(context.Context) (bool, error))
 
-// NewFactoryWithMealPlan builds the production graph with the one authoritative
-// Meal Plan facade shared by staff and parent callers.
-func NewFactoryWithMealPlan(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, mealPlan parent.MealPlan, bindSettings MealPlanSettingsBinder, clocks ...func() time.Time) (*Factory, error) {
-	if mealPlan == nil || bindSettings == nil {
-		return nil, errors.New("meal plan capability and settings binder are required")
+type FeedbackSettingsBinder func(
+	func(context.Context) (bool, error),
+	func(context.Context) (int, error),
+)
+
+type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)
+
+func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
+	if store == nil || logger == nil || observe == nil {
+		return nil, errors.New("audit command store, logger, and observer are required")
 	}
-	return newFactory(repos, db, logger, mealPlan, bindSettings, clocks...)
+	command, err := auditService.NewCommand(store, func(observation auditService.AppendObservation) {
+		observe(observation.EventType, observation.Duration, observation.Rows, observation.Err)
+		log := logger.Debug
+		if observation.Err != nil {
+			log = logger.Error
+		}
+		log("audit append",
+			"event_type", observation.EventType,
+			"duration_ms", observation.Duration.Milliseconds(),
+			"rows", observation.Rows,
+			"failed", observation.Err != nil,
+		)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return command, nil
 }
 
-func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, mealPlan parent.MealPlan, bindMealPlanSettings MealPlanSettingsBinder, clocks ...func() time.Time) (*Factory, error) {
+// NewFactoryWithModules builds the legacy service graph around the migrated
+// module capabilities it still consumes.
+func NewFactoryWithModules(
+	repos *repositories.Factory,
+	db *bun.DB,
+	logger *slog.Logger,
+	mealPlan parent.MealPlan,
+	bindMealPlanSettings MealPlanSettingsBinder,
+	feedbackCounter users.FeedbackEntryCounter,
+	bindFeedbackSettings FeedbackSettingsBinder,
+	observeAuditAppend AuditAppendObserver,
+	clocks ...func() time.Time,
+) (*Factory, error) {
+	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil {
+		return nil, errors.New("meal plan, feedback, and Audit capabilities with their binders and observer are required")
+	}
+	return newFactory(repos, db, logger, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, false, clocks...)
+}
+
+func newFactory(
+	repos *repositories.Factory,
+	db *bun.DB,
+	logger *slog.Logger,
+	mealPlan parent.MealPlan,
+	bindMealPlanSettings MealPlanSettingsBinder,
+	feedbackCounter users.FeedbackEntryCounter,
+	bindFeedbackSettings FeedbackSettingsBinder,
+	observeAuditAppend AuditAppendObserver,
+	allowAuditRootWrites bool,
+	clocks ...func() time.Time,
+) (*Factory, error) {
 	now := optionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	settingsRuntime := newSettingsRuntime(db, nil)
@@ -341,6 +391,40 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	databaseLogger := logger.With("service", "database")
 	platformLogger := logger.With("service", "platform")
 	emailLogger := logger.With("component", "email")
+	auditLogger := logger.With("component", "audit-command")
+	auditTransactionRuntime := func(ctx context.Context) (bun.IDB, int64) {
+		auditTenantID := tenant.FromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			if allowAuditRootWrites {
+				return db, auditTenantID
+			}
+			return nil, auditTenantID
+		}
+		switch tx := raw.(type) {
+		case bun.Tx:
+			return tx, auditTenantID
+		case *bun.Tx:
+			if tx != nil {
+				return tx, auditTenantID
+			}
+		}
+		panic(fmt.Sprintf("audit command: unsupported transaction %T", raw))
+	}
+	auditReadRuntime := func(ctx context.Context) (bun.IDB, int64) {
+		transaction, tenantID := auditTransactionRuntime(ctx)
+		if transaction == nil {
+			return db, tenantID
+		}
+		return transaction, tenantID
+	}
+	repos.ConfigureAuditRuntime(auditReadRuntime)
+	auditAppender := repos.NewAuditStore(auditTransactionRuntime)
+	auditCommand, err := newAuditCommand(auditAppender, auditLogger, observeAuditAppend)
+	if err != nil {
+		return nil, err
+	}
+	repos.RouteAuditWrites(auditCommand)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger)
 
@@ -475,6 +559,16 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		bindMealPlanSettings(func(ctx context.Context) (bool, error) {
 			return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
 		})
+	}
+	if bindFeedbackSettings != nil {
+		bindFeedbackSettings(
+			func(ctx context.Context) (bool, error) {
+				return settingsService.ResolveBool(ctx, configModels.KeyFeedbackEnabled)
+			},
+			func(ctx context.Context) (int, error) {
+				return settingsService.ResolveInt(ctx, configModels.KeyFeedbackDataRetentionDays)
+			},
+		)
 	}
 	// Wire the enrollment class-restriction probe so the settings service can
 	// refuse disabling concrete-class collection while an active phase
@@ -643,6 +737,19 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	// service so it can be injected there and resolve custom names on both the
 	// write path (which base type an art inherits) and the read paths.
 	staffAbsenceTypeService := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, activeLogger)
+	if allowanceAware, ok := staffAbsenceTypeService.(interface {
+		SetAllowanceRepositories(
+			activeModels.StaffAbsenceTypeAllowanceRepository,
+			activeModels.StaffAbsenceTypeAllowanceChangeRepository,
+			activeModels.StaffAbsenceRepository,
+		)
+	}); ok {
+		allowanceAware.SetAllowanceRepositories(
+			repos.StaffAbsenceTypeAllowance,
+			repos.StaffAbsenceTypeAllowanceChange,
+			repos.StaffAbsence,
+		)
+	}
 	if typeAware, ok := workSessionService.(interface {
 		SetAbsenceTypeService(active.StaffAbsenceTypeService)
 	}); ok {
@@ -873,11 +980,6 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		Logger:                   activeLogger,
 		Now:                      now,
 	})
-
-	// Initialize feedback service
-	feedbackService := feedback.NewService(
-		repos.FeedbackEntry,
-	)
 
 	// Initialize IoT service
 	iotService := iot.NewService(
@@ -1301,6 +1403,7 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	authConfig.ParentsURL = parentsURL
 	authConfig.SchoolURL = schoolURL
 	authConfig.Settings = settingsService
+	authConfig.Audit = auditCommand
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
@@ -1320,6 +1423,7 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		JWTSecret:   viper.GetString("auth_jwt_secret"),
 		DB:          db,
 		Logger:      authLogger,
+		Audit:       auditCommand,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init mfa service: %w", err)
@@ -1385,24 +1489,24 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	emailOutboxWorker.SetMailIdentityResolver(tenantMailIdentity)
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo:         repos.GuardianInvitation,
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
-		AccountRoleRepo:        repos.AccountRole,
-		RoleRepo:               repos.Role,
-		PersonRepo:             repos.Person,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		GuardianFinancialAudit: repos.GuardianFinancialChange,
-		StudentRepo:            repos.Student,
-		SchoolRepo:             repos.School,
-		OutboxEnqueuer:         emailOutboxService,
-		EnrollmentBackfiller:   repos.ParentEnrollmentRequest,
-		SettingsResolver:       settingsService,
-		FrontendURL:            parentsURL, // accept link goes to the parents portal, not the staff frontend
-		FallbackExpiry:         invitationTokenExpiry,
-		DB:                     db,
-		Logger:                 authLogger.With("flow", "guardian_invitation"),
+		InvitationRepo:       repos.GuardianInvitation,
+		AccountRepo:          repos.Account,
+		AccountTenantRepo:    repos.AccountTenant,
+		AccountRoleRepo:      repos.AccountRole,
+		RoleRepo:             repos.Role,
+		PersonRepo:           repos.Person,
+		GuardianProfileRepo:  repos.GuardianProfile,
+		StudentGuardianRepo:  repos.StudentGuardian,
+		Audit:                auditCommand,
+		StudentRepo:          repos.Student,
+		SchoolRepo:           repos.School,
+		OutboxEnqueuer:       emailOutboxService,
+		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
+		SettingsResolver:     settingsService,
+		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
+		FallbackExpiry:       invitationTokenExpiry,
+		DB:                   db,
+		Logger:               authLogger.With("flow", "guardian_invitation"),
 	})
 
 	// Register the guardian_invitation renderer at startup so the outbox
@@ -1588,7 +1692,19 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		db,
 		today,
 	)
-	unregisteredTagScanService := auditService.NewUnregisteredTagScanService(repos.UnregisteredTagScan, db)
+	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
+		repos.UnregisteredTagScan,
+		auditCommand,
+		auditService.UnregisteredTagScanRuntime{
+			TenantID: tenant.FromContext,
+			WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error {
+				return tenant.WithinAdmin(ctx, fn)
+			},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize import service
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
@@ -2046,6 +2162,7 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		feedbackCounter,
 		db,
 	)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
@@ -2680,6 +2797,7 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	factory := &Factory{
 		settingsRuntimeDB:       db,
 		Auth:                    authService,
+		Audit:                   auditCommand,
 		StaffPINAuth:            authService,
 		MFA:                     mfaService,
 		Passkey:                 passkeyService,
@@ -2703,7 +2821,6 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		Facilities:              facilitiesService,
 		Schulhof:                schulhofService,
 		WC:                      wcService,
-		Feedback:                feedbackService,
 		IoT:                     iotService,
 		Checkin:                 checkinService,
 		StaffClock:              staffClockService,

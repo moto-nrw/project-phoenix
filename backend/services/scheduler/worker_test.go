@@ -17,6 +17,10 @@ func (*fakeOperatorInvitationCleaner) CleanupExpiredOperatorInvitations(context.
 	return 0, nil
 }
 
+type fakeFeedbackCleaner struct{ err error }
+
+func (f *fakeFeedbackCleaner) DeleteExpired(context.Context) (int, error) { return 0, f.err }
+
 func minimalWorkerDependencies(t *testing.T) WorkerDependencies {
 	t.Helper()
 	runtime, err := tenant.NewUnitOfWork(
@@ -40,6 +44,7 @@ func minimalWorkerDependencies(t *testing.T) WorkerDependencies {
 		InvitationCleanup:         &fakeInvitationCleaner{},
 		EmailChangeCleanup:        &fakeEmailChangeCleaner{},
 		OperatorInvitationCleanup: &fakeOperatorInvitationCleaner{},
+		FeedbackCleaner:           &fakeFeedbackCleaner{},
 	}
 }
 

@@ -41,6 +41,7 @@ func TestPurgeGraduatedStudent_PersonDeleteFailureRollsBack(t *testing.T) {
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		&testpkg.FeedbackEntryCounterMock{},
 		tc.db,
 	)
 

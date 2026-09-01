@@ -11,6 +11,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+type FeedbackEntryCounterMock struct {
+	Count int
+	Err   error
+}
+
+func (m *FeedbackEntryCounterMock) CountForStudent(context.Context, int64) (int, error) {
+	return m.Count, m.Err
+}
+
 // SchoolRepoMock is a func-field test double for platform.SchoolRepository.
 type SchoolRepoMock struct {
 	CreateFn                          func(ctx context.Context, school *platform.School) error

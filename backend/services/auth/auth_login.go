@@ -1078,7 +1078,10 @@ func (s *Service) buildJWTClaims(
 	return appClaims, refreshClaims
 }
 
-// generateAndLogTokens generates JWT token pair and logs the authentication event
+// generateAndLogTokens generates JWT token pair and records the authentication
+// event. Token persistence has already committed before this function runs, so
+// audit failures are best effort: reporting one as a login failure would leave
+// the caller with an issued refresh token but no successful response.
 func (s *Service) generateAndLogTokens(
 	ctx context.Context,
 	accountID int64,
@@ -1092,7 +1095,13 @@ func (s *Service) generateAndLogTokens(
 	}
 
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, "")
+		if err := s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, ""); err != nil {
+			s.getLogger().Error("failed to audit authenticated session",
+				slog.Int64("account_id", accountID),
+				slog.String("event_type", eventType),
+				slog.Any("error", err),
+			)
+		}
 	}
 
 	return accessToken, refreshToken, nil
@@ -1101,7 +1110,9 @@ func (s *Service) generateAndLogTokens(
 // logFailedLogin logs a failed login attempt if IP address is provided
 func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress, userAgent, reason string) {
 	if ipAddress != "" {
-		s.logAuthEvent(ctx, accountID, audit.EventTypeLogin, false, ipAddress, userAgent, reason)
+		if err := s.logAuthEvent(ctx, accountID, audit.EventTypeLogin, false, ipAddress, userAgent, reason); err != nil {
+			s.getLogger().Error("failed to audit rejected login", slog.Any("error", err))
+		}
 	}
 }
 
@@ -1655,6 +1666,14 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrAccountInactive) && ipAddress != "" {
+			if auditErr := s.logAuthEvent(ctx, int64(refreshClaims.ID), audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive"); auditErr != nil {
+				s.getLogger().Error("failed to audit rejected refresh",
+					slog.Int("account_id", refreshClaims.ID),
+					slog.Any("error", auditErr),
+				)
+			}
+		}
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: err}
 	}
 	if revokedForPush != nil {
@@ -1678,9 +1697,6 @@ func (s *Service) fetchAndValidateAccountForUpdate(ctx context.Context, accountI
 		return nil, &AuthError{Op: opGetAccount, Err: fmt.Errorf("account lookup failed: %w", err)}
 	}
 	if !account.Active {
-		if ipAddress != "" {
-			s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
-		}
 		return nil, &AuthError{Op: "check account status", Err: ErrAccountInactive}
 	}
 	return account, nil
@@ -2064,6 +2080,7 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction).
 	var revoked *auth.Token
+	var revokedTokens []*auth.Token
 	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get token from database to find the account ID
 		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
@@ -2072,32 +2089,15 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			return nil
 		}
 
-		if err := s.deleteFamilyWithAudit(ctx, dbToken, "logout", ipAddress, userAgent); err != nil {
-			s.getLogger().Warn("failed to delete refresh-token family during logout",
-				slog.Int64("account_id", dbToken.AccountID),
-				slog.Any("error", err),
-			)
-			return &AuthError{Op: "delete token family with audit", Err: err}
+		var deleteErr error
+		if dbToken.FamilyID == "" {
+			deleteErr = s.repos.Token.Delete(ctx, dbToken.ID)
+			revokedTokens = []*auth.Token{dbToken}
+		} else {
+			revokedTokens, deleteErr = s.repos.Token.DeleteByFamilyIDReturning(ctx, dbToken.FamilyID)
 		}
-
-		// Log successful logout against the school the session actually
-		// belonged to. /auth/logout is a pre-deauthentication route with no
-		// tenant in context, and logAuthEvent then falls back to the account's
-		// FIRST active mapping — for a Lehrkraft or a caregiver mapped to
-		// several schools that files the logout under a school they were never
-		// logged into. The token row carries the tenant the session was minted
-		// for; the claims are the fallback for pre-tenant-claim legacy rows.
-		auditCtx := ctx
-		switch {
-		case dbToken.TenantID > 0:
-			auditCtx = tenant.WithTenantID(ctx, dbToken.TenantID)
-		case refreshClaims.TenantID > 0:
-			auditCtx = tenant.WithTenantID(ctx, refreshClaims.TenantID)
-		}
-
-		// Log successful logout
-		if ipAddress != "" {
-			s.logAuthEvent(auditCtx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+		if deleteErr != nil {
+			return &AuthError{Op: "delete token family", Err: deleteErr}
 		}
 
 		revoked = dbToken
@@ -2105,8 +2105,41 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 	})
 	if err == nil && revoked != nil {
 		s.queuePushCleanup(ctx, revoked.AccountID, []*auth.Token{revoked}, "family")
+		s.auditLogout(ctx, revoked, revokedTokens, refreshClaims.TenantID, ipAddress, userAgent)
 	}
 	return err
+}
+
+// auditLogout appends audit records after the token-family deletion commits.
+// Logout must never leave a usable session because the audit store is down.
+func (s *Service) auditLogout(ctx context.Context, revoked *auth.Token, tokens []*auth.Token, claimTenantID int64, ipAddress, userAgent string) {
+	tenantID := revoked.TenantID
+	if tenantID == 0 {
+		tenantID = claimTenantID
+	}
+	if tenantID == 0 {
+		s.getLogger().Error("failed to audit logout",
+			slog.Int64("account_id", revoked.AccountID),
+			slog.String("error", "tenant is required"),
+		)
+		return
+	}
+	auditCtx := tenant.WithTenantID(s.withTenantRuntime(ctx), tenantID)
+	err := tenant.WithTenantTx(auditCtx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.auditRevokedTokens(txCtx, tokens, "logout", ipAddress, userAgent); err != nil {
+			return err
+		}
+		if ipAddress == "" {
+			return nil
+		}
+		return s.logAuthEvent(txCtx, revoked.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+	})
+	if err != nil {
+		s.getLogger().Error("failed to audit logout",
+			slog.Int64("account_id", revoked.AccountID),
+			slog.Any("error", err),
+		)
+	}
 }
 
 // ChangePassword updates an account's password

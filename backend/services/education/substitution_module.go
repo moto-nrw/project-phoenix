@@ -667,10 +667,10 @@ func projectAssignment(row *educationModels.GroupSubstitution, group *educationM
 }
 
 func auditChange(row *educationModels.GroupSubstitution, actorID int64, action string) *auditModels.SubstitutionChange {
-	endDate := row.EndDate
+	endDate := auditModels.Date(row.EndDate)
 	return &auditModels.SubstitutionChange{SubstitutionID: row.ID, TargetType: string(TargetGroupHandover), Action: action,
 		GroupID: row.GroupID, TargetStaffID: row.SubstituteStaffID, ActorAccountID: actorID,
-		StartDate: row.StartDate, EndDate: &endDate}
+		StartDate: auditModels.Date(row.StartDate), EndDate: &endDate}
 }
 
 func contains(ids []int64, id int64) bool {

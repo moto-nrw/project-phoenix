@@ -29,6 +29,7 @@ func TestOperatorRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, operator)
 		require.NoError(t, err)
+		testpkg.OwnTestOperator(t, db, operator.ID)
 		assert.NotZero(t, operator.ID)
 		assert.NotZero(t, operator.CreatedAt)
 

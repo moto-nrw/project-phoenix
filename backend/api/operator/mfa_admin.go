@@ -95,7 +95,7 @@ func (rs *ProvisioningResource) resolveOperatorMFAAdminTarget(w http.ResponseWri
 }
 
 // withTenantContext injects the school as the tenant for the duration of
-// the request. Required so the MFA service's audit goroutine
+// the request. Required so the MFA service's audit append
 // (recordAuthEvent) sees a tenantID and actually writes the audit row;
 // without this the operator flow would silently drop the audit event.
 func withTenantContext(r *http.Request, schoolID int64) *http.Request {

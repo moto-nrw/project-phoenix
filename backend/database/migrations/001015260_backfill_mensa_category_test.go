@@ -45,14 +45,16 @@ func TestBackfillMensaCategory(t *testing.T) {
 
 	// A school provisioned via the operator portal: it got the hard-coded
 	// default list, which never contained Mensa.
-	const withoutMensa int64 = 21311
+	withoutMensa := testpkg.UniqueTestTenantID(t)
 	// A school that already has one, spelled differently — the migration must
 	// not add a second.
-	const withMensa int64 = 21312
+	withMensa := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, withoutMensa)
+
+	testpkg.OwnTenantRows(t, db, withoutMensa)
 	testpkg.EnsureTestTenant(t, db, withMensa)
-	defer testpkg.CleanupTenantTestData(t, db, withoutMensa, withMensa)
+	testpkg.OwnTenantRows(t, db, withMensa)
 
 	insertMensaTestCategory(t, db, withoutMensa, "Sport")
 	insertMensaTestCategory(t, db, withMensa, "mensa")
@@ -75,8 +77,8 @@ func TestBackfillMensaCategoryDownPreservesPreexistingCategory(t *testing.T) {
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	insertMensaTestCategory(t, db, tenantID, "Mensa")
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
 	require.NoError(t, backfillMensaCategoryDown(ctx, db))
 	assert.Equal(t, 1, countCategoriesNamed(t, db, tenantID, "Mensa"))

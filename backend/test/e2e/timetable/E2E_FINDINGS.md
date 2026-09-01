@@ -24,7 +24,7 @@ Sechs End-to-End-Flows gegen die gemergten WPs B1 bis B14. Jeder Flow hermetisch
 | **E2E-C2** | C | Plan-Dokumentation | Query-Budget `≤ 2` galt nur fuer Handler-Queries; TenantTx-Middleware addiert 4-5 Queries. |
 | **E2E-ENV-1** | — | Existing Test-Fragility | `backend/services/schedule/arrival_service_test.go` nutzt hardcoded `CreatedBy: 1` staff-ID ohne eigenen Fixture. Die Tests sind fragil gegen DB-state, in dem staff_id=1 nicht existiert. Nicht durch diese Suite verursacht, aber erkannt. Kandidat fuer Hermetic-Bereinigung. |
 
-Dazu ein Umfeld-Befund ohne Nummerierung: `testpkg.CleanupStaffFixtures` wirft noisy `bun: Model(nil interface *interface {})` im Teardown. Cleanup funktioniert, Logs sind laut. Existing-Bug im Helper, nicht im Epic.
+Dazu gab es einen Umfeld-Befund ohne Nummerierung: Der inzwischen entfernte Fixture-Cleanup war im Teardown wirkungslos und erzeugte laute BUN-Logs. #2847 hat den Helper entfernt.
 
 ---
 
@@ -76,7 +76,7 @@ Dazu ein Umfeld-Befund ohne Nummerierung: `testpkg.CleanupStaffFixtures` wirft n
 
 ## Umfeld-Notiz — Cleanup-Rauschen
 
-Alle Flows produzieren im Teardown `cleanup users.teachers: bun: Model(nil interface *interface {})` Log-Messages. Das kommt aus `testpkg.CleanupStaffFixtures` → `cleanupDelete` via `db.NewDelete().Model((*interface{})(nil))` — bun kann das Model-Argument nicht binden. Existing-Bug im Cleanup-Helper, nicht der E2E-Suite. Der Cleanup selbst funktioniert (die DB wird geleert), nur die Log-Zeilen sind noisy. Kein Blocker, aber ein Kandidat fuer eine separate Bereinigung.
+Historischer Befund: Alle Flows produzierten im Teardown BUN-Fehler, weil der damalige Fixture-Cleanup ein ungültiges Model verwendete. #2847 hat den expliziten Cleanup vollständig entfernt.
 
 ---
 
@@ -107,7 +107,7 @@ Alle Flows produzieren im Teardown `cleanup users.teachers: bun: Model(nil inter
 1. **E2E-C1 fixen** (Einzeiler in `backend/api/timetable/gaps.go:168`): `AssignedStaffCount: len(rows)` statt `0`. Sobald der Bug gefixt ist, wird Flow C automatisch gruen.
 2. **E2E-B1 im Plan praezisieren**: `docs/timetable-system-plan.md` §6.1 um einen Hinweis erweitern, dass die Exception-Checks vor der existing-row-Dedupe laufen. Das Verhalten ist sinnvoll, der Plan-Text widerspricht ihm.
 3. **E2E-C2 im Plan verorten**: die PR-Beschreibungen `≤ 2` / `≤ 22` / `≤ 12` auf Handler-Queries zu stellen und die Middleware-Overhead-Erwartung separat zu dokumentieren. Oder bei allen das End-to-End-Budget messen und realistisch angeben.
-4. **Cleanup-Helper**: separates kleines PR das `CleanupStaffFixtures` bun-Model-Problem adressiert. Kein Timetable-Blocker, macht Test-Logs aber wesentlich ruhiger.
+4. **Cleanup-Helper**: mit #2847 erledigt; Fixture-Zeilen gehören jetzt dem Paket-Clone.
 5. **E2E-Suite ins CI integrieren**: sobald E2E-C1 gefixt ist, passt die ganze Suite in einen `go test ./test/e2e/...` Build-Step. Dauer: insgesamt unter einer Sekunde inklusive DB-Setup.
 
 ## Wie ausfuehren

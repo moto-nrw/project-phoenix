@@ -115,6 +115,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 			r.Use(jwt.Authenticator)
+			r.Use(common.ReadOnlyPreviewMiddleware)
 			r.Use(jwt.SchoolMiddleware)
 			r.Use(common.SecurityPrincipalMiddleware)
 

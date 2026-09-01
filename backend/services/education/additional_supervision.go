@@ -248,6 +248,6 @@ func additionalSupervisionAudit(row *activeModels.GroupSupervisor, actorID int64
 	return &auditModels.SubstitutionChange{
 		SubstitutionID: row.ID, TargetType: string(TargetAdditionalSupervision), Action: auditModels.SubstitutionAssigned,
 		GroupID: row.GroupID, TargetStaffID: row.StaffID, ActorAccountID: actorID,
-		StartDate: row.StartDate,
+		StartDate: auditModels.Date(row.StartDate),
 	}
 }

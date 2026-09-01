@@ -77,8 +77,6 @@ func TestActivityService_CreateCategory(t *testing.T) {
 
 		// ACT
 		result, err := service.CreateCategory(ctx, category)
-		defer func() {
-		}()
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1558,7 +1556,6 @@ func TestActivityService_DeleteGroup_WithEnrollments(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "del-with-enroll")
 		student := testpkg.CreateTestStudent(t, db, "Enrolled", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID) // group will be deleted
 
 		// Enroll student
 		err := service.EnrollStudent(ctx, group.ID, student.ID)

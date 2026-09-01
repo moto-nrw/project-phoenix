@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Class-list entry audit actions (#2382). Part of the audit wire format.
@@ -25,9 +22,8 @@ const (
 // (Klasse)"; MatchedStudentID records which student an "assigned" resolution
 // attached the entry to before deleting it.
 type ClassListEntryChange struct {
-	bun.BaseModel `bun:"schema:audit,table:class_list_entry_changes"`
-	ID            int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	ID int64 `bun:"id,pk,autoincrement" json:"id"`
+	TenantModel
 	EntryID          int64     `bun:"entry_id,notnull" json:"entry_id"`
 	Action           string    `bun:"action,notnull" json:"action"`
 	OldValue         string    `bun:"old_value,notnull" json:"old_value"`

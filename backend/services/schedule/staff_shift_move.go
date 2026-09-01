@@ -170,7 +170,7 @@ func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, mo
 		return nil
 	}
 	event := &auditModels.DeviationEvent{
-		OccurrenceDate: moved.Date,
+		OccurrenceDate: auditModels.Date(moved.Date),
 		StartTime:      timezone.NormalizeWallClock(moved.StartTime),
 		StaffShiftID:   &moved.ID,
 		SubjectStaffID: &existing.StaffID,

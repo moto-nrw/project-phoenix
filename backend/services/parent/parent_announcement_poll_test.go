@@ -65,7 +65,7 @@ func seedPublishedPollWithTargets(
 	}
 	require.NoError(t, repo.ReplaceOptions(ctx, tenantID, a.ID, options))
 
-	now := time.Now()
+	now := time.Now().Add(-time.Minute)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
