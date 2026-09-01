@@ -125,7 +125,7 @@ case "$tool" in
         vet_executable() {
             local target
             case "$1" in
-                /bin/* | /sbin/* | /usr/bin/* | /usr/sbin/* | /usr/local/bin/* | /opt/homebrew/bin/* | */node_modules/@openai/codex-*/vendor/*/codex-path/rg)
+                /bin/* | /sbin/* | /usr/bin/* | /usr/sbin/* | /usr/local/bin/* | /opt/homebrew/bin/* | /opt/hostedtoolcache/go/*/bin/go | */node_modules/@openai/codex-*/vendor/*/codex-path/rg)
                     vet_trusted_binary "$1"
                     ;;
                 /nix/store/*)
