@@ -222,7 +222,9 @@ func NewService(settings configService.SettingsService, logger *slog.Logger, cha
 // evidence for fail-closed sends. NewService remains the small test and local
 // adapter constructor.
 func NewServiceWithDeliveryObserver(settings configService.SettingsService, logger *slog.Logger, observe DeliveryObserver, channels ...Channel) Notifier {
-	return &router{settings: settings, channels: channels, logger: logger, observe: observe}
+	service := NewService(settings, logger, channels...).(*router)
+	service.observe = observe
+	return service
 }
 
 func (r *router) getLogger() *slog.Logger {
