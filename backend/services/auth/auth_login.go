@@ -1666,6 +1666,14 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrAccountInactive) && ipAddress != "" {
+			if auditErr := s.logAuthEvent(ctx, int64(refreshClaims.ID), audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive"); auditErr != nil {
+				s.getLogger().Error("failed to audit rejected refresh",
+					slog.Int("account_id", refreshClaims.ID),
+					slog.Any("error", auditErr),
+				)
+			}
+		}
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: err}
 	}
 	if revokedForPush != nil {
@@ -1689,11 +1697,6 @@ func (s *Service) fetchAndValidateAccountForUpdate(ctx context.Context, accountI
 		return nil, &AuthError{Op: opGetAccount, Err: fmt.Errorf("account lookup failed: %w", err)}
 	}
 	if !account.Active {
-		if ipAddress != "" {
-			if auditErr := s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive"); auditErr != nil {
-				return nil, &AuthError{Op: "audit rejected refresh", Err: auditErr}
-			}
-		}
 		return nil, &AuthError{Op: "check account status", Err: ErrAccountInactive}
 	}
 	return account, nil

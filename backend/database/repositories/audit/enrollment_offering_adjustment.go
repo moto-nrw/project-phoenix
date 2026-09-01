@@ -86,7 +86,9 @@ func (r *enrollmentOfferingAdjustmentRepository) ListDirectForTenant(
 	if !filters.BeforeInstant.IsZero() {
 		query = query.Where(`("enrollment_offering_adjustment".changed_at, "enrollment_offering_adjustment".id) < (?, ?)`, filters.BeforeInstant, filters.BeforeID)
 	}
-	query = query.Limit(filters.Limit)
+	query = query.
+		OrderExpr(`"enrollment_offering_adjustment".changed_at DESC, "enrollment_offering_adjustment".id DESC`).
+		Limit(filters.Limit)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, wrapDatabase("list direct enrollment offering adjustments", err)
