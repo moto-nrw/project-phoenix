@@ -59,6 +59,34 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 	assert.NotContains(t, event.Metadata["family_fingerprint"], persisted.FamilyID)
 }
 
+func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	workingService := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("logout-audit-failure")
+	account, err := workingService.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	_, refreshToken, err := workingService.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	repoFactory := repositories.NewFactory(db)
+	config, err := authService.NewServiceConfig(nil, emailPkg.Email{}, "http://localhost:3000", time.Hour)
+	require.NoError(t, err)
+	config.Audit = failingAuditCommand{}
+	service, err := authService.NewService(repoFactory, config, db, nil)
+	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, service, db)
+
+	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "logout-test"))
+	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, count, "logout must revoke tokens even when audit append fails")
+}
+
 func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	t.Parallel()
 
