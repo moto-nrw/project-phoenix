@@ -1606,6 +1606,27 @@ func TestBetreuerRoleSeesOnlyTheMinimalColleagueView(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "Geheime Personalnotiz")
 }
 
+// TestPersonnelPermissionsReachTheStaffDirectory pins that the two personnel
+// permissions of #2906 are usable on their own: both open the staff list and
+// the profile of the person whose record they may work on. Without that a
+// holder would have to guess a numeric ID in the URL to reach anything.
+func TestPersonnelPermissionsReachTheStaffDirectory(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	colleague := testpkg.CreateTestStaff(t, ctx.db, "Erreichbare", "Kollegin")
+
+	for _, permission := range []string{"staff:stammdaten", "staff:manage"} {
+		auth := testutil.WithJWTBearer(authToken(t, permission))
+		for _, path := range []string{"/staff", fmt.Sprintf("/staff/%d", colleague.ID)} {
+			rr := testutil.ExecuteRequest(ctx.router,
+				testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, auth))
+			assert.Equal(t, http.StatusOK, rr.Code,
+				"GET %s must be reachable with %s: %s", path, permission, rr.Body.String())
+		}
+	}
+}
+
 // TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording pins the second half of
 // acceptance criterion 4: the school's own Abwesenheitsart wording (#2403)
 // names today's absence reason just as absence_type does, so it follows the

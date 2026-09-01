@@ -94,8 +94,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/overview", rs.getTimeTrackingOverview)
 
 		// Staff profile reads are also needed by absence management and the
-		// section-specific Stammdaten workflows below.
-		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
+		// section-specific Stammdaten workflows below. The two personnel
+		// permissions are on the gate as well (#2906): without the directory
+		// a holder of them has no way to reach the person whose record they
+		// may open, and the list response is field-scoped per caller anyway.
+		r.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.StaffManage, permissions.StaffStammdaten), withTx).Get("/", rs.listStaff)
 		r.With(common.RequiresAnyPermission(permissions.StaffDocuments, permissions.StaffFinancial, permissions.StaffDocumentsHealth), withTx).Get("/documents-directory", rs.listDocumentDirectory)
 		r.With(common.RequiresPermission(permissions.StaffFinancial), withTx).Get("/financial-profile/{id}", rs.getFinancialProfile)
 		r.With(common.RequiresAnyPermission(permissions.StaffDocuments, permissions.StaffFinancial, permissions.StaffDocumentsHealth), withTx).Get("/documents-profile/{id}", rs.getDocumentProfile)
@@ -104,8 +107,10 @@ func (rs *Resource) Router() chi.Router {
 		// the minimal colleague view and the personnel tiers get the record.
 		r.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.StaffManage, permissions.StaffStammdaten, permissions.TimeTrackingManage), withTx).Get("/{id}", rs.getStaff)
 
-		// Other staff reads require users:read permission.
-		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/avatar", rs.serveStaffAvatar)
+		// Other staff reads require users:read permission. The avatar follows
+		// the list and profile gate instead — whoever may see the directory
+		// entry sees the picture that belongs to it.
+		r.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.StaffManage, permissions.StaffStammdaten, permissions.TimeTrackingManage), withTx).Get("/{id}/avatar", rs.serveStaffAvatar)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/groups", rs.getStaffGroups)
 
 		// School class assignments (#1772): which classes a Lehrkraft is
