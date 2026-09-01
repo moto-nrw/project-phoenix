@@ -121,8 +121,10 @@ case "$tool" in
         }
 
         vet_trusted_binary() {
-            [[ -x "$1" && ! -d "$1" ]] &&
-                LC_ALL=C file -b "$1" 2>/dev/null | grep -Eq '^(ELF|Mach-O)'
+            local target
+            target=$(resolve_script "$1") || return 1
+            [[ -x "$target" && ! -d "$target" ]] &&
+                LC_ALL=C file -b "$target" 2>/dev/null | grep -Eq '^(ELF|Mach-O)'
         }
 
         # pnpm is a Node script installed by Homebrew. Its interpreter must

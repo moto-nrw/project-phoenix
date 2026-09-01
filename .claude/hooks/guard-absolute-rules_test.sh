@@ -204,6 +204,9 @@ assert_bash deny "$repo" 'scripts/outside.sh'
 assert_bash deny "$repo" './env /usr/bin/true'
 assert_bash deny "$repo" "$repo/.devbox/nix/profile/default/bin/cycle-a"
 assert_bash deny "$repo" "$trusted_text"
+rm "$trusted_text"
+ln -s /usr/bin/true "$trusted_text"
+assert_bash_path allow "$repo" "$(dirname "$trusted_text"):$PATH" 'rg'
 assert_bash deny "$repo" $'cd backend\n../scripts/new.sh'
 assert_bash deny "$repo" 'nice -n 5 ./scripts/new'
 assert_bash deny "$repo" 'python3 ./scripts/new'
