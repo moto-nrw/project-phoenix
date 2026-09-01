@@ -222,7 +222,7 @@ export function QuickCreateActivityModal({
             <div>
               <label
                 htmlFor="name"
-                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "name" ? "text-red-600" : "text-gray-700"}`}
+                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "name" ? "text-moto-red" : "text-gray-700"}`}
               >
                 <div className="flex h-5 w-5 items-center justify-center rounded bg-gray-100">
                   <span className="text-xs font-bold text-gray-700">1</span>
@@ -235,7 +235,7 @@ export function QuickCreateActivityModal({
                 value={form.name}
                 onChange={handleInputChange}
                 placeholder="z.B. Hausaufgaben, Malen, Basteln..."
-                className={`block w-full rounded-xl border-0 bg-white/80 px-4 py-3.5 text-base text-gray-900 shadow-sm ring-1 ${errorFieldName === "name" ? "ring-red-400" : "ring-gray-200/50"} backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset`}
+                className={`block w-full rounded-xl border-0 bg-white/80 px-4 py-3.5 text-base text-gray-900 shadow-sm ring-1 ${errorFieldName === "name" ? "ring-moto-red/40" : "ring-gray-200/50"} backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset`}
                 required
                 maxLength={255}
               />
@@ -248,7 +248,7 @@ export function QuickCreateActivityModal({
               <label
                 id="category_id-label"
                 htmlFor="category_id"
-                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "category_id" ? "text-red-600" : "text-gray-700"}`}
+                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "category_id" ? "text-moto-red" : "text-gray-700"}`}
               >
                 <div className="flex h-5 w-5 items-center justify-center rounded bg-gray-100">
                   <span className="text-xs font-bold text-gray-700">2</span>
@@ -283,7 +283,7 @@ export function QuickCreateActivityModal({
             <div>
               <label
                 htmlFor="max_participants"
-                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "max_participants" ? "text-red-600" : "text-gray-700"}`}
+                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "max_participants" ? "text-moto-red" : "text-gray-700"}`}
               >
                 <div className="flex h-5 w-5 items-center justify-center rounded bg-gray-100">
                   <span className="text-xs font-bold text-gray-700">3</span>

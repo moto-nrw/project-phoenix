@@ -1119,14 +1119,16 @@ func (s *offeringChangeRequestService) createOfferingChangeRow(
 	); err != nil {
 		return nil, err
 	}
-	s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
+	if err := s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestCreated,
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: input.AccountID,
 		Body:           offeringChangeCreatedBody,
 		RequestType:    OfferingChangeRequestType,
 		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.Logger.Info("offering change request created",
 		slog.Int64("student_id", input.StudentID),
 		slog.Int64("request_child_id", proposal.requestChildID),
@@ -1717,8 +1719,10 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		if err := s.recordOfferingDecision(ctx, row.ID, input.ReviewedBy, false, reason); err != nil {
 			return err
 		}
-		s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeRejectedBody,
-			usersModels.ParentMessageRequestStatusRejected, reason, nil)
+		if err := s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeRejectedBody,
+			usersModels.ParentMessageRequestStatusRejected, reason, nil); err != nil {
+			return err
+		}
 		return nil
 	}
 	// Approving a switch whose effective date has passed would book offerings
@@ -1750,9 +1754,11 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	if err := s.recordOfferingDecision(ctx, row.ID, input.ReviewedBy, true, reason); err != nil {
 		return err
 	}
-	s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeApprovedBody(row.EffectiveFrom),
+	if err := s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeApprovedBody(row.EffectiveFrom),
 		usersModels.ParentMessageRequestStatusDone, reason,
-		map[string]any{"effective_from": row.EffectiveFrom.String()})
+		map[string]any{"effective_from": row.EffectiveFrom.String()}); err != nil {
+		return err
+	}
 	s.Logger.Info("offering change request approved",
 		slog.Int64("request_id", row.ID),
 		slog.Int64("student_id", row.StudentID),
@@ -3116,7 +3122,7 @@ func (s *offeringChangeRequestService) emitDecisionPill(
 	reviewedBy int64,
 	body, status, reason string,
 	payload map[string]any,
-) {
+) error {
 	ev := parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderStaff,
@@ -3127,22 +3133,24 @@ func (s *offeringChangeRequestService) emitDecisionPill(
 		DecisionReason: reason,
 		Payload:        payload,
 	}
-	s.emitPillAfterCommit(ctx, row, ev)
+	if err := s.emitPillAfterCommit(ctx, row, ev); err != nil {
+		return err
+	}
 	// Every other guardian of this child hears about the decision: the full
 	// pill for explicit share recipients, a neutral line for the rest.
 	s.notifyOtherGuardiansAfterCommit(ctx, row, ev)
+	return nil
 }
 
-// emitPillAfterCommit posts the notification pill into the child's parent-OGS
-// thread once the surrounding transaction committed. Best-effort: a lost pill
-// costs a notification, never the decision.
+// emitPillAfterCommit writes the durable decision intent in the surrounding
+// transaction, then posts the best-effort parent-OGS pill after commit.
 func (s *offeringChangeRequestService) emitPillAfterCommit(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
 	ev parentmessaging.ChildEvent,
-) {
+) error {
 	if s.Emitter == nil {
-		return
+		return nil
 	}
 	tenantID := row.TenantID
 	if tenantID <= 0 {
@@ -3153,10 +3161,14 @@ func (s *offeringChangeRequestService) emitPillAfterCommit(
 	ev.RefID = &refID
 	studentID := row.StudentID
 	guardianAccountID := row.SubmittedBy
+	if err := s.Emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
+		return fmt.Errorf("offering change: enqueue request decision: %w", err)
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.Emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 		s.Emitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 	})
+	return nil
 }
 
 // offeringChangeAdjustmentReason writes the line the Änderungsprotokoll shows
@@ -3386,8 +3398,10 @@ func (s *offeringChangeRequestService) MarkDone(
 		reviewedBy, map[string]any{"reason": trimmed}); err != nil {
 		return err
 	}
-	s.emitDecisionPill(ctx, row, reviewedBy, parentRequestDoneBody,
-		usersModels.ParentMessageRequestStatusDone, trimmed, nil)
+	if err := s.emitDecisionPill(ctx, row, reviewedBy, parentRequestDoneBody,
+		usersModels.ParentMessageRequestStatusDone, trimmed, nil); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -144,18 +144,18 @@ export const groupsConfig = defineEntityConfig<Group>({
       badges: [
         {
           label: (group: Group) => `${group.student_count ?? 0} Kinder`,
-          color: "bg-green-400/80",
+          color: "bg-moto-green-light/80",
           showWhen: () => true,
         },
         {
           label: "Raum zugewiesen",
-          color: "bg-blue-400/80",
+          color: "bg-moto-blue-light/80",
           showWhen: (group: Group) => !!group.room_name,
         },
         {
           label: (group: Group) =>
             `${group.supervisors?.length ?? 0} Gruppenleiter/in${(group.supervisors?.length ?? 0) === 1 ? "" : "nen"}`,
-          color: "bg-indigo-400/80",
+          color: "bg-moto-indigo-light/80",
           showWhen: (group: Group) => (group.supervisors?.length ?? 0) > 0,
         },
       ],
@@ -164,7 +164,7 @@ export const groupsConfig = defineEntityConfig<Group>({
     sections: [
       {
         title: "Gruppendetails",
-        titleColor: "text-green-800",
+        titleColor: "text-moto-green-strong",
         items: [
           {
             label: "Gruppenname",

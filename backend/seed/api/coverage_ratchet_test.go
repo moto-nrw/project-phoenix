@@ -115,6 +115,7 @@ var seedCoverageDebt = map[string]string{}
 // is not stale classification debt.
 var seedCoverageTransient = map[string]string{
 	"auth.invitation_tokens": "short-lived invitation state; successful acceptance consumes the seeded tokens",
+	"platform.push_outbox":   "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 }
 
 var seedCoverageAllowlist = mergeCoverageClassifications(seedCoverageExemptions, seedCoverageTransient, seedCoverageDebt)

@@ -82,7 +82,7 @@ export const rolesConfig = defineEntityConfig<Role>({
         {
           label: (role: Role) =>
             `${role.permissions?.length ?? 0} Berechtigungen`,
-          color: "bg-blue-400/80",
+          color: "bg-moto-blue-light/80",
           showWhen: () => true,
         },
       ],

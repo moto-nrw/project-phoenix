@@ -11,6 +11,7 @@ import {
   screen,
   fireEvent,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -132,13 +133,26 @@ vi.mock("~/components/ui/modal", () => ({
         <div data-testid="modal-footer">{footer}</div>
       </div>
     ) : null,
-  ConfirmationModal: ({ isOpen, children, title, onConfirm }: any) =>
+  ConfirmationModal: ({
+    isOpen,
+    children,
+    title,
+    onConfirm,
+    confirmText = "Bestätigen",
+    isConfirmDisabled,
+    isConfirmLoading,
+  }: any) =>
     isOpen ? (
-      <div data-testid="confirmation-modal">
+      <div role="dialog" aria-label={title} data-testid="confirmation-modal">
         <h2>{title}</h2>
         {children}
-        <button type="button" data-testid="confirm-btn" onClick={onConfirm}>
-          Bestätigen
+        <button
+          type="button"
+          data-testid="confirm-btn"
+          onClick={onConfirm}
+          disabled={isConfirmDisabled || isConfirmLoading}
+        >
+          {confirmText}
         </button>
       </div>
     ) : null,
@@ -623,8 +637,10 @@ describe("OperatorSchoolDetailPage", () => {
     );
     fireEvent.change(confirmInput, { target: { value: "Test School" } });
 
-    const deleteButtons = screen.getAllByRole("button", { name: "Löschen" });
-    fireEvent.click(deleteButtons[deleteButtons.length - 1]!);
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schule löschen",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(mockSoftDeleteSchool).toHaveBeenCalledWith("10");

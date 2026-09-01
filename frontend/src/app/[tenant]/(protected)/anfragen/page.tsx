@@ -3,6 +3,7 @@
 import { useDeferredValue, useMemo, useState } from "react";
 
 import { useSession } from "next-auth/react";
+import { redirect } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 
 import { AggregatedRequestList } from "~/components/students/aggregated-request-list";
@@ -21,18 +22,10 @@ import type {
   AggregatedRequestStatus,
   AggregatedRequestType,
 } from "~/lib/change-request-list-api";
-import {
-  canOpenParentRequestsTab,
-  canOpenRequestsPage,
-  canReviewChangeRequests,
-  canReviewCareWithdrawals,
-  canReviewEnrollmentChangeRequests,
-  canReviewStaffAbsenceRequests,
-  canReviewStudentDataRequests,
-} from "~/lib/change-request-access";
 import { ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import { toISODate } from "~/lib/date-helpers";
-import { useRequirePermission } from "~/lib/hooks/use-require-permission";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 type AnfragenTabId = "eltern" | "mitarbeitende";
 
@@ -92,23 +85,21 @@ const STATUS_OPTIONS: readonly {
  * Historie) und erscheint nur mit Freigaberecht dafür (vacation:approve).
  */
 export default function AnfragenPage() {
-  // Die Seite öffnet, wer mindestens einen Reiter sehen darf. Die Regeln
-  // stehen in change-request-access — dieselben tragen Sidebar-Eintrag,
-  // mobile Navigation und Zähler-Badge.
-  const { isReady } = useRequirePermission(canOpenRequestsPage);
-  const { data: session } = useSession();
-
-  const showElternTab = canOpenParentRequestsTab(session);
+  const { status: sessionStatus } = useSession({ required: true });
+  const tenantPath = useTenantAwarePath();
+  const requestAccess = useChangeRequestAccess();
+  const showElternTab = requestAccess.canOpenParentRequestsTab;
   // Anmeldungsänderungen hängen an config:manage und kommen aus einem eigenen
   // Endpunkt (#2435); ohne das Recht bleiben Quelle und Filteroption weg.
-  const showEnrollmentRequests = canReviewEnrollmentChangeRequests(session);
-  const showCareWithdrawals = canReviewCareWithdrawals(session);
-  const showMitarbeitendeTab = canReviewStaffAbsenceRequests(session);
+  const showEnrollmentRequests =
+    requestAccess.canReviewEnrollmentChangeRequests;
+  const showCareWithdrawals = requestAccess.canReviewCareWithdrawals;
+  const showMitarbeitendeTab = requestAccess.canReviewStaffAbsenceRequests;
   // Der Aggregator über die vier Kinderdaten-Arten verlangt users:update oder
   // users:absence — ohne eines von beiden darf die Quelle gar nicht angefragt
   // werden.
-  const showAggregatedRequests = canReviewChangeRequests(session);
-  const showStudentDataRequests = canReviewStudentDataRequests(session);
+  const showAggregatedRequests = requestAccess.canReviewParentRequests;
+  const showStudentDataRequests = requestAccess.canReviewStudentDataRequests;
   // Wer nur die Entschuldigungs-Warteschlange hält, sieht ohnehin nur diese
   // eine Art — der Art-Filter wäre eine Liste toter Optionen (#2232).
   const showTypeFilter = showStudentDataRequests || showEnrollmentRequests;
@@ -345,7 +336,14 @@ export default function AnfragenPage() {
     setView(nextView);
   };
 
-  if (!isReady) {
+  const isAccessLoading =
+    sessionStatus === "loading" || requestAccess.isLoading;
+
+  if (!isAccessLoading && !requestAccess.canOpenRequestsPage) {
+    redirect(tenantPath("/dashboard"));
+  }
+
+  if (isAccessLoading) {
     return (
       <div className="-mt-1.5 w-full">
         <PageHeaderWithSearch title="Anfragen" />

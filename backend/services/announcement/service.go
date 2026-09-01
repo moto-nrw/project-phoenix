@@ -18,9 +18,9 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/emailbranding"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -41,9 +41,9 @@ type OutboxEnqueuer interface {
 // interface wholesale) for the same reason OutboxEnqueuer is — the service
 // depends on the operations it uses, not on a data-access surface.
 type DeliveryRecorder interface {
-	ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []*platformModels.EmailDelivery) error
+	ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []EmailDelivery) error
 	DeleteForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) (int64, error)
-	ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]*platformModels.EmailDeliveryStatus, error)
+	ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]EmailDeliveryStatus, error)
 	AttachOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error
 	ClaimFailedDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error)
 }
@@ -591,7 +591,9 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	for locale, group := range groups {
 		title, body := notifications.ParentAnnouncementCopy(locale, copyKind)
 		err = s.notifier.Notify(ctx, notifications.Event{
-			Type:     notificationType,
+			Type:           notificationType,
+			IdempotencyKey: fmt.Sprintf("parent-announcement:%d:%d:%s", a.ID, a.UpdatedAt.UTC().UnixNano(), copyKind),
+			RelatedType:    relatedEntityTypeAnnouncement, RelatedID: a.ID,
 			Title:    title,
 			Body:     body,
 			DeepLink: deepLink,

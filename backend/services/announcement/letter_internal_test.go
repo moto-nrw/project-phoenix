@@ -82,15 +82,15 @@ func (o *letterOutbox) CancelPendingByRelatedEntity(_ context.Context, _ string,
 }
 
 type letterDeliveries struct {
-	rows     []*platformModels.EmailDelivery
-	list     []*platformModels.EmailDeliveryStatus
+	rows     []EmailDelivery
+	list     []EmailDeliveryStatus
 	replaced int
 	deleted  int
 	attached map[int64]int64
 	claims   map[int64]bool
 }
 
-func (d *letterDeliveries) ReplaceForEntity(_ context.Context, _ int64, _ string, _ int64, rows []*platformModels.EmailDelivery) error {
+func (d *letterDeliveries) ReplaceForEntity(_ context.Context, _ int64, _ string, _ int64, rows []EmailDelivery) error {
 	d.replaced++
 	d.rows = rows
 	return nil
@@ -103,7 +103,7 @@ func (d *letterDeliveries) DeleteForEntity(_ context.Context, _ int64, _ string,
 	return n, nil
 }
 
-func (d *letterDeliveries) ListForEntity(_ context.Context, _ int64, _ string, _ int64) ([]*platformModels.EmailDeliveryStatus, error) {
+func (d *letterDeliveries) ListForEntity(_ context.Context, _ int64, _ string, _ int64) ([]EmailDeliveryStatus, error) {
 	return d.list, nil
 }
 
@@ -257,19 +257,19 @@ func TestPublishLetterRecordsUnreachableRecipients(t *testing.T) {
 		t.Fatalf("recorded %d delivery rows, want 3 (everyone addressed)", len(deliveries.rows))
 	}
 	want := map[int64]string{
-		1: platformModels.ReachabilityOK,
-		2: platformModels.ReachabilityNoEmail,
-		3: platformModels.ReachabilityNoPortal,
+		1: reachabilityOK,
+		2: reachabilityNoEmail,
+		3: reachabilityNoPortal,
 	}
 	for _, row := range deliveries.rows {
 		got := row.Reachability
 		if exp := want[*row.GuardianProfileID]; got != exp {
 			t.Errorf("guardian %d: reachability = %q, want %q", *row.GuardianProfileID, got, exp)
 		}
-		if got == platformModels.ReachabilityOK && !row.Queued() {
+		if got == reachabilityOK && !row.Queued() {
 			t.Errorf("guardian %d: reachable but no outbox row linked", *row.GuardianProfileID)
 		}
-		if got != platformModels.ReachabilityOK && row.Queued() {
+		if got != reachabilityOK && row.Queued() {
 			t.Errorf("guardian %d: unreachable but a mail was queued", *row.GuardianProfileID)
 		}
 	}
@@ -301,7 +301,7 @@ func TestPublishLetterAllContactsMailsGuardiansWithoutPortal(t *testing.T) {
 		if !row.Queued() {
 			t.Errorf("guardian %d: expected a queued mail with all_contacts", *row.GuardianProfileID)
 		}
-		if *row.GuardianProfileID == 3 && row.Reachability != platformModels.ReachabilityNoPortal {
+		if *row.GuardianProfileID == 3 && row.Reachability != reachabilityNoPortal {
 			t.Errorf("guardian 3: reachability = %q, want no_portal despite the queued mail", row.Reachability)
 		}
 	}
@@ -498,11 +498,11 @@ func TestLetterStatusReportsBothChannelsSeparately(t *testing.T) {
 	repo := &letterRepo{
 		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudienceAllContacts),
 	}
-	deliveries := &letterDeliveries{list: []*platformModels.EmailDeliveryStatus{
-		{FirstName: "Mama", EmailStatus: sent, Reachability: platformModels.ReachabilityOK},
-		{FirstName: "Opa", EmailStatus: sent, Reachability: platformModels.ReachabilityNoPortal},
-		{FirstName: "Oma", EmailStatus: platformModels.ReachabilityNoEmail, Reachability: platformModels.ReachabilityNoEmail},
-		{FirstName: "Papa", EmailStatus: "failed", Reachability: platformModels.ReachabilityOK},
+	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
+		{FirstName: "Mama", EmailStatus: sent, Reachability: reachabilityOK},
+		{FirstName: "Opa", EmailStatus: sent, Reachability: reachabilityNoPortal},
+		{FirstName: "Oma", EmailStatus: reachabilityNoEmail, Reachability: reachabilityNoEmail},
+		{FirstName: "Papa", EmailStatus: "failed", Reachability: reachabilityOK},
 	}}
 	svc := newLetterService(repo, &letterOutbox{}, deliveries)
 
@@ -665,10 +665,10 @@ func TestResendFailedEmailsOnlyRetriesFailures(t *testing.T) {
 	a.PublishedAt = &published
 	bad := "kaputt@example.test"
 	good := "gut@example.test"
-	deliveries := &letterDeliveries{list: []*platformModels.EmailDeliveryStatus{
-		{DeliveryID: 1, FirstName: "Gut", RecipientEmail: &good, EmailStatus: "sent", Reachability: platformModels.ReachabilityOK},
-		{DeliveryID: 2, FirstName: "Kaputt", RecipientEmail: &bad, EmailStatus: "failed", Reachability: platformModels.ReachabilityOK},
-		{DeliveryID: 3, FirstName: "Ohne", RecipientEmail: nil, EmailStatus: platformModels.ReachabilityNoEmail, Reachability: platformModels.ReachabilityNoEmail},
+	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
+		{DeliveryID: 1, FirstName: "Gut", RecipientEmail: &good, EmailStatus: "sent", Reachability: reachabilityOK},
+		{DeliveryID: 2, FirstName: "Kaputt", RecipientEmail: &bad, EmailStatus: "failed", Reachability: reachabilityOK},
+		{DeliveryID: 3, FirstName: "Ohne", RecipientEmail: nil, EmailStatus: reachabilityNoEmail, Reachability: reachabilityNoEmail},
 	}}
 	outbox := &letterOutbox{}
 	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)
@@ -706,7 +706,7 @@ func TestResendFailedEmailsDeduplicatesSharedAddress(t *testing.T) {
 	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
 	a.PublishedAt = &published
 	address := "familie@example.test"
-	deliveries := &letterDeliveries{list: []*platformModels.EmailDeliveryStatus{
+	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
 		{DeliveryID: 1, RecipientEmail: &address, EmailStatus: "failed"},
 		{DeliveryID: 2, RecipientEmail: &address, EmailStatus: "failed"},
 	}}
@@ -748,7 +748,7 @@ func TestResendFailedEmailsSkipsDeliveryClaimedByConcurrentRequest(t *testing.T)
 	a.PublishedAt = &published
 	address := "familie@example.test"
 	deliveries := &letterDeliveries{
-		list:   []*platformModels.EmailDeliveryStatus{{DeliveryID: 1, RecipientEmail: &address, EmailStatus: "failed"}},
+		list:   []EmailDeliveryStatus{{DeliveryID: 1, RecipientEmail: &address, EmailStatus: "failed"}},
 		claims: map[int64]bool{1: false},
 	}
 	outbox := &letterOutbox{}

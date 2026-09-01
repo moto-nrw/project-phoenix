@@ -14,6 +14,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
@@ -144,7 +145,7 @@ func (s *staffShiftService) SetBroadcaster(broadcaster realtime.Broadcaster) {
 }
 
 func (s *staffShiftService) broadcastTimeTrackingChanged(ctx context.Context) {
-	realtime.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
+	realtimeevents.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 // lockShiftWrites takes the per-staff advisory lock before the overlap

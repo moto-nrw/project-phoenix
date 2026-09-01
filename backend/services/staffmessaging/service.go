@@ -21,9 +21,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
