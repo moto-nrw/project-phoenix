@@ -50,6 +50,7 @@ func (s *service) hasAttachments(ctx context.Context, announcementID int64) bool
 type AttachmentSupport interface {
 	AnnouncementExists(ctx context.Context, announcementID int64) (bool, error)
 	AnnouncementEditable(ctx context.Context, announcementID int64) (bool, error)
+	LockAnnouncementForAttachmentChange(ctx context.Context, announcementID int64) (bool, bool, error)
 	ResetAnnouncementEngagement(ctx context.Context, announcementID int64) error
 	SetAttachmentPurger(purger AttachmentPurger)
 }
@@ -91,6 +92,27 @@ func (s *service) AnnouncementEditable(ctx context.Context, announcementID int64
 		return false, nil
 	}
 	return !a.IsPublished() && !a.IsSystem(), nil
+}
+
+// LockAnnouncementForAttachmentChange locks the announcement row for the rest
+// of the caller's transaction and reports, in one read, whether it exists and
+// whether it is still editable.
+//
+// Die Anhang-Schreibpfade prüfen erst („Entwurf? unter der Grenze?") und
+// schreiben dann. Beides muss dieselbe Zeile sperren, sonst laufen zwei
+// gleichzeitige Uploads beide durch die Prüfung und legen den sechsten Anhang
+// an, oder ein Upload committet hinter einer Veröffentlichung, die zwischen
+// Prüfung und INSERT durchging. Die Veröffentlichung nimmt dieselbe Zeilensperre
+// (sie schreibt published_at), damit sind beide Reihenfolgen serialisiert.
+func (s *service) LockAnnouncementForAttachmentChange(ctx context.Context, announcementID int64) (bool, bool, error) {
+	a, err := s.repo.FindByIDForUpdate(ctx, announcementID)
+	if err != nil {
+		return false, false, fmt.Errorf("announcement: lock for attachment change: %w", err)
+	}
+	if a == nil {
+		return false, false, nil
+	}
+	return true, !a.IsPublished() && !a.IsSystem(), nil
 }
 
 // ResetAnnouncementEngagement drops the reads, acknowledgements and poll

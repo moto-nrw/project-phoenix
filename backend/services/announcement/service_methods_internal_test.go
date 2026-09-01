@@ -97,6 +97,12 @@ func (m *mockRepo) Update(ctx context.Context, a *usersModels.ParentAnnouncement
 func (m *mockRepo) FindByID(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
 	return m.findByIDFn(ctx, id)
 }
+
+// FindByIDForUpdate has no lock to take against a mock; it answers from the
+// same source as FindByID so a test can arrange one state for both.
+func (m *mockRepo) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {
+	return m.findByIDFn(ctx, id)
+}
 func (m *mockRepo) Delete(ctx context.Context, id int64) error { return m.deleteFn(ctx, id) }
 func (m *mockRepo) ListForTenant(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {
 	return m.listForTenantFn(ctx, includeInactive)

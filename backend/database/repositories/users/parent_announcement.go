@@ -2,6 +2,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -156,6 +158,32 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string, today timezone.Date)
 // FindByID returns the announcement by id (tenant-scoped), or nil when absent.
 func (r *ParentAnnouncementRepository) FindByID(ctx context.Context, id int64) (*users.ParentAnnouncement, error) {
 	return r.FindByIDOrNil(ctx, id)
+}
+
+// FindByIDForUpdate returns the announcement by id (tenant-scoped) while
+// holding its row lock until the transaction ends, or nil when absent.
+//
+// Der Anhang-Upload (#2890) prüft „noch ein Entwurf" und „noch unter der
+// Grenze" und schreibt danach. Ohne diese Sperre laufen zwei gleichzeitige
+// Uploads beide durch die Prüfung, und ein Upload kann eine Veröffentlichung
+// überholen, die zwischen Prüfung und INSERT committet.
+func (r *ParentAnnouncementRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.ParentAnnouncement, error) {
+	a := new(users.ParentAnnouncement)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(a).
+		ModelTableExpr(`users.parent_announcements AS "parent_announcement"`).
+		Where(`"parent_announcement".id = ?`, id).
+		For("UPDATE")
+	if where, val, ok := base.TenantWhere(ctx, "parent_announcement"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("lock parent announcement %d: %w", id, err)
+	}
+	return a, nil
 }
 
 // Delete removes the announcement by id (targets + reads cascade in the DB).

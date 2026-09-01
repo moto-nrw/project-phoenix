@@ -483,6 +483,11 @@ type ParentAnnouncementRepository interface {
 	Create(ctx context.Context, a *ParentAnnouncement) error
 	Update(ctx context.Context, a *ParentAnnouncement) error
 	FindByID(ctx context.Context, id int64) (*ParentAnnouncement, error)
+	// FindByIDForUpdate reads the row while holding its lock until the
+	// transaction ends. The attachment writes (#2890) use it so that the
+	// "is it still a draft, is it still under the limit" check and the write
+	// that follows cannot be overtaken by a concurrent upload or publish.
+	FindByIDForUpdate(ctx context.Context, id int64) (*ParentAnnouncement, error)
 	Delete(ctx context.Context, id int64) error
 	// ListForTenant returns the tenant's announcements newest-first.
 	// includeInactive controls whether soft-disabled (active=false) rows appear.

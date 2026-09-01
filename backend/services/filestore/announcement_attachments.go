@@ -56,6 +56,13 @@ type AnnouncementGuard interface {
 	// A published announcement is immutable — the correction path is
 	// unpublish, edit, republish.
 	AnnouncementEditable(ctx context.Context, announcementID int64) (bool, error)
+	// LockAnnouncementForAttachmentChange answers the same two questions
+	// (exists, editable) while holding the announcement's row lock until the
+	// caller's transaction ends. The write paths use it instead of the two
+	// unlocked reads: check and write must not be separable, or two concurrent
+	// uploads both pass the limit check and a publish can slip between the
+	// check and the INSERT.
+	LockAnnouncementForAttachmentChange(ctx context.Context, announcementID int64) (bool, bool, error)
 	// ResetAnnouncementEngagement drops the read and acknowledgement rows of a
 	// draft. Adding or removing an attachment changes what the parents are
 	// asked to confirm, so a confirmation collected before the change must not
@@ -152,32 +159,26 @@ func (s *service) AuthorizeAttachmentUpload(ctx context.Context, announcementID 
 	})
 }
 
-// requireAttachmentUpload is the unwrapped check: the public method opens a
-// transaction for the pre-flight call, CreateAttachment calls this one inside
-// the transaction it already holds.
+// requireAttachmentUpload is the pre-flight check of AuthorizeAttachmentUpload:
+// it reads without locking, because it decides nothing — it only spares the
+// caller an upload that would be rejected anyway.
 func (s *service) requireAttachmentUpload(ctx context.Context, announcementID int64) error {
+	return s.checkAttachmentUpload(ctx, announcementID, false)
+}
+
+// requireAttachmentUploadLocked is the binding check inside the write
+// transaction: it takes the announcement's row lock, so the limit count and the
+// draft state it reads still hold when the INSERT below commits.
+func (s *service) requireAttachmentUploadLocked(ctx context.Context, announcementID int64) error {
+	return s.checkAttachmentUpload(ctx, announcementID, true)
+}
+
+func (s *service) checkAttachmentUpload(ctx context.Context, announcementID int64, lock bool) error {
 	if announcementID <= 0 {
 		return fmt.Errorf("%w: announcement id is required", ErrInvalid)
 	}
-	if s.announcements == nil {
-		return errors.New("announcement guard is not wired; refusing attachment change")
-	}
-	editable, err := s.announcements.AnnouncementEditable(ctx, announcementID)
-	if err != nil {
+	if err := s.requireEditableAnnouncementState(ctx, announcementID, lock); err != nil {
 		return err
-	}
-	if !editable {
-		// Nicht gefunden und veröffentlicht sind für den Aufrufer verschieden:
-		// "gibt es nicht" ist 404, "ist schon raus" ist 409 mit einer Meldung,
-		// aus der hervorgeht, was zu tun ist.
-		exists, existsErr := s.announcements.AnnouncementExists(ctx, announcementID)
-		if existsErr != nil {
-			return existsErr
-		}
-		if !exists {
-			return ErrAttachmentNotFound
-		}
-		return ErrAttachmentAnnouncementPublished
 	}
 	count, err := s.attachments.CountByOwnerID(ctx, announcementID)
 	if err != nil {
@@ -214,9 +215,11 @@ func (s *service) CreateAttachment(ctx context.Context, input CreateAttachmentIn
 
 	tenantID := tenant.FromContext(ctx)
 	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		// Die Prüfung wiederholt sich innerhalb der Transaktion: zwischen der
-		// Vorabprüfung und hier kann die Mitteilung veröffentlicht worden sein.
-		if err := s.requireAttachmentUpload(ctx, input.AnnouncementID); err != nil {
+		// Die Prüfung wiederholt sich innerhalb der Transaktion, diesmal unter
+		// der Zeilensperre der Mitteilung: zwischen der Vorabprüfung und hier
+		// kann die Mitteilung veröffentlicht worden sein, und ein zweiter
+		// Upload kann zeitgleich denselben freien Platz sehen.
+		if err := s.requireAttachmentUploadLocked(ctx, input.AnnouncementID); err != nil {
 			return err
 		}
 		if err := s.attachments.Create(ctx, attachment); err != nil {
@@ -335,22 +338,46 @@ func (s *service) ResolveAttachmentCleanup(ctx context.Context, announcementID, 
 	return s.attachments.FindForOwnerIncludingDeleted(ctx, announcementID, attachmentID)
 }
 
-// requireEditableAnnouncement is the shared draft check of the write paths.
+// requireEditableAnnouncement is the shared draft check of the write paths. It
+// always locks: every caller writes afterwards in the same transaction.
 func (s *service) requireEditableAnnouncement(ctx context.Context, announcementID int64) error {
+	return s.requireEditableAnnouncementState(ctx, announcementID, true)
+}
+
+// requireEditableAnnouncementState resolves "exists" and "editable" and turns
+// them into the caller's error. With lock set, both facts are read while
+// holding the announcement's row lock and therefore still hold at commit time.
+func (s *service) requireEditableAnnouncementState(ctx context.Context, announcementID int64, lock bool) error {
 	if s.announcements == nil {
 		return errors.New("announcement guard is not wired; refusing attachment change")
 	}
-	editable, err := s.announcements.AnnouncementEditable(ctx, announcementID)
-	if err != nil {
-		return err
+	var (
+		exists, editable bool
+		err              error
+	)
+	if lock {
+		exists, editable, err = s.announcements.LockAnnouncementForAttachmentChange(ctx, announcementID)
+		if err != nil {
+			return err
+		}
+	} else {
+		editable, err = s.announcements.AnnouncementEditable(ctx, announcementID)
+		if err != nil {
+			return err
+		}
+		exists = editable
+		if !editable {
+			if exists, err = s.announcements.AnnouncementExists(ctx, announcementID); err != nil {
+				return err
+			}
+		}
 	}
 	if editable {
 		return nil
 	}
-	exists, err := s.announcements.AnnouncementExists(ctx, announcementID)
-	if err != nil {
-		return err
-	}
+	// Nicht gefunden und veröffentlicht sind für den Aufrufer verschieden:
+	// "gibt es nicht" ist 404, "ist schon raus" ist 409 mit einer Meldung, aus
+	// der hervorgeht, was zu tun ist.
 	if !exists {
 		return ErrAttachmentNotFound
 	}

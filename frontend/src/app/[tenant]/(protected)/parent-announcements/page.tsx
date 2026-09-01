@@ -972,16 +972,25 @@ function AnnouncementFormModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Beim Bearbeiten eines Entwurfs die schon hochgeladenen Dateien nachladen.
-  // Ein Fehler bleibt hier still: die Mitteilung selbst lässt sich weiter
-  // bearbeiten, und der Anhangsbereich zeigt dann eben nichts an.
+  // Scheitert das, sagt der Anhangsbereich das auch: eine leere Liste liest
+  // sich sonst als „es hängt nichts dran", und die schreibende Person hängt
+  // eine Datei ein zweites Mal an oder hält eine vorhandene für gelöscht.
   useEffect(() => {
     if (!persistedId) return;
     let cancelled = false;
     void fetchAnnouncementAttachments(persistedId)
       .then((list) => {
-        if (!cancelled) setExistingAttachments(list.attachments);
+        if (!cancelled) {
+          setExistingAttachments(list.attachments);
+          setAttachmentError("");
+        }
       })
       .catch((err: unknown) => {
+        if (!cancelled) {
+          setAttachmentError(
+            "Die vorhandenen Dateien konnten nicht geladen werden. Bitte öffnen Sie die Mitteilung noch einmal.",
+          );
+        }
         logger.error("announcement_attachments_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -1202,17 +1211,23 @@ function AnnouncementFormModal({
       // Anhänge vor dem Veröffentlichen hochladen: danach ist die Mitteilung
       // unveränderlich und das Backend lehnt jeden weiteren Anhang ab. Der
       // Entwurf ist an dieser Stelle schon gespeichert, deshalb bleibt bei
-      // einem Fehlschlag nur der Upload offen — und die Datei in der Liste, so
-      // dass ein zweiter Versuch nichts erneut auswählen muss.
+      // einem Fehlschlag nur der Upload offen — und in der Warteliste stehen
+      // dann genau die Dateien, die noch nicht oben sind, so dass ein zweiter
+      // Versuch nichts erneut auswählen und nichts doppelt hochladen muss.
       if (pendingFiles.length > 0) {
         try {
           for (const file of pendingFiles) {
             const uploaded = await uploadAnnouncementAttachment(saved.id, file);
+            // Jede Datei verlässt die Warteliste sofort nach ihrem Upload,
+            // nicht erst am Ende der Schleife: scheitert eine spätere, lädt der
+            // zweite Versuch sonst die schon übertragenen erneut hoch — der
+            // Anhang läge doppelt an, und die Höchstzahl wäre schneller
+            // erreicht als die Person Dateien ausgewählt hat.
+            setPendingFiles((prev) => prev.filter((entry) => entry !== file));
             if (uploaded) {
               setExistingAttachments((prev) => [...prev, uploaded]);
             }
           }
-          setPendingFiles([]);
         } catch (err) {
           const message =
             err instanceof Error
