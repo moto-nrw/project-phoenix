@@ -163,6 +163,8 @@
     "newsAttachmentsHint": "Prekni emrin për ta hapur ose ruajtur skedarin.",
     "newsAttachmentsDownload": "Shkarko",
     "newsAttachmentsOpen": "Hap në shfletues",
+    "newsAttachmentsError": "Skedarët nuk mund të ngarkoheshin.",
+    "newsAttachmentsRetry": "Provoni përsëri",
     "newsClose": "Mbyll",
     "newsLetterBadge": "Kërkohet konfirmim",
     "newsLetterBindingHint": "Ky e-mail është vetëm për informim. Vlen konfirmimi këtu në portalin e prindërve. Mjafton një person kujdestar për çdo fëmijë."

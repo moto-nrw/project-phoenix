@@ -538,9 +538,15 @@ export function NewsCard({
  *
  * Loaded when the message is opened, not with the feed: the file only matters
  * once somebody is reading, and the school's audience rule is checked per
- * message. A failure stays silent — the message itself is readable either way,
- * and an error about a file the family may not even have expected would only
- * worry them.
+ * message.
+ *
+ * A failed load is shown, not swallowed: silence looks exactly like "this
+ * message has no file", so a family would never learn that a document exists
+ * and would never try again. The message carries the retry.
+ *
+ * The list is cleared before each load, so switching from one message to the
+ * next never shows the previous message's file names next to download links
+ * that already point at the new message.
  *
  * It says "zu dieser Nachricht" rather than something like "Dateiablage": this
  * is one message's attachment, not the entrance to a folder the family could
@@ -553,20 +559,49 @@ function NewsAttachments({
   const [attachments, setAttachments] = useState<
     ParentAnnouncementAttachment[]
   >([]);
+  const [failed, setFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setAttachments([]);
+    setFailed(false);
     void listAnnouncementAttachments(item.id)
       .then((list) => {
         if (!cancelled) setAttachments(list);
       })
-      .catch(() => {
-        // Deliberately silent, see the doc comment.
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.error("parent_announcement_attachments_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setFailed(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [item.id]);
+  }, [item.id, reloadToken]);
+
+  if (failed) {
+    return (
+      <div className="mt-4 border-t border-gray-100 pt-4">
+        <Alert
+          type="error"
+          message={t("newsAttachmentsError")}
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setReloadToken((n) => n + 1)}
+            >
+              {t("newsAttachmentsRetry")}
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   if (attachments.length === 0) return null;
 

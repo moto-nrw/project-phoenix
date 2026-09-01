@@ -163,6 +163,8 @@
     "newsAttachmentsHint": "Tippen Sie auf den Namen, um die Datei zu öffnen oder zu speichern.",
     "newsAttachmentsDownload": "Herunterladen",
     "newsAttachmentsOpen": "Im Browser öffnen",
+    "newsAttachmentsError": "Die Dateien konnten nicht geladen werden.",
+    "newsAttachmentsRetry": "Erneut versuchen",
     "newsClose": "Schließen",
     "newsLetterBadge": "Bestätigung erforderlich",
     "newsLetterBindingHint": "Diese E-Mail ist nur zur Information. Es zählt die Bestätigung hier im Eltern-Portal. Eine sorgeberechtigte Person pro Kind genügt."
