@@ -26,7 +26,7 @@ func NewMockMailer() *MockMailer {
 	return &MockMailer{
 		SendFn: func(m Message) error {
 			logMessage(m)
-			return nil
+			return ErrDeliveryUnavailable
 		},
 	}
 }
