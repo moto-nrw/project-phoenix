@@ -332,6 +332,45 @@ describe("useGlobalSSE", () => {
         ]),
       ).toEqual(["tenant:active-supervision-dashboard-0-224"]);
     });
+
+    it("revalidates the supervision dashboard after a reconnect-key change", () => {
+      let connectionState: SSEHookState = {
+        status: "connected",
+        isConnected: true,
+        error: null,
+        reconnectAttempts: 0,
+      };
+      vi.mocked(useSSE).mockImplementation(() => connectionState);
+
+      const { rerender } = renderHook(() => useGlobalSSE());
+      vi.mocked(mutate).mockClear();
+
+      fire({
+        type: "group_access_changed",
+        data: { source: "group_transfer" },
+      });
+      act(() => vi.advanceTimersByTime(500));
+
+      connectionState = {
+        status: "reconnecting",
+        isConnected: false,
+        error: null,
+        reconnectAttempts: 0,
+      };
+      rerender();
+
+      connectionState = {
+        status: "connected",
+        isConnected: true,
+        error: null,
+        reconnectAttempts: 0,
+      };
+      rerender();
+
+      expect(
+        matchedKeys(["tenant:active-supervision-dashboard-0-224"]),
+      ).toEqual(["tenant:active-supervision-dashboard-0-224"]);
+    });
   });
 
   describe("event handling", () => {

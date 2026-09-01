@@ -1192,6 +1192,7 @@ export function useGlobalSSE(): SSEHookState {
   // connected stream comes back so an open "Aktuelle Aufsicht" page cannot
   // remain on the pre-disconnect snapshot until its safety poll runs.
   const connectedTenantRef = useRef<number | undefined>(tenantID);
+  const connectedReconnectKeyRef = useRef(reconnectKey);
   const hasConnectedRef = useRef(false);
   const missedEventsPossibleRef = useRef(false);
   useEffect(() => {
@@ -1199,6 +1200,11 @@ export function useGlobalSSE(): SSEHookState {
       connectedTenantRef.current = tenantID;
       hasConnectedRef.current = false;
       missedEventsPossibleRef.current = false;
+    }
+    if (connectedReconnectKeyRef.current !== reconnectKey) {
+      connectedReconnectKeyRef.current = reconnectKey;
+      if (hasConnectedRef.current) missedEventsPossibleRef.current = true;
+      return;
     }
     if (!isAuthenticated) {
       hasConnectedRef.current = false;
@@ -1214,7 +1220,7 @@ export function useGlobalSSE(): SSEHookState {
       return;
     }
     if (hasConnectedRef.current) missedEventsPossibleRef.current = true;
-  }, [isAuthenticated, sseState.status, tenantID]);
+  }, [isAuthenticated, reconnectKey, sseState.status, tenantID]);
 
   return sseState;
 }

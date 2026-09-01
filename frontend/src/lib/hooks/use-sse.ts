@@ -44,6 +44,7 @@ export function useSSE(
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
   const reconnectAttemptsRef = useRef(0); // Track live count to avoid stale closure
+  const reconnectKeyRef = useRef(reconnectKey);
 
   // Stable onMessage callback
   const stableOnMessage = useCallback(
@@ -69,6 +70,9 @@ export function useSSE(
   // closes that ref and clears the reconnect timer. The scanner cannot follow
   // the nested connection factory to its cleanup.
   useEffect(() => {
+    const reconnectKeyChanged = reconnectKeyRef.current !== reconnectKey;
+    reconnectKeyRef.current = reconnectKey;
+
     if (!enabled) {
       setIsConnected(false);
       setError(null);
@@ -77,6 +81,13 @@ export function useSSE(
     }
     // Ensure mountedRef is true when effect runs (critical for reconnection)
     mountedRef.current = true;
+
+    // A reconnect-key change replaces an open EventSource during cleanup. Mark
+    // the gap explicitly so consumers can reconcile after the replacement
+    // stream opens, instead of retaining the prior connection's state.
+    if (reconnectKeyChanged) {
+      setIsConnected(false);
+    }
 
     // Check if EventSource is supported
     if (typeof EventSource === "undefined") {

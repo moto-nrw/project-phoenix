@@ -341,6 +341,26 @@ describe("useSSE Hook", () => {
   });
 
   describe("Reconnection Logic", () => {
+    it("clears connected state while replacing an EventSource for a reconnect key", async () => {
+      const { result, rerender } = renderHook(
+        ({ reconnectKey }) => useSSE("/api/sse/events", { reconnectKey }),
+        { initialProps: { reconnectKey: "before" } },
+      );
+
+      await waitForEventSource();
+      requireLatestEventSource().triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+
+      rerender({ reconnectKey: "after" });
+
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+        expect(eventSourceInstances).toHaveLength(2);
+      });
+    });
+
     it("should attempt reconnection on error", async () => {
       const { result } = renderHook(() =>
         useSSE("/api/sse/events", {
