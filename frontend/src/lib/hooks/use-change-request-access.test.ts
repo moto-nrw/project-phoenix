@@ -147,7 +147,7 @@ describe("useChangeRequestAccess", () => {
           id: "1",
           token: "token",
           roles: ["admin"],
-          permissions: ["admin:*"],
+          permissions: [],
         },
       },
       status: "authenticated",
@@ -159,4 +159,33 @@ describe("useChangeRequestAccess", () => {
     expect(result.current.canReviewParentRequests).toBe(true);
     expect(result.current.canOpenRequestsPage).toBe(true);
   });
+
+  it.each(["admin:*", "*:*"])(
+    "gewährt effektiven Admins mit %s auch ohne Admin-Rolle sofort Zugriff",
+    (permission) => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: "1",
+            token: "token",
+            roles: ["user"],
+            permissions: [permission],
+          },
+        },
+        status: "authenticated",
+      });
+      mockUseSWRAuth.mockReturnValue({
+        data: undefined,
+        error: new Error("unavailable"),
+        isLoading: false,
+        mutate: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useChangeRequestAccess());
+
+      expect(mockUseSWRAuth.mock.calls[0]?.[0]).toBeNull();
+      expect(result.current.canReviewParentRequests).toBe(true);
+      expect(result.current.canOpenRequestsPage).toBe(true);
+    },
+  );
 });

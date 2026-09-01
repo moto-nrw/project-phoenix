@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useMemo, useState } from "react";
 
+import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 
@@ -84,6 +85,7 @@ const STATUS_OPTIONS: readonly {
  * Historie) und erscheint nur mit Freigaberecht dafür (vacation:approve).
  */
 export default function AnfragenPage() {
+  const { status: sessionStatus } = useSession({ required: true });
   const tenantPath = useTenantAwarePath();
   const requestAccess = useChangeRequestAccess();
   const showElternTab = requestAccess.canOpenParentRequestsTab;
@@ -334,11 +336,14 @@ export default function AnfragenPage() {
     setView(nextView);
   };
 
-  if (!requestAccess.isLoading && !requestAccess.canOpenRequestsPage) {
+  const isAccessLoading =
+    sessionStatus === "loading" || requestAccess.isLoading;
+
+  if (!isAccessLoading && !requestAccess.canOpenRequestsPage) {
     redirect(tenantPath("/dashboard"));
   }
 
-  if (requestAccess.isLoading) {
+  if (isAccessLoading) {
     return (
       <div className="-mt-1.5 w-full">
         <PageHeaderWithSearch title="Anfragen" />

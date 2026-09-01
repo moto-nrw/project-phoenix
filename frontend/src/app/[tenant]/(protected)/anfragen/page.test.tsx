@@ -17,7 +17,8 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 
 vi.mock("next-auth/react", () => ({
-  useSession: (): ReturnType<typeof mockUseSession> => mockUseSession(),
+  useSession: (...args: unknown[]): ReturnType<typeof mockUseSession> =>
+    mockUseSession(...args),
 }));
 
 vi.mock("~/lib/hooks/use-change-request-access", () => ({
@@ -131,6 +132,22 @@ describe("AnfragenPage", () => {
     mockUseChangeRequestAccess.mockReturnValue({
       ...resolveChangeRequestAccess(mockUseSession().data, "none"),
       isLoading: true,
+    } as ReturnType<typeof useChangeRequestAccess>);
+
+    render(<AnfragenPage />);
+
+    expect(
+      screen.getByLabelText("Anfragen werden geladen…"),
+    ).toBeInTheDocument();
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(mockUseSession).toHaveBeenCalledWith({ required: true });
+  });
+
+  it("wartet auf den erforderlichen Session-Guard vor dem Zugriffsredirect", () => {
+    mockUseSession.mockReturnValue({ data: undefined, status: "loading" });
+    mockUseChangeRequestAccess.mockReturnValue({
+      ...resolveChangeRequestAccess(null, "none"),
+      isLoading: false,
     } as ReturnType<typeof useChangeRequestAccess>);
 
     render(<AnfragenPage />);
