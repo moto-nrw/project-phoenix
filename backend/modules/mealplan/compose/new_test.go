@@ -111,11 +111,16 @@ func enabledTestSettings(settingErr error) testMealPlanSettings {
 
 func buildModule(t *testing.T, db *bun.DB, enabled bool, settingErr error) *mealplan.Module {
 	t.Helper()
+	return buildModuleAt(t, db, enabled, settingErr, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+}
+
+func buildModuleAt(t *testing.T, db *bun.DB, enabled bool, settingErr error, now time.Time) *mealplan.Module {
+	t.Helper()
 	module, err := New(Dependencies{
 		DB:           db,
 		Settings:     testMealPlanSettings{mealPlanEnabled: enabled, mealRegistrationEnabled: enabled, cutoff: "09:00", err: settingErr},
 		Observe:      func(Observation) {},
-		Now:          func() time.Time { return time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin) },
+		Now:          func() time.Time { return now },
 		Participants: testParticipantFinder,
 	})
 	require.NoError(t, err)
@@ -354,20 +359,27 @@ func TestDailyListOmitsConfirmedSicknessReportedBeforeCutoff(t *testing.T) {
 func TestDailyListIncludesChildWhenSicknessIsDeletedBeforeCutoff(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db, true, nil)
+	var databaseNow time.Time
+	require.NoError(t, db.NewRaw(`SELECT clock_timestamp()`).Scan(context.Background(), &databaseNow))
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	require.NoError(t, err)
+	testDay := databaseNow.In(berlin).AddDate(0, 0, 1)
+	date := testDay.Format("2006-01-02")
+	moduleNow := time.Date(testDay.Year(), testDay.Month(), testDay.Day(), 8, 0, 0, 0, berlin)
+	module := buildModuleAt(t, db, true, nil, moduleNow)
 	student := testpkg.CreateTestStudent(t, db, "Nora", "Korrektur", "1c")
 	account := testpkg.CreateTestAccount(t, db, "meal-sick-deleted-before-cutoff")
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
-		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true,
+		StudentID: student.ID, GuardianAccountID: account.ID, Date: mealplan.Date(date), Participating: true,
 	}))
-	status := createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2026-09-07", time.Now())
-	_, err := db.NewDelete().Model(status).
+	status := createSickStatusDay(t, db, student.GetTenantID(), student.ID, date, databaseNow)
+	_, err = db.NewDelete().Model(status).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 		WherePK().Exec(context.Background())
 	require.NoError(t, err)
 
-	list, err := module.DailyList(ctx, "2026-09-07")
+	list, err := module.DailyList(ctx, mealplan.Date(date))
 	require.NoError(t, err)
 	assert.Contains(t, dailyParticipantIDs(list), student.ID)
 }
