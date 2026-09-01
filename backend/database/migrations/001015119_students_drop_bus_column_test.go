@@ -41,8 +41,8 @@ func TestStudentsDropBusColumnMigration(t *testing.T) {
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 		if busColumnExists(t, db) {
 			require.NoError(t, studentsDropBusColumnUp(ctx, db))
 		}

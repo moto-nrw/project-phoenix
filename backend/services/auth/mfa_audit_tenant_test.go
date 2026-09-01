@@ -42,7 +42,6 @@ func TestMFAService_RecordAuthEvent_LandsRowWithExplicitTenantID(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("audit.auth_events").
 			Where("account_id = ?", acc.ID).Exec(context.Background())
-		testpkg.CleanupAccount(t, db, acc.ID)
 	})
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 
@@ -83,7 +82,6 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("audit.auth_events").
 			Where("account_id = ?", acc.ID).Exec(context.Background())
-		testpkg.CleanupAccount(t, db, acc.ID)
 	})
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 

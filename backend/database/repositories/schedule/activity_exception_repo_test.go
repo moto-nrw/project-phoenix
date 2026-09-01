@@ -158,7 +158,6 @@ func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 
 	for _, e := range []*scheduleModels.ActivityException{eStart, eMid, eEnd, eOut} {
 		require.NoError(t, repo.Create(ctx, e))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", e.ID)
 	}
 
 	got, err := repo.FindByDateRange(ctx, from, to)

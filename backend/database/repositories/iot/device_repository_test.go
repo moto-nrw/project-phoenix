@@ -102,7 +102,6 @@ func TestDeviceRepository_ArchivedDevicesAreHistoricalOnly(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
 	repo := repositories.NewFactory(db).Device
 	ctx := testpkg.TenantContext(scope.TenantID)
 	deviceID := fmt.Sprintf("transfer-history-%d", time.Now().UnixNano())

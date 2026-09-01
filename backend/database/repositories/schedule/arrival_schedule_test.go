@@ -31,7 +31,6 @@ func TestStudentArrivalScheduleRepository_Create(t *testing.T) {
 
 	t.Run("creates schedule successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -77,7 +76,6 @@ func TestStudentArrivalScheduleRepository_FindByID(t *testing.T) {
 
 	t.Run("finds schedule by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -114,7 +112,6 @@ func TestStudentArrivalScheduleRepository_FindByStudentID(t *testing.T) {
 
 	t.Run("finds all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday, scheduleModels.WeekdayFriday} {
 			schedule := &scheduleModels.StudentArrivalSchedule{
@@ -154,7 +151,6 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDAndWeekday(t *testing.T
 
 	t.Run("finds schedule for specific weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -192,7 +188,6 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDsAndWeekday(t *testing.
 	t.Run("finds schedules for multiple students", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "ArrStudent", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "ArrStudent", "Two", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 		for _, studentID := range []int64{student1.ID, student2.ID} {
 			schedule := &scheduleModels.StudentArrivalSchedule{
@@ -229,7 +224,6 @@ func TestStudentArrivalScheduleRepository_UpsertSchedule(t *testing.T) {
 
 	t.Run("creates new schedule when doesn't exist", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -246,7 +240,6 @@ func TestStudentArrivalScheduleRepository_UpsertSchedule(t *testing.T) {
 
 	t.Run("updates existing schedule", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -289,7 +282,6 @@ func TestStudentArrivalScheduleRepository_Update(t *testing.T) {
 
 	t.Run("updates schedule successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedule := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -345,7 +337,6 @@ func TestStudentArrivalScheduleRepository_List(t *testing.T) {
 
 	t.Run("lists all schedules", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayTuesday} {
 			schedule := &scheduleModels.StudentArrivalSchedule{
@@ -383,7 +374,6 @@ func TestStudentArrivalScheduleRepository_DeleteByStudentID(t *testing.T) {
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday} {
 			schedule := &scheduleModels.StudentArrivalSchedule{
@@ -426,7 +416,6 @@ func TestStudentArrivalExceptionRepository_Create(t *testing.T) {
 
 	t.Run("creates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
@@ -459,7 +448,6 @@ func TestStudentArrivalExceptionRepository_FindByStudentID(t *testing.T) {
 
 	t.Run("finds all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		dates := []timezone.Date{
 			timezone.NewDate(2024, 2, 14),
@@ -495,7 +483,6 @@ func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T)
 
 	t.Run("finds only upcoming exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		pastException := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
@@ -533,7 +520,6 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDAndDate(t *testing.T) 
 
 	t.Run("finds exception for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exceptionDate := timezone.NewDate(2024, 3, 20)
 		exception := &scheduleModels.StudentArrivalException{
@@ -668,7 +654,6 @@ func TestStudentArrivalExceptionRepository_FindByID(t *testing.T) {
 
 	t.Run("finds exception by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
@@ -704,7 +689,6 @@ func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
 
 	t.Run("updates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		arrivalTime := time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentArrivalException{
@@ -762,7 +746,6 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 
 	t.Run("lists all exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for i := 1; i <= 3; i++ {
 			exception := &scheduleModels.StudentArrivalException{
@@ -800,7 +783,6 @@ func TestStudentArrivalExceptionRepository_DeleteByStudentID(t *testing.T) {
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for i := 0; i < 3; i++ {
 			exception := &scheduleModels.StudentArrivalException{
@@ -833,7 +815,6 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 
 	t.Run("deletes only past exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create past exceptions (will be deleted)
 		pastExceptionCount := 0
@@ -894,7 +875,6 @@ func TestStudentArrivalNoteRepository_Create(t *testing.T) {
 
 	t.Run("creates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
@@ -940,7 +920,6 @@ func TestStudentArrivalNoteRepository_FindByID(t *testing.T) {
 
 	t.Run("finds note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
@@ -976,7 +955,6 @@ func TestStudentArrivalNoteRepository_FindByStudentID(t *testing.T) {
 
 	t.Run("finds all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		dates := []timezone.Date{
 			timezone.NewDate(2024, 2, 14),
@@ -1021,7 +999,6 @@ func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 
 	t.Run("finds notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		targetDate := timezone.NewDate(2024, 3, 20)
 
@@ -1076,7 +1053,6 @@ func TestStudentArrivalNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 	t.Run("finds notes for multiple students on same date", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "ArrStudent", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "ArrStudent", "Two", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 		noteDate := timezone.NewDate(2024, 4, 10)
 
@@ -1115,7 +1091,6 @@ func TestStudentArrivalNoteRepository_Update(t *testing.T) {
 
 	t.Run("updates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
@@ -1168,7 +1143,6 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 
 	t.Run("lists all notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for i := 1; i <= 3; i++ {
 			note := &scheduleModels.StudentArrivalNote{
@@ -1206,7 +1180,6 @@ func TestStudentArrivalNoteRepository_DeleteByStudentID(t *testing.T) {
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for i := 0; i < 3; i++ {
 			note := &scheduleModels.StudentArrivalNote{
@@ -1245,7 +1218,6 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 
 	t.Run("deletes only past notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create past notes (will be deleted)
 		pastNoteCount := 0

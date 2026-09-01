@@ -106,7 +106,7 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("wissingen-departure-%d@example.test", time.Now().UnixNano()))
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
-	testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
+	testpkg.OwnTenantRows(t, db, tenantID, otherTenantID)
 	_, err := db.NewRaw(`
 		UPDATE platform.schools
 		SET slug = 'ogs-wissingen', subdomain = 'ogs-wissingen'
