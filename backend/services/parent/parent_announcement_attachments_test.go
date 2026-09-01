@@ -26,13 +26,14 @@ import (
 // guardian sees in total, which is why they run serially.
 func TestGuardianAnnouncementTenant_OnlyForTheAudience(t *testing.T) {
 	t.Parallel()
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
 
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	// A guardian the announcement reaches gets the announcement's school back,
 	// which is the tenant the attachment rows are then read under.
@@ -58,11 +59,12 @@ func TestGuardianAnnouncementTenant_OnlyForTheAudience(t *testing.T) {
 // Parallel is safe, see above.
 func TestGuardianAnnouncementTenant_DraftAndDisabledFeatureHideTheFile(t *testing.T) {
 	t.Parallel()
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	// A draft is not live, so its attachments are not reachable either — an
 	// attachment must never become the back door to an unpublished message.
@@ -97,15 +99,16 @@ func TestGuardianAnnouncementTenant_DraftAndDisabledFeatureHideTheFile(t *testin
 // Parallel is safe, see above.
 func TestGuardianAnnouncementTenant_FeatureOffHidesTheFile(t *testing.T) {
 	t.Parallel()
+	testpkg.OwnTenant(t)
 	// Same setup, but the school has the parent-news feature switched off. The
 	// check fails closed: no feature, no file.
 	svc, db, repos := buildAnnouncementService(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
 
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	tenantID, err := svc.GuardianAnnouncementTenant(ctx, chain.AccountID, ann.ID)
 	require.NoError(t, err)
 	assert.Zero(t, tenantID)
