@@ -19,6 +19,47 @@ import (
 // Unit tests (no database)
 // ---------------------------------------------------------------------------
 
+func TestSharedRowPredicateFollowsAccountOwnership(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t,
+		fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.id AND m.tenant_id >= %d)", TenantIDBase),
+		sharedRowPredicate("auth.accounts", false),
+	)
+	for _, table := range []string{
+		"audit.auth_events",
+		"auth.mfa_credentials",
+		"auth.mfa_email_challenges",
+		"auth.mfa_overrides",
+		"auth.passkey_credentials",
+		"auth.password_reset_tokens",
+		"auth.tokens",
+	} {
+		assert.Equal(t,
+			fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.account_id AND m.tenant_id >= %d)", TenantIDBase),
+			sharedRowPredicate(table, false),
+			table,
+		)
+	}
+	assert.Equal(t,
+		fmt.Sprintf("t.tenant_id IS NULL OR t.tenant_id < %d", TenantIDBase),
+		sharedRowPredicate("auth.account_tenants", true),
+		"each account mapping is owned by its own tenant",
+	)
+
+	assert.Empty(t, sharedRowPredicate("auth.password_reset_rate_limits", false),
+		"email-only rows cannot safely inherit ownership from an account")
+	assert.Equal(t,
+		fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.roles m WHERE m.id = t.role_id AND m.tenant_id >= %d)", TenantIDBase),
+		sharedRowPredicate("auth.role_permissions", false),
+	)
+	assert.Equal(t,
+		fmt.Sprintf("(NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.account_id AND m.tenant_id >= %d)) AND (t.tenant_id IS NULL OR t.tenant_id < %d)", TenantIDBase, TenantIDBase),
+		sharedRowPredicate("auth.mfa_email_challenges", true),
+		"either the challenge tenant or its account mapping can establish test ownership",
+	)
+}
+
 func TestParsePostgresDSNRejectsInvalidInput(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -461,6 +502,53 @@ func TestLeftoversIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	deltas, err := Leftovers(ctx, handle.DSN)
 	require.NoError(t, err)
 	assert.Empty(t, deltas, "a row in the test's own tenant is not a leftover")
+}
+
+func TestLeftoversFollowsAccountOwnershipToTenantlessRows(t *testing.T) {
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	build := func(ctx context.Context, dsn string) error {
+		db := openSQL(dsn)
+		defer func() { _ = db.Close() }()
+		_, err := db.ExecContext(ctx, `
+			CREATE SCHEMA auth;
+			CREATE TABLE auth.accounts (id bigint PRIMARY KEY);
+			CREATE TABLE auth.account_tenants (account_id bigint, tenant_id bigint);
+			CREATE TABLE auth.password_reset_tokens (id bigint PRIMARY KEY, account_id bigint)
+		`)
+		return err
+	}
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(build), WithMigrationsHash("accountownershiphash"))
+	require.NoError(t, err)
+
+	handle, err := CreateClone(ctx, templateCfg, SanitizeRunID(""))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
+	require.NoError(t, SnapshotSharedBaseline(ctx, handle.DSN))
+
+	clone := openSQL(handle.DSN)
+	_, err = clone.ExecContext(ctx, `
+		INSERT INTO auth.accounts (id) VALUES (1), (2);
+		INSERT INTO auth.account_tenants (account_id, tenant_id) VALUES (1, $1);
+		INSERT INTO auth.password_reset_tokens (id, account_id) VALUES (11, 1), (22, 2)
+	`, TenantIDBase+7)
+	require.NoError(t, err)
+	require.NoError(t, clone.Close())
+
+	deltas, err := Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	require.Len(t, deltas, 2)
+	for _, delta := range deltas {
+		assert.Contains(t, []string{"auth.accounts", "auth.password_reset_tokens"}, delta.Table)
+		assert.EqualValues(t, 0, delta.BaselineRows)
+		assert.EqualValues(t, 1, delta.CloneRows,
+			"only the account without a test-tenant mapping is shared")
+	}
 }
 
 // The next run must collect a killed process's clone immediately: no

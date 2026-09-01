@@ -90,7 +90,7 @@ func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Legacy", "Stamper")
 
@@ -117,7 +117,7 @@ func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Test")
 
@@ -143,7 +143,7 @@ func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Reject")
 

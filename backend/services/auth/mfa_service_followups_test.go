@@ -32,7 +32,6 @@ func TestMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-list-trusted")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 	// Trust is per-(account, tenant) as of #1430 review item #9 — give the
 	// fixture a real tenant so the FK on auth.mfa_trusted_devices is
 	// satisfied.
@@ -75,10 +74,6 @@ func TestMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
 
 	owner := testpkg.CreateTestAccount(t, db, "mfa-svc-revoke-owner")
 	attacker := testpkg.CreateTestAccount(t, db, "mfa-svc-revoke-attacker")
-	t.Cleanup(func() {
-		testpkg.CleanupAccount(t, db, owner.ID)
-		testpkg.CleanupAccount(t, db, attacker.ID)
-	})
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -109,7 +104,6 @@ func TestMFAService_GetTenantMFAOverride_DefaultNone(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-override-default")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	// New shape: a missing override row resolves to "none" instead of
 	// reading a column. Tenant ID can be any value — there's no row.
@@ -135,7 +129,6 @@ func TestMFAService_GetTenantMFAOverride_DefaultNone(t *testing.T) {
 func tenantMappedAccount(t *testing.T, db *bun.DB, slug string) (*authModel.Account, int64) {
 	t.Helper()
 	acc := testpkg.CreateTestAccount(t, db, slug)
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 	return acc, tenantID
@@ -345,7 +338,6 @@ func TestMFAService_AdminDisable_RejectsCrossTenant(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	target := testpkg.CreateTestAccount(t, db, "mfa-svc-admin-disable-cross")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, target.ID) })
 
 	// Target belongs to tenant A only.
 	tenantA := testpkg.UniqueTestTenantID(t)
@@ -387,7 +379,6 @@ func TestMFAService_SetMFAOverride_RejectsCrossTenant(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	target := testpkg.CreateTestAccount(t, db, "mfa-svc-override-cross")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, target.ID) })
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureAccountTenant(t, db, target.ID, tenantA)
@@ -429,7 +420,6 @@ func TestMFAService_OperatorSetMFAOverride_RejectsZeroSchoolID(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-op-zero-school")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	// schoolID=0 is the sentinel that means "no school context" — even
 	// if the HTTP route layer was somehow bypassed, the service must
@@ -445,7 +435,6 @@ func TestMFAService_OperatorSetMFAOverride_RejectsCrossSchool(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-op-cross-school")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	// Account has no AccountTenant rows for school_id=999 — the
 	// membership check must reject the override attempt rather than
@@ -467,7 +456,6 @@ func TestMFAService_OperatorAdminDisable_RejectsCrossSchool(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-op-disable-cross")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
 
@@ -489,7 +477,6 @@ func TestMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-rate-limit")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
 	ip := net.ParseIP("203.0.113.30")
@@ -512,7 +499,6 @@ func TestMFAService_VerifyChallenge_LocksAccountAfter5Failures(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-lockout")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
 	challenge, err := svc.StartChallenge(ctx, acc.ID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("203.0.113.40"))
@@ -536,7 +522,6 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 	svc, repos, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-expired")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
 	challenge, err := svc.StartChallenge(ctx, acc.ID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("203.0.113.50"))
@@ -585,7 +570,6 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog(t *testi
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("platform.operator_audit_log").
 			Where("resource_id = ?", acc.ID).Exec(context.Background())
-		testpkg.CleanupAccount(t, db, acc.ID)
 	})
 
 	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, op.ID, acc.ID,

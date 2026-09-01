@@ -37,7 +37,6 @@ func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, i
 	testpkg.SetTenantRuntime(t, svc, db)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-extra")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 	return svc, repos, acc.ID
 }
 
@@ -257,7 +256,6 @@ func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.
 	require.NoError(t, err)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-ratelimit-blind")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	challengeToken, err := svc.StartChallenge(
 		context.Background(), acc.ID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"),

@@ -19,7 +19,8 @@ func TestRepairSchoolIdentities(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	adminRole := createIdentityRepairRole(t, db, tenantID, "reparatur-leitung", strPtrValue("admin"))
 	userRole := createIdentityRepairRole(t, db, tenantID, "reparatur-kraft", strPtrValue("user"))
@@ -55,7 +56,8 @@ func TestRepairSchoolIdentitiesCoversLegacyTeacherRole(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	legacyTeacher := ensureLegacySystemTeacherRole(t, db)
 
@@ -102,7 +104,8 @@ func TestRepairSchoolIdentitiesSkipsInactiveAccess(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	role := createIdentityRepairRole(t, db, tenantID, "reparatur-inaktiv", strPtrValue("admin"))
 
@@ -203,9 +206,10 @@ func TestRepairSchoolIdentitiesTenantScopingIsEnforcedBySchema(t *testing.T) {
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, otherTenantID)
+	testpkg.OwnTenantRows(t, db, otherTenantID)
 
 	role := createIdentityRepairRole(t, db, tenantID, "reparatur-fremdschule", strPtrValue("user"))
 
@@ -279,8 +283,10 @@ func TestRepairSchoolIdentitiesCreatesPersonFromMappedSchool(t *testing.T) {
 	targetTenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, homeTenantID)
+
+	testpkg.OwnTenantRows(t, db, homeTenantID)
 	testpkg.EnsureTestTenant(t, db, targetTenantID)
-	defer testpkg.CleanupTenantTestData(t, db, homeTenantID, targetTenantID)
+	testpkg.OwnTenantRows(t, db, targetTenantID)
 
 	adminRole := createIdentityRepairRole(t, db, targetTenantID, "quer-leitung", strPtrValue("admin"))
 	userRole := createIdentityRepairRole(t, db, targetTenantID, "quer-kraft", strPtrValue("user"))
@@ -319,9 +325,12 @@ func TestRepairSchoolIdentitiesSkipsAmbiguousNameAcrossSchools(t *testing.T) {
 	targetTenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, firstTenantID)
+
+	testpkg.OwnTenantRows(t, db, firstTenantID)
 	testpkg.EnsureTestTenant(t, db, secondTenantID)
+	testpkg.OwnTenantRows(t, db, secondTenantID)
 	testpkg.EnsureTestTenant(t, db, targetTenantID)
-	defer testpkg.CleanupTenantTestData(t, db, firstTenantID, secondTenantID, targetTenantID)
+	testpkg.OwnTenantRows(t, db, targetTenantID)
 
 	role := createIdentityRepairRole(t, db, targetTenantID, "quer-uneindeutig", strPtrValue("admin"))
 
@@ -441,7 +450,8 @@ func TestRepairSchoolIdentitiesCaregiverProfileIsDecidedPerRole(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	lehrkraftRole := ensureLehrkraftSystemRole(t, db)
 	caregiverRole := createIdentityRepairRole(t, db, tenantID, "doppel-kraft", strPtrValue("user"))
@@ -471,7 +481,8 @@ func TestRepairSchoolIdentitiesReportsStudentLinkedIdentity(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	role := createIdentityRepairRole(t, db, tenantID, "kind-verknuepft", strPtrValue("admin"))
 
@@ -563,7 +574,8 @@ func TestRepairSchoolIdentitiesSkipsStudentPersonForCaregiverProfile(t *testing.
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	userRole := createIdentityRepairRole(t, db, tenantID, "reparatur-kind-kraft", strPtrValue("user"))
 

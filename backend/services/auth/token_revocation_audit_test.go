@@ -34,10 +34,6 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -74,10 +70,6 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	account, err := workingService.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 	_, _, err = workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
@@ -125,10 +117,6 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	for range 6 {
 		_, _, err = service.Login(ctx, email, testPassword)
@@ -162,10 +150,6 @@ func TestCleanupExpiredTokensRetainsPendingWipeReason(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
-	})
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)

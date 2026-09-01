@@ -22,7 +22,6 @@ import (
 )
 
 // Hermetic test: fixtures are real DB rows created per subtest under a unique
-// tenant and cleaned up via testpkg.Cleanup* helpers. Each subtest is
 // self-contained.
 
 // -----------------------------------------------------------------------------

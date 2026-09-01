@@ -132,7 +132,6 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, db, "mfa-portal-binding")
 	accountID := account.ID
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, accountID) })
 
 	tenantID, _ := newSchoolTenant(t, db)
 	testpkg.EnsureAccountTenant(t, db, accountID, tenantID)

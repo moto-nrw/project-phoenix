@@ -16,7 +16,8 @@ func TestRepairPickupScheduleTenantIDs(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staffID := createTenantStaff(t, db, tenantID)
 	studentID := createTenantStudent(t, db, tenantID)
@@ -40,11 +41,11 @@ func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	studentID := createTenantStudent(t, db, tenantID)
 	staff := testpkg.CreateTestStaff(t, db, "PickupRepair", "WrongTenant")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 	defer cleanupPickupTenantRepairRows(t, db, 0, studentID)
 
 	insertHistoricalPickupScheduleWithTenant(t, db, 1, studentID, staff.ID)
@@ -60,7 +61,8 @@ func TestRepairPickupScheduleTenantIDsRejectsUniqueConflicts(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staffID := createTenantStaff(t, db, tenantID)
 	studentID := createTenantStudent(t, db, tenantID)

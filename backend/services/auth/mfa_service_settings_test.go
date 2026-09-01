@@ -357,7 +357,6 @@ func TestMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-challenge")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 	require.NoError(t, fix.svc.Enroll(ctx, acc.ID))
 
 	_, err := fix.svc.StartChallenge(ctx, acc.ID, fix.tenantID, authjwt.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"))
@@ -384,7 +383,6 @@ func TestMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-trusted-added")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 	require.NoError(t, fix.svc.Enroll(ctx, acc.ID))
 
 	cookie, _, err := fix.svc.IssueTrustedDevice(ctx, acc.ID, fix.tenantID,

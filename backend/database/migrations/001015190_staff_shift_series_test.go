@@ -16,6 +16,7 @@ func TestStaffShiftSeriesSchema(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Serie", "Schema")
 	t.Cleanup(func() {
 		ctx := context.Background()
@@ -28,8 +29,6 @@ func TestStaffShiftSeriesSchema(t *testing.T) {
 			_, err := db.NewDelete().TableExpr(table).Where("tenant_id = ?", tenantID).Exec(ctx)
 			require.NoError(t, err)
 		}
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	ctx := context.Background()
