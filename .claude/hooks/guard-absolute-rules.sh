@@ -74,8 +74,10 @@ case "$tool" in
         # resolve_script PATH: resolve the final symlink target without relying
         # on GNU readlink -f (unavailable on macOS).
         resolve_script() {
-            local path=$1 link dir
+            local path=$1 link dir depth=0
             while [[ -L "$path" ]]; do
+                [[ $depth -lt 40 ]] || return 1
+                depth=$((depth + 1))
                 link=$(readlink "$path") || return 1
                 case "$link" in
                     /*) path=$link ;;
@@ -180,6 +182,15 @@ case "$tool" in
             esac
         }
 
+        vet_launcher() {
+            reject_dynamic_executable "$1"
+            if [[ "$1" = */* ]]; then
+                vet_executable "$1" || deny_untracked "$1"
+            else
+                vet_bare_executable "$1"
+            fi
+        }
+
         clean_token() {
             local tok=$1
             tok=${tok//\"/}
@@ -247,6 +258,15 @@ EOF
                 case "$(clean_token "$1")" in
                     -C|-C*) deny "Blocked: go -C changes the executable resolution directory and cannot be inspected by the absolute-rule guard." ;;
                     run) shift; vet_go_run "$@"; return 0 ;;
+                    test)
+                        shift
+                        for tok in "$@"; do
+                            case "$(clean_token "$tok")" in
+                                -exec|-exec=*) deny "Blocked: go test -exec can launch an untracked program." ;;
+                            esac
+                        done
+                        return 0
+                        ;;
                     *) return 0 ;;
                 esac
             done
@@ -255,11 +275,15 @@ EOF
         vet_toolchain_request() {
             local tok=${1:-}
             reject_dynamic_executable "$tok"
-            [[ "$tok" = */* ]] && vet_script "$tok" || [[ "$tok" != */* ]] || deny_untracked "$tok"
-            if [[ "$tok" = go ]]; then
-                shift
-                vet_go_command "$@"
+            if [[ "$tok" = */* ]]; then
+                vet_script "$tok" || deny_untracked "$tok"
+                return 0
             fi
+            case "$tok" in
+                go) shift; vet_go_command "$@" ;;
+                golangci-lint|govulncheck) ;;
+                *) deny "Blocked: run-go-toolchain accepts only pinned Go tools or tracked scripts." ;;
+            esac
         }
 
         vet_env_assignment() {
@@ -291,6 +315,11 @@ EOF
             # These launchers leave the actual executable in their argument
             # list. Peel them before checking shell options or script paths.
             while :; do
+                case "${first##*/}" in
+                    env|builtin|command|time|nohup|setsid|exec|nice|timeout|sudo|stdbuf)
+                        vet_launcher "$first"
+                        ;;
+                esac
                 case "${first##*/}" in
                     env)
                         shift
@@ -367,6 +396,9 @@ EOF
                                 *) break ;;
                             esac
                         done
+                        ;;
+                    stdbuf)
+                        deny "Blocked: stdbuf dispatches another command and cannot be inspected by the absolute-rule guard. Write the command out directly."
                         ;;
                     *) break ;;
                 esac
@@ -460,15 +492,19 @@ EOF
                             -c|-e|--command|--eval)
                                 deny "Blocked: inline interpreter payloads cannot be inspected by the absolute-rule guard. Write the tracked script path out directly."
                                 ;;
+                            -p|--print)
+                                deny "Blocked: inline interpreter payloads cannot be inspected by the absolute-rule guard. Write the tracked script path out directly."
+                                ;;
                             -m|--module)
                                 shift
                                 [[ ${1:-} = venv ]] || deny "Blocked: interpreter modules cannot be inspected by the absolute-rule guard. Write the tracked script path out directly."
                                 return 0
                                 ;;
+                            -V|-v|-h|--version|--help) return 0 ;;
                         esac
                         shift || break
                     done
-                    [[ $# -gt 0 ]] || return 0
+                    [[ $# -gt 0 ]] || deny "Blocked: an interpreter needs a tracked script path; stdin and REPL payloads cannot be inspected by the absolute-rule guard."
                     tok=$(clean_token "$1")
                     reject_dynamic_executable "$tok"
                     vet_script "$tok" || deny_untracked "$tok"

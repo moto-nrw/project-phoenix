@@ -52,6 +52,8 @@ chmod +x "$repo/scripts/run-go-toolchain.sh" "$repo/scripts/test-backend.sh" "$r
 git -C "$repo" add -A
 git -C "$repo" commit -qm fixture
 # untracked on purpose: exists, executable, but not vetted
+printf '#!/usr/bin/env bash\necho untracked launcher\n' >"$repo/env"
+chmod +x "$repo/env"
 printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new.sh"
 chmod +x "$repo/scripts/new.sh"
 printf '#!/usr/bin/env bash\necho new\n' >"$repo/scripts/new"
@@ -60,6 +62,9 @@ printf 'package main\nfunc main() {}\n' >"$repo/untracked.go"
 mkdir -p "$fixture/bin"
 printf '#!/usr/bin/env bash\necho evil\n' >"$fixture/bin/evil"
 chmod +x "$fixture/bin/evil"
+mkdir -p "$repo/.devbox/nix/profile/default/bin"
+ln -s cycle-b "$repo/.devbox/nix/profile/default/bin/cycle-a"
+ln -s cycle-a "$repo/.devbox/nix/profile/default/bin/cycle-b"
 
 worktree="$fixture/wt"
 git -C "$repo" worktree add -q "$worktree" -b guard-test-wt
@@ -112,6 +117,8 @@ assert_bash allow "$repo" 'scripts/test-backend.sh -run TestFoo ./...'
 assert_bash allow "$repo" './scripts/env-check.sh'
 assert_bash allow "$repo" 'bash scripts/env-check.sh'
 assert_bash allow "$repo" 'scripts/run-go-toolchain.sh scripts/test-backend.sh'
+assert_bash allow "$repo" 'scripts/run-go-toolchain.sh golangci-lint run'
+assert_bash allow "$repo" 'scripts/run-go-toolchain.sh govulncheck ./...'
 assert_bash allow "$repo/backend" '../scripts/test-backend.sh'
 assert_bash allow "$repo" 'PHX_TEST_RUN_ID=abc scripts/test-backend.sh'
 assert_bash allow "$repo" 'source scripts/env-check.sh'
@@ -125,12 +132,13 @@ assert_bash allow "$repo" 'python3 -m venv .venv'
 assert_bash allow "$repo" 'git commit -m "fix: x"'
 assert_bash allow "$repo" "rg $prod_host docs/"
 assert_bash allow "$repo" "grep -R 'test-changed.sh' scripts/"
-assert_bash allow "$repo" "scripts/run-go-toolchain.sh grep 'test-changed.sh' scripts/"
+assert_bash deny "$repo" "scripts/run-go-toolchain.sh grep 'test-changed.sh' scripts/"
 assert_bash allow "$repo" "printf '%s\\n' 'a; scripts/new.sh'"
 assert_bash allow "$repo" 'printf "%s" "text; ./scripts/new.sh"'
 assert_bash allow "$repo" '/bin/bash scripts/env-check.sh'
 assert_bash allow "$repo" '/usr/bin/git --version'
 assert_bash allow "$repo" '/usr/bin/env'
+assert_bash allow "$repo" '/usr/bin/env FOO=1 /usr/bin/true'
 assert_bash allow "$repo" 'if true; then :; fi'
 assert_bash allow "$repo" 'export PHX_GUARD_TEST=1; printf "%s" ok'
 assert_bash allow "$repo" 'cd backend | scripts/test-backend.sh'
@@ -157,6 +165,9 @@ assert_bash deny "$repo" './scripts/new'
 assert_bash deny "$repo" './scripts/does-not-exist.sh'
 assert_bash deny "$repo" 'bash /tmp/definitely-missing-guard-test.sh'
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh /tmp/evil.sh'
+assert_bash deny "$repo" "scripts/run-go-toolchain.sh node -e 'echo evil'"
+assert_bash deny "$repo" 'scripts/run-go-toolchain.sh pnpm exec evil'
+assert_bash deny "$repo" 'scripts/run-go-toolchain.sh go test -exec ./scripts/new ./...'
 assert_bash deny "$repo" "scripts/run-go-toolchain.sh \"\$CMD\""
 assert_bash deny "$repo" 'scripts/run-go-toolchain.sh <(printf x)'
 assert_bash deny "$repo" 'bash scripts/run-go-toolchain.sh /tmp/evil.sh'
@@ -170,6 +181,8 @@ assert_bash deny "$repo" "env BASH_ENV=\$CMD bash scripts/env-check.sh"
 assert_bash deny "$fixture" 'repo/scripts/test-backend.sh' # outside any repo root
 assert_bash deny "$repo" 'source /tmp/some-env-file'
 assert_bash deny "$repo" 'scripts/outside.sh'
+assert_bash deny "$repo" './env /usr/bin/true'
+assert_bash deny "$repo" "$repo/.devbox/nix/profile/default/bin/cycle-a"
 assert_bash deny "$repo" $'cd backend\n../scripts/new.sh'
 assert_bash deny "$repo" 'nice -n 5 ./scripts/new'
 assert_bash deny "$repo" 'python3 ./scripts/new'
@@ -190,6 +203,8 @@ assert_bash deny "$repo" 'not-a-command-guard-test'
 assert_bash_path deny "$repo" "$fixture/bin:$PATH" 'evil'
 assert_bash deny "$repo" 'cd backend | ./scripts/new'
 assert_bash deny "$repo" 'case x in x) ./scripts/new.sh;; esac'
+assert_bash deny "$repo" 'stdbuf -o0 ./scripts/new'
+assert_bash deny "$repo" 'printf x | node'
 assert_bash deny "$repo" "builtin eval \"\$(cat somefile)\""
 assert_bash deny "$repo" 'builtin source /tmp/some-env-file'
 assert_bash deny "$repo" 'builtin . /tmp/some-env-file'
