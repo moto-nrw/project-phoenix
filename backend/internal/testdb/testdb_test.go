@@ -3,6 +3,8 @@ package testdb
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,6 +91,25 @@ func TestConfigDerivesDSNs(t *testing.T) {
 	assert.Equal(t,
 		"postgres://user:pass@localhost:5433/phx_test_pkg_abc?sslmode=disable&application_name=tests",
 		cfg.DatabaseDSN("phx_test_pkg_abc"))
+}
+
+func TestEnsureServerStartsContainerForRefusedConnection(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	cfg, err := NewConfig("postgres://postgres:test@" + address + "/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+	starts := 0
+	startErr := fmt.Errorf("start probe")
+	err = ensureServer(context.Background(), cfg, func(context.Context) error {
+		starts++
+		return startErr
+	})
+
+	require.ErrorContains(t, err, "auto-start failed")
+	assert.Equal(t, 1, starts)
 }
 
 func TestQuoteIdentifierEscapesDoubleQuotes(t *testing.T) {
@@ -224,6 +245,42 @@ func integrationConfig(t *testing.T) *Config {
 	})
 
 	return cfg
+}
+
+func TestEnsureServerDoesNotRestartForAuthenticationFailure(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping DB integration test in -short mode")
+	}
+
+	loadEnvForIntegration(t)
+	dsn := os.Getenv("TEST_DB_DSN")
+	if dsn == "" {
+		t.Skip("TEST_DB_DSN not set")
+	}
+
+	cfg, err := NewConfig(dsn)
+	require.NoError(t, err)
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	require.NoError(t, pingServer(pingCtx, cfg), "test requires a reachable database server")
+	pingCancel()
+
+	badURL := *cfg.templateURL
+	password, _ := badURL.User.Password()
+	badURL.User = url.UserPassword(badURL.User.Username(), password+"-intentionally-wrong")
+	badCfg, err := NewConfig(badURL.String())
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	starts := 0
+	err = ensureServer(ctx, badCfg, func(context.Context) error {
+		starts++
+		return nil
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "refusing to restart the shared server")
+	assert.Zero(t, starts, "authentication failures must not restart the shared test server")
 }
 
 // fakeBuild creates a single marker table instead of running migrations.

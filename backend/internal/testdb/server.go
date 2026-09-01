@@ -2,11 +2,15 @@ package testdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
+
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // EnsureServer makes sure the postgres server behind cfg is reachable. If it
@@ -15,18 +19,33 @@ import (
 // and waits for readiness. A CI service container is already reachable, so
 // this never touches CI setups.
 func EnsureServer(ctx context.Context, cfg *Config) error {
-	if pingServer(ctx, cfg) == nil {
+	return ensureServer(ctx, cfg, startTestContainer)
+}
+
+func ensureServer(ctx context.Context, cfg *Config, start func(context.Context) error) error {
+	pingErr := pingServer(ctx, cfg)
+	if pingErr == nil {
 		return nil
 	}
 
-	if err := startTestContainer(ctx); err != nil {
+	if isPostgresStarting(pingErr) {
+		return waitForServer(ctx, cfg)
+	}
+	if !errors.Is(pingErr, syscall.ECONNREFUSED) {
+		return fmt.Errorf("test database connection failed; refusing to restart the shared server: %w", pingErr)
+	}
+
+	if err := start(ctx); err != nil {
 		return fmt.Errorf(`test database server unreachable and auto-start failed: %v
 
 To run integration tests manually:
   1. Start test database: docker compose --profile test up -d postgres-test
   2. Ensure .env contains: TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable`, err)
 	}
+	return waitForServer(ctx, cfg)
+}
 
+func waitForServer(ctx context.Context, cfg *Config) error {
 	deadline := time.Now().Add(60 * time.Second)
 	for {
 		if err := pingServer(ctx, cfg); err == nil {
@@ -40,6 +59,11 @@ To run integration tests manually:
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
+}
+
+func isPostgresStarting(err error) bool {
+	var pgErr pgdriver.Error
+	return errors.As(err, &pgErr) && pgErr.Field('C') == "57P03"
 }
 
 func pingServer(ctx context.Context, cfg *Config) error {
