@@ -465,7 +465,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         >
           ← Zurück zur Träger-Übersicht
         </Link>
-        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 text-center">
+        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center shadow-sm">
           <p className="text-gray-600">Träger nicht gefunden.</p>
         </div>
       </div>
