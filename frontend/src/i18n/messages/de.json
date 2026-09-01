@@ -1584,7 +1584,8 @@
     },
     "consents": {
       "title": "Einwilligungen und Bestätigungen",
-      "description": "Hier sehen Sie, was für Ihr Kind gespeichert ist. Die Foto-Einwilligung können Sie hier ändern.",
+      "description": "Hier sehen Sie, was für Ihr Kind gespeichert ist.",
+      "photoDescription": "Die Foto-Einwilligung können Sie hier ändern.",
       "items": {
         "agb": "Allgemeine Geschäftsbedingungen (AGB)",
         "data_processing": "Datenschutz zur Kenntnis genommen",

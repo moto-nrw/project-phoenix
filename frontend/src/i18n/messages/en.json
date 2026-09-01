@@ -1584,7 +1584,8 @@
     },
     "consents": {
       "title": "Consents and confirmations",
-      "description": "Here you can see your child's consents. You can change photo consent here.",
+      "description": "Here you can see your child's consents.",
+      "photoDescription": "You can change photo consent here.",
       "items": {
         "agb": "General terms and conditions",
         "data_processing": "Privacy information acknowledged",

@@ -105,10 +105,30 @@ describe("ChildConsentsSection", () => {
     expect(screen.getByText("Foto-Einwilligung")).toBeInTheDocument();
     expect(screen.getAllByText("Hinterlegt")).toHaveLength(3);
     expect(screen.queryByText("Nicht hinterlegt")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Hier sehen Sie, was für Ihr Kind gespeichert ist. Die Foto-Einwilligung können Sie hier ändern.",
+      ),
+    ).toBeInTheDocument();
     const withdrawButton = screen.getByRole("button", {
       name: "Foto-Einwilligung widerrufen",
     });
     expect(withdrawButton).toHaveTextContent(/^Widerrufen$/);
+  });
+
+  it("nennt die Änderungsmöglichkeit nur bei einer änderbaren Foto-Einwilligung", async () => {
+    mockedGet.mockResolvedValue(granted.slice(0, 2));
+
+    renderSection();
+
+    expect(
+      await screen.findByText(
+        "Hier sehen Sie, was für Ihr Kind gespeichert ist.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Die Foto-Einwilligung können Sie hier ändern."),
+    ).not.toBeInTheDocument();
   });
 
   it("blendet den gesamten Bereich ohne hinterlegte Einwilligungen aus", async () => {

@@ -1584,7 +1584,8 @@
     },
     "consents": {
       "title": "Pëlqimet dhe konfirmimet",
-      "description": "Këtu shihni pëlqimet për fëmijën tuaj. Këtu mund të ndryshoni pëlqimin për fotografinë.",
+      "description": "Këtu shihni pëlqimet për fëmijën tuaj.",
+      "photoDescription": "Këtu mund të ndryshoni pëlqimin për fotografinë.",
       "items": {
         "agb": "Kushtet e përgjithshme",
         "data_processing": "Informacioni për privatësinë u pranua",

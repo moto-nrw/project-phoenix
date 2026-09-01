@@ -108,11 +108,20 @@ export function ChildConsentsSection({
     consents?.filter((consent) => consent.state !== "not_recorded") ?? [];
   if (visibleConsents.length === 0) return null;
 
+  const canChangePhotoConsent = visibleConsents.some(
+    (consent) =>
+      consent.key === "photo" && (consent.can_withdraw || consent.can_grant),
+  );
+
   return (
     <>
       <ParentSection
         title={t("title")}
-        description={t("description")}
+        description={
+          canChangePhotoConsent
+            ? `${t("description")} ${t("photoDescription")}`
+            : t("description")
+        }
         concept="confirmations"
       >
         {successfulAction === "withdraw" ? (
