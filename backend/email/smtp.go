@@ -2,9 +2,9 @@ package email
 
 import (
 	"fmt"
+	"html/template"
 	"log/slog"
 
-	"github.com/spf13/viper"
 	"github.com/wneessen/go-mail"
 )
 
@@ -12,67 +12,72 @@ import (
 type SMTPMailer struct {
 	client      *mail.Client
 	defaultFrom Email
+	templates   *template.Template
+	logger      *slog.Logger
+}
+
+type MailerConfig struct {
+	Host        string
+	Port        int
+	User        string
+	Password    string
+	DefaultFrom Email
+	TemplateDir string
+	Logger      *slog.Logger
 }
 
 // NewMailer returns a configured SMTP Mailer.
-func NewMailer() (Mailer, error) {
-	if err := parseTemplates(); err != nil {
+func NewMailer(cfg MailerConfig) (Mailer, error) {
+	templates, err := parseTemplates(cfg.TemplateDir)
+	if err != nil {
 		return nil, err
 	}
-
-	smtp := struct {
-		Host     string
-		Port     int
-		User     string
-		Password string
-	}{
-		viper.GetString("email_smtp_host"),
-		viper.GetInt("email_smtp_port"),
-		viper.GetString("email_smtp_user"),
-		viper.GetString("email_smtp_password"),
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.Default()
 	}
 
-	if smtp.Host == "" {
+	if cfg.Host == "" {
 		return NewMockMailer(), nil
 	}
-
-	defaultFrom := NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
 
 	// Configure TLS and auth based on port and credentials
 	var clientOpts []mail.Option
 	switch {
-	case smtp.User == "" && smtp.Password == "":
+	case cfg.User == "" && cfg.Password == "":
 		// No credentials: plain SMTP without TLS (e.g., Mailpit on port 1025)
 		clientOpts = []mail.Option{
-			mail.WithPort(smtp.Port),
+			mail.WithPort(cfg.Port),
 			mail.WithTLSPolicy(mail.NoTLS),
 		}
-	case smtp.Port == 465:
+	case cfg.Port == 465:
 		// Port 465: Implicit SSL/TLS (SSL from connection start)
 		clientOpts = []mail.Option{
 			mail.WithSSLPort(false), // Use implicit SSL
 			mail.WithSMTPAuth(mail.SMTPAuthPlain),
-			mail.WithUsername(smtp.User),
-			mail.WithPassword(smtp.Password),
+			mail.WithUsername(cfg.User),
+			mail.WithPassword(cfg.Password),
 		}
 	default:
 		// Port 587: STARTTLS (upgrade to TLS after connect)
 		clientOpts = []mail.Option{
-			mail.WithPort(smtp.Port),
+			mail.WithPort(cfg.Port),
 			mail.WithSMTPAuth(mail.SMTPAuthPlain),
-			mail.WithUsername(smtp.User),
-			mail.WithPassword(smtp.Password),
+			mail.WithUsername(cfg.User),
+			mail.WithPassword(cfg.Password),
 			mail.WithTLSPolicy(mail.TLSMandatory),
 		}
 	}
 
-	client, err := mail.NewClient(smtp.Host, clientOpts...)
+	client, err := mail.NewClient(cfg.Host, clientOpts...)
 	if err != nil {
 		return nil, err
 	}
 	s := &SMTPMailer{
 		client:      client,
-		defaultFrom: defaultFrom,
+		defaultFrom: cfg.DefaultFrom,
+		templates:   templates,
+		logger:      logger,
 	}
 	return s, nil
 }
@@ -81,7 +86,7 @@ func NewMailer() (Mailer, error) {
 // wire. Split out of Send so the header contract (From, Reply-To,
 // List-Unsubscribe) is testable without an SMTP dial.
 func (m *SMTPMailer) buildMessage(email Message) (*mail.Msg, error) {
-	if err := email.parse(); err != nil {
+	if err := email.parse(m.templates); err != nil {
 		return nil, err
 	}
 
@@ -122,18 +127,18 @@ func (m *SMTPMailer) Send(email Message) error {
 		return err
 	}
 
-	slog.Default().Info("sending email",
+	m.logger.Info("sending email",
 		slog.String("to", email.To.Address),
 		slog.String("subject", email.Subject),
 		slog.String("template", email.Template))
 	if err := m.client.DialAndSend(msg); err != nil {
-		slog.Default().Error("email send failed",
+		m.logger.Error("email send failed",
 			slog.String("to", email.To.Address),
 			slog.Any("error", err),
 		)
 		return err
 	}
-	slog.Default().Info("email sent successfully",
+	m.logger.Info("email sent successfully",
 		slog.String("to", email.To.Address))
 
 	return nil

@@ -61,7 +61,7 @@ type overviewFixture struct {
 func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -360,10 +360,9 @@ func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
 // TestTimeTrackingOverview_QueryCountIsConstant is the only test that protects
 // the performance property. Without it the prefetch adapters could silently
 // regress to per-staff reads and nothing would fail.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestTimeTrackingOverview_QueryCountIsConstant(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	small := newOverviewFixture(t, 1)
 	hook := &countingQueryHook{}
 	small.db.AddQueryHook(hook)

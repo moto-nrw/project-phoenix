@@ -3,7 +3,6 @@ package checkin_test
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -29,21 +28,13 @@ import (
 //     builds its destination modal only for "checked_out", so an upgraded
 //     action would show no buttons at all and silently send home every child
 //     who scanned out at the yard, including those heading back inside.
-//
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing.T) {
+	t.Parallel()
 	ctx := setupCheckinRoute(t)
 
 	// No configured checkout time → the time gate is open, so this test
 	// exercises the ROOM gate in isolation. Restored afterwards so a value in
 	// the developer's .env cannot leak into (or out of) this test.
-	previousCheckoutTime, hadCheckoutTime := os.LookupEnv("STUDENT_DAILY_CHECKOUT_TIME")
-	require.NoError(t, os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME"))
-	defer func() {
-		if hadCheckoutTime {
-			_ = os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", previousCheckoutTime)
-		}
-	}()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-home")
 
@@ -108,17 +99,9 @@ func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing
 
 // TestDeviceCheckout_OrdinaryRoomOffersNachHauseWithoutAutoSendingHome pins the
 // default for tenants created after the all-room setting was introduced.
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceCheckout_OrdinaryRoomOffersNachHauseWithoutAutoSendingHome(t *testing.T) {
+	t.Parallel()
 	ctx := setupCheckinRoute(t)
-
-	previousCheckoutTime, hadCheckoutTime := os.LookupEnv("STUDENT_DAILY_CHECKOUT_TIME")
-	require.NoError(t, os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME"))
-	defer func() {
-		if hadCheckoutTime {
-			_ = os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", previousCheckoutTime)
-		}
-	}()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "ordinary-room")
 

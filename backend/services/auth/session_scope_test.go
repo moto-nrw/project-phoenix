@@ -239,11 +239,9 @@ func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 	require.Equal(t, 5, count, "switch-tenant must share the staff portal cap across schools")
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensRemovesOrphanPush(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -734,11 +732,9 @@ func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
 	require.Zero(t, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -797,11 +793,9 @@ func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 	require.Zero(t, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -873,11 +867,9 @@ func TestActivateAccountCompletesPendingAccountWideWipeWithoutMutatingHistory(t 
 	require.Equal(t, 1, completed)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -904,11 +896,9 @@ func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T)
 	require.Equal(t, 1, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -942,11 +932,9 @@ func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T
 	require.Zero(t, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -980,11 +968,9 @@ func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) 
 	require.Zero(t, count)
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensKeepsParentPushForUnknownSession(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

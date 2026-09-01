@@ -13,6 +13,7 @@ import (
 )
 
 func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	group := testpkg.CreateTestActivityGroup(t, db, "ArchivalUpgrade")
@@ -69,6 +70,7 @@ func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.
 }
 
 func TestActivityCategoryArchivalUpCanonicalizesReservedCaseVariants(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -134,6 +136,7 @@ func TestActivityCategoryArchivalUpCanonicalizesReservedCaseVariants(t *testing.
 }
 
 func TestActivityCategoryArchivalDownPreservesReferencedNameConflict(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	group := testpkg.CreateTestActivityGroup(t, db, "ArchivalRollback")

@@ -41,6 +41,7 @@ type notificationPushSubscription struct {
 // act on — and nothing beyond that, because inventing consent is the failure
 // this whole epic is built to avoid.
 func TestNotificationPreferencesBackfill(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -227,6 +228,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 // reads "on" for somebody who never agreed to a single category. down() is a
 // no-op, so nothing takes it back.
 func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -278,6 +280,7 @@ func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *tes
 // and delivery-time checks stopping the notification does not make the row less
 // wrong (data minimisation).
 func TestNotificationPreferencesBackfillSkipsInactiveGuardians(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

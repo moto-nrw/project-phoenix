@@ -105,11 +105,10 @@ func resolveFullChain(t *testing.T, ctx context.Context, service usercontextSvc.
 // TestIdentityRequestCacheDedupesChain is the #2099 acceptance test at service
 // level: with the request cache attached, every stage of the identity chain is
 // loaded from the database at most once, no matter how many chain methods run.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestIdentityRequestCacheDedupesChain(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	service := setupUserContextService(t, db)
 	today := timezone.TodayDate()
@@ -146,11 +145,10 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 // TestIdentityWithoutCacheStillQueries proves there is no hidden global state:
 // on a plain context (scheduler, CLI, tests) every call keeps hitting the
 // database exactly as before #2099.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestIdentityWithoutCacheStillQueries(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	service := setupUserContextService(t, db)
 
@@ -168,11 +166,10 @@ func TestIdentityWithoutCacheStillQueries(t *testing.T) {
 // TestNonTeacherStaffNotFoundIsMemoized pins the negative-caching behavior:
 // "staff without a teacher role" is a clean outcome and must not re-query
 // users.teachers on every GetMyGroups/GetCurrentTeacher call.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	service := setupUserContextService(t, db)
 
@@ -200,7 +197,7 @@ func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	service := setupUserContextService(t, db)
 
@@ -232,7 +229,7 @@ func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
 func TestUpdateAvatarEvictsIdentity(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	service := setupUserContextService(t, db)
 

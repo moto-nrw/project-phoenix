@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -170,6 +169,7 @@ type Scheduler struct {
 	tasks                      map[string]*ScheduledTask
 	mu                         sync.RWMutex
 	logger                     *slog.Logger
+	getenv                     func(string) string
 	lifecycleCtx               context.Context
 	stopLifecycle              context.CancelFunc
 	// done signals goroutines to stop when closed (replaces stored context)
@@ -273,6 +273,7 @@ func newScheduler(deps WorkerDependencies) *Scheduler {
 		tasks:                        make(map[string]*ScheduledTask),
 		done:                         make(chan struct{}),
 		logger:                       deps.Logger,
+		getenv:                       deps.Getenv,
 		lifecycleCtx:                 lifecycleCtx,
 		stopLifecycle:                stopLifecycle,
 		appointmentReminderScannedAt: make(map[int64]time.Time),
@@ -347,6 +348,13 @@ func tenantRuntimeValue(runtime *tenant.UnitOfWork) tenant.UnitOfWork {
 // getLogger returns the scheduler's logger, falling back to slog.Default() if nil.
 func (s *Scheduler) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
+}
+
+func (s *Scheduler) env(key string) string {
+	if s.getenv == nil {
+		return ""
+	}
+	return s.getenv(key)
 }
 
 func (s *Scheduler) startWorkerJob(ctx context.Context, operation string) (context.Context, error) {
@@ -670,12 +678,12 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 // Each minute, it checks each tenant's configured cleanup time and fires if matched.
 func (s *Scheduler) scheduleCleanupTask() {
 	// Env var can globally disable cleanup regardless of settings service
-	if os.Getenv("CLEANUP_SCHEDULER_ENABLED") == "false" {
+	if s.env("CLEANUP_SCHEDULER_ENABLED") == "false" {
 		s.getLogger().Info("cleanup scheduler is disabled via env var")
 		return
 	}
 	// Legacy guard: without settings service, require explicit opt-in via env var
-	if s.settings == nil && os.Getenv("CLEANUP_SCHEDULER_ENABLED") != "true" {
+	if s.settings == nil && s.env("CLEANUP_SCHEDULER_ENABLED") != "true" {
 		s.getLogger().Info("cleanup scheduler is disabled")
 		return
 	}
@@ -1111,12 +1119,12 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 // scheduleSessionEndTask schedules the daily session end task using minute-polling.
 func (s *Scheduler) scheduleSessionEndTask() {
 	// Env var can globally disable session end regardless of settings service
-	if os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
+	if s.env("SESSION_END_SCHEDULER_ENABLED") == "false" {
 		s.getLogger().Info("session end scheduler is disabled via env var")
 		return
 	}
 	// Legacy guard: without settings service, require non-false env var
-	if s.settings == nil && os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
+	if s.settings == nil && s.env("SESSION_END_SCHEDULER_ENABLED") == "false" {
 		s.getLogger().Info("session end scheduler is disabled")
 		return
 	}
@@ -1223,20 +1231,20 @@ func (s *Scheduler) executeSessionEndForTenant(ctx context.Context, tenantID int
 // Uses a fixed 5-minute polling interval, resolves per-tenant settings on each tick.
 func (s *Scheduler) scheduleSessionCleanupTask() {
 	// Quick check: if globally disabled via env and no settings service, skip
-	if s.settings == nil && os.Getenv("SESSION_CLEANUP_ENABLED") == "false" {
+	if s.settings == nil && s.env("SESSION_CLEANUP_ENABLED") == "false" {
 		s.getLogger().Info("session cleanup is disabled")
 		return
 	}
 
 	// Parse global defaults (used as fallback and for backward-compatible struct fields)
 	s.sessionCleanupIntervalMinutes = 15
-	if envInterval := os.Getenv("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
+	if envInterval := s.env("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
 		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
 			s.sessionCleanupIntervalMinutes = parsed
 		}
 	}
 	s.sessionAbandonedThresholdMinutes = 60
-	if envThreshold := os.Getenv("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
+	if envThreshold := s.env("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
 		if parsed, err := strconv.Atoi(envThreshold); err == nil && parsed > 0 {
 			s.sessionAbandonedThresholdMinutes = parsed
 		}
@@ -1318,7 +1326,7 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 
 	// Resolve interval from env var (global, not per-tenant)
 	s.breakAutoEndIntervalSeconds = 60
-	if val := os.Getenv("BREAK_AUTO_END_INTERVAL_SECONDS"); val != "" {
+	if val := s.env("BREAK_AUTO_END_INTERVAL_SECONDS"); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
 			s.breakAutoEndIntervalSeconds = parsed
 		}
@@ -1442,7 +1450,7 @@ func (s *Scheduler) checkAndRunAutoCheckout(ctx context.Context, task *Scheduled
 // resolveStringSetting resolves a setting via the settings service with env var fallback.
 func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar string, defaultVal string) string {
 	fallback := defaultVal
-	if val := os.Getenv(envVar); val != "" {
+	if val := s.env(envVar); val != "" {
 		fallback = val
 	}
 	return config.ResolveStringOrDefault(ctx, s.settings, key, fallback, s.getLogger())
@@ -1451,7 +1459,7 @@ func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar
 // resolveBoolSetting resolves a boolean setting via the settings service with env var fallback.
 func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar string, defaultVal bool) bool {
 	fallback := defaultVal
-	if val := os.Getenv(envVar); val != "" {
+	if val := s.env(envVar); val != "" {
 		fallback = val == "true"
 	}
 	return config.ResolveBoolOrDefault(ctx, s.settings, key, fallback, s.getLogger())
@@ -1460,7 +1468,7 @@ func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar s
 // resolveIntSetting resolves an integer setting via the settings service with env var fallback.
 func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
 	fallback := defaultVal
-	if val := os.Getenv(envVar); val != "" {
+	if val := s.env(envVar); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
 			fallback = parsed
 		}
@@ -1480,7 +1488,7 @@ func (s *Scheduler) resolveRequiredPositiveIntSetting(ctx context.Context, key s
 		return 0, fmt.Errorf("check override for %s: %w", key, err)
 	}
 	if !hasOverride {
-		if val := os.Getenv(envVar); val != "" {
+		if val := s.env(envVar); val != "" {
 			parsed, err := strconv.Atoi(val)
 			if err != nil || parsed <= 0 {
 				return 0, fmt.Errorf("environment variable %s must be positive integer, got %q", envVar, val)
@@ -1503,7 +1511,7 @@ func (s *Scheduler) resolveRequiredPositiveIntSetting(ctx context.Context, key s
 // checkout exactly at the planned shift end).
 func (s *Scheduler) resolveNonNegativeIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
 	fallback := defaultVal
-	if val := os.Getenv(envVar); val != "" {
+	if val := s.env(envVar); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed >= 0 {
 			fallback = parsed
 		}
@@ -1579,7 +1587,7 @@ func markRunAt(lastRunMap *sync.Map, tenantID int64, now time.Time) {
 // tenant's configured operations.status_flag_clear_time.
 func (s *Scheduler) scheduleStatusFlagClearTask() {
 	// Env var kill switch to allow ops to disable this task without code changes.
-	if os.Getenv("STATUS_FLAG_CLEAR_ENABLED") == "false" {
+	if s.env("STATUS_FLAG_CLEAR_ENABLED") == "false" {
 		s.getLogger().Info("status flag clear scheduler is disabled via env var")
 		return
 	}

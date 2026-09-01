@@ -240,11 +240,8 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnlyAccessible(t *testing.T) {
-	testutil.SeedTestJWTConfig()
+	t.Parallel()
 	router := setupShiftCoverageRoute(t)
 	claims := testutil.AdminTestClaims(999999)
 	requestBody := `{"dates":["2070-11-03"],"start_time":"09:00","end_time":"10:00","staff_ids":[999999]}`

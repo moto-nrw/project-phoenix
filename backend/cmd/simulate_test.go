@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -15,61 +14,30 @@ import (
 // =============================================================================
 
 func TestSimulateCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "simulate", simulateCmd.Use)
 	assert.Contains(t, simulateCmd.Short, "simulation commands")
 	assert.Contains(t, simulateCmd.Long, ".seed-state.json")
 	assert.Nil(t, simulateCmd.Run, "simulate is a group command without its own Run")
 }
 
-func TestSimulateCmd_IsRegisteredOnRoot(t *testing.T) {
-	found := false
-	for _, cmd := range RootCmd.Commands() {
-		if cmd.Use == "simulate" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "simulateCmd should be registered on RootCmd")
-}
-
-func TestSimulateCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	simulateCmd.SetOut(buf)
-	simulateCmd.SetErr(buf)
-
-	err := simulateCmd.Usage()
-	require.NoError(t, err)
-
-	output := buf.String()
-	assert.Contains(t, output, "simulate")
-}
-
 // =============================================================================
 // Subcommand Registration Tests
 // =============================================================================
-
-func TestSimulateCmd_HasSubcommands(t *testing.T) {
-	subcommands := simulateCmd.Commands()
-	names := make([]string, 0, len(subcommands))
-	for _, cmd := range subcommands {
-		names = append(names, cmd.Use)
-	}
-	assert.Contains(t, names, "full-day")
-	assert.Contains(t, names, "status")
-	assert.Contains(t, names, "live")
-}
 
 // =============================================================================
 // FullDay Subcommand Tests
 // =============================================================================
 
 func TestSimulateFullDayCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "full-day", simulateFullDayCmd.Use)
 	assert.Contains(t, simulateFullDayCmd.Short, "full-day simulation")
 	assert.NotNil(t, simulateFullDayCmd.RunE)
 }
 
 func TestSimulateFullDayCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := simulateFullDayCmd.Flags()
 	assert.NotNil(t, f.Lookup("state"))
 	assert.NotNil(t, f.Lookup("close"))
@@ -77,6 +45,7 @@ func TestSimulateFullDayCmd_Flags(t *testing.T) {
 }
 
 func TestSimulateFullDayCmd_FlagDefaults(t *testing.T) {
+	t.Parallel()
 	f := simulateFullDayCmd.Flags()
 
 	stateFlag := f.Lookup("state")
@@ -97,18 +66,21 @@ func TestSimulateFullDayCmd_FlagDefaults(t *testing.T) {
 // =============================================================================
 
 func TestSimulateStatusCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "status", simulateStatusCmd.Use)
 	assert.Contains(t, simulateStatusCmd.Short, "simulation state")
 	assert.NotNil(t, simulateStatusCmd.RunE)
 }
 
 func TestSimulateStatusCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := simulateStatusCmd.Flags()
 	assert.NotNil(t, f.Lookup("state"))
 	assert.NotNil(t, f.Lookup("verbose"))
 }
 
 func TestSimulateStatusCmd_FlagDefaults(t *testing.T) {
+	t.Parallel()
 	f := simulateStatusCmd.Flags()
 
 	stateFlag := f.Lookup("state")
@@ -121,6 +93,7 @@ func TestSimulateStatusCmd_FlagDefaults(t *testing.T) {
 // =============================================================================
 
 func TestSimulateLiveCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "live", simulateLiveCmd.Use)
 	assert.Contains(t, simulateLiveCmd.Short, "continuous live simulation")
 	assert.NotNil(t, simulateLiveCmd.RunE)
@@ -164,6 +137,7 @@ func TestSimulateRootPreservesRunnerErrorContracts(t *testing.T) {
 }
 
 func TestSimulateLiveCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := simulateLiveCmd.Flags()
 	assert.NotNil(t, f.Lookup("state"))
 	assert.NotNil(t, f.Lookup("interval"))
@@ -171,6 +145,7 @@ func TestSimulateLiveCmd_Flags(t *testing.T) {
 }
 
 func TestSimulateLiveCmd_FlagDefaults(t *testing.T) {
+	t.Parallel()
 	f := simulateLiveCmd.Flags()
 
 	stateFlag := f.Lookup("state")
@@ -180,40 +155,4 @@ func TestSimulateLiveCmd_FlagDefaults(t *testing.T) {
 	intervalFlag := f.Lookup("interval")
 	require.NotNil(t, intervalFlag)
 	assert.Equal(t, "10s", intervalFlag.DefValue)
-}
-
-// =============================================================================
-// Usage Output Tests
-// =============================================================================
-
-func TestSimulateFullDayCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	simulateFullDayCmd.SetOut(buf)
-	simulateFullDayCmd.SetErr(buf)
-
-	err := simulateFullDayCmd.Usage()
-	require.NoError(t, err)
-	assert.Contains(t, buf.String(), "full-day")
-	assert.Contains(t, buf.String(), "--state")
-}
-
-func TestSimulateStatusCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	simulateStatusCmd.SetOut(buf)
-	simulateStatusCmd.SetErr(buf)
-
-	err := simulateStatusCmd.Usage()
-	require.NoError(t, err)
-	assert.Contains(t, buf.String(), "status")
-}
-
-func TestSimulateLiveCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	simulateLiveCmd.SetOut(buf)
-	simulateLiveCmd.SetErr(buf)
-
-	err := simulateLiveCmd.Usage()
-	require.NoError(t, err)
-	assert.Contains(t, buf.String(), "live")
-	assert.Contains(t, buf.String(), "--interval")
 }

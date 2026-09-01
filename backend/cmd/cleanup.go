@@ -3,9 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
-	"os"
 	"text/tabwriter"
 	"time"
 
@@ -17,13 +17,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-var (
-	dryRun    bool
-	verbose   bool
-	logFile   string
-	batchSize int
-)
-
 const (
 	flagDryRun          = "dry-run"
 	flagDescShowDetails = "Show detailed information"
@@ -32,6 +25,22 @@ const (
 	fmtStudentsAffected = "Students affected: %d\n"
 	fmtStatus           = "Status: %s\n"
 )
+
+func mustFprintf(output io.Writer, format string, args ...any) int {
+	n, err := fmt.Fprintf(output, format, args...)
+	if err != nil {
+		panic(fmt.Errorf("write cleanup output: %w", err))
+	}
+	return n
+}
+
+func mustFprintln(output io.Writer, args ...any) int {
+	n, err := fmt.Fprintln(output, args...)
+	if err != nil {
+		panic(fmt.Errorf("write cleanup output: %w", err))
+	}
+	return n
+}
 
 // cleanupCmd represents the cleanup command
 var cleanupCmd = &cobra.Command{
@@ -200,46 +209,47 @@ func init() {
 	cleanupTimeTrackingCmd.AddCommand(cleanupTimeTrackingStatsCmd)
 
 	// Flags for timetable commands
-	cleanupTimetableCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
-	cleanupTimetableCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
-	cleanupTimetablePreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
-	cleanupTimetableStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupTimetableCmd.Flags().Bool(flagDryRun, false, flagDescDryRun)
+	cleanupTimetableCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
+	cleanupTimetablePreviewCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
+	cleanupTimetableStatsCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
 
 	// Flags for time-tracking cleanup commands (Tranche 0b)
-	cleanupTimeTrackingCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
-	cleanupTimeTrackingCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
-	cleanupTimeTrackingPreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
-	cleanupTimeTrackingStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupTimeTrackingCmd.Flags().Bool(flagDryRun, false, flagDescDryRun)
+	cleanupTimeTrackingCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
+	cleanupTimeTrackingPreviewCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
+	cleanupTimeTrackingStatsCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
 
 	// Flags for cleanup visits command
-	cleanupVisitsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be deleted without deleting")
-	cleanupVisitsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed logs")
-	cleanupVisitsCmd.Flags().StringVar(&logFile, "log-file", "", "Write logs to file")
-	cleanupVisitsCmd.Flags().IntVar(&batchSize, "batch-size", 100, "Number of students to process in each batch")
+	cleanupVisitsCmd.Flags().Bool(flagDryRun, false, "Show what would be deleted without deleting")
+	cleanupVisitsCmd.Flags().BoolP("verbose", "v", false, "Show detailed logs")
+	cleanupVisitsCmd.Flags().String("log-file", "", "Write logs to file")
+	cleanupVisitsCmd.Flags().Int("batch-size", 100, "Number of students to process in each batch")
 
 	// Flags for preview command
-	cleanupPreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupPreviewCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
 
 	// Flags for stats command
-	cleanupStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupStatsCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
 
 	// Flags for attendance command
-	cleanupAttendanceCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
-	cleanupAttendanceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupAttendanceCmd.Flags().Bool(flagDryRun, false, flagDescDryRun)
+	cleanupAttendanceCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
 
 	// Flags for sessions command
-	cleanupSessionsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
-	cleanupSessionsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupSessionsCmd.Flags().Bool(flagDryRun, false, flagDescDryRun)
+	cleanupSessionsCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
 	cleanupSessionsCmd.Flags().String("mode", "abandoned", "Cleanup mode: 'abandoned' (timeout-based) or 'daily' (end all sessions)")
 	cleanupSessionsCmd.Flags().Duration("threshold", 2*time.Hour, "Threshold for abandoned session cleanup (only used with --mode=abandoned)")
 
 	// Flags for supervisors command
-	cleanupSupervisorsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
-	cleanupSupervisorsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupSupervisorsCmd.Flags().Bool(flagDryRun, false, flagDescDryRun)
+	cleanupSupervisorsCmd.Flags().BoolP("verbose", "v", false, flagDescShowDetails)
 }
 
-func runCleanupVisits(_ *cobra.Command, _ []string) error {
-	logger, cleanup, err := setupLogger(logFile)
+func runCleanupVisits(cmd *cobra.Command, _ []string) error {
+	logFile, _ := cmd.Flags().GetString("log-file")
+	logger, cleanup, err := setupLogger(logFile, cmd.OutOrStdout())
 	if err != nil {
 		return err
 	}
@@ -252,15 +262,19 @@ func runCleanupVisits(_ *cobra.Command, _ []string) error {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
+	ctx.Logger = logger
 
+	dryRun, _ := cmd.Flags().GetBool(flagDryRun)
+	verbose, _ := cmd.Flags().GetBool("verbose")
 	if dryRun {
-		return runVisitsDryRun(logger, ctx)
+		return runVisitsDryRun(logger, ctx, verbose)
 	}
 
-	return runVisitsCleanup(logger, ctx)
+	return runVisitsCleanup(logger, ctx, verbose)
 }
 
-func runVisitsDryRun(logger *log.Logger, ctx *cleanupContext) error {
+func runVisitsDryRun(logger *log.Logger, ctx *cleanupContext, verbose bool) error {
 	logger.Println("DRY RUN MODE - No data will be deleted")
 
 	preview, err := ctx.CleanupService.PreviewCleanup(context.Background())
@@ -268,33 +282,33 @@ func runVisitsDryRun(logger *log.Logger, ctx *cleanupContext) error {
 		return fmt.Errorf("failed to preview cleanup: %w", err)
 	}
 
-	fmt.Println("\nCleanup Preview:")
-	fmt.Printf("Total visits to delete: %d\n", preview.TotalVisits)
+	mustFprintln(ctx.output(), "\nCleanup Preview:")
+	mustFprintf(ctx.output(), "Total visits to delete: %d\n", preview.TotalVisits)
 	if preview.OldestVisit != nil {
-		fmt.Printf("Oldest visit: %s\n", preview.OldestVisit.Format(dateTimeFormat))
+		mustFprintf(ctx.output(), "Oldest visit: %s\n", preview.OldestVisit.Format(dateTimeFormat))
 	}
-	fmt.Printf(fmtStudentsAffected, len(preview.StudentVisitCounts))
+	mustFprintf(ctx.output(), fmtStudentsAffected, len(preview.StudentVisitCounts))
 
 	if verbose {
-		printStudentBreakdown("Per-student breakdown", "Visits to Delete", preview.StudentVisitCounts)
+		printStudentBreakdown(ctx.output(), "Per-student breakdown", "Visits to Delete", preview.StudentVisitCounts)
 	}
 
 	return nil
 }
 
-func runVisitsCleanup(logger *log.Logger, ctx *cleanupContext) error {
+func runVisitsCleanup(logger *log.Logger, ctx *cleanupContext, verbose bool) error {
 	result, err := ctx.CleanupService.CleanupExpiredVisits(context.Background())
 	if err != nil {
 		return fmt.Errorf("cleanup failed: %w", err)
 	}
 
-	logVisitCleanupResult(logger, result)
-	printVisitCleanupSummary(result)
+	logVisitCleanupResult(logger, result, verbose)
+	printVisitCleanupSummary(ctx.output(), result)
 
 	return nil
 }
 
-func logVisitCleanupResult(logger *log.Logger, result *active.CleanupResult) {
+func logVisitCleanupResult(logger *log.Logger, result *active.CleanupResult, verbose bool) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 	logger.Printf("Cleanup completed in %s\n", duration)
 	logger.Printf("Students processed: %d\n", result.StudentsProcessed)
@@ -312,101 +326,105 @@ func logVisitCleanupResult(logger *log.Logger, result *active.CleanupResult) {
 	}
 }
 
-func printVisitCleanupSummary(result *active.CleanupResult) {
+func printVisitCleanupSummary(output io.Writer, result *active.CleanupResult) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 
-	fmt.Println("\nCleanup Summary:")
-	fmt.Printf(fmtDuration, duration)
-	fmt.Printf("Students processed: %d\n", result.StudentsProcessed)
-	fmt.Printf("Records deleted: %d\n", result.RecordsDeleted)
-	fmt.Printf(fmtStatus, getStatusString(result.Success))
+	mustFprintln(output, "\nCleanup Summary:")
+	mustFprintf(output, fmtDuration, duration)
+	mustFprintf(output, "Students processed: %d\n", result.StudentsProcessed)
+	mustFprintf(output, "Records deleted: %d\n", result.RecordsDeleted)
+	mustFprintf(output, fmtStatus, getStatusString(result.Success))
 
 	if len(result.Errors) > 0 {
-		fmt.Printf("Errors: %d\n", len(result.Errors))
+		mustFprintf(output, "Errors: %d\n", len(result.Errors))
 	}
 }
 
-func runCleanupPreview(_ *cobra.Command, _ []string) error {
+func runCleanupPreview(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithCleanupService()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 
 	preview, err := ctx.CleanupService.PreviewCleanup(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get cleanup preview: %w", err)
 	}
 
-	printPreviewHeader(preview)
+	printPreviewHeader(ctx.output(), preview)
 
+	verbose, _ := cmd.Flags().GetBool("verbose")
 	if verbose {
-		printStudentBreakdownWithTotal("Visits to Delete", preview.StudentVisitCounts)
+		printStudentBreakdownWithTotal(ctx.output(), "Visits to Delete", preview.StudentVisitCounts)
 	}
 
 	return nil
 }
 
-func printPreviewHeader(preview *active.CleanupPreview) {
-	fmt.Println("Data Retention Cleanup Preview")
-	fmt.Println("==============================")
-	fmt.Printf("Total visits to delete: %d\n", preview.TotalVisits)
+func printPreviewHeader(output io.Writer, preview *active.CleanupPreview) {
+	mustFprintln(output, "Data Retention Cleanup Preview")
+	mustFprintln(output, "==============================")
+	mustFprintf(output, "Total visits to delete: %d\n", preview.TotalVisits)
 
 	if preview.OldestVisit != nil {
 		daysAgo := time.Since(*preview.OldestVisit).Hours() / 24
-		fmt.Printf("Oldest visit: %s (%.0f days ago)\n",
+		mustFprintf(output, "Oldest visit: %s (%.0f days ago)\n",
 			preview.OldestVisit.Format(dateFormat), daysAgo)
 	}
 
-	fmt.Printf(fmtStudentsAffected, len(preview.StudentVisitCounts))
+	mustFprintf(output, fmtStudentsAffected, len(preview.StudentVisitCounts))
 }
 
-func runCleanupStats(_ *cobra.Command, _ []string) error {
+func runCleanupStats(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithCleanupService()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 
 	stats, err := ctx.CleanupService.GetRetentionStatistics(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get retention statistics: %w", err)
 	}
 
-	printRetentionStats(stats)
+	printRetentionStats(ctx.output(), stats)
 
+	verbose, _ := cmd.Flags().GetBool("verbose")
 	if !verbose {
 		return nil
 	}
 
-	printMonthlyBreakdownWithTotal("Expired visits by month", stats.ExpiredVisitsByMonth)
+	printMonthlyBreakdownWithTotal(ctx.output(), "Expired visits by month", stats.ExpiredVisitsByMonth)
 	printVerboseRecentDeletions(ctx)
 
 	return nil
 }
 
-func printRetentionStats(stats *active.RetentionStats) {
-	fmt.Println("Data Retention Statistics")
-	fmt.Println("========================")
-	fmt.Printf("Total expired visits: %d\n", stats.TotalExpiredVisits)
-	fmt.Printf(fmtStudentsAffected, stats.StudentsAffected)
+func printRetentionStats(output io.Writer, stats *active.RetentionStats) {
+	mustFprintln(output, "Data Retention Statistics")
+	mustFprintln(output, "========================")
+	mustFprintf(output, "Total expired visits: %d\n", stats.TotalExpiredVisits)
+	mustFprintf(output, fmtStudentsAffected, stats.StudentsAffected)
 
 	if stats.OldestExpiredVisit != nil {
 		daysAgo := time.Since(*stats.OldestExpiredVisit).Hours() / 24
-		fmt.Printf("Oldest expired visit: %s (%.0f days ago)\n",
+		mustFprintf(output, "Oldest expired visit: %s (%.0f days ago)\n",
 			stats.OldestExpiredVisit.Format(dateFormat), daysAgo)
 	}
 }
 
 func printVerboseRecentDeletions(ctx *cleanupContext) {
-	fmt.Println("\nRecent deletion activity:")
+	mustFprintln(ctx.output(), "\nRecent deletion activity:")
 
 	deletions, err := queryRecentDeletions(context.Background(), ctx.DB)
 	if err != nil || len(deletions) == 0 {
 		return
 	}
 
-	printRecentDeletions(deletions)
+	printRecentDeletions(ctx.output(), deletions)
 }
 
 func getStatusString(success bool) string {
@@ -416,22 +434,23 @@ func getStatusString(success bool) string {
 	return "COMPLETED WITH ERRORS"
 }
 
-func runCleanupTokens(_ *cobra.Command, _ []string) error {
+func runCleanupTokens(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithAuthCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 
 	count, err := countExpiredTokens(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to count expired tokens: %w", err)
 	}
 
-	fmt.Printf("Found %d expired tokens to clean up\n", count)
+	mustFprintf(ctx.output(), "Found %d expired tokens to clean up\n", count)
 
 	if count == 0 {
-		fmt.Println("No expired tokens to clean up")
+		mustFprintln(ctx.output(), "No expired tokens to clean up")
 		return nil
 	}
 
@@ -440,7 +459,7 @@ func runCleanupTokens(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to delete expired tokens: %w", err)
 	}
 
-	fmt.Printf("Successfully deleted %d expired tokens\n", deletedCount)
+	mustFprintf(ctx.output(), "Successfully deleted %d expired tokens\n", deletedCount)
 	return nil
 }
 
@@ -451,15 +470,16 @@ func countExpiredTokens(ctx *cleanupContext) (int, error) {
 		Count(context.Background())
 }
 
-func runCleanupInvitations(_ *cobra.Command, _ []string) error {
+func runCleanupInvitations(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithInvitationCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 
 	if ctx.InvitationCleanupService == nil {
-		fmt.Println("Invitation service is not available; nothing to clean.")
+		mustFprintln(ctx.output(), "Invitation service is not available; nothing to clean.")
 		return nil
 	}
 
@@ -468,116 +488,122 @@ func runCleanupInvitations(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to clean up invitations: %w", err)
 	}
 
-	fmt.Printf("Invitation cleanup removed %d records\n", count)
+	mustFprintf(ctx.output(), "Invitation cleanup removed %d records\n", count)
 	return nil
 }
 
-func runCleanupRateLimits(_ *cobra.Command, _ []string) error {
+func runCleanupRateLimits(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithAuthCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 
 	count, err := ctx.AuthCleanupService.CleanupExpiredRateLimits(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up password reset rate limits: %w", err)
 	}
 
-	fmt.Printf("Password reset rate limit cleanup removed %d records\n", count)
+	mustFprintf(ctx.output(), "Password reset rate limit cleanup removed %d records\n", count)
 	return nil
 }
 
-func runCleanupAttendance(_ *cobra.Command, _ []string) error {
+func runCleanupAttendance(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithCleanupService()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 
+	dryRun, _ := cmd.Flags().GetBool(flagDryRun)
+	verbose, _ := cmd.Flags().GetBool("verbose")
 	if dryRun {
-		return runAttendanceDryRun(ctx)
+		return runAttendanceDryRun(ctx, verbose)
 	}
 
-	return runAttendanceCleanup(ctx)
+	return runAttendanceCleanup(ctx, verbose)
 }
 
-func runAttendanceDryRun(ctx *cleanupContext) error {
-	fmt.Println("DRY RUN MODE - No data will be modified")
+func runAttendanceDryRun(ctx *cleanupContext, verbose bool) error {
+	mustFprintln(ctx.output(), "DRY RUN MODE - No data will be modified")
 
 	preview, err := ctx.CleanupService.PreviewAttendanceCleanup(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to preview attendance cleanup: %w", err)
 	}
 
-	printAttendancePreviewHeader(preview)
+	printAttendancePreviewHeader(ctx.output(), preview)
 
 	if verbose {
-		printStudentBreakdown("Per-student breakdown", "Stale Records", preview.StudentRecords)
-		printDateBreakdown(preview.RecordsByDate)
+		printStudentBreakdown(ctx.output(), "Per-student breakdown", "Stale Records", preview.StudentRecords)
+		printDateBreakdown(ctx.output(), preview.RecordsByDate)
 	}
 
 	return nil
 }
 
-func printAttendancePreviewHeader(preview *active.AttendanceCleanupPreview) {
-	fmt.Println("\nAttendance Cleanup Preview:")
-	fmt.Printf("Total stale records: %d\n", preview.TotalRecords)
+func printAttendancePreviewHeader(output io.Writer, preview *active.AttendanceCleanupPreview) {
+	mustFprintln(output, "\nAttendance Cleanup Preview:")
+	mustFprintf(output, "Total stale records: %d\n", preview.TotalRecords)
 
 	if preview.OldestRecord != nil {
 		daysAgo := preview.OldestRecord.DaysUntil(timezone.TodayDate())
-		fmt.Printf("Oldest record: %s (%d days ago)\n",
+		mustFprintf(output, "Oldest record: %s (%d days ago)\n",
 			preview.OldestRecord.Format(dateFormat), daysAgo)
 	}
 
-	fmt.Printf(fmtStudentsAffected, len(preview.StudentRecords))
+	mustFprintf(output, fmtStudentsAffected, len(preview.StudentRecords))
 }
 
-func runAttendanceCleanup(ctx *cleanupContext) error {
+func runAttendanceCleanup(ctx *cleanupContext, verbose bool) error {
 	result, err := ctx.CleanupService.CleanupStaleAttendance(context.Background())
 	if err != nil {
 		return fmt.Errorf("attendance cleanup failed: %w", err)
 	}
 
-	printAttendanceCleanupSummary(result)
+	printAttendanceCleanupSummary(ctx.output(), result, verbose)
 	return nil
 }
 
-func printAttendanceCleanupSummary(result *active.AttendanceCleanupResult) {
+func printAttendanceCleanupSummary(output io.Writer, result *active.AttendanceCleanupResult, verbose bool) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 
-	fmt.Println("\nAttendance Cleanup Summary:")
-	fmt.Printf(fmtDuration, duration)
-	fmt.Printf("Records closed: %d\n", result.RecordsClosed)
-	fmt.Printf(fmtStudentsAffected, result.StudentsAffected)
+	mustFprintln(output, "\nAttendance Cleanup Summary:")
+	mustFprintf(output, fmtDuration, duration)
+	mustFprintf(output, "Records closed: %d\n", result.RecordsClosed)
+	mustFprintf(output, fmtStudentsAffected, result.StudentsAffected)
 
 	if result.OldestRecordDate != nil {
-		fmt.Printf("Oldest record: %s\n", result.OldestRecordDate.Format(dateFormat))
+		mustFprintf(output, "Oldest record: %s\n", result.OldestRecordDate.Format(dateFormat))
 	}
 
-	fmt.Printf(fmtStatus, getStatusString(result.Success))
-	printErrorList(result.Errors)
+	mustFprintf(output, fmtStatus, getStatusString(result.Success))
+	printErrorList(output, result.Errors, verbose)
 }
 
-func printErrorList(errors []string) {
+func printErrorList(output io.Writer, errors []string, verbose bool) {
 	if len(errors) == 0 {
 		return
 	}
 
-	fmt.Printf("Errors: %d\n", len(errors))
+	mustFprintf(output, "Errors: %d\n", len(errors))
 
 	if !verbose {
 		return
 	}
 
 	for _, errMsg := range errors {
-		fmt.Printf("  - %s\n", errMsg)
+		mustFprintf(output, "  - %s\n", errMsg)
 	}
 }
 
 func runCleanupSessions(cmd *cobra.Command, _ []string) error {
 	mode, _ := cmd.Flags().GetString("mode")
 	threshold, _ := cmd.Flags().GetDuration("threshold")
+	dryRun, _ := cmd.Flags().GetBool(flagDryRun)
+	verbose, _ := cmd.Flags().GetBool("verbose")
 
 	log.Printf("Starting session cleanup process (mode: %s)...", mode)
 
@@ -586,20 +612,22 @@ func runCleanupSessions(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
+	ctx.Logger = log.Default()
 
 	switch mode {
 	case "abandoned":
-		return runAbandonedSessionCleanup(ctx, threshold)
+		return runAbandonedSessionCleanup(ctx, threshold, dryRun)
 	case "daily":
-		return runDailySessionCleanup(ctx)
+		return runDailySessionCleanup(ctx, dryRun, verbose)
 	default:
 		return fmt.Errorf("invalid mode: %s (must be 'abandoned' or 'daily')", mode)
 	}
 }
 
-func runAbandonedSessionCleanup(ctx *cleanupContext, threshold time.Duration) error {
+func runAbandonedSessionCleanup(ctx *cleanupContext, threshold time.Duration, dryRun bool) error {
 	if dryRun {
-		log.Printf("DRY RUN MODE - Would clean up sessions abandoned for more than %v", threshold)
+		ctx.logger().Printf("DRY RUN MODE - Would clean up sessions abandoned for more than %v", threshold)
 		return nil
 	}
 
@@ -608,20 +636,20 @@ func runAbandonedSessionCleanup(ctx *cleanupContext, threshold time.Duration) er
 		return fmt.Errorf("abandoned session cleanup failed: %w", err)
 	}
 
-	printAbandonedSessionSummary(threshold, count)
+	printAbandonedSessionSummary(ctx.output(), threshold, count)
 	return nil
 }
 
-func printAbandonedSessionSummary(threshold time.Duration, count int) {
-	fmt.Printf("\nAbandoned Session Cleanup Summary:\n")
-	fmt.Printf("Threshold: %v\n", threshold)
-	fmt.Printf("Sessions cleaned: %d\n", count)
-	fmt.Printf("Status: SUCCESS\n")
+func printAbandonedSessionSummary(output io.Writer, threshold time.Duration, count int) {
+	mustFprintln(output, "\nAbandoned Session Cleanup Summary:")
+	mustFprintf(output, "Threshold: %v\n", threshold)
+	mustFprintf(output, "Sessions cleaned: %d\n", count)
+	mustFprintln(output, "Status: SUCCESS")
 }
 
-func runDailySessionCleanup(ctx *cleanupContext) error {
+func runDailySessionCleanup(ctx *cleanupContext, dryRun bool, verbose bool) error {
 	if dryRun {
-		log.Println("DRY RUN MODE - Would end all active sessions")
+		ctx.logger().Println("DRY RUN MODE - Would end all active sessions")
 		return nil
 	}
 
@@ -630,102 +658,105 @@ func runDailySessionCleanup(ctx *cleanupContext) error {
 		return fmt.Errorf("daily session cleanup failed: %w", err)
 	}
 
-	printDailySessionSummary(result)
+	printDailySessionSummary(ctx.output(), result, verbose)
 	return nil
 }
 
-func printDailySessionSummary(result *active.DailySessionCleanupResult) {
-	fmt.Printf("\nDaily Session Cleanup Summary:\n")
-	fmt.Printf("Sessions ended: %d\n", result.SessionsEnded)
-	fmt.Printf("Visits ended: %d\n", result.VisitsEnded)
-	fmt.Printf("Supervisors ended: %d\n", result.SupervisorsEnded)
-	fmt.Printf(fmtStatus, getStatusString(result.Success))
-	printErrorList(result.Errors)
+func printDailySessionSummary(output io.Writer, result *active.DailySessionCleanupResult, verbose bool) {
+	mustFprintln(output, "\nDaily Session Cleanup Summary:")
+	mustFprintf(output, "Sessions ended: %d\n", result.SessionsEnded)
+	mustFprintf(output, "Visits ended: %d\n", result.VisitsEnded)
+	mustFprintf(output, "Supervisors ended: %d\n", result.SupervisorsEnded)
+	mustFprintf(output, fmtStatus, getStatusString(result.Success))
+	printErrorList(output, result.Errors, verbose)
 }
 
-func runCleanupSupervisors(_ *cobra.Command, _ []string) error {
+func runCleanupSupervisors(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithCleanupService()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 
+	dryRun, _ := cmd.Flags().GetBool(flagDryRun)
+	verbose, _ := cmd.Flags().GetBool("verbose")
 	if dryRun {
-		return runSupervisorsDryRun(ctx)
+		return runSupervisorsDryRun(ctx, verbose)
 	}
 
-	return runSupervisorsCleanup(ctx)
+	return runSupervisorsCleanup(ctx, verbose)
 }
 
-func runSupervisorsDryRun(ctx *cleanupContext) error {
-	fmt.Println("DRY RUN MODE - No data will be modified")
+func runSupervisorsDryRun(ctx *cleanupContext, verbose bool) error {
+	mustFprintln(ctx.output(), "DRY RUN MODE - No data will be modified")
 
 	preview, err := ctx.CleanupService.PreviewSupervisorCleanup(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to preview supervisor cleanup: %w", err)
 	}
 
-	printSupervisorPreviewHeader(preview)
+	printSupervisorPreviewHeader(ctx.output(), preview)
 
 	if verbose {
-		printStaffBreakdown("Per-staff breakdown", "Stale Records", preview.StaffRecords)
-		printDateBreakdown(preview.RecordsByDate)
+		printStaffBreakdown(ctx.output(), "Per-staff breakdown", "Stale Records", preview.StaffRecords)
+		printDateBreakdown(ctx.output(), preview.RecordsByDate)
 	}
 
 	return nil
 }
 
-func printSupervisorPreviewHeader(preview *active.SupervisorCleanupPreview) {
-	fmt.Println("\nSupervisor Cleanup Preview:")
-	fmt.Printf("Total stale records: %d\n", preview.TotalRecords)
+func printSupervisorPreviewHeader(output io.Writer, preview *active.SupervisorCleanupPreview) {
+	mustFprintln(output, "\nSupervisor Cleanup Preview:")
+	mustFprintf(output, "Total stale records: %d\n", preview.TotalRecords)
 
 	if preview.OldestRecord != nil {
 		daysAgo := preview.OldestRecord.DaysUntil(timezone.TodayDate())
-		fmt.Printf("Oldest record: %s (%d days ago)\n",
+		mustFprintf(output, "Oldest record: %s (%d days ago)\n",
 			preview.OldestRecord.Format(dateFormat), daysAgo)
 	}
 
-	fmt.Printf("Staff affected: %d\n", len(preview.StaffRecords))
+	mustFprintf(output, "Staff affected: %d\n", len(preview.StaffRecords))
 }
 
-func runSupervisorsCleanup(ctx *cleanupContext) error {
+func runSupervisorsCleanup(ctx *cleanupContext, verbose bool) error {
 	result, err := ctx.CleanupService.CleanupStaleSupervisors(context.Background())
 	if err != nil {
 		return fmt.Errorf("supervisor cleanup failed: %w", err)
 	}
 
-	printSupervisorCleanupSummary(result)
+	printSupervisorCleanupSummary(ctx.output(), result, verbose)
 	return nil
 }
 
-func printSupervisorCleanupSummary(result *active.SupervisorCleanupResult) {
+func printSupervisorCleanupSummary(output io.Writer, result *active.SupervisorCleanupResult, verbose bool) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 
-	fmt.Println("\nSupervisor Cleanup Summary:")
-	fmt.Printf(fmtDuration, duration)
-	fmt.Printf("Records closed: %d\n", result.RecordsClosed)
-	fmt.Printf("Staff affected: %d\n", result.StaffAffected)
+	mustFprintln(output, "\nSupervisor Cleanup Summary:")
+	mustFprintf(output, fmtDuration, duration)
+	mustFprintf(output, "Records closed: %d\n", result.RecordsClosed)
+	mustFprintf(output, "Staff affected: %d\n", result.StaffAffected)
 
 	if result.OldestRecordDate != nil {
-		fmt.Printf("Oldest record: %s\n", result.OldestRecordDate.Format(dateFormat))
+		mustFprintf(output, "Oldest record: %s\n", result.OldestRecordDate.Format(dateFormat))
 	}
 
-	fmt.Printf(fmtStatus, getStatusString(result.Success))
-	printErrorList(result.Errors)
+	mustFprintf(output, fmtStatus, getStatusString(result.Success))
+	printErrorList(output, result.Errors, verbose)
 }
 
 // printStaffBreakdown prints a table of staff IDs and their counts.
-func printStaffBreakdown(header string, countHeader string, data map[int64]int) {
+func printStaffBreakdown(output io.Writer, header string, countHeader string, data map[int64]int) {
 	if len(data) == 0 {
 		return
 	}
 
-	fmt.Printf("\n%s:\n", header)
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintf(w, "Staff ID\t%s\n", countHeader)
+	mustFprintf(output, "\n%s:\n", header)
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
+	_ = mustFprintf(w, "Staff ID\t%s\n", countHeader)
 
 	for staffID, count := range data {
-		_, _ = fmt.Fprintf(w, "%d\t%d\n", staffID, count)
+		_ = mustFprintf(w, "%d\t%d\n", staffID, count)
 	}
 
 	if err := w.Flush(); err != nil {
@@ -735,39 +766,44 @@ func printStaffBreakdown(header string, countHeader string, data map[int64]int) 
 
 // --- Timetable GDPR cleanup (WP-B14) ---
 
-func runCleanupTimetable(_ *cobra.Command, _ []string) error {
+func runCleanupTimetable(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithTimetableCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 
+	dryRun, _ := cmd.Flags().GetBool(flagDryRun)
+	verbose, _ := cmd.Flags().GetBool("verbose")
 	if dryRun {
 		return forEachTenantTimetablePreview(ctx)
 	}
-	return forEachTenantTimetableCleanup(ctx)
+	return forEachTenantTimetableCleanup(ctx, verbose)
 }
 
-func runCleanupTimetablePreview(_ *cobra.Command, _ []string) error {
+func runCleanupTimetablePreview(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithTimetableCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 	return forEachTenantTimetablePreview(ctx)
 }
 
-func runCleanupTimetableStats(_ *cobra.Command, _ []string) error {
+func runCleanupTimetableStats(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithTimetableCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 	return forEachTenantTimetableStats(ctx)
 }
 
 // forEachTenantTimetableCleanup runs the actual DELETE per tenant.
-func forEachTenantTimetableCleanup(cc *cleanupContext) error {
+func forEachTenantTimetableCleanup(cc *cleanupContext, verbose bool) error {
 	totalInstances, totalExceptions, totalStudents := 0, 0, 0
 	tenantCount := 0
 	errs := make([]error, 0)
@@ -783,23 +819,23 @@ func forEachTenantTimetableCleanup(cc *cleanupContext) error {
 			totalInstances += result.InstancesDeleted
 			totalExceptions += result.ExceptionsDeleted
 			totalStudents += result.StudentsAffected
-			printTimetableCleanupLine(tenantID, result)
+			printTimetableCleanupLine(cc.output(), tenantID, result)
 			return nil
 		})
 	if err != nil {
 		return fmt.Errorf("list active tenants: %w", err)
 	}
 
-	fmt.Println("\nTimetable Cleanup Summary")
-	fmt.Println("=========================")
-	fmt.Printf("Tenants processed:    %d\n", tenantCount)
-	fmt.Printf("Instances deleted:    %d\n", totalInstances)
-	fmt.Printf("Exceptions deleted:   %d\n", totalExceptions)
-	fmt.Printf("Students affected:    %d\n", totalStudents)
-	fmt.Printf("Errors:               %d\n", len(errs))
+	mustFprintln(cc.output(), "\nTimetable Cleanup Summary")
+	mustFprintln(cc.output(), "=========================")
+	mustFprintf(cc.output(), "Tenants processed:    %d\n", tenantCount)
+	mustFprintf(cc.output(), "Instances deleted:    %d\n", totalInstances)
+	mustFprintf(cc.output(), "Exceptions deleted:   %d\n", totalExceptions)
+	mustFprintf(cc.output(), "Students affected:    %d\n", totalStudents)
+	mustFprintf(cc.output(), "Errors:               %d\n", len(errs))
 	if verbose {
 		for _, e := range errs {
-			fmt.Printf("  - %s\n", e.Error())
+			mustFprintf(cc.output(), "  - %s\n", e.Error())
 		}
 	}
 	if len(errs) > 0 {
@@ -809,9 +845,9 @@ func forEachTenantTimetableCleanup(cc *cleanupContext) error {
 }
 
 func forEachTenantTimetablePreview(cc *cleanupContext) error {
-	fmt.Println("DRY RUN MODE - No data will be deleted")
-	fmt.Println("\nTimetable Cleanup Preview")
-	fmt.Println("=========================")
+	mustFprintln(cc.output(), "DRY RUN MODE - No data will be deleted")
+	mustFprintln(cc.output(), "\nTimetable Cleanup Preview")
+	mustFprintln(cc.output(), "=========================")
 
 	totalInstances, totalExceptions, totalStudents := 0, 0, 0
 	err := forEachActiveTenant(context.Background(), cc, "cli-timetable-preview",
@@ -823,21 +859,21 @@ func forEachTenantTimetablePreview(cc *cleanupContext) error {
 			totalInstances += p.InstancesToDelete
 			totalExceptions += p.ExceptionsToDelete
 			totalStudents += p.StudentsAffected
-			printTimetablePreviewLine(tenantID, p)
+			printTimetablePreviewLine(cc.output(), tenantID, p)
 			return nil
 		})
 	if err != nil {
 		return fmt.Errorf("list active tenants: %w", err)
 	}
 
-	fmt.Printf("\nTOTAL: %d instances, %d exceptions, %d students across all tenants\n",
+	mustFprintf(cc.output(), "\nTOTAL: %d instances, %d exceptions, %d students across all tenants\n",
 		totalInstances, totalExceptions, totalStudents)
 	return nil
 }
 
 func forEachTenantTimetableStats(cc *cleanupContext) error {
-	fmt.Println("Timetable Retention Statistics")
-	fmt.Println("==============================")
+	mustFprintln(cc.output(), "Timetable Retention Statistics")
+	mustFprintln(cc.output(), "==============================")
 
 	err := forEachActiveTenant(context.Background(), cc, "cli-timetable-stats",
 		func(txCtx context.Context, tenantID int64) error {
@@ -845,7 +881,7 @@ func forEachTenantTimetableStats(cc *cleanupContext) error {
 			if err != nil {
 				return err
 			}
-			printTimetableStatsLine(tenantID, stats)
+			printTimetableStatsLine(cc.output(), tenantID, stats)
 			return nil
 		})
 	if err != nil {
@@ -884,36 +920,36 @@ func forEachActiveTenant(
 	return nil
 }
 
-func printTimetableCleanupLine(tenantID int64, r *schedule.TimetableCleanupResult) {
-	fmt.Printf("[tenant %d] instances=%d exceptions=%d students=%d retention=%dd cutoff=%s duration_ms=%d\n",
+func printTimetableCleanupLine(output io.Writer, tenantID int64, r *schedule.TimetableCleanupResult) {
+	mustFprintf(output, "[tenant %d] instances=%d exceptions=%d students=%d retention=%dd cutoff=%s duration_ms=%d\n",
 		tenantID, r.InstancesDeleted, r.ExceptionsDeleted, r.StudentsAffected,
 		r.RetentionDays, r.CutoffDate.Format(dateFormat), r.DurationMS)
 }
 
-func printTimetablePreviewLine(tenantID int64, p *schedule.TimetableCleanupPreview) {
-	fmt.Printf("[tenant %d] would-delete instances=%d exceptions=%d students=%d retention=%dd cutoff=%s",
+func printTimetablePreviewLine(output io.Writer, tenantID int64, p *schedule.TimetableCleanupPreview) {
+	mustFprintf(output, "[tenant %d] would-delete instances=%d exceptions=%d students=%d retention=%dd cutoff=%s",
 		tenantID, p.InstancesToDelete, p.ExceptionsToDelete, p.StudentsAffected,
 		p.RetentionDays, p.CutoffDate.Format(dateFormat))
 	if p.OldestInstance != nil {
-		fmt.Printf(" oldest_instance=%s", p.OldestInstance.Format(dateFormat))
+		mustFprintf(output, " oldest_instance=%s", p.OldestInstance.Format(dateFormat))
 	}
 	if p.OldestException != nil {
-		fmt.Printf(" oldest_exception=%s", p.OldestException.Format(dateFormat))
+		mustFprintf(output, " oldest_exception=%s", p.OldestException.Format(dateFormat))
 	}
-	fmt.Println()
+	mustFprintln(output)
 }
 
-func printTimetableStatsLine(tenantID int64, s *schedule.TimetableCleanupStats) {
-	fmt.Printf("[tenant %d] instances_total=%d exceptions_total=%d retention=%dd cutoff=%s",
+func printTimetableStatsLine(output io.Writer, tenantID int64, s *schedule.TimetableCleanupStats) {
+	mustFprintf(output, "[tenant %d] instances_total=%d exceptions_total=%d retention=%dd cutoff=%s",
 		tenantID, s.TotalInstances, s.TotalExceptions,
 		s.RetentionDays, s.CutoffDate.Format(dateFormat))
 	if s.OldestInstance != nil {
-		fmt.Printf(" oldest_instance=%s", s.OldestInstance.Format(dateFormat))
+		mustFprintf(output, " oldest_instance=%s", s.OldestInstance.Format(dateFormat))
 	}
 	if s.OldestException != nil {
-		fmt.Printf(" oldest_exception=%s", s.OldestException.Format(dateFormat))
+		mustFprintf(output, " oldest_exception=%s", s.OldestException.Format(dateFormat))
 	}
-	fmt.Println()
+	mustFprintln(output)
 }
 
 // --- Time-tracking GDPR cleanup (Tranche 0b) -----------------------------
@@ -924,33 +960,38 @@ func printTimetableStatsLine(tenantID int64, s *schedule.TimetableCleanupStats) 
 // the same tenant runtime seam the scheduler uses, so CLI and cron
 // agree on tenant ordering and isolation.
 
-func runCleanupTimeTracking(_ *cobra.Command, _ []string) error {
+func runCleanupTimeTracking(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithTimeTrackingCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
+	dryRun, _ := cmd.Flags().GetBool(flagDryRun)
+	verbose, _ := cmd.Flags().GetBool("verbose")
 	if dryRun {
 		return forEachTenantTimeTrackingPreview(ctx)
 	}
-	return forEachTenantTimeTrackingCleanup(ctx)
+	return forEachTenantTimeTrackingCleanup(ctx, verbose)
 }
 
-func runCleanupTimeTrackingPreview(_ *cobra.Command, _ []string) error {
+func runCleanupTimeTrackingPreview(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithTimeTrackingCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 	return forEachTenantTimeTrackingPreview(ctx)
 }
 
-func runCleanupTimeTrackingStats(_ *cobra.Command, _ []string) error {
+func runCleanupTimeTrackingStats(cmd *cobra.Command, _ []string) error {
 	ctx, err := newCleanupContextWithTimeTrackingCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+	ctx.Output = cmd.OutOrStdout()
 	return forEachTenantTimeTrackingStats(ctx)
 }
 
@@ -985,7 +1026,7 @@ func listActiveTenantIDsForCLI(ctx context.Context, cc *cleanupContext) ([]int64
 	return ids, err
 }
 
-func forEachTenantTimeTrackingCleanup(cc *cleanupContext) error {
+func forEachTenantTimeTrackingCleanup(cc *cleanupContext, verbose bool) error {
 	totalSessions, totalAbsences, totalStaff := 0, 0, 0
 	errs := make([]error, 0)
 	tenantCount := 0
@@ -999,23 +1040,23 @@ func forEachTenantTimeTrackingCleanup(cc *cleanupContext) error {
 		totalSessions += result.SessionsDeleted
 		totalAbsences += result.AbsencesDeleted
 		totalStaff += result.StaffAffected
-		printTimeTrackingCleanupLine(tenantID, result)
+		printTimeTrackingCleanupLine(cc.output(), tenantID, result)
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("list active tenants: %w", err)
 	}
 
-	fmt.Println("\nTime-Tracking Cleanup Summary")
-	fmt.Println("=============================")
-	fmt.Printf("Tenants processed:    %d\n", tenantCount)
-	fmt.Printf("Sessions deleted:     %d\n", totalSessions)
-	fmt.Printf("Absences deleted:     %d\n", totalAbsences)
-	fmt.Printf("Staff affected:       %d\n", totalStaff)
-	fmt.Printf("Errors:               %d\n", len(errs))
+	mustFprintln(cc.output(), "\nTime-Tracking Cleanup Summary")
+	mustFprintln(cc.output(), "=============================")
+	mustFprintf(cc.output(), "Tenants processed:    %d\n", tenantCount)
+	mustFprintf(cc.output(), "Sessions deleted:     %d\n", totalSessions)
+	mustFprintf(cc.output(), "Absences deleted:     %d\n", totalAbsences)
+	mustFprintf(cc.output(), "Staff affected:       %d\n", totalStaff)
+	mustFprintf(cc.output(), "Errors:               %d\n", len(errs))
 	if verbose {
 		for _, e := range errs {
-			fmt.Printf("  - %s\n", e.Error())
+			mustFprintf(cc.output(), "  - %s\n", e.Error())
 		}
 	}
 	if len(errs) > 0 {
@@ -1025,9 +1066,9 @@ func forEachTenantTimeTrackingCleanup(cc *cleanupContext) error {
 }
 
 func forEachTenantTimeTrackingPreview(cc *cleanupContext) error {
-	fmt.Println("DRY RUN MODE - No data will be deleted")
-	fmt.Println("\nTime-Tracking Cleanup Preview")
-	fmt.Println("=============================")
+	mustFprintln(cc.output(), "DRY RUN MODE - No data will be deleted")
+	mustFprintln(cc.output(), "\nTime-Tracking Cleanup Preview")
+	mustFprintln(cc.output(), "=============================")
 
 	totalSessions, totalAbsences, totalStaff := 0, 0, 0
 	err := forEachActiveTenant(context.Background(), cc, "cli-time-tracking-preview", func(txCtx context.Context, tenantID int64) error {
@@ -1038,28 +1079,28 @@ func forEachTenantTimeTrackingPreview(cc *cleanupContext) error {
 		totalSessions += p.SessionsToDelete
 		totalAbsences += p.AbsencesToDelete
 		totalStaff += p.StaffAffected
-		printTimeTrackingPreviewLine(tenantID, p)
+		printTimeTrackingPreviewLine(cc.output(), tenantID, p)
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("list active tenants: %w", err)
 	}
 
-	fmt.Printf("\nTOTAL: %d sessions, %d absences, %d staff across all tenants\n",
+	mustFprintf(cc.output(), "\nTOTAL: %d sessions, %d absences, %d staff across all tenants\n",
 		totalSessions, totalAbsences, totalStaff)
 	return nil
 }
 
 func forEachTenantTimeTrackingStats(cc *cleanupContext) error {
-	fmt.Println("Time-Tracking Retention Statistics")
-	fmt.Println("==================================")
+	mustFprintln(cc.output(), "Time-Tracking Retention Statistics")
+	mustFprintln(cc.output(), "==================================")
 
 	err := forEachActiveTenant(context.Background(), cc, "cli-time-tracking-stats", func(txCtx context.Context, tenantID int64) error {
 		stats, statsErr := cc.TimeTrackingCleanupService.GetStats(txCtx)
 		if statsErr != nil {
 			return statsErr
 		}
-		printTimeTrackingStatsLine(tenantID, stats)
+		printTimeTrackingStatsLine(cc.output(), tenantID, stats)
 		return nil
 	})
 	if err != nil {
@@ -1068,34 +1109,34 @@ func forEachTenantTimeTrackingStats(cc *cleanupContext) error {
 	return nil
 }
 
-func printTimeTrackingCleanupLine(tenantID int64, r *active.TimeTrackingCleanupResult) {
-	fmt.Printf("[tenant %d] sessions=%d absences=%d staff=%d retention=%dd cutoff=%s duration_ms=%d\n",
+func printTimeTrackingCleanupLine(output io.Writer, tenantID int64, r *active.TimeTrackingCleanupResult) {
+	mustFprintf(output, "[tenant %d] sessions=%d absences=%d staff=%d retention=%dd cutoff=%s duration_ms=%d\n",
 		tenantID, r.SessionsDeleted, r.AbsencesDeleted, r.StaffAffected,
 		r.RetentionDays, r.CutoffDate.Format(dateFormat), r.DurationMS)
 }
 
-func printTimeTrackingPreviewLine(tenantID int64, p *active.TimeTrackingCleanupPreview) {
-	fmt.Printf("[tenant %d] would-delete sessions=%d absences=%d staff=%d retention=%dd cutoff=%s",
+func printTimeTrackingPreviewLine(output io.Writer, tenantID int64, p *active.TimeTrackingCleanupPreview) {
+	mustFprintf(output, "[tenant %d] would-delete sessions=%d absences=%d staff=%d retention=%dd cutoff=%s",
 		tenantID, p.SessionsToDelete, p.AbsencesToDelete, p.StaffAffected,
 		p.RetentionDays, p.CutoffDate.Format(dateFormat))
 	if p.OldestSession != nil {
-		fmt.Printf(" oldest_session=%s", p.OldestSession.Format(dateFormat))
+		mustFprintf(output, " oldest_session=%s", p.OldestSession.Format(dateFormat))
 	}
 	if p.OldestAbsence != nil {
-		fmt.Printf(" oldest_absence=%s", p.OldestAbsence.Format(dateFormat))
+		mustFprintf(output, " oldest_absence=%s", p.OldestAbsence.Format(dateFormat))
 	}
-	fmt.Println()
+	mustFprintln(output)
 }
 
-func printTimeTrackingStatsLine(tenantID int64, s *active.TimeTrackingCleanupStats) {
-	fmt.Printf("[tenant %d] sessions_total=%d absences_total=%d retention=%dd cutoff=%s",
+func printTimeTrackingStatsLine(output io.Writer, tenantID int64, s *active.TimeTrackingCleanupStats) {
+	mustFprintf(output, "[tenant %d] sessions_total=%d absences_total=%d retention=%dd cutoff=%s",
 		tenantID, s.TotalSessions, s.TotalAbsences,
 		s.RetentionDays, s.CutoffDate.Format(dateFormat))
 	if s.OldestSession != nil {
-		fmt.Printf(" oldest_session=%s", s.OldestSession.Format(dateFormat))
+		mustFprintf(output, " oldest_session=%s", s.OldestSession.Format(dateFormat))
 	}
 	if s.OldestAbsence != nil {
-		fmt.Printf(" oldest_absence=%s", s.OldestAbsence.Format(dateFormat))
+		mustFprintf(output, " oldest_absence=%s", s.OldestAbsence.Format(dateFormat))
 	}
-	fmt.Println()
+	mustFprintln(output)
 }

@@ -57,7 +57,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		Settings:    svc.Settings,
 		UserContext: svc.UserContext,
 		Broadcaster: broadcaster,
-		Unlinker:    studentsAPI.NewPhotoUnlinker(slog.Default()),
+		Unlinker:    studentsAPI.NewPhotoUnlinker(slog.Default(), "public"),
 		DB:          db,
 		Logger:      slog.Default(),
 	})
@@ -71,6 +71,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		UserContextService:      svc.UserContext,
 		ActiveService:           svc.Active,
 		IoTService:              svc.IoT,
+		DevicePINFallback:       testDevicePIN,
 		PickupScheduleService:   svc.PickupSchedule,
 		PartialAbsenceService:   svc.PartialAbsence,
 		ArrivalScheduleService:  svc.ArrivalSchedule,
@@ -131,5 +132,5 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppCl
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequest(tc.resource.Router(), req)
+	return testutil.ExecuteRequestForTest(t, tc.resource.Router(), req)
 }

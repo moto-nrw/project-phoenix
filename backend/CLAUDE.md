@@ -192,15 +192,10 @@ func TestExample(t *testing.T) {
   row is the test arrangement, use a production delete operation or reserve an
   unused sequence ID through a fixture helper.
 - **Every test owns its tenant (#2419)**: a package opts in once, from `TestMain`, with `testpkg.PerTestTenants()`. From then on each top-level test gets its own tenant, every `CreateTest*` fixture it creates lands there, and JWT claims minted through `api/testutil` follow it — so no fixture call and no claims helper needs a tenant argument. Inside a test, `testpkg.Ctx(t)` is the context (the replacement for `TenantContext(1)`) and `testpkg.Tenant(t)` the ID. Subtests share their parent's tenant — which is right when the parent builds the fixtures they read, and wrong for a table of subtests that each create the same kind of row and then assert something tenant-wide about it. Those call `testpkg.OwnTenant(t)` / `testpkg.OwnCtx(t)` as their first line and get a tenant of their own. One edge to know: the rebase happens when claims are *used* (`MintTestJWT`, `WithClaims`), so reading `claims.TenantID` straight off the struct still yields the bootstrap value — inside a test, take the tenant from `testpkg.Tenant(t)`, never from the claims you just built. Two gates hold the line: `db_packages_opt_into_per_test_tenants` fails any package that opens the test database without opting in, and `bootstrap_tenant_ratchet` counts every remaining spelling (`TenantContext(1)`, `WithTenantID(ctx, 1)`, `TenantID: 1`, `SetTenantID(1)`, `…ForTenant(…, 1, …)`, and literal `tenant_id` filters in raw SQL) per package, shrink-only.
-- **Tests are parallel by default (#2419)**: a new top-level test starts with
-  `t.Parallel()`. The `tests_run_in_parallel` gate counts the ones that do not,
-  per package, shrink-only (`serialTestBaseline`). A test may stay serial for
-  exactly five reasons, and it says which one in a comment right above itself:
-  it writes process-global state (env, viper, the settings registry,
-  `os.Stdout`), it changes the schema, it exercises a sweep that queries across
-  tenants without a tenant transaction (RLS never narrows it), it measures a
-  query budget on the shared pool, or it takes a row lock and expects a second
-  transaction to block on it. Anything else gets fixed, not exempted.
+- **Every top-level test is parallel (#2851)**: start it with `t.Parallel()`.
+  The `tests_run_in_parallel` gate has an empty baseline and rejects every
+  exception. Inject process configuration and output; use per-test database
+  clones for schema changes, sweeps, query measurements, and lock tests.
 - **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` and
   post-merge CI run `-p 6 -parallel 8`; changed-only PRs run `-p 4 -parallel 8`.
   The pool per binary is derived from `-test.parallel` plus
