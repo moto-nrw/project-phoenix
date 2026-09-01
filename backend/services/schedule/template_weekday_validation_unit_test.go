@@ -27,7 +27,7 @@ func TestValidateSplitRecurrenceRejectsWeekendWeekday(t *testing.T) {
 
 	err := validateSplitRecurrence(TemplateSplitInput{
 		Weekdays: []int{activitiesModel.WeekdaySunday},
-	})
+	}, timezone.NewDate(2026, 8, 24))
 
 	assert.ErrorContains(t, err, "Monday to Friday")
 }
@@ -39,7 +39,7 @@ func TestValidateSplitInputAcceptsTargetsWithoutLegacyMirror(t *testing.T) {
 	gradeThree := int16(3)
 	in := TemplateSplitInput{
 		TemplateID:      1,
-		EffectiveDate:   timezone.TodayDate().AddDays(1),
+		EffectiveDate:   timezone.NewDate(2026, 8, 25),
 		Name:            "Lernzeit",
 		Type:            activitiesModel.GroupTypeActivity,
 		Weekdays:        []int{activitiesModel.WeekdayMonday},
@@ -55,7 +55,7 @@ func TestValidateSplitInputAcceptsTargetsWithoutLegacyMirror(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, validateSplitInput(&in))
+	require.NoError(t, validateSplitInput(&in, timezone.NewDate(2026, 8, 24)))
 	require.NotNil(t, in.TargetGradeLevel)
 	assert.Equal(t, gradeTwo, *in.TargetGradeLevel)
 	assert.Len(t, in.Targets, 2)

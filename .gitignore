@@ -264,6 +264,11 @@ celerybeat.pid
 # Environment files
 # Core environment files
 .env
+# Hand-Sicherungen einer .env tragen dieselben Geheimnisse wie das Original.
+# Ohne diese Zeile fängt `git add -A` sie ein, und die Muster unten greifen
+# nicht: sie decken nur bekannte Endungen ab, keine frei gewählten Suffixe.
+.env.bak*
+.env.*.bak
 .env.local
 .env.development
 .env.production

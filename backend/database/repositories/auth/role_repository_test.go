@@ -11,49 +11,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// ============================================================================
-// Setup Helpers
-// ============================================================================
-
-// cleanupAccountRecords removes accounts directly
-func cleanupAccountRecords(t *testing.T, db *bun.DB, accountIDs ...int64) {
-	t.Helper()
-	if len(accountIDs) == 0 {
-		return
-	}
-
-	ctx := testpkg.Ctx(t)
-
-	// Remove account-role mappings first
-	_, _ = db.NewDelete().
-		TableExpr("auth.account_roles").
-		Where("account_id IN (?)", bun.List(accountIDs)).
-		Exec(ctx)
-
-	// Remove account-permission mappings
-	_, _ = db.NewDelete().
-		TableExpr("auth.account_permissions").
-		Where("account_id IN (?)", bun.List(accountIDs)).
-		Exec(ctx)
-
-	// Remove tokens
-	_, _ = db.NewDelete().
-		TableExpr("auth.tokens").
-		Where("account_id IN (?)", bun.List(accountIDs)).
-		Exec(ctx)
-
-	// Finally remove accounts
-	_, err := db.NewDelete().
-		TableExpr("auth.accounts").
-		Where("id IN (?)", bun.List(accountIDs)).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("Warning: failed to cleanup accounts: %v", err)
-	}
-}
 
 // ============================================================================
 // CRUD Tests
@@ -78,8 +36,6 @@ func TestRoleRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, role)
 		require.NoError(t, err)
 		assert.NotZero(t, role.ID)
-
-		testpkg.CleanupRoleRecords(t, db, role.ID)
 	})
 
 	t.Run("creates system role", func(t *testing.T) {
@@ -93,8 +49,6 @@ func TestRoleRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, role)
 		require.NoError(t, err)
 		assert.True(t, role.IsSystem)
-
-		testpkg.CleanupRoleRecords(t, db, role.ID)
 	})
 }
 
@@ -108,7 +62,6 @@ func TestRoleRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "FindByID")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		found, err := repo.FindByID(ctx, role.ID)
 		require.NoError(t, err)
@@ -132,7 +85,6 @@ func TestRoleRepository_FindByName(t *testing.T) {
 
 	t.Run("finds role by exact name", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "FindByName")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		found, err := repo.FindByName(ctx, role.Name)
 		require.NoError(t, err)
@@ -155,7 +107,6 @@ func TestRoleRepository_Update(t *testing.T) {
 
 	t.Run("updates role description", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "Update")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		role.Description = "Updated description"
 		err := repo.Update(ctx, role)
@@ -199,8 +150,7 @@ func TestRoleRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all roles", func(t *testing.T) {
-		role := testpkg.CreateTestRole(t, db, "List")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
+		testpkg.CreateTestRole(t, db, "List")
 
 		roles, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -220,8 +170,6 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 		// Create account and role
 		account := testpkg.CreateTestAccount(t, db, "roletest")
 		role := testpkg.CreateTestRole(t, db, "AccountRole")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		// Assign role to account using direct DB insert (repo method deprecated)
 		_, err := db.ExecContext(ctx,
@@ -246,7 +194,6 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 
 	t.Run("returns empty for account with no roles", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "noroles")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		roles, err := repo.FindByAccountID(ctx, account.ID)
 		require.NoError(t, err)
@@ -257,8 +204,6 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "tenantroles")
 		roleTenant1 := testpkg.CreateTestRole(t, db, fmt.Sprintf("TenantOne_%d", time.Now().UnixNano()))
 		roleTenant2 := testpkg.CreateTestRole(t, db, fmt.Sprintf("TenantTwo_%d", time.Now().UnixNano()))
-		defer testpkg.CleanupRoleRecords(t, db, roleTenant1.ID, roleTenant2.ID)
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		otherTenantID := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, otherTenantID)
@@ -301,8 +246,6 @@ func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
 	t.Run("deprecated method returns error", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "assign")
 		role := testpkg.CreateTestRole(t, db, "Assign")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		err := repo.AssignRoleToAccount(ctx, account.ID, role.ID)
 		require.Error(t, err)
@@ -321,8 +264,6 @@ func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
 	t.Run("deprecated method returns error", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "remove")
 		role := testpkg.CreateTestRole(t, db, "Remove")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		err := repo.RemoveRoleFromAccount(ctx, account.ID, role.ID)
 		require.Error(t, err)
@@ -347,8 +288,6 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 		account2 := testpkg.CreateTestAccount(t, db, "batch_role_2")
 		role1 := testpkg.CreateTestRole(t, db, fmt.Sprintf("BatchAdmin_%d", time.Now().UnixNano()))
 		role2 := testpkg.CreateTestRole(t, db, fmt.Sprintf("BatchUser_%d", time.Now().UnixNano()))
-		defer testpkg.CleanupRoleRecords(t, db, role1.ID, role2.ID)
-		defer cleanupAccountRecords(t, db, account1.ID, account2.ID)
 
 		// Assign roles
 		_, err := db.ExecContext(ctx,
@@ -371,7 +310,6 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 
 	t.Run("returns empty map for accounts with no roles", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "batch_norole")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		result, err := repo.FindRoleNamesByAccountIDs(ctx, []int64{account.ID})
 		require.NoError(t, err)
@@ -382,8 +320,6 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "batch_multi")
 		role1 := testpkg.CreateTestRole(t, db, fmt.Sprintf("MultiFirst_%d", time.Now().UnixNano()))
 		role2 := testpkg.CreateTestRole(t, db, fmt.Sprintf("MultiSecond_%d", time.Now().UnixNano()))
-		defer testpkg.CleanupRoleRecords(t, db, role1.ID, role2.ID)
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		// Assign two roles — first inserted should be returned (ORDER BY created_at ASC)
 		_, err := db.ExecContext(ctx,
@@ -404,8 +340,6 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 	t.Run("respects tenant scoping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "batch_tenant")
 		role := testpkg.CreateTestRole(t, db, fmt.Sprintf("TenantRole_%d", time.Now().UnixNano()))
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		// Assign role to tenant 1
 		_, err := db.ExecContext(ctx,

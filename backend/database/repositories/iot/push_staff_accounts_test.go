@@ -30,9 +30,6 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	addressed := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-addressed-%d@example.com", suffix))
 	bystander := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-bystander-%d@example.com", suffix))
 
-	defer testpkg.CleanupAuthFixtures(t, db, addressed.ID, bystander.ID)
-	defer cleanupPushSubscriptions(t, db, addressed.ID, bystander.ID)
-
 	createAccountTenantMapping(t, db, addressed.ID, testpkg.Tenant(t))
 	createAccountTenantMapping(t, db, bystander.ID, testpkg.Tenant(t))
 	assignSystemRole(t, db, addressed.ID, testpkg.Tenant(t), authModels.BaseRoleUser)

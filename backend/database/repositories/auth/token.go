@@ -481,28 +481,3 @@ func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID s
 
 	return &token, nil
 }
-
-// FindByFamilyID finds all tokens belonging to a specific family
-func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) ([]*auth.Token, error) {
-	var tokens []*auth.Token
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&tokens).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".family_id = ?`, familyID)
-
-	query = base.WithTenantFilter(ctx, query, "token")
-
-	err := query.
-		OrderExpr(`"token".generation DESC`).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find tokens by family ID",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return tokens, nil
-}

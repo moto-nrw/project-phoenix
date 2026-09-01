@@ -305,9 +305,6 @@ type GroupMappingRepository interface {
 
 	// RemoveGroupFromCombination removes an active group from a combined group
 	RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
-
-	// FindWithRelations retrieves a mapping with its associated CombinedGroup and ActiveGroup relations
-	FindWithRelations(ctx context.Context, id int64) (*GroupMapping, error)
 }
 
 // AttendanceRepository is already defined above
@@ -453,6 +450,15 @@ type StaffAbsenceTypeRepository interface {
 	// IsInUse reports whether an absence still references the art. Used to keep
 	// historical display names stable when an administrator edits the list.
 	IsInUse(ctx context.Context, id int64) (bool, error)
+}
+
+type StaffAbsenceTypeAllowanceRepository interface {
+	base.Repository[*StaffAbsenceTypeAllowance]
+	Upsert(ctx context.Context, allowance *StaffAbsenceTypeAllowance) error
+}
+
+type StaffAbsenceTypeAllowanceChangeRepository interface {
+	base.Repository[*StaffAbsenceTypeAllowanceChange]
 }
 
 // StaffBalanceAdjustmentRepository defines operations for Stundenkonto

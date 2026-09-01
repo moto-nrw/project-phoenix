@@ -12,11 +12,12 @@ import (
 // deliberately does not invoke the migration's Up function, so an already
 // recorded 1.15.182 cannot hide a missing upgrade migration.
 func TestGroupTargetConstraintsRejectInvalidDirectWrites(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "Target-Class-Whitespace")
 
 	require.Error(t, setTargetSchoolClassForConstraintTest(db, tenantID, group.ID, " \t\n\r "))

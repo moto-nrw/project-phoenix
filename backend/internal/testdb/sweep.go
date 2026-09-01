@@ -171,22 +171,34 @@ var tenantIdentityTables = map[string]string{
 }
 
 // mappedTenantTables reach their tenant through a join table.
-var mappedTenantTables = map[string]struct{ mappingTable, foreignKey string }{
-	"auth.accounts": {"auth.account_tenants", "account_id"},
+var mappedTenantTables = map[string]struct{ mappingTable, foreignKey, ownerColumn string }{
+	"audit.auth_events":          {"auth.account_tenants", "account_id", "account_id"},
+	"auth.accounts":              {"auth.account_tenants", "account_id", "id"},
+	"auth.mfa_credentials":       {"auth.account_tenants", "account_id", "account_id"},
+	"auth.mfa_email_challenges":  {"auth.account_tenants", "account_id", "account_id"},
+	"auth.mfa_overrides":         {"auth.account_tenants", "account_id", "account_id"},
+	"auth.passkey_credentials":   {"auth.account_tenants", "account_id", "account_id"},
+	"auth.password_reset_tokens": {"auth.account_tenants", "account_id", "account_id"},
+	"auth.role_permissions":      {"auth.roles", "id", "role_id"},
+	"auth.tokens":                {"auth.account_tenants", "account_id", "account_id"},
 }
 
 func sharedRowPredicate(table string, hasTenantID bool) string {
+	if m, ok := mappedTenantTables[table]; ok {
+		unownedAccount := fmt.Sprintf(
+			"NOT EXISTS (SELECT 1 FROM %s m WHERE m.%s = t.%s AND m.tenant_id >= %d)",
+			m.mappingTable, m.foreignKey, m.ownerColumn, TenantIDBase)
+		if hasTenantID {
+			return fmt.Sprintf("(%s) AND (t.tenant_id IS NULL OR t.tenant_id < %d)", unownedAccount, TenantIDBase)
+		}
+		return unownedAccount
+	}
 	switch {
 	case hasTenantID:
 		return fmt.Sprintf("t.tenant_id IS NULL OR t.tenant_id < %d", TenantIDBase)
 	case tenantIdentityTables[table] != "":
 		return fmt.Sprintf("t.%s < %d", tenantIdentityTables[table], TenantIDBase)
 	default:
-		if m, ok := mappedTenantTables[table]; ok {
-			return fmt.Sprintf(
-				"NOT EXISTS (SELECT 1 FROM %s m WHERE m.%s = t.id AND m.tenant_id >= %d)",
-				m.mappingTable, m.foreignKey, TenantIDBase)
-		}
 		return ""
 	}
 }

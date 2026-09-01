@@ -71,7 +71,7 @@ Handlers are the request boundary. Putting business logic or data access there s
 ### What `Repository[T]` provides today (verified)
 
 ```go
-type Repository[T modelBase.Entity] struct { ... }
+type Repository[T any] struct { ... }
 
 Create(ctx, entity T) / FindByID(ctx, id) / Update(ctx, entity) / Delete(ctx, id)
 List(ctx, filters map[string]any) / Count(ctx, filters) / CountWithOptions(ctx, opts)
@@ -126,13 +126,15 @@ type Model struct {
 }
 func (m *Model) GetID() any / GetCreatedAt() / GetUpdatedAt()  // Rule-3 getters, live here ONCE
 // base.StringIDModel provides the same three getters for string-ID entities
+// base.StringIDModelWithoutNullZero preserves explicit zero timestamp writes
+// for the two passkey-session tables whose existing Bun mappings require it
 
 // models/base/tenant.go
 type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }
 func (t *TenantModel) GetTenantID() int64 / SetTenantID(id int64)
 ```
 
-`base.Model` and `base.StringIDModel` provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()` — never redeclare them per entity (shadowing is allowed only for genuinely different semantics, e.g. the audit models mapping `GetUpdatedAt` to `AccessedAt`/`ChangedAt`). The same goes for GORM-style `TableName()` methods: bun never calls them; table names come from struct tags and `ModelTableExpr` strings. Both patterns are CI-ratcheted by `TestModelCeremonyRatchet` (`backend/test/model_ceremony_ratchet_test.go`) with an allowlist of the load-bearing shadow getters.
+The shared base shapes provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()` — never redeclare them per entity. Audit models keep their honest timestamp fields (`AccessedAt`, `DeletedAt`, `OccurredAt`, or `ChangedAt`) and do not pretend to implement the conventional timestamp contract. The generic repository has no method constraint because Bun performs CRUD from mappings rather than accessors. The same goes for GORM-style `TableName()` methods: bun never calls them; table names come from struct tags and `ModelTableExpr` strings. Both patterns are CI-ratcheted to zero by `TestModelCeremonyRatchet` (`backend/test/model_ceremony_ratchet_test.go`).
 
 ### A note on `BeforeAppendModel`
 

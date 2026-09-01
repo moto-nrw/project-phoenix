@@ -44,14 +44,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
-	"github.com/moto-nrw/project-phoenix/services/feedback"
 	"github.com/moto-nrw/project-phoenix/services/filestore"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
@@ -106,6 +104,7 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 type Factory struct {
 	settingsRuntimeDB         *bun.DB
 	Auth                      auth.AuthService
+	Audit                     auditModels.Command
 	StaffPINAuth              auth.StaffPINAuthenticator
 	MFA                       auth.MFAService
 	Passkey                   auth.PasskeyService
@@ -131,8 +130,6 @@ type Factory struct {
 	WC                        facilities.WCService
 	Invitation                auth.InvitationService
 	GuardianInvitation        auth.GuardianInvitationService
-	Feedback                  feedback.Service
-	MealPlan                  mealplan.Service
 	IoT                       iot.Service
 	Checkin                   *iotcheckin.CheckinService
 	StaffClock                *staffclock.Service
@@ -309,17 +306,156 @@ func (f *Factory) SetSettingsObservers(
 	}
 }
 
-// NewFactory creates a new services factory; tests may pass one application clock.
-func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, clocks ...func() time.Time) (*Factory, error) {
+type MealPlanSettingsBinder func(func(context.Context) (bool, error))
+
+type FeedbackSettingsBinder func(
+	func(context.Context) (bool, error),
+	func(context.Context) (int, error),
+)
+
+// FactoryConfig is the process configuration snapshot consumed by one service
+// graph. Capturing it at the composition root keeps service construction pure
+// and lets independent graphs coexist in the same process.
+type FactoryConfig struct {
+	EmailSMTPHost              string
+	EmailSMTPPort              int
+	EmailSMTPUser              string
+	EmailSMTPPassword          string
+	EmailFromName              string
+	EmailFromAddress           string
+	FrontendURL                string
+	ParentsURL                 string
+	SchoolURL                  string
+	AppEnv                     string
+	InvitationTokenExpiryHours int
+	PasswordResetExpiryMinutes int
+	PostHogAPIKey              string
+	PostHogHost                string
+	RateLimitEnabled           bool
+	JWTSecret                  string
+	JWTExpiry                  time.Duration
+	JWTRefreshExpiry           time.Duration
+	TenantDomain               string
+	OperatorHostname           string
+	VAPIDPublicKey             string
+	VAPIDPrivateKey            string
+	VAPIDSubscriber            string
+	StudentDailyCheckoutTime   string
+	EnrollmentRequireCaptcha   bool
+	EnrollmentCaptchaSecretKey string
+	EnrollmentCaptchaSiteKey   string
+}
+
+func currentFactoryConfig() FactoryConfig {
+	return FactoryConfig{
+		EmailSMTPHost:              viper.GetString("email_smtp_host"),
+		EmailSMTPPort:              viper.GetInt("email_smtp_port"),
+		EmailSMTPUser:              viper.GetString("email_smtp_user"),
+		EmailSMTPPassword:          viper.GetString("email_smtp_password"),
+		EmailFromName:              viper.GetString("email_from_name"),
+		EmailFromAddress:           viper.GetString("email_from_address"),
+		FrontendURL:                viper.GetString("frontend_url"),
+		ParentsURL:                 viper.GetString("parents_url"),
+		SchoolURL:                  viper.GetString("school_url"),
+		AppEnv:                     viper.GetString("app_env"),
+		InvitationTokenExpiryHours: viper.GetInt("invitation_token_expiry_hours"),
+		PasswordResetExpiryMinutes: viper.GetInt("password_reset_token_expiry_minutes"),
+		PostHogAPIKey:              viper.GetString("posthog_api_key"),
+		PostHogHost:                viper.GetString("posthog_host"),
+		RateLimitEnabled:           viper.GetBool("rate_limit_enabled"),
+		JWTSecret:                  viper.GetString("auth_jwt_secret"),
+		JWTExpiry:                  viper.GetDuration("auth_jwt_expiry"),
+		JWTRefreshExpiry:           viper.GetDuration("auth_jwt_refresh_expiry"),
+		TenantDomain:               viper.GetString("tenant_domain"),
+		OperatorHostname:           viper.GetString("next_public_operator_hostname"),
+		VAPIDPublicKey:             viper.GetString("vapid_public_key"),
+		VAPIDPrivateKey:            viper.GetString("vapid_private_key"),
+		VAPIDSubscriber:            viper.GetString("vapid_subscriber"),
+		StudentDailyCheckoutTime:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
+		EnrollmentRequireCaptcha:   strings.TrimSpace(os.Getenv("ENROLLMENT_REQUIRE_CAPTCHA")) == "true",
+		EnrollmentCaptchaSecretKey: os.Getenv("ENROLLMENT_CAPTCHA_SECRET_KEY"),
+		EnrollmentCaptchaSiteKey:   os.Getenv("ENROLLMENT_CAPTCHA_SITE_KEY"),
+	}
+}
+
+type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)
+
+type DeliveryObserver func(transport, template, caller string, duration time.Duration, err error)
+
+func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
+	if store == nil || logger == nil || observe == nil {
+		return nil, errors.New("audit command store, logger, and observer are required")
+	}
+	command, err := auditService.NewCommand(store, func(observation auditService.AppendObservation) {
+		observe(observation.EventType, observation.Duration, observation.Rows, observation.Err)
+		log := logger.Debug
+		if observation.Err != nil {
+			log = logger.Error
+		}
+		log("audit append",
+			"event_type", observation.EventType,
+			"duration_ms", observation.Duration.Milliseconds(),
+			"rows", observation.Rows,
+			"failed", observation.Err != nil,
+		)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return command, nil
+}
+
+// NewFactoryWithModules builds the legacy service graph around the migrated
+// module capabilities it still consumes.
+func NewFactoryWithModules(
+	repos *repositories.Factory,
+	db *bun.DB,
+	logger *slog.Logger,
+	mealPlan parent.MealPlan,
+	bindMealPlanSettings MealPlanSettingsBinder,
+	feedbackCounter users.FeedbackEntryCounter,
+	bindFeedbackSettings FeedbackSettingsBinder,
+	observeAuditAppend AuditAppendObserver,
+	observeDelivery DeliveryObserver,
+	clocks ...func() time.Time,
+) (*Factory, error) {
+	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil {
+		return nil, errors.New("meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	}
+	return newFactory(repos, db, logger, currentFactoryConfig(), mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, false, clocks...)
+}
+
+func newFactory(
+	repos *repositories.Factory,
+	db *bun.DB,
+	logger *slog.Logger,
+	cfg FactoryConfig,
+	mealPlan parent.MealPlan,
+	bindMealPlanSettings MealPlanSettingsBinder,
+	feedbackCounter users.FeedbackEntryCounter,
+	bindFeedbackSettings FeedbackSettingsBinder,
+	observeAuditAppend AuditAppendObserver,
+	observeDelivery DeliveryObserver,
+	allowAuditRootWrites bool,
+	clocks ...func() time.Time,
+) (*Factory, error) {
 	now := optionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 
-	mailer, err := email.NewMailer()
+	mailer, err := email.NewMailer(email.MailerConfig{
+		Host:        cfg.EmailSMTPHost,
+		Port:        cfg.EmailSMTPPort,
+		User:        cfg.EmailSMTPUser,
+		Password:    cfg.EmailSMTPPassword,
+		DefaultFrom: email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress),
+		TemplateDir: "./templates",
+		Logger:      logger.With("service", "email"),
+		AppEnv:      cfg.AppEnv,
+	})
 	if err != nil {
-		logger.Warn("SMTP mailer initialization failed, falling back to mock mailer", "error", err)
-		mailer = email.NewMockMailer()
+		return nil, fmt.Errorf("initialize email transport: %w", err)
 	}
 	if _, ok := mailer.(*email.MockMailer); ok {
 		logger.Warn("SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
@@ -333,28 +469,62 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	databaseLogger := logger.With("service", "database")
 	platformLogger := logger.With("service", "platform")
 	emailLogger := logger.With("component", "email")
+	auditLogger := logger.With("component", "audit-command")
+	auditTransactionRuntime := func(ctx context.Context) (bun.IDB, int64) {
+		auditTenantID := tenant.FromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			if allowAuditRootWrites {
+				return db, auditTenantID
+			}
+			return nil, auditTenantID
+		}
+		switch tx := raw.(type) {
+		case bun.Tx:
+			return tx, auditTenantID
+		case *bun.Tx:
+			if tx != nil {
+				return tx, auditTenantID
+			}
+		}
+		panic(fmt.Sprintf("audit command: unsupported transaction %T", raw))
+	}
+	auditReadRuntime := func(ctx context.Context) (bun.IDB, int64) {
+		transaction, tenantID := auditTransactionRuntime(ctx)
+		if transaction == nil {
+			return db, tenantID
+		}
+		return transaction, tenantID
+	}
+	repos.ConfigureAuditRuntime(auditReadRuntime)
+	auditAppender := repos.NewAuditStore(auditTransactionRuntime)
+	auditCommand, err := newAuditCommand(auditAppender, auditLogger, observeAuditAppend)
+	if err != nil {
+		return nil, err
+	}
+	repos.RouteAuditWrites(auditCommand)
 
-	dispatcher := email.NewDispatcher(mailer, emailLogger)
+	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
 
-	defaultFrom := email.NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
+	defaultFrom := email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
 	if defaultFrom.Address == "" {
 		defaultFrom = email.NewEmail("moto", "no-reply@moto.local")
 	}
 
-	rawFrontendURL := viper.GetString("frontend_url")
+	rawFrontendURL := cfg.FrontendURL
 	frontendURL := strings.TrimRight(rawFrontendURL, "/")
 	if frontendURL == "" {
 		return nil, fmt.Errorf("FRONTEND_URL is required")
 	}
 
-	appEnv := strings.ToLower(viper.GetString("app_env"))
+	appEnv := strings.ToLower(cfg.AppEnv)
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
 
 	// Parents-portal URL - used for every parent-facing email link
 	// (status, decision emails, guardian invitation accept).
-	rawParentsURL := viper.GetString("parents_url")
+	rawParentsURL := cfg.ParentsURL
 	parentsURL := strings.TrimRight(rawParentsURL, "/")
 	if parentsURL == "" {
 		return nil, fmt.Errorf("PARENTS_URL is required")
@@ -365,7 +535,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 
 	// School-portal URL (#2207) - used for Lehrkraft invitation links, which
 	// must land on the school portal where the accept flow lives.
-	rawSchoolURL := viper.GetString("school_url")
+	rawSchoolURL := cfg.SchoolURL
 	schoolURL := strings.TrimRight(rawSchoolURL, "/")
 	if schoolURL == "" {
 		return nil, fmt.Errorf("SCHOOL_URL is required")
@@ -374,7 +544,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		return nil, fmt.Errorf("SCHOOL_URL must use https:// in production (received %q)", rawSchoolURL)
 	}
 
-	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
+	invitationExpiryHours := cfg.InvitationTokenExpiryHours
 	if invitationExpiryHours <= 0 {
 		invitationExpiryHours = 48
 	} else if invitationExpiryHours > 168 {
@@ -382,7 +552,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	}
 	invitationTokenExpiry := time.Duration(invitationExpiryHours) * time.Hour
 
-	passwordResetExpiryMinutes := viper.GetInt("password_reset_token_expiry_minutes")
+	passwordResetExpiryMinutes := cfg.PasswordResetExpiryMinutes
 	if passwordResetExpiryMinutes <= 0 {
 		passwordResetExpiryMinutes = 30
 	} else if passwordResetExpiryMinutes > 1440 {
@@ -395,8 +565,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 
 	// Product analytics (PostHog) — no-op when POSTHOG_API_KEY is unset
 	tracker, err := analytics.New(
-		viper.GetString("posthog_api_key"),
-		viper.GetString("posthog_host"),
+		cfg.PostHogAPIKey,
+		cfg.PostHogHost,
 		logger.With("component", "analytics"),
 	)
 	if err != nil {
@@ -463,6 +633,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		settingsRuntime,
 		logger,
 	)
+	if mealPlan != nil {
+		bindMealPlanSettings(func(ctx context.Context) (bool, error) {
+			return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
+		})
+	}
+	if bindFeedbackSettings != nil {
+		bindFeedbackSettings(
+			func(ctx context.Context) (bool, error) {
+				return settingsService.ResolveBool(ctx, configModels.KeyFeedbackEnabled)
+			},
+			func(ctx context.Context) (int, error) {
+				return settingsService.ResolveInt(ctx, configModels.KeyFeedbackDataRetentionDays)
+			},
+		)
+	}
 	// Wire the enrollment class-restriction probe so the settings service can
 	// refuse disabling concrete-class collection while an active phase
 	// restricts eligibility to specific classes (#1663). Runs inside the
@@ -630,6 +815,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	// service so it can be injected there and resolve custom names on both the
 	// write path (which base type an art inherits) and the read paths.
 	staffAbsenceTypeService := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, activeLogger)
+	if allowanceAware, ok := staffAbsenceTypeService.(interface {
+		SetAllowanceRepositories(
+			activeModels.StaffAbsenceTypeAllowanceRepository,
+			activeModels.StaffAbsenceTypeAllowanceChangeRepository,
+			activeModels.StaffAbsenceRepository,
+		)
+	}); ok {
+		allowanceAware.SetAllowanceRepositories(
+			repos.StaffAbsenceTypeAllowance,
+			repos.StaffAbsenceTypeAllowanceChange,
+			repos.StaffAbsence,
+		)
+	}
 	if typeAware, ok := workSessionService.(interface {
 		SetAbsenceTypeService(active.StaffAbsenceTypeService)
 	}); ok {
@@ -861,14 +1059,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Now:                      now,
 	})
 
-	// Initialize feedback service
-	feedbackService := feedback.NewService(
-		repos.FeedbackEntry,
-	)
-
-	// Initialize meal plan service
-	mealPlanService := mealplan.NewService(repos.MealPlanEntry)
-
 	// Initialize IoT service
 	iotService := iot.NewService(
 		repos.Device,
@@ -1071,14 +1261,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	// check-in workflow. Lives in the services/iot/checkin sub-package to avoid
 	// the services/iot ↔ services/active ↔ auth/device import cycle.
 	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
-		Active:     activeService,
-		Users:      usersService,
-		Facilities: facilitiesService,
-		Activities: activitiesService,
-		Settings:   settingsService,
-		Pickup:     pickupScheduleService,
-		Education:  educationService,
-		Logger:     logger.With("service", "checkin"),
+		Active:                activeService,
+		Users:                 usersService,
+		Facilities:            facilitiesService,
+		Activities:            activitiesService,
+		Settings:              settingsService,
+		Pickup:                pickupScheduleService,
+		Education:             educationService,
+		Logger:                logger.With("service", "checkin"),
+		DailyCheckoutFallback: cfg.StudentDailyCheckoutTime,
 	})
 
 	// Initialize display service (info-point dashboards, issue #1325).
@@ -1163,7 +1354,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Now:                now,
 		// E2E fixtures start future weekday instances. Dedicated unit tests
 		// construct the service with EnforceTimePolicy: true.
-		EnforceTimePolicy: os.Getenv("APP_ENV") != "test",
+		EnforceTimePolicy: cfg.AppEnv != "test",
 	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
@@ -1290,13 +1481,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	}
 	authConfig.ParentsURL = parentsURL
 	authConfig.SchoolURL = schoolURL
+	authConfig.RateLimitEnabled = cfg.RateLimitEnabled
 	authConfig.Settings = settingsService
+	authConfig.TokenAuth, err = authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
+	authConfig.Audit = auditCommand
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
 	}
 
-	mfaTokenAuth, err := authjwt.NewTokenAuth()
+	mfaTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("init mfa token auth: %w", err)
 	}
@@ -1307,9 +1504,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Dispatcher:  dispatcher,
 		DefaultFrom: defaultFrom,
 		FrontendURL: frontendURL,
-		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		JWTSecret:   cfg.JWTSecret,
 		DB:          db,
 		Logger:      authLogger,
+		Audit:       auditCommand,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init mfa service: %w", err)
@@ -1319,7 +1517,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	// post-construction so we don't introduce a constructor cycle.
 	authService.SetMFAService(mfaService)
 
-	tenantDomain := strings.TrimSpace(viper.GetString("tenant_domain"))
+	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
 	if tenantDomain == "" {
 		return nil, fmt.Errorf("TENANT_DOMAIN is required")
 	}
@@ -1375,24 +1573,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	emailOutboxWorker.SetMailIdentityResolver(tenantMailIdentity)
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo:         repos.GuardianInvitation,
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
-		AccountRoleRepo:        repos.AccountRole,
-		RoleRepo:               repos.Role,
-		PersonRepo:             repos.Person,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		GuardianFinancialAudit: repos.GuardianFinancialChange,
-		StudentRepo:            repos.Student,
-		SchoolRepo:             repos.School,
-		OutboxEnqueuer:         emailOutboxService,
-		EnrollmentBackfiller:   repos.ParentEnrollmentRequest,
-		SettingsResolver:       settingsService,
-		FrontendURL:            parentsURL, // accept link goes to the parents portal, not the staff frontend
-		FallbackExpiry:         invitationTokenExpiry,
-		DB:                     db,
-		Logger:                 authLogger.With("flow", "guardian_invitation"),
+		InvitationRepo:       repos.GuardianInvitation,
+		AccountRepo:          repos.Account,
+		AccountTenantRepo:    repos.AccountTenant,
+		AccountRoleRepo:      repos.AccountRole,
+		RoleRepo:             repos.Role,
+		PersonRepo:           repos.Person,
+		GuardianProfileRepo:  repos.GuardianProfile,
+		StudentGuardianRepo:  repos.StudentGuardian,
+		Audit:                auditCommand,
+		StudentRepo:          repos.Student,
+		SchoolRepo:           repos.School,
+		OutboxEnqueuer:       emailOutboxService,
+		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
+		SettingsResolver:     settingsService,
+		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
+		FallbackExpiry:       invitationTokenExpiry,
+		DB:                   db,
+		Logger:               authLogger.With("flow", "guardian_invitation"),
 	})
 
 	// Register the guardian_invitation renderer at startup so the outbox
@@ -1578,7 +1776,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		db,
 		today,
 	)
-	unregisteredTagScanService := auditService.NewUnregisteredTagScanService(repos.UnregisteredTagScan, db)
+	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
+		repos.UnregisteredTagScan,
+		auditCommand,
+		auditService.UnregisteredTagScanRuntime{
+			TenantID: tenant.FromContext,
+			WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error {
+				return tenant.WithinAdmin(ctx, fn)
+			},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize import service
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
@@ -1671,7 +1881,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
 	// operatorFrontendURL.
 	var operatorFrontendURL string
-	if operatorHostname := viper.GetString("next_public_operator_hostname"); operatorHostname != "" {
+	if operatorHostname := cfg.OperatorHostname; operatorHostname != "" {
 		protocol := "http"
 		if strings.HasPrefix(frontendURL, "https://") {
 			protocol = "https"
@@ -1705,7 +1915,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	// Operator MFA service (issue #1308 phase 7b-2). Constructed alongside
 	// the operator auth service so the login-flow integration in 7b-3 can
 	// inject it via SetMFAService.
-	operatorMFATokenAuth, err := authjwt.NewTokenAuth()
+	operatorMFATokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("init operator mfa token auth: %w", err)
 	}
@@ -1715,7 +1925,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Dispatcher:  dispatcher,
 		DefaultFrom: defaultFrom,
 		FrontendURL: frontendURL,
-		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		JWTSecret:   cfg.JWTSecret,
 		DB:          db,
 		Logger:      platformLogger,
 	})
@@ -1760,8 +1970,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	})
 
 	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
-		Settings: settingsService,
-		Logger:   logger.With("service", "enrollment-captcha"),
+		Settings:       settingsService,
+		Logger:         logger.With("service", "enrollment-captcha"),
+		RequireCaptcha: cfg.EnrollmentRequireCaptcha,
+		SecretKey:      cfg.EnrollmentCaptchaSecretKey,
+		SiteKey:        cfg.EnrollmentCaptchaSiteKey,
 	})
 
 	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
@@ -2036,6 +2249,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		feedbackCounter,
 		db,
 	)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
@@ -2060,6 +2274,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		db,
 		repos.FileFolder,
 		repos.File,
+		repos.AnnouncementAttachment,
 		repos.FileEvent,
 		settingsService,
 		logger.With("service", "filestore"),
@@ -2215,9 +2430,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	// their consumers: messaging, the calendar (#1671) and the announcement
 	// producer all need them, and messaging is constructed first.
 	vapidConfig := notifications.VAPIDConfig{
-		PublicKey:  strings.TrimSpace(viper.GetString("vapid_public_key")),
-		PrivateKey: strings.TrimSpace(viper.GetString("vapid_private_key")),
-		Subscriber: strings.TrimSpace(viper.GetString("vapid_subscriber")),
+		PublicKey:  strings.TrimSpace(cfg.VAPIDPublicKey),
+		PrivateKey: strings.TrimSpace(cfg.VAPIDPrivateKey),
+		Subscriber: strings.TrimSpace(cfg.VAPIDSubscriber),
 	}
 	if err := vapidConfig.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid VAPID configuration: %w", err)
@@ -2225,9 +2440,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	if !vapidConfig.Configured() {
 		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
 	}
-	notificationsService := notifications.NewService(
+	notificationsService := notifications.NewServiceWithDeliveryObserver(
 		settingsService,
 		logger.With("service", "notifications"),
+		notifications.DeliveryObserver(observeDelivery),
 		notifications.NewSSEChannel(realtimeHub, notifications.WithGuardianChildAccess(
 			db, repos.StudentGuardian, logger.With("channel", "sse"))),
 		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),
@@ -2339,7 +2555,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		GuardianProfileRepo:       repos.GuardianProfile,
 		AttendanceRepo:            repos.Attendance,
 		StatusDayRepo:             repos.StudentStatusDay,
-		MealPlanRepo:              repos.MealPlanEntry,
+		MealPlan:                  mealPlan,
 		StudentRepo:               repos.Student,
 		PickupExceptionRepo:       repos.StudentPickupException,
 		ArrivalExceptionRepo:      repos.StudentArrivalException,
@@ -2401,6 +2617,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
 		setter.SetGuardianNoticePublisher(parentAnnouncementService)
 	}
+
+	// Anhänge an Elternmitteilungen (#2890). Die Datei gehört der Dateiablage,
+	// der Empfängerkreis der Mitteilung — beide Seiten zeigen aufeinander, also
+	// werden sie hier verbunden, wo alle drei Dienste existieren. Ohne diese
+	// Verdrahtung verweigern die Anhang-Pfade den Dienst, statt ohne Prüfung zu
+	// entscheiden.
+	if setter, ok := fileStoreService.(filestore.AnnouncementPortSetter); ok {
+		setter.SetAnnouncementPorts(parentAnnouncementService, parentService)
+	}
+	parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:      repos.Organization,
@@ -2668,6 +2894,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	factory := &Factory{
 		settingsRuntimeDB:       db,
 		Auth:                    authService,
+		Audit:                   auditCommand,
 		StaffPINAuth:            authService,
 		MFA:                     mfaService,
 		Passkey:                 passkeyService,
@@ -2691,8 +2918,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Facilities:              facilitiesService,
 		Schulhof:                schulhofService,
 		WC:                      wcService,
-		Feedback:                feedbackService,
-		MealPlan:                mealPlanService,
 		IoT:                     iotService,
 		Checkin:                 checkinService,
 		StaffClock:              staffClockService,

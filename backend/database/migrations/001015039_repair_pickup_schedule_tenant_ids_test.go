@@ -11,12 +11,14 @@ import (
 )
 
 func TestRepairPickupScheduleTenantIDs(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staffID := createTenantStaff(t, db, tenantID)
 	studentID := createTenantStudent(t, db, tenantID)
@@ -35,16 +37,17 @@ func TestRepairPickupScheduleTenantIDs(t *testing.T) {
 }
 
 func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	studentID := createTenantStudent(t, db, tenantID)
 	staff := testpkg.CreateTestStaff(t, db, "PickupRepair", "WrongTenant")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 	defer cleanupPickupTenantRepairRows(t, db, 0, studentID)
 
 	insertHistoricalPickupScheduleWithTenant(t, db, 1, studentID, staff.ID)
@@ -55,12 +58,14 @@ func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
 }
 
 func TestRepairPickupScheduleTenantIDsRejectsUniqueConflicts(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staffID := createTenantStaff(t, db, tenantID)
 	studentID := createTenantStudent(t, db, tenantID)

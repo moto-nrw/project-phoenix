@@ -29,6 +29,7 @@ func departureDaysColumnExists(t *testing.T, db *testpkg.DB) bool {
 // pickup winning on a contradictory day, and the column survives a Down/Up
 // round-trip.
 func TestStudentsDepartureDaysMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -39,8 +40,8 @@ func TestStudentsDepartureDaysMigration(t *testing.T) {
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 		if !departureDaysColumnExists(t, db) {
 			require.NoError(t, studentsDepartureDaysUp(ctx, db))
 		}

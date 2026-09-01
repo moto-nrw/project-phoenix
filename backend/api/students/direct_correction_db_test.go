@@ -190,8 +190,8 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	}
 }
 
-// Deliberately NOT parallel: the tenant-wide settings cache is process-global state.
 func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testing.T) {
+	t.Parallel()
 	tc := setupStudentsRoute(t)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Withdrawal", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "WithdrawalReviewGroup")

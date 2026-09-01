@@ -86,11 +86,12 @@ func workSessionSource(t *testing.T, db *testpkg.DB, id int64) string {
 // labelled 'unknown'. This is the entire backfill contract — no heuristic,
 // no guessing, just an honest sentinel for pre-existing data.
 func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Legacy", "Stamper")
 
@@ -113,11 +114,12 @@ func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
 // must still be able to land 'app' and 'nfc' from WorkSessionService.CheckIn,
 // and the 'unknown' sentinel must remain valid because legacy rows carry it.
 func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Test")
 
@@ -139,11 +141,12 @@ func TestWorkSessionsSourceUp_ConstraintAcceptsAllowedValues(t *testing.T) {
 // bypasses WorkSessionService.CheckIn cannot smuggle a bogus channel into
 // the table.
 func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Reject")
 
@@ -176,6 +179,7 @@ func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
 // re-run Up so sibling tests see the expected schema. A t.Cleanup also
 // re-runs Up as a belt-and-braces net in case the test fails mid-flight.
 func TestWorkSessionsSourceDown_DropsColumnAndConstraint(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	// Defers run LIFO: restore the column FIRST, then close the connection.
 	// Using t.Cleanup here is wrong because Cleanup runs AFTER the test

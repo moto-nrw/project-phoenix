@@ -176,7 +176,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 
 		row := mkRow(unmarked.ID, scheduleModels.AttendanceStatusExpected, false)
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
 
 		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
 		require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 		decidedAt := time.Date(2034, 6, 5, 9, 30, 0, 0, time.UTC)
 		row.ManualStatusAt = &decidedAt
 		require.NoError(t, repo.Create(ctx, row))
-		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
 
 		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
 		require.NoError(t, err)

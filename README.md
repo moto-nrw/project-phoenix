@@ -16,7 +16,7 @@ NFC-based student attendance and room management for schools.
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-3.0-4baaaa?style=flat-square)](CODE_OF_CONDUCT.md)
 
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.27.0-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -89,7 +89,7 @@ Full walkthrough, common commands, and troubleshooting: [docs/getting-started.md
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Go 1.25+, Chi Router, Bun ORM |
+| **Backend** | Go 1.27.0, Chi Router, Bun ORM |
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
 | **Database** | PostgreSQL 17 with 15 domain schemas, SSL, Row-Level Security |
 | **Auth** | JWT with refresh tokens + MFA, NextAuth.js, three isolated portals (staff / operator / parents) |
@@ -134,7 +134,7 @@ See the [open issues](https://github.com/moto-nrw/project-phoenix/issues) for ev
 Contributions are welcome.
 
 1. Fork the repository and create a feature branch
-2. Make your changes (`pnpm run check` and `go test ./...` must pass)
+2. Make your changes (`pnpm run check` and `scripts/run-go-toolchain.sh scripts/test-backend.sh` must pass)
 3. Open a Pull Request against **`development`** (never `main`)
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and conventions.

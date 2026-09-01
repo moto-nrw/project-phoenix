@@ -115,7 +115,7 @@ func (r *StaffAbsenceTypeRepository) Update(ctx context.Context, absenceType *ac
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(absenceType).
-		Column("name", "is_active").
+		Column("name", "is_active", "allowance_enabled", "overrun_policy").
 		Where("id = ?", absenceType.ID).
 		ModelTableExpr(tableStaffAbsenceTypes)
 

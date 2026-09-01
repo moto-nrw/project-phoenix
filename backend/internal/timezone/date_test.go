@@ -73,6 +73,18 @@ func TestDate_DSTArithmetic(t *testing.T) {
 	}
 }
 
+func TestDate_StartOfISOWeek(t *testing.T) {
+	t.Parallel()
+
+	monday := NewDate(2026, 8, 24)
+	for offset := range 7 {
+		date := monday.AddDays(offset)
+		if got := date.StartOfISOWeek(); got != monday {
+			t.Errorf("StartOfISOWeek(%v) = %v, want %v", date, got, monday)
+		}
+	}
+}
+
 func TestDate_Comparisons(t *testing.T) {
 	t.Parallel()
 

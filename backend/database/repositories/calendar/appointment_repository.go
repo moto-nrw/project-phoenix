@@ -237,26 +237,6 @@ func (r *AppointmentRepository) ListCancellationTombstonesForGuardianProfiles(ct
 	return rows, nil
 }
 
-func (r *AppointmentRepository) ListOrganizedByStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*calModels.Appointment, error) {
-	var rows []*calModels.Appointment
-	query := base.GetDB(ctx, r.DB).NewSelect().
-		Model(&rows).
-		ModelTableExpr(tableExprAppointmentsAsAppointment).
-		Where(`"appointment".organizer_staff_id = ?`, staffID).
-		Where(`"appointment".deleted_at IS NULL`).
-		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
-
-	query = applyAppointmentWindow(query, from, to)
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		query = query.Where(where, val)
-	}
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, fmt.Errorf("list organized calendar appointments: %w", err)
-	}
-	return rows, nil
-}
-
 // ListGuardianReminderCandidates returns the appointments a guardian reminder
 // could be due for in the window: live, not cancelled, carrying the organizer's
 // notify-guardians opt-in, and with at least one guardian recipient.

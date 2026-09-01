@@ -40,6 +40,7 @@ func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritati
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		&testpkg.FeedbackEntryCounterMock{},
 		tc.db,
 	)
 	userService.WireStudentDeletionCareWithdrawals(deletion, repos.CareWithdrawal)

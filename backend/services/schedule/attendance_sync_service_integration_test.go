@@ -85,7 +85,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
 	// instance callback registered below must run before its room/group parents.
 	t.Cleanup(func() {
-		// active.group cleanup happens via CleanupActivityFixtures below
+		// active.group is tenant-owned and dies with the package clone
 	})
 
 	return &attendanceSyncSetup{
@@ -236,7 +236,7 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 			}))
 			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
-			factory, err := services.NewFactory(repositories.NewFactory(s.db), s.db, slog.Default())
+			factory, err := services.NewFactoryForTests(repositories.NewFactory(s.db), s.db, slog.Default())
 			require.NoError(t, err)
 			if tt.timeout {
 				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))

@@ -40,8 +40,7 @@ func TestPermissionRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, permission)
 		require.NoError(t, err)
 		assert.NotZero(t, permission.ID)
-
-		testpkg.CleanupPermissionRecords(t, db, permission.ID)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, permission.ID)) })
 	})
 
 	t.Run("creates permission with different actions", func(t *testing.T) {
@@ -56,8 +55,7 @@ func TestPermissionRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, permission)
 		require.NoError(t, err)
 		assert.NotZero(t, permission.ID)
-
-		testpkg.CleanupPermissionRecords(t, db, permission.ID)
+		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, permission.ID)) })
 	})
 }
 
@@ -71,7 +69,6 @@ func TestPermissionRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing permission", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, db, "FindByID", "resource", "read")
-		defer testpkg.CleanupPermissionRecords(t, db, permission.ID)
 
 		found, err := repo.FindByID(ctx, permission.ID)
 		require.NoError(t, err)
@@ -95,7 +92,6 @@ func TestPermissionRepository_FindByName(t *testing.T) {
 
 	t.Run("finds permission by exact name", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, db, "FindByName", "resource", "read")
-		defer testpkg.CleanupPermissionRecords(t, db, permission.ID)
 
 		found, err := repo.FindByName(ctx, permission.Name)
 		require.NoError(t, err)
@@ -118,7 +114,6 @@ func TestPermissionRepository_Update(t *testing.T) {
 
 	t.Run("updates permission description", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, db, "Update", "resource", "read")
-		defer testpkg.CleanupPermissionRecords(t, db, permission.ID)
 
 		permission.Description = "Updated description"
 		err := repo.Update(ctx, permission)
@@ -162,8 +157,7 @@ func TestPermissionRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all permissions", func(t *testing.T) {
-		permission := testpkg.CreateTestPermission(t, db, "List", "resource", "read")
-		defer testpkg.CleanupPermissionRecords(t, db, permission.ID)
+		testpkg.CreateTestPermission(t, db, "List", "resource", "read")
 
 		permissions, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -182,8 +176,6 @@ func TestPermissionRepository_FindByRoleID(t *testing.T) {
 	t.Run("finds permissions assigned to role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "PermRole")
 		permission := testpkg.CreateTestPermission(t, db, "ByRoleID", "resource", "read")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
-		defer testpkg.CleanupPermissionRecords(t, db, permission.ID)
 
 		// Assign permission to role
 		_, err := db.ExecContext(ctx,
@@ -219,9 +211,6 @@ func TestPermissionRepository_FindByAccountID(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "permacc")
 		role := testpkg.CreateTestRole(t, db, "PermAccRole")
 		permission := testpkg.CreateTestPermission(t, db, "ByAccountID", "resource", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
-		defer testpkg.CleanupPermissionRecords(t, db, permission.ID)
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
@@ -252,7 +241,6 @@ func TestPermissionRepository_FindByAccountID(t *testing.T) {
 
 	t.Run("returns empty for account with no permissions", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "noperms")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		permissions, err := repo.FindByAccountID(ctx, account.ID)
 		require.NoError(t, err)
@@ -271,8 +259,6 @@ func TestPermissionRepository_FindDirectByAccountID(t *testing.T) {
 	t.Run("finds directly assigned permissions only", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "directperm")
 		permission := testpkg.CreateTestPermission(t, db, "DirectByAccountID", "resource", "read")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupPermissionRecords(t, db, permission.ID)
 
 		// Assign permission directly to account (granted=true)
 		_, err := db.ExecContext(ctx,
@@ -313,8 +299,6 @@ func TestPermissionRepository_AssignPermissionToRole(t *testing.T) {
 	t.Run("assigns permission to role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "AssignPerm")
 		permission := testpkg.CreateTestPermission(t, db, "AssignToRole", "resource", "read")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
-		defer testpkg.CleanupPermissionRecords(t, db, permission.ID)
 
 		err := repo.AssignPermissionToRole(ctx, role.ID, permission.ID)
 		require.NoError(t, err)
@@ -337,8 +321,6 @@ func TestPermissionRepository_RemovePermissionFromRole(t *testing.T) {
 	t.Run("removes permission from role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "RemovePerm")
 		permission := testpkg.CreateTestPermission(t, db, "RemoveFromRole", "resource", "read")
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
-		defer testpkg.CleanupPermissionRecords(t, db, permission.ID)
 
 		// Assign permission to role directly
 		_, err := db.ExecContext(ctx,

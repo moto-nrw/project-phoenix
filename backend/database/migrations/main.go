@@ -26,7 +26,9 @@ func Migrate(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Print migration plan
-	PrintMigrationPlan()
+	if err := PrintMigrationPlan(); err != nil {
+		return fmt.Errorf("print migration plan: %w", err)
+	}
 
 	// Run migrations
 	group, err := migrator.Migrate(ctx)

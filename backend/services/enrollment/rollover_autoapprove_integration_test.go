@@ -195,11 +195,9 @@ func countStudentsForPerson(t *testing.T, env *rolloverTestEnv, personID int64) 
 	return len(rows)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -274,11 +272,9 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActive(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
 		mode: configModel.EnrollmentActivationModeImmediate,
 	})
@@ -320,11 +316,9 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
 		mode: configModel.EnrollmentActivationModeImmediate,
 	})
@@ -360,11 +354,9 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 	assert.Equal(t, auditModels.StudentFieldEditSystemActorName, history[0].EditedByName)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecomesPending(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -405,11 +397,9 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomesActive(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

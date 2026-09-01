@@ -31,9 +31,6 @@ type TimeframeRepository interface {
 
 	// FindByTimeRange finds all timeframes that overlap with the given time range
 	FindByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*Timeframe, error)
-
-	// FindByDescription finds timeframes with matching description
-	FindByDescription(ctx context.Context, description string) ([]*Timeframe, error)
 }
 
 // StaffShiftRepository is the data-access boundary for planned staff shifts
@@ -160,9 +157,6 @@ type RecurrenceRuleRepository interface {
 
 	// FindByWeekday finds all recurrence rules that include the specified weekday
 	FindByWeekday(ctx context.Context, weekday string) ([]*RecurrenceRule, error)
-
-	// FindByMonthDay finds all recurrence rules that include the specified month day
-	FindByMonthDay(ctx context.Context, day int) ([]*RecurrenceRule, error)
 
 	// FindByDateRange finds all recurrence rules that apply within the given date range
 	FindByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*RecurrenceRule, error)

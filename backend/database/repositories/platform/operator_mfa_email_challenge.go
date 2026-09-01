@@ -75,6 +75,20 @@ func (r *OperatorMFAEmailChallengeRepository) MarkConsumed(ctx context.Context, 
 	return base.AssertRowsAffected(res, 1, "mark operator mfa email challenge consumed")
 }
 
+func (r *OperatorMFAEmailChallengeRepository) MarkActive(ctx context.Context, id int64) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*platform.OperatorMFAEmailChallenge)(nil)).
+		ModelTableExpr(operatorMFAEmailChallengeTable).
+		Set("consumed_at = NULL").
+		Where(platformWhereID, id).
+		Where("consumed_at IS NOT NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark operator mfa email challenge active", Err: base.TranslateNotFound(err)}
+	}
+	return base.AssertRowsAffected(res, 1, "mark operator mfa email challenge active")
+}
+
 func (r *OperatorMFAEmailChallengeRepository) CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error) {
 	count, err := base.GetDB(ctx, r.db).NewSelect().
 		Model((*platform.OperatorMFAEmailChallenge)(nil)).

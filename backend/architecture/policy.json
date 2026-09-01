@@ -547,7 +547,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/feedback",
+      "path": "modules/feedback/http",
       "owner": "inbound-feedback",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -624,7 +624,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/mealplan",
+      "path": "modules/mealplan/http",
       "owner": "inbound-mealplan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -869,13 +869,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/audits",
-      "owner": "audit-platform",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/migrations",
       "owner": "migrations",
       "role": "migration",
@@ -974,7 +967,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/feedback",
+      "path": "modules/feedback/internal/adapters/postgres",
       "owner": "feedback",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -995,7 +988,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/mealplan",
+      "path": "modules/mealplan/internal/adapters/postgres",
       "owner": "meal-plan",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1025,6 +1018,13 @@
     {
       "path": "database/repositories/users",
       "owner": "people-directory",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/workforce",
+      "owner": "workforce",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1261,9 +1261,16 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/feedback",
+      "path": "modules/feedback/internal/domain",
       "owner": "feedback",
       "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/internal/ports",
+      "owner": "feedback",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1289,9 +1296,16 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/mealplan",
+      "path": "modules/mealplan/internal/domain",
       "owner": "meal-plan",
       "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/internal/ports",
+      "owner": "meal-plan",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1492,7 +1506,21 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/feedback",
+      "path": "modules/feedback",
+      "owner": "feedback",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/compose",
+      "owner": "feedback",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/internal/application",
       "owner": "feedback",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1541,7 +1569,21 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/mealplan",
+      "path": "modules/mealplan",
+      "owner": "meal-plan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/compose",
+      "owner": "meal-plan",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/internal/application",
       "owner": "meal-plan",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1732,6 +1774,8 @@
     {"name": "active.groups", "write_owner": "student-presence"},
     {"name": "active.scheduled_checkouts", "write_owner": "student-presence"},
     {"name": "active.staff_absence_audit", "write_owner": "workforce"},
+    {"name": "active.staff_absence_type_allowance_changes", "write_owner": "workforce"},
+    {"name": "active.staff_absence_type_allowances", "write_owner": "workforce"},
     {"name": "active.staff_absence_types", "write_owner": "workforce"},
     {"name": "active.staff_absences", "write_owner": "workforce"},
     {"name": "active.staff_balance_adjustments", "write_owner": "workforce"},
@@ -1757,13 +1801,16 @@
     {"name": "audit.enrollment_deletions", "write_owner": "audit-platform"},
     {"name": "audit.enrollment_offering_adjustments", "write_owner": "audit-platform"},
     {"name": "audit.enrollment_restorations", "write_owner": "audit-platform"},
+    {"name": "audit.file_event_ledger", "write_owner": "audit-platform"},
     {"name": "audit.guardian_changes", "write_owner": "audit-platform"},
+    {"name": "audit.guardian_financial_change_ledger", "write_owner": "audit-platform"},
     {"name": "audit.personnel_number_changes", "write_owner": "audit-platform"},
     {"name": "audit.staff_master_data_changes", "write_owner": "audit-platform"},
     {"name": "audit.substitution_changes", "write_owner": "audit-platform"},
     {"name": "audit.student_deletions", "write_owner": "audit-platform"},
     {"name": "audit.student_field_edits", "write_owner": "audit-platform"},
     {"name": "audit.time_tracking_deletions", "write_owner": "audit-platform"},
+    {"name": "audit.time_tracking_audit_log", "write_owner": "audit-platform"},
     {"name": "audit.unregistered_tag_scans", "write_owner": "device-fleet"},
     {"name": "audit.work_session_edits", "write_owner": "audit-platform"},
     {"name": "auth.account_permissions", "write_owner": "identity-access"},
@@ -1800,6 +1847,8 @@
     {"name": "config.work_time_model_entries", "write_owner": "workforce"},
     {"name": "config.work_time_models", "write_owner": "workforce"},
     {"name": "display.displays", "write_owner": "device-fleet"},
+    {"name": "documents.announcement_attachment_cleanup", "write_owner": "file-storage"},
+    {"name": "documents.announcement_attachments", "write_owner": "file-storage"},
     {"name": "education.class_arrival_times", "write_owner": "timetable-activities"},
     {"name": "education.class_teachers", "write_owner": "school-membership"},
     {"name": "education.grade_transition_class_list_entries", "write_owner": "school-structure"},
@@ -1912,7 +1961,7 @@
   "legacy_composition": [
     {"package": "api", "symbols": ["API", "New"]},
     {"package": "database/repositories", "symbols": ["Factory", "NewFactory"]},
-    {"package": "services", "symbols": ["Factory", "NewFactory"]}
+    {"package": "services", "symbols": ["Factory"]}
   ],
   "external_classes": [
     "cli-config",
@@ -4025,6 +4074,496 @@
       "source_role": "application",
       "target_owner": "workforce",
       "target_role": "public"
+    },
+    {
+      "id": "care-plan.to.meal-plan",
+      "description": "care-plan reads the public Meal Plan capability after authorizing the child and week.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.behavior-test.meal-plan",
+      "description": "Care Plan behavior tests fake the public Meal Plan capability consumed by the parent service.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "meal-plan.port-domain",
+      "description": "Meal Plan ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "feedback.port-domain",
+      "description": "Feedback ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "feedback.compose.application",
+      "description": "Feedback composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "application"
+    },
+    {
+      "id": "feedback.domain.calendar-date",
+      "description": "Feedback domain values use the repository calendar-date type required for PostgreSQL DATE columns.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "domain",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "feedback.compose.domain",
+      "description": "Feedback composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "domain"
+    },
+    {
+      "id": "feedback.compose.orm-sql",
+      "description": "Feedback composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "feedback.compose.port",
+      "description": "Feedback composition exposes observations from its consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "port"
+    },
+    {
+      "id": "feedback.compose.postgres",
+      "description": "Feedback composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "postgres"
+    },
+    {
+      "id": "feedback.compose.public",
+      "description": "Feedback composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "feedback.compose.tenant-runtime",
+      "description": "Feedback composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "feedback.internal-test.orm-sql",
+      "description": "Feedback composition tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "feedback",
+      "source_role": "module-internal-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "feedback.postgres.calendar-date",
+      "description": "Feedback persistence maps PostgreSQL DATE columns with the repository calendar-date type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "feedback.public.calendar-date",
+      "description": "The public Feedback facade uses the repository calendar-date value type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "public",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "feedback.internal-test.tenant-runtime",
+      "description": "Feedback composition tests verify tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "feedback",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-feedback.http.security-contract",
+      "description": "The Feedback HTTP adapter binds its established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-feedback",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-feedback.adapter-test.http-router",
+      "description": "Feedback adapter tests exercise the real router and response renderer.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-feedback",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-iot-data.to.feedback",
+      "description": "The IoT feedback endpoint submits through the public Feedback capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-data",
+      "source_role": "http",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot-internal-shared.to.feedback",
+      "description": "The IoT error mapper preserves Feedback capability error contracts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-internal-shared",
+      "source_role": "http",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.feedback-public",
+      "description": "API test composition shares the real Feedback facade with migrated adapters.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.feedback-compose",
+      "description": "API test composition constructs the real Feedback module.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "feedback",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.feedback-compose",
+      "description": "The production root constructs the Feedback module once.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.feedback-http",
+      "description": "The production root constructs the Feedback HTTP adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-feedback",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.feedback-public",
+      "description": "The production root shares the one Feedback facade with its consumers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "meal-plan.compose.application",
+      "description": "Meal Plan composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "application"
+    },
+    {
+      "id": "meal-plan.domain.calendar-date",
+      "description": "Meal Plan domain values use the repository calendar-date type required for PostgreSQL DATE columns.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "domain",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "meal-plan.compose.domain",
+      "description": "Meal Plan composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "meal-plan.compose.orm-sql",
+      "description": "Meal Plan composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "meal-plan.compose.port",
+      "description": "Meal Plan composition exposes observations from its consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "port"
+    },
+    {
+      "id": "meal-plan.compose.postgres",
+      "description": "Meal Plan composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "postgres"
+    },
+    {
+      "id": "meal-plan.compose.public",
+      "description": "Meal Plan composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "meal-plan.compose.tenant-runtime",
+      "description": "Meal Plan composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "meal-plan.internal-test.orm-sql",
+      "description": "Meal Plan composition tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "module-internal-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "meal-plan.postgres.calendar-date",
+      "description": "Meal Plan persistence maps PostgreSQL DATE columns with the repository calendar-date type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "meal-plan.public.calendar-date",
+      "description": "The public Meal Plan facade uses the repository calendar-date value type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "public",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "meal-plan.internal-test.tenant-runtime",
+      "description": "Meal Plan composition tests verify tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.meal-plan-compose",
+      "description": "The production root constructs the Meal Plan module once.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.test.meal-plan-compose",
+      "description": "Root composition tests construct the required Meal Plan module for complete route graphs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "meal-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.meal-plan-http",
+      "description": "The production root constructs the Meal Plan HTTP adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-mealplan",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.meal-plan-public",
+      "description": "The production root shares the one Meal Plan facade with its consumers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.workforce-postgres",
+      "description": "The legacy repository factory constructs the candidate workforce Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "postgres"
+    },
+    {
+      "id": "workforce.postgres.student-presence-domain",
+      "description": "The candidate workforce allowance adapter implements the existing absence model contracts during the active-domain migration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "postgres",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.postgres.transaction-domain",
+      "description": "The candidate workforce allowance adapter embeds the shared tenant-aware persistence models.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.postgres.transaction-postgres",
+      "description": "The candidate workforce allowance adapter reuses the shared tenant-scoped repository implementation.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
     },
     {
       "id": "workflow-decision-test.domain",

@@ -434,8 +434,19 @@ function asideClasses(collapsed: boolean, className: string): string {
 
 // Der klebende Innenbereich beginnt unter der 73px hohen Kopfzeile und trägt
 // dieselbe Breite und dieselbe Bewegung wie die Hülle.
-function stickyClasses(collapsed: boolean): string {
-  return `sticky top-[73px] flex h-[calc(100vh-73px)] flex-col ${
+//
+// Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)
+// schiebt die Kopfzeile nach unten. Die klebende Seitennavigation muss um
+// dieselbe Höhe mitwandern, sonst schiebt sich die Kopfzeile beim Scrollen
+// über ihre obersten Einträge.
+function stickyClasses(
+  collapsed: boolean,
+  isPreview: boolean | undefined,
+): string {
+  const offset = isPreview
+    ? "top-[121px] h-[calc(100vh-121px)]"
+    : "top-[73px] h-[calc(100vh-73px)]";
+  return `sticky ${offset} flex flex-col ${
     collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
   } ${SIDEBAR_WIDTH_TRANSITION}`;
 }
@@ -468,7 +479,7 @@ function SidebarContent({
   // subdomain/operator mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
-  const { mode } = useShellAuth();
+  const { mode, isPreview } = useShellAuth();
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
   // subdomains.
@@ -1260,7 +1271,7 @@ function SidebarContent({
 
     return (
       <aside className={asideClasses(collapsed, className)}>
-        <div className={stickyClasses(collapsed)}>
+        <div className={stickyClasses(collapsed, isPreview)}>
           <nav
             className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
           >
@@ -1292,7 +1303,7 @@ function SidebarContent({
 
   return (
     <aside className={asideClasses(collapsed, className)}>
-      <div className={stickyClasses(collapsed)}>
+      <div className={stickyClasses(collapsed, isPreview)}>
         {/* Main navigation, scrollable.
             Der Rollbalken bleibt ausgeklappt sichtbar — er ist dort der
             einzige Hinweis, dass unten noch Einträge folgen. Nur im

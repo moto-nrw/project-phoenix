@@ -45,8 +45,9 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 					configModels.KeyParentRequestReasonPolicy: tc.policy,
 				},
 			},
-			DB:     db,
-			Logger: slog.Default(),
+			MealPlan: availableMealPlan(false),
+			DB:       db,
+			Logger:   slog.Default(),
 		})
 
 		flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)

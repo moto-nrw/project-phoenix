@@ -893,6 +893,7 @@ function mapStaffVacationQuotaSummary(
 // A `sick` absence triggers the Dienst-/Betreuungsplan cascade backend-side.
 interface AdminCreateAbsenceBody {
   absence_type: string;
+  absence_type_id?: string;
   date_start: string; // YYYY-MM-DD
   date_end: string; // YYYY-MM-DD
   half_day?: boolean;
@@ -1146,7 +1147,7 @@ class StaffAbsenceService {
     if (!response.ok) {
       const error = await readStaffAPIError(
         response,
-        "Krankmeldung fehlgeschlagen",
+        "Abwesenheit konnte nicht eingetragen werden",
       );
       throw new Error(error.message);
     }

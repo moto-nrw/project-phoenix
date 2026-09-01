@@ -35,6 +35,7 @@ env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
   FRONTEND_IMAGE: ghcr.io/moto-nrw/phoenix-frontend
+  GOTOOLCHAIN: local
 
 jobs:
   # Determine target environment and whether to proceed

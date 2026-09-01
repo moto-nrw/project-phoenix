@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"os"
 	"testing"
 
@@ -15,12 +14,14 @@ import (
 // =============================================================================
 
 func TestRootCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "phoenix", RootCmd.Use)
 	assert.Contains(t, RootCmd.Short, "RFID-based")
 	assert.Contains(t, RootCmd.Long, "Project Phoenix")
 }
 
 func TestRootCmd_HasCommands(t *testing.T) {
+	t.Parallel()
 	commands := RootCmd.Commands()
 	assert.NotEmpty(t, commands, "RootCmd should have subcommands")
 
@@ -39,22 +40,10 @@ func TestRootCmd_HasCommands(t *testing.T) {
 }
 
 func TestRootCmd_PersistentFlags(t *testing.T) {
+	t.Parallel()
 	f := RootCmd.PersistentFlags()
 	assert.NotNil(t, f.Lookup("config"))
 	assert.NotNil(t, f.Lookup("db_debug"))
-}
-
-func TestRootCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	RootCmd.SetOut(buf)
-	RootCmd.SetErr(buf)
-
-	err := RootCmd.Usage()
-	require.NoError(t, err)
-
-	output := buf.String()
-	assert.Contains(t, output, "phoenix")
-	assert.Contains(t, output, "Available Commands")
 }
 
 // =============================================================================
@@ -62,36 +51,30 @@ func TestRootCmd_UsageOutput(t *testing.T) {
 // =============================================================================
 
 func TestInitConfig_DefaultConfig(t *testing.T) {
-	oldCfgFile := cfgFile
-	cfgFile = ""
-	defer func() { cfgFile = oldCfgFile }()
-
-	// initConfig should not panic even without config files
-	initConfig()
-
-	assert.NotNil(t, viper.GetViper())
+	t.Parallel()
+	config := viper.New()
+	loadConfig(config, "", true)
+	assert.Empty(t, config.ConfigFileUsed())
 }
 
 func TestInitConfig_WithConfigFile(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	configPath := tmpDir + "/test.env"
 	err := os.WriteFile(configPath, []byte("TEST_KEY=test_value"), 0644)
 	require.NoError(t, err)
 
-	oldCfgFile := cfgFile
-	cfgFile = configPath
-	defer func() { cfgFile = oldCfgFile }()
+	config := viper.New()
+	loadConfig(config, configPath, false)
 
-	initConfig()
-
-	assert.Equal(t, configPath, viper.ConfigFileUsed())
+	assert.Equal(t, configPath, config.ConfigFileUsed())
+	assert.Equal(t, "test_value", config.GetString("TEST_KEY"))
 }
 
 func TestInitConfig_WithNonExistentConfigFile(t *testing.T) {
-	oldCfgFile := cfgFile
-	cfgFile = "/nonexistent/path/config.env"
-	defer func() { cfgFile = oldCfgFile }()
-
-	// Should not panic
-	initConfig()
+	t.Parallel()
+	config := viper.New()
+	const path = "/nonexistent/path/config.env"
+	loadConfig(config, path, false)
+	assert.Equal(t, path, config.ConfigFileUsed())
 }

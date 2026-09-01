@@ -3,6 +3,7 @@ package jwt
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
@@ -34,7 +35,28 @@ type AppClaims struct {
 	// Push subscriptions stamp it so family-scoped logout can revoke the
 	// same device's server-side subscription.
 	FamilyID string `json:"family_id,omitempty"`
+	// ReadOnly marks an admin staff-view preview token (#2893): the token
+	// carries the TARGET account's identity, roles, and permissions so every
+	// read evaluates exactly as that person, while
+	// common.ReadOnlyPreviewMiddleware blocks every write. Preview tokens are
+	// access-only — no refresh token is ever minted in the target's name.
+	ReadOnly bool `json:"read_only,omitempty"`
+	// ActingAdminID is the admin account that started the read-only preview.
+	// Zero on every regular token. Kept in the claims so the preview can
+	// never be mistaken for a real session of the target account.
+	ActingAdminID int64 `json:"acting_admin_id,omitempty"`
+	// PreviewID identifies ONE preview instance (#2893). It is created when
+	// the admin opens the preview and carried unchanged through every
+	// re-mint, so the audit trail can pair exactly one start with exactly one
+	// end no matter how often the token was renewed. Empty on regular tokens.
+	PreviewID string `json:"preview_id,omitempty"`
 	CommonClaims
+}
+
+// IsReadOnlyPreview reports whether this token is an admin staff-view
+// preview token (#2893). Such tokens are read-only by contract.
+func (c *AppClaims) IsReadOnlyPreview() bool {
+	return c.ReadOnly
 }
 
 // IsPlatformScope returns true if this is a platform/operator token
@@ -109,6 +131,26 @@ func getOptionalInt64(claims map[string]any, key string) int64 {
 		return 0
 	}
 	return int64(f)
+}
+
+// expiryFromClaims reads the "exp" claim as a unix timestamp. The decoder
+// hands it over as a number for a raw claim map and as a time.Time for a
+// token decoded by jwx, so every caller has to handle both shapes; 0 means
+// the token carries no expiry.
+func expiryFromClaims(claims map[string]any) int64 {
+	exp, ok := claims["exp"]
+	if !ok {
+		return 0
+	}
+	switch v := exp.(type) {
+	case float64:
+		return int64(v)
+	case int64:
+		return v
+	case time.Time:
+		return v.Unix()
+	}
+	return 0
 }
 
 func getRequiredStringSlice(claims map[string]any, key string) ([]string, error) {
@@ -211,6 +253,9 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 	c.TenantID = getOptionalInt64(claims, "tenant_id")
 	c.OrgID = getOptionalInt64(claims, "org_id")
 	c.FamilyID = getOptionalString(claims, "family_id")
+	c.ReadOnly = getOptionalBool(claims, "read_only")
+	c.ActingAdminID = getOptionalInt64(claims, "acting_admin_id")
+	c.PreviewID = getOptionalString(claims, "preview_id")
 
 	return nil
 }
@@ -245,6 +290,12 @@ func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
 	}
 	if getOptionalBool(claims, "mfa_enrollment_pending") {
 		return errors.New("token is a pending-MFA-enrollment token, not a refresh token")
+	}
+	// Preview tokens are access-only by contract (#2893). Today they carry no
+	// `token` claim so the parse below would fail anyway — this gate keeps
+	// that deliberate, not incidental, mirroring the MFA gates above.
+	if getOptionalBool(claims, "read_only") {
+		return errors.New("token is a read-only preview token, not a refresh token")
 	}
 
 	// Parse ID field

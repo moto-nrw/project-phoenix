@@ -4,21 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Time-tracking audit log sources (#1417). One value per change trail that
 // feeds the cross-staff audit view.
 const (
-	AuditLogSourceSessionEdit     = "session_edit"
-	AuditLogSourceAbsence         = "absence"
-	AuditLogSourceAdjustment      = "adjustment"
-	AuditLogSourceMonthClose      = "month_close"
-	AuditLogSourceMonthReopen     = "month_reopen"
-	AuditLogSourceDeletion        = "deletion"
-	AuditLogSourcePersonnelNumber = "personnel_number"
-	AuditLogSourceVacationOpening = "vacation_opening"
+	AuditLogSourceSessionEdit          = "session_edit"
+	AuditLogSourceAbsence              = "absence"
+	AuditLogSourceAdjustment           = "adjustment"
+	AuditLogSourceMonthClose           = "month_close"
+	AuditLogSourceMonthReopen          = "month_reopen"
+	AuditLogSourceDeletion             = "deletion"
+	AuditLogSourcePersonnelNumber      = "personnel_number"
+	AuditLogSourceVacationOpening      = "vacation_opening"
+	AuditLogSourceAbsenceTypeAllowance = "absence_type_allowance"
 )
 
 // ValidAuditLogSources lists every accepted `sources` filter value.
@@ -31,6 +30,7 @@ var ValidAuditLogSources = []string{
 	AuditLogSourceDeletion,
 	AuditLogSourcePersonnelNumber,
 	AuditLogSourceVacationOpening,
+	AuditLogSourceAbsenceTypeAllowance,
 }
 
 // TimeTrackingAuditLogEntry is one event in the merged feed: the common
@@ -58,8 +58,8 @@ type TimeTrackingAuditLogCursor struct {
 
 // TimeTrackingAuditLogFilter narrows the feed. Zero values mean "no filter".
 type TimeTrackingAuditLogFilter struct {
-	From    *timezone.Date
-	To      *timezone.Date
+	From    *Date
+	To      *Date
 	StaffID int64
 	// ActorStaffID filters by acting person (staff id). The absence trail
 	// stores account ids; the query resolves them to staff ids so this

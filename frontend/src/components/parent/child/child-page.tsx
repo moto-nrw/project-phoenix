@@ -24,7 +24,10 @@ import {
   ChildSwitcher,
   type ChildSwitcherItem,
 } from "~/components/parent/child/child-switcher";
-import { ChildMasterDataView } from "~/components/parent/child-master-data";
+import {
+  ChildMasterDataView,
+  useChildMasterData,
+} from "~/components/parent/child-master-data";
 import GuardiansPanel from "~/components/parent/guardians-panel";
 import { createLogger } from "~/lib/logger";
 import {
@@ -380,6 +383,7 @@ function ChildAreaTabs({
 }>) {
   const t = useTranslations("parentChild");
   const [activeArea, setActiveArea] = useState<ChildArea>("betreuung");
+  const masterData = useChildMasterData(child.student_id);
 
   return (
     <Tabs
@@ -436,6 +440,12 @@ function ChildAreaTabs({
           enrolledUntil={child.enrolled_until}
           reasonRequired={reasonRequired}
         />
+        <ChildMasterDataView
+          studentId={child.student_id}
+          childName={childName}
+          area="departure"
+          masterData={masterData}
+        />
       </TabsContent>
 
       <TabsContent
@@ -447,6 +457,7 @@ function ChildAreaTabs({
           studentId={child.student_id}
           childName={childName}
           area="details"
+          masterData={masterData}
         />
       </TabsContent>
 

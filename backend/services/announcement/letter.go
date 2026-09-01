@@ -191,6 +191,8 @@ func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnn
 		body = a.Body
 	}
 
+	hasAttachment := s.hasAttachments(ctx, a.ID)
+
 	byAddress := make(map[string]*int64, len(recipients))
 	portalAccessByAddress := make(map[string]bool, len(recipients))
 	for _, r := range recipients {
@@ -229,6 +231,9 @@ func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnn
 				emailPayloadIntro:       intro,
 				emailPayloadBody:        body,
 				emailPayloadAckRequired: a.RequiresAcknowledgement && portalAccessByAddress[address],
+				// Only for recipients who can actually reach the portal: a hint
+				// pointing somewhere the reader cannot go is worse than none.
+				emailPayloadHasAttachment: hasAttachment && portalAccessByAddress[address],
 			},
 			RelatedEntityType: relatedEntityTypeAnnouncement,
 			RelatedEntityID:   a.ID,

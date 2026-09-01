@@ -1,10 +1,9 @@
-package audit_test
+package audit
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func TestAuthEventRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AuthEvent
+	repo := NewAuthEventRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	// Create a test account
@@ -92,7 +91,7 @@ func TestAuthEventRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AuthEvent
+	repo := NewAuthEventRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "find_event@example.com")
@@ -123,7 +122,7 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AuthEvent
+	repo := NewAuthEventRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	account1 := testpkg.CreateTestAccount(t, db, "account1@example.com")
@@ -173,7 +172,7 @@ func TestAuthEventRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AuthEvent
+	repo := NewAuthEventRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "list@example.com")
@@ -207,15 +206,12 @@ func TestAuthEventRepository_List(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: unscoped sweep — ListPendingAccountWideWipes
-// queries across all tenants and the assertion pins the exact result count,
-// so the pending event a parallel neighbour creates lands in it (CI found
-// this; the neighbour claims its event again, but not before this test
-// looks).
 func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AuthEvent
+	repo := NewAuthEventRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "pending_wipe@example.com")
@@ -232,19 +228,20 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 	assert.Equal(t, "password_reset", pending[0].Reason)
 	assert.False(t, pending[0].CreatedAt.IsZero())
 
-	require.NoError(t, repo.MarkAccountWideWipeCompleted(ctx, account.ID))
+	completed := audit.NewAuthEvent(account.ID, audit.EventTypeAccountWideWipeCompleted, true, "0.0.0.0")
+	completed.SetMetadata("pending_event_id", event.ID)
+	require.NoError(t, repo.Create(ctx, completed))
 	pending, err = repo.ListPendingAccountWideWipes(ctx, event.CreatedAt.Add(-time.Minute))
 	require.NoError(t, err)
 	assert.Empty(t, pending)
 }
 
-// Deliberately NOT parallel: unscoped sweep — ListPendingAccountWideWipes
-// queries across all tenants, so a parallel test's revocation event lands in
-// the result and the "recent only" assertion sees it.
 func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDays(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AuthEvent
+	repo := NewAuthEventRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "old_pending_wipe@example.com")
 
@@ -274,7 +271,7 @@ func TestAuthEventRepository_ClaimPendingAccountWideWipes(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AuthEvent
+	repo := NewAuthEventRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "claim_wipe@example.com")
 
@@ -287,6 +284,9 @@ func TestAuthEventRepository_ClaimPendingAccountWideWipes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, claimed, 1)
 	assert.Equal(t, "account_deactivated", claimed[0].Reason)
+	completed := audit.NewAuthEvent(account.ID, audit.EventTypeAccountWideWipeCompleted, true, "0.0.0.0")
+	completed.SetMetadata("pending_event_id", claimed[0].EventID)
+	require.NoError(t, repo.Create(ctx, completed))
 
 	again, err := repo.ClaimPendingAccountWideWipes(ctx, account.ID)
 	require.NoError(t, err)

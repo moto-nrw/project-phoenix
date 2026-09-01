@@ -5,7 +5,7 @@ package auth_test
 // the trusted-device helpers and the dispatch-* functions short-circuit on
 // the "nil settings" / "nil dispatcher" guards, leaving large branches of
 // real code uncovered. This file wires both so the per-tenant settings
-// path and the async email dispatch path get exercised end-to-end.
+// path and the synchronous email delivery path get exercised end-to-end.
 
 import (
 	"context"
@@ -357,17 +357,10 @@ func TestMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-challenge")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 	require.NoError(t, fix.svc.Enroll(ctx, acc.ID))
 
 	_, err := fix.svc.StartChallenge(ctx, acc.ID, fix.tenantID, authjwt.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"))
 	require.NoError(t, err)
-
-	// The dispatcher fires asynchronously, so wait briefly for the mailer to
-	// observe the message.
-	if !fix.mailer.WaitForMessages(1, 3*time.Second) {
-		t.Fatal("expected an MFA email to be dispatched")
-	}
 
 	templates := fix.mailer.Templates()
 	require.NotEmpty(t, templates)
@@ -384,7 +377,6 @@ func TestMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-trusted-added")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 	require.NoError(t, fix.svc.Enroll(ctx, acc.ID))
 
 	cookie, _, err := fix.svc.IssueTrustedDevice(ctx, acc.ID, fix.tenantID,

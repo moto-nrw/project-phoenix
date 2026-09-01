@@ -20,7 +20,7 @@ import (
 func TestPhotoUnlinker_EmptyURLNoOp(t *testing.T) {
 	t.Parallel()
 
-	u := NewPhotoUnlinker(slog.Default())
+	u := NewPhotoUnlinker(slog.Default(), "public")
 	require.NotPanics(t, func() { u.UnlinkStored("") })
 }
 
@@ -32,7 +32,7 @@ func TestPhotoUnlinker_InvalidPrefixLogged(t *testing.T) {
 	// student-photo prefix.
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	u := NewPhotoUnlinker(logger)
+	u := NewPhotoUnlinker(logger, "public")
 
 	require.NotPanics(t, func() {
 		u.UnlinkStored("/uploads/not-student-photos/whatever.jpg")
@@ -45,7 +45,7 @@ func TestPhotoUnlinker_TraversalRejected(t *testing.T) {
 
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	u := NewPhotoUnlinker(logger)
+	u := NewPhotoUnlinker(logger, "public")
 
 	// ResolveStoredPath must reject anything escaping the prefix dir.
 	require.NotPanics(t, func() {
@@ -57,34 +57,27 @@ func TestPhotoUnlinker_TraversalRejected(t *testing.T) {
 func TestPhotoUnlinker_NilLoggerSafe(t *testing.T) {
 	t.Parallel()
 
-	u := NewPhotoUnlinker(nil)
+	u := NewPhotoUnlinker(nil, "public")
 	require.NotPanics(t, func() {
 		u.UnlinkStored("/uploads/not-student-photos/abc.jpg")
 	})
 }
 
-// Deliberately NOT parallel: process-global state — os.Chdir into a temp
-// directory.
 func TestPhotoUnlinker_RemovesExistingFile(t *testing.T) {
+	t.Parallel()
 	// publicPhotoBaseDir is relative to CWD; create a temp file under it,
 	// invoke through a URL that ResolveStoredPath accepts, assert removal.
 	tmpDir := t.TempDir()
 	// Reproduce the layout ResolveStoredPath expects: <publicDir>/<urlPath>
 	// where publicDir="public" and urlPath="/uploads/student-photos/<name>".
-	photoDir := filepath.Join(tmpDir, "public", "uploads", "student-photos")
+	photoDir := filepath.Join(tmpDir, "uploads", "student-photos")
 	require.NoError(t, os.MkdirAll(photoDir, 0o755))
 
 	filename := "real_file.jpg"
 	fullPath := filepath.Join(photoDir, filename)
 	require.NoError(t, os.WriteFile(fullPath, []byte("not-really-a-jpg"), 0o644))
 
-	// Switch CWD so ResolveStoredPath finds public/ relative to it.
-	origWD, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(tmpDir))
-	defer func() { _ = os.Chdir(origWD) }()
-
-	u := NewPhotoUnlinker(slog.Default())
+	u := NewPhotoUnlinker(slog.Default(), tmpDir)
 	u.UnlinkStored(common.StudentPhotoStoredURLPrefix + filename)
 
 	_, statErr := os.Stat(fullPath)

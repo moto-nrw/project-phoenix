@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -135,11 +137,33 @@ func TestResource_Struct(t *testing.T) {
 // Router Tests
 // =============================================================================
 
+type routerFeedback struct{}
+
+func (routerFeedback) Available(context.Context) (bool, error) { return true, nil }
+func (routerFeedback) Submit(context.Context, feedbackModule.CreateEntry) (feedbackModule.Entry, error) {
+	return feedbackModule.Entry{}, nil
+}
+
+func newRouterTestResource() *Resource {
+	return &Resource{ServiceDependencies: ServiceDependencies{
+		UsersService:             &userstest.PersonServiceMock{},
+		FeedbackService:          routerFeedback{},
+		FeedbackResponseObserver: func(int, string) {},
+	}}
+}
+
+func TestResourceRouterFailsFastWithoutFeedbackGraph(t *testing.T) {
+	t.Parallel()
+	assert.PanicsWithValue(t, "IoT feedback: all dependencies are required", func() {
+		(&Resource{}).Router()
+	})
+}
+
 func TestResource_Router_ReturnsRouter(t *testing.T) {
 	t.Parallel()
 
-	// Create resource with nil services (just testing router structure)
-	resource := &Resource{}
+	// Wire only the dependencies required during route composition.
+	resource := newRouterTestResource()
 
 	router := resource.Router()
 
@@ -149,8 +173,8 @@ func TestResource_Router_ReturnsRouter(t *testing.T) {
 func TestResource_Router_HasRoutes(t *testing.T) {
 	t.Parallel()
 
-	// Create resource with nil services
-	resource := &Resource{}
+	// Wire only the dependencies required during route composition.
+	resource := newRouterTestResource()
 
 	router := resource.Router()
 
@@ -171,7 +195,7 @@ func TestResource_Router_HasRoutes(t *testing.T) {
 func TestResource_Router_CheckinRoute(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := newRouterTestResource()
 	router := resource.Router()
 
 	req := httptest.NewRequest("POST", "/checkin", nil)
@@ -185,7 +209,7 @@ func TestResource_Router_CheckinRoute(t *testing.T) {
 func TestResource_Router_PingRoute(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := newRouterTestResource()
 	router := resource.Router()
 
 	req := httptest.NewRequest("POST", "/ping", nil)
@@ -199,7 +223,7 @@ func TestResource_Router_PingRoute(t *testing.T) {
 func TestResource_Router_AttendanceRoute(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := newRouterTestResource()
 	router := resource.Router()
 
 	req := httptest.NewRequest("GET", "/attendance/daily", nil)
@@ -213,7 +237,7 @@ func TestResource_Router_AttendanceRoute(t *testing.T) {
 func TestResource_Router_SessionRoute(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := newRouterTestResource()
 	router := resource.Router()
 
 	req := httptest.NewRequest("POST", "/session/start", nil)
@@ -227,7 +251,7 @@ func TestResource_Router_SessionRoute(t *testing.T) {
 func TestResource_Router_FeedbackRoute(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := newRouterTestResource()
 	router := resource.Router()
 
 	req := httptest.NewRequest("POST", "/feedback", nil)
@@ -241,7 +265,7 @@ func TestResource_Router_FeedbackRoute(t *testing.T) {
 func TestResource_Router_DataRoutes(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := newRouterTestResource()
 	router := resource.Router()
 
 	tests := []struct {
@@ -270,7 +294,7 @@ func TestResource_Router_DataRoutes(t *testing.T) {
 func TestResource_Router_StaffRFIDRoute(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := newRouterTestResource()
 	router := resource.Router()
 
 	req := httptest.NewRequest("POST", "/staff/rfid/assign", nil)
@@ -284,7 +308,7 @@ func TestResource_Router_StaffRFIDRoute(t *testing.T) {
 func TestResource_Router_SchoolNameRoute(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := newRouterTestResource()
 	router := resource.Router()
 
 	req := httptest.NewRequest("GET", "/school-name", nil)

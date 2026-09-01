@@ -448,22 +448,15 @@ func TestListSupervisors(t *testing.T) {
 	})
 }
 
-// supervisorTestTenantID isolates TestCreateSupervisor's fixtures from the
-// default test tenant (1) so concurrent test packages' CleanupActivityFixtures
-// — which deletes by raw int64 ID across many tables in tenant 1 — cannot
-// FK-cascade-delete this test's active group mid-request and surface as the
-// opaque "active: CreateGroupSupervisor: database operation failed" 500.
-const supervisorTestTenantID int64 = 99001
-
 func TestCreateSupervisor(t *testing.T) {
 	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
+	supervisorTestTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, tc.db, supervisorTestTenantID)
 	adminClaims := testutil.AdminTestClaimsForTenant(1, supervisorTestTenantID)
 
-	// All fixtures live in supervisorTestTenantID — out of reach of other
-	// packages' tenant-1-scoped cleanup.
+	// All fixtures live in this test's separate tenant.
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoomForTenant(t, tc.db, supervisorTestTenantID,
 		fmt.Sprintf("Supervisor Room %d", suffix))
