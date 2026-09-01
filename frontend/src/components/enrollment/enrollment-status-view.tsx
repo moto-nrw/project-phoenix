@@ -806,7 +806,7 @@ function EnrollmentChildRow({
   };
 
   return (
-    <li className="rounded-xl border border-gray-200 bg-white p-4">
+    <li className="moto-content-surface rounded-xl border p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
@@ -1039,7 +1039,7 @@ function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
   const t = useTranslations("enrollmentStatus");
   return (
     <dl className="grid gap-3 text-sm text-gray-700 sm:grid-cols-3">
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
         <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {t("nameLabel")}
         </dt>
@@ -1047,7 +1047,7 @@ function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
           {status.guardian_first_name} {status.guardian_last_name}
         </dd>
       </div>
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
         <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {t("emailLabel")}
         </dt>
@@ -1055,7 +1055,7 @@ function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
           {status.guardian_email}
         </dd>
       </div>
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
         <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {t("phoneLabel")}
         </dt>
@@ -1066,7 +1066,7 @@ function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
       {status.additional_guardians?.map((guardian: StatusGuardian) => (
         <div
           key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}-${guardian.phone ?? ""}`}
-          className="rounded-xl border border-gray-200 bg-white p-4 sm:col-span-3"
+          className="moto-content-surface rounded-xl border p-4 shadow-sm sm:col-span-3"
         >
           <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
             {t("additionalGuardiansLabel")}
@@ -1261,7 +1261,7 @@ function ChangeRequestsPanel({
       </div>
 
       {requests.length === 0 ? (
-        <p className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+        <p className="moto-content-surface rounded-xl border p-4 text-sm text-gray-600 shadow-sm">
           {t("changeRequestsEmpty")}
         </p>
       ) : (
@@ -1273,7 +1273,7 @@ function ChangeRequestsPanel({
             return (
               <li
                 key={request.id}
-                className="rounded-xl border border-gray-200 bg-white p-4"
+                className="moto-content-surface rounded-xl border p-4 shadow-sm"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>

@@ -18,6 +18,7 @@ import {
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
 import { TimeField } from "./fields/time-field";
@@ -1039,14 +1040,12 @@ function renderAGBSourceEditor({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT}
           onClick={() => onModeChange(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT)}
-          className={`rounded-xl border p-4 text-left transition-colors ${
-            mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-4"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4" aria-hidden="true" />
@@ -1060,15 +1059,13 @@ function renderAGBSourceEditor({
               Text gespeichert
             </span>
           )}
-        </button>
-        <button
-          type="button"
+        </ChoiceTile>
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF}
           onClick={() => onModeChange(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF)}
-          className={`rounded-xl border p-4 text-left transition-colors ${
-            mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-4"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileUp className="h-4 w-4" aria-hidden="true" />
@@ -1082,7 +1079,7 @@ function renderAGBSourceEditor({
               PDF gespeichert
             </span>
           )}
-        </button>
+        </ChoiceTile>
       </div>
 
       {mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT ? (

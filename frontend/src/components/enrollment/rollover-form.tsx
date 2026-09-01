@@ -19,6 +19,8 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
 import { Alert } from "~/components/ui/alert";
+import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 
 const logger = createLogger({ component: "RolloverForm" });
@@ -456,35 +458,15 @@ function RolloverCheckbox({
   hint: string;
 }>) {
   return (
-    <label
-      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
-        checked
-          ? "border-gray-300 bg-gray-50"
-          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-      }`}
-    >
-      <input
-        type="checkbox"
+    <ChoiceTile selected={checked} className="min-h-11">
+      <Checkbox
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
       />
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        <Check
-          className={`h-3.5 w-3.5 text-white transition-opacity ${
-            checked ? "opacity-100" : "opacity-0"
-          }`}
-        />
-      </span>
       <span className="min-w-0 flex-1 leading-snug">
         {label}
         <span className="ml-1 text-xs font-normal text-gray-500">{hint}</span>
       </span>
-    </label>
+    </ChoiceTile>
   );
 }

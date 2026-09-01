@@ -283,7 +283,7 @@ export function ManualApprovedEnrollmentModal({
             </div>
           </div>
         ) : null}
-        <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="moto-content-surface grid gap-3 rounded-xl border p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_16rem]">
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-gray-700">
               Interner Grund

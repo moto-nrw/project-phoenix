@@ -100,7 +100,7 @@ export function TrustedDevicesSection({
   );
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <div className="mb-4">
         <h3 className="text-base font-semibold text-gray-900">
           Meine vertrauten Geräte
