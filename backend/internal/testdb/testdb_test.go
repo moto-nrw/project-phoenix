@@ -187,13 +187,44 @@ func TestStartTestContainerKeepsRunningServiceOnConfiguredPort(t *testing.T) {
 			return nil, nil
 		}
 	}
-	starter := func(context.Context, *Config) error {
+	starter := func(context.Context, *Config, string) error {
 		t.Fatal("a running service on the configured port must not be recreated")
 		return nil
 	}
 
 	require.NoError(t, startTestContainerWithRunner(context.Background(), cfg, runner, starter))
 	assert.Equal(t, 2, calls)
+}
+
+func TestStartTestContainerKeepsLegacyServiceOnConfiguredPort(t *testing.T) {
+	cfg, err := NewConfig("postgres://postgres:test@localhost:5433/phoenix_test?sslmode=disable")
+	require.NoError(t, err)
+
+	calls := 0
+	runner := func(_ context.Context, _ string, _ io.Reader, args ...string) ([]byte, error) {
+		calls++
+		switch calls {
+		case 1:
+			assert.Contains(t, args, "project-phoenix-testdb-5433")
+			return nil, nil
+		case 2:
+			assert.Contains(t, args, "project-phoenix")
+			return []byte("legacy-container-id\n"), nil
+		case 3:
+			assert.Contains(t, args, "project-phoenix")
+			return []byte("0.0.0.0:5433\n[::]:5433\n"), nil
+		default:
+			t.Fatalf("unexpected inspection command %d", calls)
+			return nil, nil
+		}
+	}
+	starter := func(context.Context, *Config, string) error {
+		t.Fatal("a running legacy service on the configured port must not be recreated")
+		return nil
+	}
+
+	require.NoError(t, startTestContainerWithRunner(context.Background(), cfg, runner, starter))
+	assert.Equal(t, 3, calls)
 }
 
 func TestStartTestContainerCorrectsWrongPublishedPort(t *testing.T) {
@@ -203,20 +234,28 @@ func TestStartTestContainerCorrectsWrongPublishedPort(t *testing.T) {
 	calls := 0
 	runner := func(_ context.Context, _ string, _ io.Reader, args ...string) ([]byte, error) {
 		calls++
-		if calls == 1 {
+		switch calls {
+		case 1:
 			return []byte("container-id\n"), nil
+		case 2:
+			assert.Equal(t, []string{"port", "postgres-test", "5432"}, args[len(args)-3:])
+			return []byte("0.0.0.0:56138\n[::]:56138\n"), nil
+		case 3:
+			assert.Contains(t, args, "project-phoenix")
+			return nil, nil
+		default:
+			t.Fatalf("unexpected inspection command %d", calls)
+			return nil, nil
 		}
-		assert.Equal(t, []string{"port", "postgres-test", "5432"}, args[len(args)-3:])
-		return []byte("0.0.0.0:56138\n[::]:56138\n"), nil
 	}
 	starts := 0
-	starter := func(context.Context, *Config) error {
+	starter := func(context.Context, *Config, string) error {
 		starts++
 		return nil
 	}
 
 	require.NoError(t, startTestContainerWithRunner(context.Background(), cfg, runner, starter))
-	assert.Equal(t, 2, calls)
+	assert.Equal(t, 3, calls)
 	assert.Equal(t, 1, starts)
 }
 
@@ -233,7 +272,7 @@ func TestStartTestContainerConvergesWhilePublishedPortIsUnavailable(t *testing.T
 		return nil, errors.New("container is still being created")
 	}
 	starts := 0
-	starter := func(context.Context, *Config) error {
+	starter := func(context.Context, *Config, string) error {
 		starts++
 		return nil
 	}
@@ -257,9 +296,14 @@ func TestSyncLocalSuperuserPasswordUsesMatchingComposeService(t *testing.T) {
 		switch calls {
 		case 1:
 			assert.Nil(t, stdin)
+			assert.Contains(t, args, "project-phoenix-testdb-5433")
+			assert.Equal(t, []string{"ps", "--status", "running", "--quiet", "postgres-test"}, args[len(args)-5:])
+			return []byte("container-id\n"), nil
+		case 2:
+			assert.Nil(t, stdin)
 			assert.Equal(t, []string{"port", "postgres-test", "5432"}, args[len(args)-3:])
 			return []byte("0.0.0.0:5433\n[::]:5433\n"), nil
-		case 2:
+		case 3:
 			body, readErr := io.ReadAll(stdin)
 			require.NoError(t, readErr)
 			statement = string(body)
@@ -273,7 +317,7 @@ func TestSyncLocalSuperuserPasswordUsesMatchingComposeService(t *testing.T) {
 	}
 
 	require.NoError(t, syncLocalSuperuserPasswordWithRunner(context.Background(), cfg, runner))
-	assert.Equal(t, 2, calls)
+	assert.Equal(t, 3, calls)
 	assert.Equal(t, "ALTER ROLE \"postgres\" WITH PASSWORD 'pa''ss';\n", statement)
 }
 

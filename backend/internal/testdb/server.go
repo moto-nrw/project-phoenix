@@ -121,15 +121,14 @@ func syncLocalSuperuserPasswordWithRunner(ctx context.Context, cfg *Config, run 
 		return fmt.Errorf("no docker-compose.example.yml at %s", projectRoot)
 	}
 
-	composeArgs := []string{"compose", "-p", composeProjectFor(cfg), "-f", composeFile}
-	portArgs := append(append([]string{}, composeArgs...), "port", "postgres-test", "5432")
-	published, err := run(ctx, projectRoot, nil, portArgs...)
+	composeProject, _, configuredPort, err := inspectTestContainer(ctx, cfg, run)
 	if err != nil {
 		return fmt.Errorf("locate shared postgres-test container: %w", err)
 	}
-	if !publishesPort(string(published), port) {
+	if !configuredPort {
 		return fmt.Errorf("shared postgres-test container does not publish configured port %s", port)
 	}
+	composeArgs := []string{"compose", "-p", composeProject, "-f", composeFile}
 
 	statement := fmt.Sprintf("ALTER ROLE %s WITH PASSWORD %s;\n", quoteIdentifier(username), quoteLiteral(password))
 	execArgs := append(append([]string{}, composeArgs...),
@@ -181,6 +180,7 @@ func pingServer(ctx context.Context, cfg *Config) error {
 // The configured port is appended because pipeline worktrees can use different
 // host ports concurrently; worktrees using the same port still share one server.
 const composeProjectPrefix = "project-phoenix-testdb"
+const legacyComposeProject = "project-phoenix"
 
 func composeProjectFor(cfg *Config) string {
 	port := cfg.templateURL.Port()
@@ -190,13 +190,17 @@ func composeProjectFor(cfg *Config) string {
 	return composeProjectPrefix + "-" + port
 }
 
+func composeProjectCandidates(cfg *Config) []string {
+	return []string{composeProjectFor(cfg), legacyComposeProject}
+}
+
 func startTestContainer(ctx context.Context, cfg *Config) error {
 	startCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	return startTestContainerWithRunner(startCtx, cfg, runDockerCommand, runTestContainerUp)
 }
 
-type testContainerStarter func(context.Context, *Config) error
+type testContainerStarter func(context.Context, *Config, string) error
 
 func startTestContainerWithRunner(
 	ctx context.Context,
@@ -204,20 +208,23 @@ func startTestContainerWithRunner(
 	run dockerCommandRunner,
 	start testContainerStarter,
 ) error {
-	running, configuredPort, err := inspectTestContainer(ctx, cfg, run)
+	composeProject, running, configuredPort, err := inspectTestContainer(ctx, cfg, run)
 	if err != nil {
 		return fmt.Errorf("inspect shared postgres-test container: %w", err)
 	}
 	if running && configuredPort {
 		return nil
 	}
-	return start(ctx, cfg)
+	if composeProject == "" {
+		composeProject = composeProjectFor(cfg)
+	}
+	return start(ctx, cfg, composeProject)
 }
 
-func inspectTestContainer(ctx context.Context, cfg *Config, run dockerCommandRunner) (running, configuredPort bool, err error) {
+func inspectTestContainer(ctx context.Context, cfg *Config, run dockerCommandRunner) (composeProject string, running, configuredPort bool, err error) {
 	host := cfg.templateURL.Hostname()
 	if !isLoopbackHost(host) {
-		return false, false, fmt.Errorf("automatic test database startup is limited to a loopback TEST_DB_DSN host, got %q", host)
+		return "", false, false, fmt.Errorf("automatic test database startup is limited to a loopback TEST_DB_DSN host, got %q", host)
 	}
 	port := cfg.templateURL.Port()
 	if port == "" {
@@ -226,47 +233,63 @@ func inspectTestContainer(ctx context.Context, cfg *Config, run dockerCommandRun
 
 	backend, err := backendRoot()
 	if err != nil {
-		return false, false, fmt.Errorf("locate backend module root: %w", err)
+		return "", false, false, fmt.Errorf("locate backend module root: %w", err)
 	}
 	projectRoot := filepath.Dir(backend)
 	composeFile := filepath.Join(projectRoot, "docker-compose.example.yml")
 	if _, err := os.Stat(composeFile); err != nil {
-		return false, false, fmt.Errorf("no docker-compose.example.yml at %s", projectRoot)
+		return "", false, false, fmt.Errorf("no docker-compose.example.yml at %s", projectRoot)
 	}
 
-	composeArgs := []string{"compose", "-p", composeProjectFor(cfg), "-f", composeFile}
-	psArgs := append(append([]string{}, composeArgs...), "ps", "--status", "running", "--quiet", "postgres-test")
-	containerID, err := run(ctx, projectRoot, nil, psArgs...)
-	if err != nil {
-		return false, false, fmt.Errorf("locate running service: %w", err)
-	}
-	if strings.TrimSpace(string(containerID)) == "" {
-		return false, false, nil
-	}
+	preferredProject := composeProjectFor(cfg)
+	for _, candidate := range composeProjectCandidates(cfg) {
+		composeArgs := []string{"compose", "-p", candidate, "-f", composeFile}
+		psArgs := append(append([]string{}, composeArgs...), "ps", "--status", "running", "--quiet", "postgres-test")
+		containerID, runErr := run(ctx, projectRoot, nil, psArgs...)
+		if runErr != nil {
+			return "", false, false, fmt.Errorf("locate running service in compose project %s: %w", candidate, runErr)
+		}
+		if strings.TrimSpace(string(containerID)) == "" {
+			continue
+		}
 
-	portArgs := append(append([]string{}, composeArgs...), "port", "postgres-test", "5432")
-	published, err := run(ctx, projectRoot, nil, portArgs...)
-	if err != nil {
-		// A concurrent compose up can expose the service in `ps` before its
-		// published port is inspectable. Let the idempotent up command converge
-		// the service instead of failing every package racing through startup.
-		return true, false, nil
+		portArgs := append(append([]string{}, composeArgs...), "port", "postgres-test", "5432")
+		published, portErr := run(ctx, projectRoot, nil, portArgs...)
+		if portErr != nil {
+			if candidate == preferredProject {
+				// A concurrent compose up can expose the preferred service in `ps`
+				// before its port is inspectable. Converge that same project.
+				return candidate, true, false, nil
+			}
+			continue
+		}
+		if publishesPort(string(published), port) {
+			return candidate, true, true, nil
+		}
+		if candidate == preferredProject {
+			composeProject = candidate
+			running = true
+		}
 	}
-	return true, publishesPort(string(published), port), nil
+	return composeProject, running, false, nil
 }
 
-func runTestContainerUp(ctx context.Context, cfg *Config) error {
-	cmd, err := testContainerCommand(ctx, cfg)
+func runTestContainerUp(ctx context.Context, cfg *Config, composeProject string) error {
+	cmd, err := testContainerCommandForProject(ctx, cfg, composeProject)
 	if err != nil {
 		return err
 	}
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker compose -p %s -f docker-compose.example.yml --profile test up -d postgres-test: %w\n%s", composeProjectFor(cfg), err, out)
+		return fmt.Errorf("docker compose -p %s -f docker-compose.example.yml --profile test up -d postgres-test: %w\n%s", composeProject, err, out)
 	}
 	return nil
 }
 
 func testContainerCommand(ctx context.Context, cfg *Config) (*exec.Cmd, error) {
+	return testContainerCommandForProject(ctx, cfg, composeProjectFor(cfg))
+}
+
+func testContainerCommandForProject(ctx context.Context, cfg *Config, composeProject string) (*exec.Cmd, error) {
 	username := cfg.templateURL.User.Username()
 	password, hasPassword := cfg.templateURL.User.Password()
 	if username != "postgres" || !hasPassword || password == "" {
@@ -293,7 +316,7 @@ func testContainerCommand(ctx context.Context, cfg *Config) (*exec.Cmd, error) {
 	// Derive the project from the configured port. Worktrees targeting the same
 	// server share it (templates are keyed by migrations hash), while pipeline
 	// worktrees with distinct assigned ports cannot replace each other's service.
-	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", composeProjectFor(cfg), "-f", composeFile, "--profile", "test", "up", "-d", "postgres-test")
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", composeProject, "-f", composeFile, "--profile", "test", "up", "-d", "postgres-test")
 	cmd.Dir = projectRoot
 	cmd.Env = replaceCommandEnvironment(os.Environ(), "TEST_DB_PORT", port)
 	cmd.Env = replaceCommandEnvironment(cmd.Env, "POSTGRES_PASSWORD", password)
