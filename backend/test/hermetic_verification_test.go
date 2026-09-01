@@ -241,6 +241,27 @@ func run() { cleanup := fixture.CleanupAuthFixtures; cleanup(nil, nil) }`,
 			want: 1,
 		},
 		{
+			name: "deferred fixture call",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { defer fixture.CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name:           "fixture cleanup declaration",
+			fixturePackage: true,
+			code: `package test
+func CleanupFixture() {}`,
+			want: 0,
+		},
+		{
+			name: "uncalled fixture method value",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { _ = fixture.CleanupAuthFixtures }`,
+			want: 0,
+		},
+		{
 			name:           "unqualified in fixture package",
 			fixturePackage: true,
 			code: `package sample
@@ -760,28 +781,95 @@ func countExplicitCleanupCalls(filename string, code []byte, fixturePackage bool
 		}
 	}
 
+	methodValueAliases := cleanupMethodValueAliases(file, fixtureAliases, dotImportedFixture, fixturePackage)
 	count := 0
 	ast.Inspect(file, func(node ast.Node) bool {
-		switch expression := node.(type) {
-		case *ast.Ident:
-			if (fixturePackage || dotImportedFixture) && strings.HasPrefix(expression.Name, "Cleanup") {
-				count++
-			}
-		case *ast.SelectorExpr:
-			qualifier, ok := expression.X.(*ast.Ident)
-			if !ok || !strings.HasPrefix(expression.Sel.Name, "Cleanup") {
-				return false
-			}
-			if _, fixtureImport := fixtureAliases[qualifier.Name]; fixtureImport {
-				count++
-			}
-			// The selector's Sel identifier is part of this same reference; do
-			// not visit it again in fixture or dot-import packages.
-			return false
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if isFixtureCleanupCall(call.Fun, fixtureAliases, dotImportedFixture, fixturePackage, methodValueAliases) {
+			count++
 		}
 		return true
 	})
 	return count, nil
+}
+
+func cleanupMethodValueAliases(
+	file *ast.File,
+	fixtureAliases map[string]struct{},
+	dotImportedFixture, fixturePackage bool,
+) map[string]struct{} {
+	aliases := make(map[string]struct{})
+	ast.Inspect(file, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i, target := range assign.Lhs {
+			if i >= len(assign.Rhs) || !isFixtureCleanupReference(assign.Rhs[i], fixtureAliases, dotImportedFixture, fixturePackage) {
+				continue
+			}
+			if name, ok := target.(*ast.Ident); ok {
+				aliases[name.Name] = struct{}{}
+			}
+		}
+		return true
+	})
+	return aliases
+}
+
+func isFixtureCleanupCall(
+	expr ast.Expr,
+	fixtureAliases map[string]struct{},
+	dotImportedFixture, fixturePackage bool,
+	methodValueAliases map[string]struct{},
+) bool {
+	if isFixtureCleanupReference(expr, fixtureAliases, dotImportedFixture, fixturePackage) {
+		return true
+	}
+	name, ok := unwrapCleanupExpression(expr).(*ast.Ident)
+	if !ok {
+		return false
+	}
+	_, ok = methodValueAliases[name.Name]
+	return ok
+}
+
+func isFixtureCleanupReference(
+	expr ast.Expr,
+	fixtureAliases map[string]struct{},
+	dotImportedFixture, fixturePackage bool,
+) bool {
+	switch expression := unwrapCleanupExpression(expr).(type) {
+	case *ast.Ident:
+		return (fixturePackage || dotImportedFixture) && strings.HasPrefix(expression.Name, "Cleanup")
+	case *ast.SelectorExpr:
+		qualifier, ok := expression.X.(*ast.Ident)
+		if !ok || !strings.HasPrefix(expression.Sel.Name, "Cleanup") {
+			return false
+		}
+		_, ok = fixtureAliases[qualifier.Name]
+		return ok
+	default:
+		return false
+	}
+}
+
+func unwrapCleanupExpression(expr ast.Expr) ast.Expr {
+	for {
+		switch expression := expr.(type) {
+		case *ast.ParenExpr:
+			expr = expression.X
+		case *ast.IndexExpr:
+			expr = expression.X
+		case *ast.IndexListExpr:
+			expr = expression.X
+		default:
+			return expr
+		}
+	}
 }
 
 func countExplicitCleanupCallsPerPackage(root string) (map[string]int, error) {
