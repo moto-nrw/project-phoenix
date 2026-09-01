@@ -522,7 +522,18 @@ func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *pla
 func (s *operatorMFAService) invalidateUndeliveredChallenge(ctx context.Context, challengeID, operatorID int64, ip net.IP) {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), operatorMFAChallengeCleanupTimeout)
 	defer cancel()
-	if err := s.Repos.OperatorMFAEmailChallenge.MarkConsumed(cleanupCtx, challengeID, time.Now()); err != nil {
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		err = s.Repos.OperatorMFAEmailChallenge.MarkConsumed(cleanupCtx, challengeID, time.Now())
+		if err == nil {
+			break
+		}
+		if cleanupCtx.Err() != nil || attempt == 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err != nil {
 		s.Logger.Error("failed to invalidate undelivered operator mfa challenge",
 			slog.Int64("operator_id", operatorID),
 			slog.Int64("challenge_id", challengeID),

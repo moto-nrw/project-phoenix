@@ -165,7 +165,11 @@ func (m *SMTPMailer) sendMessageContext(ctx context.Context, msg *mail.Msg) erro
 	go func() {
 		err := m.client.SendWithSMTPClient(client, msg)
 		if err == nil {
-			err = m.client.CloseWithSMTPClient(client)
+			// SMTP has accepted the message before QUIT. A failed graceful close
+			// must not turn that acceptance into a retry (and duplicate email).
+			if closeErr := m.client.CloseWithSMTPClient(client); closeErr != nil {
+				_ = client.Close()
+			}
 		} else {
 			_ = client.Close()
 		}

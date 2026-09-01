@@ -15,9 +15,23 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+type retryingChallengeRepo struct {
+	authModels.MFAEmailChallengeRepository
+	calls int
+}
+
+func (r *retryingChallengeRepo) MarkConsumed(ctx context.Context, id int64, at time.Time) error {
+	r.calls++
+	if r.calls == 1 {
+		return errors.New("temporary cleanup failure")
+	}
+	return r.MFAEmailChallengeRepository.MarkConsumed(ctx, id, at)
+}
 
 type cancelingMFAMailer struct {
 	cancel   context.CancelFunc
@@ -89,6 +103,23 @@ func TestMFAStartChallengeFailsClosedAndInvalidatesCodeAfterCancellation(t *test
 	)
 	require.NoError(t, countErr)
 	assert.Equal(t, 1, count, "failed issuance must still count toward the abuse limit")
+}
+
+func TestMFAStartChallengeRetriesChallengeInvalidation(t *testing.T) {
+	t.Parallel()
+
+	mailer := &cancelingMFAMailer{err: errors.New("smtp connection lost")}
+	svc, repos, db, _ := newSynchronousDeliveryMFAService(t, mailer)
+	retryingRepo := &retryingChallengeRepo{MFAEmailChallengeRepository: repos.MFAEmailChallenge}
+	repos.MFAEmailChallenge = retryingRepo
+	account := testpkg.CreateTestAccount(t, db, "mfa-sync-delivery-retry")
+
+	_, err := svc.StartChallenge(context.Background(), account.ID, 0, authjwt.MFAChallengeScopeTenant, nil)
+
+	require.ErrorIs(t, err, auth.ErrMFAStatusUnavailable)
+	assert.Equal(t, 2, retryingRepo.calls)
+	_, activeErr := retryingRepo.FindActiveByAccountIDInScope(context.Background(), account.ID, 0, authjwt.MFAChallengeScopeTenant)
+	require.Error(t, activeErr)
 }
 
 func TestMFAResendRejectsExpiredCredentialBeforeDelivery(t *testing.T) {

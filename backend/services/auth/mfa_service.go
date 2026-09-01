@@ -1817,7 +1817,18 @@ func (s *mfaService) invalidateUndeliveredChallenge(ctx context.Context, challen
 	// must be consumed even when cancellation is what stopped the transport.
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mfaChallengeCleanupTimeout)
 	defer cancel()
-	if err := s.Repos.MFAEmailChallenge.MarkConsumed(cleanupCtx, challengeID, time.Now()); err != nil {
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		err = s.Repos.MFAEmailChallenge.MarkConsumed(cleanupCtx, challengeID, time.Now())
+		if err == nil {
+			break
+		}
+		if cleanupCtx.Err() != nil || attempt == 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err != nil {
 		s.Logger.Error("failed to invalidate undelivered mfa challenge",
 			slog.Int64("account_id", accountID),
 			slog.Int64("challenge_id", challengeID),
