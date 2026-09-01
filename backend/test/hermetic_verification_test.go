@@ -425,37 +425,35 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/enrollment/class_day_service_test.go",          // Pure unit tests against the classRosterTestService fakes (no DB); int64 literals are fake student/phase IDs in stack-allocated structs, not DB rows
 	}
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil // Skip files we can't access
-		}
-
+	files, err := goSourceIndex(root)
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+		return violations
+	}
+	for _, f := range files {
 		// Only check test files
-		if info.IsDir() || !strings.HasSuffix(path, "_test.go") {
-			return nil
+		if !strings.HasSuffix(f.rel, "_test.go") {
+			continue
 		}
 
 		// Skip this verification test itself
-		if strings.Contains(path, "hermetic_verification_test.go") {
-			return nil
+		if strings.Contains(f.rel, "hermetic_verification_test.go") {
+			continue
 		}
 
 		// Skip files matching skip patterns (mocks, model unit tests, etc.)
-		// Normalize path to forward slashes for cross-platform matching
-		normalizedPath := filepath.ToSlash(path)
+		skipped := false
 		for _, pattern := range skipPatterns {
-			if strings.Contains(normalizedPath, pattern) {
-				return nil
+			if strings.Contains(f.rel, pattern) {
+				skipped = true
+				break
 			}
 		}
-
-		file, err := os.Open(path)
-		if err != nil {
-			return nil
+		if skipped {
+			continue
 		}
-		defer func() { _ = file.Close() }()
 
-		scanner := bufio.NewScanner(file)
+		scanner := bufio.NewScanner(bytes.NewReader(f.content))
 		lineNum := 0
 
 		for scanner.Scan() {
@@ -487,17 +485,10 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 			}
 
 			if !isLegitimate {
-				relPath, _ := filepath.Rel(root, path)
 				violations = append(violations,
-					formatViolation(relPath, lineNum, strings.TrimSpace(line)))
+					formatViolation(f.rel, lineNum, strings.TrimSpace(line)))
 			}
 		}
-
-		return nil
-	})
-
-	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
 	}
 
 	return violations
@@ -557,22 +548,22 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"Fake",
 	}
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		if info.IsDir() || !strings.HasSuffix(path, "_test.go") {
-			return nil
+	files, err := goSourceIndex(root)
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+		return violations
+	}
+	for _, f := range files {
+		if !strings.HasSuffix(f.rel, "_test.go") {
+			continue
 		}
 
 		// Skip this verification test
-		if strings.Contains(path, "hermetic_verification_test.go") {
-			return nil
+		if strings.Contains(f.rel, "hermetic_verification_test.go") {
+			continue
 		}
 
 		// Skip files that reference DB types but don't perform real DB operations
-		normalizedPath := filepath.ToSlash(path)
 		skipFiles := []string{
 			"http_middleware_test.go",                           // Uses nil *bun.DB for unit testing middleware
 			"parent_message_hooks_test.go",                      // Pure base.Model accessor unit test; no real DB
@@ -586,21 +577,16 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		}
 		skip := false
 		for _, sf := range skipFiles {
-			if strings.Contains(normalizedPath, sf) {
+			if strings.Contains(f.rel, sf) {
 				skip = true
 				break
 			}
 		}
 		if skip {
-			return nil
+			continue
 		}
 
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-
-		contentStr := string(content)
+		contentStr := string(f.content)
 
 		// Check if file has DB operations
 		hasDBOps := false
@@ -612,7 +598,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		}
 
 		if !hasDBOps {
-			return nil
+			continue
 		}
 
 		// Check if file uses SetupTestDB
@@ -638,15 +624,8 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 		// Flag files with DB ops that don't use SetupTestDB and aren't mock-based
 		if hasDBOps && !usesSetup && !usesMocks {
-			relPath, _ := filepath.Rel(root, path)
-			violations = append(violations, "  - "+relPath)
+			violations = append(violations, "  - "+f.rel)
 		}
-
-		return nil
-	})
-
-	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
 	}
 
 	return violations
@@ -686,33 +665,21 @@ func walkGoFiles(root string, testOnly bool, visit func(rel, pkg string, code []
 
 // walkGoFilesRaw is walkGoFiles without the comment stripping, for the checks
 // that need the comments themselves (the serial ratchet reads the reason
-// written above a test).
+// written above a test). It iterates the shared goSourceIndex instead of
+// walking the tree itself; the exclusions are unchanged.
 func walkGoFilesRaw(root string, visit func(rel, pkg string, content []byte)) error {
-	return filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	files, err := goSourceIndex(root)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		if strings.HasPrefix(f.rel, "internal/testdb/") ||
+			strings.HasSuffix(f.rel, "hermetic_verification_test.go") {
+			continue
 		}
-		if info.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		switch {
-		case !strings.HasSuffix(rel, ".go"),
-			strings.HasPrefix(rel, "internal/testdb/"),
-			strings.HasSuffix(rel, "hermetic_verification_test.go"):
-			return nil
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		visit(rel, filepath.ToSlash(filepath.Dir(rel)), content)
-		return nil
-	})
+		visit(f.rel, f.pkg, f.content)
+	}
+	return nil
 }
 
 // countMatchesPerPackage counts regex matches per package directory.
@@ -1141,32 +1108,21 @@ func checkBrokenCleanupPattern(t *testing.T, root string) []string {
 
 	// Only scan the test helper package — production code uses concrete types
 	// like Model((*MyStruct)(nil)) which is valid.
-	testDir := filepath.Join(root, "test")
-
-	err := filepath.Walk(testDir, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return nil
-		}
-		if info.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
+	files, err := goSourceIndex(root)
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+		return violations
+	}
+	for _, f := range files {
+		if !strings.HasPrefix(f.rel, "test/") {
+			continue
 		}
 		// Skip this file — it intentionally contains the pattern in error messages.
-		if filepath.Base(path) == "hermetic_verification_test.go" {
-			return nil
+		if filepath.Base(f.rel) == "hermetic_verification_test.go" {
+			continue
 		}
 
-		file, err := os.Open(path)
-		if err != nil {
-			return nil
-		}
-		defer func() { _ = file.Close() }()
-
-		relPath, _ := filepath.Rel(root, path)
-
-		scanner := bufio.NewScanner(file)
+		scanner := bufio.NewScanner(bytes.NewReader(f.content))
 		lineNum := 0
 		for scanner.Scan() {
 			lineNum++
@@ -1178,15 +1134,9 @@ func checkBrokenCleanupPattern(t *testing.T, root string) []string {
 
 			if brokenPattern.MatchString(line) {
 				violations = append(violations,
-					formatViolation(relPath, lineNum, strings.TrimSpace(line)))
+					formatViolation(f.rel, lineNum, strings.TrimSpace(line)))
 			}
 		}
-
-		return nil
-	})
-
-	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
 	}
 
 	return violations

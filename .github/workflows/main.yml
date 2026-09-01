@@ -114,6 +114,7 @@ jobs:
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/test-backend.sh'
               - 'scripts/test-changed.sh'
+              - 'scripts/test-run-id.sh'
               - '.claude/hooks/guard-absolute-rules.sh'
               - '.claude/hooks/guard-absolute-rules_test.sh'
             frontend-test-infra:
