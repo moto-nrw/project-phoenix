@@ -12,6 +12,7 @@ import (
 )
 
 func TestStaffShiftSeriesSchema(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)

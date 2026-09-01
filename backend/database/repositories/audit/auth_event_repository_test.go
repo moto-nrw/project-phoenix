@@ -206,12 +206,9 @@ func TestAuthEventRepository_List(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: unscoped sweep — ListPendingAccountWideWipes
-// queries across all tenants and the assertion pins the exact result count,
-// so the pending event a parallel neighbour creates lands in it (CI found
-// this; the neighbour claims its event again, but not before this test
-// looks).
 func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
 	repo := NewAuthEventRepository(NewRuntime(db, auditTestTenantID))
@@ -239,10 +236,9 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 	assert.Empty(t, pending)
 }
 
-// Deliberately NOT parallel: unscoped sweep — ListPendingAccountWideWipes
-// queries across all tenants, so a parallel test's revocation event lands in
-// the result and the "recent only" assertion sees it.
 func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDays(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
 	repo := NewAuthEventRepository(NewRuntime(db, auditTestTenantID))

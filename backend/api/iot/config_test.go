@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -20,8 +19,7 @@ import (
 
 // mockDeviceTenantID is an arbitrary tenant id for the fully mocked
 // getDeviceConfig tests. They never touch the database, so they must not
-// request a real per-test tenant: doing so would load the project .env
-// mid-test and undo the os.Unsetenv these tests rely on.
+// request a real per-test tenant.
 const mockDeviceTenantID int64 = 987654
 
 // newConfigMock builds a configtest.Mock reproducing the behavior of the
@@ -66,11 +64,8 @@ func newConfigMock(boolValues map[string]bool, stringValues map[string]string) *
 	}
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestGetDeviceConfig_AllDefaults(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+	t.Parallel()
 
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: newConfigMock(
 		map[string]bool{
@@ -114,11 +109,8 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	assert.Equal(t, "detailed", data["presence_mode"])
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+	t.Parallel()
 
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: newConfigMock(
 		map[string]bool{
@@ -149,11 +141,8 @@ func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	assert.Equal(t, "binary", data["presence_mode"], "binary-mode tenants must advertise binary so the kiosk branches its UX")
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+	t.Parallel()
 
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: newConfigMock(
 		map[string]bool{
@@ -188,11 +177,8 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	assert.Equal(t, false, feedback["enabled"])
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+	t.Parallel()
 
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: newConfigMock(
 		map[string]bool{
@@ -224,12 +210,10 @@ func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	assert.Equal(t, "16:30", checkout["daily_checkout_time"])
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:00"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
-	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: newConfigMock(
+	rs := &Resource{ServiceDependencies: ServiceDependencies{DailyCheckoutFallback: "14:00", SettingsService: newConfigMock(
 		map[string]bool{
 			"checkout.raumwechsel_enabled": true,
 			"checkout.schulhof_enabled":    true,
@@ -257,16 +241,14 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 	assert.Equal(t, "14:00", checkout["daily_checkout_time"])
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
-	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:00"))
-	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+	t.Parallel()
 
 	settings := newConfigMock(nil, nil)
 	settings.ResolveManyForTenantFn = func(context.Context, int64, []string) (*configSvc.SettingsSnapshot, error) {
 		return nil, fmt.Errorf("settings unavailable")
 	}
-	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: settings}}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: settings, DailyCheckoutFallback: "14:00"}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
 	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: mockDeviceTenantID}})
@@ -299,11 +281,8 @@ func TestGetDeviceConfig_NoDeviceContext(t *testing.T) {
 	assert.NotEqual(t, http.StatusOK, w.Code)
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestGetDeviceConfig_NilSettingsService(t *testing.T) {
-	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+	t.Parallel()
 
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: nil}}
 

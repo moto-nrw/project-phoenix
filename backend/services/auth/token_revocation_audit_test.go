@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	emailPkg "github.com/moto-nrw/project-phoenix/email"
@@ -75,6 +76,8 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 
 	repoFactory := repositories.NewFactory(db)
 	config, err := authService.NewServiceConfig(nil, emailPkg.Email{}, "http://localhost:3000", time.Hour)
+	require.NoError(t, err)
+	config.TokenAuth, err = authjwt.NewTokenAuthWithSecret(authTestFactoryConfig(false).JWTSecret)
 	require.NoError(t, err)
 	config.Audit = failingAuditCommand{}
 	service, err := authService.NewService(repoFactory, config, db, nil)
@@ -165,11 +168,9 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 	assert.Equal(t, float64(1), event.Metadata["revoked_token_count"])
 }
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestCleanupExpiredTokensRetainsPendingWipeReason(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

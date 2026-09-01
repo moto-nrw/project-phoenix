@@ -22,6 +22,8 @@ import (
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+func init() { testutil.SeedTestJWTConfig() }
+
 type fakeMasterDataReviewService struct {
 	items       []*userService.MasterDataReviewItem
 	listErr     error
@@ -82,11 +84,8 @@ func reviewRow(status string) *usersModels.StudentDataChangeRequest {
 	}
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
-	testutil.SeedTestJWTConfig()
+	t.Parallel()
 	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router()
 	// The decide route gates on users:update (deciding a request is the same
 	// child write as editing the child directly), with per-child scope enforced

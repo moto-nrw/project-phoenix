@@ -14,10 +14,8 @@ func pwaGaugeValues(t *testing.T, tenant, portal string) (standalone, eligible f
 		testutil.ToFloat64(pwaEligibleUsers.WithLabelValues(tenant, portal))
 }
 
-// Deliberately NOT parallel: process-global state — the test registers a
-// package-level stats provider and reads the shared prometheus gauges, both
-// of which a parallel neighbour would overwrite.
 func TestRefreshPWAGaugesResetsVanishedLabels(t *testing.T) {
+	t.Parallel()
 	RegisterPWAUsageStatsProvider(PWAUsageStatsProviderFunc(func() ([]PWAUsageStat, error) {
 		return []PWAUsageStat{
 			{TenantID: 301, Portal: "staff", StandaloneUsers: 3, EligibleUsers: 12},
@@ -42,10 +40,8 @@ func TestRefreshPWAGaugesResetsVanishedLabels(t *testing.T) {
 	assert.Equal(t, float64(41), standalone)
 }
 
-// Deliberately NOT parallel: process-global state — the test registers a
-// package-level stats provider and reads the shared prometheus gauges, both
-// of which a parallel neighbour would overwrite.
 func TestRefreshPWAGaugesKeepsValuesOnProviderError(t *testing.T) {
+	t.Parallel()
 	RegisterPWAUsageStatsProvider(PWAUsageStatsProviderFunc(func() ([]PWAUsageStat, error) {
 		return []PWAUsageStat{{TenantID: 302, Portal: "staff", StandaloneUsers: 5, EligibleUsers: 9}}, nil
 	}))

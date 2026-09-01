@@ -10,6 +10,7 @@ import (
 )
 
 func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)

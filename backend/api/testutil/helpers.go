@@ -388,7 +388,7 @@ func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseReco
 func ExecuteWithAuth(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims) *httptest.ResponseRecorder {
 	t.Helper()
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
-	return ExecuteRequest(router, req)
+	return ExecuteRequestForTest(t, router, req)
 }
 
 // ExecuteWithAuthPermissions folds the given permission set into the claims
@@ -398,7 +398,20 @@ func ExecuteWithAuthPermissions(t *testing.T, router chi.Router, req *http.Reque
 	t.Helper()
 	claims.Permissions = permissions
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
-	return ExecuteRequest(router, req)
+	return ExecuteRequestForTest(t, router, req)
+}
+
+// ExecuteRequestForTest is ExecuteRequest with t's disposable database
+// runtime when the test opted into one.
+func ExecuteRequestForTest(t *testing.T, router chi.Router, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	ctx := testpkg.WithTestTenantRuntime(t, req.Context())
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		ctx = tenant.WithTenantID(ctx, tenantID)
+	}
+	router.ServeHTTP(rr, req.WithContext(ctx))
+	return rr
 }
 
 // Response represents a standard API response for testing.

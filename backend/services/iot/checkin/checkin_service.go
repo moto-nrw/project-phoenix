@@ -31,40 +31,43 @@ import (
 // that used to render an error mid-flow return one of the typed errors in
 // checkin_errors.go, which the handler maps back to the exact renderer.
 type CheckinService struct {
-	active     activeSvc.Service
-	users      usersSvc.PersonService
-	facilities facilitiesSvc.Service
-	activities activitiesSvc.ActivityService
-	settings   configSvc.SettingsService
-	pickup     scheduleSvc.PickupScheduleService
-	education  educationSvc.Service
-	logger     *slog.Logger
-	now        func() time.Time
+	active                activeSvc.Service
+	users                 usersSvc.PersonService
+	facilities            facilitiesSvc.Service
+	activities            activitiesSvc.ActivityService
+	settings              configSvc.SettingsService
+	pickup                scheduleSvc.PickupScheduleService
+	education             educationSvc.Service
+	logger                *slog.Logger
+	now                   func() time.Time
+	dailyCheckoutFallback string
 }
 
 // CheckinServiceDeps groups the collaborators for NewCheckinService.
 type CheckinServiceDeps struct {
-	Active     activeSvc.Service
-	Users      usersSvc.PersonService
-	Facilities facilitiesSvc.Service
-	Activities activitiesSvc.ActivityService
-	Settings   configSvc.SettingsService
-	Pickup     scheduleSvc.PickupScheduleService
-	Education  educationSvc.Service
-	Logger     *slog.Logger
+	Active                activeSvc.Service
+	Users                 usersSvc.PersonService
+	Facilities            facilitiesSvc.Service
+	Activities            activitiesSvc.ActivityService
+	Settings              configSvc.SettingsService
+	Pickup                scheduleSvc.PickupScheduleService
+	Education             educationSvc.Service
+	Logger                *slog.Logger
+	DailyCheckoutFallback string
 }
 
 // NewCheckinService constructs a CheckinService.
 func NewCheckinService(deps CheckinServiceDeps) *CheckinService {
 	return &CheckinService{
-		active:     deps.Active,
-		users:      deps.Users,
-		facilities: deps.Facilities,
-		activities: deps.Activities,
-		settings:   deps.Settings,
-		pickup:     deps.Pickup,
-		education:  deps.Education,
-		logger:     deps.Logger,
+		active:                deps.Active,
+		users:                 deps.Users,
+		facilities:            deps.Facilities,
+		activities:            deps.Activities,
+		settings:              deps.Settings,
+		pickup:                deps.Pickup,
+		education:             deps.Education,
+		logger:                deps.Logger,
+		dailyCheckoutFallback: deps.DailyCheckoutFallback,
 	}
 }
 

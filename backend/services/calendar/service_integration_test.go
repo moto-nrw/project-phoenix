@@ -1001,7 +1001,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 	repos := repositories.NewFactory(db)
 	cfg := calendarTestConfig(db)
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone

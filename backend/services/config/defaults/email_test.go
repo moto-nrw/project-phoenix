@@ -15,7 +15,7 @@ import (
 func TestEmailReplyToAddress_AllowsEmptyAndValidatesFormat(t *testing.T) {
 	t.Parallel()
 
-	def := config.AllDefinitions()[config.KeyEmailReplyToAddress]
+	def := config.DefaultRegistry().GetDefinition(config.KeyEmailReplyToAddress)
 	require.NotNil(t, def, "email.reply_to_address should be registered")
 
 	assert.Equal(t, config.FieldText, def.Type)

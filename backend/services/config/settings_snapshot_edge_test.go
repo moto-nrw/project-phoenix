@@ -26,10 +26,11 @@ func (r *noisyValueRepo) FindByTenantAndKeys(
 }
 
 func TestSettingsSnapshotRejectsNilAndUnknownKeys(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.known", config.FieldText, "known")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.known", config.FieldText, "known")
 
-	service := createService(newMockValueRepo(), &mockAuditRepo{})
+	service := createService(registry, newMockValueRepo(), &mockAuditRepo{})
 	batch := service.(BatchSettingsService)
 	snapshot, err := batch.ResolveMany(tenantCtx(9), []string{"test.known"})
 	require.NoError(t, err)
@@ -58,12 +59,13 @@ func TestSettingsSnapshotRejectsNilAndUnknownKeys(t *testing.T) {
 }
 
 func TestSettingsSnapshotContextMustContainEveryRequestedKey(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.first", config.FieldText, "first")
-	registerTestSetting("test.second", config.FieldText, "second")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.first", config.FieldText, "first")
+	registerTestSetting(registry, "test.second", config.FieldText, "second")
 
 	repo := newMockValueRepo()
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 	batch := service.(BatchSettingsService)
 	snapshot, err := batch.ResolveMany(tenantCtx(23), []string{"test.first"})
 	require.NoError(t, err)
@@ -77,8 +79,9 @@ func TestSettingsSnapshotContextMustContainEveryRequestedKey(t *testing.T) {
 }
 
 func TestSettingsSnapshotIgnoresRowsOutsideRequestedTenantAndKeys(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.requested", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.requested", config.FieldText, "default")
 
 	wrongTenant := &config.SettingValue{
 		SettingKey: "test.requested",
@@ -100,7 +103,7 @@ func TestSettingsSnapshotIgnoresRowsOutsideRequestedTenantAndKeys(t *testing.T) 
 		mockValueRepo: newMockValueRepo(),
 		stored:        []*config.SettingValue{nil, wrongTenant, unrequested, requested},
 	}
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 	snapshot, err := service.(BatchSettingsService).ResolveMany(
 		tenantCtx(71),
 		[]string{"test.requested"},
@@ -113,10 +116,11 @@ func TestSettingsSnapshotIgnoresRowsOutsideRequestedTenantAndKeys(t *testing.T) 
 }
 
 func TestSettingsSnapshotIntConversionsRejectInvalidNumbers(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.json_number", config.FieldNumber, json.Number("12"))
-	registerTestSetting("test.invalid_json_number", config.FieldNumber, json.Number("invalid"))
-	registerTestSetting("test.out_of_range", config.FieldNumber, 0)
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.json_number", config.FieldNumber, json.Number("12"))
+	registerTestSetting(registry, "test.invalid_json_number", config.FieldNumber, json.Number("invalid"))
+	registerTestSetting(registry, "test.out_of_range", config.FieldNumber, 0)
 
 	repo := newMockValueRepo()
 	outOfRange := &config.SettingValue{
@@ -126,7 +130,7 @@ func TestSettingsSnapshotIntConversionsRejectInvalidNumbers(t *testing.T) {
 	outOfRange.TenantID = 31
 	repo.values[repo.key(outOfRange.TenantID, outOfRange.SettingKey)] = outOfRange
 
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 	snapshot, err := service.(BatchSettingsService).ResolveMany(
 		tenantCtx(31),
 		[]string{"test.json_number", "test.invalid_json_number", "test.out_of_range"},
@@ -147,12 +151,13 @@ func TestSettingsSnapshotIntConversionsRejectInvalidNumbers(t *testing.T) {
 }
 
 func TestGetSchemaPropagatesBatchResolutionError(t *testing.T) {
-	setupTest(t)
-	registerTestSetting("test.schema_error", config.FieldText, "default")
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.schema_error", config.FieldText, "default")
 
 	repo := newMockValueRepo()
 	repo.err = errors.New("database unavailable")
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 
 	schema, err := service.GetSchema(tenantCtx(11), nil)
 	require.Error(t, err)

@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() { testutil.SeedTestJWTConfig() }
+
 type fakeOverviewService struct {
 	result *scheduleSvc.StaffScheduleOverview
 	err    error
@@ -173,11 +175,8 @@ func TestOverviewHandler_RejectsBadRangeAndPropagatesServiceFailure(t *testing.T
 	})
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestOverviewRoute_RequiresScheduleShiftAndUserPermissions(t *testing.T) {
-	testutil.SeedTestJWTConfig()
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	from := timezone.NewDate(2070, time.November, 3)
 	to := from.AddDays(4)
