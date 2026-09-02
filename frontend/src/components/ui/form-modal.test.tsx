@@ -48,6 +48,25 @@ describe("FormModal", () => {
     expect(screen.getByText("Modal content")).toBeInTheDocument();
   });
 
+  it("dims the page with the shared backdrop tint once entered", async () => {
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={vi.fn()} title="Test Modal">
+          <p>Modal content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    // Same tint as Modal, Drawer and SlideOver (#2932).
+    expect(
+      screen.getByRole("button", { name: /hintergrund.*schließen/i }),
+    ).toHaveClass("bg-black/40", "backdrop-blur-sm");
+  });
+
   it("uses the visible title as the dialog accessible name", async () => {
     render(
       <TestWrapper>

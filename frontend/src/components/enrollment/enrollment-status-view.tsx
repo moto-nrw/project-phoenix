@@ -362,7 +362,7 @@ export function EnrollmentStatusView({
         backdropLabel={t("modalBackdropClose")}
         isConfirmLoading={withdrawingChild !== null}
         isDismissDisabled={withdrawingChild !== null}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
+        confirmVariant="danger"
       >
         <p className="text-sm leading-6 text-gray-600">
           {withdrawTarget?.childID

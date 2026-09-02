@@ -1036,7 +1036,7 @@ export default function OperatorAnnouncementsPage() {
         onConfirm={() => void handleDelete()}
         title="Ankündigung löschen?"
         confirmText="Löschen"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
         isConfirmLoading={isDeleting}
       >
         <p className="text-sm text-gray-600">
@@ -1052,7 +1052,7 @@ export default function OperatorAnnouncementsPage() {
         onConfirm={() => void handlePublish()}
         title="Ankündigung veröffentlichen?"
         confirmText="Veröffentlichen"
-        confirmButtonClass="bg-moto-green hover:bg-moto-green-hover hover:shadow-lg"
+        confirmVariant="success"
         isConfirmLoading={isPublishing}
       >
         <p className="text-sm text-gray-600">

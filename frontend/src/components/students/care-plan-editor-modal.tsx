@@ -826,7 +826,7 @@ export function CarePlanEditorModal({
         confirmText="Trotzdem überschreiben"
         cancelText="Abbrechen"
         isConfirmLoading={isSubmitting}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
       >
         <p className="text-sm leading-6 text-gray-600">
           Du überschreibst eine von den Eltern gesetzte Zeit. Die ursprüngliche
@@ -843,7 +843,7 @@ export function CarePlanEditorModal({
         confirmText="Trotzdem speichern"
         cancelText="Zurück"
         isConfirmLoading={isSubmitting}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
       >
         <div className="space-y-2 text-sm leading-6 text-gray-600">
           <p>

@@ -273,7 +273,7 @@ export function PendingInvitationsList({
         title="Einladung widerrufen?"
         confirmText="Widerrufen"
         cancelText="Abbrechen"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover text-white"
+        confirmVariant="danger"
       >
         <p className="text-sm text-gray-600">
           Möchtest du die Einladung für{" "}

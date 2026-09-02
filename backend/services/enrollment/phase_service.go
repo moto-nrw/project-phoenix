@@ -103,6 +103,10 @@ type PhaseServiceConfig struct {
 	Settings PhaseSettingsResolver
 	DB       *bun.DB
 	Logger   *slog.Logger
+	// Today returns the current calendar day; tests inject a fixed date so
+	// resync/detach boundaries stay deterministic (mirrors the decision and
+	// care-offering services). Nil falls back to timezone.TodayDate.
+	Today func() timezone.Date
 }
 
 type phaseService struct {
@@ -122,6 +126,14 @@ type phaseService struct {
 	settings                PhaseSettingsResolver
 	txHandler               *tenant.TransactionRunner
 	logger                  *slog.Logger
+	today                   func() timezone.Date
+}
+
+func (s *phaseService) todayDate() timezone.Date {
+	if s.today != nil {
+		return s.today()
+	}
+	return timezone.TodayDate()
 }
 
 // SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
@@ -150,6 +162,7 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		settings:                        cfg.Settings,
 		txHandler:                       txHandler,
 		logger:                          logger,
+		today:                           cfg.Today,
 	}
 }
 
@@ -522,7 +535,7 @@ func (s *phaseService) resyncPhaseSourcedTemplates(ctx context.Context, phaseID 
 	if err != nil {
 		return fmt.Errorf("phase update: list care offerings for sourced-template resync: %w", err)
 	}
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	for _, offering := range offerings {
 		if offering == nil {
 			continue
@@ -565,7 +578,7 @@ func (s *phaseService) detachPhaseSourcedTemplates(ctx context.Context, phaseID 
 	if err != nil {
 		return fmt.Errorf("phase delete: list care offerings for sourced-template detach: %w", err)
 	}
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	for _, offering := range offerings {
 		if offering == nil {
 			continue

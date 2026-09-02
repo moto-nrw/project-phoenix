@@ -957,7 +957,7 @@ export function CareScheduleManager({
         confirmText="Entfernen"
         cancelText="Abbrechen"
         isConfirmLoading={deletingStatusDayId === statusDayToDelete?.id}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
       >
         <p className="text-sm leading-6 text-gray-600">
           {statusDayToDelete
