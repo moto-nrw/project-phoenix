@@ -257,7 +257,7 @@ func newUsersResource(module peopleModule.Capability, repoFactory *repositories.
 			case usersAPI.FailureConflict:
 				apiCommon.RenderError(w, r, apiCommon.ErrorConflict(err))
 			default:
-				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
+				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))
 			}
 		},
 		AccountEmails: repoFactory.Account.FindEmailsByAccountIDs,

@@ -107,11 +107,13 @@ type harness struct {
 	tags      map[string]bool
 	permitted map[string]bool
 	txCalls   int
+	page      int
+	pageSize  int
 }
 
 func newHarness(t *testing.T, directory *fakeDirectory) *harness {
 	t.Helper()
-	h := &harness{directory: directory, accounts: map[int64]string{}, tags: map[string]bool{}, permitted: map[string]bool{}}
+	h := &harness{directory: directory, accounts: map[int64]string{}, tags: map[string]bool{}, permitted: map[string]bool{}, page: 1, pageSize: 20}
 	statusOf := map[usersHTTP.FailureKind]int{
 		usersHTTP.FailureInvalidRequest: http.StatusBadRequest,
 		usersHTTP.FailureNotFound:       http.StatusNotFound,
@@ -138,7 +140,7 @@ func newHarness(t *testing.T, directory *fakeDirectory) *harness {
 				})
 			}
 		},
-		ParsePagination: func(r *http.Request) (int, int) { return 1, 20 },
+		ParsePagination: func(r *http.Request) (int, int) { return h.page, h.pageSize },
 		Success: func(w http.ResponseWriter, r *http.Request, status int, data any, message string) {
 			payload, _ := json.Marshal(data)
 			render.Status(r, status)
@@ -235,6 +237,24 @@ func TestListPersonsForwardsFiltersAndPaginates(t *testing.T) {
 	require.Len(t, h.lookups, 1)
 	assert.ElementsMatch(t, []int64{accountID, secondAccountID}, h.lookups[0])
 	assert.Equal(t, 1, h.txCalls, "the protected group wraps the handler in the injected transaction middleware")
+}
+
+func TestListPersonsReportsClampedPageSize(t *testing.T) {
+	t.Parallel()
+	directory := &fakeDirectory{persons: map[int64]peopledirectory.Person{}}
+	h := newHarness(t, directory)
+	h.permitted["users:read"] = true
+	h.page = 2
+	h.pageSize = peopledirectory.MaxPageSize + 1
+
+	recorder := h.do(t, http.MethodGet, "/users", nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, peopledirectory.MaxPageSize, directory.searched.PageSize)
+	body := decode(t, recorder)
+	require.NotNil(t, body.Pagination)
+	assert.Equal(t, peopledirectory.MaxPageSize, body.Pagination.PageSize)
+	assert.Equal(t, 2, body.Pagination.Page)
 }
 
 func TestListPersonsWithoutPermissionIsForbidden(t *testing.T) {

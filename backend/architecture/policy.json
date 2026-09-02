@@ -5980,6 +5980,17 @@
       "same_owner": true
     },
     {
+      "id": "people-directory.postgres.calendar-date",
+      "description": "People Directory persistence maps PostgreSQL DATE columns with the repository calendar-date type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
       "id": "people-directory.compose.application",
       "description": "People Directory composition constructs its application service.",
       "scopes": [

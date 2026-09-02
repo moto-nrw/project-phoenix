@@ -114,6 +114,7 @@ func (request *PersonRequest) Bind(*http.Request) error {
 
 func (rs *Resource) listPersons(w http.ResponseWriter, r *http.Request) {
 	page, pageSize := rs.runtime.ParsePagination(r)
+	pageSize = min(pageSize, peopledirectory.MaxPageSize)
 	filter := peopledirectory.PersonFilter{
 		FirstNamePrefix: r.URL.Query().Get("first_name"),
 		LastNamePrefix:  r.URL.Query().Get("last_name"),

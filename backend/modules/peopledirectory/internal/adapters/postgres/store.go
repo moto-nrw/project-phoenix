@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -32,14 +33,12 @@ type personRow struct {
 	TenantID      int64     `bun:"tenant_id,notnull"`
 	FirstName     string    `bun:"first_name,notnull"`
 	LastName      string    `bun:"last_name,notnull"`
-	// Birthday is the DATE column as its ISO text. The module cannot use the
-	// repository calendar-date type: public contracts may not expose it and
-	// the ratchet forbids a new import of it from this owner's internals, so
-	// the value travels as YYYY-MM-DD text validated by the public facade.
-	Birthday  *string    `bun:"birthday,type:date"`
-	TagID     *string    `bun:"tag_id"`
-	AccountID *int64     `bun:"account_id"`
-	DeletedAt *time.Time `bun:"deleted_at"`
+	// Birthday models the PostgreSQL DATE column. toDomain converts it to the
+	// public YYYY-MM-DD string representation.
+	Birthday  *timezone.Date `bun:"birthday,type:date"`
+	TagID     *string        `bun:"tag_id"`
+	AccountID *int64         `bun:"account_id"`
+	DeletedAt *time.Time     `bun:"deleted_at"`
 }
 
 func New(database Database) *Store {
@@ -50,6 +49,10 @@ func New(database Database) *Store {
 }
 
 func (s *Store) Create(ctx context.Context, input domain.CreatePerson) (domain.Person, domain.OperationStats, error) {
+	birthday, err := optionalDate(input.Birthday)
+	if err != nil {
+		return domain.Person{}, domain.OperationStats{}, err
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.Person{}, domain.OperationStats{}, err
@@ -59,7 +62,7 @@ func (s *Store) Create(ctx context.Context, input domain.CreatePerson) (domain.P
 	}
 	row := personRow{
 		TenantID: tenantID, FirstName: input.FirstName, LastName: input.LastName,
-		Birthday: optionalDate(input.Birthday), TagID: input.TagID, AccountID: input.AccountID,
+		Birthday: birthday, TagID: input.TagID, AccountID: input.AccountID,
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -73,13 +76,17 @@ func (s *Store) Create(ctx context.Context, input domain.CreatePerson) (domain.P
 }
 
 func (s *Store) Update(ctx context.Context, input domain.UpdatePerson) (domain.Person, domain.OperationStats, error) {
+	birthday, err := optionalDate(input.Birthday)
+	if err != nil {
+		return domain.Person{}, domain.OperationStats{}, err
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.Person{}, domain.OperationStats{}, err
 	}
 	row := personRow{
 		ID: input.ID, FirstName: input.FirstName, LastName: input.LastName,
-		Birthday: optionalDate(input.Birthday), TagID: input.TagID, AccountID: input.AccountID,
+		Birthday: birthday, TagID: input.TagID, AccountID: input.AccountID,
 	}
 	query := db.NewUpdate().Model(&row).
 		ModelTableExpr(`users.persons AS "person"`).
@@ -438,7 +445,7 @@ func escapeLike(value string) string {
 func toDomain(row personRow) domain.Person {
 	birthday := ""
 	if row.Birthday != nil {
-		birthday = *row.Birthday
+		birthday = row.Birthday.String()
 	}
 	return domain.Person{
 		ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID,
@@ -447,11 +454,15 @@ func toDomain(row personRow) domain.Person {
 	}
 }
 
-func optionalDate(value string) *string {
+func optionalDate(value string) (*timezone.Date, error) {
 	if value == "" {
-		return nil
+		return nil, nil
 	}
-	return &value
+	date, err := timezone.ParseDate(value)
+	if err != nil {
+		return nil, fmt.Errorf("people directory postgres: parse birthday: %w", err)
+	}
+	return &date, nil
 }
 
 func wrapWriteError(operation string, err error) error {
