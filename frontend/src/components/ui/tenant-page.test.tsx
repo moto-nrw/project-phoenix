@@ -79,7 +79,7 @@ describe("TenantPage", () => {
 
     expect(screen.getByRole("status")).toHaveAttribute(
       "aria-label",
-      "Inhalt wird geladen…",
+      "Der Bereich „Kinder“ wird geladen…",
     );
   });
 

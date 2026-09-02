@@ -430,7 +430,7 @@ export function TenantPage({
       <div className="moto-tenant-body mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3">
         <TenantPageBody
           loading={loading}
-          loadingLabel={loadingLabel ?? "Inhalt wird geladen…"}
+          loadingLabel={loadingLabel ?? `Der Bereich „${title}“ wird geladen…`}
           error={error}
           empty={empty}
         >

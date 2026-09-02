@@ -610,7 +610,7 @@ function StaffPageContent() {
       // tragen ihren eigenen Namen. So passt die Zeile zu dem, was man sieht.
       const byLocation = new Map<string, number>();
       let clockedIn = 0;
-      for (const member of staff) {
+      for (const member of filteredStaff) {
         const location = member.currentLocation ?? "Abwesend";
         if (location === "Abwesend" || absenceLocations.has(location)) {
           byLocation.set(location, (byLocation.get(location) ?? 0) + 1);
@@ -621,7 +621,7 @@ function StaffPageContent() {
         }
       }
       const parts = [
-        `${staff.length} ${staff.length === 1 ? "Person" : "Personen"}`,
+        `${filteredStaff.length} ${filteredStaff.length === 1 ? "Person" : "Personen"}`,
         `${clockedIn} anwesend`,
         `${byLocation.get("Abwesend") ?? 0} abwesend`,
       ];

@@ -58,6 +58,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "~/components/ui/drawer";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { LogoutModal } from "~/components/ui/logout-modal";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { RefreshButton } from "./header/refresh-button";
@@ -947,19 +948,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       an.
                     </p>
                   ) : null}
-                  {mode !== "parent" ? (
-                    <div className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-2">
-                      <RefreshButton />
-                      <span className="text-base font-medium text-gray-900">
-                        Aktualisieren
-                      </span>
-                    </div>
-                  ) : null}
+                  {mode !== "parent" ? <RefreshButton drawer /> : null}
                   {mode === "teacher" ? (
-                    <Link
+                    <ButtonLink
                       href={tenantPath("/reminders")}
                       onClick={closeOverflowMenu}
-                      className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-gray-900 transition-all hover:bg-gray-100 active:bg-gray-200"
+                      variant="ghost"
+                      size="touch"
+                      className="w-full justify-start gap-3 px-4"
                     >
                       <Bell
                         className="h-5 w-5 text-gray-600"
@@ -968,16 +964,18 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       <span className="text-base font-medium">
                         Erinnerungen
                       </span>
-                    </Link>
+                    </ButtonLink>
                   ) : null}
                   {mode === "teacher" && canStartStaffPreview ? (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => {
                         closeOverflowMenu();
                         setStaffPreviewModalOpen(true);
                       }}
-                      className="flex w-full items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-left text-gray-900 transition-all hover:bg-gray-100 active:bg-gray-200"
+                      variant="ghost"
+                      size="touch"
+                      className="w-full justify-start gap-3 px-4"
                     >
                       <Eye
                         className="h-5 w-5 text-gray-600"
@@ -986,7 +984,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       <span className="text-base font-medium">
                         Ansicht eines Mitarbeitenden
                       </span>
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               )}
@@ -995,16 +993,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   und Abmelden brauchen deshalb hier einen Platz. */}
               <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
                 {profileUrl ? (
-                  <Link
+                  <ButtonLink
                     href={
                       mode === "teacher" ? tenantPath(profileUrl) : profileUrl
                     }
                     onClick={closeOverflowMenu}
-                    className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
-                      isActiveRoute(profileUrl)
-                        ? "bg-gray-100 font-semibold text-gray-900"
-                        : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
-                    }`}
+                    variant={isActiveRoute(profileUrl) ? "surface" : "ghost"}
+                    size="touch"
+                    className="w-full justify-start gap-3 px-4"
                   >
                     <MobileNavIcon
                       item={{ iconKey: "profile" }}
@@ -1012,15 +1008,17 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       className="h-5 w-5 text-gray-600"
                     />
                     <span className="text-base font-medium">Profil</span>
-                  </Link>
+                  </ButtonLink>
                 ) : null}
-                <button
+                <Button
                   type="button"
                   onClick={() => {
                     closeOverflowMenu();
                     setLogoutModalOpen(true);
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-left transition-all hover:bg-gray-100 active:bg-gray-200"
+                  variant="ghost"
+                  size="touch"
+                  className="w-full justify-start gap-3 px-4"
                 >
                   <MobileNavIcon
                     item={{ iconKey: "profile", concept: "logout" }}
@@ -1030,7 +1028,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   <span className="text-base font-medium text-gray-900">
                     Abmelden
                   </span>
-                </button>
+                </Button>
               </div>
             </div>
             <div className="pb-8" />
