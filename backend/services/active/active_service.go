@@ -467,7 +467,7 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 	// scheduler, where a committed bridge write beside a failed session end
 	// would leave a completed instance next to an open group that no later run
 	// repairs.
-	var visitsToNotify []visitSSEData
+	var broadcasts sessionEndSSEData
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, id)
 		if err != nil || group == nil {
@@ -482,7 +482,7 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 			return &ActiveError{Op: "EndActiveGroupSession", Err: err}
 		}
 
-		visitsToNotify, err = s.endActivitySessionLocked(txCtx, id)
+		broadcasts, err = s.endActivitySessionLocked(txCtx, group)
 		if err != nil {
 			// The bridge already completed the mirrored instance, so the
 			// transaction has to go. Joining the request's transaction means
@@ -501,7 +501,7 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
-	s.queueActivitySessionEndBroadcasts(ctx, id, visitsToNotify)
+	s.queueActivitySessionEndBroadcasts(ctx, id, broadcasts)
 	return nil
 }
 
@@ -1174,17 +1174,14 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	}
 }
 
-// broadcastActivityEndEvent sends the activity_end SSE event for a completed session.
-// This helper reduces cognitive complexity in session timeout processing.
-func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64, sessionIDStr string) {
-	finalGroup, err := s.GroupRepo.FindByID(ctx, sessionID)
-	if err != nil || finalGroup == nil {
-		return
-	}
-
-	roomIDStr := fmt.Sprintf("%d", finalGroup.RoomID)
-	activityName := s.getActivityName(ctx, finalGroup.GroupID)
-	roomName := s.getRoomName(ctx, finalGroup.RoomID)
+// broadcastActivityEndEvent sends the activity_end SSE event for a completed
+// session. It performs no database access: data was resolved inside the
+// ending transaction, because this runs from an after-commit hook where no
+// tenant role is set (#2951).
+func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionIDStr string, data activityEndSSEData) {
+	roomIDStr := fmt.Sprintf("%d", data.RoomID)
+	activityName := data.ActivityName
+	roomName := data.RoomName
 
 	event := realtime.NewEvent(
 		realtime.EventActivityEnd,
@@ -1222,21 +1219,38 @@ func (s *service) broadcastWithLogging(ctx context.Context, activeGroupID, stude
 // getActivityName retrieves the activity name by group ID, returning empty string on error.
 // A nil groupID marks a spontaneous session (WP-B6): there is no template to look up,
 // so we return an empty name and leave the display decision to the caller.
+// A failed lookup is logged: the SSE event still goes out, but a silent empty
+// name hid the broken lookup behind #2951 for a whole deploy.
 func (s *service) getActivityName(ctx context.Context, groupID *int64) string {
 	if groupID == nil {
 		return ""
 	}
 	activity, err := s.ActivityGroupRepo.FindByID(ctx, *groupID)
-	if err != nil || activity == nil {
+	if err != nil {
+		s.getLogger().Warn("SSE activity name lookup failed",
+			slog.Int64("activity_group_id", *groupID),
+			slog.String("error", err.Error()),
+		)
+		return ""
+	}
+	if activity == nil {
 		return ""
 	}
 	return activity.Name
 }
 
 // getRoomName retrieves the room name by room ID, returning empty string on error.
+// A failed lookup is logged for the same reason as in getActivityName.
 func (s *service) getRoomName(ctx context.Context, roomID int64) string {
 	room, err := s.RoomRepo.FindByID(ctx, roomID)
-	if err != nil || room == nil {
+	if err != nil {
+		s.getLogger().Warn("SSE room name lookup failed",
+			slog.Int64("room_id", roomID),
+			slog.String("error", err.Error()),
+		)
+		return ""
+	}
+	if room == nil {
 		return ""
 	}
 	return room.Name

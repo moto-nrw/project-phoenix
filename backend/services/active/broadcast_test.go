@@ -12,6 +12,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	active "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
 
@@ -29,7 +30,11 @@ func (w *recordingGuardianWaker) BroadcastChildUpdateToGuardians(_ int64, studen
 
 func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	return newServiceWithBroadcaster(t, testpkg.SetupTestDB(t))
+}
+
+func newServiceWithBroadcaster(t *testing.T, db *bun.DB) (active.Service, *testpkg.RecordingBroadcaster) {
+	t.Helper()
 
 	repos := repositories.NewFactory(db)
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -291,6 +296,45 @@ func TestBroadcast_EndActivitySessionSendsBoundedRefreshes(t *testing.T) {
 	assert.Equal(t, "activity_ended", *refreshes[1].Event.Data.Reason)
 	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged),
 		"batch checkout and activity end must not emit separate supervision refreshes")
+}
+
+// TestBroadcast_EndActivitySessionEmitsActivityEndOnServeRole reproduces
+// #2951. The service runs on the least-privilege phoenix_auth pool, the same
+// identity the HTTP server uses. That role has no privileges outside a
+// SET ROLE transaction, so a repository lookup from inside the after-commit
+// hook failed with "permission denied for schema active" and activity_end
+// was never sent. Every lookup the event needs has to happen inside the
+// ending transaction; only the emission may run after the commit.
+func TestBroadcast_EndActivitySessionEmitsActivityEndOnServeRole(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	serveDB := testpkg.SetupServeTestDB(t)
+	svc, broadcaster := newServiceWithBroadcaster(t, serveDB)
+
+	room := testpkg.CreateTestRoom(t, db, "Serve Role End Room")
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "serve-role-end")
+	session := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Serve", "RoleEnd", "3a")
+	testpkg.CreateTestVisit(t, db, student.ID, session.ID, time.Now(), nil)
+
+	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, serveDB))
+	ctx = tenant.WithTenantID(ctx, testpkg.Tenant(t))
+	broadcaster.Reset()
+
+	require.NoError(t, svc.EndActivitySession(ctx, session.ID))
+
+	ends := broadcaster.EventsOfType(realtime.EventActivityEnd)
+	require.Len(t, ends, 1, "activity_end must reach the SSE client after the commit")
+	require.NotNil(t, ends[0].Data.ActivityName)
+	require.NotNil(t, ends[0].Data.RoomName)
+	assert.Equal(t, activityGroup.Name, *ends[0].Data.ActivityName)
+	assert.Equal(t, room.Name, *ends[0].Data.RoomName)
+	assert.Equal(t, strconv.FormatInt(session.ID, 10), ends[0].ActiveGroupID)
+
+	refreshes := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
+	require.Len(t, refreshes, 2, "batch checkout and activity end each emit one refresh")
+	assert.Equal(t, "activity_ended", *refreshes[1].Event.Data.Reason)
 }
 
 // TestBroadcast_EndActivitySessionBatchesCheckouts verifies the issue #848 fix:
