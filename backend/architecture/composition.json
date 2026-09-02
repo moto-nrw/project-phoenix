@@ -17113,7 +17113,7 @@
       "declaration": "newDisabledWriteRouter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        229
+        232
       ],
       "tables": []
     },
@@ -17123,7 +17123,7 @@
       "declaration": "newWriteRouterWithSettings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        71
+        74
       ],
       "tables": []
     },
@@ -25481,7 +25481,7 @@
       "declaration": "TestCreateRequest_RefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        753
+        756
       ],
       "tables": []
     },
@@ -25491,7 +25491,7 @@
       "declaration": "TestDecide_ApproveRefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        705
+        708
       ],
       "tables": []
     },
@@ -25501,7 +25501,7 @@
       "declaration": "TestListForStudent_FiltersOutcomes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        270
+        273
       ],
       "tables": []
     },
@@ -25511,7 +25511,7 @@
       "declaration": "buildAbsenceService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        81
+        84
       ],
       "tables": []
     },
@@ -25521,7 +25521,7 @@
       "declaration": "insertStatusDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        594
+        597
       ],
       "tables": []
     },
@@ -28036,7 +28036,7 @@
       "declaration": "setupRolloverTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        53
       ],
       "tables": [
         "auth.accounts",
@@ -28617,7 +28617,7 @@
       "declaration": "buildAbsenceApprovalServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        66
+        69
       ],
       "tables": []
     },
@@ -29811,7 +29811,7 @@
       "declaration": "TestAutoExcusal_DeletingTheExceptionRestoresBlocks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        213
+        216
       ],
       "tables": []
     },
@@ -29821,7 +29821,7 @@
       "declaration": "TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        471
+        474
       ],
       "tables": []
     },
@@ -29831,7 +29831,7 @@
       "declaration": "autoExcusalHarness.exception",
       "target": "database/repositories.NewFactory",
       "lines": [
-        357
+        360
       ],
       "tables": []
     },
@@ -29841,7 +29841,7 @@
       "declaration": "setupAutoExcusalHarness",
       "target": "database/repositories.NewFactory",
       "lines": [
-        50
+        53
       ],
       "tables": []
     },
