@@ -149,6 +149,12 @@ func (s *Store) ListStaff(ctx context.Context, filter domain.StaffFilter) ([]dom
 	if filter.WorkTimeModelID != nil {
 		query = query.Where(`"staff".work_time_model_id = ?`, *filter.WorkTimeModelID)
 	}
+	if filter.TenantIDs != nil {
+		if len(filter.TenantIDs) == 0 {
+			return []domain.Staff{}, domain.OperationStats{}, nil
+		}
+		query = query.Where(`"staff".tenant_id IN (?)`, bun.List(filter.TenantIDs))
+	}
 	stats, err := scanAll(ctx, query.OrderExpr(`"staff".id ASC`), "list staff")
 	if err != nil {
 		return nil, stats, err

@@ -9,6 +9,8 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 )
 
 // teacherMembershipRepository serves users.TeacherRepository over the School
@@ -434,12 +436,19 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 		candidate.caregiver.Email = emails[candidate.caregiver.AccountID]
 		result = append(result, candidate.caregiver)
 	}
+	// The replaced query ordered by first name, last name, staff ID under the
+	// database collation (en_US.utf8). German dictionary order keeps that
+	// picker order: "Özlem" sorts next to "Otto", not after "Zimmermann".
+	// Same settings as internal/collation, which the architecture policy
+	// keeps out of this package; one collator per call, it is not safe for
+	// concurrent use.
+	collator := collate.New(language.German, collate.IgnoreCase)
 	sort.SliceStable(result, func(i, j int) bool {
-		if result[i].FirstName != result[j].FirstName {
-			return result[i].FirstName < result[j].FirstName
+		if c := collator.CompareString(result[i].FirstName, result[j].FirstName); c != 0 {
+			return c < 0
 		}
-		if result[i].LastName != result[j].LastName {
-			return result[i].LastName < result[j].LastName
+		if c := collator.CompareString(result[i].LastName, result[j].LastName); c != 0 {
+			return c < 0
 		}
 		return result[i].StaffID < result[j].StaffID
 	})
