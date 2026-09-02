@@ -44,6 +44,19 @@ describe("TenantPage", () => {
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 
+  it("meldet beim Laden einen neutralen Status", () => {
+    render(
+      <TenantPage title="Kinder" loading>
+        <p>Inhalt</p>
+      </TenantPage>,
+    );
+
+    expect(screen.getByRole("status")).toHaveAttribute(
+      "aria-label",
+      "Inhalt wird geladen…",
+    );
+  });
+
   it("ersetzt den Inhalt durch den Fehler, behält aber die Kopfkarte", () => {
     render(
       <TenantPage title="Kinder" error="Kinder konnten nicht geladen werden.">
