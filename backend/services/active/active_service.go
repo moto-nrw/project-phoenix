@@ -1302,14 +1302,20 @@ func (s *service) getActivityEndName(
 			if errors.Is(err, tenant.ErrSavepointControl) {
 				return "", err
 			}
-			s.getLogger().LogAttrs(ctx, slog.LevelWarn, message, attrs, slog.String("error", err.Error()))
+			s.getLogger().LogAttrs(ctx, slog.LevelWarn, message,
+				attrs,
+				slog.String("error", err.Error()),
+			)
 			return "", nil
 		}
 		return name, nil
 	}
 
 	if err := lookupFn(ctx); err != nil {
-		s.getLogger().LogAttrs(ctx, slog.LevelWarn, message, attrs, slog.String("error", err.Error()))
+		s.getLogger().LogAttrs(ctx, slog.LevelWarn, message,
+			attrs,
+			slog.String("error", err.Error()),
+		)
 		return "", nil
 	}
 	return name, nil

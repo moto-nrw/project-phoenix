@@ -25186,20 +25186,10 @@
     {
       "scope": "test",
       "file": "services/active/broadcast_test.go",
-      "declaration": "TestBroadcast_EndActivitySessionKeepsBusinessTxOnOptionalSSELookupError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        392
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/active/broadcast_test.go",
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        217
+        190
       ],
       "tables": []
     },
@@ -25209,7 +25199,7 @@
       "declaration": "newServiceWithBroadcaster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        66
+        42
       ],
       "tables": []
     },
