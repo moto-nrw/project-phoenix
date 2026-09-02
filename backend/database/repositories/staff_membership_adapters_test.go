@@ -21,6 +21,28 @@ import (
 // literal row id.
 func missingID(anchor int64) int64 { return anchor + 1_000_000 }
 
+func assignSystemCaregiverRole(t *testing.T, db *testpkg.DB, accountID, tenantID int64) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var roleID int64
+	err := db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("LOWER(name) = ?", "user").
+		Where("is_system = TRUE").
+		Where("tenant_id IS NULL").
+		Scan(ctx, &roleID)
+	require.NoError(t, err, "the seeded user system role must exist")
+	_, err = db.NewInsert().
+		Model(&map[string]any{"account_id": accountID, "role_id": roleID, "tenant_id": tenantID}).
+		TableExpr("auth.account_roles").
+		On("CONFLICT DO NOTHING").
+		Exec(ctx)
+	require.NoError(t, err)
+}
+
 func TestStaffMembershipAdapter_NotFoundKeepsTheLegacyErrorShape(t *testing.T) {
 	t.Parallel()
 
@@ -212,27 +234,10 @@ func TestTeacherMembershipAdapter_ActiveCaregiversNeedAccountAndSystemRole(t *te
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 
-	writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// assignUserRole gives the account the seeded "user" system role at this
 	// tenant, the way account provisioning does.
 	assignUserRole := func(accountID int64) {
-		var roleID int64
-		err := db.NewSelect().
-			ColumnExpr("id").
-			TableExpr("auth.roles").
-			Where("LOWER(name) = ?", "user").
-			Where("is_system = TRUE").
-			Where("tenant_id IS NULL").
-			Scan(writeCtx, &roleID)
-		require.NoError(t, err, "the seeded user system role must exist")
-		_, err = db.NewInsert().
-			Model(&map[string]any{"account_id": accountID, "role_id": roleID, "tenant_id": tenantID}).
-			TableExpr("auth.account_roles").
-			On("CONFLICT DO NOTHING").
-			Exec(writeCtx)
-		require.NoError(t, err)
+		assignSystemCaregiverRole(t, db, accountID, tenantID)
 	}
 
 	caregiver, caregiverAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
@@ -264,6 +269,43 @@ func TestTeacherMembershipAdapter_ActiveCaregiversNeedAccountAndSystemRole(t *te
 	missing, err := factory.Teacher.FindActiveCaregiverByAccountID(ctx, rolelessAccount.ID)
 	require.NoError(t, err)
 	assert.Nil(t, missing, "a non-caregiver resolves to nil, not an error")
+}
+
+func TestTeacherMembershipAdapter_ActiveCaregiversResolveInAdminContext(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	factory := repositories.NewFactory(db)
+	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
+	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenant, "Admin", "Caregiver")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var teacherID int64
+	err := db.NewRaw(`INSERT INTO users.teachers (staff_id, tenant_id) VALUES (?, ?) RETURNING id`, staff.ID, foreignTenant).Scan(ctx, &teacherID)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, foreignTenant)
+	assignSystemCaregiverRole(t, db, account.ID, foreignTenant)
+
+	err = testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
+		caregivers, err := factory.Teacher.ListActiveCaregivers(adminCtx)
+		if err != nil {
+			return err
+		}
+		listed := make(map[int64]bool, len(caregivers))
+		for _, caregiver := range caregivers {
+			listed[caregiver.TeacherID] = true
+		}
+		assert.True(t, listed[teacherID])
+
+		found, err := factory.Teacher.FindActiveCaregiverByAccountID(adminCtx, account.ID)
+		if err != nil {
+			return err
+		}
+		require.NotNil(t, found)
+		assert.Equal(t, teacherID, found.TeacherID)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestGuestMembershipAdapter_FindsByStaffAndActiveWindow(t *testing.T) {

@@ -324,6 +324,11 @@ func (r teacherMembershipRepository) FindWithStaffAndPersonByIDs(ctx context.Con
 // caregiver.
 var caregiverRoleNames = []string{"user", "teacher"}
 
+type activeCaregiverCandidate struct {
+	caregiver *userModels.ActiveCaregiver
+	tenantID  int64
+}
+
 // activeCaregivers is the canonical caregiver composition: live teachers of the
 // tenant whose staff member has a person with an active account, an active
 // tenant mapping, and one of the system caregiver roles at that tenant.
@@ -355,8 +360,8 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 	}
 
 	tenantID := usersRepo.TenantIDFromContext(ctx)
-	candidates := make([]*userModels.ActiveCaregiver, 0, len(teachers))
-	accountIDs := make([]int64, 0, len(teachers))
+	candidates := make([]activeCaregiverCandidate, 0, len(teachers))
+	accountIDsByTenant := make(map[int64][]int64)
 	for _, teacher := range teachers {
 		staff, found := staffByID[teacher.StaffID]
 		if !found {
@@ -375,7 +380,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 		if accountID != nil && *person.AccountID != *accountID {
 			continue
 		}
-		candidates = append(candidates, &userModels.ActiveCaregiver{
+		candidates = append(candidates, activeCaregiverCandidate{caregiver: &userModels.ActiveCaregiver{
 			AccountID: *person.AccountID,
 			PersonID:  person.ID,
 			StaffID:   staff.ID,
@@ -384,41 +389,50 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 			LastName:  person.LastName,
 			CreatedAt: staff.CreatedAt,
 			UpdatedAt: staff.UpdatedAt,
-		})
-		accountIDs = append(accountIDs, *person.AccountID)
+		}, tenantID: teacher.TenantID})
+		accountIDsByTenant[teacher.TenantID] = append(accountIDsByTenant[teacher.TenantID], *person.AccountID)
 	}
 	if len(candidates) == 0 {
 		return []*userModels.ActiveCaregiver{}, nil
 	}
 
-	allowed, err := r.deps.memberships.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)
-	if err != nil {
-		return nil, err
+	activeByTenant := make(map[int64]map[int64]bool, len(accountIDsByTenant))
+	caregiverAccountsByTenant := make(map[int64]map[int64]bool, len(accountIDsByTenant))
+	activeAccountIDs := make([]int64, 0, len(candidates))
+	for candidateTenantID, accountIDs := range accountIDsByTenant {
+		allowed, err := r.deps.memberships.ListActiveAccountIDsForTenant(ctx, candidateTenantID, accountIDs)
+		if err != nil {
+			return nil, err
+		}
+		active := make(map[int64]bool, len(allowed))
+		for _, id := range allowed {
+			active[id] = true
+			activeAccountIDs = append(activeAccountIDs, id)
+		}
+		activeByTenant[candidateTenantID] = active
+
+		withRole, err := r.deps.roles.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, caregiverRoleNames, candidateTenantID)
+		if err != nil {
+			return nil, err
+		}
+		caregiverAccounts := make(map[int64]bool, len(withRole))
+		for _, id := range withRole {
+			caregiverAccounts[id] = true
+		}
+		caregiverAccountsByTenant[candidateTenantID] = caregiverAccounts
 	}
-	active := make(map[int64]bool, len(allowed))
-	for _, id := range allowed {
-		active[id] = true
-	}
-	withRole, err := r.deps.roles.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, caregiverRoleNames, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	caregiverAccounts := make(map[int64]bool, len(withRole))
-	for _, id := range withRole {
-		caregiverAccounts[id] = true
-	}
-	emails, err := r.deps.accounts.FindEmailsByAccountIDs(ctx, allowed)
+	emails, err := r.deps.accounts.FindEmailsByAccountIDs(ctx, activeAccountIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make([]*userModels.ActiveCaregiver, 0, len(candidates))
 	for _, candidate := range candidates {
-		if !active[candidate.AccountID] || !caregiverAccounts[candidate.AccountID] {
+		if !activeByTenant[candidate.tenantID][candidate.caregiver.AccountID] || !caregiverAccountsByTenant[candidate.tenantID][candidate.caregiver.AccountID] {
 			continue
 		}
-		candidate.Email = emails[candidate.AccountID]
-		result = append(result, candidate)
+		candidate.caregiver.Email = emails[candidate.caregiver.AccountID]
+		result = append(result, candidate.caregiver)
 	}
 	sort.SliceStable(result, func(i, j int) bool {
 		if result[i].FirstName != result[j].FirstName {

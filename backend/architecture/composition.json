@@ -23133,7 +23133,7 @@
       "declaration": "TestGuestMembershipAdapter_FindsByStaffAndActiveWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        273
+        315
       ],
       "tables": []
     },
@@ -23143,7 +23143,7 @@
       "declaration": "TestStaffMembershipAdapter_AccountIDsExcludeUnreachableStaff",
       "target": "database/repositories.NewFactory",
       "lines": [
-        141
+        163
       ],
       "tables": []
     },
@@ -23153,7 +23153,7 @@
       "declaration": "TestStaffMembershipAdapter_AttachesPersonAndAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        115
+        137
       ],
       "tables": []
     },
@@ -23163,7 +23163,7 @@
       "declaration": "TestStaffMembershipAdapter_CalendarReachabilityUsesEffectivePermissions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        162
+        184
       ],
       "tables": []
     },
@@ -23173,7 +23173,7 @@
       "declaration": "TestStaffMembershipAdapter_ListRejectsUnknownFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        301
+        343
       ],
       "tables": []
     },
@@ -23183,7 +23183,7 @@
       "declaration": "TestStaffMembershipAdapter_ListsAreTenantScoped",
       "target": "database/repositories.NewFactory",
       "lines": [
-        85
+        107
       ],
       "tables": []
     },
@@ -23193,7 +23193,7 @@
       "declaration": "TestStaffMembershipAdapter_NotFoundKeepsTheLegacyErrorShape",
       "target": "database/repositories.NewFactory",
       "lines": [
-        28
+        50
       ],
       "tables": []
     },
@@ -23203,11 +23203,20 @@
       "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversNeedAccountAndSystemRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        211
+        233
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/staff_membership_adapters_test.go",
+      "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversResolveInAdminContext",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        278
       ],
       "tables": [
-        "auth.account_roles",
-        "auth.roles"
+        "users.teachers"
       ]
     },
     {
@@ -23216,7 +23225,7 @@
       "declaration": "TestTeacherMembershipAdapter_ResolvesStaffAndPerson",
       "target": "database/repositories.NewFactory",
       "lines": [
-        178
+        200
       ],
       "tables": []
     },
