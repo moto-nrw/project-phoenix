@@ -66,7 +66,7 @@ func (m *httpMetrics) middleware(next http.Handler) http.Handler {
 			observability.DecActiveHTTPRequests()
 		}()
 
-		next.ServeHTTP(recorder, r)
+		next.ServeHTTP(recorder.Writer(), r)
 		duration := time.Since(started)
 		m.record(r.Method, apiCommon.RoutePattern(r), recorder.Status(), duration)
 		observability.ObserveHTTPRequest(r.Method, apiCommon.RoutePattern(r), recorder.Status(), duration)

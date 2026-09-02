@@ -69,7 +69,7 @@ func TenantRuntimeObserverMiddleware(observer TenantRuntimeObserver) func(http.H
 			r = r.WithContext(tenant.WithRuntimeObserver(ctx, collector.observe))
 			collector.request = r
 			defer collector.flush()
-			next.ServeHTTP(recorder, r)
+			next.ServeHTTP(recorder.Writer(), r)
 		})
 	}
 }
@@ -77,55 +77,81 @@ func TenantRuntimeObserverMiddleware(observer TenantRuntimeObserver) func(http.H
 // tenantRuntimeCollector holds runtime events until the response status is
 // known. Once the header has been sent the status is final, so later events
 // (a streaming SSE handler, a goroutine outliving the request) are delivered
-// at once instead of piling up until the connection closes. The observer is
-// always called outside the lock, in arrival order.
+// at once instead of piling up until the connection closes. One caller drains
+// the queue at a time, so observers run outside the lock but in arrival order.
 type tenantRuntimeCollector struct {
-	mu       sync.Mutex
-	observer TenantRuntimeObserver
-	request  *http.Request
-	status   *StatusRecorder
-	pending  []TenantRuntimeEvent
-	flushed  bool
-	route    string
+	mu         sync.Mutex
+	observer   TenantRuntimeObserver
+	request    *http.Request
+	status     *StatusRecorder
+	pending    []TenantRuntimeEvent
+	ready      bool
+	delivering bool
+	route      string
+	statusCode int
 }
 
 func (c *tenantRuntimeCollector) observe(event TenantRuntimeEvent) {
 	c.mu.Lock()
-	if !c.flushed && !c.status.HeaderWritten() {
-		c.pending = append(c.pending, event)
-		c.mu.Unlock()
-		return
+	c.pending = append(c.pending, event)
+	if !c.ready && c.status.HeaderWritten() {
+		c.captureFinalResponseLocked()
 	}
-	pending := append(c.pending, event)
-	c.pending = nil
-	route := c.routeLocked()
+	deliver := c.startDeliveryLocked()
 	c.mu.Unlock()
-	c.deliver(pending, route)
+	if deliver {
+		c.deliver()
+	}
 }
 
 func (c *tenantRuntimeCollector) flush() {
 	c.mu.Lock()
-	pending := c.pending
-	c.pending = nil
-	route := c.routeLocked()
-	c.flushed = true
-	c.mu.Unlock()
-	c.deliver(pending, route)
-}
-
-// routeLocked reads the route pattern while the handler still owns the chi
-// route context; flush is the last such read and events after it reuse it.
-func (c *tenantRuntimeCollector) routeLocked() string {
-	if !c.flushed {
-		c.route = RoutePattern(c.request)
+	if !c.ready {
+		c.captureFinalResponseLocked()
 	}
-	return c.route
+	deliver := c.startDeliveryLocked()
+	c.mu.Unlock()
+	if deliver {
+		c.deliver()
+	}
 }
 
-func (c *tenantRuntimeCollector) deliver(events []TenantRuntimeEvent, route string) {
-	status := c.status.Status()
-	for _, event := range events {
-		c.observer(TenantRuntimeObservation{Request: c.request, Route: route, Status: status, Event: event})
+// captureFinalResponseLocked reads the route pattern while the handler still
+// owns the chi route context; later events reuse the captured route and status.
+func (c *tenantRuntimeCollector) captureFinalResponseLocked() {
+	c.ready = true
+	c.route = RoutePattern(c.request)
+	c.statusCode = c.status.Status()
+}
+
+func (c *tenantRuntimeCollector) startDeliveryLocked() bool {
+	if !c.ready || c.delivering || len(c.pending) == 0 {
+		return false
+	}
+	c.delivering = true
+	return true
+}
+
+func (c *tenantRuntimeCollector) deliver() {
+	for {
+		c.mu.Lock()
+		if len(c.pending) == 0 {
+			c.delivering = false
+			c.mu.Unlock()
+			return
+		}
+		events := c.pending
+		c.pending = nil
+		c.mu.Unlock()
+
+		for _, event := range events {
+			c.observer(TenantRuntimeObservation{
+				Request: c.request,
+				Route:   c.route,
+				Status:  c.statusCode,
+				Event:   event,
+			})
+		}
 	}
 }
 

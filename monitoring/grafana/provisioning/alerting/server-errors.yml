@@ -27,7 +27,7 @@ groups:
             datasourceUid: P8E80F9AEF21F6940
             model:
               expr: >-
-                sum(count_over_time({env="prod",service="server"} | json | level="ERROR" | outcome!="transaction_failure" or status=~"5.." [5m])) or vector(0)
+                sum(count_over_time({env="prod",service="server"} | json | level="ERROR" | (outcome!="transaction_failure" or status=~"5..") [5m])) or vector(0)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200

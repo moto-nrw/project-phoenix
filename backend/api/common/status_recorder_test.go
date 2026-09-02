@@ -20,9 +20,9 @@ func TestStatusRecorderPreservesResponseWriterCapabilities(t *testing.T) {
 	base := &flushRecorder{ResponseRecorder: httptest.NewRecorder()}
 	recorder := NewStatusRecorder(base)
 	assert.Same(t, base, recorder.Unwrap())
-	_, ok := any(recorder).(http.Flusher)
+	_, ok := recorder.Writer().(http.Flusher)
 	assert.True(t, ok)
-	recorder.Flush()
+	recorder.Writer().(http.Flusher).Flush()
 	assert.True(t, base.flushed)
 }
 

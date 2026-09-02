@@ -441,17 +441,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 122,
+          "line": 148,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 246,
+          "line": 254,
+          "declaration": "newUsersResource"
+        },
+        {
+          "file": "api/base.go",
+          "line": 320,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 731,
+          "line": 807,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +466,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 367,
+          "line": 441,
           "declaration": "New"
         }
       ]
@@ -471,12 +476,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 122,
-          "declaration": "initializeModuleServices"
+          "line": 142,
+          "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 243,
+          "line": 317,
           "declaration": "type API"
         }
       ]
@@ -561,27 +566,27 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 415,
+          "line": 416,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 436,
+          "line": 438,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 15,
+          "line": 16,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 23,
+          "line": 24,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 34,
+          "line": 35,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
