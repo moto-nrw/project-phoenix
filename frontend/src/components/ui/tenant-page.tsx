@@ -314,7 +314,7 @@ export function TenantPage({
           Grund. Die spezielle Klasse überschreibt die ungeschichtete
           Flächenklasse auch dann zuverlässig, wenn Tailwind-Utilities in
           einer CSS-Layer stehen. */}
-      <header className="moto-content-surface moto-tenant-page-header rounded-2xl border p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:p-0">
+      <header className="moto-content-surface moto-tenant-page-header rounded-2xl border p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         {back && (
           <MobileBackButton
             href={backHref}
