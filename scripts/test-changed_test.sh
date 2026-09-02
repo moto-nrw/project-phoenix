@@ -6,6 +6,10 @@ fixture=$(mktemp -d)
 cleanup() {
   if [ -n "$fixture" ] && [ "$fixture" != / ] && [ -d "$fixture/.git" ]; then
     rm -rf -- "$fixture"
+    if [ -e "$fixture" ]; then
+      echo "Fixture cleanup failed: $fixture still exists" >&2
+      return 1
+    fi
   else
     echo "Refusing to delete unexpected fixture path: $fixture" >&2
     return 1

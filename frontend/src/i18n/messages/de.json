@@ -1593,6 +1593,7 @@
     "consents": {
       "title": "Einwilligungen und Bestätigungen",
       "description": "Hier sehen Sie, was für Ihr Kind gespeichert ist.",
+      "staffDescription": "Nur zur Information. Eltern ändern die Foto-Einwilligung im Elternportal.",
       "photoDescription": "Die Foto-Einwilligung können Sie hier ändern.",
       "items": {
         "agb": "Allgemeine Geschäftsbedingungen (AGB)",

@@ -1593,6 +1593,7 @@
     "consents": {
       "title": "Pëlqimet dhe konfirmimet",
       "description": "Këtu shihni pëlqimet për fëmijën tuaj.",
+      "staffDescription": "Vetëm për informacion. Prindërit e ndryshojnë pëlqimin për fotografinë në portalin e prindërve.",
       "photoDescription": "Këtu mund të ndryshoni pëlqimin për fotografinë.",
       "items": {
         "agb": "Kushtet e përgjithshme",

@@ -451,7 +451,6 @@ func newFactory(
 	now := optionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	repos.BindOrganizationTenancy(organizations)
-	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
 	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 
@@ -514,6 +513,7 @@ func newFactory(
 		return nil, err
 	}
 	repos.RouteAuditWrites(auditCommand)
+	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
 

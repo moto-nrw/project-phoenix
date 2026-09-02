@@ -377,6 +377,8 @@ type StudentConsentAuditor interface {
 	RecordTransitions(ctx context.Context, before, after *users.Student, source string, actorAccountID *int64, changedAt time.Time) error
 }
 
+var errStudentConsentAuditRequired = errors.New("student consent audit is required")
+
 type PickupGuardianNotifier interface {
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 }
@@ -1628,15 +1630,18 @@ func (s *decisionService) applyApproval(
 	// consent, pickup_status) update the Student row in place;
 	// structured targets (bus weekday flags, phone_list,
 	// weekday_schedule, contact_list)
-	// create association rows. Failures inside one field don't abort
-	// the approval — the targeted-field path is best-effort, the same
-	// philosophy the invitation-email enqueue uses elsewhere in this
-	// service.
+	// create association rows. Ordinary field failures don't abort the
+	// approval. Consent-audit failures are different: committing a consent
+	// without its required history would break the append-only audit contract,
+	// so they abort and let the surrounding tenant transaction roll back.
 	// The plan-synced flag is deliberately dropped here: this student row was
 	// created moments ago in this transaction, so no "läuft mit" link can
 	// exist yet and a companion broadcast would only wake every open editor
 	// once per mass approval for a change that cannot have touched a link.
 	if _, err := s.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy, targetedFieldSyncOptions{}); err != nil {
+		if errors.Is(err, errStudentConsentAuditRequired) {
+			return nil, fmt.Errorf("decision: record consent history: %w", err)
+		}
 		s.Logger.Warn("decision: targeted-field dispatch had errors",
 			slog.Int64("request_id", request.ID),
 			slog.Int64("child_id", child.ID),
@@ -3779,12 +3784,13 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 // downstream record. The student row may be mutated in place for
 // scalar targets and persisted at the end via studentRepo.Update.
 //
-// Best-effort overall: per-field errors are collected and returned in
-// one combined error string but never abort the approval. The student
-// + per-child records have already been written by the caller. The one
-// exception to the opaque combined string are the companion sentinels a
-// departure-plan student write can raise (users.ErrCompanionWouldLoseDeparture,
-// users.ErrCompanionLockBusy): they stay reachable via errors.Is so the
+// Best-effort overall: per-field errors are collected and returned in one
+// combined error string. The fresh-student caller logs those ordinary field
+// errors because the student and per-child records have already been written.
+// Consent-audit failures are marked separately and must abort the approval so
+// the surrounding tenant transaction rolls back the consent write. Companion
+// sentinels (users.ErrCompanionWouldLoseDeparture,
+// users.ErrCompanionLockBusy) likewise stay reachable via errors.Is so the
 // enrollment handlers can answer with the actionable 4xx the student PUT
 // gives instead of a blind 500.
 //
@@ -4185,7 +4191,7 @@ func (s *decisionService) applyTargetedFields(
 			actorAccountID,
 			time.Now(),
 		); err != nil {
-			errs = append(errs, fmt.Sprintf("record consent history: %v", err))
+			return departurePlanSynced, fmt.Errorf("%w: %w", errStudentConsentAuditRequired, err)
 		}
 	}
 

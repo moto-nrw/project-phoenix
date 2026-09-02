@@ -1,20 +1,16 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatBerlinDate } from "~/lib/date-helpers";
-import type { StudentConsent, StudentConsentKey } from "~/lib/student-helpers";
-
-const CONSENT_LABELS: Record<StudentConsentKey, string> = {
-  agb: "Allgemeine Geschäftsbedingungen (AGB)",
-  data_processing: "Datenschutz zur Kenntnis genommen",
-  email_contact: "Kontakt per E-Mail erlaubt",
-  photo: "Foto-Einwilligung",
-};
+import type { StudentConsent } from "~/lib/student-helpers";
 
 export function StudentConsentsReadOnly({
   consents,
 }: Readonly<{ consents?: readonly StudentConsent[] }>) {
+  const t = useTranslations("parentChild.consents");
+  const locale = useLocale();
   const visibleConsents =
     consents?.filter((consent) => consent.state !== "not_recorded") ?? [];
 
@@ -23,8 +19,8 @@ export function StudentConsentsReadOnly({
   return (
     <SectionCard
       id="student-consents"
-      title="Einwilligungen und Bestätigungen"
-      description="Nur zur Information. Eltern können die Foto-Einwilligung im Elternportal widerrufen."
+      title={t("title")}
+      description={t("staffDescription")}
     >
       <ul className="divide-y divide-gray-100">
         {visibleConsents.map((consent) => {
@@ -36,18 +32,19 @@ export function StudentConsentsReadOnly({
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">
-                  {CONSENT_LABELS[consent.key]}
+                  {t(`items.${consent.key}`)}
                 </p>
                 {consent.changed_at ? (
                   <p className="mt-1 text-sm text-gray-600">
-                    {withdrawn ? "Widerrufen" : "Hinterlegt"} am{" "}
-                    {formatBerlinDate(consent.changed_at, "de-DE")}
+                    {t(`dates.${withdrawn ? "withdrawn" : "granted"}`, {
+                      date: formatBerlinDate(consent.changed_at, locale),
+                    })}
                   </p>
                 ) : null}
               </div>
               <div className="flex items-start sm:items-end">
                 <StatusBadge
-                  label={withdrawn ? "Widerrufen" : "Hinterlegt"}
+                  label={t(`states.${withdrawn ? "withdrawn" : "granted"}`)}
                   tone={withdrawn ? "red" : "green"}
                 />
               </div>
