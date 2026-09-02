@@ -785,13 +785,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/users",
-      "owner": "inbound-users",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "api/work-time-models",
       "owner": "inbound-work-time-models",
       "role": "http",
@@ -1695,6 +1688,62 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/peopledirectory",
+      "owner": "people-directory",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/compose",
+      "owner": "people-directory",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/http",
+      "owner": "inbound-users",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/adapters/postgres",
+      "owner": "people-directory",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/application",
+      "owner": "people-directory",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/adapters/postgres/calendar",
+      "owner": "people-directory",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/domain",
+      "owner": "people-directory",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/ports",
+      "owner": "people-directory",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schoolstructure",
       "owner": "school-structure",
       "role": "public",
@@ -1920,206 +1969,805 @@
     }
   ],
   "data_objects": [
-    {"name": "active.attendance", "write_owner": "student-presence"},
-    {"name": "active.combined_groups", "write_owner": "student-presence"},
-    {"name": "active.excused_absence_requests", "write_owner": "care-plan"},
-    {"name": "active.group_mappings", "write_owner": "student-presence"},
-    {"name": "active.group_supervisors", "write_owner": "student-presence"},
-    {"name": "active.groups", "write_owner": "student-presence"},
-    {"name": "active.scheduled_checkouts", "write_owner": "student-presence"},
-    {"name": "active.staff_absence_audit", "write_owner": "workforce"},
-    {"name": "active.staff_absence_type_allowance_changes", "write_owner": "workforce"},
-    {"name": "active.staff_absence_type_allowances", "write_owner": "workforce"},
-    {"name": "active.staff_absence_types", "write_owner": "workforce"},
-    {"name": "active.staff_absences", "write_owner": "workforce"},
-    {"name": "active.staff_balance_adjustments", "write_owner": "workforce"},
-    {"name": "active.staff_month_balance_snapshots", "write_owner": "workforce"},
-    {"name": "active.staff_vacation_openings", "write_owner": "workforce"},
-    {"name": "active.staff_vacation_quota", "write_owner": "workforce"},
-    {"name": "active.student_status_days", "write_owner": "care-plan"},
-    {"name": "active.visits", "write_owner": "student-presence"},
-    {"name": "active.work_session_breaks", "write_owner": "workforce"},
-    {"name": "active.work_sessions", "write_owner": "workforce"},
-    {"name": "activities.categories", "write_owner": "timetable-activities"},
-    {"name": "activities.group_targets", "write_owner": "timetable-activities"},
-    {"name": "activities.groups", "write_owner": "timetable-activities"},
-    {"name": "activities.schedules", "write_owner": "timetable-activities"},
-    {"name": "activities.student_enrollments", "write_owner": "timetable-activities"},
-    {"name": "activities.supervisors", "write_owner": "timetable-activities"},
-    {"name": "audit.auth_events", "write_owner": "audit-platform"},
-    {"name": "audit.class_list_entry_changes", "write_owner": "audit-platform"},
-    {"name": "audit.data_access_log", "write_owner": "audit-platform"},
-    {"name": "audit.data_deletions", "write_owner": "audit-platform"},
-    {"name": "audit.data_imports", "write_owner": "audit-platform"},
-    {"name": "audit.deviation_events", "write_owner": "audit-platform"},
-    {"name": "audit.enrollment_deletions", "write_owner": "audit-platform"},
-    {"name": "audit.enrollment_offering_adjustments", "write_owner": "audit-platform"},
-    {"name": "audit.enrollment_restorations", "write_owner": "audit-platform"},
-    {"name": "audit.file_event_ledger", "write_owner": "audit-platform"},
-    {"name": "audit.guardian_changes", "write_owner": "audit-platform"},
-    {"name": "audit.guardian_financial_change_ledger", "write_owner": "audit-platform"},
-    {"name": "audit.personnel_number_changes", "write_owner": "audit-platform"},
-    {"name": "audit.staff_master_data_changes", "write_owner": "audit-platform"},
-    {"name": "audit.substitution_changes", "write_owner": "audit-platform"},
-    {"name": "audit.student_consent_changes", "write_owner": "audit-platform"},
-    {"name": "audit.student_deletions", "write_owner": "audit-platform"},
-    {"name": "audit.student_field_edits", "write_owner": "audit-platform"},
-    {"name": "audit.time_tracking_deletions", "write_owner": "audit-platform"},
-    {"name": "audit.time_tracking_audit_log", "write_owner": "audit-platform"},
-    {"name": "audit.unregistered_tag_scans", "write_owner": "device-fleet"},
-    {"name": "audit.work_session_edits", "write_owner": "audit-platform"},
-    {"name": "auth.account_permissions", "write_owner": "identity-access"},
-    {"name": "auth.account_roles", "write_owner": "identity-access"},
-    {"name": "auth.account_tenants", "write_owner": "identity-access"},
-    {"name": "auth.accounts", "write_owner": "identity-access"},
-    {"name": "auth.guardian_invitations", "write_owner": "identity-access"},
-    {"name": "auth.invitation_tokens", "write_owner": "identity-access"},
-    {"name": "auth.mfa_credentials", "write_owner": "identity-access"},
-    {"name": "auth.mfa_email_challenges", "write_owner": "identity-access"},
-    {"name": "auth.mfa_overrides", "write_owner": "identity-access"},
-    {"name": "auth.mfa_recovery_codes", "write_owner": "identity-access"},
-    {"name": "auth.mfa_trusted_devices", "write_owner": "identity-access"},
-    {"name": "auth.passkey_credentials", "write_owner": "identity-access"},
-    {"name": "auth.passkey_sessions", "write_owner": "identity-access"},
-    {"name": "auth.password_reset_rate_limits", "write_owner": "identity-access"},
-    {"name": "auth.password_reset_tokens", "write_owner": "identity-access"},
-    {"name": "auth.permissions", "write_owner": "identity-access"},
-    {"name": "auth.role_permissions", "write_owner": "identity-access"},
-    {"name": "auth.roles", "write_owner": "identity-access"},
-    {"name": "auth.tokens", "write_owner": "identity-access"},
-    {"name": "calendar.appointment_occurrence_overrides", "write_owner": "appointments"},
-    {"name": "calendar.appointment_recipient_students", "write_owner": "appointments"},
-    {"name": "calendar.appointment_recipients", "write_owner": "appointments"},
-    {"name": "calendar.appointment_reminder_push_deliveries", "write_owner": "appointments"},
-    {"name": "calendar.appointment_targets", "write_owner": "appointments"},
-    {"name": "calendar.appointments", "write_owner": "appointments"},
-    {"name": "calendar.recurrence_rules", "write_owner": "appointments"},
-    {"name": "calendar.staff_feed_tombstones", "write_owner": "school-calendar"},
-    {"name": "config.setting_audit", "write_owner": "settings-platform"},
-    {"name": "config.setting_values", "write_owner": "settings-platform"},
-    {"name": "config.settings", "write_owner": "settings-platform"},
-    {"name": "config.staff_work_schedules", "write_owner": "workforce"},
-    {"name": "config.work_time_model_entries", "write_owner": "workforce"},
-    {"name": "config.work_time_models", "write_owner": "workforce"},
-    {"name": "display.displays", "write_owner": "device-fleet"},
-    {"name": "documents.announcement_attachment_cleanup", "write_owner": "file-storage"},
-    {"name": "documents.announcement_attachments", "write_owner": "file-storage"},
-    {"name": "education.class_arrival_times", "write_owner": "timetable-activities"},
-    {"name": "education.class_teachers", "write_owner": "school-membership"},
-    {"name": "education.grade_transition_class_list_entries", "write_owner": "school-structure"},
-    {"name": "education.grade_transition_class_teachers", "write_owner": "school-structure"},
-    {"name": "education.grade_transition_history", "write_owner": "school-structure"},
-    {"name": "education.grade_transition_mappings", "write_owner": "school-structure"},
-    {"name": "education.grade_transitions", "write_owner": "school-structure"},
-    {"name": "education.group_substitution", "write_owner": "workforce"},
-    {"name": "education.group_teacher", "write_owner": "school-membership"},
-    {"name": "education.groups", "write_owner": "school-structure"},
-    {"name": "enrollment.care_offering_auto_triggers", "write_owner": "care-plan"},
-    {"name": "enrollment.care_offerings", "write_owner": "care-plan"},
-    {"name": "enrollment.change_request_messages", "write_owner": "enrollment"},
-    {"name": "enrollment.change_requests", "write_owner": "enrollment"},
-    {"name": "enrollment.form_schemas", "write_owner": "enrollment"},
-    {"name": "enrollment.late_invites", "write_owner": "enrollment"},
-    {"name": "enrollment.offering_change_requests", "write_owner": "care-plan"},
-    {"name": "enrollment.phases", "write_owner": "enrollment"},
-    {"name": "enrollment.request_child_offerings", "write_owner": "enrollment"},
-    {"name": "enrollment.request_children", "write_owner": "enrollment"},
-    {"name": "enrollment.request_guardians", "write_owner": "enrollment"},
-    {"name": "enrollment.requests", "write_owner": "enrollment"},
-    {"name": "enrollment.submission_rate_limits", "write_owner": "enrollment"},
-    {"name": "facilities.rooms", "write_owner": "facilities"},
-    {"name": "feedback.entries", "write_owner": "feedback"},
-    {"name": "iot.devices", "write_owner": "device-fleet"},
-    {"name": "iot.push_subscriptions", "write_owner": "delivery-platform"},
-    {"name": "iot.pwa_standalone_usage", "write_owner": "observability"},
-    {"name": "platform.announcement_views", "write_owner": "communication"},
-    {"name": "platform.announcements", "write_owner": "communication"},
-    {"name": "platform.delivery_email_deliveries", "write_owner": "delivery-platform"},
-    {"name": "platform.delivery_push_subscriptions", "write_owner": "delivery-platform"},
-    {"name": "platform.email_outbox", "write_owner": "delivery-platform"},
-    {"name": "platform.operator_audit_log", "write_owner": "audit-platform"},
-    {"name": "platform.operator_email_change_tokens", "write_owner": "identity-access"},
-    {"name": "platform.operator_invitation_tokens", "write_owner": "identity-access"},
-    {"name": "platform.operator_mfa_credentials", "write_owner": "identity-access"},
-    {"name": "platform.operator_mfa_email_challenges", "write_owner": "identity-access"},
-    {"name": "platform.operator_mfa_recovery_codes", "write_owner": "identity-access"},
-    {"name": "platform.operator_mfa_trusted_devices", "write_owner": "identity-access"},
-    {"name": "platform.operator_passkey_credentials", "write_owner": "identity-access"},
-    {"name": "platform.operator_passkey_sessions", "write_owner": "identity-access"},
-    {"name": "platform.operator_refresh_tokens", "write_owner": "identity-access"},
-    {"name": "platform.operators", "write_owner": "identity-access"},
-    {"name": "platform.organizations", "write_owner": "organization-tenancy"},
-    {"name": "platform.push_outbox", "write_owner": "delivery-platform"},
-    {"name": "platform.schools", "write_owner": "organization-tenancy"},
-    {"name": "schedule.activity_exceptions", "write_owner": "timetable-activities"},
-    {"name": "schedule.activity_instances", "write_owner": "timetable-activities"},
-    {"name": "schedule.calendar_periods", "write_owner": "school-calendar"},
-    {"name": "schedule.care_schedule_change_requests", "write_owner": "care-plan"},
-    {"name": "schedule.closing_days", "write_owner": "school-calendar"},
-    {"name": "schedule.dateframes", "write_owner": "school-calendar"},
-    {"name": "schedule.grade_transition_roster_removals", "write_owner": "timetable-activities"},
-    {"name": "schedule.instance_staff", "write_owner": "timetable-activities"},
-    {"name": "schedule.instance_students", "write_owner": "timetable-activities"},
-    {"name": "schedule.meal_plan_entries", "write_owner": "meal-plan"},
-    {"name": "schedule.planning_tracks", "write_owner": "timetable-activities"},
-    {"name": "schedule.recurrence_rules", "write_owner": "timetable-activities"},
-    {"name": "schedule.shift_types", "write_owner": "workforce"},
-    {"name": "schedule.staff_shift_series", "write_owner": "workforce"},
-    {"name": "schedule.staff_shift_series_exceptions", "write_owner": "workforce"},
-    {"name": "schedule.staff_shifts", "write_owner": "workforce"},
-    {"name": "schedule.student_arrival_exceptions", "write_owner": "care-plan"},
-    {"name": "schedule.student_arrival_notes", "write_owner": "care-plan"},
-    {"name": "schedule.student_arrival_schedules", "write_owner": "care-plan"},
-    {"name": "schedule.student_pickup_exceptions", "write_owner": "care-plan"},
-    {"name": "schedule.student_pickup_notes", "write_owner": "care-plan"},
-    {"name": "schedule.student_pickup_schedules", "write_owner": "care-plan"},
-    {"name": "schedule.timeframes", "write_owner": "timetable-activities"},
-    {"name": "schedule.timetable_conflict_acks", "write_owner": "timetable-activities"},
-    {"name": "users.care_withdrawal_completions", "write_owner": "care-plan"},
-    {"name": "users.class_list_entries", "write_owner": "school-membership"},
-    {"name": "users.guardian_phone_numbers", "write_owner": "people-directory"},
-    {"name": "users.guardian_profiles", "write_owner": "people-directory"},
-    {"name": "users.guests", "write_owner": "school-membership"},
-    {"name": "users.notification_preferences", "write_owner": "communication"},
-    {"name": "users.parent_announcement_options", "write_owner": "communication"},
-    {"name": "users.parent_announcement_reads", "write_owner": "communication"},
-    {"name": "users.parent_announcement_responses", "write_owner": "communication"},
-    {"name": "users.parent_announcement_targets", "write_owner": "communication"},
-    {"name": "users.parent_announcements", "write_owner": "communication"},
-    {"name": "users.parent_message_reads", "write_owner": "communication"},
-    {"name": "users.parent_message_threads", "write_owner": "communication"},
-    {"name": "users.parent_messages", "write_owner": "communication"},
-    {"name": "users.staff_notice_acks", "write_owner": "timetable-activities"},
-    {"name": "users.staff_notices", "write_owner": "timetable-activities"},
-    {"name": "users.parent_request_share_events", "write_owner": "people-directory"},
-    {"name": "users.parent_request_events", "write_owner": "people-directory"},
-    {"name": "users.persons", "write_owner": "people-directory"},
-    {"name": "users.privacy_consents", "write_owner": "student-presence"},
-    {"name": "users.profiles", "write_owner": "identity-access"},
-    {"name": "users.rfid_cards", "write_owner": "identity-access"},
-    {"name": "users.staff", "write_owner": "school-membership"},
-    {"name": "users.staff_document_file_cleanup", "write_owner": "workforce"},
-    {"name": "users.staff_documents", "write_owner": "workforce"},
-    {"name": "users.staff_financial_data", "write_owner": "workforce"},
-    {"name": "users.staff_master_data", "write_owner": "workforce"},
-    {"name": "users.staff_qualifications", "write_owner": "workforce"},
-    {"name": "users.student_care_exit_removals", "write_owner": "care-plan"},
-    {"name": "users.student_care_exit_source_removals", "write_owner": "care-plan"},
-    {"name": "users.student_care_exits", "write_owner": "care-plan"},
-    {"name": "users.student_companions", "write_owner": "care-plan"},
-    {"name": "users.student_data_change_requests", "write_owner": "care-plan"},
-    {"name": "users.student_family_protection_events", "write_owner": "people-directory"},
-    {"name": "users.student_document_file_cleanup", "write_owner": "care-plan"},
-    {"name": "users.student_documents", "write_owner": "care-plan"},
-    {"name": "users.students", "write_owner": "people-directory"},
-    {"name": "users.students_guardians", "write_owner": "people-directory"},
-    {"name": "users.teachers", "write_owner": "school-membership"}
+    {
+      "name": "active.attendance",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.combined_groups",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.excused_absence_requests",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "active.group_mappings",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.group_supervisors",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.groups",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.scheduled_checkouts",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.staff_absence_audit",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_absence_type_allowance_changes",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_absence_type_allowances",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_absence_types",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_absences",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_balance_adjustments",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_month_balance_snapshots",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_vacation_openings",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_vacation_quota",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.student_status_days",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "active.visits",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.work_session_breaks",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.work_sessions",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "activities.categories",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.group_targets",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.groups",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.schedules",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.student_enrollments",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.supervisors",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "audit.auth_events",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.class_list_entry_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.data_access_log",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.data_deletions",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.data_imports",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.deviation_events",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.enrollment_deletions",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.enrollment_offering_adjustments",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.enrollment_restorations",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.file_event_ledger",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.guardian_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.guardian_financial_change_ledger",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.personnel_number_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.staff_master_data_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.substitution_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.student_consent_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.student_deletions",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.student_field_edits",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.time_tracking_deletions",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.time_tracking_audit_log",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.unregistered_tag_scans",
+      "write_owner": "device-fleet"
+    },
+    {
+      "name": "audit.work_session_edits",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "auth.account_permissions",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.account_roles",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.account_tenants",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.accounts",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.guardian_invitations",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.invitation_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_credentials",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_email_challenges",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_overrides",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_recovery_codes",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_trusted_devices",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.passkey_credentials",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.passkey_sessions",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.password_reset_rate_limits",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.password_reset_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.permissions",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.role_permissions",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.roles",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "calendar.appointment_occurrence_overrides",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointment_recipient_students",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointment_recipients",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointment_reminder_push_deliveries",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointment_targets",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointments",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.recurrence_rules",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.staff_feed_tombstones",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "config.setting_audit",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.setting_values",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.settings",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.staff_work_schedules",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "config.work_time_model_entries",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "config.work_time_models",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "display.displays",
+      "write_owner": "device-fleet"
+    },
+    {
+      "name": "documents.announcement_attachment_cleanup",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.announcement_attachments",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "education.class_arrival_times",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "education.class_teachers",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "education.grade_transition_class_list_entries",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.grade_transition_class_teachers",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.grade_transition_history",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.grade_transition_mappings",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.grade_transitions",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.group_substitution",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "education.group_teacher",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "education.groups",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "enrollment.care_offering_auto_triggers",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "enrollment.care_offerings",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "enrollment.change_request_messages",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.change_requests",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.form_schemas",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.late_invites",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.offering_change_requests",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "enrollment.phases",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_child_offerings",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_children",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_guardians",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.requests",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.submission_rate_limits",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "facilities.rooms",
+      "write_owner": "facilities"
+    },
+    {
+      "name": "feedback.entries",
+      "write_owner": "feedback"
+    },
+    {
+      "name": "iot.devices",
+      "write_owner": "device-fleet"
+    },
+    {
+      "name": "iot.push_subscriptions",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "iot.pwa_standalone_usage",
+      "write_owner": "observability"
+    },
+    {
+      "name": "platform.announcement_views",
+      "write_owner": "communication"
+    },
+    {
+      "name": "platform.announcements",
+      "write_owner": "communication"
+    },
+    {
+      "name": "platform.delivery_email_deliveries",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.delivery_push_subscriptions",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.email_outbox",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.operator_audit_log",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "platform.operator_email_change_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_invitation_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_mfa_credentials",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_mfa_email_challenges",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_mfa_recovery_codes",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_mfa_trusted_devices",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_passkey_credentials",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_passkey_sessions",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_refresh_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operators",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.organizations",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.push_outbox",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.schools",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "schedule.activity_exceptions",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.activity_instances",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.calendar_periods",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "schedule.care_schedule_change_requests",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.closing_days",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "schedule.dateframes",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "schedule.grade_transition_roster_removals",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.instance_staff",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.instance_students",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.meal_plan_entries",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.planning_tracks",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.recurrence_rules",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.shift_types",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "schedule.staff_shift_series",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "schedule.staff_shift_series_exceptions",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "schedule.staff_shifts",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "schedule.student_arrival_exceptions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_arrival_notes",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_arrival_schedules",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_pickup_exceptions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_pickup_notes",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_pickup_schedules",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.timeframes",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.timetable_conflict_acks",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "users.care_withdrawal_completions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.class_list_entries",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.guardian_phone_numbers",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.guardian_profiles",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.guests",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.notification_preferences",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_options",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_responses",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_targets",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcements",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_message_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_message_threads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_messages",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.staff_notice_acks",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "users.staff_notices",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "users.parent_request_share_events",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.parent_request_events",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.persons",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.privacy_consents",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "users.profiles",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "users.rfid_cards",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "users.staff",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.staff_document_file_cleanup",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_documents",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_financial_data",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_master_data",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_qualifications",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.student_care_exit_removals",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_care_exit_source_removals",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_care_exits",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_companions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_data_change_requests",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_family_protection_events",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_document_file_cleanup",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_documents",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.students",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.students_guardians",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.teachers",
+      "write_owner": "school-membership"
+    }
   ],
   "read_projections": [],
   "legacy_composition": [
-    {"package": "api", "symbols": ["API", "New"]},
-    {"package": "database/repositories", "symbols": ["Factory", "NewFactory"]},
-    {"package": "services", "symbols": ["Factory"]}
+    {
+      "package": "api",
+      "symbols": [
+        "API",
+        "New"
+      ]
+    },
+    {
+      "package": "database/repositories",
+      "symbols": [
+        "Factory",
+        "NewFactory"
+      ]
+    },
+    {
+      "package": "services",
+      "symbols": [
+        "Factory"
+      ]
+    }
   ],
   "external_classes": [
     "cli-config",
@@ -4726,7 +5374,9 @@
     {
       "id": "organization-tenancy.port-domain",
       "description": "Organization and Tenancy ports express persistence operations using their own domain values.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "port",
       "target_role": "domain",
@@ -4735,7 +5385,9 @@
     {
       "id": "organization-tenancy.compose.application",
       "description": "Organization and Tenancy composition constructs its application service.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "compose",
       "target_owner": "organization-tenancy",
@@ -4744,7 +5396,9 @@
     {
       "id": "organization-tenancy.compose.domain",
       "description": "Organization and Tenancy composition maps its internal domain values.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "compose",
       "target_owner": "organization-tenancy",
@@ -4753,7 +5407,9 @@
     {
       "id": "organization-tenancy.compose.orm-sql",
       "description": "Organization and Tenancy composition supplies the concrete Bun database dependency.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "compose",
       "target_class": "orm-sql"
@@ -4761,7 +5417,9 @@
     {
       "id": "organization-tenancy.compose.port",
       "description": "Organization and Tenancy composition exposes observations from its consumer-owned port.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "compose",
       "target_owner": "organization-tenancy",
@@ -4770,7 +5428,9 @@
     {
       "id": "organization-tenancy.compose.postgres",
       "description": "Organization and Tenancy composition constructs its Postgres adapter.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "compose",
       "target_owner": "organization-tenancy",
@@ -4779,7 +5439,9 @@
     {
       "id": "organization-tenancy.compose.public",
       "description": "Organization and Tenancy composition returns its public facade.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "compose",
       "target_owner": "organization-tenancy",
@@ -4788,7 +5450,9 @@
     {
       "id": "organization-tenancy.compose.tenant-runtime",
       "description": "Organization and Tenancy composition binds the shared tenant transaction runtime.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "compose",
       "target_owner": "tenant-runtime",
@@ -4797,7 +5461,9 @@
     {
       "id": "organization-tenancy.internal-test.orm-sql",
       "description": "Organization and Tenancy composition tests supply the concrete Bun test database.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "workflow-integration-test",
       "target_class": "orm-sql"
@@ -4805,7 +5471,9 @@
     {
       "id": "organization-tenancy.internal-test.tenant-runtime",
       "description": "Organization and Tenancy composition tests verify transaction and lock behavior through the shared tenant runtime.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "workflow-integration-test",
       "target_owner": "tenant-runtime",
@@ -4814,7 +5482,9 @@
     {
       "id": "organization-tenancy.integration-test.public",
       "description": "Organization and Tenancy integration tests exercise the public facade.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "workflow-integration-test",
       "target_owner": "organization-tenancy",
@@ -4823,7 +5493,9 @@
     {
       "id": "organization-tenancy.integration-test.support",
       "description": "Organization and Tenancy integration tests use hermetic database support.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
@@ -4832,7 +5504,9 @@
     {
       "id": "root-composition.to.organization-tenancy-compose",
       "description": "The production root constructs the Organization and Tenancy module once.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "root-composition",
       "source_role": "compose",
       "target_owner": "organization-tenancy",
@@ -4841,7 +5515,9 @@
     {
       "id": "root-composition.to.organization-tenancy-public",
       "description": "The production root records stable Organization and Tenancy capability outcomes.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "root-composition",
       "source_role": "compose",
       "target_owner": "organization-tenancy",
@@ -4850,7 +5526,9 @@
     {
       "id": "legacy-composition.to.organization-tenancy-compose",
       "description": "Legacy test graph composition constructs the required Organization and Tenancy capability.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "organization-tenancy",
@@ -4859,7 +5537,9 @@
     {
       "id": "legacy-composition.to.organization-tenancy-public",
       "description": "Legacy composition passes the Organization and Tenancy facade to consumers.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "organization-tenancy",
@@ -4868,7 +5548,9 @@
     {
       "id": "organization-tenancy.application-public",
       "description": "The remaining Organization and Tenancy application services consume the owner facade during the school cutover.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "organization-tenancy",
       "source_role": "application",
       "target_owner": "organization-tenancy",
@@ -5019,7 +5701,9 @@
     {
       "id": "audit-platform.to.organization-tenancy",
       "description": "Audit scan presentation resolves organization names through the public owner query.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "audit-platform",
       "source_role": "application",
       "target_owner": "organization-tenancy",
@@ -5028,7 +5712,9 @@
     {
       "id": "audit-platform.internal-test.organization-tenancy",
       "description": "Audit service tests implement the public organization query contract.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "audit-platform",
       "source_role": "module-internal-test",
       "target_owner": "organization-tenancy",
@@ -5292,6 +5978,234 @@
       "source_role": "application",
       "target_owner": "delivery-platform",
       "target_role": "domain"
+    },
+    {
+      "id": "people-directory.port-domain",
+      "description": "People Directory ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "people-directory.postgres.calendar-adapter",
+      "description": "People Directory persistence maps calendar dates through its internal calendar adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "people-directory",
+      "target_role": "adapter"
+    },
+    {
+      "id": "people-directory.calendar-adapter.date",
+      "description": "The People Directory calendar adapter uses the repository calendar-date type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.compose.application",
+      "description": "People Directory composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "people-directory.compose.domain",
+      "description": "People Directory composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.compose.orm-sql",
+      "description": "People Directory composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "people-directory.compose.port",
+      "description": "People Directory composition exposes observations from its consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "port"
+    },
+    {
+      "id": "people-directory.compose.postgres",
+      "description": "People Directory composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "postgres"
+    },
+    {
+      "id": "people-directory.compose.public",
+      "description": "People Directory composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.compose.tenant-runtime",
+      "description": "People Directory composition binds the shared tenant transaction runtime and savepoints.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.internal-test.orm-sql",
+      "description": "People Directory composition tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "people-directory.internal-test.tenant-runtime",
+      "description": "People Directory composition tests verify transaction, rollback, and tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.integration-test.public",
+      "description": "People Directory integration tests exercise the public facade.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.integration-test.support",
+      "description": "People Directory integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "inbound-users.http.security-contract",
+      "description": "The People Directory HTTP adapter binds its established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-users",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-users.adapter-test.http-router",
+      "description": "People Directory adapter tests exercise the real router and response renderer.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-users",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "root-composition.to.people-directory-compose",
+      "description": "The production root constructs the People Directory module once.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.people-directory-public",
+      "description": "The production root records stable People Directory capability outcomes and shares the facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.people-directory-http",
+      "description": "The production root constructs the People Directory HTTP adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-users",
+      "target_role": "http"
+    },
+    {
+      "id": "legacy-composition.to.people-directory-compose",
+      "description": "Legacy test graph composition constructs the required People Directory capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.people-directory-public",
+      "description": "Legacy composition wraps person-enriched repositories over the People Directory facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
     },
     {
       "id": "delivery.adapter-test.identity-domain",

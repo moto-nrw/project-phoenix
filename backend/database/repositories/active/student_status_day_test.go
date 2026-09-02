@@ -79,6 +79,40 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	assert.Equal(t, active.StudentStatusSourceNextCheckin, allRows[0].Source)
 }
 
+func TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db).StudentStatusDay
+	ctx := testpkg.Ctx(t)
+	date := timezone.NewDate(2026, 8, 24)
+	last := testpkg.CreateTestStudent(t, db, "Zoe", "Zimmer", "OV1")
+	first := testpkg.CreateTestStudent(t, db, "Anna", "Adam", "OV2")
+	for _, studentID := range []int64{last.ID, first.ID} {
+		require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+			StudentID: studentID, Date: date, Status: active.StudentStatusDaySick,
+			ReportedAt: time.Now(), Source: active.StudentStatusSourceManual,
+		}))
+	}
+
+	options := func(page int) *modelBase.QueryOptions {
+		return &modelBase.QueryOptions{
+			Filter:     modelBase.NewFilter().Equal("date", date),
+			Pagination: &modelBase.Pagination{Page: page, PageSize: 1},
+		}
+	}
+	orderedStudentIDs := []int64{first.ID, last.ID}
+	firstPage, err := repo.ListOverviewWithOptions(ctx, options(1), orderedStudentIDs)
+	require.NoError(t, err)
+	require.Len(t, firstPage, 1)
+	assert.Equal(t, first.ID, firstPage[0].StudentID)
+
+	secondPage, err := repo.ListOverviewWithOptions(ctx, options(2), orderedStudentIDs)
+	require.NoError(t, err)
+	require.Len(t, secondPage, 1)
+	assert.Equal(t, last.ID, secondPage[0].StudentID)
+}
+
 func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	t.Parallel()
 

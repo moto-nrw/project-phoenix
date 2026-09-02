@@ -35,7 +35,9 @@ import (
 // the broadcaster (these tests assert on data, not on SSE).
 func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	// RFID tag release runs through the People Directory composition (#2661).
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	return activeService.NewService(activeService.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
 		VisitRepo:          repos.ActiveVisit,
@@ -85,7 +87,9 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	// RFID tag release runs through the People Directory composition (#2661).
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	today := timezone.NewDate(2026, 8, 24)
 	svc := newCareLifecycleServiceAt(t, db, today)
 	presence := newActiveService(t, db)
@@ -93,7 +97,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Bienen")
 	student := testpkg.CreateTestStudent(t, db, "Leon", "Altmann", "2a")
-	_, err := db.NewUpdate().
+	_, err = db.NewUpdate().
 		TableExpr("users.students").
 		Set("group_id = ?", group.ID).
 		Where("id = ?", student.ID).
@@ -194,7 +198,9 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	// RFID tag release runs through the People Directory composition (#2661).
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 
@@ -237,7 +243,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 		Status:        activeModels.ExcusedRequestStatusPending,
 	}
 	request.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().
+	_, err = db.NewInsert().
 		Model(request).
 		ModelTableExpr("active.excused_absence_requests").
 		Exec(ctx)

@@ -14,11 +14,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// newSchoolProjectedAccountTenantRepository composes the repository the
+// way the service graph does: person names and caregiver facts through the
+// People Directory (#2661), then the school projections on top.
 func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) authModels.AccountTenantRepository {
 	t.Helper()
 	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	factory := repositories.NewFactory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	factory.BindOrganizationTenancy(capability)
 	return factory.AccountTenant
 }
@@ -231,10 +235,11 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := authRepo.NewAccountTenantRepository(db)
+	repo := newSchoolProjectedAccountTenantRepository(t, db)
 
 	t.Run("returns accounts for tenant", func(t *testing.T) {
-		accounts, err := repo.ListAccountsByTenantID(ctx, tenantID)
+		// The composed repository resolves persons through the tenant runtime.
+		accounts, err := repo.ListAccountsByTenantID(testpkg.TenantContext(tenantID), tenantID)
 		require.NoError(t, err)
 
 		var found bool
@@ -251,7 +256,7 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 	})
 
 	t.Run("returns empty for nonexistent tenant", func(t *testing.T) {
-		accounts, err := repo.ListAccountsByTenantID(ctx, 999999)
+		accounts, err := repo.ListAccountsByTenantID(testpkg.TenantContext(999999), 999999)
 		require.NoError(t, err)
 		assert.Empty(t, accounts)
 	})

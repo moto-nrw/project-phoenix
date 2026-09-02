@@ -29,7 +29,7 @@ func setupClassListEntryTransitionTest(t *testing.T) (*educationService.GradeTra
 	db := testpkg.SetupTestDB(t)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo:      educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo:      newGradeTransitionRepository(t, db),
 		StudentRepo:         usersRepo.NewStudentRepository(db),
 		PersonRepo:          usersRepo.NewPersonRepository(db),
 		ClassTeacherRepo:    educationRepo.NewClassTeacherRepository(db),

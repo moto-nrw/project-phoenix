@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	parentStudentConsentsVersion     = "1.15.362"
+	parentStudentConsentsVersion     = "1.15.363"
 	parentStudentConsentsDescription = "Add append-only student consent history and parent consent permission (#2636)"
 )
 

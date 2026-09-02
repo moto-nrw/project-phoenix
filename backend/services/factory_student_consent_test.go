@@ -15,7 +15,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	organizations, groups, err := newModuleCapabilitiesForTests(db)
+	organizations, persons, groups, err := newOwnerCapabilitiesForTests(db)
 	require.NoError(t, err)
 
 	observedAppends := 0
@@ -34,6 +34,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 			OperatorHostname: "operator.localhost:3000",
 		},
 		organizations,
+		persons,
 		groups,
 		nil,
 		nil,

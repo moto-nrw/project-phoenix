@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -224,9 +223,11 @@ func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []
 	return absences, nil
 }
 
-// ListRequests returns absence requests with the subject and decider names the
-// Anfragen module shows (#2433). Both name joins are LEFT joins so a request
-// stays visible after its staff or person row is gone; the name is empty then.
+// ListRequests returns absence requests with the subject and decider person
+// references the Anfragen module needs (#2433). Both staff joins are LEFT
+// joins so a request stays visible after its staff row is gone. The names
+// are attached by the composition layer through the People Directory, which
+// also turns filter.Search into filter.SubjectPersonIDs beforehand.
 func (r *StaffAbsenceRepository) ListRequests(ctx context.Context, filter active.AbsenceRequestFilter) ([]*active.AbsenceRequestRow, error) {
 	if len(filter.Statuses) == 0 {
 		return nil, errors.New("at least one status is required")
@@ -236,26 +237,20 @@ func (r *StaffAbsenceRepository) ListRequests(ctx context.Context, filter active
 		Model(&rows).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		ColumnExpr(`"staff_absence".*`).
-		ColumnExpr(`COALESCE("subject_person".first_name || ' ' || "subject_person".last_name, '') AS staff_name`).
-		ColumnExpr(`COALESCE("decider_person".first_name || ' ' || "decider_person".last_name, '') AS decided_by_name`).
+		ColumnExpr(`"subject_staff".person_id AS subject_person_id`).
+		ColumnExpr(`"decider_staff".person_id AS decider_person_id`).
 		Join(`LEFT JOIN users.staff AS "subject_staff" ON "subject_staff".id = "staff_absence".staff_id`).
-		Join(`LEFT JOIN users.persons AS "subject_person" ON "subject_person".id = "subject_staff".person_id`).
 		Join(`LEFT JOIN users.staff AS "decider_staff" ON "decider_staff".id = "staff_absence".approved_by`).
-		Join(`LEFT JOIN users.persons AS "decider_person" ON "decider_person".id = "decider_staff".person_id`).
 		Where(`"staff_absence".status IN (?)`, bun.List(filter.Statuses))
 
 	if len(filter.Types) > 0 {
 		query = query.Where(`"staff_absence".absence_type IN (?)`, bun.List(filter.Types))
 	}
-	if search := strings.TrimSpace(filter.Search); search != "" {
-		// Escape the LIKE metacharacters so a typed % or _ stays a literal
-		// character of the name instead of silently matching everything.
-		escaped := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(search)
-		pattern := "%" + escaped + "%"
-		query = query.Where(
-			`COALESCE("subject_person".first_name || ' ' || "subject_person".last_name, '') ILIKE ?`,
-			pattern,
-		)
+	if filter.SubjectPersonIDs != nil {
+		if len(filter.SubjectPersonIDs) == 0 {
+			return []*active.AbsenceRequestRow{}, nil
+		}
+		query = query.Where(`"subject_staff".person_id IN (?)`, bun.List(filter.SubjectPersonIDs))
 	}
 	if filter.Decided {
 		query = query.OrderExpr(`COALESCE("staff_absence".approved_at, "staff_absence".updated_at) DESC, "staff_absence".id DESC`)

@@ -228,7 +228,7 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 	if err != nil {
 		return nil, err
 	}
-	staffMap, err := r.loadStaffWithPersonsByIDs(ctx, staffIDs)
+	staffMap, err := r.loadStaffByIDs(ctx, staffIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -286,8 +286,8 @@ func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, group
 	return groupMap, nil
 }
 
-// loadStaffWithPersonsByIDs loads staff with their persons by IDs
-func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Context, staffIDs map[int64]bool) (map[int64]*users.Staff, error) {
+// loadStaffByIDs loads staff records by IDs
+func (r *GroupSubstitutionRepository) loadStaffByIDs(ctx context.Context, staffIDs map[int64]bool) (map[int64]*users.Staff, error) {
 	staffMap := make(map[int64]*users.Staff)
 	if len(staffIDs) == 0 {
 		return staffMap, nil
@@ -313,52 +313,13 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 		return staffMap, nil
 	}
 
-	// Build staff map and collect person IDs
-	personIDs := make([]int64, 0, len(staffList))
+	// Build the staff map. Staff.Person is attached by the composition
+	// layer through the People Directory.
 	for _, staff := range staffList {
 		staffMap[staff.ID] = staff
-		if staff.PersonID > 0 {
-			personIDs = append(personIDs, staff.PersonID)
-		}
-	}
-
-	// Load and link persons
-	if err := r.linkPersonsToStaff(ctx, staffList, personIDs); err != nil {
-		return nil, err
 	}
 
 	return staffMap, nil
-}
-
-// linkPersonsToStaff loads persons and links them to staff records
-func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, staffList []*users.Staff, personIDs []int64) error {
-	if len(personIDs) == 0 {
-		return nil
-	}
-
-	var persons []*users.Person
-	personQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(&persons).
-		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".id IN (?)`, bun.List(personIDs))
-
-	personQuery = base.WithTenantFilter(ctx, personQuery, "person")
-
-	if err := personQuery.Scan(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "load substitution staff persons", Err: base.TranslateNotFound(err)}
-	}
-
-	personMap := make(map[int64]*users.Person)
-	for _, person := range persons {
-		personMap[person.ID] = person
-	}
-
-	for _, staff := range staffList {
-		if person, ok := personMap[staff.PersonID]; ok {
-			staff.Person = person
-		}
-	}
-	return nil
 }
 
 // assignRelationsToSubstitutions assigns loaded relations to substitution records
