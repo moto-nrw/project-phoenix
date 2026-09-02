@@ -289,8 +289,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     <TenantPage
       title={`${data.guardian_first_name} ${data.guardian_last_name}`}
       back
-      backHref="/admin/enrollments"
-      backLabel="Zurück zur Anmeldungs-Übersicht"
+      backHref={`/admin/enrollments/phases/${data.phase_id}`}
+      backLabel="Zurück zur Anmeldephase"
       stats={statusLine}
       leading={<ConceptIconTile concept="enrollments" variant="page" />}
       overlays={

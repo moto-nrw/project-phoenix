@@ -792,7 +792,11 @@ function StaffCalendarPageInner() {
       stats={onCalendarTab ? statusLine : undefined}
       statsLoading={calendarLoading}
       loading={calendarLoading}
-      error={calendarErrorState}
+      error={
+        calendarErrorState
+          ? { message: calendarErrorState, keepContent: true }
+          : null
+      }
       actions={
         canManageCalendar && onCalendarTab ? (
           <Button

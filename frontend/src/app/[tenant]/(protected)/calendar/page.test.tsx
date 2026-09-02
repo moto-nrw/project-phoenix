@@ -169,6 +169,35 @@ describe("StaffCalendarPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the calendar subscription available when the calendar fails", () => {
+    mockUseSWRAuth.mockImplementation((key: unknown) => {
+      const cacheKey = typeof key === "string" ? key : "";
+      if (cacheKey.startsWith("calendar-recipient-options")) {
+        return { data: recipientOptions, isLoading: false };
+      }
+      if (cacheKey.startsWith("staff-calendar")) {
+        return {
+          data: undefined,
+          error: new Error("calendar failed"),
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      return {
+        data: undefined,
+        error: null,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Kalender abonnieren" }),
+    ).toBeInTheDocument();
+  });
+
   it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {
     // A recurring appointment opened from its THIRD weekly occurrence
     // (2026-01-19); the persisted series anchor is 2026-01-05.
