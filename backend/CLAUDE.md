@@ -196,8 +196,12 @@ func TestExample(t *testing.T) {
   The `tests_run_in_parallel` gate has an empty baseline and rejects every
   exception. Inject process configuration and output; use per-test database
   clones for schema changes, sweeps, query measurements, and lock tests.
-- **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` and
-  post-merge CI run `-p 6 -parallel 8`; changed-only PRs run `-p 4 -parallel 8`.
+- **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` runs
+  `-p 10 -parallel 8` (local postgres-test has `max_connections=300`);
+  post-merge CI runs `-p 6 -parallel 8`, changed-only PRs `-p 4 -parallel 8`
+  (CI's service container keeps the stock 100 connections). `-parallel` stays
+  at 8 everywhere on purpose: `-test.parallel` is part of the Go test cache
+  key and sizes the per-binary pool.
   The pool per binary is derived from `-test.parallel` plus
   headroom, because a test holding a tenant transaction that opens a second one
   needs two connections at once — without headroom those tests deadlock and
