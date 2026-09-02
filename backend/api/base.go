@@ -223,7 +223,7 @@ func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI
 	})
 }
 
-func newUsersResource(module *peopleModule.Module, repoFactory *repositories.Factory, db *bun.DB) *usersAPI.Resource {
+func newUsersResource(module peopleModule.Capability, repoFactory *repositories.Factory, db *bun.DB) *usersAPI.Resource {
 	return usersAPI.NewResource(module, usersAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
 			apiCommon.ProtectedTenantGroup(router, db, register)

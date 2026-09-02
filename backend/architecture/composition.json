@@ -30012,8 +30012,8 @@
       "declaration": "TestBookingAuthorityImpactAndActivationUseTheSameEvaluation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        156,
-        166
+        160,
+        170
       ],
       "tables": []
     },
@@ -30023,7 +30023,7 @@
       "declaration": "TestBookingMutationPlansFutureNaturalEndImmediately",
       "target": "database/repositories.NewFactory",
       "lines": [
-        464
+        470
       ],
       "tables": []
     },
@@ -30033,7 +30033,7 @@
       "declaration": "TestBookingParticipationBoundaryKeepsActualPresenceVisible",
       "target": "database/repositories.NewFactory",
       "lines": [
-        257
+        261
       ],
       "tables": []
     },
@@ -30043,7 +30043,7 @@
       "declaration": "TestConcurrentBookingAuthorityActivationCreatesOneCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        550
+        556
       ],
       "tables": []
     },
@@ -30053,27 +30053,7 @@
       "declaration": "TestConfirmedWithdrawalCannotBypassBookingAuthority",
       "target": "database/repositories.NewFactory",
       "lines": [
-        486
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_booking_authority_integration_test.go",
-      "declaration": "TestDirectWithdrawalBoundaryDoesNotDependOnBookingAuthority",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        282
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_booking_authority_integration_test.go",
-      "declaration": "TestDisablingBookingAuthorityObsoletesOnlyOpenBookingCompletions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        597
+        492
       ],
       "tables": []
     },
@@ -30083,8 +30063,8 @@
       "declaration": "TestNaturalBookingEndSchedulerIsIdempotent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        333,
-        339
+        339,
+        345
       ],
       "tables": []
     },
@@ -30094,7 +30074,7 @@
       "declaration": "TestNaturalSchedulerPreservesConfirmedWithdrawalAudit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        360
+        366
       ],
       "tables": []
     },
@@ -30104,7 +30084,7 @@
       "declaration": "TestOverdueRebookingReplacesTheStaleCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        395
+        401
       ],
       "tables": []
     },
@@ -30114,7 +30094,7 @@
       "declaration": "assertFiniteRebookingHistory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        418
+        424
       ],
       "tables": [
         "enrollment.request_child_offerings",
@@ -30127,63 +30107,7 @@
       "declaration": "assertNonCareMutationKeepsConfirmedWithdrawal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        510
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_booking_authority_integration_test.go",
-      "declaration": "bookingAuthorityService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        27
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_booking_authority_integration_test.go",
-      "declaration": "lockedBookingAuthorityService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        41
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_lifecycle_integration_test.go",
-      "declaration": "TestCareExit_BinarySchoolWithNfcAndGroups",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        88
-      ],
-      "tables": [
-        "users.persons",
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_lifecycle_integration_test.go",
-      "declaration": "TestCareExit_FullSchoolWithPlanOfferingsAndParents",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        197
-      ],
-      "tables": [
-        "active.excused_absence_requests",
-        "schedule.instance_students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_lifecycle_integration_test.go",
-      "declaration": "newActiveService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        38
+        516
       ],
       "tables": []
     },
@@ -30193,7 +30117,7 @@
       "declaration": "TestCareLifecycle_ArchiveHoldsEveryRegularlyEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        620
+        622
       ],
       "tables": [
         "users.students"
@@ -30205,7 +30129,7 @@
       "declaration": "TestCareLifecycle_CancelOnlyBeforeItTakesEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        392
+        394
       ],
       "tables": []
     },
@@ -30215,7 +30139,7 @@
       "declaration": "TestCareLifecycle_CancelPutsThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        708
+        710
       ],
       "tables": [
         "schedule.instance_students"
@@ -30227,7 +30151,7 @@
       "declaration": "TestCareLifecycle_CancelRefusedAfterItTookEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        461
+        463
       ],
       "tables": [
         "users.students"
@@ -30239,7 +30163,7 @@
       "declaration": "TestCareLifecycle_ChangingTheDayReplansFromTheBaseline",
       "target": "database/repositories.NewFactory",
       "lines": [
-        835
+        837
       ],
       "tables": []
     },
@@ -30249,7 +30173,7 @@
       "declaration": "TestCareLifecycle_ConfirmAuditsOnlyCareEnd",
       "target": "database/repositories.NewFactory",
       "lines": [
-        94
+        96
       ],
       "tables": [
         "users.students"
@@ -30261,7 +30185,7 @@
       "declaration": "TestCareLifecycle_EndsBookingsAtTheLastCareDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        324
+        326
       ],
       "tables": []
     },
@@ -30271,7 +30195,7 @@
       "declaration": "TestCareLifecycle_Resume",
       "target": "database/repositories.NewFactory",
       "lines": [
-        489
+        491
       ],
       "tables": [
         "users.students"
@@ -30283,7 +30207,7 @@
       "declaration": "TestCareLifecycle_ResumeDoesNotBringThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        903
+        905
       ],
       "tables": [
         "users.students"
@@ -30295,7 +30219,7 @@
       "declaration": "TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler",
       "target": "database/repositories.NewFactory",
       "lines": [
-        578
+        580
       ],
       "tables": [
         "users.students"
@@ -30307,7 +30231,7 @@
       "declaration": "TestCareLifecycle_TenantIsolation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        311
+        313
       ],
       "tables": []
     },
@@ -30317,7 +30241,7 @@
       "declaration": "TestStudentDeletion_RetentionReasonOnlyForEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        654
+        656
       ],
       "tables": [
         "users.students"
@@ -30329,17 +30253,7 @@
       "declaration": "loadStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        123
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/care_lifecycle_service_test.go",
-      "declaration": "newCareLifecycleServiceWithLockAt",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        53
+        125
       ],
       "tables": []
     },

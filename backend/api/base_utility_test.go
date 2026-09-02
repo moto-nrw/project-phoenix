@@ -309,6 +309,9 @@ func setupOperatorInvitationRoute(t *testing.T) chi.Router {
 	require.NoError(t, err)
 	api.MealPlan = newMealPlanResource(mealPlan, db)
 	api.Feedback = newFeedbackResource(feedback, db)
+	persons, err := repositories.NewPeopleDirectory(db)
+	require.NoError(t, err)
+	api.Users = newUsersResource(persons, repoFactory, db)
 	api.registerRoutesWithRateLimiting()
 	return api.Router
 }

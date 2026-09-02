@@ -24,7 +24,9 @@ import (
 
 func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userService.CareLifecycleService {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	// RFID tag release runs through the People Directory composition (#2661).
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
@@ -38,7 +40,9 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userS
 
 func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLifecycleService {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	// RFID tag release runs through the People Directory composition (#2661).
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
@@ -279,7 +283,9 @@ func TestDirectWithdrawalBoundaryDoesNotDependOnBookingAuthority(t *testing.T) {
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Direkt", "Abgemeldet", "2b")
 	studentID := student.ID
 	firstGap := timezone.TodayDate()
-	repos := repositories.NewFactory(db)
+	// RFID tag release runs through the People Directory composition (#2661).
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	require.NoError(t, repos.CareWithdrawal.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger:                 userModels.CareWithdrawalTriggerDirectSchool,
@@ -594,7 +600,9 @@ func TestDisablingBookingAuthorityObsoletesOnlyOpenBookingCompletions(t *testing
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
-	repos := repositories.NewFactory(db)
+	// RFID tag release runs through the People Directory composition (#2661).
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	today := timezone.TodayDate()
 
 	openStudent := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Offen", "Aufgabe", "4a")

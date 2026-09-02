@@ -27,7 +27,7 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 		f.ActiveVisit = personVisitRepository{VisitRepository: f.ActiveVisit, persons: persons}
 	}
 	if f.ActivityGroup != nil {
-		f.ActivityGroup = personActivityGroupRepository{GroupRepository: f.ActivityGroup, persons: persons}
+		f.ActivityGroup = newPersonActivityGroupRepository(f.ActivityGroup, persons)
 	}
 	if f.StudentEnrollment != nil {
 		f.StudentEnrollment = personStudentEnrollmentRepository{StudentEnrollmentRepository: f.StudentEnrollment, persons: persons}

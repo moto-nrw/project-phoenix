@@ -26,6 +26,21 @@ func (r personActivityGroupRepository) FindWithSupervisors(ctx context.Context, 
 	return group, supervisors, nil
 }
 
+// personActivityGroupTargetRepository keeps the optional target seam the
+// timetable services assert on reachable through the person wrapper.
+type personActivityGroupTargetRepository struct {
+	personActivityGroupRepository
+	activitiesModels.GroupTargetRepository
+}
+
+func newPersonActivityGroupRepository(inner activitiesModels.GroupRepository, persons peopledirectory.Query) activitiesModels.GroupRepository {
+	wrapped := personActivityGroupRepository{GroupRepository: inner, persons: persons}
+	if targets, ok := inner.(activitiesModels.GroupTargetRepository); ok {
+		return personActivityGroupTargetRepository{personActivityGroupRepository: wrapped, GroupTargetRepository: targets}
+	}
+	return wrapped
+}
+
 // personSupervisorPlannedRepository attaches Staff.Person to planned
 // supervisor rows.
 type personSupervisorPlannedRepository struct {
