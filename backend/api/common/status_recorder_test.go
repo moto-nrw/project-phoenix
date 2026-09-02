@@ -56,3 +56,14 @@ func TestStatusRecorderKeepsFinalStatusAfterInformationalResponse(t *testing.T) 
 	assert.True(t, recorder.HeaderWritten())
 	assert.Equal(t, http.StatusInternalServerError, recorder.Status())
 }
+
+func TestStatusRecorderTreatsSwitchingProtocolsAsFinal(t *testing.T) {
+	t.Parallel()
+	recorder := NewStatusRecorder(&flushRecorder{ResponseRecorder: httptest.NewRecorder()})
+
+	recorder.WriteHeader(http.StatusSwitchingProtocols)
+	recorder.Writer().(http.Flusher).Flush()
+
+	assert.True(t, recorder.HeaderWritten())
+	assert.Equal(t, http.StatusSwitchingProtocols, recorder.Status())
+}

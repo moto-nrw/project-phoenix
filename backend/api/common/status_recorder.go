@@ -61,7 +61,7 @@ func (r *flushingStatusRecorder) Flush() {
 }
 
 func (r *StatusRecorder) commitStatus(status int) {
-	if status >= http.StatusContinue && status < http.StatusOK {
+	if status >= http.StatusContinue && status < http.StatusOK && status != http.StatusSwitchingProtocols {
 		return
 	}
 	for {
