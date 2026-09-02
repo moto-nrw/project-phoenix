@@ -1,6 +1,7 @@
 // Package peopledirectory is the public People Directory capability. It owns
-// users.persons: every read or write of a person row by another owner goes
-// through Query or Command instead of a foreign SQL join.
+// users.persons and users.students: every read or write of a person or
+// student row by another owner goes through Query or Command instead of a
+// foreign SQL join.
 package peopledirectory
 
 import (
@@ -84,6 +85,7 @@ type ReleasedTag struct {
 }
 
 type Query interface {
+	StudentQuery
 	// FindPerson returns one non-deleted person of the current tenant.
 	FindPerson(context.Context, int64) (Person, error)
 	// FindPersonForMutation locks the row for the caller's transaction.
@@ -108,6 +110,7 @@ type Query interface {
 }
 
 type Command interface {
+	StudentCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
 	// DeletePerson soft-deletes the person (deleted_at), keeping the row.
@@ -131,6 +134,7 @@ type Capability interface {
 }
 
 type engine interface {
+	studentEngine
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)
 	Delete(context.Context, int64) error
@@ -407,9 +411,9 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrPersonNotFound):
+	case errors.Is(err, ErrPersonNotFound), errors.Is(err, ErrStudentNotFound):
 		return "not_found"
-	case errors.Is(err, ErrInvalidPerson):
+	case errors.Is(err, ErrInvalidPerson), errors.Is(err, ErrInvalidStudent):
 		return "invalid"
 	case errors.Is(err, ErrTagConflict):
 		return "tag_conflict"

@@ -4573,3 +4573,16 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
 	return offering
 }
+
+// The care-day writers lock the student row through the People Directory
+// (#2662). services.NewFactory binds that lock in production; this binary
+// wires its services by hand, so it binds the lock once. The directory
+// reads the transaction from the context, so the pool handed to the
+// composition is never used.
+func init() {
+	lock, notFound, err := repositories.NewCareStudentLock(testpkg.NewBunDB(nil))
+	if err != nil {
+		panic(err)
+	}
+	scheduleService.BindCareStudentLock(lock, notFound)
+}

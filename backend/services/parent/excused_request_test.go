@@ -410,3 +410,16 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 	assert.Equal(t, activeModels.ExcusedRequestStatusApproved, reqs[0].Status)
 	assert.Equal(t, requestID, reqs[0].ID)
 }
+
+// The parent writers lock the student row through the People Directory
+// (#2662). services.NewFactory binds that lock in production; this binary
+// wires its services by hand, so it binds the lock once. The directory
+// reads the transaction from the context, so the pool handed to the
+// composition is never used.
+func init() {
+	lock, notFound, err := repositories.NewCareStudentLock(testpkg.NewBunDB(nil))
+	if err != nil {
+		panic(err)
+	}
+	absenceSvc.BindCareStudentLock(lock, notFound)
+}

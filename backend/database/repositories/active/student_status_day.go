@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -24,6 +23,13 @@ type StudentStatusDayRepository struct {
 	*base.Repository[*active.StudentStatusDay]
 	db       *bun.DB
 	slotRepo scheduleModels.InstanceStudentRepository
+	students StudentDirectory
+}
+
+// BindStudentDirectory installs the People Directory the dashboard absence
+// counts read the active students and their live flags through (#2662).
+func (r *StudentStatusDayRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
 }
 
 func NewStudentStatusDayRepository(db *bun.DB) active.StudentStatusDayOverviewRepository {
@@ -414,60 +420,4 @@ func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
 		}
 	}
 	return affected, nil
-}
-
-// CountEffectiveDashboardAbsences counts the dashboard's effective absence
-// buckets for one date. It bridges the legacy live flags on users.students and
-// the newer date-scoped rows in active.student_status_days without double
-// counting overlaps. Sick wins over excused/class_trip, matching
-// api/students/status_days_response.go.
-func (r *StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.Context, date timezone.Date) (*active.StudentStatusCounts, error) {
-	counts := &active.StudentStatusCounts{}
-	db := base.GetDB(ctx, r.db)
-
-	perStudent := db.NewSelect().
-		TableExpr(`users.students AS "student"`).
-		ColumnExpr(`"student".id`).
-		ColumnExpr(`COALESCE("student".sick, FALSE) AS flag_sick`).
-		ColumnExpr(`COALESCE("student".excused, FALSE) AS flag_excused`).
-		ColumnExpr(`COALESCE(BOOL_OR("student_status_day".status = ?), FALSE) AS day_sick`, active.StudentStatusDaySick).
-		ColumnExpr(`COALESCE(BOOL_OR("student_status_day".status = ?), FALSE) AS day_excused`, active.StudentStatusDayExcused).
-		ColumnExpr(`COALESCE(BOOL_OR("student_status_day".status = ?), FALSE) AS day_class_trip`, active.StudentStatusDayClassTrip).
-		Join(`
-			LEFT JOIN active.student_status_days AS "student_status_day"
-				ON "student_status_day".tenant_id = "student".tenant_id
-				AND "student_status_day".student_id = "student".id
-				AND "student_status_day".date = ?
-				AND "student_status_day".cleared_at IS NULL
-		`, date).
-		Where(`"student".status = ?`, string(usersModels.StudentStatusActive)).
-		GroupExpr(`"student".id, "student".sick, "student".excused`)
-	perStudent = base.WithTenantFilter(ctx, perStudent, "student")
-
-	query := db.NewSelect().
-		TableExpr(`(?) AS "effective_student_status"`, perStudent).
-		ColumnExpr(`
-			COUNT(*) FILTER (
-				WHERE "effective_student_status".flag_sick
-					OR "effective_student_status".day_sick
-			) AS sick_count
-		`).
-		ColumnExpr(`
-			COUNT(*) FILTER (
-				WHERE NOT ("effective_student_status".flag_sick OR "effective_student_status".day_sick)
-					AND (
-						"effective_student_status".flag_excused
-						OR "effective_student_status".day_excused
-						OR "effective_student_status".day_class_trip
-					)
-			) AS excused_count
-		`).
-		ColumnExpr(`COUNT(*) AS total_count`)
-	if err := query.Scan(ctx, counts); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "count effective dashboard absences",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return counts, nil
 }

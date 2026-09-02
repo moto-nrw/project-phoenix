@@ -61,7 +61,7 @@ func testTimetableDataWithOfferingCallbacks(
 		supervisorRepo = activeRepo.NewGroupSupervisorRepository(db, clock)
 	}
 	deps := scheduleSvc.TimetableDataDependencies{
-		InstanceStudentRepo:   scheduleRepo.NewInstanceStudentRepository(db),
+		InstanceStudentRepo:   repositories.NewFactory(db).InstanceStudent,
 		ActivityInstanceRepo:  activityInstanceRepo,
 		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(db),
 		ActivityScheduleRepo:  activitiesRepo.NewScheduleRepository(db),
@@ -69,14 +69,14 @@ func testTimetableDataWithOfferingCallbacks(
 		StaffShiftRepo:        scheduleRepo.NewStaffShiftRepository(db),
 		StaffRepo:             usersRepo.NewStaffRepository(db),
 		CalendarPeriodRepo:    scheduleRepo.NewCalendarPeriodRepository(db),
-		ActiveGroupRepo:       activeRepo.NewGroupRepository(db),
+		ActiveGroupRepo:       repositories.NewFactory(db).ActiveGroup,
 		SupervisorRepo:        supervisorRepo,
 		ArrivalScheduleRepo:   scheduleRepo.NewStudentArrivalScheduleRepository(db),
 		ArrivalBaselines: scheduleSvc.NewArrivalBaselineService(
 			scheduleRepo.NewStudentArrivalScheduleRepository(db),
 			usersRepo.NewStudentRepository(db),
 			educationRepo.NewClassArrivalTimeRepository(db),
-			enrollmentRepo.NewRequestChildOfferingRepository(db),
+			repositories.NewFactory(db).RequestChildOffering,
 			enrollmentRepo.NewCareOfferingRepository(db),
 			nil,
 		),
@@ -84,7 +84,7 @@ func testTimetableDataWithOfferingCallbacks(
 		PickupScheduleRepo:   scheduleRepo.NewStudentPickupScheduleRepository(db),
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
-			enrollmentRepo.NewRequestChildOfferingRepository(db),
+			repositories.NewFactory(db).RequestChildOffering,
 			enrollmentRepo.NewCareOfferingRepository(db),
 		),
 		PickupExceptionRepo:        scheduleRepo.NewStudentPickupExceptionRepository(db),
@@ -93,7 +93,7 @@ func testTimetableDataWithOfferingCallbacks(
 		ActivityCategoryRepo:       activitiesRepo.NewCategoryRepository(db),
 		ActivityGroupRepo:          boundRepos.ActivityGroup,
 		ActivitySupervisorRepo:     activitiesRepo.NewSupervisorPlannedRepository(db),
-		StudentEnrollmentRepo:      activitiesRepo.NewStudentEnrollmentRepository(db),
+		StudentEnrollmentRepo:      repositories.NewFactory(db).StudentEnrollment,
 		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(db),
 		EducationGroupRepo:         educationRepo.NewGroupRepository(db),
 		ValidateCareOfferingSeries: validateCareOfferingSeries,

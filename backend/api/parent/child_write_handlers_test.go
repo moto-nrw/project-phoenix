@@ -475,3 +475,16 @@ func futureISO(d int) string { return isoDay(d) }
 func isoDay(addDays int) string {
 	return time.Now().AddDate(0, 0, addDays).Format("2006-01-02")
 }
+
+// The parent writers lock the student row through the People Directory
+// (#2662). services.NewFactory binds that lock in production; this binary
+// wires its services by hand, so it binds the lock once. The directory
+// reads the transaction from the context, so the pool handed to the
+// composition is never used.
+func init() {
+	lock, notFound, err := repositories.NewCareStudentLock(testpkg.NewBunDB(nil))
+	if err != nil {
+		panic(err)
+	}
+	absenceSvc.BindCareStudentLock(lock, notFound)
+}

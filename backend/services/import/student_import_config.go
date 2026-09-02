@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -132,7 +133,7 @@ type StudentImportDeps struct {
 	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
 	// RFIDCardRepo resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
-	RFIDCardRepo users.RFIDCardRepository
+	RFIDCardRepo auth.RFIDCardRepository
 	Resolver     *RelationshipResolver
 	Consents     usersService.StudentConsentChangeRecorder
 }

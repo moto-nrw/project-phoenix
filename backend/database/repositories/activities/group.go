@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // Table and query constants (S1192 - avoid duplicate string literals)
@@ -29,7 +30,14 @@ const (
 // GroupRepository implements activities.GroupRepository interface
 type GroupRepository struct {
 	*base.Repository[*activities.Group]
-	db *bun.DB
+	db       *bun.DB
+	students StudentDirectory
+}
+
+// BindStudentDirectory installs the People Directory the dynamic target
+// cohorts are resolved through (#2662).
+func (r *GroupRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
 }
 
 // NewGroupRepository creates a new GroupRepository
@@ -294,40 +302,33 @@ func (r *GroupRepository) FindTargetStudentIDs(ctx context.Context, groupID int6
 // today", and they no longer do. A child whose exit is still ahead stays in:
 // the per-date filter in the materializer decides which of the upcoming days
 // they are still planned for.
+//
+// The target rules are read here; the students they match belong to the
+// People Directory (#2662) and are matched in Go (see matchTargetStudents).
 func (r *GroupRepository) FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
 	result := make(map[int64][]int64, len(groupIDs))
 	if len(groupIDs) == 0 {
 		return result, nil
 	}
-	tenantID := tenant.FromContext(ctx)
-	var rows []struct {
-		GroupID   int64 `bun:"group_id"`
-		StudentID int64 `bun:"student_id"`
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
 	}
-	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT DISTINCT target.activity_group_id AS group_id, student.id AS student_id
-		FROM users.students AS student
-		INNER JOIN activities.group_targets AS target
-			ON target.tenant_id = student.tenant_id
-			AND target.activity_group_id IN (?)
-			AND (
-				(target.target_group_type = 'jahrgang'
-					AND SUBSTRING(student.school_class FROM '[0-9]+') = target.target_grade_level::TEXT)
-				OR (target.target_group_type = 'klasse'
-					AND LOWER(BTRIM(student.school_class)) = LOWER(BTRIM(target.target_school_class)))
-				OR (target.target_group_type = 'gruppe'
-					AND student.group_id = target.education_group_id)
-			)
-		WHERE student.tenant_id = ?
-			AND student.status <> 'alumnus'
-			AND (student.enrolled_until IS NULL OR student.enrolled_until >= ?)
-		ORDER BY target.activity_group_id ASC, student.id ASC
-	`, bun.List(groupIDs), tenantID, timezone.TodayDate()).Scan(ctx, &rows)
+	targets, err := r.FindTargetsByGroupIDs(ctx, groupIDs)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find target students", Err: base.TranslateNotFound(err)}
+		return nil, err
 	}
-	for _, row := range rows {
-		result[row.GroupID] = append(result[row.GroupID], row.StudentID)
+	if len(targets) == 0 {
+		return result, nil
+	}
+	students, err := r.students.ListEnrolledStudents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	today := timezone.TodayDate()
+	for groupID, members := range matchTargetStudents(targets, students, &today) {
+		if len(members) > 0 {
+			result[groupID] = members
+		}
 	}
 	return result, nil
 }
@@ -1169,7 +1170,11 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 
 	occurrences := make([]activities.TemplateCapacityOccurrence, 0)
 	tenantID := tenant.FromContext(ctx)
-	err := base.GetDB(ctx, r.db).NewRaw(`
+	dynamicTemplateIDs, dynamicStudentIDs, err := r.dynamicTargetPairs(ctx, templateIDs)
+	if err != nil {
+		return nil, err
+	}
+	err = base.GetDB(ctx, r.db).NewRaw(`
 		WITH selected_period AS (
 			SELECT id AS calendar_period_id, start_date, end_date, week_cycle_length, week_cycle_anchor
 			FROM schedule.calendar_periods
@@ -1243,18 +1248,8 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 				)
 			  )
 		), dynamic_target_students AS (
-			SELECT DISTINCT target.activity_group_id AS template_id, student.id AS student_id
-			FROM activities.group_targets AS target
-			INNER JOIN users.students AS student
-				ON student.tenant_id = target.tenant_id
-				AND student.status <> 'alumnus'
-				AND (
-					(target.target_group_type = 'jahrgang' AND SUBSTRING(student.school_class FROM '[0-9]+') = target.target_grade_level::TEXT)
-					OR (target.target_group_type = 'klasse' AND LOWER(BTRIM(student.school_class)) = LOWER(BTRIM(target.target_school_class)))
-					OR (target.target_group_type = 'gruppe' AND student.group_id = target.education_group_id)
-				)
-			WHERE target.tenant_id = ?
-			  AND target.activity_group_id IN (?)
+			SELECT dynamic.template_id, dynamic.student_id
+			FROM unnest(?::BIGINT[], ?::BIGINT[]) AS dynamic(template_id, student_id)
 		), capacity_parts AS (
 			SELECT
 				occurrence.template_id,
@@ -1335,13 +1330,43 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 		ORDER BY template_id ASC, occurrence_date ASC, calendar_period_id ASC
 	`, tenantID, periodID, periodID,
 		tenantID, bun.List(templateIDs),
-		tenantID, bun.List(templateIDs), tenantID,
+		pgdialect.Array(dynamicTemplateIDs), pgdialect.Array(dynamicStudentIDs), tenantID,
 		tenantID,
 	).Scan(ctx, &occurrences)
 	if err != nil {
 		return nil, err
 	}
 	return occurrences, nil
+}
+
+// dynamicTargetPairs resolves the dynamic target cohorts of the templates
+// through the People Directory (#2662) as parallel (template, student)
+// arrays for the capacity query. Unlike the timetable roster, capacity
+// counts every non-alumni child a rule matches regardless of the care end
+// date, exactly as the former SQL join did.
+func (r *GroupRepository) dynamicTargetPairs(ctx context.Context, templateIDs []int64) ([]int64, []int64, error) {
+	if r.students == nil {
+		return nil, nil, errStudentDirectoryRequired
+	}
+	targets, err := r.FindTargetsByGroupIDs(ctx, templateIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	templates, students := []int64{}, []int64{}
+	if len(targets) == 0 {
+		return templates, students, nil
+	}
+	enrolled, err := r.students.ListEnrolledStudents(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, templateID := range templateIDs {
+		for _, studentID := range matchTargetStudents(targets, enrolled, nil)[templateID] {
+			templates = append(templates, templateID)
+			students = append(students, studentID)
+		}
+	}
+	return templates, students, nil
 }
 
 // UpdateTemplateFields patches the editable fields of a non-archived template

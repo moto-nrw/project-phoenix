@@ -1032,3 +1032,16 @@ func TestExcusedCorrectRefusesAnUndecidedRequest(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "not decided")
 }
+
+// The excused-request writers lock the student row through the People
+// Directory (#2662). services.NewFactory binds that lock in production; this
+// binary wires the service by hand, so it binds the lock once. The directory
+// reads the transaction from the context, so the pool handed to the
+// composition is never used.
+func init() {
+	lock, notFound, err := repositories.NewCareStudentLock(testpkg.NewBunDB(nil))
+	if err != nil {
+		panic(err)
+	}
+	absenceSvc.BindCareStudentLock(lock, notFound)
+}

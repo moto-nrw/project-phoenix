@@ -1,5 +1,5 @@
-// backend/database/repositories/users/privacy_consent.go
-package users
+// backend/database/repositories/active/privacy_consent.go
+package active
 
 import (
 	"context"

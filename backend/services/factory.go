@@ -457,6 +457,7 @@ func newFactory(
 	today := timezone.CalendarDateClock(now)
 	// Persons first: the school projections sort by the names this binds.
 	repos.BindPeopleDirectory(persons)
+	schedule.BindCareStudentLock(repositories.CareStudentLock(persons))
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
@@ -791,7 +792,7 @@ func newFactory(
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
-	staffClockService := staffclock.NewService(usersService, repos.RFIDCard, workSessionService)
+	staffClockService := staffclock.NewService(usersService, newRFIDCardLookup(repos.RFIDCard.FindByID), workSessionService)
 
 	// Monatskarte read model (#1842) — everything computed on read, the
 	// Übertrag is live.

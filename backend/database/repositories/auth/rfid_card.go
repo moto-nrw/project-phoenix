@@ -1,5 +1,4 @@
-// backend/database/repositories/users/rfid_card.go
-package users
+package auth
 
 import (
 	"context"
@@ -7,20 +6,23 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
-// RFIDCardRepository implements users.RFIDCardRepository interface
+// RFIDCardRepository implements auth.RFIDCardRepository. It lives with the
+// identity-access adapters because users.rfid_cards is that owner's table
+// (#2662); the People Directory only references a card through
+// Person.TagID.
 type RFIDCardRepository struct {
-	*base.Repository[*users.RFIDCard]
+	*base.Repository[*auth.RFIDCard]
 	db *bun.DB
 }
 
 // NewRFIDCardRepository creates a new RFIDCardRepository
-func NewRFIDCardRepository(db *bun.DB) users.RFIDCardRepository {
-	repo := base.NewRepository[*users.RFIDCard](db, "users.rfid_cards", "RfidCard")
+func NewRFIDCardRepository(db *bun.DB) auth.RFIDCardRepository {
+	repo := base.NewRepository[*auth.RFIDCard](db, "users.rfid_cards", "RfidCard")
 	repo.TenantScoped = true
 	return &RFIDCardRepository{
 		Repository: repo,
@@ -31,10 +33,10 @@ func NewRFIDCardRepository(db *bun.DB) users.RFIDCardRepository {
 // Delete overrides the base Delete method to match the interface
 func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
-	normalizedID := users.NormalizeTagID(id)
+	normalizedID := auth.NormalizeTagID(id)
 
 	query := base.GetDB(ctx, r.db).NewDelete().
-		Model((*users.RFIDCard)(nil)).
+		Model((*auth.RFIDCard)(nil)).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Where(`"rfid_card".id = ?`, normalizedID)
 
@@ -52,11 +54,11 @@ func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 }
 
 // FindByID overrides the base FindByID method to match the interface
-func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RFIDCard, error) {
+func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*auth.RFIDCard, error) {
 	// Normalize the tag ID to match stored format
-	normalizedID := users.NormalizeTagID(id)
+	normalizedID := auth.NormalizeTagID(id)
 
-	card := new(users.RFIDCard)
+	card := new(auth.RFIDCard)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(card).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
@@ -82,10 +84,10 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 // Deactivate sets an RFID card as inactive
 func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
-	normalizedID := users.NormalizeTagID(id)
+	normalizedID := auth.NormalizeTagID(id)
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.RFIDCard)(nil)).
+		Model((*auth.RFIDCard)(nil)).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Set("active = ?", false).
 		Where(`"rfid_card".id = ?`, normalizedID)
@@ -104,7 +106,7 @@ func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 }
 
 // Legacy method to maintain compatibility with old interface
-func (r *RFIDCardRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.RFIDCard, error) {
+func (r *RFIDCardRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.RFIDCard, error) {
 	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
@@ -124,38 +126,4 @@ func (r *RFIDCardRepository) List(ctx context.Context, filters map[string]interf
 	options.Filter = filter
 
 	return r.ListWithOptions(ctx, options)
-}
-
-// FindCardWithPerson retrieves an RFID card with associated person data
-func (r *RFIDCardRepository) FindCardWithPerson(ctx context.Context, id string) (*users.RFIDCard, error) {
-	// Normalize the tag ID to match stored format
-	normalizedID := users.NormalizeTagID(id)
-
-	// First get the card
-	card, err := r.FindByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Then find the person associated with this card
-	person := new(users.Person)
-	personQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(person).
-		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".tag_id = ?`, normalizedID)
-
-	personQuery = base.WithTenantFilter(ctx, personQuery, "person")
-
-	err = personQuery.Scan(ctx)
-
-	// It's OK if we don't find a person (not an error)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find person by tag ID",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	// Return the card (with or without person)
-	return card, nil
 }

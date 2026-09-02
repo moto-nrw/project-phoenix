@@ -222,7 +222,7 @@ func TestGradeTransitionRepository_FindStudentStatesByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns an empty map for an empty id list", func(t *testing.T) {
@@ -260,7 +260,7 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-anonymize")
@@ -323,7 +323,7 @@ func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-batch-mappings")
@@ -360,7 +360,7 @@ func TestGradeTransitionRepository_PromoteStudentsByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("promotes nobody for an empty cohort", func(t *testing.T) {
@@ -400,7 +400,7 @@ func TestGradeTransitionRepository_GraduateAndReactivateByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("graduates nobody for an empty cohort", func(t *testing.T) {
@@ -443,7 +443,7 @@ func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "transition-validation")

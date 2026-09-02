@@ -8,6 +8,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// BindCareStudentLock installs the People Directory's student row lock behind
+// every care-day writer (#2662). The composition root calls it once after it
+// composed the directory; the timetable services may not import that owner
+// themselves, so the lock and its not-found sentinel arrive as plain values.
+func BindCareStudentLock(lock func(ctx context.Context, studentID int64) error, notFound error) {
+	careplanning.BindStudentLock(lock, notFound)
+}
+
 // LockCareExceptionDay serializes pickup and arrival exception writes for one
 // child-day. The parent portal treats staff ownership as day-level state, while
 // the data lives in two tables, so every writer must take the same lock before

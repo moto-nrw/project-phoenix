@@ -54,7 +54,10 @@ type Factory struct {
 	db                       *bun.DB
 	organizationTenancyBound bool
 	peopleDirectoryBound     bool
-	schoolStructureBound     bool
+	// students is the bound People Directory; audit adapters rebuilt by
+	// ConfigureAuditRuntime after the binding read it again (#2662).
+	students             peopledirectory.Capability
+	schoolStructureBound bool
 
 	// Auth domain
 	Account                authModels.AccountRepository
@@ -80,7 +83,7 @@ type Factory struct {
 
 	// Users domain
 	Person              userModels.PersonRepository
-	RFIDCard            userModels.RFIDCardRepository
+	RFIDCard            authModels.RFIDCardRepository
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
 	ClassListEntry      userModels.ClassListEntryRepository
@@ -347,7 +350,8 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.ClassListEntryChange = audit.NewClassListEntryChangeRepository(runtime)
 	f.TimeTrackingAuditLog = audit.NewTimeTrackingAuditLogRepository(runtime)
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime)
-	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences)
+	f.bindAuditStudentDirectory()
+	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
 }
 
@@ -410,6 +414,10 @@ func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
 		return
 	}
 	f.peopleDirectoryBound = true
+	f.students = capability
+	// Students first: the observed directory replaces the default binding on
+	// the raw repositories before the person projections wrap them.
+	f.bindStudentDirectories(capability, capability)
 	f.bindPersonProjections(capability)
 }
 
@@ -474,7 +482,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	}
 	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
-	return &Factory{
+	f := &Factory{
 		db: db,
 		// Auth repositories
 		Account:                auth.NewAccountRepository(db),
@@ -500,11 +508,10 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 
 		// Users repositories
 		Person:              users.NewPersonRepository(db),
-		RFIDCard:            users.NewRFIDCardRepository(db),
+		RFIDCard:            auth.NewRFIDCardRepository(db),
 		Staff:               users.NewStaffRepository(db),
 		Student:             users.NewStudentRepository(db),
 		ClassListEntry:      users.NewClassListEntryRepository(db),
-		StudentDeletion:     users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences),
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
@@ -515,7 +522,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StudentCompanion:    users.NewStudentCompanionRepository(db),
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
-		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
+		PrivacyConsent:      active.NewPrivacyConsentRepository(db),
 		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
 		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
 		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
@@ -711,6 +718,9 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ParentAnnouncement:                parentAnnouncement,
 		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
 	}
+	f.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
+	f.bindDefaultPeopleDirectory(db)
+	return f
 }
 
 // SetConfigRuntime replaces the bootstrap repositories with tenant-aware

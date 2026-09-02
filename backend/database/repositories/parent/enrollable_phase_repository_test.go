@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -47,7 +46,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_RejectsNonPositiveAccount(t *t
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 
 	_, err := repo.ListEnrollable(context.Background(), 0)
 	require.Error(t, err)
@@ -80,7 +79,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_HappyPath(t *testing.T) {
 	defer wipePhasesForTenant(db, tenantID, "enrollable-happy")
 	insertEnrollablePhase(t, db, tenantID, name, nil, nil, true)
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	var list []*parentModels.EnrollablePhase
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -122,7 +121,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T
 	defer wipePhasesForTenant(db, tenantID, "enrollable-linked")
 	insertEnrollablePhase(t, db, tenantID, name, nil, nil, true)
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	var list []*parentModels.EnrollablePhase
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -159,7 +158,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_DoesNotReadEnrollmentSetting(t
 	defer wipePhasesForTenant(db, tenantID, "enrollable-nosetting")
 	insertEnrollablePhase(t, db, tenantID, name, nil, nil, true)
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	var list []*parentModels.EnrollablePhase
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -190,7 +189,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsInactivePhases(t *testing
 	defer wipePhasesForTenant(db, tenantID, "enrollable-inactive")
 	insertEnrollablePhase(t, db, tenantID, name, nil, nil, false) // is_active = false
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	var list []*parentModels.EnrollablePhase
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -233,7 +232,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_RespectsEnrollmentWindow(t *te
 	insertEnrollablePhase(t, db, tenantID, closedName, &past, &morePast, true)
 	insertEnrollablePhase(t, db, tenantID, futureName, &future, &moreFuture, true)
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	var list []*parentModels.EnrollablePhase
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -278,7 +277,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_OrdersLinkedFirst(t *testing.T
 	insertEnrollablePhase(t, db, tenantLinked, linkedName, nil, nil, true)
 	insertEnrollablePhase(t, db, tenantUnlinked, unlinkedName, nil, nil, true)
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	var list []*parentModels.EnrollablePhase
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error

@@ -13,7 +13,14 @@ import (
 const requestChildOfferingTableExpr = `enrollment.request_child_offerings AS "request_child_offering"`
 
 type RequestChildOfferingRepository struct {
-	db *bun.DB
+	db       *bun.DB
+	students StudentDirectory
+}
+
+// BindStudentDirectory installs the People Directory the approved-children
+// listings resolve classes and the alumnus exclusion through (#2662).
+func (r *RequestChildOfferingRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
 }
 
 // ScheduleReplacementForRequestChild preserves the selection that is active
@@ -683,46 +690,82 @@ func (r *RequestChildOfferingRepository) resolveApprovedOfferingChildren(
 		}
 	}
 
-	var studentRows []struct {
-		ChildID     int64  `bun:"child_id"`
-		StudentID   int64  `bun:"student_id"`
-		SchoolClass string `bun:"school_class"`
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
+	}
+	var childRows []struct {
+		ChildID   int64 `bun:"child_id"`
+		StudentID int64 `bun:"student_id"`
 	}
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
 			"child".id AS child_id,
-			"student".id AS student_id,
-			"student".school_class
+			COALESCE("child".created_student_id, "child".matched_student_id) AS student_id
 		FROM enrollment.request_children AS "child"
-		INNER JOIN users.students AS "student"
-			ON "student".id = COALESCE("child".created_student_id, "child".matched_student_id)
 		WHERE "child".id IN (?)
-		  AND "student".status <> 'alumnus'
-	`, bun.List(childIDs)).Scan(ctx, &studentRows)
+		  AND COALESCE("child".created_student_id, "child".matched_student_id) IS NOT NULL
+	`, bun.List(childIDs)).Scan(ctx, &childRows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve students for approved offering children: %w", err)
 	}
-
-	type studentInfo struct {
-		id          int64
-		schoolClass string
+	if len(childRows) == 0 {
+		return result, nil
 	}
-	students := make(map[int64]studentInfo, len(studentRows))
-	for _, row := range studentRows {
-		students[row.ChildID] = studentInfo{id: row.StudentID, schoolClass: row.SchoolClass}
+
+	// The class and the alumnus exclusion come from the People Directory
+	// (#2662); a child whose student the directory does not return (graduated
+	// or gone) drops out, as it did with the former inner join.
+	studentIDs := make([]int64, 0, len(childRows))
+	for _, row := range childRows {
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+	directory, err := r.students.ListStudentsByID(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	enrolled := make(map[int64]DirectoryStudent, len(directory))
+	for _, student := range directory {
+		if !student.Alumnus {
+			enrolled[student.ID] = student
+		}
+	}
+	students := make(map[int64]DirectoryStudent, len(childRows))
+	for _, row := range childRows {
+		if student, ok := enrolled[row.StudentID]; ok {
+			students[row.ChildID] = student
+		}
 	}
 	for _, link := range links {
-		info, ok := students[link.RequestChildID]
+		student, ok := students[link.RequestChildID]
 		if !ok {
 			continue
 		}
 		result = append(result, &enrollment.ApprovedOfferingChild{
 			Link:        link,
-			StudentID:   info.id,
-			SchoolClass: info.schoolClass,
+			StudentID:   student.ID,
+			SchoolClass: student.SchoolClass,
 		})
 	}
 	return result, nil
+}
+
+// enrolledStudentIDs keeps the ids the People Directory still lists as
+// non-alumni, in directory order.
+func (r *RequestChildOfferingRepository) enrolledStudentIDs(ctx context.Context, studentIDs []int64) ([]int64, error) {
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
+	}
+	students, err := r.students.ListStudentsByID(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	enrolled := make([]int64, 0, len(students))
+	for _, student := range students {
+		if !student.Alumnus {
+			enrolled = append(enrolled, student.ID)
+		}
+	}
+	return enrolled, nil
 }
 
 // ListApprovedByStudentIDsInRange returns approved offering links whose
@@ -739,14 +782,22 @@ func (r *RequestChildOfferingRepository) ListApprovedByStudentIDsInRange(
 	if len(studentIDs) == 0 || to.Before(from) {
 		return result, nil
 	}
+	// The alumnus exclusion is resolved through the People Directory
+	// (#2662) before the links are read; the same resolution attaches the
+	// classes afterwards.
+	enrolledIDs, err := r.enrolledStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(enrolledIDs) == 0 {
+		return result, nil
+	}
 	links := make([]*enrollment.RequestChildOffering, 0)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		Model(&links).
 		ModelTableExpr(requestChildOfferingTableExpr).
 		Join(`INNER JOIN enrollment.request_children AS "child" ON "child".id = "request_child_offering".request_child_id`).
-		Join(`INNER JOIN users.students AS "student" ON "student".id = COALESCE("child".created_student_id, "child".matched_student_id)`).
-		Where(`"student".id IN (?)`, bun.List(studentIDs)).
-		Where(`"student".status <> 'alumnus'`).
+		Where(`COALESCE("child".created_student_id, "child".matched_student_id) IN (?)`, bun.List(enrolledIDs)).
 		Where(`"child".status = ?`, enrollment.ChildStatusApproved).
 		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, to).
 		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, from).

@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -372,7 +371,7 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus_DeactivatedMappingDropsS
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	deactivateAccountTenantMapping(t, db, chain.AccountID)
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	var status *parentModels.GuardianSubmitStatus
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var sErr error
@@ -391,7 +390,7 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 
 	// Full chain: linked + guardian link + submit permission.
 	var status *parentModels.GuardianSubmitStatus

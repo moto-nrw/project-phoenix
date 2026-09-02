@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -26,13 +27,39 @@ func LockExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date tim
 	return nil
 }
 
+// StudentLock takes the student row FOR UPDATE inside the caller's tenant
+// transaction. The row belongs to the People Directory (#2662), so the
+// composition root binds the owner command here.
+type StudentLock func(ctx context.Context, studentID int64) error
+
+var studentLock atomic.Pointer[StudentLock]
+
+// BindStudentLock installs the owner-backed student row lock. notFound is
+// the error the lock reports for a child the tenant does not have; every
+// care-day writer keeps seeing it as sql.ErrNoRows. The root calls this
+// once before any writer runs; the lock fails fast while unbound instead of
+// falling back to a foreign query.
+func BindStudentLock(lock StudentLock, notFound error) {
+	if lock == nil || notFound == nil {
+		panic("careplanning: student lock and its not-found sentinel are required")
+	}
+	mapped := StudentLock(func(ctx context.Context, studentID int64) error {
+		err := lock(ctx, studentID)
+		if errors.Is(err, notFound) {
+			return sql.ErrNoRows
+		}
+		return err
+	})
+	studentLock.Store(&mapped)
+}
+
 // LockStudent takes only the student row FOR UPDATE — the first lock every
 // care-day writer acquires. Weekly-schedule writers take it BEFORE touching
 // their schedule rows so the global order stays student → schedule rows →
 // care-day locks and cannot deadlock against exception writers.
 //
 // Returns sql.ErrNoRows when the student is missing under the tenant.
-func LockStudent(ctx context.Context, db *bun.DB, studentID int64) error {
+func LockStudent(ctx context.Context, _ *bun.DB, studentID int64) error {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
@@ -40,11 +67,11 @@ func LockStudent(ctx context.Context, db *bun.DB, studentID int64) error {
 	if studentID <= 0 {
 		return errors.New("student id is required")
 	}
-	var lockedID int64
-	err := base.GetDB(ctx, db).NewRaw(
-		`SELECT id FROM users.students WHERE id = ? AND tenant_id = ? FOR UPDATE`,
-		studentID, tenantID,
-	).Scan(ctx, &lockedID)
+	lock := studentLock.Load()
+	if lock == nil {
+		return errors.New("careplanning: student lock is not bound")
+	}
+	err := (*lock)(ctx, studentID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return err
