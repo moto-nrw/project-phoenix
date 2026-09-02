@@ -53,13 +53,50 @@ function isValidTime(value: string): boolean {
  * no block. Cancelled blocks do not count: the class would arrive into
  * nothing.
  */
-async function earliestBlockStart(isoDate: string): Promise<string | null> {
-  const week = await timetableService.getWeek(isoDate, isoDate);
+function isWeekend(date: Date): boolean {
+  const weekday = date.getDay();
+  return weekday === 0 || weekday === 6;
+}
+
+interface ClassTargetTemplate {
+  readonly targetSchoolClass?: string;
+  readonly targets?: ReadonlyArray<{ readonly schoolClass?: string }>;
+  readonly sourceSchoolClasses?: readonly string[];
+}
+
+function appliesToSchoolClass(
+  template: ClassTargetTemplate,
+  schoolClass: string,
+): boolean {
+  const classes = [
+    template.targetSchoolClass,
+    ...(template.targets?.map((target) => target.schoolClass) ?? []),
+    ...(template.sourceSchoolClasses ?? []),
+  ].filter((value): value is string => value !== undefined);
+  return classes.length === 0 || classes.includes(schoolClass);
+}
+
+async function earliestBlockStart(
+  isoDate: string,
+  schoolClass: string,
+): Promise<string | null> {
+  const [week, templates] = await Promise.all([
+    timetableService.getWeek(isoDate, isoDate),
+    timetableService.getTemplates(),
+  ]);
+  const templatesByID = new Map(
+    templates.templates.map((template) => [template.id, template]),
+  );
   const starts = week.instances
-    .filter(
-      (instance) =>
-        instance.date === isoDate && instance.status !== "cancelled",
-    )
+    .filter((instance) => {
+      if (instance.date !== isoDate || instance.status === "cancelled") {
+        return false;
+      }
+      const template = instance.activityGroupId
+        ? templatesByID.get(instance.activityGroupId)
+        : undefined;
+      return !template || appliesToSchoolClass(template, schoolClass);
+    })
     .map((instance) => instance.startTime)
     .sort();
   return starts[0] ?? null;
@@ -121,8 +158,11 @@ export function ClassArrivalExceptionPanel({
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const maxDate = new Date(today);
+  maxDate.setDate(maxDate.getDate() + 60);
   const isoDate = date ? toISODate(date) : null;
-  const canSave = isoDate !== null && isValidTime(time) && !saving;
+  const canSave =
+    isoDate !== null && isValidTime(time) && !presetPending && !saving;
 
   const applyCancelledPreset = async () => {
     setReason(CLASS_ARRIVAL_CANCELLED_REASON);
@@ -132,7 +172,7 @@ export function ClassArrivalExceptionPanel({
     }
     setPresetPending(true);
     try {
-      const start = await earliestBlockStart(isoDate);
+      const start = await earliestBlockStart(isoDate, schoolClass);
       if (start) {
         setTime(start);
       } else {
@@ -243,6 +283,8 @@ export function ClassArrivalExceptionPanel({
                 value={date}
                 onChange={setDate}
                 minDate={today}
+                maxDate={maxDate}
+                disabledDay={isWeekend}
                 placeholder="Datum wählen"
                 hideClearButton
                 required

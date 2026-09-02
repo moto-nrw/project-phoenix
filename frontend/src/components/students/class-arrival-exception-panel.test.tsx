@@ -8,6 +8,7 @@ const {
   mockUpsert,
   mockDelete,
   mockGetWeek,
+  mockGetTemplates,
   mockToastSuccess,
   mockToastError,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   mockUpsert: vi.fn(),
   mockDelete: vi.fn(),
   mockGetWeek: vi.fn(),
+  mockGetTemplates: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
 }));
@@ -32,7 +34,7 @@ vi.mock("~/lib/student-arrival-api", async () => {
 });
 
 vi.mock("~/lib/timetable-api", () => ({
-  timetableService: { getWeek: mockGetWeek },
+  timetableService: { getWeek: mockGetWeek, getTemplates: mockGetTemplates },
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -49,14 +51,22 @@ vi.mock("~/components/ui/date-picker", () => ({
   DatePicker: ({
     value,
     onChange,
+    maxDate,
+    disabledDay,
   }: {
     value: Date | null;
     onChange: (date: Date | null) => void;
+    maxDate?: Date;
+    disabledDay?: (date: Date) => boolean;
   }) => (
     <input
       aria-label="Datum"
       type="date"
       value={value ? toISODate(value) : ""}
+      data-max-date={maxDate ? toISODate(maxDate) : undefined}
+      data-saturday-disabled={String(
+        disabledDay?.(new Date("2026-09-05T00:00:00")) ?? false,
+      )}
       onChange={(event) =>
         onChange(
           event.target.value
@@ -91,6 +101,7 @@ describe("ClassArrivalExceptionPanel", () => {
       to: "2099-03-02",
       instances: [],
     });
+    mockGetTemplates.mockResolvedValue({ templates: [] });
   });
 
   it("shows the empty list and the form for editors", async () => {
@@ -181,6 +192,19 @@ describe("ClassArrivalExceptionPanel", () => {
     expect(save).toBeDisabled();
   });
 
+  it("limits dates to weekdays in the loaded list horizon", async () => {
+    render(
+      <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+    );
+
+    const picker = await screen.findByLabelText("Datum");
+    const expectedMax = new Date();
+    expectedMax.setHours(0, 0, 0, 0);
+    expectedMax.setDate(expectedMax.getDate() + 60);
+    expect(picker).toHaveAttribute("data-max-date", toISODate(expectedMax));
+    expect(picker).toHaveAttribute("data-saturday-disabled", "true");
+  });
+
   it("presets the earliest block start and the reason for Unterrichtsausfall", async () => {
     mockGetWeek.mockResolvedValue({
       from: "2099-03-02",
@@ -211,6 +235,49 @@ describe("ClassArrivalExceptionPanel", () => {
       "Unterricht fällt aus",
     );
     expect(mockGetWeek).toHaveBeenCalledWith("2099-03-02", "2099-03-02");
+  });
+
+  it("uses only blocks that apply to the selected class for the preset", async () => {
+    mockGetWeek.mockResolvedValue({
+      from: "2099-03-02",
+      to: "2099-03-02",
+      instances: [
+        {
+          date: "2099-03-02",
+          startTime: "08:00",
+          status: "planned",
+          activityGroupId: "other-class",
+        },
+        {
+          date: "2099-03-02",
+          startTime: "11:45",
+          status: "planned",
+          activityGroupId: "selected-class",
+        },
+      ],
+    });
+    mockGetTemplates.mockResolvedValue({
+      templates: [
+        { id: "other-class", targetSchoolClass: "4b" },
+        { id: "selected-class", targetSchoolClass: "4a" },
+      ],
+    });
+
+    render(
+      <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+    );
+    await screen.findByLabelText("Kommt um");
+
+    fireEvent.change(screen.getByLabelText("Datum"), {
+      target: { value: "2099-03-02" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterricht fällt aus" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Kommt um")).toHaveValue("11:45");
+    });
   });
 
   it("asks for a time when the day has no block", async () => {

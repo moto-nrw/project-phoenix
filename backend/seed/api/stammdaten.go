@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"sort"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // StaffCredentials stores login credentials for a staff member
@@ -250,13 +252,11 @@ func (s *FixedSeeder) seedClassArrivalException(_ context.Context, result *Fixed
 	if len(classNames) == 0 {
 		return nil
 	}
-	// Dev-only: the seeder may not import the domain timezone helpers, and
-	// the machine's local date is what a developer expects to see anyway.
-	date := time.Now()
+	date := timezone.TodayDate()
 	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		date = date.AddDate(0, 0, 1)
+		date = date.AddDays(1)
 	}
-	isoDate := date.Format("2006-01-02")
+	isoDate := date.String()
 	path := fmt.Sprintf("/api/students/class-arrival-exceptions/%s/%s", url.PathEscape(classNames[0]), isoDate)
 	if _, err := s.client.Put(path, map[string]any{
 		"arrival_time": "11:00",

@@ -33,6 +33,9 @@ var (
 	// ErrClassArrivalExceptionPastDate refuses writes and deletes for dates
 	// before today: the day already happened, nothing downstream re-reads it.
 	ErrClassArrivalExceptionPastDate = errors.New("class arrival exception date lies in the past")
+	// ErrClassArrivalExceptionWeekend refuses exceptions that the arrival
+	// projection would never apply because care days only run Monday–Friday.
+	ErrClassArrivalExceptionWeekend = errors.New("class arrival exceptions can only be set from Monday to Friday")
 	// ErrClassArrivalExceptionClassNotFound means no active child carries the
 	// class, so the exception would apply to nobody.
 	ErrClassArrivalExceptionClassNotFound = errors.New("school class has no active students")
@@ -81,6 +84,9 @@ func (s *arrivalScheduleService) UpsertClassArrivalException(
 	class := strings.TrimSpace(input.SchoolClass)
 	if input.Date.Before(timezone.TodayDate()) {
 		return nil, &ScheduleError{Op: opUpsertClassArrivalException, Err: ErrClassArrivalExceptionPastDate}
+	}
+	if isWeekend(input.Date) {
+		return nil, &ScheduleError{Op: opUpsertClassArrivalException, Err: ErrClassArrivalExceptionWeekend}
 	}
 	if err := s.requireActiveClass(ctx, class, opUpsertClassArrivalException); err != nil {
 		return nil, err
@@ -152,6 +158,11 @@ func trimmedOptionalReason(reason *string) *string {
 		return nil
 	}
 	return &value
+}
+
+func isWeekend(date timezone.Date) bool {
+	weekday := date.Weekday()
+	return weekday == time.Saturday || weekday == time.Sunday
 }
 
 // attachClassException copies the class-wide day exception behind a projected

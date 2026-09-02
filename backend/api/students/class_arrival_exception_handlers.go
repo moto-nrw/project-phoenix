@@ -69,6 +69,9 @@ var classArrivalExceptionErrorRenderer = common.RulesRenderer([]common.ErrorRule
 	{Target: scheduleService.ErrClassArrivalExceptionPastDate, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_past_date")
 	}},
+	{Target: scheduleService.ErrClassArrivalExceptionWeekend, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_weekend")
+	}},
 	{Target: scheduleService.ErrClassArrivalExceptionClassNotFound, Render: func(err error) render.Renderer {
 		return common.ErrorNotFoundWithCode(err, "class_arrival_exception_class_not_found")
 	}},
@@ -198,8 +201,11 @@ func (rs *Resource) putClassArrivalException(w http.ResponseWriter, r *http.Requ
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	staffID, err := rs.getStaffIDFromJWT(r)
-	if err != nil {
+	staffID := int64(0)
+	if staff, err := rs.getStaffIDFromJWT(r); err == nil {
+		staffID = staff
+	} else if !authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context())) ||
+		(!errors.Is(err, errPersonNotFoundForAccount) && !errors.Is(err, errUserNotStaff)) {
 		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
