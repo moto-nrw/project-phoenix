@@ -323,7 +323,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Passende `System-Rolle` wählen. Admin-Rechte nur für Personen, die Stammdaten oder Einstellungen ändern sollen.",
           "Speichern und die Person zum Login auffordern.",
           "Um die Rolle einer bereits angelegten Person nachträglich zu ändern (z. B. jemanden zur Administratorin zu machen), die Person in der Personal-Liste auswählen und in der Detailansicht `Rolle verwalten` nutzen.",
-          "Für ein ganzes Team unter `Personal` den `Import` nutzen: Vorlage herunterladen, ausfüllen und hochladen. Jede Zeile wird sofort mit Stammdaten (Personalnummer, Adresse, Vertragsdaten, Qualifikationen) angelegt. Steht eine E-Mail in der Zeile, geht zusätzlich eine Einladung heraus. Mit `Nur bestehende aktualisieren` ziehen Sie später Änderungen aus einer Liste nach; leere Zellen ändern nichts.",
+          "Für ein ganzes Team unter `Personal` den `Import` nutzen: Vorlage herunterladen, ausfüllen und hochladen. Jede Zeile wird sofort mit Stammdaten (Personalnummer, Adresse, Vertragsdaten, Qualifikationen) angelegt. Steht eine E-Mail in der Zeile, geht zusätzlich eine Einladung heraus. Mit `Nur bestehende aktualisieren` ziehen Sie später Änderungen aus einer Liste nach; leere Zellen ändern nichts. Diese Auswahl sehen nur Personen, die Personalstammdaten pflegen und Mitarbeitende verwalten dürfen.",
         ],
         screenshot: "Personalformular mit Vorname, Nachname, E-Mail und Rolle.",
         image: "/help/screens/mitarbeitende-anlegen.webp",

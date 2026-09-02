@@ -8,7 +8,7 @@ import { Loading } from "~/components/ui/loading";
  * Berechtigungen, die den Bereich neben der Leitungsrolle öffnen (#2906).
  * Die Personalseite gehört zu den beiden Personal-Berechtigungen, mit denen
  * das Backend auch GET /api/staff beantwortet. Der Personal-Import dahinter
- * hängt wie POST /api/import/teachers an users:create, der
+ * hängt wie POST /api/import/teachers und die Vorlage an users:create, der
  * Eröffnungssalden-Import an der Zeitwirtschaft. Ohne diese Rechte antwortet
  * das Backend ohnehin mit 403.
  */

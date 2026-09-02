@@ -102,6 +102,38 @@ func ImporterPermissionsFromContext(ctx context.Context) []string {
 	return permissions
 }
 
+// ErrImportModeForbidden reports that the importer lacks a permission the
+// requested import mode needs. Handlers map it to 403.
+var ErrImportModeForbidden = errors.New("import mode not permitted")
+
+// staffUpdateImportPermissions are the permissions an importer needs before
+// the staff import may change existing records (#2906). Update and upsert
+// mode write the same fields as the personnel screens: notes, employment
+// type, personnel number and position belong to staff:manage (PUT
+// /api/staff/{id}); names, birthday, contact, contract and qualifications to
+// staff:stammdaten (PUT /api/staff/{id}/stammdaten/*). users:create alone
+// files new records only. The literals mirror permissions.StaffManage and
+// permissions.StaffStammdaten; the architecture policy keeps that package
+// out of the import services, as auth/authorize/role_grant.go does it too.
+var staffUpdateImportPermissions = []string{"staff:manage", "staff:stammdaten"}
+
+// AuthorizeImportMode refuses update-capable modes unless the importer holds
+// every permission the personnel screens demand for the same writes. The
+// import service calls it before any row is validated, so a create-only
+// caller cannot even preview an update.
+func (c *StaffImportConfig) AuthorizeImportMode(ctx context.Context, mode importModels.ImportMode) error {
+	if mode == importModels.ImportModeCreate {
+		return nil
+	}
+	importerPermissions := ImporterPermissionsFromContext(ctx)
+	for _, required := range staffUpdateImportPermissions {
+		if !authorize.HasPermission(required, importerPermissions) {
+			return fmt.Errorf("%w: mode %q requires %s", ErrImportModeForbidden, mode, required)
+		}
+	}
+	return nil
+}
+
 // StaffImportConfig implements ImportConfig for staff (Mitarbeiter) imports.
 //
 // Each row is a full Stammdatensatz (#2600): Create files Person, Staff, the
