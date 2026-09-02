@@ -2376,15 +2376,17 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Einstellungen im Überblick",
         icon: SlidersHorizontal,
         summary:
-          "Die Einstellungen sind in Reiter (Tabs) gegliedert. Jeder Reiter bündelt Optionen zu einem Thema. Änderungen werden automatisch gespeichert.",
+          "Die Einstellungen sind in Reiter (Tabs) gegliedert. Jeder Reiter bündelt Optionen zu einem Thema, aufgeteilt in zugeklappte Bereiche. Änderungen werden automatisch gespeichert.",
         steps: [
           "In der Seitenleiste `Einstellungen` öffnen.",
           "Oben den passenden Reiter wählen: `Betrieb` (Alltagsverhalten, z. B. Betreuungsplan oder Aktivitäts-Indikatoren), `Erinnerungen` (welche Erinnerungen an der Glocke erscheinen), `Geräte` (NFC-Tablets, PIN, Auswahl-Buttons), `Anmeldung` (Online-Anmeldung der Eltern), `Datenschutz` (Aufbewahrung und Sichtbarkeit von Daten), `System`, `Sicherheit` sowie `Personalisierung` (Erscheinungsbild).",
+          "Jeder Bereich (etwa `Elternportal` oder `Zeiterfassung`) ist zunächst zugeklappt und zeigt nur seinen Namen und die enthaltenen Einstellungen in einer Zeile. Auf den Pfeil rechts im Bereich klicken, um ihn zu öffnen; `Alle ausklappen` öffnet alle Bereiche des Reiters. Ein Abzeichen wie `2 geändert` zeigt, wie viele Einstellungen darin vom Standard abweichen.",
+          "Wer nicht weiß, in welchem Reiter eine Einstellung liegt, tippt ein Stichwort in `Einstellung suchen`. Die Suche zeigt passende Einstellungen aus allen Reitern, jeweils mit dem Namen des Reiters darüber.",
           "Schalter (an/aus) und Auswahlfelder werden sofort gespeichert; Text-, Zahl- und Zeitfelder kurz nach der Eingabe. Ein grüner Rahmen bestätigt das Speichern, ein roter weist auf einen Fehler hin.",
           "Steht neben einer Einstellung das Abzeichen `Standard`, ist noch der voreingestellte Wert aktiv. Nach einer Änderung erscheint `Zurücksetzen`, um wieder den Standard herzustellen.",
         ],
         screenshot:
-          "Einstellungen mit der Reiter-Leiste (Betrieb, Erinnerungen, Geräte, Anmeldung, Datenschutz, System, Sicherheit, Personalisierung) und der Sektion Aktivitäts-Indikatoren im Reiter Betrieb.",
+          "Einstellungen mit der Reiter-Leiste (Betrieb, Erinnerungen, Geräte, Anmeldung, Datenschutz, System, Sicherheit, Personalisierung), dem Suchfeld und den zugeklappten Bereichen im Reiter Betrieb.",
         image: "/help/screens/einstellungen.webp",
       },
       {
