@@ -566,12 +566,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 416,
+          "line": 417,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 437,
+          "line": 439,
           "declaration": "newFactory"
         },
         {
