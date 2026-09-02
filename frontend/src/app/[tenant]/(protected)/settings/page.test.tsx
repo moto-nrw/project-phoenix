@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Die Statuszeile zählt die vom Standard abweichenden Einstellungen.
-const mockUseSettingsSchema = vi.fn(() => ({ data: null }));
+const mockUseSettingsSchema = vi.fn(() => ({ data: null, isLoading: false }));
 vi.mock("~/lib/hooks/use-settings-schema", () => ({
   useSettingsSchema: () => mockUseSettingsSchema(),
 }));
@@ -48,6 +48,7 @@ describe("SettingsPage", () => {
     });
 
     mockUseSettingsTabs.mockReturnValue(null);
+    mockUseSettingsSchema.mockReturnValue({ data: null, isLoading: false });
   });
 
   it("should show loading when session is loading", () => {
@@ -57,6 +58,17 @@ describe("SettingsPage", () => {
     const { container } = render(<SettingsPage />);
 
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+  });
+
+  it("keeps loading while the settings schema is loading", () => {
+    mockUseSettingsSchema.mockReturnValue({ data: null, isLoading: true });
+
+    const { container } = render(<SettingsPage />);
+
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(
+      screen.queryByText(/Keine Einstellungen verfügbar/),
+    ).not.toBeInTheDocument();
   });
 
   it("should redirect when unauthenticated", () => {

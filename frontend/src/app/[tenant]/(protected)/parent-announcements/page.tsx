@@ -356,7 +356,7 @@ function ParentAnnouncementsContent() {
   // wie viele Einträge der aktiven Art es gibt und wie viele davon
   // veröffentlicht sind.
   const kindSummary = (() => {
-    const ofKind = list.filter((entry) => isPoll(entry) === (kind === "poll"));
+    const ofKind = list.filter((entry) => kindOf(entry) === kind);
     const published = ofKind.filter(
       (entry) => entry.status === "published",
     ).length;
@@ -684,7 +684,12 @@ function ParentAnnouncementsContent() {
       }}
       loading={isLoading}
       error={
-        loadError ? "Elternmitteilungen konnten nicht geladen werden." : null
+        loadError
+          ? {
+              message: "Elternmitteilungen konnten nicht geladen werden.",
+              keepContent: announcements !== undefined,
+            }
+          : null
       }
       empty={
         !isLoading && filtered.length === 0
@@ -856,6 +861,7 @@ function ParentAnnouncementsContent() {
       {reminderNotice && <Alert type="success" message={reminderNotice} />}
 
       <DataTable
+        stackedOnMobile
         columns={columns}
         rows={filtered}
         getRowKey={(row) => row.id}

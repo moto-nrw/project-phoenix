@@ -221,7 +221,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       <TenantPage
         title="Anmeldung"
         back
-        backHref={tenantPath("/admin/enrollments")}
+        backHref="/admin/enrollments"
         backLabel="Zurück zur Anmeldungs-Übersicht"
         statsLoading
         loading
@@ -233,7 +233,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       <TenantPage
         title="Anmeldung"
         back
-        backHref={tenantPath("/admin/enrollments")}
+        backHref="/admin/enrollments"
         backLabel="Zurück zur Anmeldungs-Übersicht"
         error={error ?? "Anmeldung nicht gefunden."}
       />
@@ -289,7 +289,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     <TenantPage
       title={`${data.guardian_first_name} ${data.guardian_last_name}`}
       back
-      backHref={tenantPath("/admin/enrollments")}
+      backHref="/admin/enrollments"
       backLabel="Zurück zur Anmeldungs-Übersicht"
       stats={statusLine}
       leading={<ConceptIconTile concept="enrollments" variant="page" />}

@@ -16,7 +16,7 @@ function SettingsContent() {
   const settingsTabs = useSettingsTabs();
   const router = useTenantRouter();
   const searchParams = useSearchParams();
-  const { data: schema } = useSettingsSchema();
+  const { data: schema, isLoading: schemaLoading } = useSettingsSchema();
 
   const requestedTab = searchParams.get("tab");
   const requestedTabId = requestedTab ? `settings-${requestedTab}` : null;
@@ -56,7 +56,7 @@ function SettingsContent() {
     [schema],
   );
 
-  if (status === "loading") {
+  if (status === "loading" || schemaLoading) {
     return <TenantPage title="Einstellungen" statsLoading loading />;
   }
 

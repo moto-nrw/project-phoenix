@@ -15,7 +15,6 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { BackButton } from "~/components/ui/back-button";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { studentService } from "~/lib/api";
 import { schoolCheckinStudent } from "~/lib/student-api";
@@ -747,11 +746,13 @@ function StudentDetailPageContent() {
   // Show error state
   if (error || !student) {
     return (
-      <>
-        {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
-        <BackButton referrer={referrer} />
-        <TenantPage title="Kindakte" error={error ?? "Kind nicht gefunden"} />
-      </>
+      <TenantPage
+        title="Kindakte"
+        back
+        backHref={referrer}
+        backLabel="Zurück zur Kinderübersicht"
+        error={error ?? "Kind nicht gefunden"}
+      />
     );
   }
 
@@ -1138,312 +1139,303 @@ function StudentDetailPageContent() {
   // =============================================================================
 
   return (
-    <>
-      {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
-      <BackButton referrer={referrer} />
-
-      {/* Der Entitätskopf IST die Kopfkarte der Seite: Foto, Name, Statuszeile
+    /* Der Entitätskopf IST die Kopfkarte der Seite: Foto, Name, Statuszeile
           mit Klasse, Gruppe und den Zeiten des heutigen Tages, der aktuelle
-          Aufenthaltsort als Aktion und die Schnellaktionen darunter. */}
-      <TenantPage
-        leading={<StudentHeaderAvatar student={student} />}
-        title={studentHeaderTitle(student)}
-        stats={
-          // Der Aufenthaltsort ist Status, keine Aktion: er steht in der
-          // Statuszeile des Identitätskopfes und nicht im Aktionsplatz, wo er
-          // wie eine Schaltfläche gelesen würde.
-          <span className="block">
-            <span className="mb-1 flex flex-wrap items-center gap-2">
-              <StudentHeaderLocation
-                student={student}
-                myGroups={myGroups}
-                myGroupRooms={myGroupRooms}
-                mySupervisedRooms={mySupervisedRooms}
-                todayArrivalPlannedTime={todayArrival.time}
-                isArrivalException={todayArrival.isException}
-                todayArrivalNote={todayArrival.note}
-                isArrivalAbsent={todayArrival.isAbsent}
-              />
-            </span>
-            <StudentHeaderStats
+          Aufenthaltsort als Aktion und die Schnellaktionen darunter. */
+    <TenantPage
+      back
+      backHref={referrer}
+      backLabel="Zurück zur Kinderübersicht"
+      leading={<StudentHeaderAvatar student={student} />}
+      title={studentHeaderTitle(student)}
+      stats={
+        // Der Aufenthaltsort ist Status, keine Aktion: er steht in der
+        // Statuszeile des Identitätskopfes und nicht im Aktionsplatz, wo er
+        // wie eine Schaltfläche gelesen würde.
+        <span className="block">
+          <span className="mb-1 flex flex-wrap items-center gap-2">
+            <StudentHeaderLocation
               student={student}
-              todayPickupPlannedTime={todayPickup.time}
-              todayPickupActualTime={student.actual_pickup_time}
-              todayPickupNote={todayPickup.note}
-              isPickupException={todayPickup.isException}
+              myGroups={myGroups}
+              myGroupRooms={myGroupRooms}
+              mySupervisedRooms={mySupervisedRooms}
               todayArrivalPlannedTime={todayArrival.time}
-              todayArrivalActualTime={student.actual_arrival_time}
               isArrivalException={todayArrival.isException}
               todayArrivalNote={todayArrival.note}
               isArrivalAbsent={todayArrival.isAbsent}
-              sickReason={currentSickReason}
             />
           </span>
-        }
-        searchSlotHeight="natural"
-        searchSlot={
-          <StudentQuickActions
+          <StudentHeaderStats
             student={student}
-            showCheckout={showCheckout}
-            showCheckin={showCheckin}
-            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
-            onCheckoutClick={() => setShowConfirmCheckout(true)}
-            onCheckinClick={() => setShowConfirmCheckin(true)}
-            onSickClick={handleSickClick}
-            sickLoading={sickLoading}
-            isQuickExcused={isQuickExcused}
-            onExcusedClick={handleExcusedClick}
-            excusedLoading={excusedLoading}
-            onClassTripClick={() => setPlannedStatusModal("class_trip")}
-            plannedStatusLoading={plannedStatusLoading}
+            todayPickupPlannedTime={todayPickup.time}
+            todayPickupActualTime={student.actual_pickup_time}
+            todayPickupNote={todayPickup.note}
+            isPickupException={todayPickup.isException}
+            todayArrivalPlannedTime={todayArrival.time}
+            todayArrivalActualTime={student.actual_arrival_time}
+            isArrivalException={todayArrival.isException}
+            todayArrivalNote={todayArrival.note}
+            isArrivalAbsent={todayArrival.isAbsent}
+            sickReason={currentSickReason}
           />
-        }
-        tabs={{
-          value: activeTab,
-          onChange: handleTabChange,
-          items: buildStudentTabItems(visibleTabs),
-          label: "Bereiche der Kindakte",
-        }}
-        overlays={
-          <>
-            {/* Checkout Confirmation Modal */}
-            <ConfirmationModal
-              isOpen={showConfirmCheckout}
-              onClose={() => setShowConfirmCheckout(false)}
-              onConfirm={handleConfirmCheckout}
-              title="Kind abmelden"
-              confirmText={checkingOut ? "Wird abgemeldet…" : "Geht nach Hause"}
-              cancelText="Abbrechen"
-              isConfirmLoading={checkingOut}
-            >
-              <p>
-                Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
-              </p>
-            </ConfirmationModal>
+        </span>
+      }
+      searchSlotHeight="natural"
+      searchSlot={
+        <StudentQuickActions
+          student={student}
+          showCheckout={showCheckout}
+          showCheckin={showCheckin}
+          hasAbsenceWriteAccess={hasAbsenceWriteAccess}
+          onCheckoutClick={() => setShowConfirmCheckout(true)}
+          onCheckinClick={() => setShowConfirmCheckin(true)}
+          onSickClick={handleSickClick}
+          sickLoading={sickLoading}
+          isQuickExcused={isQuickExcused}
+          onExcusedClick={handleExcusedClick}
+          excusedLoading={excusedLoading}
+          onClassTripClick={() => setPlannedStatusModal("class_trip")}
+          plannedStatusLoading={plannedStatusLoading}
+        />
+      }
+      tabs={{
+        value: activeTab,
+        onChange: handleTabChange,
+        items: buildStudentTabItems(visibleTabs),
+        label: "Bereiche der Kindakte",
+      }}
+      overlays={
+        <>
+          {/* Checkout Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showConfirmCheckout}
+            onClose={() => setShowConfirmCheckout(false)}
+            onConfirm={handleConfirmCheckout}
+            title="Kind abmelden"
+            confirmText={checkingOut ? "Wird abgemeldet…" : "Geht nach Hause"}
+            cancelText="Abbrechen"
+            isConfirmLoading={checkingOut}
+          >
+            <p>
+              Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
+            </p>
+          </ConfirmationModal>
 
-            {/* Checkin Confirmation Modal */}
-            <ConfirmationModal
-              isOpen={showConfirmCheckin}
-              onClose={() => setShowConfirmCheckin(false)}
-              onConfirm={handleConfirmCheckin}
-              title="Kind anmelden"
-              confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
-              cancelText="Abbrechen"
-              isConfirmLoading={checkingIn}
-            >
-              <p>
-                Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
-              </p>
-            </ConfirmationModal>
+          {/* Checkin Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showConfirmCheckin}
+            onClose={() => setShowConfirmCheckin(false)}
+            onConfirm={handleConfirmCheckin}
+            title="Kind anmelden"
+            confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
+            cancelText="Abbrechen"
+            isConfirmLoading={checkingIn}
+          >
+            <p>
+              Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
+            </p>
+          </ConfirmationModal>
 
-            {/* Sick Report Confirmation Modal */}
-            <ConfirmationModal
-              isOpen={showConfirmSick}
-              onClose={() => {
-                setShowConfirmSick(false);
-                setSickReason("");
-              }}
-              onConfirm={handleConfirmSickToggle}
-              title={
-                student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"
-              }
-              confirmText={sickConfirmText}
-              cancelText="Abbrechen"
-              isConfirmLoading={sickLoading}
-            >
-              <p>
-                {student.sick ? (
-                  <>
-                    Möchten Sie die Krankmeldung für{" "}
-                    <strong>{student.name}</strong> für heute aufheben? Geplante
-                    Kranktage in der Zukunft bleiben bestehen.
-                  </>
-                ) : (
-                  <>
-                    Möchten Sie <strong>{student.name}</strong> als krank
-                    melden?
-                  </>
-                )}
-              </p>
-              {!student.sick && (
-                <div className="mt-4">
-                  <label
-                    htmlFor="sick-reason"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Grund (optional)
-                  </label>
-                  <textarea
-                    id="sick-reason"
-                    value={sickReason}
-                    onChange={(e) => setSickReason(e.target.value)}
-                    rows={2}
-                    maxLength={2000}
-                    placeholder="z. B. Fieber, beim Arzt"
-                    className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-                  />
-                </div>
+          {/* Sick Report Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showConfirmSick}
+            onClose={() => {
+              setShowConfirmSick(false);
+              setSickReason("");
+            }}
+            onConfirm={handleConfirmSickToggle}
+            title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
+            confirmText={sickConfirmText}
+            cancelText="Abbrechen"
+            isConfirmLoading={sickLoading}
+          >
+            <p>
+              {student.sick ? (
+                <>
+                  Möchten Sie die Krankmeldung für{" "}
+                  <strong>{student.name}</strong> für heute aufheben? Geplante
+                  Kranktage in der Zukunft bleiben bestehen.
+                </>
+              ) : (
+                <>
+                  Möchten Sie <strong>{student.name}</strong> als krank melden?
+                </>
               )}
-            </ConfirmationModal>
-
-            {/* Excused Confirmation Modal */}
-            <ConfirmationModal
-              isOpen={showConfirmExcused}
-              onClose={() => setShowConfirmExcused(false)}
-              onConfirm={handleConfirmExcusedToggle}
-              title={
-                isQuickExcused
-                  ? "Entschuldigung aufheben"
-                  : "Kind entschuldigen"
-              }
-              confirmText={excusedConfirmText}
-              cancelText="Abbrechen"
-              isConfirmLoading={excusedLoading}
-            >
-              <p>
-                {isQuickExcused ? (
-                  <>
-                    Möchten Sie die Entschuldigung für{" "}
-                    <strong>{student.name}</strong> für heute aufheben? Geplante
-                    Entschuldigungen in der Zukunft bleiben bestehen.
-                  </>
-                ) : (
-                  <>
-                    Möchten Sie <strong>{student.name}</strong> als entschuldigt
-                    markieren?
-                  </>
-                )}
-              </p>
-            </ConfirmationModal>
-
-            {/* Switch Dialog, shown when user clicks one flag but the other is set */}
-            <ConfirmationModal
-              isOpen={switchTarget !== null}
-              onClose={() => setSwitchTarget(null)}
-              onConfirm={handleConfirmSwitch}
-              title={
-                switchTarget === "sick"
-                  ? "Als krank melden?"
-                  : "Als entschuldigt markieren?"
-              }
-              confirmText={
-                switchLoading ? "Wird gewechselt…" : "Status wechseln"
-              }
-              cancelText="Abbrechen"
-              isConfirmLoading={switchLoading}
-            >
-              <p>
-                {switchTarget === "sick" ? (
-                  <>
-                    <strong>{student.name}</strong> ist aktuell als entschuldigt
-                    markiert. Stattdessen als krank melden? Die Entschuldigung
-                    wird dabei aufgehoben.
-                  </>
-                ) : (
-                  <>
-                    <strong>{student.name}</strong> ist aktuell als krank
-                    gemeldet. Stattdessen als entschuldigt markieren? Die
-                    Krankmeldung wird dabei aufgehoben.
-                  </>
-                )}
-              </p>
-            </ConfirmationModal>
-
-            <PlannedStatusDaysModal
-              isOpen={plannedStatusModal !== null}
-              status={plannedStatusModal ?? "sick"}
-              studentName={student.name}
-              isSubmitting={plannedStatusLoading}
-              existingDays={statusDays}
-              existingPartialAbsences={partialAbsences}
-              canPlanPartialExcusal={canPlanPartialExcusal}
-              deletingStatusDayId={deletingPlannedStatusDayId}
-              onClose={() => setPlannedStatusModal(null)}
-              loadExistingDays={loadPlannedStatusExistingDays}
-              loadPartialAbsences={loadPlannedPartialAbsences}
-              loadCarePlanDay={loadPlannedCarePlanDay}
-              onSubmit={handleCreatePlannedStatus}
-              onDeleteStatusDay={handleDeletePlannedStatus}
-              onSubmitPartialAbsence={handleSavePartialAbsence}
-              onDeletePartialAbsence={handleDeletePartialAbsence}
-            />
-          </>
-        }
-      >
-        {careWithdrawalLoadFailed ? (
-          <div>
-            <Alert
-              type="error"
-              message="Die offene Abmeldung konnte nicht geladen werden."
-            />
-          </div>
-        ) : careWithdrawal ? (
-          <div>
-            <Alert
-              type="warning"
-              message={`Abmeldung noch abschließen. Ab ${formatCalendarDate(careWithdrawal.firstBookinglessDay)} ist kein Betreuungstag mehr gebucht.`}
-              action={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="compact"
-                  onClick={() => setCareWithdrawalModalOpen(true)}
+            </p>
+            {!student.sick && (
+              <div className="mt-4">
+                <label
+                  htmlFor="sick-reason"
+                  className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  Betreuung beenden
-                </Button>
-              }
-            />
-            <CareExitModal
-              isOpen={careWithdrawalModalOpen}
-              studentIds={[studentId]}
-              completionId={careWithdrawal.id}
-              firstBookinglessDay={careWithdrawal.firstBookinglessDay}
-              onClose={() => setCareWithdrawalModalOpen(false)}
-              onFinished={() => {
-                setCareWithdrawalModalOpen(false);
-                setCareWithdrawal(null);
-                window.dispatchEvent(new Event("change-requests-refresh"));
-              }}
-            />
-          </div>
-        ) : null}
+                  Grund (optional)
+                </label>
+                <textarea
+                  id="sick-reason"
+                  value={sickReason}
+                  onChange={(e) => setSickReason(e.target.value)}
+                  rows={2}
+                  maxLength={2000}
+                  placeholder="z. B. Fieber, beim Arzt"
+                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                />
+              </div>
+            )}
+          </ConfirmationModal>
 
-        {hasFullAccess ? (
-          <FullAccessView
-            student={student}
-            studentId={studentId}
-            hasWriteAccess={hasWriteAccess}
-            attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
-            activeTab={activeTab}
-            tabs={visibleTabs}
-            canViewEnrollments={canViewEnrollments}
-            canViewCarePlan={canViewCarePlan}
-            canManageFamilyProtection={canViewEnrollments}
-            onTabChange={handleTabChange}
-            statusDays={statusDays}
+          {/* Excused Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showConfirmExcused}
+            onClose={() => setShowConfirmExcused(false)}
+            onConfirm={handleConfirmExcusedToggle}
+            title={
+              isQuickExcused ? "Entschuldigung aufheben" : "Kind entschuldigen"
+            }
+            confirmText={excusedConfirmText}
+            cancelText="Abbrechen"
+            isConfirmLoading={excusedLoading}
+          >
+            <p>
+              {isQuickExcused ? (
+                <>
+                  Möchten Sie die Entschuldigung für{" "}
+                  <strong>{student.name}</strong> für heute aufheben? Geplante
+                  Entschuldigungen in der Zukunft bleiben bestehen.
+                </>
+              ) : (
+                <>
+                  Möchten Sie <strong>{student.name}</strong> als entschuldigt
+                  markieren?
+                </>
+              )}
+            </p>
+          </ConfirmationModal>
+
+          {/* Switch Dialog, shown when user clicks one flag but the other is set */}
+          <ConfirmationModal
+            isOpen={switchTarget !== null}
+            onClose={() => setSwitchTarget(null)}
+            onConfirm={handleConfirmSwitch}
+            title={
+              switchTarget === "sick"
+                ? "Als krank melden?"
+                : "Als entschuldigt markieren?"
+            }
+            confirmText={switchLoading ? "Wird gewechselt…" : "Status wechseln"}
+            cancelText="Abbrechen"
+            isConfirmLoading={switchLoading}
+          >
+            <p>
+              {switchTarget === "sick" ? (
+                <>
+                  <strong>{student.name}</strong> ist aktuell als entschuldigt
+                  markiert. Stattdessen als krank melden? Die Entschuldigung
+                  wird dabei aufgehoben.
+                </>
+              ) : (
+                <>
+                  <strong>{student.name}</strong> ist aktuell als krank
+                  gemeldet. Stattdessen als entschuldigt markieren? Die
+                  Krankmeldung wird dabei aufgehoben.
+                </>
+              )}
+            </p>
+          </ConfirmationModal>
+
+          <PlannedStatusDaysModal
+            isOpen={plannedStatusModal !== null}
+            status={plannedStatusModal ?? "sick"}
+            studentName={student.name}
+            isSubmitting={plannedStatusLoading}
+            existingDays={statusDays}
+            existingPartialAbsences={partialAbsences}
+            canPlanPartialExcusal={canPlanPartialExcusal}
+            deletingStatusDayId={deletingPlannedStatusDayId}
+            onClose={() => setPlannedStatusModal(null)}
+            loadExistingDays={loadPlannedStatusExistingDays}
+            loadPartialAbsences={loadPlannedPartialAbsences}
+            loadCarePlanDay={loadPlannedCarePlanDay}
+            onSubmit={handleCreatePlannedStatus}
             onDeleteStatusDay={handleDeletePlannedStatus}
-            onVisibleDateRangeChange={ensureStatusDayRange}
-            showPersonalInfoEdit={showPersonalInfoEdit}
-            onOpenPersonalInfoEdit={() => setShowPersonalInfoEdit(true)}
-            onClosePersonalInfoEdit={() => setShowPersonalInfoEdit(false)}
-            onSavePersonal={handleSavePersonal}
-            onRefreshData={refreshDataAndHistory}
+            onSubmitPartialAbsence={handleSavePartialAbsence}
+            onDeletePartialAbsence={handleDeletePartialAbsence}
           />
-        ) : (
-          <LimitedAccessView
-            student={student}
-            studentId={studentId}
-            attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
-            supervisors={supervisors}
-            activeTab={activeTab}
-            tabs={visibleTabs}
-            canViewEnrollments={canViewEnrollments}
+        </>
+      }
+    >
+      {careWithdrawalLoadFailed ? (
+        <div>
+          <Alert
+            type="error"
+            message="Die offene Abmeldung konnte nicht geladen werden."
           />
-        )}
-      </TenantPage>
-    </>
+        </div>
+      ) : careWithdrawal ? (
+        <div>
+          <Alert
+            type="warning"
+            message={`Abmeldung noch abschließen. Ab ${formatCalendarDate(careWithdrawal.firstBookinglessDay)} ist kein Betreuungstag mehr gebucht.`}
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                onClick={() => setCareWithdrawalModalOpen(true)}
+              >
+                Betreuung beenden
+              </Button>
+            }
+          />
+          <CareExitModal
+            isOpen={careWithdrawalModalOpen}
+            studentIds={[studentId]}
+            completionId={careWithdrawal.id}
+            firstBookinglessDay={careWithdrawal.firstBookinglessDay}
+            onClose={() => setCareWithdrawalModalOpen(false)}
+            onFinished={() => {
+              setCareWithdrawalModalOpen(false);
+              setCareWithdrawal(null);
+              window.dispatchEvent(new Event("change-requests-refresh"));
+            }}
+          />
+        </div>
+      ) : null}
+
+      {hasFullAccess ? (
+        <FullAccessView
+          student={student}
+          studentId={studentId}
+          hasWriteAccess={hasWriteAccess}
+          attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
+          activeTab={activeTab}
+          tabs={visibleTabs}
+          canViewEnrollments={canViewEnrollments}
+          canViewCarePlan={canViewCarePlan}
+          canManageFamilyProtection={canViewEnrollments}
+          onTabChange={handleTabChange}
+          statusDays={statusDays}
+          onDeleteStatusDay={handleDeletePlannedStatus}
+          onVisibleDateRangeChange={ensureStatusDayRange}
+          showPersonalInfoEdit={showPersonalInfoEdit}
+          onOpenPersonalInfoEdit={() => setShowPersonalInfoEdit(true)}
+          onClosePersonalInfoEdit={() => setShowPersonalInfoEdit(false)}
+          onSavePersonal={handleSavePersonal}
+          onRefreshData={refreshDataAndHistory}
+        />
+      ) : (
+        <LimitedAccessView
+          student={student}
+          studentId={studentId}
+          attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
+          supervisors={supervisors}
+          activeTab={activeTab}
+          tabs={visibleTabs}
+          canViewEnrollments={canViewEnrollments}
+        />
+      )}
+    </TenantPage>
   );
 }
 

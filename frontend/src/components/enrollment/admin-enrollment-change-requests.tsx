@@ -126,7 +126,7 @@ export function AdminEnrollmentChangeRequestDetail({
       <TenantPage
         title="Änderungsanfrage"
         back
-        backHref={tenantPath("/admin/enrollments")}
+        backHref="/admin/enrollments"
         backLabel="Zurück zur Anmeldungs-Übersicht"
         statsLoading
         loading
@@ -139,7 +139,7 @@ export function AdminEnrollmentChangeRequestDetail({
       <TenantPage
         title="Änderungsanfrage"
         back
-        backHref={tenantPath("/admin/enrollments")}
+        backHref="/admin/enrollments"
         backLabel="Zurück zur Anmeldungs-Übersicht"
         error={error ?? "Änderungsanfrage nicht gefunden."}
       />
@@ -176,7 +176,7 @@ export function AdminEnrollmentChangeRequestDetail({
         data.origin === "admin" ? "OGS-Korrektur" : "Änderungsanfrage prüfen"
       }
       back
-      backHref={tenantPath("/admin/enrollments")}
+      backHref="/admin/enrollments"
       backLabel="Zurück zur Anmeldungs-Übersicht"
       stats={statusLine}
       leading={<ConceptIconTile concept="enrollments" variant="page" />}

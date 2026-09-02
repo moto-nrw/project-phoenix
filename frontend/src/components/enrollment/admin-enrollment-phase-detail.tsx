@@ -337,9 +337,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [classRosterSchoolClass, phaseId, toast],
   );
 
-  const overviewHref = tenantSlug
-    ? `/${tenantSlug}/admin/enrollments`
-    : "/admin/enrollments";
+  const overviewHref = "/admin/enrollments";
 
   const requestHref = useCallback(
     (requestId: string) =>

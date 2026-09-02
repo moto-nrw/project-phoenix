@@ -5,7 +5,6 @@ import { AdminEnrollmentChangeRequestDetail } from "~/components/enrollment/admi
 import { TenantPage } from "~/components/ui/tenant-page";
 import { canReviewEnrollmentChangeRequests } from "~/lib/change-request-access";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; id: string }>;
@@ -16,14 +15,13 @@ export default function AdminEnrollmentChangeRequestDetailPage({
 }: PageProps) {
   const { id } = use(params);
   const { isReady } = useRequirePermission(canReviewEnrollmentChangeRequests);
-  const tenantPath = useTenantAwarePath();
 
   if (!isReady) {
     return (
       <TenantPage
         title="Änderungsanfrage"
         back
-        backHref={tenantPath("/admin/enrollments")}
+        backHref="/admin/enrollments"
         backLabel="Zurück zur Anmeldungs-Übersicht"
         statsLoading
         loading

@@ -4,7 +4,6 @@ import { use } from "react";
 import { RolloverReviewQueue } from "~/components/enrollment/rollover-review-queue";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; id: string }>;
@@ -17,7 +16,6 @@ interface PageProps {
 export default function RolloverReviewPage({ params }: PageProps) {
   const { id } = use(params);
   const { isReady } = useRequireAdmin();
-  const tenantPath = useTenantAwarePath();
 
   // Titel, Statuszeile und Zurück-Knopf trägt die Prüfliste selbst.
   if (!isReady) {
@@ -25,7 +23,7 @@ export default function RolloverReviewPage({ params }: PageProps) {
       <TenantPage
         title="Prüfliste"
         back
-        backHref={tenantPath("/enrollment-phases")}
+        backHref="/enrollment-phases"
         backLabel="Zurück zu den Anmeldephasen"
         statsLoading
         loading

@@ -7,7 +7,6 @@ import {
   type ReviewQueueItem,
 } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -29,7 +28,6 @@ const REVIEW_QUEUE_DESCRIPTION =
   "Kinder, die nicht automatisch übernommen werden konnten, meist weil ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer Klassenstufe), aus der nächsten Phase entfernen oder vorerst zurückstellen.";
 
 export function RolloverReviewQueue({ phaseID }: Props) {
-  const tenantPath = useTenantAwarePath();
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +101,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
       <TenantPage
         title="Prüfliste"
         back
-        backHref={tenantPath("/enrollment-phases")}
+        backHref="/enrollment-phases"
         backLabel="Zurück zu den Anmeldephasen"
         statsLoading
         loading
@@ -115,7 +113,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
     <TenantPage
       title="Prüfliste"
       back
-      backHref={tenantPath("/enrollment-phases")}
+      backHref="/enrollment-phases"
       backLabel="Zurück zu den Anmeldephasen"
       stats={`${items.length} ${items.length === 1 ? "offener Eintrag" : "offene Einträge"}`}
       empty={

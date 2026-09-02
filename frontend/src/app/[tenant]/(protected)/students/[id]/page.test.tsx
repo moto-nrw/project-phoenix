@@ -86,10 +86,10 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-// Mock BackButton component
-vi.mock("~/components/ui/back-button", () => ({
-  BackButton: ({ referrer }: { referrer: string }) => (
-    <button type="button" data-testid="back-button" data-referrer={referrer}>
+// TenantPage owns the mobile back button.
+vi.mock("~/components/ui/mobile-back-button", () => ({
+  MobileBackButton: ({ href }: { href?: string }) => (
+    <button type="button" data-testid="back-button" data-referrer={href}>
       Zurück
     </button>
   ),
@@ -695,8 +695,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      // Der Desktop-Rückweg ist die Breadcrumb; mobil bleibt der kit
-      // BackButton mit dem Referrer der Herkunftsliste.
+      // Der Desktop-Rückweg ist die Breadcrumb; mobil trägt das Seitengerüst
+      // den Referrer der Herkunftsliste.
       expect(screen.getByTestId("back-button")).toHaveAttribute(
         "data-referrer",
         "/students/search",

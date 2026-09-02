@@ -42,7 +42,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
       <TenantPage
         title="Anschlussphase erstellen"
         back
-        backHref={tenantPath("/enrollment-phases")}
+        backHref="/enrollment-phases"
         backLabel="Zurück zu den Anmeldephasen"
         statsLoading
         loading
@@ -56,7 +56,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
       <TenantPage
         title="Anschlussphase erstellen"
         back
-        backHref={tenantPath("/enrollment-phases")}
+        backHref="/enrollment-phases"
         backLabel="Zurück zu den Anmeldephasen"
         error={error}
       />

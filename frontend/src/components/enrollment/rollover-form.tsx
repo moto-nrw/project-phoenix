@@ -15,7 +15,6 @@ import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { CHILD_STATUS_LABELS } from "~/components/enrollment/child-status-badge";
 import type { ChildStatus } from "~/lib/enrollment-admin-api";
 import { createLogger } from "~/lib/logger";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -100,7 +99,6 @@ export function RolloverForm({
   onSuccess,
   variant = "embedded",
 }: Props) {
-  const tenantPath = useTenantAwarePath();
   const [draft, setDraft] = useState<RolloverInput>(() =>
     prefillFromSource(source),
   );
@@ -451,7 +449,7 @@ export function RolloverForm({
       <TenantPage
         title={title}
         back
-        backHref={tenantPath("/enrollment-phases")}
+        backHref="/enrollment-phases"
         backLabel="Zurück zu den Anmeldephasen"
         stats={statusLine}
         statsLoading={loadingPreview}
