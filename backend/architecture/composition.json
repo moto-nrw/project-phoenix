@@ -25189,7 +25189,7 @@
       "declaration": "TestBroadcast_EndActivitySessionKeepsBusinessTxOnOptionalSSELookupError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        383
+        392
       ],
       "tables": []
     },
@@ -25199,7 +25199,7 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        213
+        217
       ],
       "tables": []
     },
@@ -25209,7 +25209,7 @@
       "declaration": "newServiceWithBroadcaster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        62
+        66
       ],
       "tables": []
     },

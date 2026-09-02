@@ -32,6 +32,7 @@ func (w *recordingGuardianWaker) BroadcastChildUpdateToGuardians(_ int64, studen
 
 type transactionFailingRoomRepo struct {
 	facilityModels.RoomRepository
+	lookupErr *error
 }
 
 func (r transactionFailingRoomRepo) FindByID(ctx context.Context, _ any) (*facilityModels.Room, error) {
@@ -44,6 +45,9 @@ func (r transactionFailingRoomRepo) FindByID(ctx context.Context, _ any) (*facil
 		return nil, errors.New("room lookup transaction has unexpected type")
 	}
 	_, err := tx.ExecContext(ctx, "SELECT 1 / 0")
+	if r.lookupErr != nil {
+		*r.lookupErr = err
+	}
 	return nil, err
 }
 
@@ -369,8 +373,9 @@ func TestBroadcast_EndActivitySessionKeepsBusinessTxOnOptionalSSELookupError(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
+	var lookupErr error
 	svc, broadcaster := newServiceWithBroadcaster(t, db, func(deps *active.ServiceDependencies) {
-		deps.RoomRepo = transactionFailingRoomRepo{RoomRepository: deps.RoomRepo}
+		deps.RoomRepo = transactionFailingRoomRepo{RoomRepository: deps.RoomRepo, lookupErr: &lookupErr}
 	})
 
 	room := testpkg.CreateTestRoom(t, db, "Optional SSE Lookup Room")
@@ -379,6 +384,10 @@ func TestBroadcast_EndActivitySessionKeepsBusinessTxOnOptionalSSELookupError(t *
 	broadcaster.Reset()
 
 	require.NoError(t, svc.EndActivitySession(testpkg.Ctx(t), session.ID))
+	require.Error(t, lookupErr, "the optional room lookup must execute its database failure")
+	var pgErr interface{ Field(byte) string }
+	require.True(t, errors.As(lookupErr, &pgErr))
+	assert.Equal(t, "22012", pgErr.Field('C'), "expected PostgreSQL division_by_zero")
 
 	ended, err := repositories.NewFactory(db).ActiveGroup.FindByID(testpkg.Ctx(t), session.ID)
 	require.NoError(t, err)
