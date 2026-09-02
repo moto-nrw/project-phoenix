@@ -1,4 +1,4 @@
-import "@testing-library/jest-dom/vitest";
+import "./setup-jest-dom";
 import type React from "react";
 import { beforeEach, vi } from "vitest";
 
