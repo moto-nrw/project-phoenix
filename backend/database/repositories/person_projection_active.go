@@ -34,18 +34,15 @@ func (r personCrossTenantRepository) FindCrossTenantStudents(ctx context.Context
 	for _, value := range values {
 		persons[value.ID] = value
 	}
-	// The previous INNER JOIN dropped students without a person row.
-	result := make([]activeModels.CrossTenantStudent, 0, len(students))
-	for _, student := range students {
-		person, found := persons[student.PersonID]
-		if !found {
-			continue
+	// A person row always exists behind a student; one the directory no
+	// longer shows (soft-deleted) keeps the visit with blank names.
+	for index := range students {
+		if person, found := persons[students[index].PersonID]; found {
+			students[index].FirstName = person.FirstName
+			students[index].LastName = person.LastName
 		}
-		student.FirstName = person.FirstName
-		student.LastName = person.LastName
-		result = append(result, student)
 	}
-	return result, nil
+	return students, nil
 }
 
 // personGroupSupervisorRepository attaches Staff.Person to active-group
@@ -174,16 +171,13 @@ func (r personVisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.C
 	if err != nil {
 		return nil, err
 	}
-	// The previous INNER JOIN dropped visits without a person row.
-	kept := make([]*activeModels.VisitWithStudentDisplay, 0, len(rows))
+	// A person row always exists behind a student; one the directory no
+	// longer shows (soft-deleted) keeps the visit with blank names.
 	for _, row := range rows {
-		person, found := persons[row.PersonID]
-		if !found {
-			continue
+		if person, found := persons[row.PersonID]; found {
+			row.FirstName = person.FirstName
+			row.LastName = person.LastName
 		}
-		row.FirstName = person.FirstName
-		row.LastName = person.LastName
-		kept = append(kept, row)
 	}
-	return kept, nil
+	return rows, nil
 }

@@ -53,8 +53,9 @@ type PersonQuery interface {
 type ServiceConfig struct {
 	RoomRepo        facilities.RoomRepository
 	ActiveGroupRepo active.GroupRepository
-	// PersonQuery is required for supervisor names on the occupancy
-	// surfaces; without it the rows carry no supervisor names.
+	// PersonQuery resolves the supervisor names on the occupancy surfaces.
+	// The service graph always wires it; a nil query (partial test wiring)
+	// leaves SupervisorNames unset rather than failing every room read.
 	PersonQuery                      PersonQuery
 	LockTemplateRecurrence           func(context.Context) error
 	ValidateCareOfferingRoomDeletion func(context.Context, int64) error

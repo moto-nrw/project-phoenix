@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -882,4 +883,40 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 	awaitTenantSettings(t, configModel.KeyStudentPhotosEnabled)
 	drainEvents(client.Channel)
 
+}
+
+// The People Directory adapter is wired through the shared protected group:
+// the real JWT verification, permission check and tenant transaction sit in
+// front of every /api/users route (#2661).
+func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
+	t.Parallel()
+	apiInstance := newGoldenAPI(t)
+	db := testpkg.SetupTestDB(t)
+	person := testpkg.CreateTestPerson(t, db, "Wired", "Route")
+
+	anonymous := httptest.NewRequest(http.MethodGet, "/api/users", nil)
+	anonymousRecorder := httptest.NewRecorder()
+	apiInstance.Router.ServeHTTP(anonymousRecorder, anonymous)
+	assert.Equal(t, http.StatusUnauthorized, anonymousRecorder.Code)
+
+	forbiddenClaims := testutil.DefaultTestClaims()
+	forbiddenClaims.Roles = []string{"user"}
+	forbiddenClaims.IsAdmin = false
+	forbiddenClaims.Permissions = nil
+	forbidden := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/api/users", nil,
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, forbiddenClaims)))
+	forbiddenRecorder := httptest.NewRecorder()
+	apiInstance.Router.ServeHTTP(forbiddenRecorder, forbidden)
+	assert.Equal(t, http.StatusForbidden, forbiddenRecorder.Code, forbiddenRecorder.Body.String())
+
+	allowedClaims := testutil.DefaultTestClaims()
+	allowedClaims.Roles = []string{"user"}
+	allowedClaims.IsAdmin = false
+	allowedClaims.Permissions = []string{"users:read"}
+	allowed := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/api/users/"+strconv.FormatInt(person.ID, 10), nil,
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, allowedClaims)))
+	allowedRecorder := httptest.NewRecorder()
+	apiInstance.Router.ServeHTTP(allowedRecorder, allowed)
+	require.Equal(t, http.StatusOK, allowedRecorder.Code, allowedRecorder.Body.String())
+	assert.Contains(t, allowedRecorder.Body.String(), `"first_name":"Wired"`)
 }

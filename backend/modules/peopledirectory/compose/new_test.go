@@ -211,6 +211,36 @@ func TestModuleReleasesAndRestoresTagsIdempotently(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestModuleReleaseTagsRollsBackWithOuterFailureAndRetries(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	card := testpkg.CreateTestRFIDCard(t, db, "ROLLBACK")
+	holder := testpkg.CreateTestPerson(t, db, "Rollback", "Holder")
+	require.NoError(t, module.LinkTag(ctx, holder.ID, card.ID))
+
+	wantErr := errors.New("fail after the release wrote")
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		released, releaseErr := module.ReleaseTags(txCtx, []int64{holder.ID})
+		require.NoError(t, releaseErr)
+		require.Len(t, released, 1)
+		return wantErr
+	})
+	require.ErrorIs(t, err, wantErr)
+
+	stillHolding, err := module.FindPersonByTag(ctx, card.ID)
+	require.NoError(t, err, "the failed transaction must not have cleared the tag")
+	assert.Equal(t, holder.ID, stillHolding.ID)
+
+	released, err := module.ReleaseTags(ctx, []int64{holder.ID})
+	require.NoError(t, err)
+	require.Len(t, released, 1, "the retry releases the tag the rollback kept")
+	again, err := module.ReleaseTags(ctx, []int64{holder.ID})
+	require.NoError(t, err)
+	assert.Empty(t, again, "a repeated retry finds nothing left to release")
+}
+
 func TestModuleObservesStableErrorCodes(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

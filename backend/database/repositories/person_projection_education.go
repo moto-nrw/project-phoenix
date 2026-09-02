@@ -28,27 +28,32 @@ func (r personGradeTransitionRepository) GetStudentsByClasses(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-	// The previous INNER JOIN dropped students without a person row.
-	kept := make([]*educationModels.StudentClassInfo, 0, len(rows))
+	// The cohort keeps every student: a person the directory no longer
+	// shows (soft-deleted) stays in the transition with an empty name and
+	// sorts last within its class.
 	for _, row := range rows {
-		person, found := persons[row.PersonID]
-		if !found {
-			continue
+		if person, found := persons[row.PersonID]; found {
+			row.PersonName = person.FullName()
 		}
-		row.PersonName = person.FullName()
-		kept = append(kept, row)
 	}
-	slices.SortStableFunc(kept, func(left, right *educationModels.StudentClassInfo) int {
+	slices.SortStableFunc(rows, func(left, right *educationModels.StudentClassInfo) int {
 		if order := compareStrings(left.SchoolClass, right.SchoolClass); order != 0 {
 			return order
 		}
-		leftPerson, rightPerson := persons[left.PersonID], persons[right.PersonID]
+		leftPerson, leftFound := persons[left.PersonID]
+		rightPerson, rightFound := persons[right.PersonID]
+		if leftFound != rightFound {
+			if leftFound {
+				return -1
+			}
+			return 1
+		}
 		if order := compareStrings(leftPerson.LastName, rightPerson.LastName); order != 0 {
 			return order
 		}
 		return compareStrings(leftPerson.FirstName, rightPerson.FirstName)
 	})
-	return kept, nil
+	return rows, nil
 }
 
 // ReleaseStudentTagsByIDs locks the students' persons through the owner

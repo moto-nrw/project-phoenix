@@ -26,16 +26,20 @@ type Store struct{ database Database }
 
 type personRow struct {
 	bun.BaseModel `bun:"table:persons,alias:person"`
-	ID            int64      `bun:"id,pk,autoincrement"`
-	CreatedAt     time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt     time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	TenantID      int64      `bun:"tenant_id,notnull"`
-	FirstName     string     `bun:"first_name,notnull"`
-	LastName      string     `bun:"last_name,notnull"`
-	Birthday      *string    `bun:"birthday,type:date"`
-	TagID         *string    `bun:"tag_id"`
-	AccountID     *int64     `bun:"account_id"`
-	DeletedAt     *time.Time `bun:"deleted_at"`
+	ID            int64     `bun:"id,pk,autoincrement"`
+	CreatedAt     time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt     time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	TenantID      int64     `bun:"tenant_id,notnull"`
+	FirstName     string    `bun:"first_name,notnull"`
+	LastName      string    `bun:"last_name,notnull"`
+	// Birthday is the DATE column as its ISO text. The module cannot use the
+	// repository calendar-date type: public contracts may not expose it and
+	// the ratchet forbids a new import of it from this owner's internals, so
+	// the value travels as YYYY-MM-DD text validated by the public facade.
+	Birthday  *string    `bun:"birthday,type:date"`
+	TagID     *string    `bun:"tag_id"`
+	AccountID *int64     `bun:"account_id"`
+	DeletedAt *time.Time `bun:"deleted_at"`
 }
 
 func New(database Database) *Store {
@@ -434,12 +438,7 @@ func escapeLike(value string) string {
 func toDomain(row personRow) domain.Person {
 	birthday := ""
 	if row.Birthday != nil {
-		// The DATE column scans as its text form; keep the first ten
-		// characters so a driver that renders a timestamp still yields a date.
 		birthday = *row.Birthday
-		if len(birthday) > 10 {
-			birthday = birthday[:10]
-		}
 	}
 	return domain.Person{
 		ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID,

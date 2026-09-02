@@ -99,21 +99,27 @@ func (r personAccountTenantRepository) ListAccountsByTenantID(ctx context.Contex
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
-	// The repository appends the pending invitations after the accounts;
-	// only the account rows carry a person and take part in the name order.
-	accounts := countAccountRows(len(rows), func(index int) string { return rows[index].Status })
-	entries := make([]accountEntry, accounts)
-	for index := range entries {
-		entries[index] = accountEntry{TenantID: tenantID, Info: rows[index]}
+	// Pending invitations (no account yet) carry no person and keep their
+	// place after the accounts; only the account rows take part in the
+	// name order.
+	entries := make([]accountEntry, 0, len(rows))
+	invitations := make([]authModels.TenantAccountInfo, 0)
+	for _, row := range rows {
+		if isInvitationRow(row) {
+			invitations = append(invitations, row)
+			continue
+		}
+		entries = append(entries, accountEntry{TenantID: tenantID, Info: row})
 	}
 	if err := r.attachAccountPersons(ctx, entries); err != nil {
 		return nil, err
 	}
 	slices.SortStableFunc(entries, compareAccountEntries)
-	for index := range entries {
-		rows[index] = entries[index].Info
+	result := make([]authModels.TenantAccountInfo, 0, len(rows))
+	for _, entry := range entries {
+		result = append(result, entry.Info)
 	}
-	return rows, nil
+	return append(result, invitations...), nil
 }
 
 // ListAccountsBySchoolIDs keeps the raw school-set listing reachable for the
@@ -126,10 +132,14 @@ func (r personAccountTenantRepository) ListAccountsBySchoolIDs(ctx context.Conte
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
-	accounts := countAccountRows(len(rows), func(index int) string { return rows[index].Status })
-	entries := make([]accountEntry, accounts)
-	for index := range entries {
-		entries[index] = accountEntry{TenantID: rows[index].SchoolID, Info: rows[index].TenantAccountInfo}
+	entries := make([]accountEntry, 0, len(rows))
+	invitations := make([]authModels.OrgAccountInfo, 0)
+	for _, row := range rows {
+		if isInvitationRow(row.TenantAccountInfo) {
+			invitations = append(invitations, row)
+			continue
+		}
+		entries = append(entries, accountEntry{TenantID: row.SchoolID, Info: row.TenantAccountInfo})
 	}
 	if err := r.attachAccountPersons(ctx, entries); err != nil {
 		return nil, err
@@ -143,18 +153,17 @@ func (r personAccountTenantRepository) ListAccountsBySchoolIDs(ctx context.Conte
 		}
 		return compareAccountEntries(left, right)
 	})
-	for index := range entries {
-		rows[index] = authModels.OrgAccountInfo{TenantAccountInfo: entries[index].Info, SchoolID: entries[index].TenantID}
+	result := make([]authModels.OrgAccountInfo, 0, len(rows))
+	for _, entry := range entries {
+		result = append(result, authModels.OrgAccountInfo{TenantAccountInfo: entry.Info, SchoolID: entry.TenantID})
 	}
-	return rows, nil
+	return append(result, invitations...), nil
 }
 
-func countAccountRows(total int, statusOf func(int) string) int {
-	accounts := 0
-	for accounts < total && statusOf(accounts) != "invited" {
-		accounts++
-	}
-	return accounts
+// isInvitationRow recognises the synthetic rows the repository builds for
+// pending invitations: no account id yet and the fixed "invited" status.
+func isInvitationRow(row authModels.TenantAccountInfo) bool {
+	return row.AccountID == 0 && row.Status == "invited"
 }
 
 // attachAccountPersons fills names, pedagogic role and the caregiver facts
@@ -212,8 +221,11 @@ func compareAccountEntries(left, right accountEntry) int {
 }
 
 func (r personAccountTenantRepository) caregiverChains(ctx context.Context, persons map[tenantAccountKey]peopledirectory.Person) (map[int64]authModels.CaregiverChain, error) {
-	if r.chains == nil || len(persons) == 0 {
+	if len(persons) == 0 {
 		return map[int64]authModels.CaregiverChain{}, nil
+	}
+	if r.chains == nil {
+		return nil, fmt.Errorf("account tenant repository does not resolve caregiver chains")
 	}
 	ids := make([]int64, 0, len(persons))
 	for _, person := range persons {
