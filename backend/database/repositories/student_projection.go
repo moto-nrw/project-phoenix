@@ -29,7 +29,9 @@ func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, 
 	if repo, ok := f.StudentStatusDay.(*activeRepo.StudentStatusDayRepository); ok {
 		repo.BindStudentDirectory(activeStudentDirectory{students: students, commands: commands})
 	}
-	if repo, ok := f.ActivityGroup.(*activitiesRepo.GroupRepository); ok {
+	if repo, ok := f.ActivityGroup.(interface {
+		BindStudentDirectory(activitiesRepo.StudentDirectory)
+	}); ok {
 		repo.BindStudentDirectory(activitiesStudentDirectory{students})
 	}
 	if repo, ok := f.StudentEnrollment.(*activitiesRepo.StudentEnrollmentRepository); ok {

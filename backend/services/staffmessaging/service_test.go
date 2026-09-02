@@ -14,11 +14,31 @@ import (
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// newReadRepo wires the read repository with the staff-account lookup School
+// Membership owns in production. The test resolves the same set directly so it
+// keeps exercising the repository's own predicates.
+func newReadRepo(db *bun.DB) usersModels.StaffMessageReadRepository {
+	return repoUsers.NewStaffMessageReadRepository(db, func(ctx context.Context) ([]int64, error) {
+		var accountIDs []int64
+		err := db.NewSelect().
+			TableExpr(`users.staff AS "staff"`).
+			ColumnExpr(`"person".account_id`).
+			Join(`JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+			Where(`"staff".deleted_at IS NULL`).
+			Where(`"person".account_id IS NOT NULL`).
+			Where(`"staff".tenant_id = ?`, tenant.FromContext(ctx)).
+			Scan(ctx, &accountIDs)
+		return accountIDs, err
+	})
+}
 
 // newService wires a service against the real repositories with messaging
 // switched ON, which is the state every test below assumes unless it says
@@ -57,7 +77,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 	return staffmessaging.NewService(staffmessaging.Config{
 		ThreadRepo:  repoUsers.NewStaffMessageThreadRepository(db),
 		MessageRepo: repoUsers.NewStaffMessageRepository(db),
-		ReadRepo:    repoUsers.NewStaffMessageReadRepository(db),
+		ReadRepo:    newReadRepo(db),
 		Persons:     persons,
 		Settings:    settings,
 		DB:          db,
@@ -77,7 +97,7 @@ func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Ser
 	return staffmessaging.NewService(staffmessaging.Config{
 		ThreadRepo:  repoUsers.NewStaffMessageThreadRepository(db),
 		MessageRepo: repoUsers.NewStaffMessageRepository(db),
-		ReadRepo:    repoUsers.NewStaffMessageReadRepository(db),
+		ReadRepo:    newReadRepo(db),
 		Settings:    settings,
 		DB:          db,
 	})

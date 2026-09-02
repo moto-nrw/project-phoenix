@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -510,27 +509,6 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	return groups, countMap, nil
 }
 
-// loadStaff loads the staff relation for a supervisor. Staff.Person is
-// attached by the composition layer through the People Directory.
-func (r *GroupRepository) loadStaff(ctx context.Context, sup *activities.SupervisorPlanned) {
-	if sup.StaffID <= 0 {
-		return
-	}
-
-	staff := new(users.Staff)
-	staffErr := base.GetDB(ctx, r.db).NewSelect().
-		Model(staff).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Where(whereIDEquals, sup.StaffID).
-		Scan(ctx)
-
-	if staffErr != nil {
-		return
-	}
-
-	sup.Staff = staff
-}
-
 // FindWithSupervisors returns a group with its supervisors
 func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activities.Group, []*activities.SupervisorPlanned, error) {
 	// First get the group
@@ -571,11 +549,8 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 		}
 	}
 
-	// Load the Staff relation for each supervisor
-	for _, sup := range supervisors {
-		r.loadStaff(ctx, sup)
-	}
-
+	// The Staff relation of every supervisor is attached by the composition
+	// layer through School Membership (#2667).
 	return group, supervisors, nil
 }
 

@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,15 +18,36 @@ import (
 // from them (inbox rows, unread badge, recipient picker).
 type StaffMessageReadRepository struct {
 	db *bun.DB
+	// staffAccounts resolves the login accounts of the school's live staff.
+	// School Membership owns those rows, so the relation that used to be a
+	// join is injected as a lookup; without one the repository fails closed.
+	staffAccounts StaffAccountsFunc
 }
+
+// StaffAccountsFunc returns the login accounts of the live staff members of
+// the tenant in ctx. It is a plain function type so this package does not have
+// to depend on the School Membership owner to state what it needs.
+type StaffAccountsFunc func(ctx context.Context) ([]int64, error)
 
 // NewStaffMessageReadRepository wires a fresh repository.
 //
 // Composite-key table, so this does NOT embed base.Repository[T]: the generic
 // helpers assume a single autoincrement id. It stays a plain struct with
 // explicit queries, mirroring ParentMessageReadRepository.
-func NewStaffMessageReadRepository(db *bun.DB) users.StaffMessageReadRepository {
-	return &StaffMessageReadRepository{db: db}
+//
+// The "is a colleague at this school" relation needs the staff rows School
+// Membership owns, so the caller injects the lookup that resolves them.
+func NewStaffMessageReadRepository(db *bun.DB, staffAccounts StaffAccountsFunc) users.StaffMessageReadRepository {
+	return &StaffMessageReadRepository{db: db, staffAccounts: staffAccounts}
+}
+
+// resolveStaffAccounts fails closed: without a resolver nobody is a colleague,
+// so a misconfigured graph cannot widen who may be written to.
+func (r *StaffMessageReadRepository) resolveStaffAccounts(ctx context.Context) ([]int64, error) {
+	if r.staffAccounts == nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve staff accounts", Err: errors.New("staff account resolver is required")}
+	}
+	return r.staffAccounts(ctx)
 }
 
 // staffJoin is the "this account belongs to a colleague at this school"
@@ -39,7 +61,10 @@ func NewStaffMessageReadRepository(db *bun.DB) users.StaffMessageReadRepository 
 // lifecycle has two independent switches:
 //   - users.persons is NOT enough: it also holds children and guests, who can
 //     carry an account and an active tenant mapping;
-//   - users.staff says "colleague at this school";
+//   - staff membership says "colleague at this school" — the caller passes the
+//     accounts of the school's live staff, resolved through the School
+//     Membership owner, and staffAccountFilter turns that into the predicate
+//     the users.staff join used to be;
 //   - auth.accounts.active is the GLOBAL switch. Account management
 //     (services/auth/account_management.go) deactivates an account there
 //     WITHOUT touching account_tenants, so a per-tenant check alone still lets
@@ -48,13 +73,19 @@ const staffJoin = `JOIN users.persons AS "person"
 		ON person.account_id = at.account_id
 		AND person.tenant_id = at.tenant_id
 		AND person.deleted_at IS NULL
-	JOIN users.staff AS "staff_member"
-		ON staff_member.person_id = person.id
-		AND staff_member.tenant_id = at.tenant_id
-		AND staff_member.deleted_at IS NULL
 	JOIN auth.accounts AS "account"
 		ON account.id = at.account_id
 		AND account.active = TRUE`
+
+// staffAccountFilter narrows a query on auth.account_tenants to the accounts of
+// the school's live staff. An empty set matches nothing, which is what the
+// dropped INNER JOIN did.
+func staffAccountFilter(query *bun.SelectQuery, staffAccountIDs []int64) *bun.SelectQuery {
+	if len(staffAccountIDs) == 0 {
+		return query.Where("1 = 0")
+	}
+	return query.Where(`at.account_id IN (?)`, bun.List(staffAccountIDs))
+}
 
 // unreadPredicate is the correctness core of every unread number in this
 // feature: "message <alias> is strictly after the reader's cursor AND the
@@ -195,6 +226,10 @@ func (r *StaffMessageReadRepository) ListInbox(ctx context.Context, accountID in
 // inactive (left the school) disappears from the picker and can no longer be
 // addressed, while the existing conversation history stays readable.
 func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, viewerAccountID int64) ([]*users.MessageableStaff, error) {
+	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var rows []*users.MessageableStaff
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
@@ -206,6 +241,7 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 		Where(`at.account_id <> ?`, viewerAccountID).
 		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
 		OrderExpr(`name ASC`)
+	query = staffAccountFilter(query, staffAccountIDs)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list messageable staff", Err: base.TranslateNotFound(err)}
@@ -229,15 +265,20 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 // The method is deliberately not called IsActiveTenantMember any more: that name
 // described the query, not the question, and invited exactly this gap.
 func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, accountID int64) (bool, error) {
-	exists, err := base.GetDB(ctx, r.db).NewSelect().
+	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
+	if err != nil {
+		return false, err
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`auth.account_tenants AS "at"`).
 		ColumnExpr(`1`).
 		Join(staffJoin).
 		Where(`at.account_id = ?`, accountID).
 		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
 		Where(`at.status = ?`, authModels.AccountTenantStatusActive).
-		Limit(1).
-		Exists(ctx)
+		Limit(1)
+	exists, existsErr := staffAccountFilter(query, staffAccountIDs).Exists(ctx)
+	err = existsErr
 	if err != nil {
 		return false, &modelBase.DatabaseError{Op: "check messageable staff", Err: base.TranslateNotFound(err)}
 	}

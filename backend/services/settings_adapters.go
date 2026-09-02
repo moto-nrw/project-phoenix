@@ -8,18 +8,50 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type settingsRuntime struct {
-	db   *bun.DB
-	unit *tenant.UnitOfWork
+	db         *bun.DB
+	unit       *tenant.UnitOfWork
+	membership schoolmembership.Capability
 }
 
 func newSettingsRuntime(db *bun.DB, unit *tenant.UnitOfWork) settingsRuntime {
 	return settingsRuntime{db: db, unit: unit}
+}
+
+// WithSchoolMembership returns the runtime with the staff owner attached.
+// The work-time-template repository resolves and rebases its assigned staff
+// through this capability instead of joining users.staff itself (#2667).
+func (r settingsRuntime) WithSchoolMembership(membership schoolmembership.Capability) settingsRuntime {
+	r.membership = membership
+	return r
+}
+
+func (r settingsRuntime) AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error) {
+	if r.membership == nil {
+		return nil, errors.New("settings runtime: school membership capability is required")
+	}
+	members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{WorkTimeModelID: &workTimeModelID})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(members))
+	for _, member := range members {
+		ids = append(ids, member.ID)
+	}
+	return ids, nil
+}
+
+func (r settingsRuntime) RebaseAssignedStaffAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
+	if r.membership == nil {
+		return nil, errors.New("settings runtime: school membership capability is required")
+	}
+	return r.membership.RebaseWorkTimeModelAnchor(ctx, workTimeModelID, anchorDate)
 }
 
 func (r settingsRuntime) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }

@@ -46,9 +46,13 @@ type RoomOccupancyRow struct {
 	GroupName    *string `bun:"group_name"`
 	CategoryName *string `bun:"category_name"`
 	StudentCount int     `bun:"student_count"`
-	// SupervisorPersonIDs are the persons currently supervising in the room.
-	// The composition layer turns them into SupervisorNames through the
-	// People Directory; the repository never reads person names itself.
-	SupervisorPersonIDs []int64 `bun:"supervisor_person_ids,array"`
+	// SupervisorStaffIDs are the staff members currently supervising in the
+	// room, the only supervision fact the repository reads itself.
+	SupervisorStaffIDs []int64 `bun:"supervisor_staff_ids,array"`
+	// SupervisorPersonIDs are the persons behind those staff members. The
+	// composition layer fills them through School Membership and turns them
+	// into SupervisorNames through the People Directory; the repository
+	// never reads staff rows or person names itself.
+	SupervisorPersonIDs []int64 `bun:"-"`
 	SupervisorNames     *string `bun:"supervisor_names,scanonly"`
 }

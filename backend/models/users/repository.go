@@ -369,9 +369,6 @@ type TeacherRepository interface {
 	// FindBySpecialization retrieves teachers by their specialization
 	FindBySpecialization(ctx context.Context, specialization string) ([]*Teacher, error)
 
-	// ListWithOptions retrieves teachers matching the query options
-	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Teacher, error)
-
 	// FindByGroupID retrieves teachers assigned to a group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Teacher, error)
 

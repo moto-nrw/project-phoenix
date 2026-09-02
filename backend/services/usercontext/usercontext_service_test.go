@@ -44,7 +44,10 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 
 // contextWithClaims creates a context with JWT claims in this test's tenant.
 func contextWithClaims(tb testing.TB, userID int) context.Context {
-	return contextWithTenantClaims(userID, testpkg.Tenant(tb))
+	// WithTestTenantRuntime binds the runtime of tb's own database — the
+	// isolated clone when the test made one — so owner modules that open their
+	// own transaction read the same rows the fixtures were written to.
+	return testpkg.WithTestTenantRuntime(tb, contextWithTenantClaims(userID, testpkg.Tenant(tb)))
 }
 
 func contextWithTenantClaims(userID int, tenantID int64) context.Context {

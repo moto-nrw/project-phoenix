@@ -44,7 +44,6 @@ import (
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	schoolAPI "github.com/moto-nrw/project-phoenix/api/school"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
-	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/api/statistics"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
@@ -81,6 +80,9 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -143,6 +145,8 @@ type moduleServices struct {
 	mealPlan *mealplanModule.Module
 	feedback *feedbackModule.Module
 	persons  *peopleModule.Module
+	// membership owns users.staff, users.teachers and users.guests (#2667).
+	membership *schoolMembershipModule.Module
 }
 
 func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (moduleServices, error) {
@@ -168,6 +172,15 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		DB: db,
 		Observe: func(observation schoolStructureCompose.Observation) {
 			observability.ObserveSchoolStructureOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolStructureModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	membership, err := schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
+		DB: db,
+		Observe: func(observation schoolMembershipCompose.Observation) {
+			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
 		},
 	})
 	if err != nil {
@@ -206,7 +219,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
-		organizations, persons, groups,
+		organizations, persons, groups, membership,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,
@@ -216,7 +229,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
-	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons}, nil
+	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, membership: membership}, nil
 }
 
 var mealPlanErrorRules = []apiCommon.ErrorRule{
@@ -324,6 +337,7 @@ type API struct {
 	metricsBearerToken string
 	databaseLogger     *slog.Logger
 	feedback           *feedbackModule.Module
+	membership         *schoolMembershipModule.Module
 	securityLogging    bool
 	rateLimiting       bool
 	authRateLimit      string
@@ -337,7 +351,8 @@ type API struct {
 	Guardians        *guardiansAPI.Resource
 	Import           *importAPI.Resource
 	Activities       *activitiesAPI.Resource
-	Staff            *staffAPI.Resource
+	Staff            *staffHTTP.Resource
+	StaffAdmin       *timeTrackingAPI.StaffAdminResource
 	WorkTimeModels   *worktimemodelsAPI.Resource
 	StaffShifts      *staffshiftsAPI.Resource
 	ShiftTypes       *shifttypesAPI.Resource
@@ -366,7 +381,7 @@ type API struct {
 	StaffMessaging   *staffMessagingAPI.Resource
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
-	StaffNotices     *staffAPI.StaffNoticeResource
+	StaffNotices     *timeTrackingAPI.StaffNoticeResource
 	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
@@ -498,6 +513,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		metricsBearerToken: metricsBearerToken,
 		databaseLogger:     logger.With("handler", "database"),
 		feedback:           modules.feedback,
+		membership:         modules.membership,
 	}
 
 	// Setup router middleware
@@ -892,7 +908,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
-	api.StaffNotices = staffAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
+	api.StaffNotices = timeTrackingAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db, viper.GetString("app_env"))
@@ -900,7 +916,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffDocuments, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, api.Services.TimeTrackingAuditLog, api.Services.StaffTimeExport, db, logger.With("handler", "staff"))
+	api.Staff, api.StaffAdmin = newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
