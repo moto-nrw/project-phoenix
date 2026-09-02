@@ -41,6 +41,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "ClassListEntriesPage" });
 
@@ -169,6 +170,7 @@ function rowSortKey(row: RosterRow): string {
 }
 
 export default function ClassListEntriesPage() {
+  const tenantPath = useTenantAwarePath();
   const toast = useToast();
   const { data: session } = useSession();
   // Mirror the backend route gates (api/classlistentries): create needs
@@ -509,7 +511,7 @@ export default function ClassListEntriesPage() {
         canCreate ? (
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href="/database/students/class-list/import"
+              href={tenantPath("/database/students/class-list/import")}
               className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <Upload className="h-4 w-4" aria-hidden="true" />

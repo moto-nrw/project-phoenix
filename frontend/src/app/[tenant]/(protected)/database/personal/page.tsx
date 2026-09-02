@@ -40,6 +40,7 @@ import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DatabaseTeachersPage" });
 
@@ -82,6 +83,7 @@ export default function TeachersPage() {
 }
 
 function TeachersPageContent() {
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
@@ -464,7 +466,7 @@ function TeachersPageContent() {
                 />
                 {canImportStaff ? (
                   <Link
-                    href="/database/personal/import"
+                    href={tenantPath("/database/personal/import")}
                     className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
                     Importieren
@@ -480,7 +482,7 @@ function TeachersPageContent() {
                 items={[
                   {
                     label: "Eröffnungssalden importieren",
-                    href: "/database/personal/opening-balances",
+                    href: tenantPath("/database/personal/opening-balances"),
                     onClick: () => undefined,
                   },
                 ]}

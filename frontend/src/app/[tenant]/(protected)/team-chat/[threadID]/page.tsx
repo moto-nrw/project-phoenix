@@ -22,7 +22,10 @@ function renderThreadFrame(parts: TeamChatThreadParts) {
   }
   if (parts.state === "error") {
     return (
-      <TenantPage title="Unterhaltung" error={parts.errorMessage}>
+      <TenantPage
+        title="Unterhaltung"
+        error={{ message: parts.errorMessage, keepContent: true }}
+      >
         {parts.backNav}
       </TenantPage>
     );

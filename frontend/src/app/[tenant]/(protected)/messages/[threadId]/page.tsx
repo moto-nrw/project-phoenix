@@ -269,11 +269,16 @@ function MessageThreadContent() {
       <TenantPage
         title="Unterhaltung"
         error={
-          loadError
-            ? "Nachrichtenverlauf konnte nicht geladen werden."
-            : "Unterhaltung nicht gefunden."
+          {
+            message: loadError
+              ? "Nachrichtenverlauf konnte nicht geladen werden."
+              : "Unterhaltung nicht gefunden.",
+            keepContent: true,
+          }
         }
-      />
+      >
+        <BackButton referrer="/messages" />
+      </TenantPage>
     );
   }
 

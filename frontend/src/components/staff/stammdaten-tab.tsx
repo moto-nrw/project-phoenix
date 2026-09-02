@@ -17,6 +17,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   staffPayrollNumberService,
   staffStammdatenService,
@@ -91,6 +92,7 @@ export function StammdatenTab({
   readonly canEditSections?: boolean;
   readonly canViewFinancial?: boolean;
 }) {
+  const tenantPath = useTenantAwarePath();
   const berlinToday = useBerlinToday();
 
   const {
@@ -672,7 +674,11 @@ export function StammdatenTab({
           description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen. Lohnarten und DATEV-Mandantendaten werden zentral unter „Abrechnung“ gepflegt."
           action={
             canManagePayrollSettings && !editing ? (
-              <ButtonLink href="/payroll" variant="ghost" size="compact">
+              <ButtonLink
+                href={tenantPath("/payroll")}
+                variant="ghost"
+                size="compact"
+              >
                 Abrechnung
               </ButtonLink>
             ) : null

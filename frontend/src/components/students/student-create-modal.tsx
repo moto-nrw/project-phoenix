@@ -52,6 +52,7 @@ import {
   fetchArrivalSettings,
   type CareDaysSource,
 } from "~/lib/student-arrival-api";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   mapBulkPickupScheduleFormToBackend,
   type BackendPickupScheduleRequest,
@@ -183,6 +184,7 @@ export function StudentCreateModal({
   onCreateListEntry,
   groups = EMPTY_GROUPS,
 }: StudentCreateModalProps) {
+  const tenantPath = useTenantAwarePath();
   const [mode, setMode] = useState<CreateMode>("student");
   const [formData, setFormData] = useState<Partial<Student>>({
     first_name: "",
@@ -527,7 +529,7 @@ export function StudentCreateModal({
                   message="Die Betreuungstage dieser Schule kommen aus Buchungen. Legen Sie ein Kind mit OGS-Betreuung deshalb unter Anmeldephasen mit „Manuelle Anmeldung“ an."
                   action={
                     <ButtonLink
-                      href="/enrollment-phases"
+                      href={tenantPath("/enrollment-phases")}
                       variant="surface"
                       size="compact"
                     >

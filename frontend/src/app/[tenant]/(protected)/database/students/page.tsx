@@ -57,6 +57,7 @@ import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -82,6 +83,7 @@ export default function StudentsPage() {
 }
 
 function StudentsPageContent() {
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
@@ -692,7 +694,7 @@ function StudentsPageContent() {
                   onChange={handleGroupingChange}
                 />
                 <Link
-                  href="/database/students/import"
+                  href={tenantPath("/database/students/import")}
                   className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Importieren
@@ -744,7 +746,7 @@ function StudentsPageContent() {
                 {
                   label: "Klassenliste",
                   icon: <ClipboardList className="h-4 w-4" aria-hidden />,
-                  href: "/database/students/class-list",
+                  href: tenantPath("/database/students/class-list"),
                   onClick: () => undefined,
                 },
                 ...(canDeleteStudents
@@ -752,7 +754,7 @@ function StudentsPageContent() {
                       {
                         label: "Beendete Betreuungen",
                         icon: <UserMinus className="h-4 w-4" aria-hidden />,
-                        href: "/database/students/ended-care",
+                        href: tenantPath("/database/students/ended-care"),
                         onClick: () => undefined,
                       },
                     ]
