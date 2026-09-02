@@ -448,10 +448,12 @@ func (s *Service) createRefreshTokenWithRetryGuarded(
 // newRefreshToken creates a new refresh token for the given account
 func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 	identifier := "Service login"
+	now := time.Now()
 	return &auth.Token{
+		Model:       modelBase.Model{CreatedAt: now, UpdatedAt: now},
 		Token:       uuid.Must(uuid.NewV4()).String(),
 		AccountID:   accountID,
-		Expiry:      time.Now().Add(s.jwtRefreshExpiry),
+		Expiry:      now.Add(s.jwtRefreshExpiry),
 		Mobile:      false,
 		Identifier:  &identifier,
 		FamilyID:    uuid.Must(uuid.NewV4()).String(),
@@ -1747,6 +1749,7 @@ func (s *Service) resolveRefreshHandoff(ctx context.Context, presented *auth.Tok
 // predecessor handoff atomically.
 func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64, tenantID int64, scope string, now time.Time) (*auth.Token, error) {
 	newToken := &auth.Token{
+		Model:       modelBase.Model{CreatedAt: now, UpdatedAt: now},
 		Token:       uuid.Must(uuid.NewV4()).String(),
 		AccountID:   accountID,
 		Expiry:      now.Add(s.jwtRefreshExpiry),

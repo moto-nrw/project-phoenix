@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -614,6 +615,7 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 	// from reaching another portal's in-flight code.
 	createdAt := time.Now()
 	challenge := &auth.MFAEmailChallenge{
+		Model:      modelBase.Model{CreatedAt: createdAt, UpdatedAt: createdAt},
 		AccountID:  accountID,
 		Scope:      scope,
 		TenantID:   tenantID,

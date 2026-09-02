@@ -4169,12 +4169,14 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 		ValidUntil:      &env.sourcePhase.ServiceEndDate,
 	}
 	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
-	_, err = env.db.NewRaw(`
-		UPDATE activities.student_enrollments
-		SET created_at = NOW() + INTERVAL '10 minutes',
-			updated_at = NOW() + INTERVAL '10 minutes'
-		WHERE id = ?
-	`, manualEnrollment.ID).Exec(ctx)
+	require.NotNil(t, outcome.Child.ReviewedAt)
+	manualCreatedAt := outcome.Child.ReviewedAt.Add(10 * time.Minute)
+	_, err = env.db.NewUpdate().
+		TableExpr("activities.student_enrollments").
+		Set("created_at = ?", manualCreatedAt).
+		Set("updated_at = ?", manualCreatedAt).
+		Where("id = ?", manualEnrollment.ID).
+		Exec(ctx)
 	require.NoError(t, err)
 	offering.ActivityGroupID = &newGroup.ID
 	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
@@ -4271,12 +4273,14 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 		ValidUntil:      &env.sourcePhase.ServiceEndDate,
 	}
 	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
-	_, err = env.db.NewRaw(`
-		UPDATE activities.student_enrollments
-		SET created_at = NOW() + INTERVAL '10 minutes',
-			updated_at = NOW() + INTERVAL '10 minutes'
-		WHERE id = ?
-	`, manualEnrollment.ID).Exec(ctx)
+	require.NotNil(t, outcome.Child.ReviewedAt)
+	manualCreatedAt := outcome.Child.ReviewedAt.Add(10 * time.Minute)
+	_, err = env.db.NewUpdate().
+		TableExpr("activities.student_enrollments").
+		Set("created_at = ?", manualCreatedAt).
+		Set("updated_at = ?", manualCreatedAt).
+		Where("id = ?", manualEnrollment.ID).
+		Exec(ctx)
 	require.NoError(t, err)
 
 	offering.ActivityGroupID = &newGroup.ID

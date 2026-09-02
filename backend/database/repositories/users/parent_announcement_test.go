@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -24,6 +25,7 @@ import (
 func publishedAnnouncement(
 	t *testing.T,
 	ctx context.Context,
+	db *bun.DB,
 	repo usersModels.ParentAnnouncementRepository,
 	createdBy, tenantID int64,
 	title string,
@@ -40,13 +42,18 @@ func publishedAnnouncement(
 	a.SetTenantID(tenantID)
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
-	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
-	// VM, and published_at <= NOW() guards must not see a future timestamp.
-	now := time.Now().Add(-2 * time.Second)
+	now := databaseTimestamp(t, db)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	a.PublishedAt = &now // reflect the persisted version so callers can pass it to MarkRead/MarkAcknowledged
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 	return a
+}
+
+func databaseTimestamp(t *testing.T, db *bun.DB) time.Time {
+	t.Helper()
+	var now time.Time
+	require.NoError(t, db.NewSelect().ColumnExpr("CURRENT_TIMESTAMP").Scan(context.Background(), &now))
+	return now
 }
 
 // TestParentAnnouncementAudience exercises the audience resolver against a real
@@ -63,17 +70,17 @@ func TestParentAnnouncementAudience(t *testing.T) {
 	ctx := tenantCtx(t) // tenant 1
 	tenantIDs := []int64{chain.TenantID}
 
-	schoolWide := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	schoolWide := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Schulweit", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
 
-	classMatch := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	classMatch := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Klasse 1a", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp("1a")},
 		})
 
-	classMiss := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	classMiss := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Klasse 9z", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp("9z")},
 		})
@@ -165,11 +172,11 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	schoolWide := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	schoolWide := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Schulweit Empfänger", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
-	classMiss := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	classMiss := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Klasse 9z Empfänger", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp("9z")},
 		})
@@ -242,10 +249,7 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
 	// Publish, then the guardian reads + acknowledges.
-	// The version guard compares against PostgreSQL's clock. Keep this safely
-	// in the past so host/container clock skew cannot make a fresh row appear
-	// scheduled for the future.
-	now := time.Now().Add(-time.Second).UTC().Truncate(time.Microsecond)
+	now := databaseTimestamp(t, db)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	readApplied, err := repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, now)
 	require.NoError(t, err)
@@ -307,9 +311,7 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
 	// Publish it, then attempt to swap the audience to a single student.
-	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
-	// VM, and published_at <= NOW() guards must not see a future timestamp.
-	now := time.Now().Add(-2 * time.Second)
+	now := databaseTimestamp(t, db)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	studentID := chain.StudentID
 	err := repo.ReplaceTargets(ctx, chain.TenantID, a.ID,
@@ -369,7 +371,7 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
 
-	a := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	a := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Versioniert", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -413,7 +415,7 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	ctx := tenantCtx(t)
 	tenantIDs := []int64{chain.TenantID}
 
-	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	ann := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Schulweit", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -463,7 +465,7 @@ func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
 	ctx := tenantCtx(t)
 
 	// Uppercase + padded target text against a lowercase "1a" student class.
-	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	ann := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Klasse 1A", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp(" 1A ")},
 		})
@@ -508,7 +510,7 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 			Exec(context.Background())
 	})
 
-	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	ann := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"AG-Mitteilung", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetActivityGroup, TargetRefID: &group.ID},
 		})
@@ -568,7 +570,7 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 			Exec(context.Background())
 	})
 
-	announcement := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	announcement := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"AG-Wochentag", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetActivityGroup, TargetRefID: &group.ID},
 		})
@@ -689,7 +691,7 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 			ModelTableExpr("enrollment.request_children").Where("id = ?", child.ID).Exec(bg)
 	}()
 
-	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	ann := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Offene Anmeldungen", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetPendingEnrollment},
 		})

@@ -526,7 +526,7 @@
         },
         {
           "file": "services/auth/mfa_service.go",
-          "line": 286,
+          "line": 287,
           "declaration": "type MFAServiceConfig"
         },
         {
@@ -19923,7 +19923,7 @@
       "declaration": "TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        712
+        711
       ],
       "tables": []
     },
@@ -19963,7 +19963,7 @@
       "declaration": "TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        663
+        662
       ],
       "tables": []
     },
@@ -19973,7 +19973,7 @@
       "declaration": "TestStudentEnrollmentRepository_Delete_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        773
+        772
       ],
       "tables": []
     },
@@ -30589,7 +30589,7 @@
       "declaration": "TestMasterDataReview_ListHistory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        28
+        29
       ],
       "tables": [
         "users.student_data_change_requests"
@@ -30601,7 +30601,7 @@
       "declaration": "TestMasterDataReview_ListHistoryScopedToWritableChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        115
+        119
       ],
       "tables": []
     },
