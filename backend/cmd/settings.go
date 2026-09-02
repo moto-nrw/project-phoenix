@@ -9,6 +9,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 )
 
@@ -66,16 +67,21 @@ func newSettingsCommandContext() (*settingsCommandContext, error) {
 }
 
 func runSettingsOverrides(_ *cobra.Command, _ []string) error {
-	ctx, err := newSettingsCommandContext()
+	commandContext, err := newSettingsCommandContext()
 	if err != nil {
 		return err
 	}
-	defer ctx.Close()
-	schools, err := ctx.schools.ListSchools(context.Background())
+	defer commandContext.Close()
+	return runSettingsOverridesWithContext(commandContext)
+}
+
+func runSettingsOverridesWithContext(commandContext *settingsCommandContext) error {
+	ctx := tenant.WithUnitOfWork(context.Background(), commandContext.TenantRuntime)
+	schools, err := commandContext.schools.ListSchools(ctx)
 	if err != nil {
 		return fmt.Errorf("list schools: %w", err)
 	}
-	rows, err := collectSettingOverrideRows(context.Background(), schools, selectedSettingOverrideKeys(), ctx.values)
+	rows, err := collectSettingOverrideRows(ctx, schools, selectedSettingOverrideKeys(), commandContext.values)
 	if err != nil {
 		return err
 	}
