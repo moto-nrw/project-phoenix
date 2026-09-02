@@ -20,6 +20,10 @@ vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
   };
 });
 
+vi.mock("~/components/ui/mobile-back-button", () => ({
+  MobileBackButton: () => null,
+}));
+
 import { RolloverReviewQueue } from "./rollover-review-queue";
 import type { ReviewQueueItem } from "~/lib/enrollment-phase-api";
 

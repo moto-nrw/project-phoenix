@@ -62,6 +62,10 @@ vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "demo",
 }));
 
+vi.mock("~/components/ui/mobile-back-button", () => ({
+  MobileBackButton: () => null,
+}));
+
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
     error: mocks.toastError,
