@@ -1080,18 +1080,17 @@ func (s *service) ReplaceMealParticipationSchedule(ctx context.Context, accountI
 }
 
 func (s *service) SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error {
-	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
-		return s.MealPlan.SetParticipationForDay(txCtx, mealplanModule.SetParticipationDay{StudentID: studentID, GuardianAccountID: accountID, Date: mealplanModule.Date(date.String()), Participating: participating})
-	})
+	return s.ChangeMealParticipationDays(ctx, accountID, studentID, []MealParticipationDayChange{{Date: date, Participating: &participating}})
 }
 
 func (s *service) ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error {
-	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
-		return s.MealPlan.ClearParticipationForDay(txCtx, mealplanModule.SetParticipationDay{StudentID: studentID, GuardianAccountID: accountID, Date: mealplanModule.Date(date.String())})
-	})
+	return s.ChangeMealParticipationDays(ctx, accountID, studentID, []MealParticipationDayChange{{Date: date}})
 }
 
-func (s *service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, change func(context.Context) error) error {
+func (s *service) ChangeMealParticipationDays(ctx context.Context, accountID, studentID int64, changes []MealParticipationDayChange) error {
+	if len(changes) == 0 || len(changes) > 10 {
+		return ErrInvalidMealParticipation
+	}
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return err
@@ -1100,14 +1099,41 @@ func (s *service) changeMealParticipationDay(ctx context.Context, accountID, stu
 		return err
 	}
 	today := s.todayDate()
-	if date.Before(today) || date.After(today.StartOfISOWeek().AddDays(11)) {
-		return ErrMealParticipationOutOfRange
+	seen := make(map[timezone.Date]struct{}, len(changes))
+	for _, change := range changes {
+		if change.Date.Before(today) || change.Date.After(today.StartOfISOWeek().AddDays(11)) {
+			return ErrMealParticipationOutOfRange
+		}
+		if change.Date.Weekday() == time.Saturday || change.Date.Weekday() == time.Sunday {
+			return ErrInvalidMealParticipation
+		}
+		if _, duplicate := seen[change.Date]; duplicate {
+			return ErrInvalidMealParticipation
+		}
+		seen[change.Date] = struct{}{}
 	}
 	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
-		return change(txCtx)
+		for _, change := range changes {
+			command := mealplanModule.SetParticipationDay{
+				StudentID:         studentID,
+				GuardianAccountID: accountID,
+				Date:              mealplanModule.Date(change.Date.String()),
+			}
+			if change.Participating == nil {
+				if err := s.MealPlan.ClearParticipationForDay(txCtx, command); err != nil {
+					return err
+				}
+				continue
+			}
+			command.Participating = *change.Participating
+			if err := s.MealPlan.SetParticipationForDay(txCtx, command); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	return mapMealParticipationError(err)
 }

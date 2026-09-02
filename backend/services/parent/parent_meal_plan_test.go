@@ -34,12 +34,17 @@ func mealPlanSettings(enabled bool, resolveErr error) parentSettingsStub {
 
 func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub) parentService.Service {
 	t.Helper()
-	repos := repositories.NewFactory(db)
 	enabled := settings.boolValues[configModels.KeyMealPlanEnabled]
 	mealPlan := &fakeMealPlan{available: enabled, err: settings.boolErr, entries: []mealplanModule.Entry{
 		{Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti"},
 		{Date: mealplanModule.Date("2026-08-24"), Position: 1, Dish: "Salat"},
 	}}
+	return buildMealPlanServiceWithProvider(t, db, settings, mealPlan)
+}
+
+func buildMealPlanServiceWithProvider(t *testing.T, db *bun.DB, settings parentSettingsStub, mealPlan *fakeMealPlan) parentService.Service {
+	t.Helper()
+	repos := repositories.NewFactory(db)
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
@@ -54,9 +59,11 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub)
 }
 
 type fakeMealPlan struct {
-	available bool
-	err       error
-	entries   []mealplanModule.Entry
+	available   bool
+	err         error
+	entries     []mealplanModule.Entry
+	setDays     []mealplanModule.SetParticipationDay
+	clearedDays []mealplanModule.SetParticipationDay
 }
 
 func availableMealPlan(enabled bool) *fakeMealPlan { return &fakeMealPlan{available: enabled} }
@@ -80,10 +87,12 @@ func (f *fakeMealPlan) Participation(context.Context, int64, mealplanModule.Date
 func (f *fakeMealPlan) ReplaceParticipationSchedule(context.Context, mealplanModule.ReplaceParticipationSchedule) (mealplanModule.Date, error) {
 	return "2026-09-07", f.err
 }
-func (f *fakeMealPlan) SetParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
+func (f *fakeMealPlan) SetParticipationForDay(_ context.Context, change mealplanModule.SetParticipationDay) error {
+	f.setDays = append(f.setDays, change)
 	return f.err
 }
-func (f *fakeMealPlan) ClearParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
+func (f *fakeMealPlan) ClearParticipationForDay(_ context.Context, change mealplanModule.SetParticipationDay) error {
+	f.clearedDays = append(f.clearedDays, change)
 	return f.err
 }
 
@@ -147,6 +156,57 @@ func TestMealParticipationWrites_CareEndedChildIsRejected(t *testing.T) {
 
 	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, timezone.NewDate(2026, 8, 25))
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+}
+
+func TestChangeMealParticipationDays_AppliesSetAndResetTogether(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	mealPlan := availableMealPlan(true)
+	svc := buildMealPlanServiceWithProvider(t, db, mealPlanSettings(true, nil), mealPlan)
+	participating := true
+
+	err := svc.ChangeMealParticipationDays(
+		testpkg.WithPackageTenantRuntime(context.Background()),
+		chain.AccountID,
+		chain.StudentID,
+		[]parentService.MealParticipationDayChange{
+			{Date: timezone.NewDate(2026, 8, 25), Participating: &participating},
+			{Date: timezone.NewDate(2026, 8, 26)},
+		},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, mealPlan.setDays, 1)
+	assert.Equal(t, mealplanModule.Date("2026-08-25"), mealPlan.setDays[0].Date)
+	assert.True(t, mealPlan.setDays[0].Participating)
+	require.Len(t, mealPlan.clearedDays, 1)
+	assert.Equal(t, mealplanModule.Date("2026-08-26"), mealPlan.clearedDays[0].Date)
+}
+
+func TestChangeMealParticipationDays_ValidatesWholeBatchBeforeWriting(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	mealPlan := availableMealPlan(true)
+	svc := buildMealPlanServiceWithProvider(t, db, mealPlanSettings(true, nil), mealPlan)
+	participating := true
+
+	err := svc.ChangeMealParticipationDays(
+		testpkg.WithPackageTenantRuntime(context.Background()),
+		chain.AccountID,
+		chain.StudentID,
+		[]parentService.MealParticipationDayChange{
+			{Date: timezone.NewDate(2026, 8, 25), Participating: &participating},
+			{Date: timezone.NewDate(2026, 9, 7), Participating: &participating},
+		},
+	)
+
+	require.ErrorIs(t, err, parentService.ErrMealParticipationOutOfRange)
+	assert.Empty(t, mealPlan.setDays)
+	assert.Empty(t, mealPlan.clearedDays)
 }
 
 // TestMealPlanWeek_PastWeekOutOfRange asserts parents cannot reach a staff draft

@@ -383,6 +383,16 @@ type SetMealParticipationDayRequest struct {
 	Participating *bool `json:"participating"`
 }
 
+type ChangeMealParticipationDaysRequest struct {
+	Changes []MealParticipationDayChangeRequest `json:"changes"`
+}
+
+type MealParticipationDayChangeRequest struct {
+	Date          string `json:"date"`
+	Mode          string `json:"mode"`
+	Participating *bool  `json:"participating"`
+}
+
 // getChildMealPlan returns the Monday-Friday meal plan for the child's school
 // for the week containing week_start. Gated by operations.meal_plan_enabled for
 // that tenant (404-like "disabled" is mapped to 403 meal_plan_disabled).
@@ -510,6 +520,52 @@ func (rs *Resource) clearMealParticipationDay(w http.ResponseWriter, r *http.Req
 		return
 	}
 	common.Respond(w, r, http.StatusOK, nil, "Meal participation day reset")
+}
+
+func (rs *Resource) changeMealParticipationDays(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	var request ChangeMealParticipationDaysRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
+		return
+	}
+	changes := make([]parentService.MealParticipationDayChange, 0, len(request.Changes))
+	for _, change := range request.Changes {
+		date, err := timezone.ParseDate(change.Date)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be in YYYY-MM-DD format")))
+			return
+		}
+		switch change.Mode {
+		case "set":
+			if change.Participating == nil {
+				common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("participating is required for set changes")))
+				return
+			}
+			changes = append(changes, parentService.MealParticipationDayChange{Date: date, Participating: change.Participating})
+		case "reset":
+			if change.Participating != nil {
+				common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("participating must be omitted for reset changes")))
+				return
+			}
+			changes = append(changes, parentService.MealParticipationDayChange{Date: date})
+		default:
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("mode must be set or reset")))
+			return
+		}
+	}
+	if err := rs.ParentService.ChangeMealParticipationDays(r.Context(), accountID, studentID, changes); err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Meal participation days saved")
 }
 
 func mealParticipationResponse(plan parentService.MealParticipationPlan) MealParticipationResponse {

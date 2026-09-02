@@ -14,8 +14,7 @@ const mocks = vi.hoisted(() => ({
   getChildMealPlan: vi.fn(),
   getMealParticipation: vi.fn(),
   replaceMealParticipationSchedule: vi.fn(),
-  setMealParticipationDay: vi.fn(),
-  clearMealParticipationDay: vi.fn(),
+  changeMealParticipationDays: vi.fn(),
   listMyChildren: vi.fn(),
   today: "2026-08-12",
 }));
@@ -25,8 +24,7 @@ vi.mock("~/lib/parent-api", () => ({
   getChildMealPlan: mocks.getChildMealPlan,
   getMealParticipation: mocks.getMealParticipation,
   replaceMealParticipationSchedule: mocks.replaceMealParticipationSchedule,
-  setMealParticipationDay: mocks.setMealParticipationDay,
-  clearMealParticipationDay: mocks.clearMealParticipationDay,
+  changeMealParticipationDays: mocks.changeMealParticipationDays,
   listMyChildren: mocks.listMyChildren,
 }));
 
@@ -221,12 +219,18 @@ describe("ParentMealPlanPage", () => {
           source: "none",
           changeable: true,
         },
+        {
+          date: "2026-08-14",
+          participating: true,
+          source: "override",
+          changeable: true,
+        },
       ],
     });
     mocks.replaceMealParticipationSchedule.mockResolvedValue({
       effective_from: "2026-08-17",
     });
-    mocks.setMealParticipationDay.mockResolvedValue(undefined);
+    mocks.changeMealParticipationDays.mockResolvedValue(undefined);
 
     render(<ParentMealPlanPage />);
 
@@ -265,12 +269,55 @@ describe("ParentMealPlanPage", () => {
       );
     });
 
+    expect(
+      screen.queryByRole("button", { name: "Anmelden" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldungen ändern" }));
+    expect(
+      screen.getByRole("button", { name: "Nächste Woche" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Speichern Sie zuerst oder wählen Sie „Abbrechen“, um die Woche zu wechseln.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+    expect(mocks.changeMealParticipationDays).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(
+      screen.queryByRole("button", { name: "Anmelden" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nächste Woche" })).toBeEnabled();
+    expect(mocks.changeMealParticipationDays).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldungen ändern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await waitFor(() => {
-      expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
+      expect(mocks.changeMealParticipationDays).toHaveBeenCalledWith(
         "child-1",
-        "2026-08-12",
-        true,
+        [
+          {
+            date: "2026-08-12",
+            mode: "set",
+            participating: true,
+          },
+        ],
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldungen ändern" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Feste Anmeldung verwenden" }),
+    );
+    expect(mocks.changeMealParticipationDays).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => {
+      expect(mocks.changeMealParticipationDays).toHaveBeenLastCalledWith(
+        "child-1",
+        [{ date: "2026-08-14", mode: "reset" }],
       );
     });
   });

@@ -567,6 +567,7 @@ PATCH /api/timetable/instances/{instance_id}/students/{student_id}
 PATCH /api/timetable/operations/instances/{id}/students/{student_id}/attendance
 PATCH /internal/metrics
 PATCH /parent/me/children/{studentId}/master-data/{target}/{field}
+PATCH /parent/me/children/{studentId}/meal-participation
 PATCH /school/supervisions/{id}/students/{student_id}/attendance
 POST /api/absence-types/
 POST /api/active/combined/

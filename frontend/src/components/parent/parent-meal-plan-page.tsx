@@ -20,8 +20,7 @@ import {
   getMealParticipation,
   listMyChildren,
   replaceMealParticipationSchedule,
-  setMealParticipationDay,
-  clearMealParticipationDay,
+  changeMealParticipationDays,
   type MealParticipation,
   type MealPlanEntry,
 } from "~/lib/parent-api";
@@ -242,6 +241,51 @@ function WeekNavigation({
 
 const participationWeekdays = [1, 2, 3, 4, 5] as const;
 
+type DraftDayChange =
+  | { readonly mode: "set"; readonly participating: boolean }
+  | { readonly mode: "reset" };
+
+function MealParticipationEditActions({
+  saving,
+  onCancel,
+  onSave,
+  className = "",
+}: Readonly<{
+  saving: boolean;
+  onCancel: () => void;
+  onSave: () => void;
+  className?: string;
+}>) {
+  const t = useTranslations("parentMealPlan");
+
+  return (
+    <div className={`flex flex-wrap justify-end gap-2 ${className}`}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="md"
+        className="min-h-11"
+        onClick={onCancel}
+        disabled={saving}
+      >
+        {t("cancel")}
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        className="min-h-11"
+        onClick={onSave}
+        disabled={saving}
+        isLoading={saving}
+        loadingText={t("saving")}
+      >
+        {t("save")}
+      </Button>
+    </div>
+  );
+}
+
 function MealParticipationDaysSkeleton({
   loadingLabel,
 }: Readonly<{ loadingLabel: string }>) {
@@ -310,6 +354,10 @@ function ParticipationWeek({
   );
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [editingRegularDays, setEditingRegularDays] = useState(false);
+  const [editingWeek, setEditingWeek] = useState(false);
+  const [dayChanges, setDayChanges] = useState<Record<string, DraftDayChange>>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
@@ -375,16 +423,49 @@ function ParticipationWeek({
     setEditingRegularDays(false);
   }
 
-  async function changeDay(
-    date: string,
+  function beginWeekEdit() {
+    setDayChanges({});
+    setEditingWeek(true);
+  }
+
+  function cancelWeekEdit() {
+    setDayChanges({});
+    setEditingWeek(false);
+  }
+
+  function stageDayChange(
+    day: MealParticipation["days"][number],
     participating: boolean,
-    reset = false,
   ) {
+    setDayChanges((current) => {
+      const next = { ...current };
+      if (participating === day.participating) delete next[day.date];
+      else next[day.date] = { mode: "set", participating };
+      return next;
+    });
+  }
+
+  function stageDayReset(date: string) {
+    setDayChanges((current) => ({
+      ...current,
+      [date]: { mode: "reset" },
+    }));
+  }
+
+  async function saveWeekChanges() {
+    const changes = Object.entries(dayChanges).map(([date, change]) => ({
+      date,
+      ...change,
+    }));
+    if (changes.length === 0) {
+      cancelWeekEdit();
+      return;
+    }
+
     setSaving(true);
     try {
-      if (reset) await clearMealParticipationDay(studentId, date);
-      else await setMealParticipationDay(studentId, date, participating);
-      await load();
+      await changeMealParticipationDays(studentId, changes);
+      if (await load()) cancelWeekEdit();
     } catch (saveError) {
       logger.error("parent_meal_participation_day_failed", {
         error:
@@ -415,6 +496,11 @@ function ParticipationWeek({
     [participation],
   );
 
+  const currentWeekIsChangeable = weekDates.some((date) => {
+    const day = participationByDate.get(date);
+    return day?.changeable && day.source !== "sick";
+  });
+
   const fullDate = (iso: string) =>
     parseISODate(iso).toLocaleDateString(locale, {
       weekday: "long",
@@ -425,9 +511,25 @@ function ParticipationWeek({
   return (
     <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
       <div className="p-4 sm:p-5">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("participationTitle", { name: childName })}
-        </h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {t("participationTitle", { name: childName })}
+          </h2>
+          {!editingWeek &&
+          !editingRegularDays &&
+          participation &&
+          currentWeekIsChangeable ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              className="min-h-11 shrink-0"
+              onClick={beginWeekEdit}
+            >
+              {t("editRegistrations")}
+            </Button>
+          ) : null}
+        </div>
 
         {error ? (
           <div className="mt-4 space-y-3">
@@ -476,30 +578,12 @@ function ParticipationWeek({
                     </label>
                   ))}
                 </div>
-                <div className="mt-4 flex flex-wrap justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="md"
-                    className="min-h-11"
-                    onClick={cancelRegularDaysEdit}
-                    disabled={saving}
-                  >
-                    {t("cancel")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    className="min-h-11"
-                    onClick={() => void saveRegularDays()}
-                    disabled={saving}
-                    isLoading={saving}
-                    loadingText={t("saving")}
-                  >
-                    {t("save")}
-                  </Button>
-                </div>
+                <MealParticipationEditActions
+                  saving={saving}
+                  onCancel={cancelRegularDaysEdit}
+                  onSave={() => void saveRegularDays()}
+                  className="mt-4"
+                />
               </fieldset>
             ) : (
               <div className="flex items-start justify-between gap-4">
@@ -524,16 +608,18 @@ function ParticipationWeek({
                     </p>
                   ) : null}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="compact"
-                  className="min-h-11 shrink-0"
-                  aria-expanded={false}
-                  onClick={() => setEditingRegularDays(true)}
-                >
-                  {t("edit")}
-                </Button>
+                {!editingWeek ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="compact"
+                    className="min-h-11 shrink-0"
+                    aria-expanded={false}
+                    onClick={() => setEditingRegularDays(true)}
+                  >
+                    {t("edit")}
+                  </Button>
+                ) : null}
               </div>
             )}
           </div>
@@ -551,10 +637,16 @@ function ParticipationWeek({
           weekOffset={weekOffset}
           mondayISO={mondayISO}
           weekRange={weekRange}
-          weekReady={weekReady}
+          weekReady={weekReady && !editingWeek}
           onWeekChange={onWeekChange}
         />
       </div>
+
+      {editingWeek ? (
+        <p className="border-b border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-600 sm:px-5">
+          {t("finishWeekEdit")}
+        </p>
+      ) : null}
 
       {!weekReady ? (
         <MealParticipationDaysSkeleton loadingLabel={t("loading")} />
@@ -569,18 +661,34 @@ function ParticipationWeek({
             {weekDates.map((date) => {
               const dishes = dishesByDate.get(date) ?? [];
               const day = participationByDate.get(date);
+              const draftChange = dayChanges[date];
+              const regularParticipation = weekdays.includes(
+                parseISODate(date).getDay(),
+              );
+              const displayedParticipation = draftChange
+                ? draftChange.mode === "reset"
+                  ? regularParticipation
+                  : draftChange.participating
+                : day?.participating;
+              const displayedSource = draftChange
+                ? draftChange.mode === "reset"
+                  ? regularParticipation
+                    ? "regular"
+                    : "none"
+                  : "override"
+                : day?.source;
               const isToday = date === today;
               const statusLabel = day
-                ? day.source === "sick"
+                ? displayedSource === "sick"
                   ? t("cancelledBySickNote")
-                  : day.participating
+                  : displayedParticipation
                     ? t("registered")
                     : t("notRegistered")
                 : t("participationUnavailable");
               const statusTone =
-                day?.source === "sick"
+                displayedSource === "sick"
                   ? "red"
-                  : day?.participating
+                  : displayedParticipation
                     ? "green"
                     : "gray";
 
@@ -635,7 +743,7 @@ function ParticipationWeek({
                     ) : (
                       <StatusBadge label={statusLabel} tone={statusTone} />
                     )}
-                    {day?.source === "override" ? (
+                    {displayedSource === "override" ? (
                       <p className="mt-1.5 text-xs text-gray-500">
                         {t("singleChange")}
                       </p>
@@ -645,32 +753,34 @@ function ParticipationWeek({
                         {t("closed")}
                       </p>
                     ) : null}
-                    {day?.changeable && day.source !== "sick" ? (
+                    {editingWeek && day?.changeable && day.source !== "sick" ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Button
                           type="button"
                           variant={
-                            day.participating ? "outline_danger" : "success"
+                            displayedParticipation
+                              ? "outline_danger"
+                              : "success"
                           }
                           size="compact"
                           className="min-h-11"
                           disabled={saving}
                           onClick={() =>
-                            void changeDay(day.date, !day.participating)
+                            stageDayChange(day, !displayedParticipation)
                           }
                         >
-                          {day.participating ? t("unregister") : t("register")}
+                          {displayedParticipation
+                            ? t("unregister")
+                            : t("register")}
                         </Button>
-                        {day.source === "override" ? (
+                        {displayedSource === "override" ? (
                           <Button
                             type="button"
                             variant="ghost"
                             size="compact"
                             className="min-h-11"
                             disabled={saving}
-                            onClick={() =>
-                              void changeDay(day.date, false, true)
-                            }
+                            onClick={() => stageDayReset(day.date)}
                           >
                             {t("useRegular")}
                           </Button>
@@ -684,6 +794,15 @@ function ParticipationWeek({
           </ul>
         </>
       )}
+
+      {editingWeek ? (
+        <MealParticipationEditActions
+          saving={saving}
+          onCancel={cancelWeekEdit}
+          onSave={() => void saveWeekChanges()}
+          className="border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-5"
+        />
+      ) : null}
 
       {participation ? (
         <p className="border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 sm:px-5">

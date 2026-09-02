@@ -862,6 +862,24 @@ export async function clearMealParticipationDay(
   );
 }
 
+export type MealParticipationDayChange =
+  | {
+      readonly date: string;
+      readonly mode: "set";
+      readonly participating: boolean;
+    }
+  | { readonly date: string; readonly mode: "reset" };
+
+export async function changeMealParticipationDays(
+  studentId: string,
+  changes: MealParticipationDayChange[],
+): Promise<void> {
+  await patchJson<unknown>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation`,
+    { changes },
+  );
+}
+
 /**
  * Fetches the child's active sick days (today .. +2 months by default).
  * Used to show already-reported days on the child page.

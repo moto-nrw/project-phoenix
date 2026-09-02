@@ -213,6 +213,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/meal-plan", rs.getChildMealPlan)
 		r.Get("/me/children/{studentId}/meal-participation", rs.getMealParticipation)
 		r.Put("/me/children/{studentId}/meal-participation", rs.replaceMealParticipation)
+		r.Patch("/me/children/{studentId}/meal-participation", rs.changeMealParticipationDays)
 		r.Put("/me/children/{studentId}/meal-participation/{date}", rs.setMealParticipationDay)
 		r.Delete("/me/children/{studentId}/meal-participation/{date}", rs.clearMealParticipationDay)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
