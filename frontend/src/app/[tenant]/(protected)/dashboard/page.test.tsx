@@ -633,7 +633,10 @@ describe("StatCard component behavior", () => {
       const studentsLink = screen.getByRole("link", {
         name: /Kinder anwesend/i,
       });
-      expect(studentsLink).toHaveAttribute("href", "/students/search");
+      expect(studentsLink).toHaveAttribute(
+        "href",
+        "/test-tenant/students/search",
+      );
     });
   });
 
@@ -727,7 +730,7 @@ describe("InfoCard component behavior", () => {
       const activitiesLink = screen.getByRole("link", {
         name: /Laufende Aktivitäten/i,
       });
-      expect(activitiesLink).toHaveAttribute("href", "/activities");
+      expect(activitiesLink).toHaveAttribute("href", "/test-tenant/activities");
     });
   });
 

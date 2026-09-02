@@ -1773,11 +1773,11 @@ describe("StudentSearchPage", () => {
             /Sie haben keine Berechtigung, Kinderdaten anzuzeigen/,
           ).length,
         ).toBeGreaterThan(0);
-        // P3 FIX: The error heading should now be "Keine Berechtigung" (not "Fehler")
-        // because we use errorType === "permission" instead of error.includes("403").
-        // Ohne Aktion und Symbol rendert das Gerüst den Leerzustand als EINEN
-        // Satz: Titel mit Schlusspunkt, Beschreibung dahinter.
-        expect(screen.getByText(/Keine Berechtigung\./)).toBeInTheDocument();
+        // Der eingebettete Sperrzustand verwendet die einheitliche Forbidden-Überschrift
+        // einschließlich Sperrsymbol statt eines text-only-Leerzustands.
+        expect(
+          screen.getByText("Ihnen fehlt eine Berechtigung"),
+        ).toBeInTheDocument();
       });
     });
 
