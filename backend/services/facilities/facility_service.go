@@ -30,14 +30,32 @@ const (
 type service struct {
 	roomRepo                         facilities.RoomRepository
 	activeGroupRepo                  active.GroupRepository
+	persons                          PersonQuery
 	lockTemplateRecurrence           func(context.Context) error
 	validateCareOfferingRoomDeletion func(context.Context, int64) error
 }
 
+// Person is the display projection of a supervising person.
+type Person struct {
+	ID        int64
+	FirstName string
+	LastName  string
+}
+
+// PersonQuery resolves the supervising persons of a room by ID. The room
+// repository only yields the person references (#2661); the names come
+// from the People Directory through this port.
+type PersonQuery interface {
+	ListPersonsByID(context.Context, []int64) ([]Person, error)
+}
+
 // ServiceConfig carries the cross-domain guard needed by room deletion.
 type ServiceConfig struct {
-	RoomRepo                         facilities.RoomRepository
-	ActiveGroupRepo                  active.GroupRepository
+	RoomRepo        facilities.RoomRepository
+	ActiveGroupRepo active.GroupRepository
+	// PersonQuery is required for supervisor names on the occupancy
+	// surfaces; without it the rows carry no supervisor names.
+	PersonQuery                      PersonQuery
 	LockTemplateRecurrence           func(context.Context) error
 	ValidateCareOfferingRoomDeletion func(context.Context, int64) error
 }
@@ -59,6 +77,7 @@ func NewServiceWithConfig(cfg ServiceConfig) Service {
 	return &service{
 		roomRepo:                         cfg.RoomRepo,
 		activeGroupRepo:                  cfg.ActiveGroupRepo,
+		persons:                          cfg.PersonQuery,
 		lockTemplateRecurrence:           cfg.LockTemplateRecurrence,
 		validateCareOfferingRoomDeletion: cfg.ValidateCareOfferingRoomDeletion,
 	}
@@ -81,6 +100,9 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 		if errors.Is(err, sql.ErrNoRows) {
 			return RoomWithOccupancy{}, &FacilitiesError{Op: "get room with occupancy", Err: ErrRoomNotFound}
 		}
+		return RoomWithOccupancy{}, &FacilitiesError{Op: "get room with occupancy", Err: err}
+	}
+	if err := s.attachSupervisorNames(ctx, []facilities.RoomOccupancyRow{*result}, func(index int, names *string) { result.SupervisorNames = names }); err != nil {
 		return RoomWithOccupancy{}, &FacilitiesError{Op: "get room with occupancy", Err: err}
 	}
 
@@ -406,6 +428,9 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 		}
 		return nil, &FacilitiesError{Op: "list rooms", Err: err}
 	}
+	if err := s.attachSupervisorNames(ctx, results, func(index int, names *string) { results[index].SupervisorNames = names }); err != nil {
+		return nil, &FacilitiesError{Op: "list rooms", Err: err}
+	}
 
 	// Convert results to RoomWithOccupancy
 	roomsWithOccupancy := make([]RoomWithOccupancy, len(results))
@@ -585,4 +610,46 @@ func (s *service) GetRoomHistory(ctx context.Context, roomID int64, startTime, e
 		})
 	}
 	return entries, nil
+}
+
+// attachSupervisorNames resolves the supervising persons of every row and
+// stores the distinct full names, alphabetically and comma separated, via
+// set. Rows without a resolvable supervisor keep a nil value, like the
+// previous SQL aggregate.
+func (s *service) attachSupervisorNames(ctx context.Context, rows []facilities.RoomOccupancyRow, set func(int, *string)) error {
+	if s.persons == nil {
+		return nil
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.SupervisorPersonIDs...)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	persons, err := s.persons.ListPersonsByID(ctx, ids)
+	if err != nil {
+		return err
+	}
+	byID := make(map[int64]Person, len(persons))
+	for _, person := range persons {
+		byID[person.ID] = person
+	}
+	for index, row := range rows {
+		names := make([]string, 0, len(row.SupervisorPersonIDs))
+		for _, id := range row.SupervisorPersonIDs {
+			if person, found := byID[id]; found {
+				names = append(names, person.FirstName+" "+person.LastName)
+			}
+		}
+		slices.Sort(names)
+		names = slices.Compact(names)
+		if len(names) == 0 {
+			set(index, nil)
+			continue
+		}
+		joined := strings.Join(names, ", ")
+		set(index, &joined)
+	}
+	return nil
 }

@@ -34,6 +34,9 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if f.ActivitySupervisor != nil {
 		f.ActivitySupervisor = personSupervisorPlannedRepository{SupervisorPlannedRepository: f.ActivitySupervisor, persons: persons}
 	}
+	if f.FileFolder != nil {
+		f.FileFolder = personFolderRepository{FolderRepository: f.FileFolder, persons: persons}
+	}
 }
 
 // personsByID resolves the non-deleted persons for ids through the owner

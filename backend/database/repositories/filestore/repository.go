@@ -301,16 +301,16 @@ func (r *FolderRepository) ListAudienceRoles(ctx context.Context) ([]*filestore.
 }
 
 // ListAudienceAccounts returns every account with an active mapping to the
-// school that is backed by a person, so the picker shows names rather than
-// e-mail addresses.
+// school. The composition layer keeps only the accounts backed by a person
+// and fills the names through the People Directory, so the picker shows
+// names rather than e-mail addresses.
 func (r *FolderRepository) ListAudienceAccounts(ctx context.Context) ([]*filestore.AudienceAccount, error) {
 	var rows []*filestore.AudienceAccount
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`auth.account_tenants AS "mapping"`).
-		ColumnExpr(`"mapping".account_id, "person".first_name, "person".last_name`).
-		Join(`JOIN users.persons AS "person" ON "person".account_id = "mapping".account_id AND "person".tenant_id = "mapping".tenant_id AND "person".deleted_at IS NULL`).
+		ColumnExpr(`"mapping".account_id`).
 		Where(`"mapping".status = 'active'`).
-		OrderExpr(`lower("person".last_name) ASC, lower("person".first_name) ASC`)
+		OrderExpr(`"mapping".account_id ASC`)
 	query = base.WithTenantFilter(ctx, query, "mapping")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list audience accounts", Err: base.TranslateNotFound(err)}

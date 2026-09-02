@@ -1142,6 +1142,7 @@ func newFactory(
 	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
 		RoomRepo:        repos.Room,
 		ActiveGroupRepo: repos.ActiveGroup,
+		PersonQuery:     newFacilitiesPersonQuery(persons),
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
