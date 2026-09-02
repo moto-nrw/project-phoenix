@@ -476,6 +476,7 @@ func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
 
 func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *testing.T) {
 	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()

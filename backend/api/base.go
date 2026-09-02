@@ -103,7 +103,16 @@ func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.Offe
 	return lister
 }
 
-func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, event apiCommon.TenantRuntimeEvent) {
+// recordHTTPRuntimeEvent turns one runtime event into a metric and, for
+// failures, one ERROR record carrying method, route, path and status. A
+// rolled-back transaction is only a failure when the client got a 5xx: the
+// tenant middleware and service-owned transactions also roll back behind
+// 401/404/410 responses, and those must not feed the error-spike alert
+// (#2953). The slog-chi request line already records every 4xx at WARN.
+type httpRuntimeObservation = apiCommon.TenantRuntimeObservation
+
+func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntimeObservation) {
+	event, r, status := observation.Event, observation.Request, observation.Status
 	observability.RecordUnitOfWorkEvent(
 		"http",
 		string(event.Kind),
@@ -111,13 +120,21 @@ func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, e
 		event.Duration,
 		event.Retries,
 	)
+	ctx := r.Context()
+	attrs := []slog.Attr{
+		slog.String("method", r.Method),
+		slog.String("route", observation.Route),
+		slog.String("path", customMiddleware.RedactFeedToken(r.URL.Path)),
+		slog.Int("status", status),
+	}
 	switch {
 	case event.Kind == apiCommon.TenantRuntimeMissingTenant:
-		tracer.Failure(ctx, "http", string(event.Kind), "missing_tenant", event.Err)
-	case event.Kind == apiCommon.TenantRuntimeTransaction && event.Err != nil:
-		tracer.Failure(ctx, "http", string(event.Kind), "transaction_failure", event.Err)
+		tracer.Failure(ctx, "http", string(event.Kind), "missing_tenant", event.Err, attrs...)
+	case event.Kind == apiCommon.TenantRuntimeTransaction && event.Err != nil && status >= http.StatusInternalServerError:
+		attrs = append(attrs, slog.String("result", string(event.Result)))
+		tracer.Failure(ctx, "http", string(event.Kind), "transaction_failure", event.Err, attrs...)
 	case event.Kind == apiCommon.TenantRuntimeResponseWrite && event.Err != nil:
-		tracer.Failure(ctx, "http", string(event.Kind), "response_write_failure", event.Err)
+		tracer.Failure(ctx, "http", string(event.Kind), "response_write_failure", event.Err, attrs...)
 	}
 }
 
@@ -489,8 +506,8 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	api.Router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
 		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)
 	}))
-	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(ctx context.Context, event apiCommon.TenantRuntimeEvent) {
-		recordHTTPRuntimeEvent(ctx, tracer, event)
+	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(observation apiCommon.TenantRuntimeObservation) {
+		recordHTTPRuntimeEvent(tracer, observation)
 	}))
 	api.Router.Use(apiCommon.TenantRequestObserverMiddleware(func(event apiCommon.TenantRequestEvent) {
 		observability.ObserveTenantRequest(

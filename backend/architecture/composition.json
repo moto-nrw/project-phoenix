@@ -441,22 +441,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 131,
+          "line": 148,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 237,
+          "line": 254,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 303,
+          "line": 320,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 790,
+          "line": 807,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -466,7 +466,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 424,
+          "line": 441,
           "declaration": "New"
         }
       ]
@@ -476,12 +476,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 125,
+          "line": 142,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 300,
+          "line": 317,
           "declaration": "type API"
         }
       ]
@@ -16619,7 +16619,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        424
+        441
       ],
       "tables": []
     },
