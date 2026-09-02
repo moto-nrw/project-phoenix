@@ -3043,6 +3043,7 @@ func newFactory(
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
 		Statistics: statistics.NewService(statistics.Config{
 			Statistics:      repos.Statistics,
+			Courses:         repos.CourseStatistics,
 			Holidays:        holidayService,
 			ClosingDays:     closingDayService,
 			Periods:         repos.CalendarPeriod,

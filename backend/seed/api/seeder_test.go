@@ -731,6 +731,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.URL.Path == "/api/timetable/templates" && r.Method == seedHTTPMethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"template_id": idCounter, "timeframe_id": idCounter + 1},
+			})
+			return
+		}
 		if r.URL.Path == "/api/timetable/instances" && r.Method == seedHTTPMethodGet {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"instances": []map[string]any{
