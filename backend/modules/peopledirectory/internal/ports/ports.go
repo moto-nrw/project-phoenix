@@ -17,6 +17,7 @@ type Store interface {
 	FindByAccount(context.Context, int64) (domain.Person, bool, domain.OperationStats, error)
 	FindByTag(context.Context, string) (domain.Person, bool, domain.OperationStats, error)
 	ListByIDs(context.Context, []int64) ([]domain.Person, domain.OperationStats, error)
+	ListByTenantIDs(context.Context, []int64) ([]domain.Person, domain.OperationStats, error)
 	ListByAccounts(context.Context, []int64) ([]domain.Person, domain.OperationStats, error)
 	Search(context.Context, domain.Filter) ([]domain.Person, domain.OperationStats, error)
 	CountByTenant(context.Context) (map[int64]int, domain.OperationStats, error)

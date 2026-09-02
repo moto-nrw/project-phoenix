@@ -115,6 +115,10 @@ func TestModuleAdminTransactionReadsAcrossTenantsAndCountsPerTenant(t *testing.T
 		require.NoError(t, err)
 		assert.Len(t, listed, 2)
 
+		byTenant, err := module.ListPersonsByTenantIDs(adminCtx, []int64{testpkg.Tenant(t), otherTenantID})
+		require.NoError(t, err)
+		assert.Len(t, byTenant, 2)
+
 		counts, err := module.CountPersonsByTenant(adminCtx)
 		require.NoError(t, err)
 		assert.Equal(t, 1, counts[testpkg.Tenant(t)])

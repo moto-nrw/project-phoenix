@@ -236,57 +236,12 @@ func (r *OperatorSummariesRepository) SchoolSummariesByOrganization(ctx context.
 	return result, nil
 }
 
-// operatorPersonBaseQuery is the shared SELECT/JOIN body for listing persons
-// with school/org context. Callers append a tenant filter and ORDER BY clause.
-const operatorPersonBaseQuery = `
-SELECT
-	"p".id,
-	"p".first_name,
-	"p".last_name,
-	("p".account_id IS NOT NULL) AS has_account,
-	"a".email AS account_email,
-	(EXISTS (SELECT 1 FROM users.staff WHERE person_id = "p".id AND deleted_at IS NULL)) AS is_staff,
-	(EXISTS (SELECT 1 FROM users.students WHERE person_id = "p".id)) AS is_student,
-	("p".tag_id IS NOT NULL) AS has_rfid_card,
-	"s".id AS school_id,
-	"s".name AS school_name,
-	"o".id AS organization_id,
-	"o".name AS organization_name,
-	"p".created_at
-FROM users.persons AS "p"
-INNER JOIN platform.schools AS "s" ON "s".id = "p".tenant_id
-INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
-LEFT JOIN auth.accounts AS "a" ON "a".id = "p".account_id
-WHERE "p".deleted_at IS NULL
-`
-
-// PersonsBySchool returns non-deleted persons in a single, non-deleted school.
-// Mirrors PersonsByOrganization in excluding soft-deleted schools so a Papierkorb
-// drill-in does not surface a populated Personen tab.
 func (r *OperatorSummariesRepository) PersonsBySchool(ctx context.Context, schoolID int64) ([]platform.OperatorPersonInfo, error) {
-	var result []platform.OperatorPersonInfo
-	q := operatorPersonBaseQuery + ` AND "p".tenant_id = ? AND "s".deleted_at IS NULL ORDER BY "p".last_name, "p".first_name`
-	if err := base.GetDB(ctx, r.db).NewRaw(q, schoolID).Scan(ctx, &result); err != nil {
-		return nil, err
-	}
-	if result == nil {
-		result = []platform.OperatorPersonInfo{}
-	}
-	return result, nil
+	return nil, fmt.Errorf("operator person listing requires people directory composition")
 }
 
-// PersonsByOrganization returns non-deleted persons across every (non-deleted)
-// school under the given organization.
 func (r *OperatorSummariesRepository) PersonsByOrganization(ctx context.Context, organizationID int64) ([]platform.OperatorPersonInfo, error) {
-	var result []platform.OperatorPersonInfo
-	q := operatorPersonBaseQuery + ` AND "s".organization_id = ? AND "s".deleted_at IS NULL ORDER BY "p".last_name, "p".first_name`
-	if err := base.GetDB(ctx, r.db).NewRaw(q, organizationID).Scan(ctx, &result); err != nil {
-		return nil, err
-	}
-	if result == nil {
-		result = []platform.OperatorPersonInfo{}
-	}
-	return result, nil
+	return nil, fmt.Errorf("operator person listing requires people directory composition")
 }
 
 // pwaUsageQuery buckets every active account-tenant mapping into the two

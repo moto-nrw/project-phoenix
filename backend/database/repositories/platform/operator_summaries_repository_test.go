@@ -33,9 +33,33 @@ type summariesFixture struct {
 	DeviceB1ID             int64
 }
 
+func listOperatorSchoolPersons(t *testing.T, ctx context.Context, db *bun.DB, repo platformModels.OperatorSummariesRepository, schoolID int64) []platformModels.OperatorPersonInfo {
+	t.Helper()
+	var rows []platformModels.OperatorPersonInfo
+	err := testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		var err error
+		rows, err = repo.PersonsBySchool(adminCtx, schoolID)
+		return err
+	})
+	require.NoError(t, err)
+	return rows
+}
+
+func listOperatorOrganizationPersons(t *testing.T, ctx context.Context, db *bun.DB, repo platformModels.OperatorSummariesRepository, organizationID int64) []platformModels.OperatorPersonInfo {
+	t.Helper()
+	var rows []platformModels.OperatorPersonInfo
+	err := testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		var err error
+		rows, err = repo.PersonsByOrganization(adminCtx, organizationID)
+		return err
+	})
+	require.NoError(t, err)
+	return rows
+}
+
 func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 	now := time.Now().UnixNano()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -154,7 +178,7 @@ func TestOperatorSummariesRepository_Stats(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.Ctx(t)
+	ctx := context.Background()
 
 	before, err := repo.Stats(ctx)
 	require.NoError(t, err)
@@ -309,14 +333,15 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := platformRepo.NewOperatorSummariesRepository(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	repo := factory.OperatorSummaries
 	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
 
 	t.Run("returns persons for active school with org context", func(t *testing.T) {
-		rows, err := repo.PersonsBySchool(ctx, fix.SchoolA1.ID)
-		require.NoError(t, err)
+		rows := listOperatorSchoolPersons(t, ctx, db, repo, fix.SchoolA1.ID)
 
 		ids := map[int64]platformModels.OperatorPersonInfo{}
 		for _, p := range rows {
@@ -339,8 +364,7 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 	t.Run("returns empty for soft-deleted school", func(t *testing.T) {
 		// Drilling into a Papierkorb school must not surface persons, matching
 		// PersonsByOrganization which already excludes soft-deleted schools.
-		rows, err := repo.PersonsBySchool(ctx, fix.SchoolADeleted.ID)
-		require.NoError(t, err)
+		rows := listOperatorSchoolPersons(t, ctx, db, repo, fix.SchoolADeleted.ID)
 		assert.NotNil(t, rows, "must return [] not nil so JSON encodes as array")
 		assert.Empty(t, rows, "soft-deleted school must not surface its persons")
 	})
@@ -358,8 +382,7 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 		})
 
 		isStaff := func() bool {
-			rows, listErr := repo.PersonsBySchool(ctx, fix.SchoolA1.ID)
-			require.NoError(t, listErr)
+			rows := listOperatorSchoolPersons(t, ctx, db, repo, fix.SchoolA1.ID)
 			for _, p := range rows {
 				if p.ID == fix.PersonA1.ID {
 					return p.IsStaff
@@ -380,13 +403,14 @@ func TestOperatorSummariesRepository_PersonsByOrganization(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := testpkg.Ctx(t)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	repo := factory.OperatorSummaries
+	ctx := context.Background()
 
 	fix := setupSummariesFixture(t, db)
 
-	rows, err := repo.PersonsByOrganization(ctx, fix.OrgA.ID)
-	require.NoError(t, err)
+	rows := listOperatorOrganizationPersons(t, ctx, db, repo, fix.OrgA.ID)
 
 	ids := map[int64]platformModels.OperatorPersonInfo{}
 	for _, p := range rows {
@@ -400,8 +424,7 @@ func TestOperatorSummariesRepository_PersonsByOrganization(t *testing.T) {
 	assert.NotContains(t, ids, fix.PersonB1.ID)
 
 	t.Run("missing org returns empty slice", func(t *testing.T) {
-		rows, err := repo.PersonsByOrganization(ctx, 999999999)
-		require.NoError(t, err)
+		rows := listOperatorOrganizationPersons(t, ctx, db, repo, 999999999)
 		assert.NotNil(t, rows)
 		assert.Empty(t, rows)
 	})

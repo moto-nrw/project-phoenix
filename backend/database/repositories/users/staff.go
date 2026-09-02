@@ -22,6 +22,32 @@ type StaffRepository struct {
 	db *bun.DB
 }
 
+// FindOperatorPersonMembership is the batched membership projection for the
+// operator directory composition. It does not read users.persons.
+func FindOperatorPersonMembership(ctx context.Context, db *bun.DB, personIDs []int64) (map[int64]bool, map[int64]bool, error) {
+	var rows []struct {
+		PersonID int64 `bun:"person_id"`
+	}
+	staffQuery := base.GetDB(ctx, db).NewSelect().TableExpr(`users.staff AS "member"`).ColumnExpr(`"member".person_id`).Where(`"member".person_id IN (?)`, bun.List(personIDs)).Where(`"member".deleted_at IS NULL`)
+	if err := staffQuery.Scan(ctx, &rows); err != nil {
+		return nil, nil, err
+	}
+	staff := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		staff[row.PersonID] = true
+	}
+	rows = nil
+	studentQuery := base.GetDB(ctx, db).NewSelect().TableExpr(`users.students AS "member"`).ColumnExpr(`"member".person_id`).Where(`"member".person_id IN (?)`, bun.List(personIDs))
+	if err := studentQuery.Scan(ctx, &rows); err != nil {
+		return nil, nil, err
+	}
+	students := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		students[row.PersonID] = true
+	}
+	return staff, students, nil
+}
+
 // NewStaffRepository creates a new StaffRepository
 func NewStaffRepository(db *bun.DB) users.StaffRepository {
 	repo := base.NewRepository[*users.Staff](db, "users.staff", "Staff")

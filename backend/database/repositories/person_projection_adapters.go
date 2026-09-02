@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -53,7 +54,9 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if f.OperatorSummaries != nil {
 		f.OperatorSummaries = personOperatorSummariesRepository{
 			OperatorSummariesRepository: f.OperatorSummaries, persons: persons,
-			schools: func() platformModels.SchoolRepository { return f.School },
+			schools:  func() platformModels.SchoolRepository { return f.School },
+			accounts: func() authModels.AccountRepository { return f.Account },
+			db:       f.db,
 		}
 	}
 	if f.AccountTenant != nil {

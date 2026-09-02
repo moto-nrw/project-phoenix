@@ -173,6 +173,9 @@ func filterOverviewStudentIDs(ids []int64, students map[int64]*userModels.Studen
 		}
 		person := persons[student.PersonID]
 		if person == nil {
+			if needle == "" {
+				filtered = append(filtered, id)
+			}
 			continue
 		}
 		if needle == "" || strings.Contains(strings.ToLower(person.FirstName+" "+person.LastName+" "+student.SchoolClass), needle) {

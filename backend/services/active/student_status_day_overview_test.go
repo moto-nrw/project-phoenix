@@ -39,7 +39,7 @@ func TestStudentEnrolledOn(t *testing.T) {
 	}
 }
 
-func TestFilterOverviewStudentIDsExcludesPeopleTheDirectoryDoesNotReturn(t *testing.T) {
+func TestFilterOverviewStudentIDsKeepsUnresolvedPeopleWithoutNameFilter(t *testing.T) {
 	t.Parallel()
 
 	students := map[int64]*userModels.Student{
@@ -48,7 +48,8 @@ func TestFilterOverviewStudentIDsExcludesPeopleTheDirectoryDoesNotReturn(t *test
 	}
 	persons := map[int64]*userModels.Person{11: {ID: 11, FirstName: "Mia", LastName: "Muster"}}
 
-	assert.Equal(t, []int64{1}, filterOverviewStudentIDs([]int64{1, 2}, students, persons, ""))
+	assert.Equal(t, []int64{1, 2}, filterOverviewStudentIDs([]int64{1, 2}, students, persons, ""))
+	assert.Equal(t, []int64{1}, filterOverviewStudentIDs([]int64{1, 2}, students, persons, "mia"))
 }
 
 type cappedOverviewRepository struct {

@@ -61,6 +61,12 @@ func (e *recordingEngine) ListAcrossTenantsByIDs(_ context.Context, ids []int64)
 	return nil, nil
 }
 
+func (e *recordingEngine) ListByTenantIDs(_ context.Context, ids []int64) ([]peopledirectory.Person, error) {
+	e.calls++
+	e.listed = ids
+	return nil, nil
+}
+
 func (e *recordingEngine) ListByAccounts(_ context.Context, ids []int64) ([]peopledirectory.Person, error) {
 	e.calls++
 	e.listed = ids
@@ -164,6 +170,12 @@ func TestListPersonsByIDDeduplicatesAndSkipsEmptyInput(t *testing.T) {
 	}
 	if len(engine.listed) != 1 || !engine.across {
 		t.Fatalf("expected the cross-tenant engine call, got %v across=%v", engine.listed, engine.across)
+	}
+	if _, err := module.ListPersonsByTenantIDs(context.Background(), []int64{7, 7}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(engine.listed) != 1 || engine.listed[0] != 7 {
+		t.Fatalf("expected the deduplicated tenant list, got %v", engine.listed)
 	}
 }
 

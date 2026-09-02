@@ -175,6 +175,18 @@ func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]domain.Person, do
 	return scanPersons(ctx, rows, query.OrderExpr(`"person".id ASC`), "list persons by id")
 }
 
+func (s *Store) ListByTenantIDs(ctx context.Context, tenantIDs []int64) ([]domain.Person, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []personRow{}
+	query := withTenant(personSelect(db, &rows).
+		Where(`"person".tenant_id IN (?)`, bun.List(tenantIDs)).
+		Where(`"person".deleted_at IS NULL`), tenantID)
+	return scanPersons(ctx, rows, query.OrderExpr(`"person".last_name ASC, "person".first_name ASC, "person".id ASC`), "list persons by tenant")
+}
+
 func (s *Store) ListByAccounts(ctx context.Context, accountIDs []int64) ([]domain.Person, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

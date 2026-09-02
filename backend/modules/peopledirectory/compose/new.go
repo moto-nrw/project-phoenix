@@ -122,6 +122,11 @@ func (e engine) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) ([]peop
 	return toPublicList(values), mapError(err)
 }
 
+func (e engine) ListByTenantIDs(ctx context.Context, tenantIDs []int64) ([]peopledirectory.Person, error) {
+	values, err := e.service.ListByTenantIDs(ctx, tenantIDs)
+	return toPublicList(values), mapError(err)
+}
+
 func (e engine) ListByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.Person, error) {
 	values, err := e.service.ListByAccounts(ctx, accountIDs)
 	return toPublicList(values), mapError(err)
