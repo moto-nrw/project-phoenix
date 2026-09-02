@@ -831,7 +831,7 @@ describe("StudentCreateModal", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Anmeldephasen öffnen" }),
-    ).toHaveAttribute("href", "/enrollment-phases");
+    ).toHaveAttribute("href", "/test-tenant/enrollment-phases");
     expect(
       screen.queryByTestId("personal-info-section"),
     ).not.toBeInTheDocument();

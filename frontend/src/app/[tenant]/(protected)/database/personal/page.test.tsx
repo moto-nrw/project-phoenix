@@ -579,7 +579,7 @@ describe("TeachersPage", () => {
 
     expect(screen.getByRole("link", { name: "Importieren" })).toHaveAttribute(
       "href",
-      "/database/personal/import",
+      "/test-tenant/database/personal/import",
     );
   });
 

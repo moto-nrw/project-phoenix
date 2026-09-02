@@ -1224,7 +1224,7 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/operator/accounts");
       expect(hrefs).toContain("/operator/devices");
       expect(hrefs).toContain("/operator/persons");
-      expect(hrefs).not.toContain("/operator/settings");
+      expect(hrefs).toContain("/operator/settings");
     });
 
     it("shows active label for current operator route", () => {
