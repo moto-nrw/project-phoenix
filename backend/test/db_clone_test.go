@@ -8,6 +8,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -49,6 +50,32 @@ func TestSetupTestDBAllowsParallelTests(t *testing.T) {
 			require.NoError(t, db.NewRaw(`SELECT 1`).Scan(context.Background(), &one))
 			assert.Equal(t, 1, one)
 		})
+	}
+}
+
+func TestIsolatedTestDatabaseLimiterBoundsConcurrentClones(t *testing.T) {
+	t.Parallel()
+
+	limiter := newIsolatedTestDatabaseLimiter(1)
+	releaseFirst := limiter.acquire()
+	t.Cleanup(releaseFirst)
+
+	secondAcquired := make(chan func(), 1)
+	go func() { secondAcquired <- limiter.acquire() }()
+
+	select {
+	case releaseSecond := <-secondAcquired:
+		releaseSecond()
+		t.Fatal("second isolated database must wait for an available slot")
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	releaseFirst()
+	select {
+	case releaseSecond := <-secondAcquired:
+		releaseSecond()
+	case <-time.After(time.Second):
+		t.Fatal("second isolated database did not acquire the released slot")
 	}
 }
 

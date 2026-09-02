@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -83,11 +82,10 @@ func (r *AnnouncementRepository) List(ctx context.Context, includeInactive bool)
 
 // Publish sets the published_at timestamp to now
 func (r *AnnouncementRepository) Publish(ctx context.Context, id int64) error {
-	now := time.Now()
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.Announcement)(nil)).
 		ModelTableExpr(tablePlatformAnnouncements).
-		Set("published_at = ?", now).
+		Set("published_at = CURRENT_TIMESTAMP").
 		Where("id = ?", id).
 		Exec(ctx)
 

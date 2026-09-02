@@ -215,6 +215,7 @@ type Factory struct {
 	DataAccessLog                auditModels.DataAccessLogRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	GuardianChange               auditModels.GuardianChangeRepository
+	StudentConsentChange         auditModels.StudentConsentChangeRepository
 	DeviationEvent               auditModels.DeviationEventRepository
 	AuthEvent                    auditModels.AuthEventRepository
 	DataImport                   auditModels.DataImportRepository
@@ -332,6 +333,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.DataAccessLog = audit.NewDataAccessLogRepository(runtime)
 	f.EnrollmentOfferingAdjustment = audit.NewEnrollmentOfferingAdjustmentRepository(runtime)
 	f.GuardianChange = audit.NewGuardianChangeRepository(runtime)
+	f.StudentConsentChange = audit.NewStudentConsentChangeRepository(runtime)
 	f.DeviationEvent = audit.NewDeviationEventRepository(runtime)
 	f.AuthEvent = audit.NewAuthEventRepository(runtime)
 	f.DataImport = audit.NewDataImportRepository(runtime)
@@ -629,6 +631,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		DataAccessLog:                audit.NewDataAccessLogRepository(auditRepositoryRuntime),
 		EnrollmentOfferingAdjustment: enrollmentOfferingAdjustment,
 		GuardianChange:               audit.NewGuardianChangeRepository(auditRepositoryRuntime),
+		StudentConsentChange:         audit.NewStudentConsentChangeRepository(auditRepositoryRuntime),
 		DeviationEvent:               audit.NewDeviationEventRepository(auditRepositoryRuntime),
 		AuthEvent:                    audit.NewAuthEventRepository(auditRepositoryRuntime),
 		DataImport:                   audit.NewDataImportRepository(auditRepositoryRuntime),

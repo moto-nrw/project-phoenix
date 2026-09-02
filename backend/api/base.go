@@ -864,6 +864,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ParentEventEmitter:     api.Services.ParentEventEmitter,
 		AbsenceNotifier:        api.Services.AbsenceNotifier,
 		StudentPhotos:          api.Services.StudentPhotos,
+		StudentConsents:        api.Services.StudentConsents,
 		StudentDocumentService: api.Services.StudentDocuments,
 		ListExportService:      api.Services.ListExport,
 		Logger:                 logger.With("handler", "students"),

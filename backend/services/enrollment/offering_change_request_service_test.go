@@ -1066,7 +1066,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsTheSelectableDateRange(
 	}
 	require.NotNil(t, queued)
 	earliest := env.sourcePhase.ServiceStartDate
-	if today := timezone.NewDate(2026, 8, 24); earliest.Before(today) {
+	if today := decisionTestToday; earliest.Before(today) {
 		earliest = today
 	}
 	assert.Equal(t, earliest, queued.EarliestEffectiveFrom,
