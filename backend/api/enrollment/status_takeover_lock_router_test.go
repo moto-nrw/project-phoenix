@@ -15,7 +15,6 @@ import (
 	"github.com/uptrace/bun"
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -89,7 +88,6 @@ func (discardingOutbox) EnqueueOutbox(context.Context, platformModels.OutboxEnqu
 
 func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 	t.Helper()
-	testutil.SeedTestJWTConfig()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -300,9 +298,8 @@ func decodeStatus(t *testing.T, rec *httptest.ResponseRecorder) statusEnvelope {
 	return out
 }
 
-// Deliberately NOT parallel: process-global state — the fixture sets viper
-// keys for the public status router.
 func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing.T) {
+	t.Parallel()
 	env, cleanup := setupTakeoverLockTest(t)
 	defer cleanup()
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
@@ -346,9 +343,8 @@ func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing
 	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, withdrawnStatus.Data.Children[1].Status)
 }
 
-// Deliberately NOT parallel: process-global state — the fixture sets viper
-// keys for the public status router.
 func TestPublicStatus_AllChildrenTakenOverLeavesNoChangeForm(t *testing.T) {
+	t.Parallel()
 	env, cleanup := setupTakeoverLockTest(t)
 	defer cleanup()
 	env.takeOver(t, env.request.Children[0].ID, "Lina")

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +166,7 @@ func newWorker(api *API, logger *slog.Logger) (*scheduler.Scheduler, error) {
 func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDependencies {
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
+		Getenv:                 os.Getenv,
 		DB:                     api.db,
 		SchoolRepo:             api.repos.School,
 		TenantRuntime:          &api.tenantRuntime,
@@ -245,6 +247,20 @@ func workerTracer(api *API) scheduler.WorkerTracer {
 		},
 		Run: func(jobID scheduler.JobID, outcome string, duration time.Duration) {
 			observability.RecordWorkerRunEvent(string(jobID), outcome, duration)
+		},
+		Batch: func(event scheduler.TenantBatchEvidence) {
+			observability.RecordWorkerTenantBatchEvent(
+				string(event.JobID),
+				event.Duration,
+				event.Processed,
+				event.Failed,
+				event.Retries,
+				event.Backlog,
+				event.PoolWait,
+			)
+		},
+		Backlog: func(jobID scheduler.JobID, backlog int) {
+			observability.SetWorkerTenantBatchBacklog(string(jobID), backlog)
 		},
 	}
 }

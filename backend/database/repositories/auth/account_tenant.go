@@ -186,24 +186,16 @@ func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Contex
 	var rows []auth.AccountTenantAccessInfo
 	err := base.GetDB(ctx, r.db).NewSelect().
 		ColumnExpr(`"at".tenant_id`).
-		ColumnExpr(`"sch".name AS school_name`).
-		ColumnExpr(`"sch".slug AS school_slug`).
-		ColumnExpr(`"sch".active AS school_active`).
-		ColumnExpr(`"sch".organization_id`).
-		ColumnExpr(`"org".name AS organization_name`).
 		ColumnExpr(`"at".status`).
 		ColumnExpr(`"at".activated_at`).
 		ColumnExpr(`"at".deactivated_at`).
 		ColumnExpr(`("p".id IS NOT NULL) AS has_person`).
 		ColumnExpr(`("s".id IS NOT NULL) AS has_staff`).
 		TableExpr(`auth.account_tenants AS "at"`).
-		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "at".tenant_id`).
-		Join(`INNER JOIN platform.organizations AS "org" ON "org".id = "sch".organization_id`).
 		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id AND "p".deleted_at IS NULL`).
 		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id AND "s".deleted_at IS NULL`).
 		Where(`"at".account_id = ?`, accountID).
-		Where(`"sch".deleted_at IS NULL`).
-		OrderExpr(`"org".name ASC, "sch".name ASC`).
+		OrderExpr(`"at".tenant_id ASC`).
 		Scan(ctx, &rows)
 	if err != nil {
 		return nil, err
@@ -285,32 +277,27 @@ func (r *AccountTenantRepository) scanPendingInvitationsTenant(ctx context.Conte
 // ListAccountsByOrganizationID returns all accounts across all schools belonging to an organization,
 // plus pending invitations. Each result includes school_id and school_name for context.
 func (r *AccountTenantRepository) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]auth.OrgAccountInfo, error) {
-	db := base.GetDB(ctx, r.db)
-
-	accounts, err := r.queryOrgAccounts(ctx, db, `"sch".organization_id = ?`, organizationID)
-	if err != nil {
-		return nil, err
-	}
-
-	invitations, err := r.queryOrgInvitations(ctx, db, `"sch".organization_id = ?`, organizationID)
-	if err != nil {
-		return nil, err
-	}
-
-	return append(accounts, invitations...), nil
+	return nil, fmt.Errorf("list organization accounts through organization tenancy capability")
 }
 
 // ListAllAccounts returns all accounts across all schools with their roles and pedagogic info,
 // plus pending invitations. Each result includes school_id and school_name for context.
 func (r *AccountTenantRepository) ListAllAccounts(ctx context.Context) ([]auth.OrgAccountInfo, error) {
-	db := base.GetDB(ctx, r.db)
+	return nil, fmt.Errorf("list all accounts through organization tenancy capability")
+}
 
-	accounts, err := r.queryOrgAccounts(ctx, db, "", nil)
+// ListAccountsBySchoolIDs returns account and invitation rows for an explicit
+// school set supplied by the Organization & Tenancy capability adapter.
+func (r *AccountTenantRepository) ListAccountsBySchoolIDs(ctx context.Context, schoolIDs []int64) ([]auth.OrgAccountInfo, error) {
+	if len(schoolIDs) == 0 {
+		return []auth.OrgAccountInfo{}, nil
+	}
+	db := base.GetDB(ctx, r.db)
+	accounts, err := r.queryOrgAccounts(ctx, db, schoolIDs)
 	if err != nil {
 		return nil, err
 	}
-
-	invitations, err := r.queryOrgInvitations(ctx, db, "", nil)
+	invitations, err := r.queryOrgInvitations(ctx, db, schoolIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -324,11 +311,11 @@ func (r *AccountTenantRepository) ListAllAccounts(ctx context.Context) ([]auth.O
 // Schools are only soft-deletable when their organization is still active, and
 // an organization can only be soft-deleted once all its schools are in the
 // Papierkorb, so filtering on school.deleted_at also covers the org-deleted case.
-func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.IDB, whereClause string, arg interface{}) ([]auth.OrgAccountInfo, error) {
+func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.IDB, schoolIDs []int64) ([]auth.OrgAccountInfo, error) {
 	var accounts []auth.OrgAccountInfo
 	q := db.NewSelect().
 		ColumnExpr(`"at".tenant_id AS school_id`).
-		ColumnExpr(`"sch".name AS school_name`).
+		ColumnExpr(`'' AS school_name`).
 		ColumnExpr(`"at".account_id`).
 		ColumnExpr(`"a".email`).
 		ColumnExpr(`"a".active`).
@@ -342,30 +329,26 @@ func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.I
 		ColumnExpr(`("p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS has_caregiver_profile`).
 		ColumnExpr(`(COALESCE(bool_or(LOWER("r".name) = 'user'), false) AND "p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS is_active_caregiver`).
 		TableExpr(`auth.account_tenants AS "at"`).
-		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "at".tenant_id`).
 		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
 		Join(`LEFT JOIN auth.account_roles AS "ar" ON "ar".account_id = "at".account_id AND "ar".tenant_id = "at".tenant_id`).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
 		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id AND "p".deleted_at IS NULL`).
 		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id AND "s".deleted_at IS NULL`).
 		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "at".tenant_id AND "t".deleted_at IS NULL`).
-		Where(`"sch".deleted_at IS NULL`)
-	if whereClause != "" {
-		q = q.Where(whereClause, arg)
-	}
+		Where(`"at".tenant_id IN (?)`, bun.List(schoolIDs))
 	err := q.
-		GroupExpr(`"at".tenant_id, "sch".name, "at".account_id, "a".email, "a".active, "p".id, "p".first_name, "p".last_name, "s".id, "t".id, "t".role, "at".status`).
-		OrderExpr(`"sch".name ASC, "p".last_name ASC, "p".first_name ASC`).
+		GroupExpr(`"at".tenant_id, "at".account_id, "a".email, "a".active, "p".id, "p".first_name, "p".last_name, "s".id, "t".id, "t".role, "at".status`).
+		OrderExpr(`"at".tenant_id ASC, "p".last_name ASC, "p".first_name ASC`).
 		Scan(ctx, &accounts)
 	return accounts, err
 }
 
 // queryOrgInvitations builds the shared org-level pending invitations query with an optional WHERE clause.
-func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bun.IDB, whereClause string, arg interface{}) ([]auth.OrgAccountInfo, error) {
+func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bun.IDB, schoolIDs []int64) ([]auth.OrgAccountInfo, error) {
 	var invitations []auth.OrgAccountInfo
 	q := db.NewSelect().
 		ColumnExpr(`"inv".tenant_id AS school_id`).
-		ColumnExpr(`"sch".name AS school_name`).
+		ColumnExpr(`'' AS school_name`).
 		ColumnExpr(`0 AS account_id`).
 		ColumnExpr(`"inv".email`).
 		ColumnExpr(`false AS active`).
@@ -379,12 +362,8 @@ func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bu
 		ColumnExpr(`false AS has_caregiver_profile`).
 		ColumnExpr(`false AS is_active_caregiver`).
 		TableExpr(`auth.invitation_tokens AS "inv"`).
-		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "inv".tenant_id`).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "inv".role_id`).
-		Where(`"sch".deleted_at IS NULL`)
-	if whereClause != "" {
-		q = q.Where(whereClause, arg)
-	}
+		Where(`"inv".tenant_id IN (?)`, bun.List(schoolIDs))
 	err := q.
 		Where(`"inv".used_at IS NULL`).
 		Where(`"inv".expires_at > NOW()`).

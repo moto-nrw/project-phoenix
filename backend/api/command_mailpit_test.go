@@ -85,7 +85,6 @@ func TestAddressedTo_Empty(t *testing.T) {
 // fetchCodeFromMessage Tests (helper that pulls the code out of one message)
 // =============================================================================
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_TextBody(t *testing.T) {
 	t.Parallel()
 
@@ -99,7 +98,6 @@ func TestFetchCodeFromMessage_TextBody(t *testing.T) {
 	assert.Equal(t, "123456", code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_HTMLFallback(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +111,6 @@ func TestFetchCodeFromMessage_HTMLFallback(t *testing.T) {
 	assert.Equal(t, "654321", code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_NoCode(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +124,6 @@ func TestFetchCodeFromMessage_NoCode(t *testing.T) {
 	assert.Empty(t, code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_IgnoresShortRuns(t *testing.T) {
 	t.Parallel()
 
@@ -142,7 +138,6 @@ func TestFetchCodeFromMessage_IgnoresShortRuns(t *testing.T) {
 	assert.Equal(t, "111222", code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_NonOK(t *testing.T) {
 	t.Parallel()
 
@@ -156,7 +151,6 @@ func TestFetchCodeFromMessage_NonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "mailpit detail")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
@@ -174,7 +168,6 @@ func TestFetchCodeFromMessage_InvalidJSON(t *testing.T) {
 // FetchLatestMFACode Tests (the public entry point)
 // =============================================================================
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_HappyPath(t *testing.T) {
 	t.Parallel()
 
@@ -194,7 +187,6 @@ func TestFetchLatestMFACode_HappyPath(t *testing.T) {
 	assert.Equal(t, "424242", code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_FiltersOldMessages(t *testing.T) {
 	t.Parallel()
 
@@ -221,7 +213,6 @@ func TestFetchLatestMFACode_FiltersOldMessages(t *testing.T) {
 	assert.Equal(t, "999999", code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_FiltersOtherRecipients(t *testing.T) {
 	t.Parallel()
 
@@ -243,7 +234,6 @@ func TestFetchLatestMFACode_FiltersOtherRecipients(t *testing.T) {
 	assert.Equal(t, "222222", code)
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_ContextCanceled(t *testing.T) {
 	t.Parallel()
 
@@ -265,7 +255,6 @@ func TestFetchLatestMFACode_EmptyRecipient(t *testing.T) {
 	assert.Contains(t, err.Error(), "recipient is required")
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_ListServerError_RetriesUntilContext(t *testing.T) {
 	t.Parallel()
 
@@ -286,7 +275,6 @@ func TestFetchLatestMFACode_ListServerError_RetriesUntilContext(t *testing.T) {
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&hits), int32(2))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_MessageAppearsOnSecondPoll(t *testing.T) {
 	t.Parallel()
 

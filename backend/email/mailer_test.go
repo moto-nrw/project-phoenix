@@ -158,7 +158,7 @@ func TestMockMailer_Send(t *testing.T) {
 
 	err := mailer.Send(msg)
 
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrDeliveryUnavailable)
 	assert.True(t, mailer.SendInvoked.Load())
 }
 
@@ -238,11 +238,13 @@ func TestFMap_Contains_FormatFunctions(t *testing.T) {
 // Mailer Interface Tests
 // =============================================================================
 
-func TestMailerInterface_MockMailerImplements(_ *testing.T) {
+func TestMailerInterface_MockMailerImplements(t *testing.T) {
+	t.Parallel()
 	var _ Mailer = &MockMailer{}
 }
 
-func TestMailerInterface_SMTPMailerImplements(_ *testing.T) {
+func TestMailerInterface_SMTPMailerImplements(t *testing.T) {
+	t.Parallel()
 	var _ Mailer = &SMTPMailer{}
 }
 

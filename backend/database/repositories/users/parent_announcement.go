@@ -2,6 +2,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -158,6 +160,32 @@ func (r *ParentAnnouncementRepository) FindByID(ctx context.Context, id int64) (
 	return r.FindByIDOrNil(ctx, id)
 }
 
+// FindByIDForUpdate returns the announcement by id (tenant-scoped) while
+// holding its row lock until the transaction ends, or nil when absent.
+//
+// Der Anhang-Upload (#2890) prüft „noch ein Entwurf" und „noch unter der
+// Grenze" und schreibt danach. Ohne diese Sperre laufen zwei gleichzeitige
+// Uploads beide durch die Prüfung, und ein Upload kann eine Veröffentlichung
+// überholen, die zwischen Prüfung und INSERT committet.
+func (r *ParentAnnouncementRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.ParentAnnouncement, error) {
+	a := new(users.ParentAnnouncement)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(a).
+		ModelTableExpr(`users.parent_announcements AS "parent_announcement"`).
+		Where(`"parent_announcement".id = ?`, id).
+		For("UPDATE")
+	if where, val, ok := base.TenantWhere(ctx, "parent_announcement"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("lock parent announcement %d: %w", id, err)
+	}
+	return a, nil
+}
+
 // Delete removes the announcement by id (targets + reads cascade in the DB).
 func (r *ParentAnnouncementRepository) Delete(ctx context.Context, id int64) error {
 	return r.Repository.Delete(ctx, id)
@@ -298,6 +326,17 @@ func (r *ParentAnnouncementRepository) clearReads(ctx context.Context, announcem
 		return &modelBase.DatabaseError{Op: "clear parent announcement reads", Err: base.TranslateNotFound(err)}
 	}
 	return nil
+}
+
+// ClearEngagement drops every read/acknowledgement and poll answer of an
+// announcement. It is the explicit form of what Update already does after a
+// body edit, for the callers that change an announcement without rewriting its
+// row — attaching or removing a file (#2890).
+func (r *ParentAnnouncementRepository) ClearEngagement(ctx context.Context, announcementID int64) error {
+	if err := r.clearReads(ctx, announcementID); err != nil {
+		return err
+	}
+	return r.clearResponses(ctx, announcementID)
 }
 
 // SetPublished sets (or clears, when publishedAt is nil) the publication
@@ -729,13 +768,7 @@ func (r *ParentAnnouncementRepository) ResolveDeliveryRecipients(ctx context.Con
 
 // SchoolName returns the tenant's school name (empty when unknown).
 func (r *ParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID int64) (string, error) {
-	var name string
-	if err := base.GetDB(ctx, r.DB).NewRaw(
-		`SELECT COALESCE(name, '') FROM platform.schools WHERE id = ?`, tenantID,
-	).Scan(ctx, &name); err != nil {
-		return "", &modelBase.DatabaseError{Op: "resolve school name", Err: base.TranslateNotFound(err)}
-	}
-	return name, nil
+	return "", errors.New("resolve school name through organization tenancy capability")
 }
 
 // AudienceRecipients returns the guardian ACCOUNTS an announcement currently
@@ -865,11 +898,9 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
 			a.response_type, a.response_deadline, a.delivery_mode, a.system_kind,
-			COALESCE(sch.name, '') AS school_name,
 			par.read_at AS read_at,
 			par.acknowledged_at AS acknowledged_at
 		FROM users.parent_announcements a
-		LEFT JOIN platform.schools sch ON sch.id = a.tenant_id
 		LEFT JOIN users.parent_announcement_reads par
 			ON par.announcement_id = a.id AND par.account_id = ?
 		WHERE ` + feedScopePredicate + `

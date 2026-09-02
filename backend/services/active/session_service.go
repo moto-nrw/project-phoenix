@@ -906,7 +906,7 @@ func getDeviceIDString(deviceID *int64) string {
 
 // EndActivitySession ends an active activity session
 func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) error {
-	var visitsToNotify []visitSSEData
+	var broadcasts sessionEndSSEData
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, activeGroupID)
 		if err != nil || group == nil {
@@ -915,40 +915,82 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 		if !group.IsActive() {
 			return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupAlreadyEnded}
 		}
-		visitsToNotify, err = s.endActivitySessionLocked(txCtx, activeGroupID)
+		broadcasts, err = s.endActivitySessionLocked(txCtx, group)
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	s.queueActivitySessionEndBroadcasts(ctx, activeGroupID, visitsToNotify)
+	s.queueActivitySessionEndBroadcasts(ctx, activeGroupID, broadcasts)
 	return nil
 }
 
-func (s *service) endActivitySessionLocked(ctx context.Context, activeGroupID int64) ([]visitSSEData, error) {
+// sessionEndSSEData is everything the session-end SSE events need, read
+// inside the ending transaction. The after-commit hook that emits the events
+// runs without a tenant transaction, on the pool connection as phoenix_auth,
+// which has no rights until SET ROLE. So it must not touch the database
+// (#2951).
+type sessionEndSSEData struct {
+	Visits []visitSSEData
+	End    activityEndSSEData
+}
+
+// activityEndSSEData is the activity_end event payload.
+type activityEndSSEData struct {
+	RoomID       int64
+	ActivityName string
+	RoomName     string
+}
+
+// collectActivityEndSSE resolves the activity_end payload for group. It only
+// queries when there is a broadcaster to deliver the event to. Without the
+// name repositories (the shape unit tests build) the event carries empty
+// names, as broadcastActivityEndEvent always did on a failed lookup.
+func (s *service) collectActivityEndSSE(ctx context.Context, group *active.Group) (activityEndSSEData, error) {
+	if s.Broadcaster == nil || s.RoomRepo == nil || s.ActivityGroupRepo == nil {
+		return activityEndSSEData{RoomID: group.RoomID}, nil
+	}
+
+	activityName, err := s.getActivityEndActivityName(ctx, group.GroupID)
+	if err != nil {
+		return activityEndSSEData{}, err
+	}
+	roomName, err := s.getActivityEndRoomName(ctx, group.RoomID)
+	if err != nil {
+		return activityEndSSEData{}, err
+	}
+	return activityEndSSEData{RoomID: group.RoomID, ActivityName: activityName, RoomName: roomName}, nil
+}
+
+func (s *service) endActivitySessionLocked(ctx context.Context, group *active.Group) (sessionEndSSEData, error) {
+	activeGroupID := group.ID
 	// Collect active visits before mutating them for the SSE payloads.
 	visitsToNotify, err := s.collectActiveVisitsForSSE(ctx, activeGroupID)
 	if err != nil {
-		return nil, &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
+		return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
 	}
 
 	// End all active visits
 	for _, visitData := range visitsToNotify {
 		if _, _, err := s.endVisitWithAttendanceSync(ctx, visitData.VisitID); err != nil {
-			return nil, &ActiveError{Op: "EndActivitySession", Err: err}
+			return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: err}
 		}
 	}
 
 	// End all active supervisors
 	if err := s.endActiveSupervisors(ctx, activeGroupID); err != nil {
-		return nil, err
+		return sessionEndSSEData{}, err
 	}
 
 	// End the session
 	if err := s.GroupRepo.EndSession(ctx, activeGroupID); err != nil {
-		return nil, &ActiveError{Op: "EndActivitySession", Err: err}
+		return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: err}
 	}
-	return visitsToNotify, nil
+	endData, err := s.collectActivityEndSSE(ctx, group)
+	if err != nil {
+		return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: err}
+	}
+	return sessionEndSSEData{Visits: visitsToNotify, End: endData}, nil
 }
 
 func (s *service) endActiveSupervisors(ctx context.Context, activeGroupID int64) error {
@@ -964,15 +1006,18 @@ func (s *service) endActiveSupervisors(ctx context.Context, activeGroupID int64)
 	return nil
 }
 
-func (s *service) queueActivitySessionEndBroadcasts(ctx context.Context, activeGroupID int64, visits []visitSSEData) {
+// queueActivitySessionEndBroadcasts emits the session-end SSE events once the
+// surrounding transaction has committed. The hook performs no database access:
+// every lookup lives in data, gathered inside the transaction (#2951).
+func (s *service) queueActivitySessionEndBroadcasts(ctx context.Context, activeGroupID int64, data sessionEndSSEData) {
 	if s.Broadcaster == nil {
 		return
 	}
 	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
 	tenant.RegisterAfterCommit(ctx, func() {
 		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-		s.broadcastStudentCheckoutEvents(broadcastCtx, activeGroupIDStr, visits)
-		s.broadcastActivityEndEvent(broadcastCtx, activeGroupID, activeGroupIDStr)
+		s.broadcastStudentCheckoutEvents(broadcastCtx, activeGroupIDStr, data.Visits)
+		s.broadcastActivityEndEvent(broadcastCtx, activeGroupIDStr, data.End)
 	})
 }
 
@@ -1089,12 +1134,13 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 	// transaction when there is one (the kiosk timeout endpoint), so the
 	// request path is unchanged.
 	var result *TimeoutResult
+	var endData activityEndSSEData
 	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		res, err := s.processSessionTimeoutTx(txCtx, sessionID)
+		res, end, err := s.processSessionTimeoutTx(txCtx, sessionID)
 		if err != nil {
 			return err
 		}
-		result = res
+		result, endData = res, end
 		return nil
 	}); err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
@@ -1103,26 +1149,24 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
-	// Broadcast SSE events (fire-and-forget, outside transaction)
-	if s.Broadcaster != nil && result != nil {
-		sessionIDStr := fmt.Sprintf("%d", sessionID)
-		s.broadcastStudentCheckoutEvents(ctx, sessionIDStr, visitsToNotify)
-		s.broadcastActivityEndEvent(ctx, sessionID, sessionIDStr)
-	}
+	// The SSE events go out after the commit; the payload was read inside the
+	// transaction, so the hook needs no database access (#2951).
+	s.queueActivitySessionEndBroadcasts(ctx, sessionID, sessionEndSSEData{Visits: visitsToNotify, End: endData})
 
 	return result, nil
 }
 
 // processSessionTimeoutTx holds every write of a session timeout. It runs
 // inside one transaction and announces nothing — the SSE events belong to the
-// caller, after the commit.
-func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
+// caller, after the commit. The returned activityEndSSEData is that event's
+// payload, resolved while the transaction still holds the tenant role.
+func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) (*TimeoutResult, activityEndSSEData, error) {
 	session, err := s.GroupRepo.FindByIDForUpdate(ctx, sessionID)
 	if err != nil || session == nil {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
 	}
 	if !session.IsActive() {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
 	}
 
 	// The timetable side closes FIRST, before anything is announced (#1747
@@ -1132,19 +1176,24 @@ func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) 
 	// keeps the failure-prone half in front of the SSE events the caller fires,
 	// so a bridge error never announces an end that the transaction rolls back.
 	if err := s.completeTimetableMirrorsForEndedSessions(ctx, []int64{sessionID}); err != nil {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
 	studentsCheckedOut, err := s.checkoutActiveVisits(ctx, sessionID)
 	if err != nil {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 	if err := s.endActiveSupervisors(ctx, sessionID); err != nil {
-		return nil, err
+		return nil, activityEndSSEData{}, err
 	}
 
 	if err := s.GroupRepo.EndSession(ctx, sessionID); err != nil {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+
+	endData, err := s.collectActivityEndSSE(ctx, session)
+	if err != nil {
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
 	return &TimeoutResult{
@@ -1152,7 +1201,7 @@ func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) 
 		ActivityID:         session.GroupID,
 		StudentsCheckedOut: studentsCheckedOut,
 		TimeoutAt:          time.Now(),
-	}, nil
+	}, endData, nil
 }
 
 // runInSessionTx runs fn inside a transaction, joining the caller's when one is

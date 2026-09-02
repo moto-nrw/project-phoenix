@@ -18,6 +18,7 @@ import {
   type ImportMode,
 } from "~/lib/import-mode";
 import { useToast } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
 import { createCrudService } from "~/lib/database/service-factory";
 import { rolesConfig } from "~/components/database/configs/roles.config";
 import { getRoleDisplayName, type Role } from "~/lib/auth-helpers";
@@ -124,8 +125,17 @@ export default function StaffImportPage() {
 
   const toast = useToast();
 
+  // Update and upsert mode write the same fields as the personnel screens,
+  // so the backend refuses them without both personnel permissions (#2906).
+  // Without them the page stays in create mode and says so.
+  const canChangeExisting =
+    hasPermission(session, "staff:manage") &&
+    hasPermission(session, "staff:stammdaten");
+
   // Load the tenant's role names so the user knows what to put in the
   // "Rolle" column (the import matches role names exactly, case-insensitive).
+  // The list endpoint accepts users:create, the permission this page opens
+  // on, so the hint is complete for every user who may import (#2906).
   const rolesService = useMemo(() => createCrudService(rolesConfig), []);
   const [availableRoles, setAvailableRoles] = useState<string[]>([]);
 
@@ -471,7 +481,7 @@ export default function StaffImportPage() {
       )}
 
       {/* Download Template */}
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
+      <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
           <Download className="h-5 w-5 text-gray-600" aria-hidden="true" />
           Schritt 1: Vorlage herunterladen
@@ -526,23 +536,35 @@ export default function StaffImportPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
+      <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
           <RefreshCw className="h-5 w-5 text-gray-600" aria-hidden="true" />
           Schritt 2: Was soll der Import tun?
         </h3>
-        <SegmentedControl
-          items={IMPORT_MODE_ITEMS}
-          value={mode}
-          onChange={handleModeChange}
-          fullWidth
-          ariaLabel="Import-Modus"
-        />
-        <p className="mt-3 text-sm text-gray-600">{IMPORT_MODE_HINTS[mode]}</p>
-        <p className="mt-1 text-sm text-gray-500">
-          Bekannt ist eine Zeile über Personalnummer, sonst E-Mail, sonst Vor-
-          und Nachname.
-        </p>
+        {canChangeExisting ? (
+          <>
+            <SegmentedControl
+              items={IMPORT_MODE_ITEMS}
+              value={mode}
+              onChange={handleModeChange}
+              fullWidth
+              ariaLabel="Import-Modus"
+            />
+            <p className="mt-3 text-sm text-gray-600">
+              {IMPORT_MODE_HINTS[mode]}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Bekannt ist eine Zeile über Personalnummer, sonst E-Mail, sonst
+              Vor- und Nachname.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-gray-600">
+            Mit Ihren Berechtigungen legt der Import nur neue Mitarbeiter an.
+            Zeilen, die es schon gibt, werden als Fehler gemeldet. Bestehende
+            Datensätze ändert die Leitung.
+          </p>
+        )}
       </div>
 
       {/* Upload Section */}
@@ -571,7 +593,7 @@ export default function StaffImportPage() {
             errors={stats.errors}
           />
 
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
+          <div className="moto-content-surface overflow-hidden rounded-xl border shadow-sm">
             <div className="border-b border-gray-100 p-4">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                 <ListChecks

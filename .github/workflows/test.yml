@@ -77,6 +77,9 @@ jobs:
       - name: Test affected-package selection
         run: scripts/backend-affected-packages_test.sh
 
+      - name: Test absolute-rule guard
+        run: .claude/hooks/guard-absolute-rules_test.sh
+
       - name: Restore migrated DB snapshot
         id: db-snapshot
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

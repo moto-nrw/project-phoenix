@@ -113,6 +113,7 @@ describe("AbwesenheitenTab custom allowances", () => {
       <AbwesenheitenTab
         staffId="4"
         canEdit
+        canEditQuota
         canManageSickReports
         staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
       />,
@@ -149,6 +150,7 @@ describe("AbwesenheitenTab custom allowances", () => {
       <AbwesenheitenTab
         staffId="4"
         canEdit
+        canEditQuota
         canManageSickReports
         staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
       />,
@@ -184,6 +186,7 @@ describe("AbwesenheitenTab custom allowances", () => {
       <AbwesenheitenTab
         staffId="4"
         canEdit
+        canEditQuota
         canManageSickReports
         staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
       />,
@@ -217,6 +220,7 @@ describe("AbwesenheitenTab custom allowances", () => {
       <AbwesenheitenTab
         staffId="4"
         canEdit
+        canEditQuota
         canManageSickReports
         staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
       />,
@@ -254,6 +258,7 @@ describe("AbwesenheitenTab custom allowances", () => {
       <AbwesenheitenTab
         staffId="4"
         canEdit
+        canEditQuota
         canManageSickReports
         staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
       />,

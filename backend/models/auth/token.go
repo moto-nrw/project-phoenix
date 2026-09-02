@@ -20,6 +20,7 @@ type Token struct {
 
 	// Token family tracking for detecting token theft
 	FamilyID          string     `bun:"family_id" json:"family_id,omitempty"`
+	FamilyExpiryCap   *time.Time `bun:"family_expiry_cap" json:"-"`
 	Generation        int        `bun:"generation,default:0" json:"generation"`
 	RotatedAt         *time.Time `bun:"rotated_at" json:"-"`
 	ReplacementToken  *string    `bun:"replacement_token" json:"-"`

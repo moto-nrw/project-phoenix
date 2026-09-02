@@ -370,8 +370,8 @@ function ActivitiesPageContent() {
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">{error}</p>
+          <div className="border-moto-red/20 bg-moto-red-soft mb-6 rounded-lg border p-4">
+            <p className="text-moto-red-strong text-sm">{error}</p>
           </div>
         )}
 
@@ -385,7 +385,7 @@ function ActivitiesPageContent() {
                   type="button"
                   key={activity.id}
                   onClick={handleClick}
-                  className="moto-content-surface moto-hover-elevated group relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                  className="moto-content-surface moto-hover-elevated group relative w-full cursor-pointer overflow-hidden rounded-2xl border text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",

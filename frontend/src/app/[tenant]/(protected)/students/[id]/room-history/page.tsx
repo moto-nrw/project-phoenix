@@ -349,7 +349,7 @@ function DayCard({
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
+        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/50" : ""}`}
       >
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600">
@@ -368,7 +368,7 @@ function DayCard({
               </span>
             )}
             {!day.attendance && statusLabel && (
-              <span className="ml-2 text-xs font-medium text-amber-700">
+              <span className="text-moto-amber-strong ml-2 text-xs font-medium">
                 {statusLabel}
               </span>
             )}
@@ -381,7 +381,7 @@ function DayCard({
             </span>
           )}
           {!day.attendance && (
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+            <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
               {statusLabel || "Keine Daten"}
             </span>
           )}
@@ -457,7 +457,7 @@ function DayCard({
                   key={`${day.date}-${entry.status}`}
                   className="flex items-center justify-between text-xs"
                 >
-                  <span className="font-medium text-amber-800">
+                  <span className="text-moto-amber-strong font-medium">
                     {entry.label}
                   </span>
                   <span className="text-gray-500">
@@ -591,7 +591,7 @@ function HistoryTable({
                         tabIndex={0}
                         aria-expanded={isExpanded}
                         aria-label={`${formatDate(day.date)}: Details ${isExpanded ? "schließen" : "öffnen"}`}
-                        className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
+                        className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/50" : ""}`}
                       >
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-2">
@@ -602,7 +602,7 @@ function HistoryTable({
                               {formatDate(day.date)}
                             </span>
                             {statusLabel && (
-                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                              <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
                                 {statusLabel}
                               </span>
                             )}
@@ -731,7 +731,7 @@ function HistoryTable({
                                 key={`${day.date}-${entry.status}`}
                                 className="bg-gray-50/70 text-xs"
                               >
-                                <td className="py-2 pr-6 pl-12 font-medium text-amber-800">
+                                <td className="text-moto-amber-strong py-2 pr-6 pl-12 font-medium">
                                   {entry.label}
                                 </td>
                                 <td className="px-6 py-2 text-gray-500 tabular-nums">
@@ -762,7 +762,7 @@ function HistoryTable({
                                 key={`${day.date}-${entry.status}`}
                                 className="bg-gray-50/70 text-xs"
                               >
-                                <td className="py-2 pr-6 pl-12 font-medium text-amber-800">
+                                <td className="text-moto-amber-strong py-2 pr-6 pl-12 font-medium">
                                   {entry.label}
                                 </td>
                                 <td className="px-6 py-2 text-gray-500 tabular-nums">
@@ -1036,7 +1036,7 @@ function StudentRoomHistoryPageContent() {
 
       {/* Feature disabled banner */}
       {errorCode === "feature_disabled" && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:mb-6">
+        <div className="border-moto-amber/20 bg-moto-amber-soft text-moto-amber-strong mb-4 rounded-xl border p-3 text-sm md:mb-6">
           {ERROR_MESSAGES.feature_disabled}
         </div>
       )}

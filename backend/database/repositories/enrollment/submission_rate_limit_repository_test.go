@@ -217,11 +217,9 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_NegativeWindowRejected(
 	require.Error(t, err)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestSubmissionRateLimitRepository_IncrementAttempts_RetryAtIsWindowStartPlusWindow(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	// The retry_at the repo returns must equal window_start + window —
 	// rate-limited callers use it as a Retry-After hint and we don't
 	// want to leak more (or less) than the actual reset time.
@@ -250,11 +248,9 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_RetryAtIsWindowStartPlu
 
 // --- CleanupExpired ---------------------------------------------------
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, repo, tenantID := setupRateLimitTest(t)
 	ancientKey := uniqueKeyValue("ancient")
 	freshKey := uniqueKeyValue("fresh")
@@ -307,11 +303,9 @@ func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *test
 	assert.Equal(t, 1, c, "fresh row MUST survive CleanupExpired")
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestSubmissionRateLimitRepository_CleanupExpired_ZeroAffectedIsNoError(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	// Running CleanupExpired on an empty (or all-fresh) table must
 	// return (0, nil) — scheduler-callable, must not error out when
 	// there's nothing to clean.

@@ -94,7 +94,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     sections: [
       {
         title: "Geräteinformationen",
-        titleColor: "text-yellow-800",
+        titleColor: "text-moto-amber-strong",
         items: [
           {
             label: "Geräte-ID",
@@ -113,7 +113,7 @@ export const devicesConfig = defineEntityConfig<Device>({
             value: (device) => (
               <span className="inline-flex items-center gap-1.5">
                 <span
-                  className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-green-500" : "bg-gray-400"}`}
+                  className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-moto-green" : "bg-gray-400"}`}
                 />
                 <span className="font-medium">
                   {device.is_online ? "Online" : "Offline"}
@@ -144,7 +144,7 @@ export const devicesConfig = defineEntityConfig<Device>({
       },
       {
         title: "Systemdaten",
-        titleColor: "text-yellow-700",
+        titleColor: "text-moto-amber-strong",
         columns: 2,
         items: [
           {
@@ -161,7 +161,7 @@ export const devicesConfig = defineEntityConfig<Device>({
       },
       {
         title: "API-Schlüssel",
-        titleColor: "text-yellow-700",
+        titleColor: "text-moto-amber-strong",
         items: [
           {
             label: "API-Schlüssel",
@@ -174,7 +174,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                       type="password"
                       value={device.api_key}
                       readOnly
-                      className="flex-1 rounded border border-yellow-200 bg-yellow-50 px-2 py-1 font-mono text-xs"
+                      className="border-moto-amber/20 bg-moto-amber-soft flex-1 rounded border px-2 py-1 font-mono text-xs"
                       id={`api-key-${device.id}`}
                       onClick={(e) => (e.target as HTMLInputElement).select()}
                     />
@@ -194,7 +194,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                           btn.textContent = "Anzeigen";
                         }
                       }}
-                      className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
+                      className="bg-moto-blue-strong hover:bg-moto-blue-strong/90 rounded px-2 py-1 text-xs text-white"
                     >
                       Anzeigen
                     </button>
@@ -210,15 +210,15 @@ export const devicesConfig = defineEntityConfig<Device>({
                           btn.textContent = originalText;
                         }, 2000);
                       }}
-                      className="rounded bg-yellow-600 px-2 py-1 text-xs text-white hover:bg-yellow-700"
+                      className="bg-moto-amber-strong hover:bg-moto-amber-strong/90 rounded px-2 py-1 text-xs text-white"
                     >
                       Kopieren
                     </button>
                   </div>
-                  <div className="rounded-md border border-blue-200 bg-blue-50 p-2">
+                  <div className="border-moto-blue/20 bg-moto-blue-soft rounded-md border p-2">
                     <div className="flex items-start space-x-2">
-                      <span className="text-sm text-blue-600">🔐</span>
-                      <span className="text-xs text-blue-800">
+                      <span className="text-moto-blue-strong text-sm">🔐</span>
+                      <span className="text-moto-blue-strong text-xs">
                         <strong>Sicherheit:</strong> API-Schlüssel ist
                         standardmäßig verborgen. Klicken Sie
                         &quot;Anzeigen&quot; um ihn sichtbar zu machen.

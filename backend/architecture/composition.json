@@ -441,17 +441,17 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 118,
+          "line": 122,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 220,
+          "line": 246,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 701,
+          "line": 731,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +461,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 338,
+          "line": 367,
           "declaration": "New"
         }
       ]
@@ -471,12 +471,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 118,
+          "line": 122,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 217,
+          "line": 243,
           "declaration": "type API"
         }
       ]
@@ -506,12 +506,12 @@
       "locations": [
         {
           "file": "services/auth/auth_service.go",
-          "line": 75,
+          "line": 77,
           "declaration": "type Service"
         },
         {
           "file": "services/auth/auth_service.go",
-          "line": 122,
+          "line": 125,
           "declaration": "NewService"
         },
         {
@@ -521,7 +521,7 @@
         },
         {
           "file": "services/auth/mfa_service.go",
-          "line": 287,
+          "line": 286,
           "declaration": "type MFAServiceConfig"
         },
         {
@@ -561,22 +561,27 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 344,
+          "line": 415,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 361,
+          "line": 436,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 14,
+          "line": 15,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 21,
+          "line": 23,
+          "declaration": "NewFactoryForTestsWithConfig"
+        },
+        {
+          "file": "services/factory_test_helpers.go",
+          "line": 34,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
@@ -16609,7 +16614,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        338
+        367
       ],
       "tables": []
     },
@@ -16619,7 +16624,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        95
+        96
       ],
       "tables": []
     },
@@ -16629,7 +16634,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        162
+        163
       ],
       "tables": []
     },
@@ -16653,7 +16658,7 @@
       "declaration": "var serveCmd",
       "target": "api.WithRuntime",
       "lines": [
-        59
+        62
       ],
       "tables": []
     },
@@ -16743,7 +16748,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        280
+        271
       ],
       "tables": []
     },
@@ -16753,7 +16758,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        281
+        272
       ],
       "tables": []
     },
@@ -16763,7 +16768,7 @@
       "declaration": "setupOperatorInvitationRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        308
+        299
       ],
       "tables": []
     },
@@ -16773,7 +16778,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        298
+        289
       ],
       "tables": []
     },
@@ -16783,7 +16788,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        299
+        290
       ],
       "tables": []
     },
@@ -16886,7 +16891,7 @@
       "declaration": "setupTakeoverLockTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        97
+        95
       ],
       "tables": [
         "auth.accounts",
@@ -16924,7 +16929,7 @@
       "declaration": "setupGuardiansRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        47
+        50
       ],
       "tables": []
     },
@@ -16983,7 +16988,7 @@
       "declaration": "TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2729
+        2722
       ],
       "tables": []
     },
@@ -16993,7 +16998,7 @@
       "declaration": "TestDevicePickupQuery_StaffLookupFailureReturnsServerError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2960
+        2953
       ],
       "tables": []
     },
@@ -17003,7 +17008,7 @@
       "declaration": "setupCheckinRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        112
+        116
       ],
       "tables": []
     },
@@ -17063,7 +17068,7 @@
       "declaration": "TestOperatorResetSchoolSettingValue_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        267
+        259
       ],
       "tables": []
     },
@@ -17073,7 +17078,7 @@
       "declaration": "setupOperatorSettingsRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        63
+        55
       ],
       "tables": []
     },
@@ -17083,7 +17088,7 @@
       "declaration": "setupOperatorSettingsWithSchoolRepoRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        58
+        53
       ],
       "tables": []
     },
@@ -17230,26 +17235,6 @@
     },
     {
       "scope": "test",
-      "file": "api/sse/sse_events_internal_test.go",
-      "declaration": "setupEventsModule",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        53
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/sse/sse_test.go",
-      "declaration": "setupSSERoute",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        32
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/staff/absence_admin_test.go",
       "declaration": "TestAdminCreateStaffAbsence_CompTimeAllowedForManager",
       "target": "database/repositories.NewFactory",
@@ -17331,10 +17316,20 @@
     {
       "scope": "test",
       "file": "api/staff/staff_test.go",
+      "declaration": "TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        1683
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/staff/staff_test.go",
       "declaration": "TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1450
+        1479
       ],
       "tables": []
     },
@@ -17344,13 +17339,23 @@
       "declaration": "TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1381,
-        1420
+        1410,
+        1449
       ],
       "tables": [
         "config.work_time_models",
         "users.staff"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "api/staff/staff_test.go",
+      "declaration": "TestUpdateStaff_ChangePersonIDRequiresUsersManage",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        1332
+      ],
+      "tables": []
     },
     {
       "scope": "test",
@@ -17553,7 +17558,7 @@
       "declaration": "newStatusDayTestResource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        688
+        689
       ],
       "tables": []
     },
@@ -17852,6 +17857,16 @@
     },
     {
       "scope": "test",
+      "file": "api/timetable/timetable_data_test_helpers_test.go",
+      "declaration": "testTimetableDataWithOfferingCallbacks",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        52
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "api/usercontext/usercontext_test.go",
       "declaration": "setupUserContextRoute",
       "target": "api/testutil.SetupAPITest",
@@ -17878,7 +17893,7 @@
       "declaration": "setupTestCleanupContext",
       "target": "database/repositories.NewFactory",
       "lines": [
-        28
+        34
       ],
       "tables": []
     },
@@ -17888,7 +17903,7 @@
       "declaration": "setupTestCleanupContextWithServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        47
+        55
       ],
       "tables": []
     },
@@ -18851,7 +18866,7 @@
       "declaration": "TestVisitRepository_CountActiveByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1167
+        1178
       ],
       "tables": []
     },
@@ -18861,7 +18876,7 @@
       "declaration": "TestVisitRepository_CountActiveByRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1097
+        1108
       ],
       "tables": []
     },
@@ -18871,7 +18886,7 @@
       "declaration": "TestVisitRepository_CountExpiredVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        958
+        969
       ],
       "tables": [
         "active.visits",
@@ -18904,7 +18919,7 @@
       "declaration": "TestVisitRepository_DeleteExpiredVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        681
+        692
       ],
       "tables": [
         "active.visits"
@@ -18916,7 +18931,7 @@
       "declaration": "TestVisitRepository_EndVisit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        649
+        660
       ],
       "tables": []
     },
@@ -18926,8 +18941,8 @@
       "declaration": "TestVisitRepository_EndVisitsByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1229,
-        1230
+        1240,
+        1241
       ],
       "tables": []
     },
@@ -18937,7 +18952,7 @@
       "declaration": "TestVisitRepository_ExpiredVisitMonthlyCounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1567
+        1578
       ],
       "tables": []
     },
@@ -18960,19 +18975,6 @@
         236
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/visits_repository_test.go",
-      "declaration": "TestVisitRepository_FindActiveWithStudentDisplayByGroup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        596
-      ],
-      "tables": [
-        "education.groups",
-        "users.students"
-      ]
     },
     {
       "scope": "test",
@@ -19030,7 +19032,7 @@
       "declaration": "TestVisitRepository_GetCurrentByStudentIDWithRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1007
+        1018
       ],
       "tables": [
         "active.groups"
@@ -19064,7 +19066,7 @@
       "declaration": "TestVisitRepository_GetVisitRetentionStats",
       "target": "database/repositories.NewFactory",
       "lines": [
-        908
+        919
       ],
       "tables": [
         "active.visits",
@@ -19087,9 +19089,9 @@
       "declaration": "TestVisitRepository_ListActiveStudentIDsByRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1360,
-        1413,
-        1469
+        1371,
+        1424,
+        1480
       ],
       "tables": []
     },
@@ -19099,7 +19101,7 @@
       "declaration": "TestVisitRepository_OldestExpiredVisitDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1525
+        1536
       ],
       "tables": []
     },
@@ -19109,8 +19111,8 @@
       "declaration": "TestVisitRepository_TransferActiveVisitsBetweenGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        847,
-        848
+        858,
+        859
       ],
       "tables": []
     },
@@ -19120,8 +19122,8 @@
       "declaration": "TestVisitRepository_TransferVisitsFromRecentSessions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        740,
-        741
+        751,
+        752
       ],
       "tables": [
         "active.groups"
@@ -19153,7 +19155,7 @@
       "declaration": "TestVisitsRepository_GetCurrentByStudentIDs_Deduplication",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1329
+        1340
       ],
       "tables": []
     },
@@ -19164,6 +19166,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         40
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/visits_repository_test.go",
+      "declaration": "newGroupProjectionFactory",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        597
       ],
       "tables": []
     },
@@ -20672,6 +20684,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         157
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_tenant_repository_test.go",
+      "declaration": "newSchoolProjectedAccountTenantRepository",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        21
       ],
       "tables": []
     },
@@ -22298,6 +22320,26 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/group_projection_adapters_test.go",
+      "declaration": "TestStudentRosterGroupNamesAreEmptyWithoutGroup",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        57
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/group_projection_adapters_test.go",
+      "declaration": "TestSupervisionBlockersResolveGroupNamesThroughTheOwner",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        35
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/iot/device_repository_test.go",
       "declaration": "TestDeviceRepository_ArchivedDevicesAreHistoricalOnly",
       "target": "database/repositories.NewFactory",
@@ -22507,6 +22549,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         269
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/parent/child_repository_test.go",
+      "declaration": "newSchoolProjectionFactory",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        26
       ],
       "tables": []
     },
@@ -24251,7 +24303,7 @@
       "declaration": "TestStudentRepository_CompanionNoteSchemaCompatibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        433
+        432
       ],
       "tables": [
         "users.students"
@@ -24273,7 +24325,7 @@
       "declaration": "TestStudentRepository_StaleDeparturePlanIsRebased",
       "target": "database/repositories.NewFactory",
       "lines": [
-        513
+        512
       ],
       "tables": []
     },
@@ -24715,16 +24767,6 @@
     {
       "scope": "test",
       "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_FindAllWithGroups",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        636
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_repository_test.go",
       "declaration": "TestStudentRepository_FindByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -24758,7 +24800,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        973
+        984
       ],
       "tables": []
     },
@@ -24768,7 +24810,7 @@
       "declaration": "TestStudentRepository_FindByNameAndClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        820
+        831
       ],
       "tables": []
     },
@@ -24797,22 +24839,10 @@
     {
       "scope": "test",
       "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_FindByTeacherIDWithGroups",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        600
-      ],
-      "tables": [
-        "education.group_teacher"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_repository_test.go",
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        705
+        716
       ],
       "tables": [
         "users.students"
@@ -24824,7 +24854,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        762
+        773
       ],
       "tables": [
         "users.students"
@@ -24856,7 +24886,7 @@
       "declaration": "TestStudentRepository_LockPhotoFeature",
       "target": "database/repositories.NewFactory",
       "lines": [
-        924
+        935
       ],
       "tables": []
     },
@@ -24866,7 +24896,7 @@
       "declaration": "TestStudentRepository_PurgeAllPhotos",
       "target": "database/repositories.NewFactory",
       "lines": [
-        869
+        880
       ],
       "tables": []
     },
@@ -24889,6 +24919,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         248
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/student_repository_test.go",
+      "declaration": "newGroupProjectionFactory",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        601
       ],
       "tables": []
     },
@@ -25149,17 +25189,17 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        181
+        190
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "services/active/broadcast_test.go",
-      "declaration": "setupServiceWithBroadcaster",
+      "declaration": "newServiceWithBroadcaster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        34
+        42
       ],
       "tables": []
     },
@@ -25623,7 +25663,7 @@
       "declaration": "setupAuthService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        46
+        50
       ],
       "tables": []
     },
@@ -25633,7 +25673,7 @@
       "declaration": "setupInvitationService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        54
+        59
       ],
       "tables": []
     },
@@ -25653,7 +25693,7 @@
       "declaration": "TestVerifyCodeForAccount_RefusesForeignPortalChallenge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        122
+        125
       ],
       "tables": [
         "auth.mfa_email_challenges"
@@ -25665,7 +25705,7 @@
       "declaration": "newLoginGateScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        69
       ],
       "tables": [
         "auth.account_tenants",
@@ -25673,6 +25713,16 @@
         "auth.mfa_credentials",
         "auth.mfa_email_challenges"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "services/auth/factory_operator_mfa_config_test.go",
+      "declaration": "TestFactoryOperatorMFARefusesChallengeWithoutSMTP",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        31
+      ],
+      "tables": []
     },
     {
       "scope": "test",
@@ -25738,7 +25788,7 @@
       "declaration": "TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        241
+        249
       ],
       "tables": []
     },
@@ -25748,7 +25798,7 @@
       "declaration": "newExtraMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        29
       ],
       "tables": []
     },
@@ -25769,6 +25819,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         38
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/auth/mfa_synchronous_delivery_test.go",
+      "declaration": "newSynchronousDeliveryMFAService",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        46
       ],
       "tables": []
     },
@@ -25850,7 +25910,7 @@
       "declaration": "TestLogoutRevokesTokensWhenAuditFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        76
+        77
       ],
       "tables": [
         "auth.tokens"
@@ -25862,7 +25922,7 @@
       "declaration": "TestRevocationAuditFailureRollsBackAndRetryIsIdempotent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        104
+        107
       ],
       "tables": [
         "audit.auth_events",
@@ -26260,7 +26320,7 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        278
+        272
       ],
       "tables": []
     },
@@ -26270,7 +26330,7 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDelete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        296
+        288
       ],
       "tables": []
     },
@@ -26280,8 +26340,8 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap",
       "target": "database/repositories.NewFactory",
       "lines": [
-        252,
-        256
+        248,
+        252
       ],
       "tables": []
     },
@@ -26344,7 +26404,7 @@
       "declaration": "TestCareOfferingMaterializability_CancellationDoesNotRequireRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        400
+        396
       ],
       "tables": []
     },
@@ -26385,7 +26445,7 @@
       "declaration": "TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        436
+        432
       ],
       "tables": []
     },
@@ -26779,7 +26839,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3802
+        3804
       ],
       "tables": []
     },
@@ -26789,7 +26849,7 @@
       "declaration": "newDecisionServiceForTestWithCareWithdrawal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        113
+        115
       ],
       "tables": []
     },
@@ -26799,7 +26859,7 @@
       "declaration": "newDeletionTestFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        36
       ],
       "tables": []
     },
@@ -26857,7 +26917,7 @@
       "declaration": "TestDecide_FansOutToMultiSourceTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1155
+        1164
       ],
       "tables": []
     },
@@ -26867,7 +26927,7 @@
       "declaration": "TestDecide_MultiSourceFanOutSeedsFromPhaseStart",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1283
+        1292
       ],
       "tables": []
     },
@@ -26877,7 +26937,7 @@
       "declaration": "TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1361
+        1370
       ],
       "tables": []
     },
@@ -26887,7 +26947,7 @@
       "declaration": "TestOfferingDelete_DegradesSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        884
+        893
       ],
       "tables": [
         "enrollment.care_offerings"
@@ -26899,8 +26959,8 @@
       "declaration": "TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1197,
-        1249
+        1206,
+        1258
       ],
       "tables": [
         "activities.student_enrollments",
@@ -26913,8 +26973,8 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSources",
       "target": "database/repositories.NewFactory",
       "lines": [
-        932,
-        950
+        941,
+        959
       ],
       "tables": []
     },
@@ -26924,9 +26984,9 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1012,
-        1033,
-        1039
+        1021,
+        1042,
+        1048
       ],
       "tables": []
     },
@@ -26936,7 +26996,7 @@
       "declaration": "TestPhaseDelete_RetiresSourcedRosterRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1405
+        1414
       ],
       "tables": []
     },
@@ -26946,7 +27006,7 @@
       "declaration": "TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage",
       "target": "database/repositories.NewFactory",
       "lines": [
-        458
+        467
       ],
       "tables": [
         "activities.student_enrollments"
@@ -26958,7 +27018,7 @@
       "declaration": "TestResync_UnionAcrossOfferings_PlansSharedChildOnce",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1068
+        1077
       ],
       "tables": [
         "activities.student_enrollments"
@@ -26970,7 +27030,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2307
+        2319
       ],
       "tables": []
     },
@@ -26980,7 +27040,7 @@
       "declaration": "TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1315
+        1324
       ],
       "tables": []
     },
@@ -26990,7 +27050,7 @@
       "declaration": "createBoundedTemplateSchedule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1456
+        1466
       ],
       "tables": []
     },
@@ -27010,7 +27070,7 @@
       "declaration": "createSourcedTemplateSegment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1476
+        1486
       ],
       "tables": []
     },
@@ -27044,11 +27104,12 @@
       "declaration": "TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        66
       ],
       "tables": [
         "enrollment.request_children",
-        "enrollment.requests"
+        "enrollment.requests",
+        "platform.email_outbox"
       ]
     },
     {
@@ -27057,7 +27118,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        208
+        186
       ],
       "tables": [
         "enrollment.late_invites",
@@ -27633,14 +27694,14 @@
       "declaration": "TestWCService_EnsureInfrastructure_PropagatesRoomErrors",
       "target": "database/repositories.NewFactory",
       "lines": [
+        117,
+        118,
+        119,
+        120,
         121,
         122,
         123,
-        124,
-        125,
-        126,
-        127,
-        128
+        124
       ],
       "tables": []
     },
@@ -27670,7 +27731,7 @@
       "declaration": "TestNewFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        36
       ],
       "tables": []
     },
@@ -27680,7 +27741,7 @@
       "declaration": "TestNewFactory_DefaultEmailFrom_WhenNotConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        265
+        247
       ],
       "tables": []
     },
@@ -27690,7 +27751,7 @@
       "declaration": "TestNewFactory_EmailFrom_WhenConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        284
+        262
       ],
       "tables": []
     },
@@ -27700,7 +27761,7 @@
       "declaration": "TestNewFactory_FrontendURL_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        208
       ],
       "tables": []
     },
@@ -27710,7 +27771,7 @@
       "declaration": "TestNewFactory_FrontendURL_TrailingSlashRemoved",
       "target": "database/repositories.NewFactory",
       "lines": [
-        206
+        192
       ],
       "tables": []
     },
@@ -27720,7 +27781,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        116
+        114
       ],
       "tables": []
     },
@@ -27730,7 +27791,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        134
+        130
       ],
       "tables": []
     },
@@ -27740,7 +27801,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        98
+        100
       ],
       "tables": []
     },
@@ -27750,7 +27811,7 @@
       "declaration": "TestNewFactory_NegativeInvitationExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        304
+        280
       ],
       "tables": []
     },
@@ -27760,7 +27821,7 @@
       "declaration": "TestNewFactory_NegativePasswordResetExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        322
+        296
       ],
       "tables": []
     },
@@ -27770,7 +27831,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        170
+        160
       ],
       "tables": []
     },
@@ -27780,7 +27841,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        188
+        176
       ],
       "tables": []
     },
@@ -27790,7 +27851,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        152
+        146
       ],
       "tables": []
     },
@@ -27800,7 +27861,7 @@
       "declaration": "TestNewFactory_PortalURLs_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        240
+        222
       ],
       "tables": []
     },
@@ -27810,7 +27871,7 @@
       "declaration": "TestNewFactory_RejectsPartialVAPIDConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        81
+        84
       ],
       "tables": []
     },
@@ -27928,20 +27989,6 @@
         164
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/notifications/preferences_guardian_test.go",
-      "declaration": "TestGuardianPreferencesAcrossSchools",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        31
-      ],
-      "tables": [
-        "auth.account_roles",
-        "auth.roles",
-        "users.notification_preferences"
-      ]
     },
     {
       "scope": "test",
@@ -28708,7 +28755,7 @@
       "declaration": "TestListSickDays_ExcludesStaffCreatedExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        832
+        833
       ],
       "tables": []
     },
@@ -28718,7 +28765,7 @@
       "declaration": "TestSubmitSickNote_ClearsClassTripForSubmittedDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        560
+        561
       ],
       "tables": []
     },
@@ -28728,7 +28775,7 @@
       "declaration": "TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        392
+        393
       ],
       "tables": []
     },
@@ -28738,7 +28785,7 @@
       "declaration": "TestSubmitSickNote_NonContiguousExcludesUnrelatedRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        703
+        704
       ],
       "tables": []
     },
@@ -28748,7 +28795,7 @@
       "declaration": "TestSubmitSickNote_RefusesPartialAbsenceConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        354
+        355
       ],
       "tables": []
     },
@@ -28758,7 +28805,7 @@
       "declaration": "buildMessagingWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        111
+        112
       ],
       "tables": []
     },
@@ -28768,7 +28815,7 @@
       "declaration": "buildWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        84
+        85
       ],
       "tables": []
     },
@@ -28817,30 +28864,10 @@
     {
       "scope": "test",
       "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestEmitChildEvent_DecisionPushFailuresAreNotFatal",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        202
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestEmitChildEvent_DecisionPushRechecksChildAccess",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        126
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
       "declaration": "TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape",
       "target": "database/repositories.NewFactory",
       "lines": [
-        149
+        159
       ],
       "tables": []
     },
@@ -28850,11 +28877,31 @@
       "declaration": "TestEmitChildEvent_PushesDecisionToSubmittingGuardian",
       "target": "database/repositories.NewFactory",
       "lines": [
-        71
+        86
       ],
       "tables": [
         "users.guardian_profiles"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "services/parentmessaging/decision_notification_integration_test.go",
+      "declaration": "TestRequestDecisionEnqueueAndPillBothCheckChildAccess",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        135
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/parentmessaging/decision_notification_integration_test.go",
+      "declaration": "TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        213
+      ],
+      "tables": []
     },
     {
       "scope": "test",
@@ -28940,7 +28987,17 @@
       "declaration": "newTestOperatorMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        27
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/platform/operator_mfa_synchronous_delivery_test.go",
+      "declaration": "TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        40
       ],
       "tables": []
     },
@@ -30914,7 +30971,7 @@
       "declaration": "TestStudentChangeLogCleanup_DeletesOldEdits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        94
+        92
       ],
       "tables": []
     },
@@ -30924,7 +30981,7 @@
       "declaration": "TestStudentChangeLogCleanup_NoOpWhenNothingExpired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        126
+        122
       ],
       "tables": []
     },
@@ -31189,7 +31246,7 @@
       "declaration": "setupParentCalendarRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        30
+        29
       ],
       "tables": []
     },
@@ -31199,7 +31256,7 @@
       "declaration": "setupPersonalCalendarRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        27
+        26
       ],
       "tables": []
     },
@@ -31209,7 +31266,7 @@
       "declaration": "setupTimetableScenarioModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        62
+        63
       ],
       "tables": []
     },

@@ -80,6 +80,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@testing-library/jest-dom/vitest": path.resolve(
+        import.meta.dirname,
+        "./src/test/setup-jest-dom.ts",
+      ),
       "~": path.resolve(import.meta.dirname, "./src"),
       "@": path.resolve(import.meta.dirname, "./src"),
     },

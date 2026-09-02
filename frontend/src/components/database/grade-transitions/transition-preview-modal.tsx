@@ -192,19 +192,19 @@ export function TransitionPreviewModal({
         {preview && (
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
+              <div className="moto-content-surface rounded-xl border p-3 text-center shadow-sm">
                 <p className="text-2xl font-semibold text-gray-900">
                   {preview.totalStudents}
                 </p>
                 <p className="text-xs text-gray-500">Kinder gesamt</p>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
+              <div className="moto-content-surface rounded-xl border p-3 text-center shadow-sm">
                 <p className="text-moto-green text-2xl font-semibold">
                   {preview.toPromote}
                 </p>
                 <p className="text-xs text-gray-500">werden versetzt</p>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
+              <div className="moto-content-surface rounded-xl border p-3 text-center shadow-sm">
                 <p className="text-moto-red text-2xl font-semibold">
                   {preview.toGraduate}
                 </p>

@@ -192,7 +192,7 @@ export default function OperatorSchoolsPage() {
               onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 schoolDelete.showTrash
-                  ? "bg-red-100 text-red-700 hover:bg-red-200"
+                  ? "bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/20"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >

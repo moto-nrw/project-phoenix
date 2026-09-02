@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"os"
@@ -43,7 +44,10 @@ type cleanupContext struct {
 	TimetableCleanupService    schedule.TimetableCleanupService
 	TimeTrackingCleanupService active.TimeTrackingCleanupService
 	TenantRuntime              tenant.UnitOfWork
+	Output                     io.Writer
+	Logger                     *log.Logger
 	Audit                      services.AuditCommand
+	Schools                    services.SchoolCapability
 }
 
 type authCleanupService interface {
@@ -162,10 +166,18 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	schools, err := services.NewOrganizationTenancy(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &cleanupContext{
 		DB:            db,
 		TenantRuntime: tenantRuntime,
+		Output:        os.Stdout,
+		Logger:        log.Default(),
 		Audit:         auditCommand,
+		Schools:       schools,
 	}, nil
 }
 
@@ -226,7 +238,7 @@ func newCleanupContextWithSessionCleanup() (*cleanupContext, error) {
 }
 
 func buildSessionCleanupService(ctx *cleanupContext) sessionCleanupService {
-	return services.NewSessionCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "session-cleanup-cli"))
+	return services.NewSessionCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "session-cleanup-cli"))
 }
 
 // newCleanupContextWithCleanupService initializes database and cleanup service.
@@ -274,7 +286,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 }
 
 func buildTimetableCleanupService(ctx *cleanupContext) schedule.TimetableCleanupService {
-	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
+	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
 }
 
 // newCleanupContextWithTimeTrackingCleanup initializes database + time-tracking
@@ -298,24 +310,37 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 }
 
 func buildTimeTrackingCleanupService(ctx *cleanupContext) active.TimeTrackingCleanupService {
-	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
+	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
 }
 
 // Close releases database resources.
 func (c *cleanupContext) Close() {
 	if c.DB != nil {
 		if err := c.DB.Close(); err != nil {
-			log.Printf(errCloseDB, err)
+			c.logger().Printf(errCloseDB, err)
 		}
 	}
 }
 
+func (c *cleanupContext) output() io.Writer {
+	if c.Output != nil {
+		return c.Output
+	}
+	return io.Discard
+}
+
+func (c *cleanupContext) logger() *log.Logger {
+	if c.Logger != nil {
+		return c.Logger
+	}
+	return log.New(io.Discard, "", 0)
+}
+
 // setupLogger creates a logger that writes to the specified file or stdout.
 // Returns: logger, cleanup function (call when done), error.
-func setupLogger(logFilePath string) (*log.Logger, func(), error) {
+func setupLogger(logFilePath string, output io.Writer) (*log.Logger, func(), error) {
 	if logFilePath == "" {
-		// No cleanup needed for stdout logger - return no-op function
-		return log.New(os.Stdout, "", log.LstdFlags), func() { /* no cleanup needed for stdout */ }, nil
+		return log.New(output, "", log.LstdFlags), func() {}, nil
 	}
 
 	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -333,17 +358,17 @@ func setupLogger(logFilePath string) (*log.Logger, func(), error) {
 }
 
 // printStudentBreakdown prints a table of student IDs and their counts.
-func printStudentBreakdown(header string, countHeader string, data map[int64]int) {
+func printStudentBreakdown(output io.Writer, header string, countHeader string, data map[int64]int) {
 	if len(data) == 0 {
 		return
 	}
 
-	fmt.Printf("\n%s:\n", header)
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintf(w, "Student ID\t%s\n", countHeader)
+	mustFprintf(output, "\n%s:\n", header)
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
+	_ = mustFprintf(w, "Student ID\t%s\n", countHeader)
 
 	for studentID, count := range data {
-		_, _ = fmt.Fprintf(w, "%d\t%d\n", studentID, count)
+		_ = mustFprintf(w, "%d\t%d\n", studentID, count)
 	}
 
 	if err := w.Flush(); err != nil {
@@ -352,17 +377,17 @@ func printStudentBreakdown(header string, countHeader string, data map[int64]int
 }
 
 // printDateBreakdown prints a table of dates and their counts.
-func printDateBreakdown(data map[string]int) {
+func printDateBreakdown(output io.Writer, data map[string]int) {
 	if len(data) == 0 {
 		return
 	}
 
-	fmt.Println("\nPer-date breakdown:")
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "Date\tRecords")
+	mustFprintln(output, "\nPer-date breakdown:")
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', 0)
+	_ = mustFprintln(w, "Date\tRecords")
 
 	for date, count := range data {
-		_, _ = fmt.Fprintf(w, "%s\t%d\n", date, count)
+		_ = mustFprintf(w, "%s\t%d\n", date, count)
 	}
 
 	if err := w.Flush(); err != nil {
@@ -371,24 +396,24 @@ func printDateBreakdown(data map[string]int) {
 }
 
 // printStudentBreakdownWithTotal prints a table with student data and a total row.
-func printStudentBreakdownWithTotal(countHeader string, data map[int64]int) {
+func printStudentBreakdownWithTotal(output io.Writer, countHeader string, data map[int64]int) {
 	if len(data) == 0 {
 		return
 	}
 
-	fmt.Println("\nPer-student breakdown:")
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
-	_, _ = fmt.Fprintf(w, "Student ID\t%s\t\n", countHeader)
-	_, _ = fmt.Fprintln(w, "----------\t----------------\t")
+	mustFprintln(output, "\nPer-student breakdown:")
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', tabwriter.AlignRight)
+	_ = mustFprintf(w, "Student ID\t%s\t\n", countHeader)
+	_ = mustFprintln(w, "----------\t----------------\t")
 
 	total := 0
 	for studentID, count := range data {
-		_, _ = fmt.Fprintf(w, "%d\t%d\t\n", studentID, count)
+		_ = mustFprintf(w, "%d\t%d\t\n", studentID, count)
 		total += count
 	}
 
-	_, _ = fmt.Fprintln(w, "----------\t----------------\t")
-	_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
+	_ = mustFprintln(w, "----------\t----------------\t")
+	_ = mustFprintf(w, "TOTAL\t%d\t\n", total)
 
 	if err := w.Flush(); err != nil {
 		log.Printf(errFlushWriter, err)
@@ -396,24 +421,24 @@ func printStudentBreakdownWithTotal(countHeader string, data map[int64]int) {
 }
 
 // printMonthlyBreakdownWithTotal prints a table with monthly data and totals.
-func printMonthlyBreakdownWithTotal(header string, data map[string]int64) {
+func printMonthlyBreakdownWithTotal(output io.Writer, header string, data map[string]int64) {
 	if len(data) == 0 {
 		return
 	}
 
-	fmt.Printf("\n%s:\n", header)
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
-	_, _ = fmt.Fprintln(w, "Month\tExpired Visits\t")
-	_, _ = fmt.Fprintln(w, "-------\t--------------\t")
+	mustFprintf(output, "\n%s:\n", header)
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', tabwriter.AlignRight)
+	_ = mustFprintln(w, "Month\tExpired Visits\t")
+	_ = mustFprintln(w, "-------\t--------------\t")
 
 	var total int64
 	for month, count := range data {
-		_, _ = fmt.Fprintf(w, "%s\t%d\t\n", month, count)
+		_ = mustFprintf(w, "%s\t%d\t\n", month, count)
 		total += count
 	}
 
-	_, _ = fmt.Fprintln(w, "-------\t--------------\t")
-	_, _ = fmt.Fprintf(w, "TOTAL\t%d\t\n", total)
+	_ = mustFprintln(w, "-------\t--------------\t")
+	_ = mustFprintf(w, "TOTAL\t%d\t\n", total)
 
 	if err := w.Flush(); err != nil {
 		log.Printf(errFlushWriter, err)
@@ -421,17 +446,17 @@ func printMonthlyBreakdownWithTotal(header string, data map[string]int64) {
 }
 
 // printRecentDeletions prints a table of recent deletion activity.
-func printRecentDeletions(deletions []recentDeletionRow) {
+func printRecentDeletions(output io.Writer, deletions []recentDeletionRow) {
 	if len(deletions) == 0 {
 		return
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
-	_, _ = fmt.Fprintln(w, "Date\tRecords Deleted\tStudents\t")
-	_, _ = fmt.Fprintln(w, "----------\t---------------\t--------\t")
+	w := tabwriter.NewWriter(output, 0, 0, 2, ' ', tabwriter.AlignRight)
+	_ = mustFprintln(w, "Date\tRecords Deleted\tStudents\t")
+	_ = mustFprintln(w, "----------\t---------------\t--------\t")
 
 	for _, d := range deletions {
-		_, _ = fmt.Fprintf(w, "%s\t%d\t%d\t\n", d.Date, d.RecordsDeleted, d.StudentCount)
+		_ = mustFprintf(w, "%s\t%d\t%d\t\n", d.Date, d.RecordsDeleted, d.StudentCount)
 	}
 
 	if err := w.Flush(); err != nil {

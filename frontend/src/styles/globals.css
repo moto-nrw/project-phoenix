@@ -36,6 +36,7 @@
   --color-moto-blue-hover: #3b68c0;
   --color-moto-blue-strong: #315c9b;
   --color-moto-blue-soft: #edf3fc;
+  --color-moto-time-tracking-soft: #e0f2fe;
   --color-moto-orange: #f78c10;
   --color-moto-orange-hover: #e07400;
   --color-moto-orange-strong: #9b5609;
@@ -508,6 +509,17 @@
 .moto-content-surface:has([aria-expanded="true"]) {
   position: relative;
   z-index: 60;
+}
+
+/* Floating menus, dropdown lists and anchored popovers: the same white
+   gray-200 frame as a card, lifted with shadow-lg and without the card's
+   backdrop blur. Pair with `rounded-xl border` (OverflowMenu, CustomSelect,
+   DatePicker). moto-content-surface is the wrong choice here: its unlayered
+   shadow-sm would beat any shadow-lg utility on the same element. */
+.moto-popover-surface {
+  border-color: var(--color-gray-200);
+  background: var(--color-white);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Print rules reset unlayered page styles that Tailwind print utilities cannot

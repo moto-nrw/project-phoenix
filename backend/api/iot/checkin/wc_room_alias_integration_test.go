@@ -37,11 +37,9 @@ func createWCRoomAliasIntegrationRoom(t *testing.T, db *bun.DB, name string) *fa
 	return room
 }
 
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toilette-auto")
@@ -91,11 +89,9 @@ func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 	assert.Nil(t, activeGroup.DeviceID)
 }
 
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toilette-no-dup")

@@ -380,7 +380,7 @@ export function AccountTenantAccessModal({
                   description="Dieses Konto ist derzeit keiner Schule zugeordnet und kann sich nicht anmelden."
                 />
               ) : (
-                <ul className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
+                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border shadow-sm">
                   {activeEntries.map((entry) => (
                     <li
                       key={entry.tenantId}
@@ -556,7 +556,7 @@ export function AccountTenantAccessModal({
                   // FormModal rendert seinen Titel als h3.
                   level={4}
                 />
-                <ul className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
+                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border shadow-sm">
                   {formerEntries.map((entry) => (
                     <li
                       key={entry.tenantId}
@@ -592,7 +592,7 @@ export function AccountTenantAccessModal({
         title="Schulzugang entziehen"
         confirmText="Zugang entziehen"
         isConfirmLoading={saving}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
       >
         <p className="text-sm text-gray-600">
           {`${accountLabel} verliert den Zugang zu ${revokeTarget?.schoolName ?? ""} und alle dort vergebenen Rollen. Vorhandene Personaldaten bleiben für die Historie erhalten und werden von der Schule über "Personal löschen" entfernt.`}

@@ -38,6 +38,15 @@ const (
 	emailPayloadBody        = "body"
 	emailPayloadAckRequired = "ack_required"
 
+	// emailPayloadHasAttachment says that the announcement carries files
+	// (#2890). It carries a flag, never the file: an attachment stays in the
+	// portal, where the audience check decides who may open it. A mail
+	// attachment would reach every address the school entered — including, for
+	// an Elternbrief to "alle Bezugspersonen", people with no portal access at
+	// all — and would thereby undo exactly the control "nur mit Portalzugang"
+	// exists to provide.
+	emailPayloadHasAttachment = "has_attachment"
+
 	defaultEmailKicker = "Elternmitteilung"
 	letterEmailKicker  = "Elternbrief"
 )
@@ -97,6 +106,9 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 		}
 		if ackRequired {
 			content["AckRequired"] = true
+		}
+		if hasAttachment, _ := row.Payload[emailPayloadHasAttachment].(bool); hasAttachment {
+			content["HasAttachment"] = true
 		}
 
 		return &email.Message{

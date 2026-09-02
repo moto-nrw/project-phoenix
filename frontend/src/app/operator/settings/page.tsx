@@ -237,7 +237,7 @@ function OperatorSettingsContent() {
         </div>
 
         {/* Profile Form */}
-        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
+        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm md:p-6">
           <div className="space-y-4">
             <div>
               <label
@@ -329,7 +329,7 @@ function OperatorSettingsContent() {
         </div>
 
         {/* Security Section */}
-        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
+        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm md:p-6">
           <h3 className="mb-3 text-base font-semibold text-gray-900">
             Passwort ändern
           </h3>
@@ -381,7 +381,7 @@ function OperatorSettingsContent() {
             {emailChangeError && (
               <div
                 role="alert"
-                className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                className="bg-moto-red-soft text-moto-red-strong mb-4 rounded-lg p-3 text-sm"
               >
                 {emailChangeError}
               </div>

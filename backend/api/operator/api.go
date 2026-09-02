@@ -38,6 +38,7 @@ type Resource struct {
 
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
+	AppEnv                     string
 	AuthService                platformSvc.OperatorAuthService
 	PasskeyService             platformSvc.OperatorPasskeyService
 	MFAService                 platformSvc.OperatorMFAService
@@ -120,6 +121,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		tokenAuth:             tokenAuth,
 		operatorLookup:        cfg.AuthService,
 	}
+	resource.provisioningResource.appEnv = cfg.AppEnv
 	if cfg.SettingsService != nil {
 		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService, cfg.CareLifecycle)
 	}

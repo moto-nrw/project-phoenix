@@ -10,8 +10,8 @@ import (
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -34,6 +34,12 @@ type fakeAnnouncementRepo struct {
 }
 
 func (f *fakeAnnouncementRepo) FindByID(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+	return f.announcement, nil
+}
+
+// FindByIDForUpdate has no row lock to take against a fake; it answers from the
+// same stored row as FindByID, so a test arranges one state for both (#2890).
+func (f *fakeAnnouncementRepo) FindByIDForUpdate(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
 	return f.announcement, nil
 }
 
@@ -152,7 +158,7 @@ func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType
 }
 
 func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
-	return NewService(ServiceConfig{
+	svc := NewService(ServiceConfig{
 		Repo:       repo,
 		Settings:   &fakeSettings{enabled: true},
 		Notifier:   &fakeNotifier{},
@@ -160,6 +166,11 @@ func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
 	})
+	// The file side of the attachments (#2890): Delete records the cleanup
+	// intents for the attachment bytes through it and refuses to run without
+	// one, so every service under test gets a stub.
+	svc.SetAttachmentPurger(&stubPurger{})
+	return svc
 }
 
 func draftAnnouncement(sendEmail bool) *usersModels.ParentAnnouncement {

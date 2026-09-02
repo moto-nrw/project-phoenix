@@ -464,9 +464,11 @@ export function StudentCreateModal({
           {errors.submit && (
             <div
               ref={errorRef}
-              className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3"
+              className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-2 md:p-3"
             >
-              <p className="text-xs text-red-800 md:text-sm">{errors.submit}</p>
+              <p className="text-moto-red-strong text-xs md:text-sm">
+                {errors.submit}
+              </p>
             </div>
           )}
 
@@ -669,7 +671,7 @@ export function StudentCreateModal({
                             onClick={() => removeGuardian(index)}
                             disabled={saveLoading}
                             aria-label="Erziehungsberechtigte/n entfernen"
-                            className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="text-moto-red hover:bg-moto-red-soft flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -749,7 +751,7 @@ export function StudentCreateModal({
                       }}
                       disabled={saveLoading}
                       aria-label="Betreuungszeiten entfernen"
-                      className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="text-moto-red hover:bg-moto-red-soft flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

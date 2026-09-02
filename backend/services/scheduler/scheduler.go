@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,11 +19,11 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	pwaSvc "github.com/moto-nrw/project-phoenix/services/pwa"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	staffMessagingSvc "github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -57,6 +56,20 @@ type WorkerTracer struct {
 	Logger   func(context.Context) *slog.Logger
 	Failure  func(context.Context, string, string, error)
 	Run      func(JobID, string, time.Duration)
+	Batch    func(TenantBatchEvidence)
+	Backlog  func(JobID, int)
+}
+
+// TenantBatchEvidence is the bounded, low-cardinality runtime record emitted
+// after each tenant batch.
+type TenantBatchEvidence struct {
+	JobID     JobID
+	Duration  time.Duration
+	Processed int
+	Failed    int
+	Retries   int
+	Backlog   int
+	PoolWait  time.Duration
 }
 
 var errWorkerTraceStart = errors.New("start worker trace")
@@ -159,6 +172,7 @@ type Scheduler struct {
 	tenantRuntimeObserver      func(entryPoint, outcome string)
 	unitOfWorkObserver         func(entryPoint, kind, result string, duration time.Duration, retries int)
 	workerTracer               WorkerTracer
+	tenantBatchCursors         sync.Map // job ID → last successful tenant ID
 	minuteSnapshotMu           sync.Mutex
 	minuteSnapshotLoad         *schedulerMinuteSnapshotLoad
 	minuteSnapshotNow          func() time.Time
@@ -170,6 +184,7 @@ type Scheduler struct {
 	tasks                      map[string]*ScheduledTask
 	mu                         sync.RWMutex
 	logger                     *slog.Logger
+	getenv                     func(string) string
 	lifecycleCtx               context.Context
 	stopLifecycle              context.CancelFunc
 	// done signals goroutines to stop when closed (replaces stored context)
@@ -273,6 +288,7 @@ func newScheduler(deps WorkerDependencies) *Scheduler {
 		tasks:                        make(map[string]*ScheduledTask),
 		done:                         make(chan struct{}),
 		logger:                       deps.Logger,
+		getenv:                       deps.Getenv,
 		lifecycleCtx:                 lifecycleCtx,
 		stopLifecycle:                stopLifecycle,
 		appointmentReminderScannedAt: make(map[int64]time.Time),
@@ -349,6 +365,13 @@ func (s *Scheduler) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
 }
 
+func (s *Scheduler) env(key string) string {
+	if s.getenv == nil {
+		return ""
+	}
+	return s.getenv(key)
+}
+
 func (s *Scheduler) startWorkerJob(ctx context.Context, operation string) (context.Context, error) {
 	if s.workerTracer.StartJob == nil {
 		return ctx, nil
@@ -379,11 +402,17 @@ func (s *Scheduler) observeWorkerRun(jobID JobID, outcome string, duration time.
 
 func (s *Scheduler) withUnitOfWork(ctx context.Context) context.Context {
 	ctx = tenant.WithUnitOfWork(ctx, s.tenantRuntime)
-	if s.unitOfWorkObserver == nil {
+	batchEvidence, _ := ctx.Value(batchRuntimeEvidenceKey{}).(*batchRuntimeEvidence)
+	if s.unitOfWorkObserver == nil && batchEvidence == nil {
 		return ctx
 	}
 	return tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
-		s.unitOfWorkObserver("worker", string(event.Kind), string(event.Result), event.Duration, event.Retries)
+		if batchEvidence != nil {
+			batchEvidence.observe(event)
+		}
+		if s.unitOfWorkObserver != nil {
+			s.unitOfWorkObserver("worker", string(event.Kind), string(event.Result), event.Duration, event.Retries)
+		}
 	})
 }
 
@@ -407,19 +436,22 @@ type TimetableBridgeCompleter interface {
 // concurrent polling goroutines do not repeat the platform.schools query.
 func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
 	if !s.tenantRuntimeConfigured || (s.minuteSnapshotLoader == nil && (s.db == nil || s.schoolRepo == nil)) {
+		err := fmt.Errorf("tenant runtime is not configured for %s: %w", opName, tenant.ErrRuntimeRequired)
+		recordJobCommandFailure(ctx, err)
 		s.observeTenantRuntime("missing_tenant")
-		return fmt.Errorf("tenant runtime is not configured for %s", opName)
+		return err
 	}
 
 	minuteSnapshot, err := s.getMinuteSnapshot(ctx)
 	if err != nil && (minuteSnapshot == nil || len(minuteSnapshot.tenantIDs) == 0) {
+		recordJobCommandFailure(ctx, err)
 		s.observeTenantRuntime("transaction_failure")
 		return fmt.Errorf("load active tenants for %s: %w", opName, err)
 	}
-	s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, _ int64) error {
+	result := s.runTenantBatches(ctx, minuteSnapshot.tenantIDs, opName, adaptTenantCommand(func(txCtx context.Context, _ int64) error {
 		return fn(txCtx)
-	})
-	return nil
+	}))
+	return result.Err
 }
 
 // forEachTenantIncludingInactive runs a maintenance operation for every
@@ -427,8 +459,10 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 // after a school has been deactivated.
 func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
 	if !s.tenantRuntimeConfigured || (s.allTenantIDsLoader == nil && (s.db == nil || s.schoolRepo == nil)) {
+		err := fmt.Errorf("tenant runtime is not configured for %s: %w", opName, tenant.ErrRuntimeRequired)
+		recordJobCommandFailure(ctx, err)
 		s.observeTenantRuntime("missing_tenant")
-		return fmt.Errorf("tenant runtime is not configured for %s", opName)
+		return err
 	}
 
 	ctx = s.withUnitOfWork(ctx)
@@ -437,6 +471,7 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 		var err error
 		tenantIDs, err = s.allTenantIDsLoader(ctx)
 		if err != nil {
+			recordJobCommandFailure(ctx, err)
 			s.observeTenantRuntime("transaction_failure")
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
 		}
@@ -447,6 +482,7 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 			schools, listErr = s.schoolRepo.ListNonDeleted(txCtx)
 			return listErr
 		}); err != nil {
+			recordJobCommandFailure(ctx, err)
 			s.observeTenantRuntime("transaction_failure")
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
 		}
@@ -455,10 +491,10 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 			tenantIDs = append(tenantIDs, school.ID)
 		}
 	}
-	s.forEachKnownTenant(ctx, tenantIDs, opName, func(txCtx context.Context, _ int64) error {
+	result := s.runTenantBatches(ctx, tenantIDs, opName, adaptTenantCommand(func(txCtx context.Context, _ int64) error {
 		return fn(txCtx)
-	})
-	return nil
+	}))
+	return result.Err
 }
 
 // forEachTenantSettings executes fn for each active tenant, passing tenant ID for settings resolution.
@@ -466,6 +502,7 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 // Production jobs share one cross-tenant settings snapshot per minute.
 func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) []int64 {
 	if !s.tenantRuntimeConfigured || (s.minuteSnapshotLoader == nil && (s.db == nil || s.schoolRepo == nil)) {
+		recordJobCommandFailure(ctx, fmt.Errorf("%w for %s", tenant.ErrRuntimeRequired, opName))
 		s.observeTenantRuntime("missing_tenant")
 		s.getLogger().Error("tenant runtime is not configured",
 			slog.String("entry_point", "worker"),
@@ -481,6 +518,7 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 		if errors.Is(err, errSchedulerSettingsBatchUnsupported) && minuteSnapshot != nil {
 			return s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, fn)
 		}
+		recordJobCommandFailure(ctx, err)
 		s.observeTenantRuntime("transaction_failure")
 		s.getLogger().Error("scheduler settings snapshot unavailable",
 			slog.String("operation", opName),
@@ -644,6 +682,9 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			slog.String("error", err.Error()),
 		)
 	}
+	failures := &jobCommandFailures{}
+	ctx = context.WithValue(ctx, jobCommandFailuresKey{}, failures)
+	ctx = context.WithValue(ctx, workerJobIDKey{}, JobID(task.Name))
 	started := time.Now()
 	defer func() {
 		duration := time.Since(started)
@@ -656,6 +697,16 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 				slog.Duration("duration", duration),
 			)
 			panic(recovered)
+		}
+		if commandErr := failures.result(); commandErr != nil {
+			s.observeWorkerRun(JobID(task.Name), "failed", duration)
+			s.traceWorkerFailure(ctx, task.Name, "command_failure", commandErr)
+			s.workerLogger(ctx).ErrorContext(ctx, "worker job command failed",
+				slog.String("job_id", task.Name),
+				slog.Duration("duration", duration),
+				slog.String("error", commandErr.Error()),
+			)
+			return
 		}
 		s.observeWorkerRun(JobID(task.Name), "completed", duration)
 		s.workerLogger(ctx).DebugContext(ctx, "worker job run completed",
@@ -670,12 +721,12 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 // Each minute, it checks each tenant's configured cleanup time and fires if matched.
 func (s *Scheduler) scheduleCleanupTask() {
 	// Env var can globally disable cleanup regardless of settings service
-	if os.Getenv("CLEANUP_SCHEDULER_ENABLED") == "false" {
+	if s.env("CLEANUP_SCHEDULER_ENABLED") == "false" {
 		s.getLogger().Info("cleanup scheduler is disabled via env var")
 		return
 	}
 	// Legacy guard: without settings service, require explicit opt-in via env var
-	if s.settings == nil && os.Getenv("CLEANUP_SCHEDULER_ENABLED") != "true" {
+	if s.settings == nil && s.env("CLEANUP_SCHEDULER_ENABLED") != "true" {
 		s.getLogger().Info("cleanup scheduler is disabled")
 		return
 	}
@@ -694,11 +745,10 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 // retention jobs (visits, timetable, time-tracking). All three share
 // KeyDataCleanupEnabled + KeyDataCleanupTime — one admin switch and one
 // nightly window for all retention. dayCache dedupes per tenant per day; the
-// today-mark is set immediately to prevent double-fire from concurrent ticks
-// and cleared again when runForTenant returns an error so the tenant retries
-// on the next matching minute. Returning that error through forEachTenantSettings
-// also rolls back the tenant transaction, keeping cleanup audit rows and their
-// corresponding deletes atomic.
+// today-mark is set only after the tenant transaction commits, so a rollback
+// leaves the cleanup eligible for the next matching minute. Returning an error
+// through forEachTenantSettings also rolls back cleanup audit rows and their
+// corresponding deletes atomically.
 func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *ScheduledTask, dayCache *sync.Map, opName string, runForTenant func(ctx context.Context, tenantID int64, cleanupTime string) error) {
 	task.mu.Lock()
 	if task.Running {
@@ -731,14 +781,10 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 			return nil
 		}
 
-		// Mark immediately to prevent double-fire from concurrent ticks
-		markRunToday(dayCache, tenantID)
-
 		if err := runForTenant(tenantCtx, tenantID, cleanupTime); err != nil {
-			// Clear mark so cleanup retries on next matching minute
-			dayCache.Delete(tenantID)
 			return err
 		}
+		markRunTodayAfterCommit(tenantCtx, dayCache, tenantID)
 		return nil
 	})
 }
@@ -979,7 +1025,9 @@ func (s *Scheduler) executeTokenCleanup(ctx context.Context, task *ScheduledTask
 		task.mu.Unlock()
 	}()
 
-	_ = s.runCleanupJobs(ctx)
+	if err := s.runCleanupJobs(ctx); err != nil {
+		recordJobCommandFailure(ctx, err)
+	}
 }
 
 // RunCleanupJobs executes all token-related cleanup tasks in sequence.
@@ -1111,12 +1159,12 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 // scheduleSessionEndTask schedules the daily session end task using minute-polling.
 func (s *Scheduler) scheduleSessionEndTask() {
 	// Env var can globally disable session end regardless of settings service
-	if os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
+	if s.env("SESSION_END_SCHEDULER_ENABLED") == "false" {
 		s.getLogger().Info("session end scheduler is disabled via env var")
 		return
 	}
 	// Legacy guard: without settings service, require non-false env var
-	if s.settings == nil && os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
+	if s.settings == nil && s.env("SESSION_END_SCHEDULER_ENABLED") == "false" {
 		s.getLogger().Info("session end scheduler is disabled")
 		return
 	}
@@ -1177,7 +1225,7 @@ func (s *Scheduler) checkAndRunSessionEnd(ctx context.Context, task *ScheduledTa
 			return nil // failure already logged; retry on the next matching minute
 		}
 
-		markRunToday(&s.lastSessionEnd, tenantID)
+		markRunTodayAfterCommit(tenantCtx, &s.lastSessionEnd, tenantID)
 		return nil
 	})
 }
@@ -1223,20 +1271,20 @@ func (s *Scheduler) executeSessionEndForTenant(ctx context.Context, tenantID int
 // Uses a fixed 5-minute polling interval, resolves per-tenant settings on each tick.
 func (s *Scheduler) scheduleSessionCleanupTask() {
 	// Quick check: if globally disabled via env and no settings service, skip
-	if s.settings == nil && os.Getenv("SESSION_CLEANUP_ENABLED") == "false" {
+	if s.settings == nil && s.env("SESSION_CLEANUP_ENABLED") == "false" {
 		s.getLogger().Info("session cleanup is disabled")
 		return
 	}
 
 	// Parse global defaults (used as fallback and for backward-compatible struct fields)
 	s.sessionCleanupIntervalMinutes = 15
-	if envInterval := os.Getenv("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
+	if envInterval := s.env("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
 		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
 			s.sessionCleanupIntervalMinutes = parsed
 		}
 	}
 	s.sessionAbandonedThresholdMinutes = 60
-	if envThreshold := os.Getenv("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
+	if envThreshold := s.env("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
 		if parsed, err := strconv.Atoi(envThreshold); err == nil && parsed > 0 {
 			s.sessionAbandonedThresholdMinutes = parsed
 		}
@@ -1303,7 +1351,7 @@ func (s *Scheduler) checkAndRunSessionCleanup(ctx context.Context, task *Schedul
 			)
 		}
 
-		s.lastSessionCleanup.Store(tenantID, time.Now())
+		markRunAtAfterCommit(tenantCtx, &s.lastSessionCleanup, tenantID, time.Now())
 		return nil
 	})
 }
@@ -1318,7 +1366,7 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 
 	// Resolve interval from env var (global, not per-tenant)
 	s.breakAutoEndIntervalSeconds = 60
-	if val := os.Getenv("BREAK_AUTO_END_INTERVAL_SECONDS"); val != "" {
+	if val := s.env("BREAK_AUTO_END_INTERVAL_SECONDS"); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
 			s.breakAutoEndIntervalSeconds = parsed
 		}
@@ -1442,7 +1490,7 @@ func (s *Scheduler) checkAndRunAutoCheckout(ctx context.Context, task *Scheduled
 // resolveStringSetting resolves a setting via the settings service with env var fallback.
 func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar string, defaultVal string) string {
 	fallback := defaultVal
-	if val := os.Getenv(envVar); val != "" {
+	if val := s.env(envVar); val != "" {
 		fallback = val
 	}
 	return config.ResolveStringOrDefault(ctx, s.settings, key, fallback, s.getLogger())
@@ -1451,7 +1499,7 @@ func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar
 // resolveBoolSetting resolves a boolean setting via the settings service with env var fallback.
 func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar string, defaultVal bool) bool {
 	fallback := defaultVal
-	if val := os.Getenv(envVar); val != "" {
+	if val := s.env(envVar); val != "" {
 		fallback = val == "true"
 	}
 	return config.ResolveBoolOrDefault(ctx, s.settings, key, fallback, s.getLogger())
@@ -1460,7 +1508,7 @@ func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar s
 // resolveIntSetting resolves an integer setting via the settings service with env var fallback.
 func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
 	fallback := defaultVal
-	if val := os.Getenv(envVar); val != "" {
+	if val := s.env(envVar); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
 			fallback = parsed
 		}
@@ -1480,7 +1528,7 @@ func (s *Scheduler) resolveRequiredPositiveIntSetting(ctx context.Context, key s
 		return 0, fmt.Errorf("check override for %s: %w", key, err)
 	}
 	if !hasOverride {
-		if val := os.Getenv(envVar); val != "" {
+		if val := s.env(envVar); val != "" {
 			parsed, err := strconv.Atoi(val)
 			if err != nil || parsed <= 0 {
 				return 0, fmt.Errorf("environment variable %s must be positive integer, got %q", envVar, val)
@@ -1503,7 +1551,7 @@ func (s *Scheduler) resolveRequiredPositiveIntSetting(ctx context.Context, key s
 // checkout exactly at the planned shift end).
 func (s *Scheduler) resolveNonNegativeIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
 	fallback := defaultVal
-	if val := os.Getenv(envVar); val != "" {
+	if val := s.env(envVar); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed >= 0 {
 			fallback = parsed
 		}
@@ -1564,13 +1612,18 @@ func wasRunAt(lastRunMap *sync.Map, tenantID int64, now time.Time) bool {
 	return lastRun.Year() == now.Year() && lastRun.YearDay() == now.YearDay()
 }
 
-// markRunToday records that a per-tenant job ran today.
-func markRunToday(lastRunMap *sync.Map, tenantID int64) {
-	markRunAt(lastRunMap, tenantID, time.Now())
+func markRunTodayAfterCommit(ctx context.Context, lastRunMap *sync.Map, tenantID int64) {
+	markRunAtAfterCommit(ctx, lastRunMap, tenantID, time.Now())
 }
 
 func markRunAt(lastRunMap *sync.Map, tenantID int64, now time.Time) {
 	lastRunMap.Store(tenantID, now)
+}
+
+func markRunAtAfterCommit(ctx context.Context, lastRunMap *sync.Map, tenantID int64, now time.Time) {
+	tenant.RegisterAfterCommit(ctx, func() {
+		markRunAt(lastRunMap, tenantID, now)
+	})
 }
 
 // scheduleStatusFlagClearTask schedules a daily task to clear sick / excused
@@ -1579,7 +1632,7 @@ func markRunAt(lastRunMap *sync.Map, tenantID int64, now time.Time) {
 // tenant's configured operations.status_flag_clear_time.
 func (s *Scheduler) scheduleStatusFlagClearTask() {
 	// Env var kill switch to allow ops to disable this task without code changes.
-	if os.Getenv("STATUS_FLAG_CLEAR_ENABLED") == "false" {
+	if s.env("STATUS_FLAG_CLEAR_ENABLED") == "false" {
 		s.getLogger().Info("status flag clear scheduler is disabled via env var")
 		return
 	}
@@ -1623,10 +1676,9 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 		if wasRunToday(&s.lastStatusFlagClear, tenantID) {
 			return nil
 		}
-		markRunToday(&s.lastStatusFlagClear, tenantID)
-
 		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeNextCheckin)
 		excusedMode := s.resolveStringSetting(tenantCtx, configModel.KeyExcusedClearMode, "", configModel.ClearModeEndOfDay)
+		succeeded := true
 
 		if sickMode == configModel.ClearModeEndOfDay {
 			if affected, err := s.clearStatusFlag(tenantCtx, "sick", "sick_since"); err != nil {
@@ -1634,7 +1686,7 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 					slog.Int64("tenant_id", tenantID),
 					slog.String("error", err.Error()),
 				)
-				s.lastStatusFlagClear.Delete(tenantID)
+				succeeded = false
 			} else if affected > 0 {
 				s.getLogger().Info("end-of-day sick clear completed",
 					slog.Int64("tenant_id", tenantID),
@@ -1649,13 +1701,16 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 					slog.Int64("tenant_id", tenantID),
 					slog.String("error", err.Error()),
 				)
-				s.lastStatusFlagClear.Delete(tenantID)
+				succeeded = false
 			} else if affected > 0 {
 				s.getLogger().Info("end-of-day excused clear completed",
 					slog.Int64("tenant_id", tenantID),
 					slog.Int64("students_cleared", affected),
 				)
 			}
+		}
+		if succeeded {
+			markRunTodayAfterCommit(tenantCtx, &s.lastStatusFlagClear, tenantID)
 		}
 
 		return nil
@@ -1761,7 +1816,7 @@ func (s *Scheduler) checkAndRunMaterializationWithContext(ctx context.Context, t
 		if wasRunAt(&s.lastMaterialization, tenantID, now) {
 			return nil
 		}
-		markRunAt(&s.lastMaterialization, tenantID, now)
+		markRunAtAfterCommit(tenantCtx, &s.lastMaterialization, tenantID, now)
 
 		weeksAhead := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableMaterializationWeeksAhead, "", 1)
 		from, to := s.materializer.ResolveWindow(timezone.DateFromTime(now), weeksAhead)
@@ -1776,9 +1831,8 @@ func (s *Scheduler) checkAndRunMaterializationWithContext(ctx context.Context, t
 
 		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, scheduleSvc.MaterializationSourceScheduler)
 		if err != nil {
-			// Clear today-mark so a retry on the next scheduler day succeeds.
-			// We do NOT clear immediately because that would cause every
-			// subsequent minute on the same day to retry a known-failing run.
+			// Keep the today-mark so every subsequent minute does not retry a
+			// known-failing run. It naturally expires on the next scheduler day.
 			s.getLogger().Error("timetable materialization failed for tenant",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),

@@ -1477,7 +1477,7 @@ describe("DatabaseForm", () => {
 
       // The failing field's label should have red text
       const failingLabel = screen.getByText(/Second Field\*/);
-      expect(failingLabel.className).toContain("text-red-600");
+      expect(failingLabel.className).toContain("text-moto-red");
 
       // The non-failing field's label should remain gray
       const passingLabel = screen.getByText("First Field");
@@ -1499,7 +1499,7 @@ describe("DatabaseForm", () => {
       });
 
       const label = screen.getByText(/Test Field\*/);
-      expect(label.className).toContain("text-red-600");
+      expect(label.className).toContain("text-moto-red");
 
       // Fill in and re-submit
       const input = screen.getByLabelText(/Test Field/);

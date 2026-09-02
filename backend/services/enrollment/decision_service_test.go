@@ -58,6 +58,8 @@ type stubActivationSettings struct {
 	bookingsAuthoritative *bool
 }
 
+const decisionTestToday timezone.Date = "2026-08-24"
+
 func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if key == configModel.KeyEnrollmentDefaultActivationMode {
 		return s.mode, nil
@@ -169,7 +171,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 			slog.Default(),
 		),
 		Logger: slog.Default(),
-		Today:  func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
+		Today:  func() timezone.Date { return decisionTestToday },
 	})
 }
 

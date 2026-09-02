@@ -504,7 +504,7 @@ export function TagesplanView() {
         ) : null}
 
         {!isLoading && !listError && sorted.length > 0 ? (
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+          <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
             <ul>
               {sorted.map((instance, index) => (
                 <Fragment key={instance.id}>

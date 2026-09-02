@@ -7,6 +7,7 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
 const UnregisteredTagScanRetentionDays = 90
@@ -18,11 +19,18 @@ type UnregisteredTagScanService interface {
 	DeleteOlderThan(ctx context.Context, days int) (int, error)
 }
 
+type OrganizationNameQuery interface {
+	ListOrganizationsByID(context.Context, []int64) ([]organizationtenancy.Organization, error)
+	ListSchoolsByID(context.Context, []int64) ([]organizationtenancy.School, error)
+	ListSchoolsByOrganization(context.Context, int64) ([]organizationtenancy.School, error)
+}
+
 type unregisteredTagScanService struct {
-	repo        auditModels.UnregisteredTagScanRepository
-	command     auditModels.Command
-	tenantID    func(context.Context) int64
-	withinAdmin func(context.Context, func(context.Context) error) error
+	repo          auditModels.UnregisteredTagScanRepository
+	command       auditModels.Command
+	tenantID      func(context.Context) int64
+	withinAdmin   func(context.Context, func(context.Context) error) error
+	organizations OrganizationNameQuery
 }
 
 type UnregisteredTagScanRuntime struct {
@@ -30,11 +38,11 @@ type UnregisteredTagScanRuntime struct {
 	WithinAdmin func(context.Context, func(context.Context) error) error
 }
 
-func NewUnregisteredTagScanService(repo auditModels.UnregisteredTagScanRepository, command auditModels.Command, runtime UnregisteredTagScanRuntime) (UnregisteredTagScanService, error) {
-	if repo == nil || command == nil || runtime.TenantID == nil || runtime.WithinAdmin == nil {
+func NewUnregisteredTagScanService(repo auditModels.UnregisteredTagScanRepository, command auditModels.Command, organizations OrganizationNameQuery, runtime UnregisteredTagScanRuntime) (UnregisteredTagScanService, error) {
+	if repo == nil || command == nil || organizations == nil || runtime.TenantID == nil || runtime.WithinAdmin == nil {
 		return nil, fmt.Errorf("unregistered tag scan service dependencies are required")
 	}
-	return &unregisteredTagScanService{repo: repo, command: command, tenantID: runtime.TenantID, withinAdmin: runtime.WithinAdmin}, nil
+	return &unregisteredTagScanService{repo: repo, command: command, organizations: organizations, tenantID: runtime.TenantID, withinAdmin: runtime.WithinAdmin}, nil
 }
 
 func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, deviceID *int64) error {
@@ -58,10 +66,27 @@ func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, 
 func (s *unregisteredTagScanService) ListForOperator(ctx context.Context, filter auditModels.UnregisteredTagScanFilter) ([]*auditModels.UnregisteredTagScan, error) {
 	var scans []*auditModels.UnregisteredTagScan
 	err := s.runAdmin(ctx, func(adminCtx context.Context) error {
+		if filter.OrganizationID != nil {
+			schools, schoolErr := s.organizations.ListSchoolsByOrganization(adminCtx, *filter.OrganizationID)
+			if schoolErr != nil {
+				return fmt.Errorf("load organization schools for unregistered tag scans: %w", schoolErr)
+			}
+			filter.SchoolIDs = schoolIDs(schools)
+			if len(filter.SchoolIDs) == 0 {
+				scans = []*auditModels.UnregisteredTagScan{}
+				return nil
+			}
+		}
 		var err error
 		scans, err = s.repo.ListForOperator(adminCtx, filter)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.enrichOrganizations(adminCtx, scans)
 	})
+	if err != nil {
+		return nil, err
+	}
 	return scans, err
 }
 
@@ -76,8 +101,14 @@ func (s *unregisteredTagScanService) Resolve(ctx context.Context, id, operatorID
 	err := s.runAdmin(ctx, func(adminCtx context.Context) error {
 		var err error
 		scan, err = s.repo.Resolve(adminCtx, id, operatorID, trimPtrToNil(note))
-		return err
+		if err != nil || scan == nil {
+			return err
+		}
+		return s.enrichOrganizations(adminCtx, []*auditModels.UnregisteredTagScan{scan})
 	})
+	if err != nil {
+		return nil, err
+	}
 	return scan, err
 }
 
@@ -90,6 +121,76 @@ func (s *unregisteredTagScanService) DeleteOlderThan(ctx context.Context, days i
 
 func (s *unregisteredTagScanService) runAdmin(ctx context.Context, fn func(context.Context) error) error {
 	return s.withinAdmin(ctx, fn)
+}
+
+func (s *unregisteredTagScanService) enrichOrganizations(ctx context.Context, scans []*auditModels.UnregisteredTagScan) error {
+	schoolIDList := make([]int64, 0, len(scans))
+	seenSchools := make(map[int64]struct{}, len(scans))
+	for _, scan := range scans {
+		if scan != nil {
+			if _, seen := seenSchools[scan.SchoolID]; !seen {
+				seenSchools[scan.SchoolID] = struct{}{}
+				schoolIDList = append(schoolIDList, scan.SchoolID)
+			}
+		}
+	}
+	schools, err := s.organizations.ListSchoolsByID(ctx, schoolIDList)
+	if err != nil {
+		return fmt.Errorf("load schools for unregistered tag scans: %w", err)
+	}
+	schoolsByID := make(map[int64]organizationtenancy.School, len(schools))
+	for _, school := range schools {
+		schoolsByID[school.ID] = school
+	}
+	for _, scan := range scans {
+		if scan == nil {
+			continue
+		}
+		school, found := schoolsByID[scan.SchoolID]
+		if !found {
+			return fmt.Errorf("school %d missing from unregistered tag scan query", scan.SchoolID)
+		}
+		scan.SchoolName = school.Name
+		scan.OrganizationID = school.OrganizationID
+	}
+
+	ids := make([]int64, 0, len(scans))
+	seen := make(map[int64]struct{}, len(scans))
+	for _, scan := range scans {
+		if scan == nil {
+			continue
+		}
+		if _, ok := seen[scan.OrganizationID]; !ok {
+			seen[scan.OrganizationID] = struct{}{}
+			ids = append(ids, scan.OrganizationID)
+		}
+	}
+	organizations, err := s.organizations.ListOrganizationsByID(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("load organizations for unregistered tag scans: %w", err)
+	}
+	names := make(map[int64]string, len(organizations))
+	for _, organization := range organizations {
+		names[organization.ID] = organization.Name
+	}
+	for _, scan := range scans {
+		if scan != nil {
+			name, found := names[scan.OrganizationID]
+			if !found {
+				return fmt.Errorf("organization %d missing from unregistered tag scan query", scan.OrganizationID)
+			}
+			scan.OrganizationName = name
+		}
+	}
+	return nil
+}
+
+func schoolIDs(schools []organizationtenancy.School) []int64 {
+	ids := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		ids = append(ids, school.ID)
+	}
+	return ids
 }
 
 func trimPtrToNil(value *string) *string {

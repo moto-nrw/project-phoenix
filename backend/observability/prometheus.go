@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -27,7 +28,7 @@ type SSEStats struct {
 }
 
 type SSEStatsProvider interface {
-	SnapshotStats() SSEStats
+	SnapshotSSEClientsByTenant() map[int64]int
 }
 
 // PWAUsageStat is one (tenant, portal) bucket of PWA standalone-usage
@@ -142,6 +143,50 @@ var (
 		},
 		[]string{"job_id", "outcome"},
 	)
+	workerJobMaxDuration = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_worker_job_max_duration_seconds",
+			Help: "Longest observed embedded Worker job run by stable job ID.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_tenant_batch_duration_seconds",
+			Help:    "Bounded tenant batch duration by stable job ID.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchTenants = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_worker_tenant_batch_tenants_total",
+			Help: "Tenants processed by bounded Worker batches, split by result.",
+		},
+		[]string{"job_id", "result"},
+	)
+	workerTenantBatchRetries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_worker_tenant_batch_retries_total",
+			Help: "Deadlock and serialization retries within bounded tenant batches.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchBacklog = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_worker_tenant_batch_backlog",
+			Help: "Tenants not yet attempted in the current Worker job run.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchPoolWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_tenant_batch_pool_wait_seconds",
+			Help:    "Database-pool wait attributed to a bounded tenant batch.",
+			Buckets: []float64{0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"job_id"},
+	)
 	settingsLookups = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_settings_lookups_total",
@@ -186,6 +231,46 @@ var (
 			Help:    "Cumulative Meal Plan write-statement duration by operation.",
 			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
 		},
+		[]string{"operation"},
+	)
+	organizationTenancyOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_operations_total", Help: "Organization and Tenancy operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	organizationTenancyDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_operation_duration_seconds", Help: "Organization and Tenancy operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	organizationTenancyQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_queries_total", Help: "Persistence queries issued by Organization and Tenancy operations."},
+		[]string{"operation"},
+	)
+	organizationTenancyRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_rows_changed_total", Help: "Rows changed by Organization and Tenancy commands."},
+		[]string{"operation"},
+	)
+	organizationTenancyStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_statement_duration_seconds", Help: "Cumulative Organization and Tenancy database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	schoolStructureOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_operations_total", Help: "School Structure operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	schoolStructureDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_structure_operation_duration_seconds", Help: "School Structure operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	schoolStructureQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_queries_total", Help: "Persistence queries issued by School Structure operations."},
+		[]string{"operation"},
+	)
+	schoolStructureRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_rows_total", Help: "Rows returned or changed by School Structure operations."},
+		[]string{"operation"},
+	)
+	schoolStructureStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_structure_statement_duration_seconds", Help: "Cumulative School Structure database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
 	feedbackOperations = prometheus.NewCounterVec(
@@ -237,6 +322,42 @@ var (
 			Help: "Rows appended to Audit ledgers by stable event type.",
 		},
 		[]string{"event_type"},
+	)
+	synchronousDeliveries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_synchronous_deliveries_total",
+			Help: "Fail-closed delivery calls by transport, template, caller, and outcome.",
+		},
+		[]string{"transport", "template", "caller", "outcome"},
+	)
+	synchronousDeliveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_synchronous_delivery_duration_seconds",
+			Help:    "Fail-closed delivery duration by transport, template, and caller.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 45, 60},
+		},
+		[]string{"transport", "template", "caller"},
+	)
+	durableDeliveryOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_delivery_operations_total",
+			Help: "Durable Delivery intents processed by transport, template, operation, and outcome.",
+		},
+		[]string{"transport", "template", "operation", "outcome"},
+	)
+	durableDeliveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_delivery_operation_duration_seconds",
+			Help:    "Durable Delivery operation duration, including provider and status-query latency.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 45, 60},
+		},
+		[]string{"transport", "template", "operation"},
+	)
+	durableDeliveryOldestPendingAge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "phoenix_delivery_oldest_pending_age_seconds",
+			Help: "Age in seconds of the oldest pending or claimed Delivery intent.",
+		},
 	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -329,6 +450,8 @@ var (
 	pwaStatsProvider PWAUsageStatsProvider
 	pwaGaugeMu       sync.Mutex
 	pwaGaugeLabels   = make(map[[2]string]struct{})
+	workerJobMaxMu   sync.Mutex
+	workerJobMax     = make(map[string]time.Duration)
 
 	dbOpenConnectionsDesc      = prometheus.NewDesc("phoenix_db_open_connections", "Open DB connections.", nil, nil)
 	dbInUseConnectionsDesc     = prometheus.NewDesc("phoenix_db_in_use_connections", "DB connections currently in use.", nil, nil)
@@ -354,6 +477,12 @@ func init() {
 		unitOfWorkPoolWait,
 		unitOfWorkLockWait,
 		workerJobDuration,
+		workerJobMaxDuration,
+		workerTenantBatchDuration,
+		workerTenantBatchTenants,
+		workerTenantBatchRetries,
+		workerTenantBatchBacklog,
+		workerTenantBatchPoolWait,
 		settingsLookups,
 		settingsLookupDuration,
 		settingsSideEffectFailures,
@@ -362,6 +491,16 @@ func init() {
 		mealPlanQueries,
 		mealPlanRowsChanged,
 		mealPlanStatementDuration,
+		organizationTenancyOperations,
+		organizationTenancyDuration,
+		organizationTenancyQueries,
+		organizationTenancyRowsChanged,
+		organizationTenancyStatementDuration,
+		schoolStructureOperations,
+		schoolStructureDuration,
+		schoolStructureQueries,
+		schoolStructureRows,
+		schoolStructureStatementDuration,
 		feedbackOperations,
 		feedbackHTTPResponses,
 		feedbackDuration,
@@ -371,6 +510,11 @@ func init() {
 		auditAppends,
 		auditAppendDuration,
 		auditRows,
+		synchronousDeliveries,
+		synchronousDeliveryDuration,
+		durableDeliveryOperations,
+		durableDeliveryDuration,
+		durableDeliveryOldestPendingAge,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -474,6 +618,48 @@ func ObserveFeedbackOperation(operation string, duration time.Duration, queries,
 	}
 }
 
+func ObserveOrganizationTenancyOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	organizationTenancyOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	organizationTenancyDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		organizationTenancyQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		organizationTenancyRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		organizationTenancyStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveSchoolStructureOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	schoolStructureOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolStructureDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		schoolStructureQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		schoolStructureRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		schoolStructureStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
 func ObserveFeedbackHTTPResponse(surface string, status int, code string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
 	feedbackHTTPResponses.WithLabelValues(sanitizeLabel(surface), statusClass, sanitizeLabel(code)).Inc()
@@ -490,6 +676,53 @@ func ObserveAuditAppend(eventType string, duration time.Duration, rows int, err 
 	if rows > 0 {
 		auditRows.WithLabelValues(eventType).Add(float64(rows))
 	}
+}
+
+// ObserveSynchronousDelivery records fail-closed sends without recipient or
+// payload labels. The outcome separates timeouts/cancellation from transport
+// failures so operators can alert on each class independently.
+func ObserveSynchronousDelivery(transport, template, caller string, duration time.Duration, err error) {
+	outcome := "success"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome = "timeout"
+	case errors.Is(err, context.Canceled):
+		outcome = "canceled"
+	case err != nil:
+		outcome = "failure"
+	}
+	transport = sanitizeLabel(transport)
+	template = sanitizeLabel(template)
+	caller = sanitizeLabel(caller)
+	synchronousDeliveries.WithLabelValues(transport, template, caller, outcome).Inc()
+	synchronousDeliveryDuration.WithLabelValues(transport, template, caller).Observe(duration.Seconds())
+}
+
+func ObserveDurableDelivery(transport, template, operation string, duration time.Duration, count int, err error) {
+	if operation == "oldest_pending_age" {
+		if err == nil {
+			durableDeliveryOldestPendingAge.Set(duration.Seconds())
+		}
+		return
+	}
+	outcome := "success"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome = "timeout"
+	case errors.Is(err, context.Canceled):
+		outcome = "canceled"
+	case err != nil:
+		outcome = "failure"
+	}
+	transport = sanitizeLabel(transport)
+	template = sanitizeLabel(template)
+	operation = sanitizeLabel(operation)
+	amount := count
+	if amount <= 0 {
+		amount = 1
+	}
+	durableDeliveryOperations.WithLabelValues(transport, template, operation, outcome).Add(float64(amount))
+	durableDeliveryDuration.WithLabelValues(transport, template, operation).Observe(duration.Seconds())
 }
 
 func ObserveTenantRequest(tenantID int64, scope, method, route string, status int, duration time.Duration, txOutcome string) {
@@ -534,7 +767,32 @@ func RecordUnitOfWorkEvent(entryPoint, kind, result string, duration time.Durati
 
 // RecordWorkerRunEvent records one bounded embedded-job outcome.
 func RecordWorkerRunEvent(jobID, outcome string, duration time.Duration) {
-	workerJobDuration.WithLabelValues(sanitizeLabel(jobID), sanitizeLabel(outcome)).Observe(duration.Seconds())
+	jobID = sanitizeLabel(jobID)
+	workerJobDuration.WithLabelValues(jobID, sanitizeLabel(outcome)).Observe(duration.Seconds())
+	workerJobMaxMu.Lock()
+	if duration > workerJobMax[jobID] {
+		workerJobMax[jobID] = duration
+		workerJobMaxDuration.WithLabelValues(jobID).Set(duration.Seconds())
+	}
+	workerJobMaxMu.Unlock()
+}
+
+// RecordWorkerTenantBatchEvent records one bounded group of isolated tenant
+// commands. Labels contain only the registered job ID and fixed outcomes.
+func RecordWorkerTenantBatchEvent(jobID string, duration time.Duration, processed, failed, retries, backlog int, poolWait time.Duration) {
+	jobID = sanitizeLabel(jobID)
+	workerTenantBatchDuration.WithLabelValues(jobID).Observe(duration.Seconds())
+	workerTenantBatchTenants.WithLabelValues(jobID, "success").Add(float64(processed - failed))
+	workerTenantBatchTenants.WithLabelValues(jobID, "failure").Add(float64(failed))
+	workerTenantBatchRetries.WithLabelValues(jobID).Add(float64(retries))
+	workerTenantBatchBacklog.WithLabelValues(jobID).Set(float64(backlog))
+	workerTenantBatchPoolWait.WithLabelValues(jobID).Observe(poolWait.Seconds())
+}
+
+// SetWorkerTenantBatchBacklog records backlog when a job completes no tenant
+// batch, so an earlier non-zero value does not remain visible indefinitely.
+func SetWorkerTenantBatchBacklog(jobID string, backlog int) {
+	workerTenantBatchBacklog.WithLabelValues(sanitizeLabel(jobID)).Set(float64(backlog))
 }
 
 func ObserveSettingsLookup(key, cache, outcome string, duration time.Duration) {
@@ -665,7 +923,7 @@ func refreshSSEGauges() {
 	if provider == nil {
 		return
 	}
-	stats := provider.SnapshotStats()
+	stats := SSEStats{ClientsByTenant: provider.SnapshotSSEClientsByTenant()}
 	currentTenants := make(map[string]struct{}, len(stats.ClientsByTenant))
 	sseGaugeMu.Lock()
 	defer sseGaugeMu.Unlock()

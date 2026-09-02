@@ -595,7 +595,7 @@ function DatePickerCalendar({
             "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected:
             "text-white [&>button]:bg-gray-900 [&>button:hover]:bg-gray-800",
-          today: "font-bold text-blue-600",
+          today: "font-bold text-moto-blue-strong",
           outside: "text-gray-300",
           disabled: "text-gray-300 cursor-not-allowed",
         }}
@@ -650,7 +650,7 @@ function MultipleDatePickerCalendar({
             "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected:
             "text-white [&>button]:bg-gray-900 [&>button:hover]:bg-gray-800",
-          today: "font-bold text-blue-600",
+          today: "font-bold text-moto-blue-strong",
           outside: "text-gray-300",
           disabled: "text-gray-300 cursor-not-allowed",
         }}
@@ -961,7 +961,7 @@ const NAV_MENU_Z_INDEX = 10002;
 // renders as unstyled text floating over the calendar. min-w keeps a 46px-wide
 // year trigger from producing an unclickably narrow list.
 const NAV_MENU_CLASS =
-  "scrollbar-thin min-w-24 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg";
+  "scrollbar-thin min-w-24 overflow-y-auto moto-popover-surface rounded-xl border py-1";
 const NAV_OPTION_CLASS =
   "flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50";
 const NAV_OPTION_ACTIVE_CLASS =
@@ -1140,7 +1140,7 @@ function getCalendarContainerClass(
   calendarLayout: CalendarLayout,
   compact: boolean,
 ): string {
-  const base = `rounded-xl border border-gray-200 bg-white shadow-lg ${
+  const base = `moto-popover-surface rounded-xl border ${
     compact ? "p-3" : "p-4"
   }`;
   // The floating layouts get their width from the portal wrapper. Inline

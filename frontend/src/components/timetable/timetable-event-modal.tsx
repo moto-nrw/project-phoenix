@@ -484,12 +484,12 @@ export function TimetableEventModal({
         // the slide-over, unmounting the dialog before its buttons can
         // fire. See issue #1358. `submitting` additionally blocks dismissal
         // mid-save (both the form submit and the scope flow set it).
-        onInteractOutside={(event) => {
+        onInteractOutside={(event: Event) => {
           if (isModalOpen || choiceDialogOpen || submitting) {
             event.preventDefault();
           }
         }}
-        onEscapeKeyDown={(event) => {
+        onEscapeKeyDown={(event: KeyboardEvent) => {
           if (isModalOpen || choiceDialogOpen || submitting) {
             event.preventDefault();
           }
@@ -840,7 +840,7 @@ export function TimetableEventModal({
             confirmText="Löschen"
             cancelText="Abbrechen"
             isConfirmLoading={deletingSeries}
-            confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+            confirmVariant="danger"
           >
             <div className="flex flex-col gap-4">
               <p className="text-sm leading-relaxed text-gray-600">
@@ -938,7 +938,7 @@ export function TimetableEventModal({
           confirmText="Trotzdem fortfahren"
           cancelText="Abbrechen"
           isConfirmLoading={submitting}
-          confirmButtonClass="bg-moto-orange hover:bg-[#d97908]"
+          confirmVariant="warning"
         >
           {lostEdits && (
             <div className="flex flex-col gap-3">
@@ -989,7 +989,7 @@ export function TimetableEventModal({
           title="Besetzung je Wochentag wird ersetzt"
           confirmText="Angebot als Quelle übernehmen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-[#F78C10] hover:bg-[#d97908]"
+          confirmVariant="warning"
         >
           <p className="text-sm leading-relaxed text-gray-600">
             Dieser Regeltermin hat je Wochentag unterschiedliches Personal. Mit

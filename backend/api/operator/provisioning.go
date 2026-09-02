@@ -15,11 +15,11 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -34,6 +34,7 @@ type ProvisioningResource struct {
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	TenantMFAService           authSvc.MFAService
 	db                         *bun.DB
+	appEnv                     string
 }
 
 // NewProvisioningResource creates a new provisioning resource.
@@ -219,7 +220,7 @@ func (rs *ProvisioningResource) CreateOrganization(w http.ResponseWriter, r *htt
 		return
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	org := &platformModels.Organization{Name: req.Name, Slug: req.Slug, Active: true}
+	org := &organizationtenancy.CreateOrganization{Name: req.Name, Slug: req.Slug, Active: true}
 	created, err := rs.service.CreateOrganization(r.Context(), org, operatorID, getClientIP(r))
 	if err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
@@ -432,7 +433,7 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 	if invitation.Role != nil {
 		resp.RoleName = invitation.Role.Name
 	}
-	if shouldExposeSeedInvitationToken(r) {
+	if shouldExposeSeedInvitationToken(r, rs.appEnv) {
 		resp.Token = &invitation.Token
 	}
 	if invitation.Creator != nil {
@@ -908,6 +909,6 @@ func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, nil, "Person deleted successfully")
 }
 
-func shouldExposeSeedInvitationToken(r *http.Request) bool {
-	return seedtoken.ShouldExposeInvitationToken(r.Header.Get(seedtoken.Header), r.Host, viper.GetString("app_env"))
+func shouldExposeSeedInvitationToken(r *http.Request, appEnv string) bool {
+	return seedtoken.ShouldExposeInvitationToken(r.Header.Get(seedtoken.Header), r.Host, appEnv)
 }

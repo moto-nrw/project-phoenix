@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
@@ -12,7 +13,19 @@ import (
 // NewFactoryForTests creates the partial graph used by legacy package tests.
 // Production composition must provide every migrated module explicitly.
 func NewFactoryForTests(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, clocks ...func() time.Time) (*Factory, error) {
-	return newFactory(repos, db, logger, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, true, clocks...)
+	organizations, groups, err := newModuleCapabilitiesForTests(db)
+	if err != nil {
+		return nil, err
+	}
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, groups, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
+}
+
+func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
+	organizations, groups, err := newModuleCapabilitiesForTests(db)
+	if err != nil {
+		return nil, err
+	}
+	return newFactory(repos, db, logger, cfg, organizations, groups, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
 }
 
 // NewFactoryForTestsWithFeedback keeps API integration tests on the real
@@ -25,5 +38,21 @@ func NewFactoryForTestsWithFeedback(
 	bindFeedbackSettings FeedbackSettingsBinder,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	return newFactory(repos, db, logger, nil, nil, feedback, bindFeedbackSettings, func(string, time.Duration, int, error) {}, true, clocks...)
+	organizations, groups, err := newModuleCapabilitiesForTests(db)
+	if err != nil {
+		return nil, err
+	}
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, groups, nil, nil, feedback, bindFeedbackSettings, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
+}
+
+func newModuleCapabilitiesForTests(db *bun.DB) (SchoolCapability, schoolstructure.Query, error) {
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	if err != nil {
+		return nil, nil, err
+	}
+	groups, err := repositories.NewSchoolStructure(db)
+	if err != nil {
+		return nil, nil, err
+	}
+	return organizations, groups, nil
 }

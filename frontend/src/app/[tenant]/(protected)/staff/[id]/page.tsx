@@ -142,12 +142,19 @@ export default function StaffDetailContent() {
     canEdit ||
     canManageTimeTracking ||
     hasPermission(session, "vacation:approve");
+  // Urlaubsanspruch (#2906): Spiegel des Backend-Gates auf
+  // PUT /{id}/vacation/quota — time_tracking:manage. Bewusst nicht
+  // staff:manage: wer nur das hält, sieht weder den Anspruch (GET ist
+  // vacation:approve / time_tracking:manage) noch den Abwesenheiten-Reiter.
+  const canEditVacationQuota = canEdit || canManageTimeTracking;
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
-  const canEditStammdaten = hasPermission(session, "users:update");
-  // Deliberately NOT users:read: the sections carry HR-file data (birthday,
-  // private address, contract terms), and users:read is held by everyone who
-  // may see the staff list at all — mirrors the backend route gate.
+  const canEditStammdaten = hasPermission(session, "staff:stammdaten");
+  // Deliberately NOT users:read or users:update: the sections carry HR-file
+  // data (birthday, private address, contract terms). users:read is held by
+  // everyone who may see the staff list at all, users:update by the
+  // Betreuer-Standardrolle for the child data (#2906) — mirrors the backend
+  // route gate.
   const canViewStammdatenSections =
     canEdit || canManageTimeTracking || canEditStammdaten;
   // Klassen-Zuweisung (#1772): Spiegel der Backend-Gates — Lesen users:read,
@@ -161,7 +168,7 @@ export default function StaffDetailContent() {
   // to exactly the categories the caller may see.
   const canViewDocuments =
     canEdit ||
-    canEditStammdaten ||
+    hasPermission(session, "staff:documents") ||
     canViewFinancial ||
     hasPermission(session, "staff_documents:health");
   const requestedTab = searchParams.get("tab");
@@ -353,6 +360,7 @@ export default function StaffDetailContent() {
                 <AbwesenheitenTab
                   staffId={staffId}
                   canEdit={canEdit}
+                  canEditQuota={canEditVacationQuota}
                   canManageSickReports={canManageTimeTracking}
                   staff={staff}
                 />

@@ -106,13 +106,24 @@ func (s *failingPickupScheduleService) GetEffectivePickupTimeForDate(
 }
 
 // setupCheckinRoute initializes the production check-in resource.
-func setupCheckinRoute(t *testing.T) *testContext {
+func setupCheckinRoute(t *testing.T, loggers ...*slog.Logger) *testContext {
 	t.Helper()
+	logger := slog.Default()
+	if len(loggers) > 0 {
+		logger = loggers[0]
+	}
 
 	db, svc := testutil.SetupAPITest(t)
 	newCheckinService := func(active activeSvc.Service, users usersSvc.PersonService) *checkinsvc.CheckinService {
 		return checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
-			Active: active, Users: users, Facilities: svc.Facilities, Activities: svc.Activities, Logger: slog.Default(),
+			Active:     active,
+			Users:      users,
+			Facilities: svc.Facilities,
+			Activities: svc.Activities,
+			Settings:   svc.Settings,
+			Pickup:     svc.PickupSchedule,
+			Education:  svc.Education,
+			Logger:     logger,
 		})
 	}
 
@@ -120,10 +131,10 @@ func setupCheckinRoute(t *testing.T) *testContext {
 		svc.IoT,
 		svc.Users,
 		svc.Active,
-		svc.Checkin,
+		newCheckinService(svc.Active, svc.Users),
 		svc.PickupSchedule,
 		nil, // settings service (nil = env var fallback)
-		slog.Default(),
+		logger,
 	)
 
 	return &testContext{
@@ -1110,11 +1121,9 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 // This is the code path fixed by the double-qualification bug where
 // filter.Equal("group.name", ...) was incorrectly double-qualified by the
 // repository's WithTableAlias("group").
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	// Create test device
@@ -1866,11 +1875,9 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 // TestDeviceCheckin_WCAutoCreate verifies that checking a student into a
 // room named "WC" with no existing active group triggers automatic
 // infrastructure creation (category, activity group, and active group).
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-auto")
@@ -1929,11 +1936,9 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 // TestDeviceCheckin_WCAutoCreateIdempotent verifies that the WC
 // auto-create flow is idempotent: a second checkin reuses the already-created
 // activity group instead of failing or creating duplicates.
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-idem")
@@ -1998,11 +2003,9 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 
 // TestDeviceCheckin_WCCheckoutFromWC verifies the full WC visit lifecycle:
 // check in to WC room, then check out.
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-checkout")
@@ -2067,11 +2070,9 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 // into a normal room with staff present — that earlier check-in creates the
 // attendance record. We insert the record directly to satisfy that invariant
 // without needing a full two-step checkin/checkout flow.
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-no-staff")
@@ -2125,11 +2126,9 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 //
 // Pre-condition: same as WC — students reach Schulhof only after a prior check-in
 // with staff that created today's attendance record. We insert it directly here.
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-no-staff")
@@ -2176,11 +2175,9 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 		"Expected 200 when Schulhof auto-create has no staff context. Body: %s", rr.Body.String())
 }
 
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-idem")
@@ -2252,11 +2249,9 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 // GetDeviceCurrentSession to return the WC group instead of the actual
 // room session. This broke session counts and session resume after device
 // restart. See commit 54ef0c99 for the regression.
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-hijack-regression")
@@ -2335,11 +2330,9 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 
 // TestDeviceCheckin_SchulhofGroupHasNoDeviceID verifies that auto-created
 // Schulhof groups never receive a DeviceID, same invariant as WC.
-// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
-// and the provisioning path that auto-creates it looks the name up without a
-// tenant filter. Two of these tests running side by side see each other's
-// half-created room, category or activity.
 func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-no-device")

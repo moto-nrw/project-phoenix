@@ -24,6 +24,10 @@ func NewSchoolRepository(db *bun.DB) platform.SchoolRepository {
 	return &SchoolRepository{db: db}
 }
 
+func NewSchoolNotFoundError(operation string) error {
+	return &modelBase.DatabaseError{Op: operation, Err: base.TranslateNotFound(sql.ErrNoRows)}
+}
+
 // Create inserts a new school record.
 func (r *SchoolRepository) Create(ctx context.Context, school *platform.School) error {
 	if school == nil {
@@ -313,23 +317,4 @@ func (r *SchoolRepository) Restore(ctx context.Context, id int64) error {
 		return &modelBase.DatabaseError{Op: "restore school", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "restore school")
-}
-
-// CountNonDeletedByOrganizationID counts schools belonging to an organization that have
-// not been soft-deleted. Used by SoftDeleteOrganization to block deletion of an
-// organization that still has child schools (active or inactive) — the operator must
-// soft-delete every school first. The name intentionally does NOT say "Active" because
-// the query does not filter on the `active` boolean; a disabled-but-not-deleted school
-// still blocks the parent org's deletion.
-func (r *SchoolRepository) CountNonDeletedByOrganizationID(ctx context.Context, organizationID int64) (int, error) {
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*platform.School)(nil)).
-		ModelTableExpr(schoolTableAlias).
-		Where(`"school".organization_id = ?`, organizationID).
-		Where(`"school".deleted_at IS NULL`).
-		Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count non-deleted schools by organization", Err: base.TranslateNotFound(err)}
-	}
-	return count, nil
 }

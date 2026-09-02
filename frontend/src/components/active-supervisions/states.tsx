@@ -169,11 +169,11 @@ export function ReleaseSupervisionModal({
       onConfirm={onConfirm}
       title="Aufsicht abgeben"
       confirmText="Abgeben"
-      confirmButtonClass="bg-red-600 hover:bg-red-700"
+      confirmVariant="danger"
       isConfirmLoading={isConfirmLoading}
     >
       <div className="space-y-4">
-        <div className="rounded-lg border border-red-100 bg-red-50/50 p-3">
+        <div className="border-moto-red/10 bg-moto-red-soft/50 rounded-lg border p-3">
           <div className="flex items-start gap-3">
             <MotoDuotoneIcon
               icon={WarningCircleIcon}

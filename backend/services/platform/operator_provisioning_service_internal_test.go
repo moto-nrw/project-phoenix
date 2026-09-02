@@ -21,6 +21,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -42,6 +43,15 @@ type internalOrgRepoStub struct {
 	listFn       func(context.Context) ([]*platformModels.Organization, error)
 	softDeleteFn func(context.Context, int64) error
 	restoreFn    func(context.Context, int64) error
+}
+
+type orderedOrganizationCapability struct {
+	organizationtenancy.Capability
+	organizations []organizationtenancy.Organization
+}
+
+func (c orderedOrganizationCapability) ListOrganizationsByID(context.Context, []int64) ([]organizationtenancy.Organization, error) {
+	return c.organizations, nil
 }
 
 func (s *internalOrgRepoStub) Create(ctx context.Context, org *platformModels.Organization) error {
@@ -91,6 +101,139 @@ func (s *internalOrgRepoStub) Restore(ctx context.Context, id int64) error {
 		return s.restoreFn(ctx, id)
 	}
 	return nil
+}
+
+func (s *internalOrgRepoStub) CreateOrganization(ctx context.Context, input organizationtenancy.CreateOrganization) (organizationtenancy.Organization, error) {
+	if s.findBySlugFn != nil {
+		existing, err := s.FindBySlug(ctx, input.Slug)
+		if err != nil {
+			return organizationtenancy.Organization{}, err
+		}
+		if existing != nil {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationSlugConflict
+		}
+	}
+	org := &platformModels.Organization{Name: input.Name, Slug: input.Slug, Active: input.Active}
+	if err := org.Validate(); err != nil {
+		return organizationtenancy.Organization{}, &organizationtenancy.InvalidOrganizationError{Reason: err.Error()}
+	}
+	if err := s.Create(ctx, org); err != nil {
+		if modelBase.IsUniqueViolation(err) {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationSlugConflict
+		}
+		return organizationtenancy.Organization{}, err
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) UpdateOrganization(ctx context.Context, input organizationtenancy.UpdateOrganization) (organizationtenancy.Organization, error) {
+	org := &platformModels.Organization{Model: modelBase.Model{ID: input.ID}, Name: input.Name, Slug: input.Slug, Active: input.Active}
+	if err := s.Update(ctx, org); err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) SoftDeleteOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := s.FindByID(ctx, id)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	if org.IsDeleted() {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationAlreadyDeleted
+	}
+	if err := s.SoftDelete(ctx, id); err != nil {
+		if isRowsAffectedMismatch(err) {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationAlreadyDeleted
+		}
+		return organizationtenancy.Organization{}, err
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) RestoreOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := s.FindByID(ctx, id)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	if !org.IsDeleted() {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotDeleted
+	}
+	if err := s.Restore(ctx, id); err != nil {
+		if isRowsAffectedMismatch(err) {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotDeleted
+		}
+		return organizationtenancy.Organization{}, err
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) FindOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := s.FindByID(ctx, id)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) FindOrganizationForMutation(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	return s.FindOrganization(ctx, id)
+}
+
+func (s *internalOrgRepoStub) FindOrganizationForSchoolMutation(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	return s.FindOrganization(ctx, id)
+}
+
+func (s *internalOrgRepoStub) FindOrganizationBySlug(ctx context.Context, slug string) (organizationtenancy.Organization, error) {
+	org, err := s.FindBySlug(ctx, slug)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) ListOrganizations(ctx context.Context) ([]organizationtenancy.Organization, error) {
+	orgs, err := s.List(ctx)
+	result := make([]organizationtenancy.Organization, 0, len(orgs))
+	for _, org := range orgs {
+		result = append(result, internalPublicOrganization(org))
+	}
+	return result, err
+}
+
+func (s *internalOrgRepoStub) ListOrganizationsByID(ctx context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
+	result := make([]organizationtenancy.Organization, 0, len(ids))
+	for _, id := range ids {
+		org, err := s.FindOrganization(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, org)
+	}
+	return result, nil
+}
+
+func (s *internalOrgRepoStub) CountOrganizationsByID(ctx context.Context, ids []int64) (int, error) {
+	return s.CountByIDs(ctx, ids)
+}
+
+func internalPublicOrganization(org *platformModels.Organization) organizationtenancy.Organization {
+	if org == nil {
+		return organizationtenancy.Organization{}
+	}
+	return organizationtenancy.Organization{ID: org.ID, CreatedAt: org.CreatedAt, UpdatedAt: org.UpdatedAt, Name: org.Name, Slug: org.Slug, Active: org.Active, DeletedAt: org.DeletedAt, Settings: org.Settings}
 }
 
 type internalDeviceRepoStub struct {
@@ -349,6 +492,33 @@ func TestMapSchoolCreateConflict_SubdomainConflict(t *testing.T) {
 	var conflictErr *ConflictError
 	require.ErrorAs(t, err, &conflictErr)
 	assert.Contains(t, err.Error(), "school subdomain already exists")
+}
+
+func TestMapSchoolCapabilityErrorPreservesOperatorContracts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want any
+	}{
+		{name: "subdomain conflict", err: organizationtenancy.ErrSchoolDomainConflict, want: &ConflictError{}},
+		{name: "slug conflict", err: organizationtenancy.ErrSchoolSlugConflict, want: &ConflictError{}},
+		{name: "missing school", err: organizationtenancy.ErrSchoolNotFound, want: &SchoolNotFoundError{}},
+		{name: "deleted school", err: organizationtenancy.ErrSchoolAlreadyDeleted, want: &SchoolAlreadyDeletedError{}},
+		{name: "active school restore", err: organizationtenancy.ErrSchoolNotDeleted, want: &SchoolNotDeletedError{}},
+		{name: "deleted organization", err: organizationtenancy.ErrOrganizationDeleted, want: &OrganizationDeletedError{}},
+		{name: "missing organization", err: organizationtenancy.ErrOrganizationNotFound, want: &OrganizationNotFoundError{}},
+		{name: "invalid school", err: organizationtenancy.ErrInvalidSchool, want: &InvalidDataError{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mapped := mapSchoolCapabilityError(tt.err, 17, 23)
+			require.IsType(t, tt.want, mapped)
+		})
+	}
+	require.Nil(t, mapSchoolCapabilityError(errors.New("database unavailable"), 17, 23))
 }
 
 func TestWithAdminTx_WithoutHandlerRunsCallback(t *testing.T) {
@@ -794,8 +964,8 @@ func TestCreateOrganization_NilInput(t *testing.T) {
 func TestCreateOrganization_ValidationError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{}
-	org, err := svc.CreateOrganization(context.Background(), &platformModels.Organization{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{}}}
+	org, err := svc.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name: "",
 		Slug: "test",
 	}, 1, net.IPv4(127, 0, 0, 1))
@@ -807,13 +977,13 @@ func TestCreateOrganization_ValidationError(t *testing.T) {
 func TestCreateOrganization_FindBySlugError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
 	}},
 	}
-	org, err := svc.CreateOrganization(context.Background(), &platformModels.Organization{
+	org, err := svc.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name: "Test", Slug: "test", Active: true,
 	}, 1, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, org)
@@ -823,7 +993,7 @@ func TestCreateOrganization_FindBySlugError(t *testing.T) {
 func TestCreateOrganization_UniqueViolationOnCreate(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 			return nil, nil
 		},
@@ -832,7 +1002,7 @@ func TestCreateOrganization_UniqueViolationOnCreate(t *testing.T) {
 		},
 	}},
 	}
-	org, err := svc.CreateOrganization(context.Background(), &platformModels.Organization{
+	org, err := svc.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name: "Test", Slug: "test", Active: true,
 	}, 1, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, org)
@@ -843,7 +1013,7 @@ func TestCreateOrganization_UniqueViolationOnCreate(t *testing.T) {
 func TestCreateOrganization_CreateError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 			return nil, nil
 		},
@@ -852,7 +1022,7 @@ func TestCreateOrganization_CreateError(t *testing.T) {
 		},
 	}},
 	}
-	org, err := svc.CreateOrganization(context.Background(), &platformModels.Organization{
+	org, err := svc.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name: "Test", Slug: "test", Active: true,
 	}, 1, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, org)
@@ -891,7 +1061,7 @@ func TestCreateSchool_ValidationError(t *testing.T) {
 func TestCreateSchool_OrgFindByIDError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
@@ -911,7 +1081,7 @@ func TestCreateSchool_OrgFindByIDError(t *testing.T) {
 func TestCreateSchool_UniqueViolationOnCreate(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -936,7 +1106,7 @@ func TestCreateSchool_UniqueViolationOnCreate(t *testing.T) {
 func TestCreateSchool_DeviceCreateError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -967,7 +1137,7 @@ func TestCreateSchool_WithDeviceSuccess(t *testing.T) {
 	t.Parallel()
 
 	var deviceCreated bool
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -1097,7 +1267,7 @@ func TestEnsureSchoolSubdomainAvailable_RepoError(t *testing.T) {
 func TestCreateSchool_CreateNonUniqueError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -1459,7 +1629,7 @@ func TestListOrganizationDevices_Success(t *testing.T) {
 	}))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 5}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -2374,7 +2544,7 @@ func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 				Err: errors.New("expected 1 rows affected, got 0"),
 			}
 		},
-	}, OrganizationRepo: &internalOrgRepoStub{
+	}, Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{
 				Model:  modelBase.Model{ID: 1},
@@ -2398,7 +2568,7 @@ func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 func TestSoftDeleteOrganization_FindByIDError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
@@ -2412,7 +2582,7 @@ func TestSoftDeleteOrganization_FindByIDError(t *testing.T) {
 func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{
 				Model:  modelBase.Model{ID: 42},
@@ -2427,10 +2597,6 @@ func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
 				Err: errors.New("expected 1 rows affected, got 0"),
 			}
 		},
-	}, SchoolRepo: &testpkg.SchoolRepoMock{
-		CountNonDeletedByOrganizationIDFn: func(context.Context, int64) (int, error) {
-			return 0, nil
-		},
 	}},
 	}
 
@@ -2442,7 +2608,7 @@ func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
 func TestRestoreOrganization_FindByIDError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
@@ -2457,7 +2623,7 @@ func TestRestoreOrganization_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 	t.Parallel()
 
 	deletedAt := time.Now()
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{
 				Model:     modelBase.Model{ID: 42},
@@ -2519,6 +2685,29 @@ func TestIsPlatformCaregiverRole(t *testing.T) {
 		base := authModels.BaseRoleUser
 		assert.False(t, authSvc.IsPlatformCaregiverRole(&authModels.Role{Name: "OGS-Kraft", BaseRole: &base}))
 	})
+}
+
+func TestEnrichAccountTenantOrganizationsPreservesDatabaseNameOrdering(t *testing.T) {
+	t.Parallel()
+
+	service := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{
+		Organizations: orderedOrganizationCapability{organizations: []organizationtenancy.Organization{
+			{ID: 3, Name: "Alpha"},
+			{ID: 1, Name: "Same"},
+			{ID: 2, Name: "Same"},
+		}},
+	}}
+	rows := []authModels.AccountTenantAccessInfo{
+		{OrganizationID: 2, SchoolName: "A"},
+		{OrganizationID: 3, SchoolName: "B"},
+		{OrganizationID: 1, SchoolName: "C"},
+	}
+
+	got, err := service.enrichAccountTenantOrganizations(context.Background(), rows)
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+	assert.Equal(t, []int64{3, 2, 1}, []int64{got[0].OrganizationID, got[1].OrganizationID, got[2].OrganizationID})
+	assert.Equal(t, []string{"Alpha", "Same", "Same"}, []string{got[0].OrganizationName, got[1].OrganizationName, got[2].OrganizationName})
 }
 
 // ---------------------------------------------------------------------------

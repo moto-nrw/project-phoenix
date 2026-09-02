@@ -18,6 +18,7 @@ import {
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
 import { TimeField } from "./fields/time-field";
@@ -666,7 +667,7 @@ export function SettingsField({
             </span>
           )}
           {!setting.writable && (
-            <span className="rounded bg-yellow-50 px-1.5 py-0.5 text-xs text-yellow-700">
+            <span className="bg-moto-amber-soft text-moto-amber-strong rounded px-1.5 py-0.5 text-xs">
               Nur Lesen
             </span>
           )}
@@ -680,16 +681,16 @@ export function SettingsField({
           </p>
         )}
         {legalTextWarning && (
-          <p className="mt-1 text-xs font-medium text-amber-700">
+          <p className="text-moto-amber-strong mt-1 text-xs font-medium">
             {legalTextWarning}
           </p>
         )}
         {legalTextStoredStatus && (
           <p className="mt-1 text-xs text-gray-500">{legalTextStoredStatus}</p>
         )}
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
         {legalDocumentError && (
-          <p className="mt-1 text-xs font-medium text-red-600">
+          <p className="text-moto-red mt-1 text-xs font-medium">
             {legalDocumentError}
           </p>
         )}
@@ -745,10 +746,8 @@ export function SettingsField({
               : "Aktivieren"
           }
           cancelText="Abbrechen"
-          confirmButtonClass={
-            pendingValueRef.current === false
-              ? "bg-moto-red hover:bg-moto-red-strong"
-              : "bg-gray-900 hover:bg-gray-700"
+          confirmVariant={
+            pendingValueRef.current === false ? "danger" : "primary"
           }
         >
           <p className="text-sm text-gray-600">{activeConfirmConfig.body}</p>
@@ -823,7 +822,7 @@ export function SettingsField({
             </label>
           )}
           {legalActivationError && (
-            <p className="text-xs font-medium text-red-600">
+            <p className="text-moto-red text-xs font-medium">
               {legalActivationError}
             </p>
           )}
@@ -904,7 +903,7 @@ export function SettingsField({
               )
             : !hasEnrollmentLegalTextContent(legalTextEditDraft)) ||
             legalTextEditError) && (
-            <p className="text-xs font-medium text-red-600">
+            <p className="text-moto-red text-xs font-medium">
               {legalTextEditError ??
                 (setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
                   ? selectedAGBSourceError(legalTextEditMode)
@@ -1039,14 +1038,12 @@ function renderAGBSourceEditor({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT}
           onClick={() => onModeChange(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT)}
-          className={`rounded-xl border p-4 text-left transition-colors ${
-            mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-4"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4" aria-hidden="true" />
@@ -1060,15 +1057,13 @@ function renderAGBSourceEditor({
               Text gespeichert
             </span>
           )}
-        </button>
-        <button
-          type="button"
+        </ChoiceTile>
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF}
           onClick={() => onModeChange(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF)}
-          className={`rounded-xl border p-4 text-left transition-colors ${
-            mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-4"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileUp className="h-4 w-4" aria-hidden="true" />
@@ -1082,7 +1077,7 @@ function renderAGBSourceEditor({
               PDF gespeichert
             </span>
           )}
-        </button>
+        </ChoiceTile>
       </div>
 
       {mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT ? (
@@ -1242,7 +1237,7 @@ function renderEnrollmentLegalTextEditor(
         className={`rounded-xl border p-3 text-sm leading-6 ${
           hasContent
             ? "border-gray-100 bg-gray-50 text-gray-700"
-            : "border-amber-200 bg-amber-50 text-amber-800"
+            : "border-moto-amber/20 bg-moto-amber-soft text-moto-amber-strong"
         }`}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

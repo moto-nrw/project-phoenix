@@ -1,8 +1,8 @@
 // Router-level tests for /api/staff/{id}/documents (#1424): the route gate
 // admits any of the three category permissions, the service narrows per
 // category (AU → staff_documents:health, Lohn → staff:financial, rest →
-// users:update), uploads are magic-number-validated, and downloads serve
-// the original filename as an attachment.
+// staff:documents, #2906), uploads are magic-number-validated, and downloads
+// serve the original filename as an attachment.
 package staff_test
 
 import (
@@ -79,7 +79,7 @@ func setupDocumentsAPI(t *testing.T) *documentsAPIContext {
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM users.staff_documents WHERE staff_id = ?`, target.ID)
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM audit.staff_master_data_changes WHERE staff_id = ?`, target.ID)
 		if pubDir, err := common.ResolvePublicDir(); err == nil {
-			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "staff-documents"))
+			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "staff-documents", strconv.FormatInt(testpkg.Tenant(t), 10)))
 		}
 	})
 
@@ -133,14 +133,12 @@ func uploadedDocument(t *testing.T, body []byte) (id int64, filename string) {
 	return resp.Data.ID, resp.Data.Filename
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_UploadListDownloadDelete(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	base := fmt.Sprintf("/staff/%d/documents", c.staffID)
 
-	rec := c.upload(t, "zeugnis", "Erste-Hilfe Zeugnis.pdf", fakePDF, "users:update")
+	rec := c.upload(t, "zeugnis", "Erste-Hilfe Zeugnis.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	docID, filename := uploadedDocument(t, rec.Body.Bytes())
 	require.NotZero(t, docID)
@@ -149,51 +147,55 @@ func TestStaffDocumentsAPI_UploadListDownloadDelete(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, cleanups, "a persisted document must complete its cleanup intent")
 
-	rec = c.request(t, http.MethodGet, base, nil, "", "users:update")
+	rec = c.request(t, http.MethodGet, base, nil, "", "staff:documents")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"category":"zeugnis"`)
 	assert.Contains(t, rec.Body.String(), `"visible_categories"`)
 	assert.NotContains(t, rec.Body.String(), `"au_bescheinigung"`,
-		"users:update must not see the AU category")
+		"staff:documents must not see the AU category")
 
 	downloadPath := fmt.Sprintf("%s/%d/download", base, docID)
-	rec = c.request(t, http.MethodGet, downloadPath, nil, "", "users:update")
+	rec = c.request(t, http.MethodGet, downloadPath, nil, "", "staff:documents")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, fakePDF, rec.Body.Bytes())
 	assert.Equal(t, "application/pdf", rec.Header().Get("Content-Type"))
 	assert.Contains(t, rec.Header().Get("Content-Disposition"), "attachment")
 	assert.Contains(t, rec.Header().Get("Content-Disposition"), "Erste-Hilfe Zeugnis.pdf")
 
-	rec = c.request(t, http.MethodDelete, fmt.Sprintf("%s/%d", base, docID), nil, "", "users:update")
+	rec = c.request(t, http.MethodDelete, fmt.Sprintf("%s/%d", base, docID), nil, "", "staff:documents")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	rec = c.request(t, http.MethodGet, downloadPath, nil, "", "users:update")
+	rec = c.request(t, http.MethodGet, downloadPath, nil, "", "staff:documents")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	// A repeat DELETE is the durable cleanup retry route: metadata stays
 	// soft-deleted while the handler re-attempts removal of any orphan bytes.
-	rec = c.request(t, http.MethodDelete, fmt.Sprintf("%s/%d", base, docID), nil, "", "users:update")
+	rec = c.request(t, http.MethodDelete, fmt.Sprintf("%s/%d", base, docID), nil, "", "staff:documents")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_PermissionMatrix(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	base := fmt.Sprintf("/staff/%d/documents", c.staffID)
 
-	// Route gate: the staff-list tier does not open the tab.
+	// Route gate: the staff-list tier does not open the tab. Neither does the
+	// Betreuer tier — users:update gates child data, never the personnel file
+	// (#2906).
 	rec := c.request(t, http.MethodGet, base, nil, "", "users:read")
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	rec = c.request(t, http.MethodGet, base, nil, "", "users:read", "users:update", "users:absence")
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	rec = c.upload(t, "zeugnis", "zeugnis.pdf", fakePDF, "users:read", "users:update")
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
 	// AU-Bescheinigungen need staff_documents:health end to end.
-	rec = c.upload(t, "au_bescheinigung", "au.pdf", fakePDF, "users:update")
+	rec = c.upload(t, "au_bescheinigung", "au.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	rec = c.upload(t, "au_bescheinigung", "au.pdf", fakePDF, "staff_documents:health")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	auID, _ := uploadedDocument(t, rec.Body.Bytes())
 
-	rec = c.request(t, http.MethodGet, fmt.Sprintf("%s/%d/download", base, auID), nil, "", "users:update")
+	rec = c.request(t, http.MethodGet, fmt.Sprintf("%s/%d/download", base, auID), nil, "", "staff:documents")
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	rec = c.request(t, http.MethodGet, fmt.Sprintf("%s/%d/download", base, auID), nil, "", "staff_documents:health")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -209,10 +211,8 @@ func TestStaffDocumentsAPI_PermissionMatrix(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), `"au_bescheinigung"`)
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	const orphanStaffID = int64(987654321)
 	storedName := fmt.Sprintf("orphan-%d.pdf", time.Now().UnixNano())
@@ -249,10 +249,8 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *te
 // The cleanup pass must never delete the bytes of an upload whose metadata
 // transaction is still open: that transaction has already stamped the intent
 // complete and may commit right after, leaving a document row without a file.
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_ScheduledCleanupSkipsUncommittedUpload(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 	const orphanStaffID = int64(987654322)
 	storedName := fmt.Sprintf("inflight-%d.pdf", time.Now().UnixNano())
@@ -313,12 +311,10 @@ func containsStoredName(cleanups []*users.StaffDocumentFileCleanup, storedName s
 	return false
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
-	rec := c.upload(t, "zeugnis", "offboarded.pdf", fakePDF, "users:update")
+	rec := c.upload(t, "zeugnis", "offboarded.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	docID, _ := uploadedDocument(t, rec.Body.Bytes())
 	ctx := testpkg.Ctx(t)
@@ -340,12 +336,10 @@ func TestStaffDocumentsAPI_DirectoryRetriesOffboardedStaffDocument(t *testing.T)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_ScheduledCleanupRetriesOffboardedStaffDocument(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
-	rec := c.upload(t, "zeugnis", "offboarded-scheduled.pdf", fakePDF, "users:update")
+	rec := c.upload(t, "zeugnis", "offboarded-scheduled.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	docID, _ := uploadedDocument(t, rec.Body.Bytes())
 
@@ -380,12 +374,10 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesOffboardedStaffDocument(t *tes
 	assert.Equal(t, 0, removed)
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
-	rec := c.upload(t, "zeugnis", "deleted.pdf", fakePDF, "users:update")
+	rec := c.upload(t, "zeugnis", "deleted.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	docID, _ := uploadedDocument(t, rec.Body.Bytes())
 
@@ -405,37 +397,35 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// Deliberately NOT parallel: the upload path and its cleanup share one
-// directory under public/uploads, so two of these tests remove each other's
-// files.
 func TestStaffDocumentsAPI_FileValidation(t *testing.T) {
+	t.Parallel()
 	c := setupDocumentsAPI(t)
 
 	// Executables (and anything else off the allow-list) are rejected by
 	// magic bytes.
-	rec := c.upload(t, "sonstiges", "tool.exe", []byte("MZ\x90\x00executable"), "users:update")
+	rec := c.upload(t, "sonstiges", "tool.exe", []byte("MZ\x90\x00executable"), "staff:documents")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
 	// A bare ZIP is rejected even though DOCX shares its magic bytes...
-	rec = c.upload(t, "sonstiges", "archiv.zip", fakeDOCX(t), "users:update")
+	rec = c.upload(t, "sonstiges", "archiv.zip", fakeDOCX(t), "staff:documents")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
 	// ...while a structurally valid OOXML package under a .docx name passes.
-	rec = c.upload(t, "sonstiges", "vertrag.docx", fakeDOCX(t), "users:update")
+	rec = c.upload(t, "sonstiges", "vertrag.docx", fakeDOCX(t), "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "officedocument.wordprocessingml.document")
 
 	// A ZIP renamed to .docx is not a Word document without its OOXML parts.
-	rec = c.upload(t, "sonstiges", "archiv.docx", fakeZIP(t), "users:update")
+	rec = c.upload(t, "sonstiges", "archiv.docx", fakeZIP(t), "staff:documents")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
 	// Unknown categories are a 400, not a 500.
-	rec = c.upload(t, "geheim", "datei.pdf", fakePDF, "users:update")
+	rec = c.upload(t, "geheim", "datei.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
 	// Oversized uploads are refused at the advertised cap.
 	big := bytes.Repeat([]byte("A"), 10*1024*1024+1)
 	copy(big, "%PDF-1.4")
-	rec = c.upload(t, "sonstiges", "gross.pdf", big, "users:update")
+	rec = c.upload(t, "sonstiges", "gross.pdf", big, "staff:documents")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 }

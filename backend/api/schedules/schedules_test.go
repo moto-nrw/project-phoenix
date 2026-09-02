@@ -59,11 +59,9 @@ func setupSchedulesRoute(t *testing.T) *testContext {
 // CURRENT DATEFRAME TESTS
 // =============================================================================
 
-// Deliberately NOT parallel: the "no current dateframe" case is established by
-// deleting every dateframe that spans today, across all tenants — there is no
-// tenant filter on that delete, and none would help: the assertion is about
-// the absence of a row the sibling test creates.
 func TestGetCurrentDateframe_Success(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupSchedulesRoute(t)
 
 	// Create a dateframe that spans today
@@ -98,11 +96,9 @@ func TestGetCurrentDateframe_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 }
 
-// Deliberately NOT parallel: the "no current dateframe" case is established by
-// deleting every dateframe that spans today, across all tenants — there is no
-// tenant filter on that delete, and none would help: the assertion is about
-// the absence of a row the sibling test creates.
 func TestGetCurrentDateframe_NotFound(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupSchedulesRoute(t)
 
 	// Ensure no dateframes exist that span today by querying all

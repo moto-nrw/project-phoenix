@@ -4,9 +4,57 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
+
+// staffFieldAccess splits the staff directory into the two tiers a caller can
+// be entitled to beyond the minimal colleague view.
+//
+// Everyone with users:read may read the directory itself — the group,
+// substitution and supervision screens need names. Before #2906 the same read
+// also carried everything else, because the response was built
+// unconditionally.
+type staffFieldAccess struct {
+	// notes covers the private staff notes an OGS-Leitung keeps on a
+	// colleague. They are the most sensitive part of the staff record, so
+	// they stay with the permission that writes them (staff:manage) instead
+	// of following everybody who maintains the personnel file.
+	notes bool
+	// qualifications covers the free-text qualifications on the teacher
+	// record. Those are personnel data proper, so maintaining the personnel
+	// file (staff:stammdaten) reads them too.
+	qualifications bool
+	// personnel covers the personnel-file data: employment type, today's
+	// absence reason including the school's own wording, and the NFC tag.
+	// Being allowed to change a staff record (staff:manage) does not entitle
+	// anybody to read those; maintaining the personnel file
+	// (staff:stammdaten) and the time-management view (time_tracking:manage)
+	// do.
+	personnel bool
+}
+
+// staffFieldAccessFromCtx reads the caller's tiers off the JWT permissions.
+// authorize.HasPermission is wildcard aware, so admin:* matches every tier.
+func staffFieldAccessFromCtx(ctx context.Context) staffFieldAccess {
+	return staffFieldAccessFor(jwt.PermissionsFromCtx(ctx))
+}
+
+// staffFieldAccessFor is staffFieldAccessFromCtx on a plain permission list,
+// so the tier mapping can be tested without importing auth/jwt — which the
+// architecture ratchet forbids in api/staff internal tests.
+func staffFieldAccessFor(granted []string) staffFieldAccess {
+	has := func(required string) bool { return authorize.HasPermission(required, granted) }
+
+	return staffFieldAccess{
+		notes:          has(permissions.StaffManage),
+		qualifications: has(permissions.StaffManage) || has(permissions.StaffStammdaten),
+		personnel:      has(permissions.StaffStammdaten) || has(permissions.TimeTrackingManage),
+	}
+}
 
 // =============================================================================
 // LIST STAFF HELPERS - Reduce complexity of listStaff handler (S3776)
@@ -76,15 +124,22 @@ type staffResponseBuilder struct {
 	avatar           string
 }
 
-// buildResponse returns the appropriate response type based on teacher status
-func (b *staffResponseBuilder) buildResponse() interface{} {
+// buildResponse returns the appropriate response type based on teacher status.
+// The absence-type label is applied after construction, so it repeats the
+// personnel check the constructors make (#2906) — the school's own wording for
+// today's absence names the reason just as AbsenceType does.
+func (b *staffResponseBuilder) buildResponse(ctx context.Context) interface{} {
+	label := b.absenceTypeLabel
+	if !staffFieldAccessFromCtx(ctx).personnel {
+		label = ""
+	}
 	if b.isTeacher && b.teacher != nil {
-		response := newTeacherResponse(b.staff, b.teacher, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
-		response.AbsenceTypeLabel = b.absenceTypeLabel
+		response := newTeacherResponse(ctx, b.staff, b.teacher, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
+		response.AbsenceTypeLabel = label
 		return response
 	}
-	response := newStaffResponse(b.staff, false, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
-	response.AbsenceTypeLabel = b.absenceTypeLabel
+	response := newStaffResponse(ctx, b.staff, false, b.wasPresentToday, b.workStatus, b.absenceType, b.accountRole, b.email, b.avatar)
+	response.AbsenceTypeLabel = label
 	return response
 }
 
@@ -154,7 +209,7 @@ func (rs *Resource) processStaffForListOptimized(
 		avatar:           avatar,
 	}
 
-	return builder.buildResponse(), true
+	return builder.buildResponse(ctx), true
 }
 
 // =============================================================================

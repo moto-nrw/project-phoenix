@@ -14,25 +14,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// init ensures JWT configuration is set in viper before any tests run (required for token operations in CI)
-func init() {
-	// Use viper.Set() to override values directly - this works even if env vars aren't set
-	// because viper.Set() has highest priority in viper's precedence order
-	viper.Set("auth_jwt_secret", "test-jwt-secret-for-unit-tests-minimum-32-chars")
-	viper.Set("auth_jwt_expiry", "15m")         // Access token expiry
-	viper.Set("auth_jwt_refresh_expiry", "24h") // Refresh token expiry
-}
 
 // testPassword is a valid password for integration tests that meets strength requirements.
 // This is NOT a real secret - it's only used in test code with test databases.
@@ -42,9 +32,24 @@ const testPassword = "Test1234%" //nolint:gosec // pragma: allowlist secret
 const testNewPassword = "NewStr0ng!Pass" //nolint:gosec // pragma: allowlist secret
 
 // setupAuthService creates an Auth Service with real database connection
-func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
+func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
+	return services.FactoryConfig{
+		JWTSecret:        "test-jwt-secret-for-unit-tests-minimum-32-chars",
+		JWTExpiry:        15 * time.Minute,
+		JWTRefreshExpiry: 24 * time.Hour,
+		FrontendURL:      "http://localhost:3000",
+		ParentsURL:       "http://parents.localhost:3000",
+		SchoolURL:        "http://schule.localhost:3000",
+		TenantDomain:     "localhost",
+		OperatorHostname: "operator.localhost:3000",
+		RateLimitEnabled: rateLimitEnabled,
+	}
+}
+
+func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) auth.AuthService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
+	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}
@@ -52,7 +57,7 @@ func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
 
 func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(false))
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return &fixtureOwnedInvitationService{InvitationService: serviceFactory.Invitation, t: t, db: db}
@@ -677,9 +682,9 @@ func TestAuthService_Logout(t *testing.T) {
 
 		staffEndpoint := fmt.Sprintf("https://fcm.googleapis.com/logout-staff-%d", account.ID)
 		for _, tenantID := range []int64{tenant.FromContext(ctx), secondaryTenantID} {
-			subscription := &iotModels.PushSubscription{
+			subscription := &deliveryModels.PushSubscription{
 				AccountID: account.ID,
-				Portal:    iotModels.PushPortalStaff,
+				Portal:    deliveryModels.PushPortalStaff,
 				Endpoint:  staffEndpoint,
 				P256dh:    "p256dh-key",
 				Auth:      "auth-key",
@@ -703,10 +708,10 @@ func TestAuthService_Logout(t *testing.T) {
 		require.Error(t, err)
 
 		staffCount, err := db.NewSelect().
-			Model((*iotModels.PushSubscription)(nil)).
+			Model((*deliveryModels.PushSubscription)(nil)).
 			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
 			Where("account_id = ?", account.ID).
-			Where("portal = ?", iotModels.PushPortalStaff).
+			Where("portal = ?", deliveryModels.PushPortalStaff).
 			Count(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 1, staffCount, "logout clears unbound staff push at the session school only")
@@ -959,11 +964,9 @@ func TestAuthService_ListAccounts(t *testing.T) {
 // Token Cleanup Tests
 // =============================================================================
 
-// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
-// orphan-push and pending-wipe sweeps across every account and tenant, so
-// beside a parallel test it deletes that test's unbound push rows and
-// tokens (#2419).
 func TestAuthService_CleanupExpiredTokens(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
@@ -2451,21 +2454,11 @@ func TestAuthService_ResetPassword(t *testing.T) {
 	})
 }
 
-// Deliberately NOT parallel: process-global state — the rate-limit and
-// password-reset tests switch viper keys (rate_limit_enabled, the reset
-// expiry and URL) on and restore them in t.Cleanup, which would yank the
-// value out from under a test running beside them (#2419).
 func TestAuthService_PasswordResetRateLimit(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	// Enable rate limiting for these tests
-	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
-	viper.Set("rate_limit_enabled", true)
-	t.Cleanup(func() {
-		viper.Set("rate_limit_enabled", prevRateLimitEnabled)
-	})
-
-	service := setupAuthService(t, db)
+	service := setupAuthService(t, db, true)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("allows multiple reset requests within limit", func(t *testing.T) {

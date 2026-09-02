@@ -438,7 +438,7 @@ function TokenModal({
             <span className="ml-2">{copied ? "Kopiert" : "Kopieren"}</span>
           </Button>
         </div>
-        <div className="flex justify-center rounded-2xl border border-gray-200 bg-white p-6">
+        <div className="moto-content-surface flex justify-center rounded-2xl border p-6 shadow-sm">
           <QRCodeSVG value={state.url} size={192} />
         </div>
         <p className="text-sm text-gray-500">

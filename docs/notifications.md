@@ -73,10 +73,11 @@ err := factory.Notifications.Notify(ctx, notifications.Event{
 ```
 
 The producer never references a channel. `Notify` validates the event, checks
-the feature flag, and queues fan-out until the surrounding tenant transaction
-commits. Without a tenant transaction, delivery remains synchronous. A failing
-channel is logged and never blocks the caller (fire-and-forget, like SSE
-broadcasting).
+the feature flag, and writes one immutable Web Push intent per current device.
+When the caller has a tenant transaction, those rows commit with the domain
+change and enqueue failures fail the caller. SSE remains best-effort and runs
+after commit. A caller without a transaction gets a narrow tenant transaction
+around device resolution and enqueue.
 
 Audience scopes map to the existing SSE routing:
 
@@ -167,14 +168,13 @@ mechanical: **no row means off**.
 | Channel | Status | Transport |
 |---|---|---|
 | SSE / in-app | active | `realtime.Broadcaster` → SSE event `notification` → toast |
-| Web Push | active (#2003) | `webpush-go` (VAPID) → browser push service → service worker notification |
+| Web Push | active (#2003/#2657) | leased `platform.push_outbox` → `webpush-go` (VAPID) → browser push service → service worker notification |
 | E-Mail | future | wrap `email.Mailer` + audience→address resolution as a `Channel` |
 
-E-mail is still not a `Channel`: the features that mail (announcements,
-appointments, appointment reminders) enqueue their own outbox rows next to the
-`Notify` call. That is why the appointment reminder producer writes to the
-outbox AND dispatches a push rather than dispatching once — see the gates
-section above for why the two paths also apply different consent rules.
+E-mail is still not a `Channel`: features that mail enqueue through the same
+Delivery capability next to the `Notify` call. The worker leases both email and
+push rows. Appointment reminders keep their explicit synchronous push exception
+because the scheduler may record its claim only after the push service answers.
 
 The existing SSE cache-invalidation events are untouched: the `notification`
 event type is additive. SSE remains the open-app channel; Web Push covers
@@ -449,10 +449,12 @@ drops an event it may not deliver now instead of queueing it, so at the default
 24-hour lead an evening appointment reaches parents by mail only. Schools with
 many evening appointments raise `notifications.active_window_end`.
 
-Duplicate delivery is impossible by construction: each row carries an
-idempotency key of (appointment, occurrence, guardian) and the outbox insert is
-`ON CONFLICT DO NOTHING`, so a re-run, an overlapping window or a second
-scheduler process cannot produce a second mail.
+Duplicate enqueue is blocked by the idempotency key
+(appointment, occurrence, guardian). Delivery itself is at least once: a
+provider may accept a message just before the worker crashes, so the reclaimed
+lease can send it again. Lease tokens prevent the stale worker from changing
+the newer worker's state; they cannot retract a message the provider accepted.
+See the Delivery outbox runbook below for the operational checks.
 
 An **edit between queueing and dispatch** bumps the revision and therefore
 invalidates the claim the pending push holds. The claim is not simply dropped
@@ -482,6 +484,90 @@ queued rows from each revocation path instead would have to catch every one of
 them to be worth anything; asking at delivery is the same recheck the push
 channels do. Rows without the scope — queued before this existed, or addressed
 to a recipient with no portal account — render unchanged.
+
+
+## Delivery outbox runbook
+
+Delivery stores email intents in `platform.email_outbox` and Web Push intents
+in `platform.push_outbox`. Producers insert the intent in the same tenant
+transaction as the domain change. The worker claims rows in a short admin
+transaction, commits the lease, calls the provider outside any database
+transaction, then finalizes only when the row still holds the same lease token.
+
+Rows keep their recipient and payload snapshots. Idempotency keys are unique
+per tenant and transport. Reusing a key with different content fails the domain
+transaction. Delivery is at least once: a provider can accept a message before
+the worker crashes, and the next worker cannot know that it was accepted.
+
+### States
+
+| State | Meaning | Operator action |
+|---|---|---|
+| `pending` | Ready now or waiting for `next_retry_at` | None unless queue age rises |
+| `claimed` | A worker owns a time-limited lease | Wait for finalization or lease expiry |
+| `sent` | Provider call succeeded and the matching lease finalized | None |
+| `dead_letter` | Retry budget ended | Inspect `last_error`, fix the cause, then use the owning feature's resend flow |
+| `cancelled` | The source was retracted or a send-time authorization check failed | None; keep the row as evidence |
+
+Do not edit terminal rows to `pending`. A resend must create a new intent with a
+new idempotency key so status history stays truthful.
+
+### Metrics and alerts
+
+The worker exports:
+
+- `phoenix_delivery_operations_total{transport,template,operation,outcome}`
+- `phoenix_delivery_operation_duration_seconds{transport,template,operation}`
+- `phoenix_delivery_oldest_pending_age_seconds`
+
+Use these starting thresholds and tune them from production traffic:
+
+| Signal | Warning | Critical |
+|---|---|---|
+| Oldest pending age | over 5 minutes for 10 minutes | over 15 minutes for 5 minutes |
+| `claim` failures | any in 15 minutes | failures on 3 consecutive worker ticks |
+| `dead_letter` | any increase in 15 minutes | 10 or more in 1 hour |
+| `retry` share of provider attempts | over 5% for 15 minutes | over 20% for 10 minutes |
+| `stale_finalize` | any increase; check worker overlap and provider latency | 5 or more in 15 minutes |
+| `idempotency_conflict` | any increase | repeated conflict for one template |
+| Provider p95 (`operation="provider"`) | over 5 seconds for 15 minutes | over 10 seconds for 10 minutes |
+| Status-query p95 (`operation=~"status_query|delivery_status_query"`) | over 250 ms for 15 minutes | over 1 second for 10 minutes |
+
+`duplicate` counts producer replays that reused the same snapshot. This is not
+a provider duplicate count. Alert when its rate changes sharply for one
+template; a non-zero steady rate can be normal for retrying schedulers.
+
+When the queue stalls:
+
+1. Check the `email-outbox` scheduler job logs and `claim` failures.
+2. Compare oldest age with provider p95. High age with normal provider latency
+   points to worker scheduling or database claims; high values in both point to
+   the provider.
+3. Group `retry` and `dead_letter` by transport and template. Read
+   `last_error` only from a secured database session; it may contain provider
+   diagnostics.
+4. Check `stale_finalize`. A rise means sends outlive leases or several workers
+   are reclaiming the same rows.
+
+### Rollback
+
+An operational rollback must retain every outbox row.
+
+1. Stop the scheduler worker before deploying the old producers. This prevents
+   new code from claiming rows while the process set is mixed.
+2. Deploy the producer rollback. Do not run the migration down command: it
+   drops `platform.push_outbox` and cannot retain push history.
+3. Keep the Delivery schema in place. Rows already marked `sent`,
+   `dead_letter`, or `cancelled` remain evidence. Claimed rows become eligible
+   after `lease_expires_at`.
+4. If the rollback still includes the Delivery worker, start it and watch oldest
+   age, retries, and stale finalizations. If it does not, leave the worker
+   stopped and roll forward with a compatible worker before draining the rows.
+
+Never delete or rewrite leased rows to speed up rollback. If a provider outage
+caused the rollback, keeping pending rows lets the normal retry schedule resume
+after recovery.
+
 
 ## Verifying a tenant's setup
 

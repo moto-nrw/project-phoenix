@@ -160,7 +160,7 @@ function GroupCard({
 }) {
   const c = group.counters;
   return (
-    <article className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <article className="moto-content-surface rounded-2xl border p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-gray-900">

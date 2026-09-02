@@ -1,14 +1,11 @@
-// Deliberately NOT parallel (whole package): the SMTP tests read and write
-// the viper singleton (email_smtp_* keys) to build mailers, so one test's
-// configuration would leak into the next one's (#2419).
 package email
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wneessen/go-mail"
@@ -18,7 +15,8 @@ import (
 // SMTPMailer Interface Tests
 // =============================================================================
 
-func TestSMTPMailer_ImplementsMailer(_ *testing.T) {
+func TestSMTPMailer_ImplementsMailer(t *testing.T) {
+	t.Parallel()
 	// SMTPMailer should implement Mailer interface
 	var _ Mailer = &SMTPMailer{}
 }
@@ -28,6 +26,7 @@ func TestSMTPMailer_ImplementsMailer(_ *testing.T) {
 // =============================================================================
 
 func TestNewMailer_NoSMTPHost_ReturnsMockMailer(t *testing.T) {
+	t.Parallel()
 	// Setup: Create minimal templates directory
 	tempDir := t.TempDir()
 	templatesDir := filepath.Join(tempDir, "templates")
@@ -41,16 +40,7 @@ func TestNewMailer_NoSMTPHost_ReturnsMockMailer(t *testing.T) {
 		0644,
 	))
 
-	// Change working directory temporarily
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
-
-	// Clear SMTP host to trigger MockMailer fallback
-	viper.Set("email_smtp_host", "")
-
-	mailer, err := NewMailer()
+	mailer, err := NewMailer(MailerConfig{TemplateDir: templatesDir})
 	require.NoError(t, err)
 	assert.NotNil(t, mailer)
 
@@ -60,6 +50,7 @@ func TestNewMailer_NoSMTPHost_ReturnsMockMailer(t *testing.T) {
 }
 
 func TestNewMailer_WithSMTPHost_ConfiguresClient(t *testing.T) {
+	t.Parallel()
 	// Setup: Create minimal templates directory
 	tempDir := t.TempDir()
 	templatesDir := filepath.Join(tempDir, "templates")
@@ -73,25 +64,14 @@ func TestNewMailer_WithSMTPHost_ConfiguresClient(t *testing.T) {
 		0644,
 	))
 
-	// Change working directory temporarily
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
-
-	// Set SMTP configuration (won't actually connect)
-	viper.Set("email_smtp_host", "localhost")
-	viper.Set("email_smtp_port", 587)
-	viper.Set("email_smtp_user", "testuser")
-	viper.Set("email_smtp_password", "testpass")
-	viper.Set("email_from_name", "Test Sender")
-	viper.Set("email_from_address", "test@example.com")
-
-	defer func() {
-		viper.Set("email_smtp_host", "")
-	}()
-
-	mailer, err := NewMailer()
+	mailer, err := NewMailer(MailerConfig{
+		Host:        "localhost",
+		Port:        587,
+		User:        "testuser",
+		Password:    "testpass",
+		DefaultFrom: NewEmail("Test Sender", "test@example.com"),
+		TemplateDir: templatesDir,
+	})
 	require.NoError(t, err)
 	assert.NotNil(t, mailer)
 
@@ -106,6 +86,7 @@ func TestNewMailer_WithSMTPHost_ConfiguresClient(t *testing.T) {
 }
 
 func TestNewMailer_Port465_ConfiguresSSL(t *testing.T) {
+	t.Parallel()
 	// Setup: Create minimal templates directory
 	tempDir := t.TempDir()
 	templatesDir := filepath.Join(tempDir, "templates")
@@ -118,22 +99,13 @@ func TestNewMailer_Port465_ConfiguresSSL(t *testing.T) {
 		0644,
 	))
 
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
-
-	// Set SMTP configuration with port 465 (SSL)
-	viper.Set("email_smtp_host", "localhost")
-	viper.Set("email_smtp_port", 465) // SSL port
-	viper.Set("email_smtp_user", "testuser")
-	viper.Set("email_smtp_password", "testpass")
-
-	defer func() {
-		viper.Set("email_smtp_host", "")
-	}()
-
-	mailer, err := NewMailer()
+	mailer, err := NewMailer(MailerConfig{
+		Host:        "localhost",
+		Port:        465,
+		User:        "testuser",
+		Password:    "testpass",
+		TemplateDir: templatesDir,
+	})
 	require.NoError(t, err)
 	assert.NotNil(t, mailer)
 
@@ -142,16 +114,12 @@ func TestNewMailer_Port465_ConfiguresSSL(t *testing.T) {
 }
 
 func TestNewMailer_NoTemplates_ReturnsError(t *testing.T) {
+	t.Parallel()
 	// Setup: Create empty directory (no templates)
 	tempDir := t.TempDir()
 
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
-
 	// Should fail because no templates directory exists
-	mailer, err := NewMailer()
+	mailer, err := NewMailer(MailerConfig{TemplateDir: filepath.Join(tempDir, "templates")})
 
 	// Either error or nil mailer expected when templates missing
 	if err == nil {
@@ -193,6 +161,7 @@ func TestSMTPMailer_Send_UsesDefaultFrom(t *testing.T) {
 // =============================================================================
 
 func TestParseTemplates_WithValidTemplates(t *testing.T) {
+	t.Parallel()
 	// Setup: Create templates directory with valid template
 	tempDir := t.TempDir()
 	templatesDir := filepath.Join(tempDir, "templates")
@@ -212,39 +181,22 @@ func TestParseTemplates_WithValidTemplates(t *testing.T) {
 		0644,
 	))
 
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
-
-	// Reset templates global
-	templates = nil
-
-	err = parseTemplates()
+	templates, err := parseTemplates(templatesDir)
 	assert.NoError(t, err)
 	assert.NotNil(t, templates)
 }
 
 func TestParseTemplates_NoTemplatesDirectory(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
-
-	// Reset templates global
-	templates = nil
-
-	// Should handle missing directory gracefully or return error
-	err = parseTemplates()
-	// Either succeeds with no templates or returns error
-	if err != nil {
-		assert.Contains(t, err.Error(), "templates")
-	}
+	_, err := parseTemplates(filepath.Join(tempDir, "templates"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "templates")
 }
 
 func TestParseTemplates_MultipleTemplates(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	templatesDir := filepath.Join(tempDir, "templates")
 	require.NoError(t, os.MkdirAll(templatesDir, 0755))
@@ -262,14 +214,9 @@ func TestParseTemplates_MultipleTemplates(t *testing.T) {
 		require.NoError(t, os.WriteFile(fullPath, []byte(content), 0644))
 	}
 
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
-
-	templates = nil
-	err = parseTemplates()
+	templates, err := parseTemplates(templatesDir)
 	assert.NoError(t, err)
+	assert.NotNil(t, templates)
 }
 
 // =============================================================================
@@ -279,27 +226,16 @@ func TestParseTemplates_MultipleTemplates(t *testing.T) {
 func TestMessage_Parse_RequiresTemplates(t *testing.T) {
 	t.Parallel()
 
-	// This test documents that parse() requires templates to be initialized
-	// The current implementation panics if templates is nil,
-	// so we skip the actual parse call and just verify the setup
-
-	// Reset templates to nil to demonstrate the dependency
-	originalTemplates := templates
-	defer func() { templates = originalTemplates }()
-	templates = nil
-
 	msg := Message{
 		Template: "nonexistent.html",
 		Content:  map[string]string{"key": "value"},
 	}
 
-	// Document that templates must be initialized before parse()
-	// The parse function requires templates != nil
-	assert.Nil(t, templates, "Templates should be nil for this test setup")
-	assert.NotEmpty(t, msg.Template)
+	require.ErrorContains(t, msg.parse(nil), "not configured")
 }
 
 func TestMessage_Parse_WithValidTemplate(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	templatesDir := filepath.Join(tempDir, "templates")
 	require.NoError(t, os.MkdirAll(templatesDir, 0755))
@@ -316,20 +252,15 @@ func TestMessage_Parse_WithValidTemplate(t *testing.T) {
 		0644,
 	))
 
-	originalDir, err := os.Getwd()
+	templates, err := parseTemplates(templatesDir)
 	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
-
-	templates = nil
-	require.NoError(t, parseTemplates())
 
 	msg := Message{
 		Template: "greeting.html",
 		Content:  struct{ Name string }{Name: "World"},
 	}
 
-	err = msg.parse()
+	err = msg.parse(templates)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, msg.html)
 	assert.NotEmpty(t, msg.text)
@@ -359,6 +290,7 @@ func TestMessage_Parse_WithValidTemplate(t *testing.T) {
 // DialAndSend, so as long as the fix is in place the error bubbles up from
 // the dial step — never from "failed to set from/to address".
 func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
+	t.Parallel()
 	// parseTemplates() walks ./templates, so we need a temp working dir with a
 	// minimal template file. Same pattern as the other tests in this file.
 	tempDir := t.TempDir()
@@ -370,13 +302,8 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 		0644,
 	))
 
-	originalDir, err := os.Getwd()
+	templates, err := parseTemplates(templatesDir)
 	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
-
-	templates = nil
-	require.NoError(t, parseTemplates())
 
 	// Unreachable local port → DialAndSend fails immediately with
 	// "connection refused", which is exactly what we want: Send() gets far
@@ -389,7 +316,9 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 	require.NoError(t, err)
 
 	mailer := &SMTPMailer{
-		client: client,
+		client:    client,
+		templates: templates,
+		logger:    slog.New(slog.DiscardHandler),
 		defaultFrom: Email{
 			Name:    "System",
 			Address: "system@example.com",

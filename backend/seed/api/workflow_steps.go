@@ -139,10 +139,10 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Normalize()
 
 	rt.State = state
-	if err := WriteSeedState(state, DefaultSeedStatePath); err != nil {
+	if err := WriteSeedState(state, s.seeder.statePath); err != nil {
 		return err
 	}
-	fmt.Printf("Seed state written to %s\n", DefaultSeedStatePath)
+	fmt.Printf("Seed state written to %s\n", s.seeder.statePath)
 	return nil
 }
 
@@ -191,6 +191,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedStatisticsDemoStep{},
 			seedTimeTrackingHistoryStep{},
 			seedDataAccessAuditStep{},
+			// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
+			// vergangene Kurstermine samt Anwesenheit an (#2891).
+			seedCourseParticipationStep{},
 			parentEnrollmentSeedStep{seeder: seeder},
 			seedParentEngagementStep{},
 			seedGradeTransitionStep{},

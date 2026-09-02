@@ -12,11 +12,21 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
+	t.Helper()
+	capability, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
+	factory := repositories.NewFactory(db)
+	factory.BindOrganizationTenancy(capability)
+	return factory
+}
 
 // ensureGuardianProfile returns the guardian_profile id for the
 // (account, tenant) pair, creating it on first call. Uses the existing
@@ -127,7 +137,7 @@ func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
 
 	linkChildToAccount(t, db, account.ID, tenantID, student.ID)
 
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var list []*parentModels.ChildSummary
 	err := runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -140,7 +150,7 @@ func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
 	assert.Equal(t, tenantID, list[0].TenantID)
 	assert.Equal(t, "Lara", list[0].FirstName)
 	assert.Equal(t, "1a", list[0].SchoolClass)
-	assert.NotEmpty(t, list[0].SchoolName, "school name must be JOINed in from platform.schools")
+	assert.NotEmpty(t, list[0].SchoolName, "school name must be resolved by the owner capability")
 	assert.NotEmpty(t, list[0].SchoolSlug)
 }
 

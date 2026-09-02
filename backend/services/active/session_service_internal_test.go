@@ -233,6 +233,37 @@ func (s sessionStartLockerStub) LockSessionStart(ctx context.Context, tenantID, 
 	return s.lock(ctx, tenantID, activityID)
 }
 
+func TestGetActivityEndNameKeepsTransactionUsableAfterDatabaseFailure(t *testing.T) {
+	t.Parallel()
+
+	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.New(slog.DiscardHandler)}}
+	var lookupErr error
+	err := tenant.WithinCurrentTenant(testpkg.Ctx(t), func(txCtx context.Context) error {
+		name, err := svc.getActivityEndName(txCtx, func(lookupCtx context.Context) (string, error) {
+			rawTx, ok := tenant.TransactionFromContext(lookupCtx)
+			require.True(t, ok)
+			tx, ok := rawTx.(bun.Tx)
+			require.True(t, ok)
+			_, lookupErr = tx.ExecContext(lookupCtx, "SELECT 1 / 0")
+			return "", lookupErr
+		}, "SSE room name lookup failed", slog.Int64("room_id", 1))
+		require.NoError(t, err)
+		assert.Empty(t, name)
+
+		rawTx, ok := tenant.TransactionFromContext(txCtx)
+		require.True(t, ok)
+		tx, ok := rawTx.(bun.Tx)
+		require.True(t, ok)
+		_, err = tx.ExecContext(txCtx, "SELECT 1")
+		return err
+	})
+	require.NoError(t, err)
+	require.Error(t, lookupErr)
+	var pgErr interface{ Field(byte) string }
+	require.True(t, errors.As(lookupErr, &pgErr))
+	assert.Equal(t, "22012", pgErr.Field('C'))
+}
+
 func TestAcquireActivitySessionLock_UsesRepository(t *testing.T) {
 	t.Parallel()
 	ctx := tenant.WithTenantID(context.Background(), 17)

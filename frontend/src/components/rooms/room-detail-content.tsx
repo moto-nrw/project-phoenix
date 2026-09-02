@@ -555,7 +555,7 @@ export function RoomDetailContent({
                       return (
                         <div
                           key={session.sessionId}
-                          className="rounded-xl border border-gray-100 bg-white p-4 transition-shadow hover:shadow-md"
+                          className="moto-content-surface rounded-xl border p-4 shadow-sm"
                         >
                           <div className="mb-2 flex items-start justify-between gap-2">
                             <h4 className="font-medium text-gray-900">
