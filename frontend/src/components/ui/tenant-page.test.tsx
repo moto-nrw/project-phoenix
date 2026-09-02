@@ -44,6 +44,16 @@ describe("TenantPage", () => {
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 
+  it("rendert das Status-Skelett nicht innerhalb eines Absatzes", () => {
+    const { container } = render(
+      <TenantPage title="Kinder" statsLoading>
+        <p>Inhalt</p>
+      </TenantPage>,
+    );
+
+    expect(container.querySelector("p .animate-pulse")).toBeNull();
+  });
+
   it("meldet beim Laden einen neutralen Status", () => {
     render(
       <TenantPage title="Kinder" loading>

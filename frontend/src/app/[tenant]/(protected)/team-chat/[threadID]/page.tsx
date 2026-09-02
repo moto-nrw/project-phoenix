@@ -16,9 +16,14 @@ import { useTenantTeamChatPortal } from "~/lib/hooks/use-tenant-team-chat-portal
  * Kopfkarte ist der Name des Gegenübers, die Statuszeile zählt die
  * Nachrichten; Aus-Zustand und Fehler kommen aus dem Gerüst.
  */
-function renderThreadFrame(parts: TeamChatThreadParts) {
+export function renderThreadFrame(parts: TeamChatThreadParts) {
   if (parts.state === "disabled") {
-    return <TenantPage title="Team-Chat" empty={parts.empty} />;
+    return (
+      <TenantPage
+        title="Team-Chat"
+        empty={{ ...parts.empty, action: parts.backNav }}
+      />
+    );
   }
   if (parts.state === "error") {
     return (

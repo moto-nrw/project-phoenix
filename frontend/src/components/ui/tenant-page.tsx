@@ -347,11 +347,16 @@ export function TenantPage({
               >
                 {title}
               </h1>
-              {statusLine != null && (
-                <p className="mt-1 text-sm leading-5 text-gray-600">
-                  {statusLine}
-                </p>
-              )}
+              {statusLine != null &&
+                (statsLoading ? (
+                  <div className="mt-1 text-sm leading-5 text-gray-600">
+                    {statusLine}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm leading-5 text-gray-600">
+                    {statusLine}
+                  </p>
+                ))}
             </div>
           </div>
           {actions && (
