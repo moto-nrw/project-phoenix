@@ -1519,7 +1519,7 @@ export function EnrollmentForm({
           {additionalGuardians.map((g, i) => (
             <div
               key={getStableObjectKey(g, "additional-guardian")}
-              className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
+              className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
             >
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
@@ -1795,7 +1795,7 @@ export function EnrollmentForm({
           return (
             <div
               key={child.clientId}
-              className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
+              className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
             >
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
@@ -3669,7 +3669,7 @@ function CustomFieldInput({
           onChange={(e) => onChange(e.target.value)}
           rows={3}
           name={field.key}
-          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red" : ""}`}
+          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
           aria-required={field.required}
           aria-invalid={error ? "true" : undefined}
         />
@@ -3810,7 +3810,7 @@ function CustomFieldInput({
         onChange={(e) => onChange(e.target.value)}
         aria-required={field.required}
         aria-invalid={error ? "true" : undefined}
-        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red" : ""}`}
+        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
       />
       {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
     </label>
@@ -4922,7 +4922,7 @@ function ContactListInput({
     );
   return (
     <fieldset
-      className={`rounded-2xl border bg-white p-4 shadow-sm ${error ? "border-moto-red" : "border-gray-200"}`}
+      className={`rounded-2xl border p-4 shadow-sm ${error ? "border-moto-red" : "moto-content-surface"}`}
       aria-invalid={error ? "true" : undefined}
     >
       <legend className="px-1 text-sm font-semibold text-gray-900">

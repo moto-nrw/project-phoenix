@@ -172,6 +172,11 @@ func (c *Client) Put(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("PUT", path, body, true, nil)
 }
 
+// Patch makes an authenticated PATCH request
+func (c *Client) Patch(path string, body any) ([]byte, error) {
+	return c.doRequestWithHeaders("PATCH", path, body, true, nil)
+}
+
 // Delete makes an authenticated DELETE request.
 func (c *Client) Delete(path string) ([]byte, error) {
 	return c.doRequestWithHeaders("DELETE", path, nil, true, nil)

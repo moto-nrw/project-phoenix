@@ -191,6 +191,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedStatisticsDemoStep{},
 			seedTimeTrackingHistoryStep{},
 			seedDataAccessAuditStep{},
+			// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
+			// vergangene Kurstermine samt Anwesenheit an (#2891).
+			seedCourseParticipationStep{},
 			parentEnrollmentSeedStep{seeder: seeder},
 			seedParentEngagementStep{},
 			seedGradeTransitionStep{},

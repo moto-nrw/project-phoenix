@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
@@ -46,6 +44,6 @@ func NewFactoryForTestsWithFeedback(
 	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, nil, nil, feedback, bindFeedbackSettings, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
 }
 
-func newOrganizationCapabilityForTests(db *bun.DB) (*organizationtenancy.Module, error) {
-	return organizationCompose.New(organizationCompose.Dependencies{DB: db, Observe: func(organizationCompose.Observation) {}})
+func newOrganizationCapabilityForTests(db *bun.DB) (SchoolCapability, error) {
+	return repositories.NewOrganizationTenancy(db)
 }

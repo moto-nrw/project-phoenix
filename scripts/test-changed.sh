@@ -108,7 +108,9 @@ frontend_changes=$(
 run_frontend_vitest() {
   (
     cd frontend
-    pnpm install --frozen-lockfile
+    # The changed-test command is unattended. CI mode lets pnpm recreate a
+    # stale generated modules directory from the frozen lockfile.
+    CI=true pnpm install --frozen-lockfile
     pnpm vitest run "$@"
   )
 }

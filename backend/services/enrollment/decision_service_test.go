@@ -58,6 +58,8 @@ type stubActivationSettings struct {
 	bookingsAuthoritative *bool
 }
 
+const decisionTestToday timezone.Date = "2026-08-24"
+
 func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if key == configModel.KeyEnrollmentDefaultActivationMode {
 		return s.mode, nil
@@ -4495,5 +4497,3 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
 	return offering
 }
-
-var decisionTestToday = timezone.NewDate(2026, 8, 24)

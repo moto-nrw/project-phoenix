@@ -35,7 +35,7 @@ type ListboxProps = ComponentProps<typeof ListboxDropdown<string>>;
 const TRIGGER_CLASS =
   "moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-80";
 
-const MENU_CLASS = "rounded-xl border border-gray-200 bg-white shadow-lg";
+const MENU_CLASS = "moto-popover-surface rounded-xl border";
 const LIST_CLASS = "scrollbar-thin overflow-y-auto px-2 pb-2";
 
 const ROW_CLASS =

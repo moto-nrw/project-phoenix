@@ -1081,7 +1081,7 @@ function ClockInCard({
                     outside click, so dismissing this picker cannot also
                     trigger an action behind it. */}
                 {showBreakDurationPicker && !isMobileViewport && (
-                  <div className="absolute top-full left-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-lg sm:w-72">
+                  <div className="moto-popover-surface absolute top-full left-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-xl border p-3 sm:w-72">
                     {breakDurationControls}
                   </div>
                 )}

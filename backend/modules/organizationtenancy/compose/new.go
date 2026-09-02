@@ -49,6 +49,13 @@ func (transaction) RunAdmin(ctx context.Context, callback func(context.Context) 
 	return tenant.WithinAdmin(ctx, callback)
 }
 
+func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return callback(ctx)
+	}
+	return tenant.WithinAdmin(ctx, callback)
+}
+
 type engine struct{ service *application.Service }
 
 func (e engine) Create(ctx context.Context, input organizationtenancy.CreateOrganization) (organizationtenancy.Organization, error) {
@@ -124,6 +131,18 @@ func toPublicList(values []domain.Organization) []organizationtenancy.Organizati
 
 func mapError(err error) error {
 	switch {
+	case errors.Is(err, domain.ErrSchoolNotFound):
+		return organizationtenancy.ErrSchoolNotFound
+	case errors.Is(err, domain.ErrSchoolSlugConflict):
+		return organizationtenancy.ErrSchoolSlugConflict
+	case errors.Is(err, domain.ErrSchoolDomainConflict):
+		return organizationtenancy.ErrSchoolDomainConflict
+	case errors.Is(err, domain.ErrSchoolAlreadyDeleted):
+		return organizationtenancy.ErrSchoolAlreadyDeleted
+	case errors.Is(err, domain.ErrSchoolNotDeleted):
+		return organizationtenancy.ErrSchoolNotDeleted
+	case errors.Is(err, domain.ErrOrganizationDeleted):
+		return organizationtenancy.ErrOrganizationDeleted
 	case errors.Is(err, domain.ErrNotFound):
 		return organizationtenancy.ErrOrganizationNotFound
 	case errors.Is(err, domain.ErrSlugConflict):

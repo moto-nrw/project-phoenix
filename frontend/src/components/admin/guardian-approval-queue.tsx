@@ -219,7 +219,7 @@ export default function GuardianApprovalQueue({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center rounded-2xl border border-gray-200 bg-white p-12 shadow-sm">
+      <div className="moto-content-surface flex items-center justify-center rounded-2xl border p-12 shadow-sm">
         <div className="flex items-center gap-3 text-sm text-gray-600">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900" />
           Wird geladen…
@@ -249,7 +249,7 @@ export default function GuardianApprovalQueue({
         requests.map((req) => (
           <div
             key={req.id}
-            className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+            className="moto-content-surface rounded-2xl border p-4 shadow-sm"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">

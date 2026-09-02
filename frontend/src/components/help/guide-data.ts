@@ -932,24 +932,30 @@ export const appChapters: readonly GuideChapter[] = [
       {
         id: "statistik",
         title: "Statistik",
-        searchTerms: ["Anwesenheitsquote", "Fehlzeiten", "Raumauslastung"],
+        searchTerms: [
+          "Anwesenheitsquote",
+          "Fehlzeiten",
+          "Raumauslastung",
+          "Kursteilnahme",
+        ],
         icon: ClipboardCheck,
         summary:
-          "Zeigt für einen frei wählbaren Zeitraum, wie oft jedes Kind da war, wie viele Tage es krank, entschuldigt oder ohne Meldung gefehlt hat, und wie stark die Räume genutzt wurden. Mit Export als PDF, Excel und Word.",
+          "Zeigt für einen frei wählbaren Zeitraum, wie oft jedes Kind da war, wie viele Tage es krank, entschuldigt oder ohne Meldung gefehlt hat, wie stark die Räume genutzt wurden und wie oft die Kinder an den einzelnen Kursen teilgenommen haben. Mit Export als PDF, Excel und Word.",
         steps: [
           "`Statistik` in der Seitenleiste öffnen.",
           "Oben den Zeitraum wählen, zum Beispiel `Letzte 30 Tage` oder einen eigenen Bereich. Der Zeitraum darf höchstens ein Jahr umfassen und nicht in der Zukunft enden.",
           "Daneben bei Bedarf eine oder mehrere Gruppen wählen. Ohne Auswahl zählt die Statistik alle Kinder.",
           "Die Kacheln zeigen die Betreuungstage des Zeitraums, die abgezogenen Tage, die Gesamtquote und die Fehltage nach Art. Darunter stehen die Zahlen je Gruppe, je Kind und je Raum.",
-          "Über `PDF`, `Excel` oder `Word` die Statistik mit dem gewählten Zeitraum und Gruppenfilter ausgeben.",
+          "Im Bereich `Kurse` steht, wie viele Termine ein Kurs hatte und wie oft die Kinder teilgenommen haben. Mit `Je Kurs` und `Je Kind` zwischen den beiden Sichten wechseln.",
+          "Über `PDF`, `Excel` oder `Word` die Statistik mit dem gewählten Zeitraum und Gruppenfilter ausgeben. Jeder Bereich hat eigene Schaltflächen und ergibt eine eigene Datei.",
         ],
         callout: {
           title: "So rechnet die Quote",
-          body: "Betreuungstage sind Montag bis Freitag im Zeitraum, abzüglich Feiertage, Schließtage und der Ferien aus dem Kalender. Ein Tag zählt als anwesend, wenn das Kind an diesem Tag angemeldet war. Fehlt eine Anmeldung, ordnet die Statistik den Tag nach der Meldung ein: `Krank`, `Entschuldigt` (auch Klassenfahrt) oder `Ohne Meldung`. Kinder werden immer in ihrer heutigen Gruppe gezählt. Raumdaten können je Kind unterschiedlich lange vorliegen. Die Statistik zeigt das früheste mögliche Datum.",
+          body: "Betreuungstage sind Montag bis Freitag im Zeitraum, abzüglich Feiertage, Schließtage und der Ferien aus dem Kalender. Ein Tag zählt als anwesend, wenn das Kind an diesem Tag angemeldet war. Fehlt eine Anmeldung, ordnet die Statistik den Tag nach der Meldung ein: `Krank`, `Entschuldigt` (auch Klassenfahrt) oder `Ohne Meldung`. Kinder werden immer in ihrer heutigen Gruppe gezählt. Raumdaten können je Kind unterschiedlich lange vorliegen. Die Statistik zeigt das früheste mögliche Datum. Bei den Kursen zählt die Quote die Teilnahmetage geteilt durch die Termine, für die eine Teilnahme entschieden wurde. Abgesagte Termine zählen nicht mit. Termine, die noch nicht abgeschlossen sind, stehen als `Offen` daneben und verändern die Quote nicht.",
           tone: "blue",
         },
         screenshot:
-          "Statistik mit Zeitraum- und Gruppenfilter, Kennzahl-Kacheln und den Tabellen je Gruppe, Kind und Raum.",
+          "Statistik mit Zeitraum- und Gruppenfilter, Kennzahl-Kacheln und den Tabellen je Gruppe, Kind, Raum und Kurs.",
         image: "/help/screens/statistik.webp",
       },
       {

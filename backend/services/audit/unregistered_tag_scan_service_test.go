@@ -63,7 +63,27 @@ func (c fakeAuditCommand) Append(_ context.Context, event any) error {
 }
 
 type fakeOrganizationQuery struct {
-	listByIDsFn func(context.Context, []int64) ([]organizationtenancy.Organization, error)
+	listByIDsFn                 func(context.Context, []int64) ([]organizationtenancy.Organization, error)
+	listSchoolsByIDsFn          func(context.Context, []int64) ([]organizationtenancy.School, error)
+	listSchoolsByOrganizationFn func(context.Context, int64) ([]organizationtenancy.School, error)
+}
+
+func (q *fakeOrganizationQuery) ListSchoolsByID(ctx context.Context, ids []int64) ([]organizationtenancy.School, error) {
+	if q.listSchoolsByIDsFn != nil {
+		return q.listSchoolsByIDsFn(ctx, ids)
+	}
+	schools := make([]organizationtenancy.School, 0, len(ids))
+	for _, id := range ids {
+		schools = append(schools, organizationtenancy.School{ID: id, OrganizationID: id / 2})
+	}
+	return schools, nil
+}
+
+func (q *fakeOrganizationQuery) ListSchoolsByOrganization(ctx context.Context, id int64) ([]organizationtenancy.School, error) {
+	if q.listSchoolsByOrganizationFn != nil {
+		return q.listSchoolsByOrganizationFn(ctx, id)
+	}
+	return []organizationtenancy.School{{ID: id * 2, OrganizationID: id}}, nil
 }
 
 func (q *fakeOrganizationQuery) ListOrganizationsByID(ctx context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
@@ -160,12 +180,16 @@ func TestUnregisteredTagScanListForOperatorPassesFilter(t *testing.T) {
 
 	schoolID := int64(10)
 	orgID := schoolID / 2
-	want := []*auditModels.UnregisteredTagScan{{TagUID: "ABC123", OrganizationID: orgID}}
+	want := []*auditModels.UnregisteredTagScan{{TagUID: "ABC123", SchoolID: schoolID}}
 	repo := &fakeUnregisteredTagScanRepo{listResult: want}
 	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
 		listByIDsFn: func(_ context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
 			require.Equal(t, []int64{orgID}, ids)
 			return []organizationtenancy.Organization{{ID: orgID, Name: "Organization"}}, nil
+		},
+		listSchoolsByIDsFn: func(_ context.Context, ids []int64) ([]organizationtenancy.School, error) {
+			require.Equal(t, []int64{schoolID}, ids)
+			return []organizationtenancy.School{{ID: schoolID, Name: "School", OrganizationID: orgID}}, nil
 		},
 	})
 
@@ -178,9 +202,47 @@ func TestUnregisteredTagScanListForOperatorPassesFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, want, got)
 	require.Equal(t, "Organization", got[0].OrganizationName)
+	require.Equal(t, "School", got[0].SchoolName)
 	require.Equal(t, &schoolID, repo.listFilter.SchoolID)
 	require.Equal(t, &orgID, repo.listFilter.OrganizationID)
 	require.True(t, repo.listFilter.UnresolvedOnly)
+}
+
+func TestUnregisteredTagScanOrganizationFilterKeepsDeletedSchoolHistory(t *testing.T) {
+	t.Parallel()
+
+	deletedAt := time.Now()
+	organizationID := time.Now().UnixNano()
+	schoolID := organizationID + 1
+	repo := &fakeUnregisteredTagScanRepo{}
+	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
+		listSchoolsByOrganizationFn: func(_ context.Context, id int64) ([]organizationtenancy.School, error) {
+			require.Equal(t, organizationID, id)
+			return []organizationtenancy.School{{ID: schoolID, OrganizationID: id, DeletedAt: &deletedAt}}, nil
+		},
+	})
+
+	_, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{OrganizationID: &organizationID})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{schoolID}, repo.listFilter.SchoolIDs)
+}
+
+func TestUnregisteredTagScanOrganizationFilterReturnsEmptyWithoutSchools(t *testing.T) {
+	t.Parallel()
+
+	organizationID := time.Now().UnixNano()
+	repo := &fakeUnregisteredTagScanRepo{listErr: errors.New("repository must not be called")}
+	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
+		listSchoolsByOrganizationFn: func(context.Context, int64) ([]organizationtenancy.School, error) {
+			return []organizationtenancy.School{}, nil
+		},
+	})
+
+	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{OrganizationID: &organizationID})
+
+	require.NoError(t, err)
+	require.Empty(t, got)
 }
 
 func TestUnregisteredTagScanListForOperatorPropagatesRepositoryError(t *testing.T) {
@@ -199,7 +261,7 @@ func TestUnregisteredTagScanListForOperatorPropagatesRepositoryError(t *testing.
 func TestUnregisteredTagScanListForOperatorPropagatesOrganizationQueryError(t *testing.T) {
 	t.Parallel()
 	wantErr := errors.New("organization query failed")
-	repo := &fakeUnregisteredTagScanRepo{listResult: []*auditModels.UnregisteredTagScan{{OrganizationID: 42}}}
+	repo := &fakeUnregisteredTagScanRepo{listResult: []*auditModels.UnregisteredTagScan{{SchoolID: 84}}}
 	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
 		listByIDsFn: func(context.Context, []int64) ([]organizationtenancy.Organization, error) {
 			return nil, wantErr

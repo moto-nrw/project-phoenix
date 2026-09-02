@@ -537,7 +537,7 @@ export default function MealPlanPage() {
           </section>
         ) : (
           <div
-            className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-opacity duration-200 ${
+            className={`moto-content-surface overflow-hidden rounded-2xl border shadow-sm transition-opacity duration-200 ${
               loading ? "opacity-50" : "opacity-100"
             }`}
           >

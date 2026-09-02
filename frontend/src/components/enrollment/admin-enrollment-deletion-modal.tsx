@@ -200,7 +200,7 @@ export function AdminEnrollmentDeletionModal({
               <h4 className="text-sm font-semibold text-gray-900">
                 Betroffene Datensätze ({impact.counts.total})
               </h4>
-              <dl className="mt-2 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white px-4">
+              <dl className="moto-content-surface mt-2 divide-y divide-gray-100 rounded-xl border px-4 shadow-sm">
                 {countRows.map((row) => (
                   <div
                     key={row.key}

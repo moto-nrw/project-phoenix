@@ -50,7 +50,7 @@ export function StudentRow({
     // min-w-0: die Zeile ist ein Grid-Item, und Grid-Items haben
     // min-width:auto — ohne das schiebt ein langer Name die ganze Liste
     // auf schmalen Bildschirmen über den Rand.
-    <li className="flex min-w-0 items-start justify-between gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2.5">
+    <li className="moto-content-surface flex min-w-0 items-start justify-between gap-3 rounded-xl border px-3 py-2.5 shadow-sm">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-gray-900">
           {row.last_name}, {row.first_name}

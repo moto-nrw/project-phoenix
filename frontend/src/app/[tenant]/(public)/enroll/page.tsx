@@ -74,7 +74,7 @@ export default function EnrollPhasePickerPage() {
         <PhasePickerHeader tenant={tenant} />
         <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-2xl border shadow-sm">
           <div
-            className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm font-medium text-gray-600 shadow-sm"
+            className="moto-content-surface rounded-xl border px-5 py-4 text-sm font-medium text-gray-600 shadow-sm"
             role="status"
             aria-live="polite"
           >

@@ -89,9 +89,6 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 
 	type row struct {
 		SchoolID          int64         `bun:"school_id"`
-		SchoolName        string        `bun:"school_name"`
-		SchoolSlug        string        `bun:"school_slug"`
-		SchoolSubdomain   string        `bun:"school_subdomain"`
 		PhaseID           int64         `bun:"phase_id"`
 		PhaseName         string        `bun:"phase_name"`
 		PhaseKind         string        `bun:"phase_kind"`
@@ -101,6 +98,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		EnrollmentCloseAt *time.Time    `bun:"enrollment_close_at"`
 		AlreadyLinked     bool          `bun:"already_linked"`
 		Audience          string        `bun:"audience"`
+		HasFamilyLink     bool          `bun:"has_family_link"`
 	}
 
 	// The caller applies the enrollment master switch through the settings
@@ -112,10 +110,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	// comment).
 	const query = `
 		SELECT
-			sch.id        AS school_id,
-			sch.name      AS school_name,
-			sch.slug      AS school_slug,
-			sch.subdomain AS school_subdomain,
+			ph.tenant_id  AS school_id,
 			ph.id         AS phase_id,
 			ph.name       AS phase_name,
 			ph.kind       AS phase_kind,
@@ -124,10 +119,9 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			ph.enrollment_open_at  AS enrollment_open_at,
 			ph.enrollment_close_at AS enrollment_close_at,
 			ph.audience   AS audience,
-			(at.account_id IS NOT NULL) AS already_linked
+			(at.account_id IS NOT NULL) AS already_linked,
+			guard.has_family_link AS has_family_link
 		FROM enrollment.phases AS ph
-		JOIN platform.schools AS sch
-			ON sch.id = ph.tenant_id
 		LEFT JOIN auth.account_tenants AS at
 			ON at.tenant_id  = ph.tenant_id
 			AND at.account_id = ?
@@ -184,14 +178,11 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 				) AS has_family_link
 		) AS guard
 		WHERE ph.is_active = TRUE
-		  AND sch.active   = TRUE
-		  AND sch.deleted_at IS NULL
-		  AND (sch.hidden = FALSE OR guard.has_family_link)
 		  AND (ph.enrollment_open_at IS NULL OR ph.enrollment_open_at <= NOW())
 		  AND (ph.enrollment_close_at IS NULL OR ph.enrollment_close_at >= NOW())
 		  AND (ph.audience <> 'linked_parents' OR guard.has_submit_permission)
 		  AND (ph.audience <> 'existing_students' OR guard.has_enrolled_submit_permission)
-		ORDER BY already_linked DESC, sch.name, ph.service_start_date
+		ORDER BY already_linked DESC, ph.service_start_date
 	`
 
 	var rows []row
@@ -210,9 +201,6 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	for _, rr := range rows {
 		out = append(out, &parentModels.EnrollablePhase{
 			SchoolID:          rr.SchoolID,
-			SchoolName:        rr.SchoolName,
-			SchoolSlug:        rr.SchoolSlug,
-			SchoolSubdomain:   rr.SchoolSubdomain,
 			PhaseID:           rr.PhaseID,
 			PhaseName:         rr.PhaseName,
 			PhaseKind:         rr.PhaseKind,
@@ -222,6 +210,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			EnrollmentCloseAt: rr.EnrollmentCloseAt,
 			AlreadyLinked:     rr.AlreadyLinked,
 			Audience:          rr.Audience,
+			HasFamilyLink:     rr.HasFamilyLink,
 		})
 	}
 	return out, nil

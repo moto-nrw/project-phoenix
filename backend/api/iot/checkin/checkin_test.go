@@ -116,7 +116,14 @@ func setupCheckinRoute(t *testing.T, loggers ...*slog.Logger) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 	newCheckinService := func(active activeSvc.Service, users usersSvc.PersonService) *checkinsvc.CheckinService {
 		return checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
-			Active: active, Users: users, Facilities: svc.Facilities, Activities: svc.Activities, Logger: logger,
+			Active:     active,
+			Users:      users,
+			Facilities: svc.Facilities,
+			Activities: svc.Activities,
+			Settings:   svc.Settings,
+			Pickup:     svc.PickupSchedule,
+			Education:  svc.Education,
+			Logger:     logger,
 		})
 	}
 
@@ -124,7 +131,7 @@ func setupCheckinRoute(t *testing.T, loggers ...*slog.Logger) *testContext {
 		svc.IoT,
 		svc.Users,
 		svc.Active,
-		svc.Checkin,
+		newCheckinService(svc.Active, svc.Users),
 		svc.PickupSchedule,
 		nil, // settings service (nil = env var fallback)
 		logger,

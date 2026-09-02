@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -995,35 +994,18 @@ func runCleanupTimeTrackingStats(cmd *cobra.Command, _ []string) error {
 	return forEachTenantTimeTrackingStats(ctx)
 }
 
-// listActiveTenantIDsForCLI returns the IDs of all active, non-deleted tenants
-// via a direct SQL query against platform.schools. We bypass
-// the repository ListActive method on purpose: that path drives a bun.Relation() join
-// which mis-resolves the search_path in the CLI context and produces
-// "relation organizations does not exist". The same bug bites the timetable
-// CLI today — fixing it cleanly is out of scope for Tranche 0b.
+// listActiveTenantIDsForCLI returns the IDs of all active, non-deleted tenants.
 func listActiveTenantIDsForCLI(ctx context.Context, cc *cleanupContext) ([]int64, error) {
 	ctx = tenant.WithUnitOfWork(ctx, cc.TenantRuntime)
-	var ids []int64
-	err := tenant.WithAdminTx(ctx, cc.DB, func(txCtx context.Context, tx bun.Tx) error {
-		rows, err := tx.QueryContext(txCtx, `
-			SELECT id FROM platform.schools
-			WHERE active = true AND deleted_at IS NULL
-			ORDER BY name
-		`)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = rows.Close() }()
-		for rows.Next() {
-			var id int64
-			if err := rows.Scan(&id); err != nil {
-				return err
-			}
-			ids = append(ids, id)
-		}
-		return rows.Err()
-	})
-	return ids, err
+	schools, err := cc.Schools.ListActiveSchools(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		ids = append(ids, school.ID)
+	}
+	return ids, nil
 }
 
 func forEachTenantTimeTrackingCleanup(cc *cleanupContext, verbose bool) error {

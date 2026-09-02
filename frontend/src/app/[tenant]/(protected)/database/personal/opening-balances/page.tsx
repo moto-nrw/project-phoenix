@@ -152,7 +152,7 @@ function isSpreadsheet(file: File): boolean {
 function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
   const status = STATUS_TONE[row.status];
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3">
+    <div className="moto-content-surface rounded-xl border p-3 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
           {row.isSummary ? "∑" : row.rowNumber}
@@ -522,7 +522,7 @@ export default function OpeningBalanceImportPage() {
       )}
 
       {/* Schritt 1 — Vorlage */}
-      <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
         <h2 className="text-sm font-semibold text-gray-900">
           Schritt 1: Vorlage herunterladen
         </h2>
@@ -569,7 +569,7 @@ export default function OpeningBalanceImportPage() {
       </section>
 
       {/* Schritt 2 — Stichtag und Begründung */}
-      <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
         <h2 className="text-sm font-semibold text-gray-900">
           Schritt 2: Stichtag und Begründung
         </h2>
@@ -630,7 +630,7 @@ export default function OpeningBalanceImportPage() {
       />
 
       {previewStale && uploadedFile !== null && (
-        <section className="moto-content-surface flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <section className="moto-content-surface flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 shadow-sm">
           <p className="text-sm text-gray-600">
             Stichtag oder Begründung wurden geändert. Die Vorschau muss mit den
             neuen Angaben neu erstellt werden.
@@ -650,7 +650,7 @@ export default function OpeningBalanceImportPage() {
 
       {/* Schritt 4 — Vorschau */}
       {showPreview && previewResult && (
-        <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+        <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
           <h2 className="text-sm font-semibold text-gray-900">
             Schritt 4: Vorschau prüfen
           </h2>
@@ -683,7 +683,7 @@ export default function OpeningBalanceImportPage() {
 
       {/* Ergebnis */}
       {importResult && (
-        <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+        <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
           <h2 className="text-sm font-semibold text-gray-900">
             Import abgeschlossen
           </h2>

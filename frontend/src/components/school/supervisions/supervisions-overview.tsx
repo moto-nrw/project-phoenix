@@ -152,7 +152,7 @@ export function SupervisionsOverview({
             />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+          <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
             <h2 className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-900">
               Ihr Tag
             </h2>

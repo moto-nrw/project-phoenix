@@ -44,6 +44,35 @@ type roomResponse struct {
 	PeakUtilizationPercent *float64 `json:"peak_utilization_percent"`
 }
 
+type courseResponse struct {
+	CourseID           string   `json:"course_id"`
+	Name               string   `json:"name"`
+	CategoryName       string   `json:"category_name"`
+	MaxParticipants    int      `json:"max_participants"`
+	HeldInstances      int      `json:"held_instances"`
+	CancelledInstances int      `json:"cancelled_instances"`
+	StudentCount       int      `json:"student_count"`
+	PresentDays        int      `json:"present_days"`
+	AbsentDays         int      `json:"absent_days"`
+	OpenDays           int      `json:"open_days"`
+	ParticipationRate  *float64 `json:"participation_rate"`
+	OccupancyPercent   *float64 `json:"occupancy_percent"`
+}
+
+type courseStudentResponse struct {
+	StudentID         string   `json:"student_id"`
+	FirstName         string   `json:"first_name"`
+	LastName          string   `json:"last_name"`
+	SchoolClass       string   `json:"school_class"`
+	GroupName         string   `json:"group_name"`
+	CourseID          string   `json:"course_id"`
+	CourseName        string   `json:"course_name"`
+	PresentDays       int      `json:"present_days"`
+	AbsentDays        int      `json:"absent_days"`
+	OpenDays          int      `json:"open_days"`
+	ParticipationRate *float64 `json:"participation_rate"`
+}
+
 type excludedDaysResponse struct {
 	Total          int `json:"total"`
 	PublicHolidays int `json:"public_holidays"`
@@ -62,6 +91,12 @@ type reportResponse struct {
 	Rooms        []roomResponse       `json:"rooms"`
 	RoomDataDays int                  `json:"room_data_days"`
 	RoomDataFrom string               `json:"room_data_from"`
+
+	Courses        []courseResponse        `json:"courses"`
+	CourseStudents []courseStudentResponse `json:"course_students"`
+	CourseTotals   courseResponse          `json:"course_totals"`
+	CourseDataDays int                     `json:"course_data_days"`
+	CourseDataFrom string                  `json:"course_data_from"`
 }
 
 func toReportResponse(report *statisticsService.Report) reportResponse {
@@ -81,6 +116,12 @@ func toReportResponse(report *statisticsService.Report) reportResponse {
 		Rooms:        make([]roomResponse, 0, len(report.Rooms)),
 		RoomDataDays: report.RoomDataDays,
 		RoomDataFrom: report.RoomDataFrom.String(),
+
+		Courses:        make([]courseResponse, 0, len(report.Courses)),
+		CourseStudents: make([]courseStudentResponse, 0, len(report.CourseStudents)),
+		CourseTotals:   toCourseResponse(report.CourseTotals),
+		CourseDataDays: report.CourseDataDays,
+		CourseDataFrom: report.CourseDataFrom.String(),
 	}
 	for _, st := range report.Students {
 		row := studentResponse{
@@ -116,7 +157,42 @@ func toReportResponse(report *statisticsService.Report) reportResponse {
 			PeakUtilizationPercent: room.PeakUtilizationPercent,
 		})
 	}
+	for _, course := range report.Courses {
+		out.Courses = append(out.Courses, toCourseResponse(course))
+	}
+	for _, row := range report.CourseStudents {
+		out.CourseStudents = append(out.CourseStudents, courseStudentResponse{
+			StudentID:         strconv.FormatInt(row.StudentID, 10),
+			FirstName:         row.FirstName,
+			LastName:          row.LastName,
+			SchoolClass:       row.SchoolClass,
+			GroupName:         row.GroupName,
+			CourseID:          strconv.FormatInt(row.CourseID, 10),
+			CourseName:        row.CourseName,
+			PresentDays:       row.PresentDays,
+			AbsentDays:        row.AbsentDays,
+			OpenDays:          row.OpenDays,
+			ParticipationRate: row.ParticipationRate,
+		})
+	}
 	return out
+}
+
+func toCourseResponse(course statisticsService.CourseRow) courseResponse {
+	return courseResponse{
+		CourseID:           strconv.FormatInt(course.CourseID, 10),
+		Name:               course.Name,
+		CategoryName:       course.CategoryName,
+		MaxParticipants:    course.MaxParticipants,
+		HeldInstances:      course.HeldInstances,
+		CancelledInstances: course.CancelledInstances,
+		StudentCount:       course.StudentCount,
+		PresentDays:        course.PresentDays,
+		AbsentDays:         course.AbsentDays,
+		OpenDays:           course.OpenDays,
+		ParticipationRate:  course.ParticipationRate,
+		OccupancyPercent:   course.OccupancyPercent,
+	}
 }
 
 func toGroupResponse(g statisticsService.GroupRow) groupResponse {

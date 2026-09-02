@@ -1161,7 +1161,7 @@ function CareDayCard({
 
   return (
     <article
-      className={`flex flex-col rounded-xl border border-gray-200 bg-white p-3 shadow-sm ${
+      className={`moto-content-surface flex flex-col rounded-xl border p-3 shadow-sm ${
         isMobileDetail ? "min-h-[236px]" : "min-h-[260px]"
       }`}
     >

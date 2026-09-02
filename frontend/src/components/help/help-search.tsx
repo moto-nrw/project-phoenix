@@ -602,7 +602,7 @@ export function HelpSearchInline() {
             <div
               ref={panelRef}
               style={panelStyle}
-              className="z-[60] overflow-hidden rounded-2xl border border-gray-200 bg-white/95 shadow-lg backdrop-blur-md"
+              className="moto-popover-surface z-[60] overflow-hidden rounded-2xl border"
             >
               <div
                 style={{ maxHeight: panelRect.maxHeight }}
@@ -626,7 +626,7 @@ export function HelpSearchInline() {
         ? createPortal(
             <p
               style={panelStyle}
-              className="z-[60] rounded-2xl border border-gray-200 bg-white/95 px-4 py-6 text-center text-sm text-gray-500 shadow-lg backdrop-blur-md"
+              className="moto-popover-surface z-[60] rounded-2xl border px-4 py-6 text-center text-sm text-gray-500"
             >
               Keine Treffer für „{trimmed}“.
             </p>,
