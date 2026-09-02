@@ -1760,15 +1760,20 @@ func (s *Service) resolveRefreshHandoff(ctx context.Context, presented *auth.Tok
 // createAndPersistNewToken creates a successor and persists the bounded
 // predecessor handoff atomically.
 func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64, tenantID int64, scope string, now time.Time) (*auth.Token, error) {
+	expiry := now.Add(s.jwtRefreshExpiry)
+	if oldToken.FamilyExpiryCap != nil && oldToken.FamilyExpiryCap.Before(expiry) {
+		expiry = *oldToken.FamilyExpiryCap
+	}
 	newToken := &auth.Token{
-		Token:       uuid.Must(uuid.NewV4()).String(),
-		AccountID:   accountID,
-		Expiry:      now.Add(s.jwtRefreshExpiry),
-		Mobile:      oldToken.Mobile,
-		Identifier:  oldToken.Identifier,
-		FamilyID:    oldToken.FamilyID,
-		Generation:  oldToken.Generation + 1,
-		PortalScope: persistedPortalScope(scope),
+		Token:           uuid.Must(uuid.NewV4()).String(),
+		AccountID:       accountID,
+		Expiry:          expiry,
+		Mobile:          oldToken.Mobile,
+		Identifier:      oldToken.Identifier,
+		FamilyID:        oldToken.FamilyID,
+		FamilyExpiryCap: oldToken.FamilyExpiryCap,
+		Generation:      oldToken.Generation + 1,
+		PortalScope:     persistedPortalScope(scope),
 	}
 
 	// Set tenant ID from refresh claims (not from context — refresh is a public route)

@@ -13,8 +13,9 @@ import (
 )
 
 type liveTokenRow struct {
-	FamilyID string    `bun:"family_id"`
-	Expiry   time.Time `bun:"expiry"`
+	FamilyID        string     `bun:"family_id"`
+	Expiry          time.Time  `bun:"expiry"`
+	FamilyExpiryCap *time.Time `bun:"family_expiry_cap"`
 }
 
 // liveTokens returns the account's unrotated, unexpired refresh tokens, newest first.
@@ -22,7 +23,7 @@ func liveTokens(t *testing.T, db *bun.DB, accountID int64) []liveTokenRow {
 	t.Helper()
 	var rows []liveTokenRow
 	require.NoError(t, db.NewSelect().
-		ColumnExpr("family_id, expiry").
+		ColumnExpr("family_id, expiry, family_expiry_cap").
 		TableExpr("auth.tokens").
 		Where("account_id = ?", accountID).
 		Where("rotated_at IS NULL").
@@ -30,6 +31,45 @@ func liveTokens(t *testing.T, db *bun.DB, accountID int64) []liveTokenRow {
 		OrderExpr("id DESC").
 		Scan(context.Background(), &rows))
 	return rows
+}
+
+// TestSwitchTenantRetiredFamilyRefreshKeepsDeadline pins the stale-request
+// path: a refresh of the retired family must not grant its successor a new
+// full refresh lifetime.
+func TestSwitchTenantRetiredFamilyRefreshKeepsDeadline(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+	email, username := uniqueTestCredentials("switch-retire-refresh")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	targetTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, targetTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
+
+	_, presentedRefresh, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	presentedFamily := tokenFamilyID(t, db, account.ID, 0)
+	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), presentedFamily)
+	require.NoError(t, err)
+
+	_, refreshedToken, err := service.RefreshToken(ctx, presentedRefresh)
+	require.NoError(t, err)
+	_, _, err = service.RefreshToken(ctx, refreshedToken)
+	require.NoError(t, err)
+
+	var retired liveTokenRow
+	for _, row := range liveTokens(t, db, account.ID) {
+		if row.FamilyID == presentedFamily {
+			retired = row
+			break
+		}
+	}
+	require.NotNil(t, retired.FamilyExpiryCap)
+	require.WithinDuration(t, *retired.FamilyExpiryCap, retired.Expiry, time.Second)
+	require.False(t, retired.Expiry.After(time.Now().Add(rotation.RecoveryGrace)), "refresh successors stay within the retirement grace")
 }
 
 // TestSwitchTenantRetiresPresentedFamily pins #2952: the family behind the

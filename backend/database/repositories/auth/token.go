@@ -440,13 +440,14 @@ func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Contex
 
 // RetireFamily caps the expiry of a family's live tokens so a tenant switch
 // hands the browser's previous session a bounded grace period instead of
-// leaving it alive for the full refresh lifetime. UPDATE ... LEAST() on one
-// family is a domain operation the generic column update cannot express.
+// leaving it alive for the full refresh lifetime. The cap is persisted with
+// the live token so refresh successors cannot revive the retired family.
 func (r *TokenRepository) RetireFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.Token)(nil)).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Set(`expiry = LEAST("token".expiry, ?)`, expiry).
+		Set(`family_expiry_cap = LEAST(COALESCE("token".family_expiry_cap, ?), ?)`, expiry, expiry).
 		Where(`"token".account_id = ?`, accountID).
 		Where(`"token".family_id = ?`, familyID).
 		Where(`"token".rotated_at IS NULL`)
