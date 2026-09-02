@@ -36,7 +36,7 @@ import (
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
-	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
+
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
@@ -348,7 +348,7 @@ type API struct {
 	Students         *studentsAPI.Resource
 	Statistics       *statisticsAPI.Resource
 	Groups           *groupsAPI.Resource
-	Guardians        *guardiansAPI.Resource
+	Guardians        *usersAPI.GuardianResource
 	Import           *importAPI.Resource
 	Activities       *activitiesAPI.Resource
 	Staff            *staffHTTP.Resource
@@ -852,7 +852,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:                api.Services.Users,
-		GuardianService:              api.Services.Guardian,
+		PeopleDirectory:              api.Services.PeopleDirectory,
 		StudentService:               api.Services.Students,
 		ClassListEntryService:        api.Services.ClassListEntries,
 		StudentDeletionService:       api.Services.StudentDeletion,
@@ -911,8 +911,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffNotices = timeTrackingAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db, viper.GetString("app_env"))
-	api.Guardians.ListExportService = api.Services.ListExport
+	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services, db, viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)

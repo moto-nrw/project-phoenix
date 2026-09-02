@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -41,7 +42,7 @@ type Resource struct {
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
 	PersonService    userService.PersonService
-	GuardianService  *userService.GuardianService
+	PeopleDirectory  peopleModule.Capability
 	EducationService educationService.Service
 	// GradeTransitionService is required by the purge route only: it strips the
 	// child's name from the transition ledger in the same transaction as the

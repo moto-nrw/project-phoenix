@@ -12,15 +12,15 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // ChildRepository implements parentModels.ChildRepository.
 type ChildRepository struct {
-	db       *bun.DB
-	students StudentDirectory
+	db        *bun.DB
+	students  StudentDirectory
+	guardians GuardianDirectory
 }
 
 // NewChildRepository wires a fresh repository.
@@ -34,22 +34,28 @@ func (r *ChildRepository) BindStudentDirectory(students StudentDirectory) {
 	r.students = students
 }
 
+// BindGuardianDirectory installs the People Directory the account's guardian
+// links are read from (#2663).
+func (r *ChildRepository) BindGuardianDirectory(guardians GuardianDirectory) {
+	r.guardians = guardians
+}
+
 // guardianLink is one users.students_guardians row the account reaches
 // through an ACTIVE auth.account_tenants mapping.
 type guardianLink struct {
-	StudentID         int64          `bun:"student_id"`
-	TenantID          int64          `bun:"tenant_id"`
-	GuardianProfileID int64          `bun:"guardian_profile_id"`
-	Permissions       map[string]any `bun:"guardian_permissions"`
+	StudentID         int64
+	TenantID          int64
+	GuardianProfileID int64
+	Permissions       map[string]any
 }
 
-// ListByAccount executes the cross-tenant join from auth.account_tenants
-// down to users.students_guardians for a single account. Single SQL query,
-// single round-trip — N+1 queries (one per tenant) would be cleaner per
-// Rule 11 but the only safe filter for "students this parent can see" is
-// the account_tenants membership, and that's a JOIN not a tenant context.
-// The student rows behind the links belong to the People Directory
-// (#2662) and are read through it inside the same admin transaction.
+// ListByAccount lists the children a parent can see: the account's active
+// auth.account_tenants memberships name the schools, the People Directory
+// answers which guardian links the account holds there (#2663) and which
+// students stand behind them (#2662), all inside the same admin transaction.
+// The only safe filter for "students this parent can see" is the
+// account_tenants membership, and that is a membership read, not a tenant
+// context.
 //
 // Soft-deleted person rows are filtered by the composition layer.
 // Inactive account_tenants are excluded so a parent who lost access to
@@ -67,40 +73,18 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-
-	const query = `
-		SELECT
-			sg.student_id  AS student_id,
-			at.tenant_id   AS tenant_id,
-			gp.id          AS guardian_profile_id,
-			COALESCE(sg.permissions, '{}'::jsonb) AS guardian_permissions
-		FROM auth.account_tenants AS at
-		JOIN users.guardian_profiles AS gp
-			ON gp.account_id = at.account_id
-			AND gp.tenant_id  = at.tenant_id
-		JOIN users.students_guardians AS sg
-			ON sg.guardian_profile_id = gp.id
-			AND sg.tenant_id          = at.tenant_id
-		WHERE at.account_id = ?
-		  AND at.status     = 'active'
-		  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-		ORDER BY at.tenant_id, sg.student_id
-	`
-
-	var links []guardianLink
-	if err := base.GetDB(ctx, r.db).NewRaw(query,
-		accountID,
-		authorize.GuardianPermissionPortalAccess,
-	).Scan(ctx, &links); err != nil {
+	links, err := r.portalLinks(ctx, accountID)
+	if err != nil {
 		return nil, fmt.Errorf("parent: list children: %w", err)
 	}
 	return r.resolveChildren(ctx, links)
 }
 
 // FindForAccount resolves a single child the account is a guardian of.
-// Same cross-tenant join as ListByAccount, narrowed to one student id.
-// Returns nil, nil when the student is not linked to the account so the
-// caller can map "not yours" to a 403/404 without leaking existence.
+// Same membership and directory reads as ListByAccount, narrowed to one
+// student id. Returns nil, nil when the student is not linked to the
+// account so the caller can map "not yours" to a 403/404 without leaking
+// existence.
 //
 // This is THE authorization gate for every per-child parent write
 // (services/parent resolvePermittedChild), so the alumnus exclusion that
@@ -108,7 +92,7 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 // cannot submit a future-dated sick note or care exception for a child
 // who has left the school (#405 review).
 //
-// MUST run inside a tenant.WithAdminTx — the join spans tenant_id
+// MUST run inside a tenant.WithAdminTx — the reads span tenant_id
 // boundaries scoped only by auth.account_tenants membership.
 func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, studentID int64) (*parentModels.ChildSummary, error) {
 	if accountID <= 0 {
@@ -117,35 +101,17 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 	if studentID <= 0 {
 		return nil, fmt.Errorf("parent: student_id must be positive")
 	}
-
-	const query = `
-		SELECT
-			sg.student_id  AS student_id,
-			at.tenant_id   AS tenant_id,
-			gp.id          AS guardian_profile_id,
-			COALESCE(sg.permissions, '{}'::jsonb) AS guardian_permissions
-		FROM auth.account_tenants AS at
-		JOIN users.guardian_profiles AS gp
-			ON gp.account_id = at.account_id
-			AND gp.tenant_id  = at.tenant_id
-		JOIN users.students_guardians AS sg
-			ON sg.guardian_profile_id = gp.id
-			AND sg.tenant_id          = at.tenant_id
-		WHERE at.account_id = ?
-		  AND sg.student_id = ?
-		  AND at.status     = 'active'
-		  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-	`
-
-	var links []guardianLink
-	if err := base.GetDB(ctx, r.db).NewRaw(query,
-		accountID,
-		studentID,
-		authorize.GuardianPermissionPortalAccess,
-	).Scan(ctx, &links); err != nil {
+	links, err := r.portalLinks(ctx, accountID)
+	if err != nil {
 		return nil, fmt.Errorf("parent: find child for account: %w", err)
 	}
-	children, err := r.resolveChildren(ctx, links)
+	matching := make([]guardianLink, 0, 1)
+	for _, link := range links {
+		if link.StudentID == studentID {
+			matching = append(matching, link)
+		}
+	}
+	children, err := r.resolveChildren(ctx, matching)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +119,26 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		return nil, nil
 	}
 	return children[0], nil
+}
+
+// portalLinks returns the account's guardian links at the schools it holds
+// an ACTIVE mapping at, keeping only the links that grant portal access.
+func (r *ChildRepository) portalLinks(ctx context.Context, accountID int64) ([]guardianLink, error) {
+	links, err := activeGuardianLinks(ctx, r.db, r.guardians, accountID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]guardianLink, 0, len(links))
+	for _, link := range links {
+		if !link.HasPermission(authorize.GuardianPermissionPortalAccess) {
+			continue
+		}
+		out = append(out, guardianLink{
+			StudentID: link.StudentID, TenantID: link.TenantID, GuardianProfileID: link.GuardianProfileID,
+			Permissions: link.PermissionMap(),
+		})
+	}
+	return out, nil
 }
 
 // resolveChildren joins the guardian links with the directory rows: a link

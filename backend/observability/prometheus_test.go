@@ -310,6 +310,15 @@ func TestObservePeopleDirectoryHTTPResponseUsesStatusClass(t *testing.T) {
 	assert.Equal(t, before+1, testutil.ToFloat64(peopleDirectoryHTTPResponses.WithLabelValues("4xx", "not_found")))
 }
 
+func TestObserveGuardianDirectoryHTTPResponseUsesStatusClass(t *testing.T) {
+	t.Parallel()
+	before := testutil.ToFloat64(guardianDirectoryHTTPResponses.WithLabelValues("4xx", "forbidden"))
+
+	ObserveGuardianDirectoryHTTPResponse(403, "forbidden")
+
+	assert.Equal(t, before+1, testutil.ToFloat64(guardianDirectoryHTTPResponses.WithLabelValues("4xx", "forbidden")))
+}
+
 func TestObserveSchoolMembershipOperationRecordsRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	operation := "find_staff"

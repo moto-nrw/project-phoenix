@@ -172,6 +172,7 @@ type Factory struct {
 	StaffOffboarding          users.StaffOffboardingService
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
+	PeopleDirectory           peopledirectory.Capability
 	GuardianProfileLoader     *users.GuardianProfileLoader
 	UserContext               usercontext.UserContextService
 	Database                  database.DatabaseService
@@ -3007,6 +3008,7 @@ func newFactory(
 		StaffOffboarding:        staffOffboardingService,
 		CaregiverCapability:     caregiverCapabilityService,
 		Guardian:                guardianService,
+		PeopleDirectory:         persons,
 		GuardianProfileLoader:   guardianProfileLoader,
 		UserContext:             userContextService,
 		Database:                databaseService,
@@ -3144,6 +3146,9 @@ func newFactory(
 		logger.With("service", "shift_plan_sync"),
 		today,
 	))
+	// The People Directory serves guardians through the owner's legacy
+	// guardian service (#2663); bind it now that the service exists.
+	factory.bindGuardianDirectory(persons, db)
 	return factory, nil
 }
 

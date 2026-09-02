@@ -485,6 +485,11 @@
           "declaration": "type API"
         },
         {
+          "file": "api/guardians_composition.go",
+          "line": 52,
+          "declaration": "newGuardiansResource"
+        },
+        {
           "file": "api/staff_composition.go",
           "line": 109,
           "declaration": "newStaffComposition"
@@ -501,7 +506,12 @@
       "locations": [
         {
           "file": "cmd/seed_parents.go",
-          "line": 177,
+          "line": 162,
+          "declaration": "promotableGuardians"
+        },
+        {
+          "file": "cmd/seed_parents.go",
+          "line": 205,
           "declaration": "promoteGuardian"
         }
       ]
@@ -511,7 +521,7 @@
       "locations": [
         {
           "file": "cmd/seed_parents.go",
-          "line": 116,
+          "line": 117,
           "declaration": "seedParentAccounts"
         }
       ]
@@ -576,12 +586,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 418,
+          "line": 419,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 441,
+          "line": 442,
           "declaration": "newFactory"
         },
         {
@@ -16659,13 +16669,9 @@
       "declaration": "seedParentAccounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        116
+        117
       ],
-      "tables": [
-        "users.guardian_profiles",
-        "users.students",
-        "users.students_guardians"
-      ]
+      "tables": []
     },
     {
       "scope": "production",
@@ -16950,39 +16956,16 @@
     },
     {
       "scope": "test",
-      "file": "api/guardians/guardians_test.go",
-      "declaration": "setupGuardiansRoute",
+      "file": "api/guardians_composition_test.go",
+      "declaration": "setupGuardiansCompositionRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        50
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/guardians/related_accounts_handlers_test.go",
-      "declaration": "TestInviteGuardianToStudent_RestrictedContactRoundTrip",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        44
+        94
       ],
       "tables": [
-        "auth.guardian_invitations",
+        "audit.data_access_log",
         "users.guardian_profiles",
-        "users.students",
-        "users.students_guardians"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "api/guardians/related_accounts_handlers_test.go",
-      "declaration": "TestInviteGuardianToStudent_SocialWorkerLinkRefused",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        100
-      ],
-      "tables": [
-        "users.guardian_profiles",
+        "users.persons",
         "users.students",
         "users.students_guardians"
       ]

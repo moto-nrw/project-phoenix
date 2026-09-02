@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -96,11 +97,11 @@ func init() {
 
 // parentCandidate is one promotable guardian profile.
 type parentCandidate struct {
-	ProfileID int64  `bun:"id"`
-	TenantID  int64  `bun:"tenant_id"`
-	Email     string `bun:"email"`
-	FirstName string `bun:"first_name"`
-	LastName  string `bun:"last_name"`
+	ProfileID int64
+	TenantID  int64
+	Email     string
+	FirstName string
+	LastName  string
 }
 
 func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password string) error {
@@ -123,24 +124,9 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 		return fmt.Errorf("guardian role not found — run migrations first")
 	}
 
-	// Guardian profiles that already have a student link and an email but no
-	// account yet. Newest student-bearing guardians first is irrelevant; order
-	// by id for determinism.
-	var candidates []parentCandidate
-	const query = `
-		SELECT DISTINCT gp.id, gp.tenant_id,
-		       lower(btrim(gp.email)) AS email,
-		       gp.first_name, gp.last_name
-		FROM users.guardian_profiles AS gp
-		JOIN users.students_guardians AS sg ON sg.guardian_profile_id = gp.id
-		WHERE gp.account_id IS NULL
-		  AND gp.email IS NOT NULL
-		  AND btrim(gp.email) <> ''
-		ORDER BY gp.id
-		LIMIT ?
-	`
-	if err := db.NewRaw(query, count).Scan(ctx, &candidates); err != nil {
-		return fmt.Errorf("find promotable guardians: %w", err)
+	candidates, err := promotableGuardians(ctx, repos, count)
+	if err != nil {
+		return err
 	}
 	if len(candidates) == 0 {
 		fmt.Println("No promotable guardians found (need an email + a student link + no existing account).")
@@ -166,6 +152,48 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 
 	fmt.Printf("\nDone. %d parent account(s) ready. Log in at the parents subdomain.\n", created)
 	return nil
+}
+
+// promotableGuardians picks guardian profiles that already have an email and
+// a student link but no account yet, ordered by id for determinism. The
+// superuser connection sees every tenant, so the invitable list spans the
+// whole demo database; the guardian rows belong to the People Directory
+// owner and are read through its repositories (#2663).
+func promotableGuardians(ctx context.Context, repos *repositories.Factory, count int) ([]parentCandidate, error) {
+	profiles, err := repos.GuardianProfile.FindInvitable(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("find promotable guardians: %w", err)
+	}
+	sort.Slice(profiles, func(i, j int) bool { return profiles[i].ID < profiles[j].ID })
+
+	candidates := make([]parentCandidate, 0, count)
+	for _, profile := range profiles {
+		if len(candidates) == count {
+			break
+		}
+		if profile.Email == nil {
+			continue
+		}
+		email := strings.ToLower(strings.TrimSpace(*profile.Email))
+		if email == "" {
+			continue
+		}
+		links, err := repos.StudentGuardian.FindByGuardianProfileID(ctx, profile.ID)
+		if err != nil {
+			return nil, fmt.Errorf("find student links of guardian %d: %w", profile.ID, err)
+		}
+		if len(links) == 0 {
+			continue
+		}
+		candidates = append(candidates, parentCandidate{
+			ProfileID: profile.ID,
+			TenantID:  profile.GetTenantID(),
+			Email:     email,
+			FirstName: profile.FirstName,
+			LastName:  profile.LastName,
+		})
+	}
+	return candidates, nil
 }
 
 // promoteGuardian creates (or reuses) the account, assigns the guardian role,

@@ -427,6 +427,7 @@ func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
 	// Students first: the observed directory replaces the default binding on
 	// the raw repositories before the person projections wrap them.
 	f.bindStudentDirectories(capability, capability)
+	f.bindGuardianDirectories(capability)
 	f.bindPersonProjections(capability)
 }
 

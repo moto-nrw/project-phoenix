@@ -171,10 +171,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-guardians",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-import",
       "kind": "inbound"
     },
@@ -563,13 +559,6 @@
     {
       "path": "api/groups",
       "owner": "inbound-groups",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "api/guardians",
-      "owner": "inbound-guardians",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -4284,17 +4273,6 @@
       "source_owner": "inbound-groups",
       "source_role": "http",
       "target_owner": "school-structure",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-guardians.to.care-plan",
-      "description": "inbound-guardians calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-guardians",
-      "source_role": "http",
-      "target_owner": "care-plan",
       "target_role": "public"
     },
     {
