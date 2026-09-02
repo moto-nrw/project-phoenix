@@ -265,10 +265,7 @@ func TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses(t *testing.T
 	}, staff.ID)
 	assert.True(t, errors.Is(err, scheduleService.ErrClassArrivalExceptionClassNotFound), "got %v", err)
 
-	weekend := timezone.TodayDate()
-	for weekend.Weekday() != time.Saturday {
-		weekend = weekend.AddDays(1)
-	}
+	weekend := timezone.NewDate(2099, time.March, 7)
 	_, err = svc.UpsertClassArrivalException(ctx, scheduleService.ClassArrivalExceptionInput{
 		SchoolClass: "1a",
 		Date:        weekend,

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -112,10 +113,7 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 	})
 
 	t.Run("weekend", func(t *testing.T) {
-		date := classArrivalExceptionWorkday(0)
-		for date.Weekday() != 6 {
-			date = date.AddDays(1)
-		}
+		date := timezone.NewDate(2099, time.March, 7)
 		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", date)
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{"arrival_time": "12:45"}), claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
