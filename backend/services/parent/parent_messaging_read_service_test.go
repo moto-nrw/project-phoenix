@@ -36,7 +36,13 @@ func buildReadService(t *testing.T, enabled bool) (parentService.Service, *testp
 func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificationsSvc.StaffParentMessageNotifier) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	// Child names come from the People Directory composition (#2661); bind
+	// it before the school projections, as the service graph does.
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	organizationTenancy, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
+	repos.BindOrganizationTenancy(organizationTenancy)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,

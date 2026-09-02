@@ -269,7 +269,7 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
       isConfirmDisabled={confirmInput !== target.name || confirmDisabled}
       isDismissDisabled={isProcessing}
       isBackdropDismissDisabled
-      confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+      confirmVariant="danger"
       loadingText="Wird gelöscht..."
     >
       <p className="text-sm text-gray-600">

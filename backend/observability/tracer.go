@@ -49,13 +49,16 @@ func (t *Tracer) Logger(ctx context.Context) *slog.Logger {
 
 // Failure emits one stable error record and one bounded metric. Error details
 // stay at Debug so student data embedded in an upstream error cannot enter
-// Info-or-higher logs.
-func (t *Tracer) Failure(ctx context.Context, entryPoint, operation, outcome string, err error) {
+// Info-or-higher logs. Extra attrs (request method, route, status) land on the
+// error record only; the metric keeps its three bounded labels.
+func (t *Tracer) Failure(ctx context.Context, entryPoint, operation, outcome string, err error, attrs ...slog.Attr) {
 	logger := t.Logger(ctx)
-	logger.ErrorContext(ctx, "runtime operation failed",
-		slog.String("entry_point", entryPoint),
-		slog.String("operation", operation),
-		slog.String("outcome", outcome),
+	logger.LogAttrs(ctx, slog.LevelError, "runtime operation failed",
+		append([]slog.Attr{
+			slog.String("entry_point", entryPoint),
+			slog.String("operation", operation),
+			slog.String("outcome", outcome),
+		}, attrs...)...,
 	)
 	if err != nil {
 		logger.DebugContext(ctx, "runtime failure detail", slog.String("error", err.Error()))

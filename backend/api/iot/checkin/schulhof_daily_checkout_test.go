@@ -33,8 +33,8 @@ func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing
 	ctx := setupCheckinRoute(t)
 
 	// No configured checkout time → the time gate is open, so this test
-	// exercises the ROOM gate in isolation. Restored afterwards so a value in
-	// the developer's .env cannot leak into (or out of) this test.
+	// exercises the ROOM gate in isolation. setupCheckinRoute pins its legacy
+	// environment fallback empty, preventing process configuration from closing it.
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-home")
 

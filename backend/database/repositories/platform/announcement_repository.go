@@ -11,11 +11,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// SQL constants
-const (
-	tablePlatformAnnouncements  = "platform.announcements"
-	databaseCurrentTimestampSQL = "CURRENT_TIMESTAMP"
-)
+// Table constant
+const tablePlatformAnnouncements = "platform.announcements"
 
 // AnnouncementRepository implements platform.AnnouncementRepository interface
 type AnnouncementRepository struct {
@@ -88,7 +85,7 @@ func (r *AnnouncementRepository) Publish(ctx context.Context, id int64) error {
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.Announcement)(nil)).
 		ModelTableExpr(tablePlatformAnnouncements).
-		Set("published_at = "+databaseCurrentTimestampSQL).
+		Set("published_at = CURRENT_TIMESTAMP").
 		Where("id = ?", id).
 		Exec(ctx)
 

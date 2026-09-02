@@ -58,7 +58,7 @@ func deactivateAccountTenantMapping(t *testing.T, db *bun.DB, accountID int64) {
 
 func listEnrollableAsAdmin(t *testing.T, db *bun.DB, accountID int64) []*parentModels.EnrollablePhase {
 	t.Helper()
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	var list []*parentModels.EnrollablePhase
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -448,7 +448,7 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus_EnrolledPermissionTracks
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	load := func() *parentModels.GuardianSubmitStatus {
 		t.Helper()
 		var status *parentModels.GuardianSubmitStatus

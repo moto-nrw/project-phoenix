@@ -592,12 +592,23 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 // Complex Query Tests (Teacher Relationships)
 // ============================================================================
 
+// newGroupProjectionFactory binds the School Structure owner so group names
+// on roster rows are resolved the way the production graph resolves them.
+func newGroupProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
+	t.Helper()
+	groups, err := repositories.NewSchoolStructure(db)
+	require.NoError(t, err)
+	factory := repositories.NewFactory(db)
+	factory.BindSchoolStructure(groups)
+	return factory
+}
+
 func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := newGroupProjectionFactory(t, db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds students with group names", func(t *testing.T) {
@@ -633,7 +644,7 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := newGroupProjectionFactory(t, db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns students with group names", func(t *testing.T) {

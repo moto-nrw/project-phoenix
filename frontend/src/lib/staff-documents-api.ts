@@ -1,7 +1,7 @@
 // Staff documents (#1424): API client + type mapping for the Dokumente tab
 // on the staff detail page. The backend decides per-category authority
 // (AU-Bescheinigung → staff_documents:health, Lohnabrechnung →
-// staff:financial, rest → users:update) and returns only what the caller
+// staff:financial, rest → staff:documents, #2906) and returns only what the caller
 // may see plus the caller's visible categories.
 
 import { getCachedSession, sessionFetch } from "./session-cache";

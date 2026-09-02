@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
@@ -23,6 +24,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -40,13 +43,18 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 
 	"github.com/uptrace/bun"
 )
 
 // Factory provides access to all repositories
 type Factory struct {
-	db *bun.DB
+	db                       *bun.DB
+	organizationTenancyBound bool
+	peopleDirectoryBound     bool
+	schoolStructureBound     bool
 
 	// Auth domain
 	Account                authModels.AccountRepository
@@ -163,12 +171,16 @@ type Factory struct {
 	ActiveGroup      activeModels.GroupRepository
 	ActiveVisit      activeModels.VisitRepository
 	GroupSupervisor  activeModels.GroupSupervisorRepository
+	CrossTenant      CrossTenantQuery
 	CombinedGroup    activeModels.CombinedGroupRepository
 	GroupMapping     activeModels.GroupMappingRepository
 	Attendance       activeModels.AttendanceRepository
 	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
 	// Statistics serves the aggregate reads of the Statistik page (#2606).
-	Statistics                      activeModels.StatisticsRepository
+	Statistics activeModels.StatisticsRepository
+	// CourseStatistics serves the course participation section of the
+	// Statistik page (#2891).
+	CourseStatistics                scheduleModels.CourseStatisticsRepository
 	ExcusedAbsenceRequest           activeModels.ExcusedAbsenceRequestRepository
 	WorkSession                     activeModels.WorkSessionRepository
 	WorkSessionBreak                activeModels.WorkSessionBreakRepository
@@ -203,6 +215,7 @@ type Factory struct {
 	DataAccessLog                auditModels.DataAccessLogRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	GuardianChange               auditModels.GuardianChangeRepository
+	StudentConsentChange         auditModels.StudentConsentChangeRepository
 	DeviationEvent               auditModels.DeviationEventRepository
 	AuthEvent                    auditModels.AuthEventRepository
 	DataImport                   auditModels.DataImportRepository
@@ -320,6 +333,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.DataAccessLog = audit.NewDataAccessLogRepository(runtime)
 	f.EnrollmentOfferingAdjustment = audit.NewEnrollmentOfferingAdjustmentRepository(runtime)
 	f.GuardianChange = audit.NewGuardianChangeRepository(runtime)
+	f.StudentConsentChange = audit.NewStudentConsentChangeRepository(runtime)
 	f.DeviationEvent = audit.NewDeviationEventRepository(runtime)
 	f.AuthEvent = audit.NewAuthEventRepository(runtime)
 	f.DataImport = audit.NewDataImportRepository(runtime)
@@ -335,6 +349,103 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime)
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences)
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
+}
+
+// BindOrganizationTenancy replaces school-owning and school-enriched legacy
+// adapters with compositions over the public owner capability.
+func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capability) {
+	if capability == nil {
+		panic("repository factory: organization tenancy capability is required")
+	}
+	if f.organizationTenancyBound {
+		return
+	}
+	f.organizationTenancyBound = true
+	memberships := f.AccountTenant
+	rawAccountTenant, ok := f.AccountTenant.(interface {
+		ListAccountsBySchoolIDs(context.Context, []int64) ([]authModels.OrgAccountInfo, error)
+	})
+	if ok {
+		f.AccountTenant = schoolAccountTenantRepository{AccountTenantRepository: f.AccountTenant, raw: rawAccountTenant, schools: capability}
+	}
+	if f.Account != nil {
+		f.Account = schoolAccountRepository{AccountRepository: f.Account, schools: capability}
+	}
+	f.School = NewSchoolCapabilityAdapter(capability, memberships)
+	if f.ParentChild != nil {
+		f.ParentChild = schoolChildRepository{ChildRepository: f.ParentChild, schools: capability}
+	}
+	if f.ParentEnrollablePhase != nil {
+		f.ParentEnrollablePhase = schoolEnrollablePhaseRepository{EnrollablePhaseRepository: f.ParentEnrollablePhase, schools: capability}
+	}
+	if f.ParentEnrollmentRequest != nil {
+		f.ParentEnrollmentRequest = schoolEnrollmentRequestRepository{EnrollmentRequestRepository: f.ParentEnrollmentRequest, schools: capability}
+	}
+	if f.ParentAnnouncement != nil {
+		f.ParentAnnouncement = schoolParentAnnouncementRepository{ParentAnnouncementRepository: f.ParentAnnouncement, schools: capability}
+	}
+	if f.ParentMessageRead != nil {
+		f.ParentMessageRead = schoolParentMessageReadRepository{ParentMessageReadRepository: f.ParentMessageRead, schools: capability}
+	}
+}
+
+// NewOrganizationTenancy composes the school owner behind the legacy
+// composition seam. Consumers should depend on a narrow projection instead
+// of importing the module's compose package themselves.
+func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) {
+	return organizationCompose.New(organizationCompose.Dependencies{
+		DB:      db,
+		Observe: func(organizationCompose.Observation) {},
+	})
+}
+
+// BindPeopleDirectory replaces the legacy adapters that used to join
+// users.persons themselves with compositions over the public People
+// Directory capability (#2661).
+func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
+	if capability == nil {
+		panic("repository factory: people directory capability is required")
+	}
+	if f.peopleDirectoryBound {
+		return
+	}
+	f.peopleDirectoryBound = true
+	f.bindPersonProjections(capability)
+}
+
+// BindSchoolStructure replaces the group-enriched legacy adapters with
+// compositions over the public School Structure query, so no repository
+// outside the owner reads education.groups itself.
+func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
+	if groups == nil {
+		panic("repository factory: school structure query is required")
+	}
+	if f.schoolStructureBound {
+		return
+	}
+	f.schoolStructureBound = true
+	if f.Student != nil {
+		f.Student = groupStudentRepository{StudentRepository: f.Student, groups: groups}
+	}
+	if f.ActiveVisit != nil {
+		f.ActiveVisit = groupVisitRepository{VisitRepository: f.ActiveVisit, groups: groups}
+	}
+	if f.GroupSupervisor != nil {
+		f.GroupSupervisor = groupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, groups: groups}
+	}
+	if f.CrossTenant != nil {
+		f.CrossTenant = groupCrossTenantRepository{CrossTenantQuery: f.CrossTenant, groups: groups}
+	}
+	if f.ActivityGroup != nil {
+		withTargets, ok := f.ActivityGroup.(activityGroupTargets)
+		if !ok {
+			panic(fmt.Sprintf("repository factory: activity group repository %T must also serve group targets", f.ActivityGroup))
+		}
+		f.ActivityGroup = groupActivityGroupRepository{activityGroupTargets: withTargets, groups: groups}
+	}
+	if f.ParentMessageRead != nil {
+		f.ParentMessageRead = groupParentMessageReadRepository{ParentMessageReadRepository: f.ParentMessageRead, groups: groups}
+	}
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -479,11 +590,13 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ActiveGroup:                     active.NewGroupRepository(db),
 		ActiveVisit:                     active.NewVisitRepository(db),
 		GroupSupervisor:                 groupSupervisor,
+		CrossTenant:                     active.NewCrossTenantRepository(db),
 		CombinedGroup:                   active.NewCombinedGroupRepository(db),
 		GroupMapping:                    active.NewGroupMappingRepository(db),
 		Attendance:                      attendance,
 		StudentStatusDay:                active.NewStudentStatusDayRepository(db),
 		Statistics:                      active.NewStatisticsRepository(db),
+		CourseStatistics:                schedule.NewCourseStatisticsRepository(db),
 		ExcusedAbsenceRequest:           active.NewExcusedAbsenceRequestRepository(db),
 		WorkSession:                     active.NewWorkSessionRepository(db, now),
 		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),
@@ -518,6 +631,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		DataAccessLog:                audit.NewDataAccessLogRepository(auditRepositoryRuntime),
 		EnrollmentOfferingAdjustment: enrollmentOfferingAdjustment,
 		GuardianChange:               audit.NewGuardianChangeRepository(auditRepositoryRuntime),
+		StudentConsentChange:         audit.NewStudentConsentChangeRepository(auditRepositoryRuntime),
 		DeviationEvent:               audit.NewDeviationEventRepository(auditRepositoryRuntime),
 		AuthEvent:                    audit.NewAuthEventRepository(auditRepositoryRuntime),
 		DataImport:                   audit.NewDataImportRepository(auditRepositoryRuntime),

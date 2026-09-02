@@ -323,7 +323,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Passende `System-Rolle` wählen. Admin-Rechte nur für Personen, die Stammdaten oder Einstellungen ändern sollen.",
           "Speichern und die Person zum Login auffordern.",
           "Um die Rolle einer bereits angelegten Person nachträglich zu ändern (z. B. jemanden zur Administratorin zu machen), die Person in der Personal-Liste auswählen und in der Detailansicht `Rolle verwalten` nutzen.",
-          "Für ein ganzes Team unter `Personal` den `Import` nutzen: Vorlage herunterladen, ausfüllen und hochladen. Jede Zeile wird sofort mit Stammdaten (Personalnummer, Adresse, Vertragsdaten, Qualifikationen) angelegt. Steht eine E-Mail in der Zeile, geht zusätzlich eine Einladung heraus. Mit `Nur bestehende aktualisieren` ziehen Sie später Änderungen aus einer Liste nach; leere Zellen ändern nichts.",
+          "Für ein ganzes Team unter `Personal` den `Import` nutzen: Vorlage herunterladen, ausfüllen und hochladen. Jede Zeile wird sofort mit Stammdaten (Personalnummer, Adresse, Vertragsdaten, Qualifikationen) angelegt. Steht eine E-Mail in der Zeile, geht zusätzlich eine Einladung heraus. Mit `Nur bestehende aktualisieren` ziehen Sie später Änderungen aus einer Liste nach; leere Zellen ändern nichts. Diese Auswahl sehen nur Personen, die Personalstammdaten pflegen und Mitarbeitende verwalten dürfen.",
         ],
         screenshot: "Personalformular mit Vorname, Nachname, E-Mail und Rolle.",
         image: "/help/screens/mitarbeitende-anlegen.webp",
@@ -661,7 +661,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
           "Wenn Sie die Schaltfläche `Anmelden` oder `Abmelden` sehen, ändern Sie damit die Anwesenheit für heute. Sie brauchen dafür kein NFC-Gerät und wählen keinen Raum aus.",
           "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Bei einer Entschuldigung zuerst `Ganzer Tag` oder `Ab Uhrzeit` wählen. `Ab Uhrzeit` gilt für genau ein Datum: Die gewählte Uhrzeit wird zugleich als Gehzeit vorgeschlagen, spätere Betreuungsblöcke werden entschuldigt. Überschneidet die Uhrzeit einen laufenden Block, bleibt dieser erwartet und der Dialog weist darauf hin, dass er separat entschieden werden muss. Bei ganztägigen Einträgen zwischen `Einzelne Tage` (auch mehrere nicht zusammenhängende Tage) und `Zeitraum` mit Von- und Bis-Datum wählen; vor dem Speichern werden Zeitraum und Anzahl der Tage angezeigt. Ein Zeitraum darf höchstens 366 Tage umfassen. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
-          "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Adresse, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Unter `Erlaubte Heimwege` legen Sie je Wochentag fest, wie das Kind nach Hause kommt. Sobald an einem Tag `Anderes Kind` erlaubt ist, erscheint direkt darunter `Mit welchem Kind?`: dort verknüpfen Sie die Kinder, mit denen es gemeinsam geht (Laufgemeinschaft). Angeboten werden nur die Tage, an denen `Anderes Kind` erlaubt ist. Die Verknüpfung gilt immer für beide Kinder: Wer bei Lina eingetragen ist, hat Lina automatisch auch auf seiner eigenen Karte stehen. Erlaubt der Heimweg des anderen Kindes diese Tage noch nicht, fragt die App nach und ergänzt `Anderes Kind` dort auf Wunsch; bestehende Heimwege bleiben erhalten. Das Textfeld darunter ist nur für Begleitung durch eine Person, die kein Kind der Schule ist. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
+          "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Adresse, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Unter `Einwilligungen und Bestätigungen` sehen Sie, was hinterlegt oder widerrufen wurde. Dieser Bereich ist nur zur Information. Unter `Erlaubte Heimwege` legen Sie je Wochentag fest, wie das Kind nach Hause kommt. Sobald an einem Tag `Anderes Kind` erlaubt ist, erscheint direkt darunter `Mit welchem Kind?`: dort verknüpfen Sie die Kinder, mit denen es gemeinsam geht (Laufgemeinschaft). Angeboten werden nur die Tage, an denen `Anderes Kind` erlaubt ist. Die Verknüpfung gilt immer für beide Kinder: Wer bei Lina eingetragen ist, hat Lina automatisch auch auf seiner eigenen Karte stehen. Erlaubt der Heimweg des anderen Kindes diese Tage noch nicht, fragt die App nach und ergänzt `Anderes Kind` dort auf Wunsch; bestehende Heimwege bleiben erhalten. Das Textfeld darunter ist nur für Begleitung durch eine Person, die kein Kind der Schule ist. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
           "Tab `Nachrichten`: die Unterhaltung mit einer Bezugsperson zu diesem Kind ansehen und über `Neue Nachricht` der Bezugsperson schreiben. Pro Kind und Bezugsperson gibt es eine fortlaufende Unterhaltung (wie ein Chat, ohne Betreff). Ungelesene Eltern-Nachrichten sind mit einem roten Abzeichen markiert; geschrieben und beantwortet wird im Chat-Fenster.",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
           "Im Tab `Erziehungsberechtigte` steht unten der Block `Zahlungskonto`. Dort wählen Sie, wer für dieses Kind zahlt, und tragen die IBAN dieser Person ein. Sichtbar ist der Block nur mit der Berechtigung `Bankverbindungen`.",
@@ -687,6 +687,11 @@ export const appChapters: readonly GuideChapter[] = [
             image: "/help/screens/kinderdetailansicht.webp",
             caption:
               "Kinderdetailansicht: Krank melden, Entschuldigen und weitere Statusaktionen öffnen die Planung.",
+          },
+          {
+            image: "/help/screens/kinderdetail-einwilligungen.webp",
+            caption:
+              "Unter Stammdaten sehen Sie hinterlegte und widerrufene Einwilligungen. Der Bereich ist nur zur Information.",
           },
           {
             image: "/help/screens/geplante-abwesenheit-zeitraum.webp",
@@ -927,24 +932,30 @@ export const appChapters: readonly GuideChapter[] = [
       {
         id: "statistik",
         title: "Statistik",
-        searchTerms: ["Anwesenheitsquote", "Fehlzeiten", "Raumauslastung"],
+        searchTerms: [
+          "Anwesenheitsquote",
+          "Fehlzeiten",
+          "Raumauslastung",
+          "Kursteilnahme",
+        ],
         icon: ClipboardCheck,
         summary:
-          "Zeigt für einen frei wählbaren Zeitraum, wie oft jedes Kind da war, wie viele Tage es krank, entschuldigt oder ohne Meldung gefehlt hat, und wie stark die Räume genutzt wurden. Mit Export als PDF, Excel und Word.",
+          "Zeigt für einen frei wählbaren Zeitraum, wie oft jedes Kind da war, wie viele Tage es krank, entschuldigt oder ohne Meldung gefehlt hat, wie stark die Räume genutzt wurden und wie oft die Kinder an den einzelnen Kursen teilgenommen haben. Mit Export als PDF, Excel und Word.",
         steps: [
           "`Statistik` in der Seitenleiste öffnen.",
           "Oben den Zeitraum wählen, zum Beispiel `Letzte 30 Tage` oder einen eigenen Bereich. Der Zeitraum darf höchstens ein Jahr umfassen und nicht in der Zukunft enden.",
           "Daneben bei Bedarf eine oder mehrere Gruppen wählen. Ohne Auswahl zählt die Statistik alle Kinder.",
           "Die Kacheln zeigen die Betreuungstage des Zeitraums, die abgezogenen Tage, die Gesamtquote und die Fehltage nach Art. Darunter stehen die Zahlen je Gruppe, je Kind und je Raum.",
-          "Über `PDF`, `Excel` oder `Word` die Statistik mit dem gewählten Zeitraum und Gruppenfilter ausgeben.",
+          "Im Bereich `Kurse` steht, wie viele Termine ein Kurs hatte und wie oft die Kinder teilgenommen haben. Mit `Je Kurs` und `Je Kind` zwischen den beiden Sichten wechseln.",
+          "Über `PDF`, `Excel` oder `Word` die Statistik mit dem gewählten Zeitraum und Gruppenfilter ausgeben. Jeder Bereich hat eigene Schaltflächen und ergibt eine eigene Datei.",
         ],
         callout: {
           title: "So rechnet die Quote",
-          body: "Betreuungstage sind Montag bis Freitag im Zeitraum, abzüglich Feiertage, Schließtage und der Ferien aus dem Kalender. Ein Tag zählt als anwesend, wenn das Kind an diesem Tag angemeldet war. Fehlt eine Anmeldung, ordnet die Statistik den Tag nach der Meldung ein: `Krank`, `Entschuldigt` (auch Klassenfahrt) oder `Ohne Meldung`. Kinder werden immer in ihrer heutigen Gruppe gezählt. Raumdaten können je Kind unterschiedlich lange vorliegen. Die Statistik zeigt das früheste mögliche Datum.",
+          body: "Betreuungstage sind Montag bis Freitag im Zeitraum, abzüglich Feiertage, Schließtage und der Ferien aus dem Kalender. Ein Tag zählt als anwesend, wenn das Kind an diesem Tag angemeldet war. Fehlt eine Anmeldung, ordnet die Statistik den Tag nach der Meldung ein: `Krank`, `Entschuldigt` (auch Klassenfahrt) oder `Ohne Meldung`. Kinder werden immer in ihrer heutigen Gruppe gezählt. Raumdaten können je Kind unterschiedlich lange vorliegen. Die Statistik zeigt das früheste mögliche Datum. Bei den Kursen zählt die Quote die Teilnahmetage geteilt durch die Termine, für die eine Teilnahme entschieden wurde. Abgesagte Termine zählen nicht mit. Termine, die noch nicht abgeschlossen sind, stehen als `Offen` daneben und verändern die Quote nicht.",
           tone: "blue",
         },
         screenshot:
-          "Statistik mit Zeitraum- und Gruppenfilter, Kennzahl-Kacheln und den Tabellen je Gruppe, Kind und Raum.",
+          "Statistik mit Zeitraum- und Gruppenfilter, Kennzahl-Kacheln und den Tabellen je Gruppe, Kind, Raum und Kurs.",
         image: "/help/screens/statistik.webp",
       },
       {
@@ -1160,9 +1171,9 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Bündelt Auswertung, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten einer Person.",
         steps: [
-          "`Mitarbeiter` öffnen und eine Person auswählen. Admins sehen die vollständige Detailansicht. Leitungsrollen mit der Berechtigung `time_tracking:manage` erreichen ebenfalls das Profil und sehen die Reiter `Übersicht`, `Zeiterfassung`, `Abwesenheiten` und `Stammdaten`; `Arbeitszeitmodell` bleibt Admins vorbehalten. Rollen mit Zugriff auf Personalunterlagen ohne Mitarbeiterliste öffnen dafür das Verzeichnis `Personalunterlagen`.",
-          "Im Reiter `Stammdaten` die Sektionen `Person`, `Kontakt`, `Arbeitsvertrag` und `Qualifikationen` (mit Ablaufdatum, z. B. Erste-Hilfe-Kurs) pflegen. Sichtbar sind diese Sektionen nur mit `Benutzer bearbeiten` oder `time_tracking:manage` — nicht für alle, die die Mitarbeiterliste sehen dürfen; `Bearbeiten` erfordert `Benutzer bearbeiten`, jede Änderung landet mit optionaler Begründung im Audit-Log. In der Sektion `Abrechnung` liegt die Personalnummer für die Abrechnung. Bank- und Steuerdaten (IBAN, Steuer-ID, SV-Nummer) sehen nur Rollen mit der Berechtigung `Bank- & Steuerdaten`: Die Werte sind maskiert, `Anzeigen` blendet sie ein, und jeder Abruf wird protokolliert.",
-          "Im Reiter `Dokumente` Dateien zur Personalakte hochladen (per Auswahl oder Hineinziehen), herunterladen und löschen: PDF, DOCX, PNG oder JPG bis 10 MB, sortiert nach festen Kategorien wie `Arbeitsvertrag`, `Zeugnis / Qualifikation` oder `Bewerbungsunterlagen`. `AU-Bescheinigungen` sehen nur Rollen mit der Berechtigung für Gesundheitsdokumente, `Lohnabrechnungen` nur Rollen mit `Bank- & Steuerdaten`; sensible Abrufe werden protokolliert. Die Spalte `Frist` zeigt gesetzliche Aufbewahrungsfristen als Hinweis (zum Beispiel Lohnabrechnungen 10 Jahre) und erinnert bei Bewerbungsunterlagen nach 6 Monaten an die Prüfung. Gelöscht wird ausschließlich manuell; jeder Upload und jede Löschung landet im Änderungsprotokoll.",
+          "`Mitarbeiter` öffnen und eine Person auswählen. Admins sehen die vollständige Detailansicht. Leitungsrollen mit der Berechtigung `time_tracking:manage` erreichen ebenfalls das Profil und sehen die Reiter `Übersicht`, `Zeiterfassung`, `Abwesenheiten` und `Stammdaten`; `Arbeitszeitmodell` bleibt Admins vorbehalten. Rollen mit Zugriff auf Personalunterlagen ohne Mitarbeiterliste öffnen dafür das Verzeichnis `Personalunterlagen`. Die Berechtigungen `Personalstammdaten` und `Mitarbeitende: Verwalten` öffnen ebenfalls die Mitarbeiterliste, sonst wäre die Person dort nicht zu finden.",
+          "Im Reiter `Stammdaten` die Sektionen `Person`, `Kontakt`, `Arbeitsvertrag` und `Qualifikationen` (mit Ablaufdatum, z. B. Erste-Hilfe-Kurs) pflegen. Sichtbar sind diese Sektionen nur mit `Personalstammdaten` oder `time_tracking:manage` — nicht für alle, die die Mitarbeiterliste sehen dürfen, und ausdrücklich nicht für die Standardrolle Betreuer; `Bearbeiten` erfordert `Personalstammdaten`, jede Änderung landet mit optionaler Begründung im Audit-Log. In der Sektion `Abrechnung` liegt die Personalnummer für die Abrechnung. Bank- und Steuerdaten (IBAN, Steuer-ID, SV-Nummer) sehen nur Rollen mit der Berechtigung `Bank- & Steuerdaten`: Die Werte sind maskiert, `Anzeigen` blendet sie ein, und jeder Abruf wird protokolliert.",
+          "Im Reiter `Dokumente` Dateien zur Personalakte hochladen (per Auswahl oder Hineinziehen), herunterladen und löschen: PDF, DOCX, PNG oder JPG bis 10 MB, sortiert nach festen Kategorien wie `Arbeitsvertrag`, `Zeugnis / Qualifikation` oder `Bewerbungsunterlagen`. Der Reiter öffnet sich mit einer der Berechtigungen `Personalunterlagen`, `Bank- & Steuerdaten` oder `Gesundheitsdokumente`; jede Rolle sieht darin nur die Kategorien ihrer eigenen Berechtigung. Die Standardrolle Betreuer hat keine davon und damit auch den Reiter nicht. `AU-Bescheinigungen` sehen nur Rollen mit der Berechtigung für Gesundheitsdokumente, `Lohnabrechnungen` nur Rollen mit `Bank- & Steuerdaten`; sensible Abrufe werden protokolliert. Die Spalte `Frist` zeigt gesetzliche Aufbewahrungsfristen als Hinweis (zum Beispiel Lohnabrechnungen 10 Jahre) und erinnert bei Bewerbungsunterlagen nach 6 Monaten an die Prüfung. Gelöscht wird ausschließlich manuell; jeder Upload und jede Löschung landet im Änderungsprotokoll.",
           "Im Reiter `Übersicht` Stundenkonto, Urlaubstage und Krankheitstage prüfen. Die Diagramme lassen sich einzeln nach Zeitraum filtern.",
           "Im Bereich `Stundenkonto-Verwaltung` Plus-Stunden auszahlen (`Auszahlung`), pauschal als `Freizeitausgleich` verrechnen oder das Konto mit `Zurücksetzen` zum Stichtag (Schuljahresende 31.07.) auf null bzw. einen Rest-Übertrag setzen. Für einen Reset lässt sich nur ein bereits abgeschlossener Tag wählen, nicht der heutige Tag. Jede Buchung braucht eine Begründung und erscheint in der Historie darunter; eine Fehlbuchung lässt sich dort wieder löschen.",
           "Beim Umstieg auf moto den Stand aus dem Altsystem über `Eröffnungssaldo` übernehmen: Stichtag wählen, den Saldo in Stunden eintragen (auch negativ, z. B. -3,25) und begründen. Ab dem Stichtag zählt moto auf diesem Stand weiter. Pro Person ist nur ein Eröffnungssaldo möglich; eine Korrektur läuft über Löschen der Buchung und Neuanlegen.",
@@ -2372,15 +2383,17 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Einstellungen im Überblick",
         icon: SlidersHorizontal,
         summary:
-          "Die Einstellungen sind in Reiter (Tabs) gegliedert. Jeder Reiter bündelt Optionen zu einem Thema. Änderungen werden automatisch gespeichert.",
+          "Die Einstellungen sind in Reiter (Tabs) gegliedert. Jeder Reiter bündelt Optionen zu einem Thema, aufgeteilt in zugeklappte Bereiche. Änderungen werden automatisch gespeichert.",
         steps: [
           "In der Seitenleiste `Einstellungen` öffnen.",
           "Oben den passenden Reiter wählen: `Betrieb` (Alltagsverhalten, z. B. Betreuungsplan oder Aktivitäts-Indikatoren), `Erinnerungen` (welche Erinnerungen an der Glocke erscheinen), `Geräte` (NFC-Tablets, PIN, Auswahl-Buttons), `Anmeldung` (Online-Anmeldung der Eltern), `Datenschutz` (Aufbewahrung und Sichtbarkeit von Daten), `System`, `Sicherheit` sowie `Personalisierung` (Erscheinungsbild).",
+          "Jeder Bereich (etwa `Elternportal` oder `Zeiterfassung`) ist zunächst zugeklappt und zeigt nur seinen Namen und die enthaltenen Einstellungen in einer Zeile. Auf den Pfeil rechts im Bereich klicken, um ihn zu öffnen; `Alle ausklappen` öffnet alle Bereiche des Reiters. Ein Abzeichen wie `2 geändert` zeigt, wie viele Einstellungen darin vom Standard abweichen.",
+          "Wer nicht weiß, in welchem Reiter eine Einstellung liegt, tippt ein Stichwort in `Einstellung suchen`. Die Suche zeigt passende Einstellungen aus allen Reitern, jeweils mit dem Namen des Reiters darüber.",
           "Schalter (an/aus) und Auswahlfelder werden sofort gespeichert; Text-, Zahl- und Zeitfelder kurz nach der Eingabe. Ein grüner Rahmen bestätigt das Speichern, ein roter weist auf einen Fehler hin.",
           "Steht neben einer Einstellung das Abzeichen `Standard`, ist noch der voreingestellte Wert aktiv. Nach einer Änderung erscheint `Zurücksetzen`, um wieder den Standard herzustellen.",
         ],
         screenshot:
-          "Einstellungen mit der Reiter-Leiste (Betrieb, Erinnerungen, Geräte, Anmeldung, Datenschutz, System, Sicherheit, Personalisierung) und der Sektion Aktivitäts-Indikatoren im Reiter Betrieb.",
+          "Einstellungen mit der Reiter-Leiste (Betrieb, Erinnerungen, Geräte, Anmeldung, Datenschutz, System, Sicherheit, Personalisierung), dem Suchfeld und den zugeklappten Bereichen im Reiter Betrieb.",
         image: "/help/screens/einstellungen.webp",
       },
       {

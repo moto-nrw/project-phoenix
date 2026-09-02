@@ -659,7 +659,7 @@ export default function OperatorAnnouncementsPage() {
                 </svg>
               </button>
               {severityDropdownOpen && (
-                <div className="absolute top-full left-0 z-[10001] mt-1 w-full overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                <div className="moto-popover-surface absolute top-full left-0 z-[10001] mt-1 w-full overflow-hidden rounded-xl border py-1">
                   {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
                     <button
                       key={value}
@@ -1036,7 +1036,7 @@ export default function OperatorAnnouncementsPage() {
         onConfirm={() => void handleDelete()}
         title="Ankündigung löschen?"
         confirmText="Löschen"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
         isConfirmLoading={isDeleting}
       >
         <p className="text-sm text-gray-600">
@@ -1052,7 +1052,7 @@ export default function OperatorAnnouncementsPage() {
         onConfirm={() => void handlePublish()}
         title="Ankündigung veröffentlichen?"
         confirmText="Veröffentlichen"
-        confirmButtonClass="bg-moto-green hover:bg-moto-green-hover hover:shadow-lg"
+        confirmVariant="success"
         isConfirmLoading={isPublishing}
       >
         <p className="text-sm text-gray-600">

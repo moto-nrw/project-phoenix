@@ -2316,6 +2316,8 @@ func cleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		return
 	}
 
+	// Changed-package runs execute this cross-schema cleanup alongside other
+	// database-heavy packages, so allow lock holders to finish under CI load.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

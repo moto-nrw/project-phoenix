@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Search, SearchX } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createLogger } from "~/lib/logger";
 import {
@@ -12,8 +13,16 @@ import { notifySettingsChanged } from "~/lib/settings-broadcast";
 import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
 import type { SettingsSchema, SchemaTab } from "~/lib/settings-api";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Input } from "~/components/ui/input";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
+import {
+  normalizeQuery,
+  searchTabs,
+  visibleCategoryItems,
+} from "./settings-filter";
 import { PersonalizationTab } from "./personalization-tab";
 import { EnrollmentLinkPanel } from "./enrollment-link-panel";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -30,34 +39,207 @@ const SUPERVISION_AFFECTING_KEYS = new Set<string>([
 
 const logger = createLogger({ component: "SettingsPage" });
 
+// Tab label mapping (German)
+const TAB_LABELS: Record<string, string> = {
+  operations: "Betrieb",
+  reminders: "Erinnerungen",
+  gdpr: "Datenschutz",
+  devices: "Geräte",
+  enrollment: "Anmeldung",
+  system: "System",
+  general: "Allgemein",
+  security: "Sicherheit",
+};
+
+function tabLabel(tab: SchemaTab): string {
+  return TAB_LABELS[tab.key] ?? tab.label;
+}
+
+// Payroll settings (#1417) have their own maintenance page under /payroll —
+// rendering the auto-generated tab here would create a second, worse surface
+// for the same values. Search skips it for the same reason.
+function schemaTabsForPage(schema: SettingsSchema | null | undefined) {
+  return (schema?.tabs ?? []).filter((tab) => tab.key !== "abrechnung");
+}
+
 interface SettingsTabContentProps {
   readonly tab: SchemaTab;
+  /** Every tab of the page; the search box looks across all of them. */
+  readonly allTabs: readonly SchemaTab[];
   readonly highlightKey?: string | null;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
   readonly onSchemaRefresh: () => void;
 }
 
+function expansionKey(tabKey: string, categoryKey: string): string {
+  return `${tabKey}:${categoryKey}`;
+}
+
+/**
+ * One settings tab (#2830): categories start collapsed and show their name
+ * plus a one-line summary of what they contain; a person opens the one they
+ * need, or expands all. A deep link (`?highlight=<key>`) opens the category
+ * that holds the setting. The search box filters across every tab, because
+ * nobody knows in advance under which tab a setting lives.
+ */
 function SettingsTabContent({
   tab,
+  allTabs,
   highlightKey,
   onSave,
   onReset,
   onSchemaRefresh,
 }: SettingsTabContentProps) {
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
+  // The deep-linked category is expanded once per (tab, key); a later schema
+  // revalidation must not re-open it after the person collapsed it.
+  const handledHighlightRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!highlightKey) return;
+    const owner = tab.categories.find((category) =>
+      category.items.some((item) => item.key === highlightKey),
+    );
+    if (!owner) return;
+    const key = expansionKey(tab.key, owner.key);
+    const marker = `${key}:${highlightKey}`;
+    if (handledHighlightRef.current === marker) return;
+    handledHighlightRef.current = marker;
+    setExpanded((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }, [highlightKey, tab]);
+
+  const normalizedQuery = normalizeQuery(query);
+  const isFiltering = normalizedQuery !== "";
+  const hits = isFiltering ? searchTabs(allTabs, normalizedQuery) : [];
+  const hitCount = hits.reduce((sum, hit) => sum + hit.items.length, 0);
+
+  const visibleCategories = tab.categories.filter(
+    (category) => visibleCategoryItems(category).length > 0,
+  );
+  const allExpanded =
+    visibleCategories.length > 0 &&
+    visibleCategories.every((category) =>
+      expanded.has(expansionKey(tab.key, category.key)),
+    );
+
+  const toggleCategory = (key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const setAllExpanded = (open: boolean) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const category of visibleCategories) {
+        const key = expansionKey(tab.key, category.key);
+        if (open) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
+      }
+      return next;
+    });
+  };
+
   return (
-    <div className="space-y-6">
-      {tab.key === "enrollment" && <EnrollmentLinkPanel tab={tab} />}
-      {tab.categories.map((category) => (
-        <SettingsCategory
-          key={category.key}
-          category={category}
-          highlightKey={highlightKey}
-          onSave={onSave}
-          onReset={onReset}
-          onSchemaRefresh={onSchemaRefresh}
-        />
-      ))}
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2 text-gray-400"
+            aria-hidden="true"
+          />
+          <Input
+            type="search"
+            controlSize="compact"
+            className="pl-9"
+            placeholder="Einstellung suchen"
+            aria-label="Einstellung suchen"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        {isFiltering ? (
+          <p className="text-sm text-gray-500" role="status">
+            {hitCount === 1 ? "1 Treffer" : `${hitCount} Treffer`} in allen
+            Bereichen
+          </p>
+        ) : (
+          visibleCategories.length > 1 && (
+            <Button
+              type="button"
+              variant="surface"
+              size="compact"
+              className="self-start sm:self-auto"
+              onClick={() => setAllExpanded(!allExpanded)}
+            >
+              {allExpanded ? "Alle einklappen" : "Alle ausklappen"}
+            </Button>
+          )
+        )}
+      </div>
+
+      {isFiltering ? (
+        hits.length === 0 ? (
+          <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+            <EmptyState
+              variant="compact"
+              icon={<SearchX className="h-5 w-5" aria-hidden="true" />}
+              title={`Keine Einstellung passt zu „${query.trim()}“.`}
+              description="Versuchen Sie ein anderes Wort, zum Beispiel „Abholung“ oder „Eltern“."
+            />
+          </div>
+        ) : (
+          hits.map((hit) => (
+            <SettingsCategory
+              key={expansionKey(hit.tab.key, hit.category.key)}
+              category={hit.category}
+              kicker={tabLabel(hit.tab)}
+              filterQuery={normalizedQuery}
+              onSave={onSave}
+              onReset={onReset}
+              onSchemaRefresh={onSchemaRefresh}
+            />
+          ))
+        )
+      ) : (
+        <>
+          {tab.key === "enrollment" && <EnrollmentLinkPanel tab={tab} />}
+          {tab.categories.map((category) => {
+            const key = expansionKey(tab.key, category.key);
+            return (
+              <SettingsCategory
+                key={category.key}
+                category={category}
+                highlightKey={highlightKey}
+                collapsible
+                collapsed={!expanded.has(key)}
+                onToggle={() => toggleCategory(key)}
+                onSave={onSave}
+                onReset={onReset}
+                onSchemaRefresh={onSchemaRefresh}
+              />
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }
@@ -65,25 +247,21 @@ function SettingsTabContent({
 function SettingsSkeleton() {
   return (
     <div className="space-y-6">
-      {Array.from({ length: 2 }).map((_, catIdx) => (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Skeleton className="h-10 w-full rounded-lg sm:max-w-sm" />
+        <Skeleton className="h-8 w-32 rounded-md" />
+      </div>
+      {Array.from({ length: 5 }).map((_, idx) => (
         <div
-          key={catIdx}
-          className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6"
+          key={idx}
+          className="moto-content-surface rounded-2xl border p-5 shadow-sm"
         >
-          <Skeleton className="mb-4 h-5 w-32 rounded" />
-          <div className="divide-y divide-gray-100">
-            {Array.from({ length: catIdx === 0 ? 3 : 2 }).map((_, i) => (
-              <div
-                key={i}
-                className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
-              >
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-3/4 rounded sm:w-48" />
-                  <Skeleton className="h-3.5 w-full rounded sm:w-72" />
-                </div>
-                <Skeleton className="h-10 w-24 rounded-lg sm:w-32" />
-              </div>
-            ))}
+          <div className="flex items-start gap-3">
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-5 w-40 rounded" />
+              <Skeleton className="h-4 w-full max-w-md rounded" />
+            </div>
+            <Skeleton className="h-8 w-8 rounded-md" />
           </div>
         </div>
       ))}
@@ -262,6 +440,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
       )}
       <SettingsTabContent
         tab={tab}
+        allTabs={schemaTabsForPage(schema)}
         highlightKey={highlightKey}
         onSave={handleSave}
         onReset={handleReset}
@@ -287,18 +466,6 @@ export function useSettingsTabs(): {
     return null;
   }
 
-  // Tab label mapping (German)
-  const tabLabels: Record<string, string> = {
-    operations: "Betrieb",
-    reminders: "Erinnerungen",
-    gdpr: "Datenschutz",
-    devices: "Geräte",
-    enrollment: "Anmeldung",
-    system: "System",
-    general: "Allgemein",
-    security: "Sicherheit",
-  };
-
   // Tab icon mapping (MOTO-Konzepte statt SVG-Pfaden)
   const defaultTabConcept: MotoConceptKey = "settings";
   const tabConcepts: Record<string, MotoConceptKey> = {
@@ -320,19 +487,14 @@ export function useSettingsTabs(): {
   const schemaTabs = schemaError
     ? fallbackTabKeys.map((key) => ({
         id: `settings-${key}`,
-        label: tabLabels[key] ?? key,
+        label: TAB_LABELS[key] ?? key,
         icon: tabConcepts[key] ?? defaultTabConcept,
       }))
-    : (schema?.tabs ?? [])
-        // Payroll settings (#1417) have their own maintenance page under
-        // /payroll — rendering the auto-generated tab here would create a
-        // second, worse surface for the same values.
-        .filter((tab) => tab.key !== "abrechnung")
-        .map((tab) => ({
-          id: `settings-${tab.key}`,
-          label: tabLabels[tab.key] ?? tab.label,
-          icon: tabConcepts[tab.key] ?? defaultTabConcept,
-        }));
+    : schemaTabsForPage(schema).map((tab) => ({
+        id: `settings-${tab.key}`,
+        label: tabLabel(tab),
+        icon: tabConcepts[tab.key] ?? defaultTabConcept,
+      }));
 
   // Personalisierung is always available (permission-gated inside the component)
   const personalizationTab: {

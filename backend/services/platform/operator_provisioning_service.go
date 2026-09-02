@@ -137,6 +137,19 @@ type OperatorProvisioningService interface {
 	RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
 }
 
+type OrganizationCapability interface {
+	CreateOrganization(context.Context, organizationModule.CreateOrganization) (organizationModule.Organization, error)
+	UpdateOrganization(context.Context, organizationModule.UpdateOrganization) (organizationModule.Organization, error)
+	SoftDeleteOrganization(context.Context, int64) (organizationModule.Organization, error)
+	RestoreOrganization(context.Context, int64) (organizationModule.Organization, error)
+	FindOrganization(context.Context, int64) (organizationModule.Organization, error)
+	FindOrganizationForMutation(context.Context, int64) (organizationModule.Organization, error)
+	FindOrganizationForSchoolMutation(context.Context, int64) (organizationModule.Organization, error)
+	ListOrganizations(context.Context) ([]organizationModule.Organization, error)
+	ListOrganizationsByID(context.Context, []int64) ([]organizationModule.Organization, error)
+	CountOrganizationsByID(context.Context, []int64) (int, error)
+}
+
 // OperatorPersonInfo aliases the model type so existing service callers keep
 // referencing platformSvc.OperatorPersonInfo.
 type OperatorPersonInfo = platform.OperatorPersonInfo
@@ -198,7 +211,7 @@ func (s *operatorProvisioningService) withAdminTx(ctx context.Context, fn func(c
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
 type OperatorProvisioningServiceConfig struct {
-	Organizations         organizationModule.Capability
+	Organizations         OrganizationCapability
 	SchoolRepo            platform.SchoolRepository
 	SummariesRepo         platform.OperatorSummariesRepository
 	CategoryRepo          activityModels.CategoryRepository
@@ -320,6 +333,9 @@ func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *
 			return err
 		}
 		if createErr := s.SchoolRepo.Create(adminCtx, school); createErr != nil {
+			if mapped := mapSchoolCapabilityError(createErr, school.ID, school.OrganizationID); mapped != nil {
+				return mapped
+			}
 			if modelBase.IsUniqueViolation(createErr) {
 				return mapSchoolCreateConflict(adminCtx, s.SchoolRepo, school)
 			}
@@ -428,6 +444,9 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		existing.Hidden = req.Hidden
 
 		if updateErr := s.SchoolRepo.Update(adminCtx, existing); updateErr != nil {
+			if mapped := mapSchoolCapabilityError(updateErr, id, existing.OrganizationID); mapped != nil {
+				return mapped
+			}
 			if modelBase.IsUniqueViolation(updateErr) {
 				return mapSchoolCreateConflict(adminCtx, s.SchoolRepo, existing)
 			}
@@ -1765,6 +1784,29 @@ func mapOrganizationCapabilityError(err error, organizationID int64) error {
 		return &InvalidDataError{Err: err}
 	default:
 		return err
+	}
+}
+
+func mapSchoolCapabilityError(err error, schoolID, organizationID int64) error {
+	switch {
+	case errors.Is(err, organizationModule.ErrSchoolDomainConflict):
+		return &ConflictError{Err: fmt.Errorf("school subdomain already exists")}
+	case errors.Is(err, organizationModule.ErrSchoolSlugConflict):
+		return &ConflictError{Err: fmt.Errorf("school slug already exists in this organization")}
+	case errors.Is(err, organizationModule.ErrSchoolNotFound):
+		return &SchoolNotFoundError{SchoolID: schoolID}
+	case errors.Is(err, organizationModule.ErrSchoolAlreadyDeleted):
+		return &SchoolAlreadyDeletedError{SchoolID: schoolID}
+	case errors.Is(err, organizationModule.ErrSchoolNotDeleted):
+		return &SchoolNotDeletedError{SchoolID: schoolID}
+	case errors.Is(err, organizationModule.ErrOrganizationDeleted):
+		return &OrganizationDeletedError{OrganizationID: organizationID}
+	case errors.Is(err, organizationModule.ErrOrganizationNotFound):
+		return &OrganizationNotFoundError{OrganizationID: organizationID}
+	case errors.Is(err, organizationModule.ErrInvalidSchool):
+		return &InvalidDataError{Err: err}
+	default:
+		return nil
 	}
 }
 

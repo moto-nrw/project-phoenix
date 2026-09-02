@@ -30,6 +30,9 @@ func (seedParentEngagementStep) Run(ctx context.Context, rt *Runtime) error {
 	if err := seedParentGuardianChanges(rt, auth, studentID); err != nil {
 		return err
 	}
+	if err := seedParentPhotoConsentHistory(rt, auth, studentID); err != nil {
+		return err
+	}
 	if err := seedParentMasterData(rt, auth, studentID); err != nil {
 		return err
 	}
@@ -37,7 +40,7 @@ func (seedParentEngagementStep) Run(ctx context.Context, rt *Runtime) error {
 		return err
 	}
 	rt.Client.BindAuth(rt.TenantAuth)
-	fmt.Println("  1 parent preference, 1 conversation, 1 audited contact, 1 master-data request and lunch participation created")
+	fmt.Println("  1 parent preference, 1 conversation, audited contact/consent changes, 1 master-data request and lunch participation created")
 	return nil
 }
 
@@ -54,6 +57,18 @@ func seedParentMealParticipation(rt *Runtime, auth AuthRef, studentID int64) err
 		"participating": false,
 	}); err != nil {
 		return fmt.Errorf("seed meal participation exception: %w", err)
+	}
+	return nil
+}
+
+func seedParentPhotoConsentHistory(rt *Runtime, auth AuthRef, studentID int64) error {
+	if _, err := rt.Client.PutWithAuth(rt.TenantAuth, fmt.Sprintf("/api/students/%d", studentID), map[string]any{
+		"photo_consent_given": true,
+	}); err != nil {
+		return fmt.Errorf("seed granted photo consent: %w", err)
+	}
+	if _, err := rt.Client.DeleteWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/consents/photo", studentID)); err != nil {
+		return fmt.Errorf("seed withdrawn parent photo consent: %w", err)
 	}
 	return nil
 }

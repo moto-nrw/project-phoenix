@@ -60,7 +60,9 @@ func newOfferingChangeServiceForTestWithCareRepo(
 		Applier:                  changeRequestApplierForTest(t, env),
 		Settings:                 env.settings,
 		Logger:                   slog.Default(),
-		Today:                    func() timezone.Date { return decisionTestDate },
+		// Mirrors newDecisionServiceForTest's fixed clock: the lead-day and
+		// earliest-date assertions in this file compare against this date.
+		Today: func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	})
 }
 
@@ -1064,7 +1066,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsTheSelectableDateRange(
 	}
 	require.NotNil(t, queued)
 	earliest := env.sourcePhase.ServiceStartDate
-	if today := timezone.NewDate(2026, 8, 24); earliest.Before(today) {
+	if today := decisionTestToday; earliest.Before(today) {
 		earliest = today
 	}
 	assert.Equal(t, earliest, queued.EarliestEffectiveFrom,

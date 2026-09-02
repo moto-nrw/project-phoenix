@@ -5,12 +5,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+// newSchoolProjectedAccountTenantRepository composes the repository the
+// way the service graph does: person names and caregiver facts through the
+// People Directory (#2661), then the school projections on top.
+func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) authModels.AccountTenantRepository {
+	t.Helper()
+	capability, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	factory.BindOrganizationTenancy(capability)
+	return factory.AccountTenant
+}
 
 func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	t.Parallel()
@@ -220,10 +235,11 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := authRepo.NewAccountTenantRepository(db)
+	repo := newSchoolProjectedAccountTenantRepository(t, db)
 
 	t.Run("returns accounts for tenant", func(t *testing.T) {
-		accounts, err := repo.ListAccountsByTenantID(ctx, tenantID)
+		// The composed repository resolves persons through the tenant runtime.
+		accounts, err := repo.ListAccountsByTenantID(testpkg.TenantContext(tenantID), tenantID)
 		require.NoError(t, err)
 
 		var found bool
@@ -240,7 +256,7 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 	})
 
 	t.Run("returns empty for nonexistent tenant", func(t *testing.T) {
-		accounts, err := repo.ListAccountsByTenantID(ctx, 999999)
+		accounts, err := repo.ListAccountsByTenantID(testpkg.TenantContext(999999), 999999)
 		require.NoError(t, err)
 		assert.Empty(t, accounts)
 	})
@@ -287,7 +303,7 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -303,7 +319,7 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := authRepo.NewAccountTenantRepository(db)
+	repo := newSchoolProjectedAccountTenantRepository(t, db)
 
 	t.Run("returns accounts for organization", func(t *testing.T) {
 		accounts, err := repo.ListAccountsByOrganizationID(ctx, orgID)
@@ -331,7 +347,7 @@ func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -346,7 +362,7 @@ func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := authRepo.NewAccountTenantRepository(db)
+	repo := newSchoolProjectedAccountTenantRepository(t, db)
 	accounts, err := repo.ListAllAccounts(ctx)
 	require.NoError(t, err)
 
@@ -378,7 +394,7 @@ func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testin
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -397,7 +413,7 @@ func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testin
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	})
 
-	repo := authRepo.NewAccountTenantRepository(db)
+	repo := newSchoolProjectedAccountTenantRepository(t, db)
 
 	// Baseline: account is visible while school is active.
 	accounts, err := repo.ListAllAccounts(ctx)

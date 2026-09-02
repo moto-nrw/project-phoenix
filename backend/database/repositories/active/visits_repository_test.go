@@ -588,12 +588,25 @@ func TestVisitRepository_GetCurrentRoomNamesForStudents(t *testing.T) {
 	})
 }
 
+// newGroupProjectionFactory binds the People Directory (#2661) and the
+// School Structure owner so student names and group names on visit rows are
+// resolved the way the production graph resolves them.
+func newGroupProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
+	t.Helper()
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	groups, err := repositories.NewSchoolStructure(db)
+	require.NoError(t, err)
+	factory.BindSchoolStructure(groups)
+	return factory
+}
+
 func TestVisitRepository_FindActiveWithStudentDisplayByGroup(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := newGroupProjectionFactory(t, db).ActiveVisit
 	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
 

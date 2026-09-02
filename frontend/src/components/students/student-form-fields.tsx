@@ -606,7 +606,7 @@ export function EnrollmentConsentsSection({
   if (!anyStamped) return null;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4">
+    <div className="moto-content-surface rounded-xl border p-3 shadow-sm md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
         Einwilligungen bei Anmeldung
       </h3>

@@ -38,6 +38,10 @@ import { X } from "lucide-react";
 
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { cn } from "~/lib/utils";
+import {
+  OVERLAY_BACKDROP_CLASS,
+  OVERLAY_BACKDROP_TINT_CLASS,
+} from "./overlay-styles";
 
 /**
  * Unter sm fährt das Panel von unten ein, darüber von rechts. Vor dem ersten
@@ -142,7 +146,9 @@ const SlideOverOverlay = React.forwardRef<
   <DrawerPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[1px]",
+      "fixed inset-0 z-40",
+      OVERLAY_BACKDROP_TINT_CLASS,
+      OVERLAY_BACKDROP_CLASS,
       className,
     )}
     {...props}
@@ -150,16 +156,16 @@ const SlideOverOverlay = React.forwardRef<
 ));
 SlideOverOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
-interface SlideOverContentProps extends React.ComponentPropsWithoutRef<
+type SlideOverContentProps = React.ComponentPropsWithoutRef<
   typeof DrawerPrimitive.Content
-> {
+> & {
   /**
    * Panel width on desktop. Default 420px matches the timetable mockup.
    * Ignoriert, solange das Panel als Blatt von unten läuft (< sm) — dort ist
    * es immer volle Breite.
    */
   widthClass?: string;
-}
+};
 
 const SlideOverContent = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Content>,

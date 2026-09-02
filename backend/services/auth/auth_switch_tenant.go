@@ -10,10 +10,14 @@ import (
 // SwitchTenant authenticates a user to a different tenant and returns new tokens.
 // The account must be active and have an active mapping to the requested tenant.
 //
-// Old refresh tokens are intentionally kept alive — the account may have active
-// sessions on other devices or tenants. Logout revokes only the presented
-// token family. Login caps active sessions at five per portal.
-func (s *Service) SwitchTenant(ctx context.Context, accountID int64, tenantSlug string) (string, string, error) {
+// Refresh tokens of OTHER families are kept alive — the account may have active
+// sessions on other devices. The presented family is retired instead: the
+// browser replaces its session cookie with the returned pair, so that family
+// only needs to outlive in-flight requests. Without retirement, two tabs on
+// two schools auto-switching back and forth mint a new family every few
+// minutes, and the per-portal session cap then revokes families that are
+// still in use (#2952). An empty presentedFamilyID skips the retirement.
+func (s *Service) SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (string, string, error) {
 	// 1. Look up the account by ID
 	account, err := s.repos.Account.FindByID(ctx, accountID)
 	if err != nil {
@@ -41,8 +45,9 @@ func (s *Service) SwitchTenant(ctx context.Context, accountID int64, tenantSlug 
 		return "", "", &AuthError{Op: "switch tenant", Err: ErrMustUseSchoolPortal}
 	}
 
-	// 3. Create refresh token with resolved tenant ID
-	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID, metadata.scope)
+	// 3. Create the refresh token for the new tenant; the presented family is
+	//    retired in the same transaction, ahead of the session cap.
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, metadata.tenantID, metadata.scope, nil, presentedFamilyID)
 	if err != nil {
 		return "", "", err
 	}

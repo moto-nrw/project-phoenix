@@ -1623,6 +1623,48 @@
     "care": {
       "weekTitle": "Dein OGS Wochenplan",
       "absenceTitle": "Abwesenheiten"
+    },
+    "consents": {
+      "title": "Einwilligungen und Bestätigungen",
+      "description": "Hier sehen Sie, was für Ihr Kind gespeichert ist.",
+      "staffDescription": "Nur zur Information. Eltern ändern die Foto-Einwilligung im Elternportal.",
+      "photoDescription": "Die Foto-Einwilligung können Sie hier ändern.",
+      "items": {
+        "agb": "Allgemeine Geschäftsbedingungen (AGB)",
+        "data_processing": "Datenschutz zur Kenntnis genommen",
+        "email_contact": "Kontakt per E-Mail erlaubt",
+        "photo": "Foto-Einwilligung"
+      },
+      "states": {
+        "granted": "Hinterlegt",
+        "withdrawn": "Widerrufen",
+        "not_recorded": "Nicht hinterlegt"
+      },
+      "dates": {
+        "granted": "Hinterlegt am {date}",
+        "withdrawn": "Widerrufen am {date}",
+        "not_recorded": "Nicht hinterlegt"
+      },
+      "withdrawButton": "Foto-Einwilligung widerrufen",
+      "withdrawButtonShort": "Widerrufen",
+      "confirmTitle": "Foto-Einwilligung widerrufen?",
+      "confirmBody": "Die Einwilligung endet sofort. Falls ein Foto gespeichert ist, wird es gelöscht.",
+      "confirmButton": "Jetzt widerrufen",
+      "withdrawing": "Wird widerrufen",
+      "cancel": "Abbrechen",
+      "close": "Dialog schließen",
+      "success": "Die Foto-Einwilligung wurde widerrufen. Falls ein Foto gespeichert war, wurde es gelöscht.",
+      "loadError": "Die Einwilligungen konnten gerade nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      "retry": "Erneut laden",
+      "withdrawError": "Die Foto-Einwilligung konnte nicht widerrufen werden. Bitte versuchen Sie es noch einmal.",
+      "grantButton": "Foto-Einwilligung erneut geben",
+      "grantButtonShort": "Erneut geben",
+      "grantConfirmTitle": "Foto-Einwilligung erneut geben?",
+      "grantConfirmBody": "Die OGS darf danach wieder ein Foto hinterlegen.",
+      "grantConfirmButton": "Einwilligung geben",
+      "granting": "Wird gespeichert",
+      "grantSuccess": "Die Foto-Einwilligung wurde erneut gegeben.",
+      "grantError": "Die Foto-Einwilligung konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal."
     }
   },
   "parentMessages": {

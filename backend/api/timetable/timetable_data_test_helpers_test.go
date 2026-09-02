@@ -6,6 +6,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
@@ -41,6 +42,15 @@ func testTimetableDataWithOfferingCallbacks(
 	resyncOfferingRoster func(context.Context, scheduleSvc.OfferingRosterResyncInput) error,
 	clocks ...func() time.Time,
 ) *scheduleSvc.TimetableDataService {
+	// Template rows resolve their education group name through the School
+	// Structure owner, so the activity group repository must come from the
+	// bound factory, exactly as in production composition.
+	groups, err := repositories.NewSchoolStructure(db)
+	if err != nil {
+		panic(err)
+	}
+	boundRepos := repositories.NewFactory(db)
+	boundRepos.BindSchoolStructure(groups)
 	activityInstanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	supervisorRepo := activeRepo.NewGroupSupervisorRepository(db)
 	var today func() timezone.Date
@@ -81,7 +91,7 @@ func testTimetableDataWithOfferingCallbacks(
 		VisitRepo:                  activeRepo.NewVisitRepository(db),
 		RoomRepo:                   facilitiesRepo.NewRoomRepository(db),
 		ActivityCategoryRepo:       activitiesRepo.NewCategoryRepository(db),
-		ActivityGroupRepo:          activitiesRepo.NewGroupRepository(db),
+		ActivityGroupRepo:          boundRepos.ActivityGroup,
 		ActivitySupervisorRepo:     activitiesRepo.NewSupervisorPlannedRepository(db),
 		StudentEnrollmentRepo:      activitiesRepo.NewStudentEnrollmentRepository(db),
 		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(db),

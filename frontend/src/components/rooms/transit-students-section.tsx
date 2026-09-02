@@ -13,6 +13,7 @@ import {
 } from "~/lib/swr";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
 import { useToast } from "~/contexts/ToastContext";
 import { activeService } from "~/lib/active-service";
@@ -377,7 +378,7 @@ export function TransitStudentsSection({
                 Kinder werden geladen...
               </div>
             ) : students.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">
+              <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500 shadow-sm">
                 Aktuell keine Kinder unterwegs.
               </div>
             ) : (
@@ -388,13 +389,11 @@ export function TransitStudentsSection({
                   `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
                   "Kind";
                 return (
-                  <div
+                  <ChoiceTile
+                    as="div"
                     key={student.id}
-                    className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors ${
-                      checked
-                        ? "border-gray-300 bg-gray-50"
-                        : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-                    }`}
+                    selected={checked}
+                    className="gap-2"
                   >
                     {attendanceWebEnabled ? (
                       <button
@@ -463,7 +462,7 @@ export function TransitStudentsSection({
                         aria-hidden="true"
                       />
                     </Button>
-                  </div>
+                  </ChoiceTile>
                 );
               })
             )}

@@ -268,8 +268,6 @@ func (r *GroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []
 		Model(&targets).
 		ModelTableExpr(`activities.group_targets AS "target"`).
 		ColumnExpr(`"target".*`).
-		ColumnExpr(`COALESCE("education_group".name, '') AS education_group_name`).
-		Join(`LEFT JOIN education.groups AS "education_group" ON "education_group".tenant_id = "target".tenant_id AND "education_group".id = "target".education_group_id`).
 		Where(`"target".tenant_id = ?`, tenantID).
 		Where(`"target".activity_group_id IN (?)`, bun.List(groupIDs)).
 		OrderExpr(`"target".activity_group_id ASC, "target".id ASC`).
@@ -511,8 +509,9 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	return groups, countMap, nil
 }
 
-// loadStaffWithPerson loads staff and person relations for a supervisor
-func (r *GroupRepository) loadStaffWithPerson(ctx context.Context, sup *activities.SupervisorPlanned) {
+// loadStaff loads the staff relation for a supervisor. Staff.Person is
+// attached by the composition layer through the People Directory.
+func (r *GroupRepository) loadStaff(ctx context.Context, sup *activities.SupervisorPlanned) {
 	if sup.StaffID <= 0 {
 		return
 	}
@@ -529,20 +528,6 @@ func (r *GroupRepository) loadStaffWithPerson(ctx context.Context, sup *activiti
 	}
 
 	sup.Staff = staff
-	if staff.PersonID <= 0 {
-		return
-	}
-
-	person := new(users.Person)
-	personErr := base.GetDB(ctx, r.db).NewSelect().
-		Model(person).
-		ModelTableExpr(`users.persons AS "person"`).
-		Where(whereIDEquals, staff.PersonID).
-		Scan(ctx)
-
-	if personErr == nil {
-		staff.Person = person
-	}
 }
 
 // FindWithSupervisors returns a group with its supervisors
@@ -585,9 +570,9 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 		}
 	}
 
-	// Load Staff and Person relations for each supervisor
+	// Load the Staff relation for each supervisor
 	for _, sup := range supervisors {
-		r.loadStaffWithPerson(ctx, sup)
+		r.loadStaff(ctx, sup)
 	}
 
 	return group, supervisors, nil
@@ -705,7 +690,6 @@ const templateListSelect = `
 				g.planned_room_id AS room_id,
 				COALESCE(r.name, '') AS room_name,
 				g.education_group_id,
-				COALESCE(eg.name, '') AS education_group_name,
 				g.is_open,
 			COALESCE(g.max_participants, 0) AS max_participants,
 			g.required_staff,
@@ -745,9 +729,7 @@ const templateListSelect = `
 			LEFT JOIN schedule.shift_types AS st
 				ON st.id = c.shift_type_id AND st.tenant_id = g.tenant_id
 			LEFT JOIN facilities.rooms AS r
-				ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
-			LEFT JOIN education.groups AS eg
-				ON eg.id = g.education_group_id AND eg.tenant_id = g.tenant_id`
+				ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id`
 
 // enrollmentDisplayValidityFilter is the student-row admission test shared by
 // the template display-roster reads. Open rows (valid_until IS NULL) always

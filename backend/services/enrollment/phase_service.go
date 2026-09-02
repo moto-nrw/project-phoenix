@@ -103,7 +103,10 @@ type PhaseServiceConfig struct {
 	Settings PhaseSettingsResolver
 	DB       *bun.DB
 	Logger   *slog.Logger
-	Today    func() timezone.Date
+	// Today returns the current calendar day; tests inject a fixed date so
+	// resync/detach boundaries stay deterministic (mirrors the decision and
+	// care-offering services). Nil falls back to timezone.TodayDate.
+	Today func() timezone.Date
 }
 
 type phaseService struct {
@@ -126,6 +129,13 @@ type phaseService struct {
 	today                   func() timezone.Date
 }
 
+func (s *phaseService) todayDate() timezone.Date {
+	if s.today != nil {
+		return s.today()
+	}
+	return timezone.TodayDate()
+}
+
 // SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
 func (s *phaseService) SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer) {
 	s.sourcedTemplateResyncer = resyncer
@@ -140,10 +150,6 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 	if cfg.DB != nil {
 		txHandler = tenant.NewTransactionRunner()
 	}
-	today := cfg.Today
-	if today == nil {
-		today = timezone.TodayDate
-	}
 	return &phaseService{
 		repo:                            cfg.Repo,
 		requestRepo:                     cfg.RequestRepo,
@@ -156,7 +162,7 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		settings:                        cfg.Settings,
 		txHandler:                       txHandler,
 		logger:                          logger,
-		today:                           today,
+		today:                           cfg.Today,
 	}
 }
 
@@ -529,7 +535,7 @@ func (s *phaseService) resyncPhaseSourcedTemplates(ctx context.Context, phaseID 
 	if err != nil {
 		return fmt.Errorf("phase update: list care offerings for sourced-template resync: %w", err)
 	}
-	today := s.today()
+	today := s.todayDate()
 	for _, offering := range offerings {
 		if offering == nil {
 			continue
@@ -572,7 +578,7 @@ func (s *phaseService) detachPhaseSourcedTemplates(ctx context.Context, phaseID 
 	if err != nil {
 		return fmt.Errorf("phase delete: list care offerings for sourced-template detach: %w", err)
 	}
-	today := s.today()
+	today := s.todayDate()
 	for _, offering := range offerings {
 		if offering == nil {
 			continue

@@ -116,6 +116,27 @@ function TeachersPageContent() {
   });
   const accessToken = sessionData?.user?.token ?? "";
   const canManageUsers = hasPermission(sessionData, "users:manage");
+  // Personalnotizen am Mitarbeiter-Datensatz: staff:manage (#2906), nicht
+  // mehr users:update — das hält jede Betreuungskraft für die Kinderdaten.
+  const canManageStaffRecords = hasPermission(sessionData, "staff:manage");
+  // Löschen und die Kontoaktionen (Betreuer-Konto, 2-Faktor, Rolle) hängen am
+  // Konto, nicht am Personal-Datensatz. Ohne diese Berechtigungen antwortet
+  // das Backend mit 403, also zeigen wir die Aktionen erst gar nicht an.
+  const canDeleteStaff = hasPermission(sessionData, "users:delete");
+  // Vorname, Nachname und NFC-Karte gehen über PUT /api/users/{id} und
+  // brauchen users:update. Wer nur staff:manage hat, bekommt sie im
+  // Bearbeiten-Dialog als Anzeige, nicht als Eingabefeld (#2906).
+  const canEditPersonFields = hasPermission(sessionData, "users:update");
+  // Seit #2906 erreicht die Seite auch, wer nur staff:manage oder
+  // staff:stammdaten hat. Die beiden Import-Wege hängen an denselben
+  // Berechtigungen wie ihre Backend-Routen: Personal-Import an users:create
+  // (POST /api/import/teachers), Eröffnungssalden an der Zeitwirtschaft —
+  // ohne diese Rechte antwortet das Backend mit 403.
+  const canImportStaff = hasPermission(sessionData, "users:create");
+  const canImportOpeningBalances = hasPermission(
+    sessionData,
+    "time_tracking:manage",
+  );
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
   const tenantMutate = useTenantMutate();
@@ -333,26 +354,30 @@ function TeachersPageContent() {
                     options={STAFF_GROUPING_OPTIONS}
                     onChange={handleGroupingChange}
                   />
-                  <Link
-                    href="/database/personal/import"
-                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Importieren
-                  </Link>
+                  {canImportStaff ? (
+                    <Link
+                      href="/database/personal/import"
+                      className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Importieren
+                    </Link>
+                  ) : null}
                 </>
               ) : null}
               {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
                   Begründung, deshalb im Menü statt als weiterer Button. */}
-              <OverflowMenu
-                ariaLabel="Weitere Import-Aktionen"
-                items={[
-                  {
-                    label: "Eröffnungssalden importieren",
-                    href: "/database/personal/opening-balances",
-                    onClick: () => undefined,
-                  },
-                ]}
-              />
+              {canImportOpeningBalances ? (
+                <OverflowMenu
+                  ariaLabel="Weitere Import-Aktionen"
+                  items={[
+                    {
+                      label: "Eröffnungssalden importieren",
+                      href: "/database/personal/opening-balances",
+                      onClick: () => undefined,
+                    },
+                  ]}
+                />
+              ) : null}
               {canManageUsers ? (
                 <DatabaseCreateAction
                   label="Personal"
@@ -384,19 +409,25 @@ function TeachersPageContent() {
             selectedId={selectedId}
             selectedTeacher={selectedTeacher}
             onSelect={handleSelectTeacher}
-            onEditClick={handleEditClick}
-            onDeleteClick={handleDeleteClick}
-            onUpdateNotes={handleUpdateNotes}
+            onEditClick={canManageStaffRecords ? handleEditClick : undefined}
+            onDeleteClick={canDeleteStaff ? handleDeleteClick : undefined}
+            onUpdateNotes={
+              canManageStaffRecords ? handleUpdateNotes : undefined
+            }
             onManageCaregiver={
-              selectedTeacher?.account_id
+              canManageUsers && selectedTeacher?.account_id
                 ? handleManageCaregiverClick
                 : undefined
             }
             onManageMFA={
-              selectedTeacher?.account_id ? handleManageMFAClick : undefined
+              canManageUsers && selectedTeacher?.account_id
+                ? handleManageMFAClick
+                : undefined
             }
             onManageRole={
-              selectedTeacher?.account_id ? handleManageRoleClick : undefined
+              canManageUsers && selectedTeacher?.account_id
+                ? handleManageRoleClick
+                : undefined
             }
           />
         </div>
@@ -445,7 +476,7 @@ function TeachersPageContent() {
           title="Personal löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+          confirmVariant="danger"
         >
           <p className="text-sm text-gray-700">
             Möchten Sie das Personal{" "}
@@ -468,6 +499,7 @@ function TeachersPageContent() {
           onSave={handleEditTeacher}
           loading={savingTeacher}
           existingPositions={existingPositions}
+          canEditPersonFields={canEditPersonFields}
         />
       )}
 

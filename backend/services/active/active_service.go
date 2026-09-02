@@ -63,6 +63,15 @@ type CrossTenantRepo interface {
 	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
 }
 
+type SchoolQuery interface {
+	ListSchoolsByID(context.Context, []int64) ([]School, error)
+}
+
+type School struct {
+	ID   int64
+	Slug string
+}
+
 // SettingsResolver resolves tenant-scoped settings. Implemented by config.SettingsService.
 // Optional dependency — when nil, auto-clear behavior falls back to the registry default.
 type SettingsResolver interface {
@@ -91,6 +100,7 @@ type ServiceDependencies struct {
 
 	// Cross-tenant query repository (optional - nil-safe)
 	CrossTenantRepo CrossTenantRepo
+	Schools         SchoolQuery
 
 	// User domain repositories
 	StudentRepo userModels.StudentRepository
@@ -457,7 +467,7 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 	// scheduler, where a committed bridge write beside a failed session end
 	// would leave a completed instance next to an open group that no later run
 	// repairs.
-	var visitsToNotify []visitSSEData
+	var broadcasts sessionEndSSEData
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, id)
 		if err != nil || group == nil {
@@ -472,7 +482,7 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 			return &ActiveError{Op: "EndActiveGroupSession", Err: err}
 		}
 
-		visitsToNotify, err = s.endActivitySessionLocked(txCtx, id)
+		broadcasts, err = s.endActivitySessionLocked(txCtx, group)
 		if err != nil {
 			// The bridge already completed the mirrored instance, so the
 			// transaction has to go. Joining the request's transaction means
@@ -491,7 +501,7 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
-	s.queueActivitySessionEndBroadcasts(ctx, id, visitsToNotify)
+	s.queueActivitySessionEndBroadcasts(ctx, id, broadcasts)
 	return nil
 }
 
@@ -1164,17 +1174,14 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	}
 }
 
-// broadcastActivityEndEvent sends the activity_end SSE event for a completed session.
-// This helper reduces cognitive complexity in session timeout processing.
-func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64, sessionIDStr string) {
-	finalGroup, err := s.GroupRepo.FindByID(ctx, sessionID)
-	if err != nil || finalGroup == nil {
-		return
-	}
-
-	roomIDStr := fmt.Sprintf("%d", finalGroup.RoomID)
-	activityName := s.getActivityName(ctx, finalGroup.GroupID)
-	roomName := s.getRoomName(ctx, finalGroup.RoomID)
+// broadcastActivityEndEvent sends the activity_end SSE event for a completed
+// session. It performs no database access: data was resolved inside the
+// ending transaction, because this runs from an after-commit hook where no
+// tenant role is set (#2951).
+func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionIDStr string, data activityEndSSEData) {
+	roomIDStr := fmt.Sprintf("%d", data.RoomID)
+	activityName := data.ActivityName
+	roomName := data.RoomName
 
 	event := realtime.NewEvent(
 		realtime.EventActivityEnd,
@@ -1209,27 +1216,109 @@ func (s *service) broadcastWithLogging(ctx context.Context, activeGroupID, stude
 	}
 }
 
-// getActivityName retrieves the activity name by group ID, returning empty string on error.
-// A nil groupID marks a spontaneous session (WP-B6): there is no template to look up,
-// so we return an empty name and leave the display decision to the caller.
-func (s *service) getActivityName(ctx context.Context, groupID *int64) string {
+func (s *service) findActivityName(ctx context.Context, groupID *int64) (string, error) {
 	if groupID == nil {
-		return ""
+		return "", nil
 	}
 	activity, err := s.ActivityGroupRepo.FindByID(ctx, *groupID)
-	if err != nil || activity == nil {
-		return ""
+	if err != nil {
+		return "", err
 	}
-	return activity.Name
+	if activity == nil {
+		return "", nil
+	}
+	return activity.Name, nil
 }
 
-// getRoomName retrieves the room name by room ID, returning empty string on error.
-func (s *service) getRoomName(ctx context.Context, roomID int64) string {
+func (s *service) findRoomName(ctx context.Context, roomID int64) (string, error) {
 	room, err := s.RoomRepo.FindByID(ctx, roomID)
-	if err != nil || room == nil {
-		return ""
+	if err != nil {
+		return "", err
 	}
-	return room.Name
+	if room == nil {
+		return "", nil
+	}
+	return room.Name, nil
+}
+
+// getActivityName retrieves an activity name for an SSE event. A nil groupID
+// marks a spontaneous session (WP-B6), which has no template to look up.
+func (s *service) getActivityName(ctx context.Context, groupID *int64) string {
+	name, err := s.findActivityName(ctx, groupID)
+	if err != nil {
+		s.getLogger().Warn("SSE activity name lookup failed",
+			slog.Int64("activity_group_id", *groupID),
+			slog.String("error", err.Error()),
+		)
+	}
+	return name
+}
+
+// getRoomName retrieves a room name for an SSE event.
+func (s *service) getRoomName(ctx context.Context, roomID int64) string {
+	name, err := s.findRoomName(ctx, roomID)
+	if err != nil {
+		s.getLogger().Warn("SSE room name lookup failed",
+			slog.Int64("room_id", roomID),
+			slog.String("error", err.Error()),
+		)
+	}
+	return name
+}
+
+// getActivityEndActivityName keeps an optional lookup from aborting the
+// session-ending transaction. PostgreSQL marks a transaction failed after a
+// query error, so the lookup has to use a savepoint before it can be ignored.
+func (s *service) getActivityEndActivityName(ctx context.Context, groupID *int64) (string, error) {
+	if groupID == nil {
+		return "", nil
+	}
+	return s.getActivityEndName(ctx, func(ctx context.Context) (string, error) {
+		return s.findActivityName(ctx, groupID)
+	}, "SSE activity name lookup failed", slog.Int64("activity_group_id", *groupID))
+}
+
+func (s *service) getActivityEndRoomName(ctx context.Context, roomID int64) (string, error) {
+	return s.getActivityEndName(ctx, func(ctx context.Context) (string, error) {
+		return s.findRoomName(ctx, roomID)
+	}, "SSE room name lookup failed", slog.Int64("room_id", roomID))
+}
+
+func (s *service) getActivityEndName(
+	ctx context.Context,
+	lookup func(context.Context) (string, error),
+	message string,
+	attrs slog.Attr,
+) (string, error) {
+	var name string
+	lookupFn := func(lookupCtx context.Context) error {
+		var err error
+		name, err = lookup(lookupCtx)
+		return err
+	}
+
+	if _, inTx := tenant.TransactionFromContext(ctx); inTx {
+		if err := tenant.WithSavepoint(ctx, lookupFn); err != nil {
+			if errors.Is(err, tenant.ErrSavepointControl) {
+				return "", err
+			}
+			s.getLogger().LogAttrs(ctx, slog.LevelWarn, message,
+				attrs,
+				slog.String("error", err.Error()),
+			)
+			return "", nil
+		}
+		return name, nil
+	}
+
+	if err := lookupFn(ctx); err != nil {
+		s.getLogger().LogAttrs(ctx, slog.LevelWarn, message,
+			attrs,
+			slog.String("error", err.Error()),
+		)
+		return "", nil
+	}
+	return name, nil
 }
 
 func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error) {
@@ -1503,6 +1592,34 @@ func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID in
 	students, err := s.CrossTenantRepo.FindCrossTenantStudents(ctx, hostingTenantID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("query failed: %w", err)}
+	}
+	if len(students) > 0 {
+		if s.Schools == nil {
+			return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: errors.New("school query is required")}
+		}
+		ids := make([]int64, 0, len(students))
+		seen := make(map[int64]struct{}, len(students))
+		for _, student := range students {
+			if _, found := seen[student.HomeTenantID]; !found {
+				seen[student.HomeTenantID] = struct{}{}
+				ids = append(ids, student.HomeTenantID)
+			}
+		}
+		schools, schoolErr := s.Schools.ListSchoolsByID(ctx, ids)
+		if schoolErr != nil {
+			return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("load home schools: %w", schoolErr)}
+		}
+		slugs := make(map[int64]string, len(schools))
+		for _, school := range schools {
+			slugs[school.ID] = school.Slug
+		}
+		for index := range students {
+			slug, found := slugs[students[index].HomeTenantID]
+			if !found {
+				return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("home school %d not found", students[index].HomeTenantID)}
+			}
+			students[index].HomeTenant = slug
+		}
 	}
 
 	s.getLogger().Info("cross-tenant students queried",

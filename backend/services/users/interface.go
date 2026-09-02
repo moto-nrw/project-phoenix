@@ -214,7 +214,7 @@ type CreateStaffInput struct {
 	// ActorPermissions is the calling account's permission set, needed because
 	// the create route may end up editing: a person that already carries a
 	// staff record adopts it instead of getting a second one, and that write
-	// belongs to users:update, not users:create. Decided inside the same
+	// belongs to staff:manage, not users:create (#2906). Decided inside the same
 	// transaction that finds the record, so the check cannot be raced.
 	//
 	// Empty means "no permissions" and therefore no adoption. There is no

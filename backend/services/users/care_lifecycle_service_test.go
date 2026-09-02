@@ -50,7 +50,9 @@ func newCareLifecycleServiceWithLockAt(
 	today func() timezone.Date,
 ) userService.CareLifecycleService {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	// RFID tag release runs through the People Directory composition (#2661).
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo:           repos.Student,
 		PersonRepo:            repos.Person,

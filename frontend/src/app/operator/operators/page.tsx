@@ -124,7 +124,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
   );
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
       <SectionHeader
         title="Neuen Operator einladen"
         icon={<MotoConceptIcon concept="operators" size={22} />}
@@ -238,7 +238,7 @@ function PendingInvitationsList({
   }, [revokeTarget, onMutate, toastSuccess]);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
       <SectionHeader
         title="Offene Einladungen"
         icon={<MotoConceptIcon concept="operators" size={22} />}
@@ -299,7 +299,7 @@ function PendingInvitationsList({
         onConfirm={() => void handleRevoke()}
         title="Einladung widerrufen"
         confirmText="Widerrufen"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
       >
         <p>
           Möchtest du die Einladung an{" "}
@@ -314,7 +314,7 @@ function PendingInvitationsList({
 
 function OperatorsList({ operators }: { readonly operators: OperatorInfo[] }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
       <SectionHeader
         title="Bestehende Operatoren"
         icon={<MotoConceptIcon concept="operators" size={22} />}

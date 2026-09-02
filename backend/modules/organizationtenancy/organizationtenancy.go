@@ -81,6 +81,19 @@ type Query interface {
 	CountOrganizationsByID(context.Context, []int64) (int, error)
 	FindOrganizationForMutation(context.Context, int64) (Organization, error)
 	FindOrganizationForSchoolMutation(context.Context, int64) (Organization, error)
+	FindSchool(context.Context, int64) (School, error)
+	FindSchoolForShare(context.Context, int64) (School, error)
+	FindSchoolForMutation(context.Context, int64) (School, error)
+	FindSchoolBySlug(context.Context, string) (School, error)
+	FindSchoolByOrganizationAndSlug(context.Context, int64, string) (School, error)
+	FindSchoolBySubdomain(context.Context, string) (School, error)
+	ListSchools(context.Context) ([]School, error)
+	ListSchoolsByID(context.Context, []int64) ([]School, error)
+	ListSchoolsByOrganization(context.Context, int64) ([]School, error)
+	ListNonDeletedSchools(context.Context) ([]School, error)
+	ListActiveSchools(context.Context) ([]School, error)
+	ListPublicSchools(context.Context) ([]School, error)
+	CountSchoolsByID(context.Context, []int64) (int, error)
 }
 
 type Command interface {
@@ -88,6 +101,10 @@ type Command interface {
 	UpdateOrganization(context.Context, UpdateOrganization) (Organization, error)
 	SoftDeleteOrganization(context.Context, int64) (Organization, error)
 	RestoreOrganization(context.Context, int64) (Organization, error)
+	CreateSchool(context.Context, CreateSchool) (School, error)
+	UpdateSchool(context.Context, UpdateSchool) (School, error)
+	SoftDeleteSchool(context.Context, int64) (School, error)
+	RestoreSchool(context.Context, int64) (School, error)
 }
 
 type Capability interface {
@@ -107,6 +124,21 @@ type engine interface {
 	CountByIDs(context.Context, []int64) (int, error)
 	FindForMutation(context.Context, int64) (Organization, error)
 	FindForSchoolMutation(context.Context, int64) (Organization, error)
+	CreateSchool(context.Context, CreateSchool) (School, error)
+	UpdateSchool(context.Context, UpdateSchool) (School, error)
+	SoftDeleteSchool(context.Context, int64) (School, error)
+	RestoreSchool(context.Context, int64) (School, error)
+	FindSchoolByID(context.Context, int64, string) (School, error)
+	FindSchoolBySlug(context.Context, string) (School, error)
+	FindSchoolByOrganizationAndSlug(context.Context, int64, string) (School, error)
+	FindSchoolBySubdomain(context.Context, string) (School, error)
+	ListSchools(context.Context) ([]School, error)
+	ListSchoolsByID(context.Context, []int64) ([]School, error)
+	ListSchoolsByOrganization(context.Context, int64) ([]School, error)
+	ListNonDeletedSchools(context.Context) ([]School, error)
+	ListActiveSchools(context.Context) ([]School, error)
+	ListPublicSchools(context.Context) ([]School, error)
+	CountSchoolsByID(context.Context, []int64) (int, error)
 }
 
 type Module struct{ engine engine }
@@ -256,6 +288,20 @@ func ErrorCode(err error) string {
 		return "not_deleted"
 	case errors.Is(err, ErrOrganizationHasSchools):
 		return "has_schools"
+	case errors.Is(err, ErrSchoolNotFound):
+		return "school_not_found"
+	case errors.Is(err, ErrInvalidSchool):
+		return "invalid_school"
+	case errors.Is(err, ErrSchoolSlugConflict):
+		return "school_slug_conflict"
+	case errors.Is(err, ErrSchoolDomainConflict):
+		return "school_subdomain_conflict"
+	case errors.Is(err, ErrSchoolAlreadyDeleted):
+		return "school_already_deleted"
+	case errors.Is(err, ErrSchoolNotDeleted):
+		return "school_not_deleted"
+	case errors.Is(err, ErrOrganizationDeleted):
+		return "school_organization_deleted"
 	default:
 		return "internal_error"
 	}

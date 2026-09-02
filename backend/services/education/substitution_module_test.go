@@ -48,7 +48,10 @@ func TestSubstitutionResponseIDsSerializeAsStrings(t *testing.T) {
 func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	// Supervisor names come from the People Directory composition (#2661),
+	// so the module is built on the composed repositories the graph uses.
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 	now := fixedNow
 	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
@@ -356,9 +357,10 @@ export function StudentDeletionModal({
               />
             </div>
 
-            <label
+            <ChoiceTile
               htmlFor="student-deletion-acknowledgement"
-              className="border-moto-red/20 flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-4 text-sm text-gray-700"
+              disabled={deleting}
+              className="border-moto-red/20 hover:border-moto-red/20 items-start p-4 font-normal"
             >
               <Checkbox
                 id="student-deletion-acknowledgement"
@@ -370,7 +372,7 @@ export function StudentDeletionModal({
                 Ich habe geprüft, welche Daten entfernt werden, und möchte das
                 Kind dauerhaft löschen.
               </span>
-            </label>
+            </ChoiceTile>
           </>
         ) : null}
 

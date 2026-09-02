@@ -47,8 +47,6 @@ type decisionTestEnv struct {
 	decision enrollmentService.DecisionService
 }
 
-var decisionTestDate = timezone.NewDate(2026, 8, 24)
-
 // stubActivationSettings is a fake DecisionSettingsResolver returning a
 // fixed enrollment.default_activation_mode, so the immediate/scheduled
 // approval paths can be exercised without writing config.setting_values
@@ -59,6 +57,8 @@ type stubActivationSettings struct {
 	careOfferingsEnabled  *bool
 	bookingsAuthoritative *bool
 }
+
+const decisionTestToday timezone.Date = "2026-08-24"
 
 func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if key == configModel.KeyEnrollmentDefaultActivationMode {
@@ -103,7 +103,7 @@ func newDecisionServiceForTest(
 	settings enrollmentService.DecisionSettingsResolver,
 	lockTemplateRecurrence func(context.Context) error,
 ) enrollmentService.DecisionService {
-	return newDecisionServiceForTestWithCareWithdrawal(env, settings, lockTemplateRecurrence, nil)
+	return newDecisionServiceForTestWithDependencies(env, settings, lockTemplateRecurrence, nil, nil)
 }
 
 func newDecisionServiceForTestWithCareWithdrawal(
@@ -111,6 +111,23 @@ func newDecisionServiceForTestWithCareWithdrawal(
 	settings enrollmentService.DecisionSettingsResolver,
 	lockTemplateRecurrence func(context.Context) error,
 	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+) enrollmentService.DecisionService {
+	return newDecisionServiceForTestWithDependencies(env, settings, lockTemplateRecurrence, careWithdrawal, nil)
+}
+
+func newDecisionServiceForTestWithConsentAuditor(
+	env *rolloverTestEnv,
+	studentConsents enrollmentService.StudentConsentAuditor,
+) enrollmentService.DecisionService {
+	return newDecisionServiceForTestWithDependencies(env, nil, nil, nil, studentConsents)
+}
+
+func newDecisionServiceForTestWithDependencies(
+	env *rolloverTestEnv,
+	settings enrollmentService.DecisionSettingsResolver,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+	studentConsents enrollmentService.StudentConsentAuditor,
 ) enrollmentService.DecisionService {
 	repoFactory := repositories.NewFactory(env.db)
 	if careWithdrawal == nil {
@@ -159,6 +176,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 		RoleRepo:               repoFactory.Role,
 		OutboxEnqueuer:         env.outbox,
 		StudentAudit:           usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+		StudentConsents:        studentConsents,
 		CareWithdrawal:         careWithdrawal,
 		FrontendURL:            "http://localhost:3000",
 		ParentsURL:             "http://parents.localhost:3000",
@@ -171,8 +189,23 @@ func newDecisionServiceForTestWithCareWithdrawal(
 			slog.Default(),
 		),
 		Logger: slog.Default(),
-		Today:  func() timezone.Date { return decisionTestDate },
+		Today:  func() timezone.Date { return decisionTestToday },
 	})
+}
+
+type failingStudentConsentAuditor struct {
+	err error
+}
+
+func (a failingStudentConsentAuditor) RecordTransitions(
+	context.Context,
+	*usersModels.Student,
+	*usersModels.Student,
+	string,
+	*int64,
+	time.Time,
+) error {
+	return a.err
 }
 
 func testBookingsAuthority(settings enrollmentService.DecisionSettingsResolver) func(context.Context) (bool, error) {
@@ -2247,6 +2280,49 @@ func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
 		"photo_consent_given_by must reference the reviewer account")
 }
 
+func TestDecisionService_Decide_ConsentAuditFailureRollsBackFreshStudent(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	auditErr := errors.New("consent audit unavailable")
+	env.decision = newDecisionServiceForTestWithConsentAuditor(
+		env.rolloverTestEnv,
+		failingStudentConsentAuditor{err: auditErr},
+	)
+
+	studentCountBefore, err := env.db.NewSelect().
+		TableExpr("users.students").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+
+	reqID, childID := submitOneChild(t, env, "audit-failure@example.com", "Anna", "Auditfehler")
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := env.decision.Decide(txCtx, enrollmentService.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentService.DecisionApproved,
+			ReviewedBy: env.creatorID,
+		})
+		return decisionErr
+	})
+	require.ErrorIs(t, decideErr, auditErr)
+
+	studentCountAfter, err := env.db.NewSelect().
+		TableExpr("users.students").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, studentCountBefore, studentCountAfter, "student creation must roll back with the missing consent audit")
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status)
+	assert.Nil(t, child.CreatedStudentID)
+}
+
 func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) {
 	t.Parallel()
 
@@ -4169,14 +4245,12 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 		ValidUntil:      &env.sourcePhase.ServiceEndDate,
 	}
 	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
-	require.NotNil(t, outcome.Child.ReviewedAt)
-	manualCreatedAt := outcome.Child.ReviewedAt.Add(10 * time.Minute)
-	_, err = env.db.NewUpdate().
-		TableExpr("activities.student_enrollments").
-		Set("created_at = ?", manualCreatedAt).
-		Set("updated_at = ?", manualCreatedAt).
-		Where("id = ?", manualEnrollment.ID).
-		Exec(ctx)
+	_, err = env.db.NewRaw(`
+		UPDATE activities.student_enrollments
+		SET created_at = NOW() + INTERVAL '10 minutes',
+			updated_at = NOW() + INTERVAL '10 minutes'
+		WHERE id = ?
+	`, manualEnrollment.ID).Exec(ctx)
 	require.NoError(t, err)
 	offering.ActivityGroupID = &newGroup.ID
 	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
@@ -4273,14 +4347,12 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 		ValidUntil:      &env.sourcePhase.ServiceEndDate,
 	}
 	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
-	require.NotNil(t, outcome.Child.ReviewedAt)
-	manualCreatedAt := outcome.Child.ReviewedAt.Add(10 * time.Minute)
-	_, err = env.db.NewUpdate().
-		TableExpr("activities.student_enrollments").
-		Set("created_at = ?", manualCreatedAt).
-		Set("updated_at = ?", manualCreatedAt).
-		Where("id = ?", manualEnrollment.ID).
-		Exec(ctx)
+	_, err = env.db.NewRaw(`
+		UPDATE activities.student_enrollments
+		SET created_at = NOW() + INTERVAL '10 minutes',
+			updated_at = NOW() + INTERVAL '10 minutes'
+		WHERE id = ?
+	`, manualEnrollment.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	offering.ActivityGroupID = &newGroup.ID

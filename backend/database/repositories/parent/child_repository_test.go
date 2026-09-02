@@ -12,11 +12,25 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// newSchoolProjectionFactory composes the parent repositories the way the
+// service graph does: person names and eligibility through the People
+// Directory (#2661), then the school projections on top.
+func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
+	t.Helper()
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	capability, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
+	factory.BindOrganizationTenancy(capability)
+	return factory
+}
 
 // ensureGuardianProfile returns the guardian_profile id for the
 // (account, tenant) pair, creating it on first call. Uses the existing
@@ -127,7 +141,7 @@ func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
 
 	linkChildToAccount(t, db, account.ID, tenantID, student.ID)
 
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var list []*parentModels.ChildSummary
 	err := runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -140,7 +154,7 @@ func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
 	assert.Equal(t, tenantID, list[0].TenantID)
 	assert.Equal(t, "Lara", list[0].FirstName)
 	assert.Equal(t, "1a", list[0].SchoolClass)
-	assert.NotEmpty(t, list[0].SchoolName, "school name must be JOINed in from platform.schools")
+	assert.NotEmpty(t, list[0].SchoolName, "school name must be resolved by the owner capability")
 	assert.NotEmpty(t, list[0].SchoolSlug)
 }
 
@@ -243,7 +257,9 @@ func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	repo := parentRepo.NewChildRepository(db)
+	// The deleted-person filter lives in the People Directory composition
+	// (#2661), so the test drives the composed repository.
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var list []*parentModels.ChildSummary
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -334,7 +350,7 @@ func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
 	linkChildToAccount(t, db, account.ID, tenantID, studentZ.ID)
 	linkChildToAccount(t, db, account.ID, tenantID, studentA.ID)
 
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var list []*parentModels.ChildSummary
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error

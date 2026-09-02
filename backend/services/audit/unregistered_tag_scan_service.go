@@ -21,6 +21,8 @@ type UnregisteredTagScanService interface {
 
 type OrganizationNameQuery interface {
 	ListOrganizationsByID(context.Context, []int64) ([]organizationtenancy.Organization, error)
+	ListSchoolsByID(context.Context, []int64) ([]organizationtenancy.School, error)
+	ListSchoolsByOrganization(context.Context, int64) ([]organizationtenancy.School, error)
 }
 
 type unregisteredTagScanService struct {
@@ -64,6 +66,17 @@ func (s *unregisteredTagScanService) Record(ctx context.Context, tagUID string, 
 func (s *unregisteredTagScanService) ListForOperator(ctx context.Context, filter auditModels.UnregisteredTagScanFilter) ([]*auditModels.UnregisteredTagScan, error) {
 	var scans []*auditModels.UnregisteredTagScan
 	err := s.runAdmin(ctx, func(adminCtx context.Context) error {
+		if filter.OrganizationID != nil {
+			schools, schoolErr := s.organizations.ListSchoolsByOrganization(adminCtx, *filter.OrganizationID)
+			if schoolErr != nil {
+				return fmt.Errorf("load organization schools for unregistered tag scans: %w", schoolErr)
+			}
+			filter.SchoolIDs = schoolIDs(schools)
+			if len(filter.SchoolIDs) == 0 {
+				scans = []*auditModels.UnregisteredTagScan{}
+				return nil
+			}
+		}
 		var err error
 		scans, err = s.repo.ListForOperator(adminCtx, filter)
 		if err != nil {
@@ -111,6 +124,36 @@ func (s *unregisteredTagScanService) runAdmin(ctx context.Context, fn func(conte
 }
 
 func (s *unregisteredTagScanService) enrichOrganizations(ctx context.Context, scans []*auditModels.UnregisteredTagScan) error {
+	schoolIDList := make([]int64, 0, len(scans))
+	seenSchools := make(map[int64]struct{}, len(scans))
+	for _, scan := range scans {
+		if scan != nil {
+			if _, seen := seenSchools[scan.SchoolID]; !seen {
+				seenSchools[scan.SchoolID] = struct{}{}
+				schoolIDList = append(schoolIDList, scan.SchoolID)
+			}
+		}
+	}
+	schools, err := s.organizations.ListSchoolsByID(ctx, schoolIDList)
+	if err != nil {
+		return fmt.Errorf("load schools for unregistered tag scans: %w", err)
+	}
+	schoolsByID := make(map[int64]organizationtenancy.School, len(schools))
+	for _, school := range schools {
+		schoolsByID[school.ID] = school
+	}
+	for _, scan := range scans {
+		if scan == nil {
+			continue
+		}
+		school, found := schoolsByID[scan.SchoolID]
+		if !found {
+			return fmt.Errorf("school %d missing from unregistered tag scan query", scan.SchoolID)
+		}
+		scan.SchoolName = school.Name
+		scan.OrganizationID = school.OrganizationID
+	}
+
 	ids := make([]int64, 0, len(scans))
 	seen := make(map[int64]struct{}, len(scans))
 	for _, scan := range scans {
@@ -140,6 +183,14 @@ func (s *unregisteredTagScanService) enrichOrganizations(ctx context.Context, sc
 		}
 	}
 	return nil
+}
+
+func schoolIDs(schools []organizationtenancy.School) []int64 {
+	ids := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		ids = append(ids, school.ID)
+	}
+	return ids
 }
 
 func trimPtrToNil(value *string) *string {

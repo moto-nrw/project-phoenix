@@ -441,7 +441,10 @@ type OfferingChangeRequestServiceConfig struct {
 	shareVisibility parentmessaging.ShareVisibilityResolver
 	Logger          *slog.Logger
 	ReviewPolicy    RequestReviewPolicy
-	Today           func() timezone.Date
+	// Today returns the current calendar day; tests inject a fixed date so
+	// lead-day and care-end boundaries stay deterministic (mirrors the
+	// decision service). Nil falls back to timezone.TodayDate.
+	Today func() timezone.Date
 	// EventRecorder appends to the parent-request ledger inside the ambient
 	// transaction. Nil skips recording (tests, older wiring).
 	EventRecorder usersService.ParentRequestEventRecorder
@@ -456,19 +459,19 @@ type offeringChangeRequestService struct {
 	OfferingChangeRequestServiceConfig
 }
 
+func (s *offeringChangeRequestService) todayDate() timezone.Date {
+	if s.Today != nil {
+		return s.Today()
+	}
+	return timezone.TodayDate()
+}
+
 // NewOfferingChangeRequestService wires a fresh service.
 func NewOfferingChangeRequestService(cfg OfferingChangeRequestServiceConfig) OfferingChangeRequestService {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	if cfg.Today == nil {
-		cfg.Today = timezone.TodayDate
-	}
 	return &offeringChangeRequestService{OfferingChangeRequestServiceConfig: cfg}
-}
-
-func (s *offeringChangeRequestService) todayDate() timezone.Date {
-	return s.Today()
 }
 
 // NewOfferingChangeRequestServiceWithPolicy requires the production review
@@ -1255,7 +1258,7 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 		// date is clamped to the care period's start as well as to today, which
 		// diverges once a phase's service start moves after the request was
 		// filed.
-		reviewRow.EffectiveFrom = appliedOfferingChangeDateOn(row.EffectiveFrom, s.todayDate())
+		reviewRow.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom, s.todayDate())
 		review := reviews[row.ID]
 		if review != nil {
 			reviewRow.EffectiveFrom = review.AppliedDate
@@ -1471,6 +1474,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 	// clamp included, or the diff describes a booking outside the care period.
 	dates := make(map[int64]timezone.Date, len(rows))
 	reviews := make(map[int64]*pendingReview, len(rows))
+	today := s.todayDate()
 	for _, row := range rows {
 		if row == nil || row.RequestChildID <= 0 {
 			continue
@@ -1482,11 +1486,11 @@ func (s *offeringChangeRequestService) pendingReviews(
 				phase = phasesByID[request.PhaseID]
 			}
 		}
-		date := appliedOfferingChangeDateForPhaseOn(row.EffectiveFrom, phase, s.todayDate())
+		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, today, phase)
 		dates[row.RequestChildID] = date
 		review := &pendingReview{AppliedDate: date}
 		if phase != nil {
-			review.EarliestDate = appliedOfferingChangeDateForPhaseOn(s.todayDate(), phase, s.todayDate())
+			review.EarliestDate = appliedOfferingChangeDateForPhase(today, today, phase)
 			review.LatestDate = phase.ServiceEndDate
 		}
 		reviews[row.ID] = review
@@ -2053,7 +2057,7 @@ func (s *offeringChangeRequestService) payloadDecisionDiff(
 		return nil, err
 	}
 	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
-		ctx, row.RequestChildID, appliedOfferingChangeDateOn(row.EffectiveFrom, s.todayDate()),
+		ctx, row.RequestChildID, appliedOfferingChangeDate(row.EffectiveFrom, s.todayDate()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list current offerings: %w", err)
@@ -2179,7 +2183,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	// office agreed, and a date in the past would be rejected by the adjustment
 	// validator. A date the office confirmed itself is never moved — see
 	// confirmedEffectiveFrom.
-	effectiveFrom, err := confirmedEffectiveFrom(input.EffectiveFrom, row.EffectiveFrom, phase, s.todayDate())
+	effectiveFrom, err := confirmedEffectiveFrom(input.EffectiveFrom, row.EffectiveFrom, s.todayDate(), phase)
 	if err != nil {
 		return nil, err
 	}
@@ -2290,14 +2294,13 @@ func (s *offeringChangeRequestService) completeWithdrawalAt(
 // it just confirmed (#2484).
 func confirmedEffectiveFrom(
 	confirmed *timezone.Date,
-	requested timezone.Date,
+	requested, today timezone.Date,
 	phase *enrollmentModels.Phase,
-	today timezone.Date,
 ) (timezone.Date, error) {
 	if confirmed == nil {
-		return appliedOfferingChangeDateForPhaseOn(requested, phase, today), nil
+		return appliedOfferingChangeDateForPhase(requested, today, phase), nil
 	}
-	earliest := appliedOfferingChangeDateForPhaseOn(today, phase, today)
+	earliest := appliedOfferingChangeDateForPhase(today, today, phase)
 	if confirmed.Before(earliest) {
 		return timezone.Date(""), fmt.Errorf("%w: %s is before %s",
 			ErrOfferingChangeDateOutOfRange, confirmed, earliest)
@@ -2328,15 +2331,15 @@ func (s *offeringChangeRequestService) assertApplicableAt(
 	return s.assertCapacityAvailable(ctx, phase, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal)
 }
 
-func appliedOfferingChangeDateOn(effectiveFrom, today timezone.Date) timezone.Date {
+func appliedOfferingChangeDate(effectiveFrom, today timezone.Date) timezone.Date {
 	if effectiveFrom.Before(today) {
 		return today
 	}
 	return effectiveFrom
 }
 
-func appliedOfferingChangeDateForPhaseOn(effectiveFrom timezone.Date, phase *enrollmentModels.Phase, today timezone.Date) timezone.Date {
-	effectiveFrom = appliedOfferingChangeDateOn(effectiveFrom, today)
+func appliedOfferingChangeDateForPhase(effectiveFrom, today timezone.Date, phase *enrollmentModels.Phase) timezone.Date {
+	effectiveFrom = appliedOfferingChangeDate(effectiveFrom, today)
 	if phase != nil && effectiveFrom.Before(phase.ServiceStartDate) {
 		return phase.ServiceStartDate
 	}
@@ -2769,7 +2772,7 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 	if err != nil {
 		return nil, err
 	}
-	rowCopy.EffectiveFrom, err = confirmedEffectiveFrom(effectiveFrom, rowCopy.EffectiveFrom, phase, s.todayDate())
+	rowCopy.EffectiveFrom, err = confirmedEffectiveFrom(effectiveFrom, rowCopy.EffectiveFrom, s.todayDate(), phase)
 	if err != nil {
 		return nil, err
 	}

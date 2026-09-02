@@ -1152,3 +1152,70 @@ func TestImportStaff_FilesStammdatensatz(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, invitations, "no invitation without an e-mail")
 }
+
+// createOnlyBearer mints a JWT for a custom role that may file new staff
+// (users:create) but holds none of the personnel permissions (#2906).
+func createOnlyBearer(t *testing.T, accountID int64, extra ...string) testutil.RequestOption {
+	t.Helper()
+	claims := testutil.AdminTestClaims(int(accountID))
+	claims.Roles = []string{"user"}
+	claims.IsAdmin = false
+	claims.Permissions = append([]string{"users:create"}, extra...)
+	return testutil.WithJWTBearer(testutil.MintTestJWT(t, claims))
+}
+
+// TestStaffImport_UpdateModesRequirePersonnelPermissions pins that the staff
+// importer changes existing records only for callers holding staff:manage and
+// staff:stammdaten (#2906). users:create alone may preview and run create
+// mode; update and upsert are refused before a row is looked at.
+func TestStaffImport_UpdateModesRequirePersonnelPermissions(t *testing.T) {
+	t.Parallel()
+	tc := setupImportRoute(t)
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "ImportModeRolle", testpkg.Tenant(t))
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ImportMode", "Actor")
+	router := tc.resource.Router()
+
+	unique := time.Now().UnixNano()
+	filename := fmt.Sprintf("modus-%d.csv", unique)
+	csvContent := "Vorname,Nachname,Rolle\n" + fmt.Sprintf("Modus,Test%d,%s\n", unique, role.Name)
+	createOnly := createOnlyBearer(t, account.ID)
+
+	for _, mode := range []string{"update", "upsert"} {
+		for _, path := range []string{"/teachers/preview", "/teachers/import"} {
+			rr := testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, path, filename, csvContent, mode, createOnly))
+			assert.Equal(t, http.StatusForbidden, rr.Code, "%s in %s mode with users:create only: %s", path, mode, rr.Body.String())
+			assert.Contains(t, rr.Body.String(), "Nur neue anlegen", "the refusal tells the person what still works")
+		}
+	}
+
+	rr := testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, "/teachers/preview", filename, csvContent, "create", createOnly))
+	assert.Equal(t, http.StatusOK, rr.Code, "create mode stays open for users:create: %s", rr.Body.String())
+
+	for _, partial := range [][]string{{"staff:manage"}, {"staff:stammdaten"}} {
+		rr = testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, "/teachers/preview", filename, csvContent, "update", createOnlyBearer(t, account.ID, partial...)))
+		assert.Equal(t, http.StatusForbidden, rr.Code, "one personnel permission is not enough (%v): %s", partial, rr.Body.String())
+	}
+
+	personnel := createOnlyBearer(t, account.ID, "staff:manage", "staff:stammdaten")
+	rr = testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, "/teachers/preview", filename, csvContent, "update", personnel))
+	assert.Equal(t, http.StatusOK, rr.Code, "both personnel permissions open update mode: %s", rr.Body.String())
+
+	// A refused request is rolled back before its audit row: only the two
+	// permitted previews leave a trace.
+	assert.Len(t, findImportAuditRecords(t, tc.db, filename), 2)
+}
+
+// TestDownloadStaffTemplate_OpenToUsersCreate pins that the import page's
+// only prerequisite, users:create, also fetches the template (#2906).
+func TestDownloadStaffTemplate_OpenToUsersCreate(t *testing.T) {
+	t.Parallel()
+	tc := setupImportRoute(t)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Template", "Creator")
+	router := tc.resource.Router()
+
+	req := httptest.NewRequest(http.MethodGet, "/teachers/template?format=csv", nil)
+	createOnlyBearer(t, account.ID)(req)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "Vorname")
+}

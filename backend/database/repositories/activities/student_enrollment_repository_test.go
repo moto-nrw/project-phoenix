@@ -508,7 +508,11 @@ func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	// Person relations come from the People Directory composition (#2661),
+	// so this test drives the composed repository the service graph uses.
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	repo := factory.StudentEnrollment
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds enrollments for a group", func(t *testing.T) {

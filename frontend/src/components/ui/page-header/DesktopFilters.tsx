@@ -191,7 +191,7 @@ function DropdownFilter({
 
       {isOpen && (
         <div
-          className={`absolute top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+          className={`moto-popover-surface absolute top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border py-1 ${
             dropdownPosition === "right" ? "right-0" : "left-0"
           }`}
         >

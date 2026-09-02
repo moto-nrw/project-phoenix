@@ -269,14 +269,13 @@ func occupancyColumns(q *bun.SelectQuery) *bun.SelectQuery {
 			INNER JOIN active.groups ag ON ag.id = v.active_group_id
 			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND v.exit_time IS NULL
 		), 0)::int AS student_count`).
-		ColumnExpr(`(
-			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
+		ColumnExpr(`COALESCE((
+			SELECT array_agg(DISTINCT st.person_id)
 			FROM active.group_supervisors gs
 			INNER JOIN active.groups ag ON ag.id = gs.group_id
 			INNER JOIN users.staff st ON st.id = gs.staff_id
-			INNER JOIN users.persons p ON p.id = st.person_id
 			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND gs.end_date IS NULL
-		) AS supervisor_names`)
+		), '{}'::bigint[]) AS supervisor_person_ids`)
 }
 
 // FindWithOccupancy returns the room row plus its live occupancy aggregate.

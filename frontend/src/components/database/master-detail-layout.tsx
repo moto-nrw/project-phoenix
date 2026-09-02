@@ -72,7 +72,7 @@ export function MasterDetailLayout({
         style={{ height }}
         className={cn("flex w-full flex-col", className)}
       >
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="moto-content-surface min-h-0 flex-1 overflow-hidden rounded-xl border shadow-sm">
           <div className="h-full overflow-auto">{list}</div>
         </div>
         <Drawer
@@ -89,10 +89,10 @@ export function MasterDetailLayout({
             // DismissableLayer treats every tap inside an open modal as an
             // outside-click and closes the drawer — which unmounts the modal
             // before the user can interact with it. See issue #1358.
-            onInteractOutside={(event) => {
+            onInteractOutside={(event: Event) => {
               if (isModalOpen) event.preventDefault();
             }}
-            onEscapeKeyDown={(event) => {
+            onEscapeKeyDown={(event: KeyboardEvent) => {
               if (isModalOpen) event.preventDefault();
             }}
           >
@@ -117,7 +117,7 @@ export function MasterDetailLayout({
     >
       <div
         className={cn(
-          "overflow-hidden rounded-xl border border-gray-200 bg-white",
+          "moto-content-surface overflow-hidden rounded-xl border shadow-sm",
           showDetail ? "shrink-0" : "flex-1",
         )}
         style={showDetail ? { width: listWidth } : undefined}
@@ -125,7 +125,7 @@ export function MasterDetailLayout({
         <div className="flex h-full flex-col">{list}</div>
       </div>
       {showDetail ? (
-        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="moto-content-surface min-w-0 flex-1 overflow-hidden rounded-xl border shadow-sm">
           <div className="flex h-full flex-col">{detail}</div>
         </div>
       ) : null}

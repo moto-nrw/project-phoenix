@@ -1623,6 +1623,48 @@
     "care": {
       "weekTitle": "OGS weekly schedule",
       "absenceTitle": "Absences"
+    },
+    "consents": {
+      "title": "Consents and confirmations",
+      "description": "Here you can see your child's consents.",
+      "staffDescription": "For information only. Parents change photo consent in the parent portal.",
+      "photoDescription": "You can change photo consent here.",
+      "items": {
+        "agb": "General terms and conditions",
+        "data_processing": "Privacy information acknowledged",
+        "email_contact": "Contact by email allowed",
+        "photo": "Photo consent"
+      },
+      "states": {
+        "granted": "Recorded",
+        "withdrawn": "Withdrawn",
+        "not_recorded": "Not recorded"
+      },
+      "dates": {
+        "granted": "Recorded on {date}",
+        "withdrawn": "Withdrawn on {date}",
+        "not_recorded": "Not recorded"
+      },
+      "withdrawButton": "Withdraw photo consent",
+      "withdrawButtonShort": "Withdraw",
+      "confirmTitle": "Withdraw photo consent?",
+      "confirmBody": "The consent ends immediately. If a photo is stored, it will be deleted.",
+      "confirmButton": "Withdraw now",
+      "withdrawing": "Withdrawing",
+      "cancel": "Cancel",
+      "close": "Close dialog",
+      "success": "Photo consent was withdrawn. If a photo was stored, it was deleted.",
+      "loadError": "The consents could not be loaded. Please try again.",
+      "retry": "Try again",
+      "withdrawError": "Photo consent could not be withdrawn. Please try again.",
+      "grantButton": "Give photo consent again",
+      "grantButtonShort": "Give again",
+      "grantConfirmTitle": "Give photo consent again?",
+      "grantConfirmBody": "The OGS may store a photo again afterwards.",
+      "grantConfirmButton": "Give consent",
+      "granting": "Saving",
+      "grantSuccess": "Photo consent was given again.",
+      "grantError": "Photo consent could not be saved. Please try again."
     }
   },
   "parentMessages": {

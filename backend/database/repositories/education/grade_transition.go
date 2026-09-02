@@ -20,15 +20,6 @@ const (
 	tableGradeTransitionHistory  = "education.grade_transition_history"
 	orderByCreatedAtDesc         = "created_at DESC"
 	whereTransitionID            = "transition_id = ?"
-
-	// UNIQUE (tenant_id, tag_id) on users.persons, created by migration
-	// 1.14.3. RestoreStudentTag matches 23505 against this name to tell the
-	// "somebody else holds the tag" race apart from a real failure.
-	personsTenantTagUniqueIndex = "idx_persons_tenant_tag"
-	// Savepoint guarding that single UPDATE. Reverts restore tags one student
-	// at a time and each savepoint is released before the next is taken, so
-	// reusing one name is safe.
-	restoreStudentTagSavepoint = "restore_student_tag"
 )
 
 // GradeTransitionRepository implements education.GradeTransitionRepository interface
@@ -664,8 +655,10 @@ func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, 
 	return count, nil
 }
 
-// GetStudentsByClasses retrieves students in the given classes with their names.
-// Note: Using unquoted aliases (s, p) here because this is raw SQL via TableExpr/ColumnExpr,
+// GetStudentsByClasses retrieves students in the given classes. The person
+// names and the name order are attached by the composition layer through
+// the People Directory (#2661); the rows leave here in class/id order.
+// Note: Using an unquoted alias (s) here because this is raw SQL via TableExpr/ColumnExpr,
 // not ModelTableExpr. The CLAUDE.md quoting rule applies to ModelTableExpr where BUN maps
 // results to struct fields via the alias. Here we use explicit column aliases (student_id,
 // person_id, etc.) which BUN scans by name directly.
@@ -678,14 +671,12 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 	query := base.GetDB(ctx, r.db).NewSelect().
 		ColumnExpr(`s.id AS student_id`).
 		ColumnExpr(`s.person_id`).
-		ColumnExpr(`CONCAT(p.first_name, ' ', p.last_name) AS person_name`).
 		ColumnExpr(`s.school_class`).
 		ColumnExpr(`s.status`).
 		TableExpr(`users.students AS s`).
-		Join(`INNER JOIN users.persons AS p ON p.id = s.person_id`).
 		Where(`s.school_class IN (?)`, bun.List(classes)).
 		Where(`s.status <> ?`, string(users.StudentStatusAlumnus)).
-		Order(`s.school_class ASC, p.last_name ASC, p.first_name ASC`)
+		Order(`s.school_class ASC, s.id ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "s")
 
@@ -966,175 +957,56 @@ func (r *GradeTransitionRepository) ReactivateStudentsToStatus(ctx context.Conte
 	return reactivated, nil
 }
 
-// ReleaseStudentTagsByIDs clears users.persons.tag_id for the given students and
-// returns the tag each of them was holding, keyed by student id. Students
-// without a tag are absent from the map.
-//
-// Graduation is a soft delete, so without this the physical bracelet stays bound
-// to a departed child: every staff-facing student route 404s on an alumnus, the
-// kiosk's dedicated unassign call goes through the same gate, and the tag can
-// never be handed to a current child through the normal flow. Clearing it at
-// apply time (and ledgering the value in grade_transition_history.rfid_tag)
-// frees the bracelet without losing what to restore on a revert (#405 review).
-//
-// The rows are read FOR UPDATE in the same statement-order the caller already
-// locked the student rows in, so a concurrent bracelet assignment either
-// committed before this read (and is the value ledgered) or waits for the
-// apply's transaction.
-func (r *GradeTransitionRepository) ReleaseStudentTagsByIDs(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
+// PersonIDsByStudentIDs maps the given students to their person ids. The
+// caller holds the student rows locked already (apply and revert lock the
+// cohort first); the person rows are locked by the People Directory when
+// it releases or restores the tags.
+func (r *GradeTransitionRepository) PersonIDsByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]int64, error) {
 	if len(studentIDs) == 0 {
-		return nil, nil
+		return map[int64]int64{}, nil
 	}
 
-	type heldTag struct {
-		StudentID int64  `bun:"student_id"`
-		PersonID  int64  `bun:"person_id"`
-		TagID     string `bun:"tag_id"`
+	type studentPerson struct {
+		StudentID int64 `bun:"student_id"`
+		PersonID  int64 `bun:"person_id"`
 	}
-	var held []heldTag
+	var rows []studentPerson
 
-	tenantID := tenant.FromContext(ctx)
-
-	selQuery := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model((*struct{})(nil)).
 		ModelTableExpr(`users.students AS "student"`).
 		ColumnExpr(`"student".id AS student_id`).
-		ColumnExpr(`"person".id AS person_id`).
-		ColumnExpr(`"person".tag_id AS tag_id`).
-		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id AND "person".tenant_id = "student".tenant_id`).
+		ColumnExpr(`"student".person_id AS person_id`).
 		Where(`"student".id IN (?)`, bun.List(studentIDs)).
-		Where(`"person".tag_id IS NOT NULL`).
-		Where(`"person".deleted_at IS NULL`).
-		OrderExpr(`"person".id ASC`).
-		For("UPDATE OF \"person\"")
+		OrderExpr(`"student".id ASC`)
 
-	selQuery = base.WithTenantFilter(ctx, selQuery, "student")
+	query = base.WithTenantFilter(ctx, query, "student")
 
-	if err := selQuery.Scan(ctx, &held); err != nil {
+	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "read student rfid tags",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	if len(held) == 0 {
-		return nil, nil
-	}
-
-	personIDs := make([]int64, 0, len(held))
-	released := make(map[int64]string, len(held))
-	for _, row := range held {
-		personIDs = append(personIDs, row.PersonID)
-		released[row.StudentID] = row.TagID
-	}
-
-	updQuery := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*struct{})(nil)).
-		ModelTableExpr(`users.persons AS "person"`).
-		Set("tag_id = NULL").
-		Set("updated_at = NOW()").
-		Where(`"person".id IN (?)`, bun.List(personIDs)).
-		Where(`"person".tenant_id = ?`, tenantID)
-
-	if _, err := updQuery.Exec(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "release student rfid tags",
+			Op:  "read student person ids",
 			Err: base.TranslateNotFound(err),
 		}
 	}
 
-	return released, nil
+	result := make(map[int64]int64, len(rows))
+	for _, row := range rows {
+		result[row.StudentID] = row.PersonID
+	}
+	return result, nil
 }
 
-// RestoreStudentTag re-links a tag this transition released back to the
-// student's person row. Returns false without touching anything when the child
-// has since been given another tag, or when the released tag now belongs to
-// somebody else — the bracelet was reissued while they were gone, and the
-// current holder wins (users.persons carries UNIQUE (tenant_id, tag_id), so
-// overwriting is not even an option).
-//
-// The NOT EXISTS holder check reads the statement snapshot, so a tag handed out
-// after that read but before this UPDATE reaches the unique index arrives as a
-// 23505 rather than a zero-row result. That is the same "current holder wins"
-// outcome and must not fail the revert — but a raw 23505 aborts the surrounding
-// transaction, so the write runs inside a savepoint that is rolled back on
-// exactly that violation (#405 review).
-func (r *GradeTransitionRepository) RestoreStudentTag(ctx context.Context, studentID int64, tagID string) (bool, error) {
-	if tagID == "" {
-		return false, nil
-	}
+// ReleaseStudentTagsByIDs is served by the People Directory composition
+// (#2661): the person rows belong to that owner. The repository only
+// supplies PersonIDsByStudentIDs.
+func (r *GradeTransitionRepository) ReleaseStudentTagsByIDs(context.Context, []int64) (map[int64]string, error) {
+	return nil, fmt.Errorf("release student tags through the people directory composition")
+}
 
-	tenantID := tenant.FromContext(ctx)
-
-	rawTx, inTx := tenant.TransactionFromContext(ctx)
-	var tx bun.Tx
-	if inTx {
-		var ok bool
-		tx, ok = rawTx.(bun.Tx)
-		if !ok {
-			return false, fmt.Errorf("restore student tag: unsupported transaction type %T", rawTx)
-		}
-	}
-	if inTx {
-		if _, err := tx.ExecContext(ctx, "SAVEPOINT "+restoreStudentTagSavepoint); err != nil {
-			return false, &modelBase.DatabaseError{
-				Op:  "restore student rfid tag savepoint",
-				Err: base.TranslateNotFound(err),
-			}
-		}
-	}
-
-	updQuery := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*struct{})(nil)).
-		ModelTableExpr(`users.persons AS "person"`).
-		Set("tag_id = ?", tagID).
-		Set("updated_at = NOW()").
-		Where(`"person".tenant_id = ?`, tenantID).
-		Where(`"person".tag_id IS NULL`).
-		Where(`"person".deleted_at IS NULL`).
-		Where(`"person".id = (SELECT "student".person_id FROM users.students AS "student" WHERE "student".id = ? AND "student".tenant_id = ?)`,
-			studentID, tenantID).
-		Where(`NOT EXISTS (SELECT 1 FROM users.persons AS "holder" WHERE "holder".tenant_id = ? AND "holder".tag_id = ?)`,
-			tenantID, tagID)
-
-	result, err := updQuery.Exec(ctx)
-	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, personsTenantTagUniqueIndex) {
-			// Somebody claimed the tag in the gap. Undo the failed statement so
-			// the revert transaction stays usable, and report "not re-linked".
-			if inTx {
-				if _, rbErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+restoreStudentTagSavepoint); rbErr != nil {
-					return false, &modelBase.DatabaseError{
-						Op:  "restore student rfid tag rollback to savepoint",
-						Err: rbErr,
-					}
-				}
-			}
-			return false, nil
-		}
-		return false, &modelBase.DatabaseError{
-			Op:  "restore student rfid tag",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	if inTx {
-		if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+restoreStudentTagSavepoint); err != nil {
-			return false, &modelBase.DatabaseError{
-				Op:  "restore student rfid tag release savepoint",
-				Err: base.TranslateNotFound(err),
-			}
-		}
-	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return false, &modelBase.DatabaseError{
-			Op:  "get rows affected",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return affected > 0, nil
+// RestoreStudentTag is served by the People Directory composition (#2661);
+// see ReleaseStudentTagsByIDs.
+func (r *GradeTransitionRepository) RestoreStudentTag(context.Context, int64, string) (bool, error) {
+	return false, fmt.Errorf("restore student tag through the people directory composition")
 }
 
 // PurgedStudentPlaceholder replaces a graduate's name in the ledger once the

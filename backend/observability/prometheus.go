@@ -143,6 +143,50 @@ var (
 		},
 		[]string{"job_id", "outcome"},
 	)
+	workerJobMaxDuration = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_worker_job_max_duration_seconds",
+			Help: "Longest observed embedded Worker job run by stable job ID.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_tenant_batch_duration_seconds",
+			Help:    "Bounded tenant batch duration by stable job ID.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchTenants = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_worker_tenant_batch_tenants_total",
+			Help: "Tenants processed by bounded Worker batches, split by result.",
+		},
+		[]string{"job_id", "result"},
+	)
+	workerTenantBatchRetries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_worker_tenant_batch_retries_total",
+			Help: "Deadlock and serialization retries within bounded tenant batches.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchBacklog = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_worker_tenant_batch_backlog",
+			Help: "Tenants not yet attempted in the current Worker job run.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchPoolWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_tenant_batch_pool_wait_seconds",
+			Help:    "Database-pool wait attributed to a bounded tenant batch.",
+			Buckets: []float64{0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"job_id"},
+	)
 	settingsLookups = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_settings_lookups_total",
@@ -207,6 +251,50 @@ var (
 	)
 	organizationTenancyStatementDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_statement_duration_seconds", Help: "Cumulative Organization and Tenancy database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	peopleDirectoryOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_operations_total", Help: "People Directory operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	peopleDirectoryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_people_directory_operation_duration_seconds", Help: "People Directory operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	peopleDirectoryQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_queries_total", Help: "Persistence queries issued by People Directory operations."},
+		[]string{"operation"},
+	)
+	peopleDirectoryRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_rows_changed_total", Help: "Rows changed by People Directory commands."},
+		[]string{"operation"},
+	)
+	peopleDirectoryStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_people_directory_statement_duration_seconds", Help: "Cumulative People Directory database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	peopleDirectoryHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_http_responses_total", Help: "People Directory HTTP responses by actual status class and stable code."},
+		[]string{"status_class", "code"},
+	)
+	schoolStructureOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_operations_total", Help: "School Structure operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	schoolStructureDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_structure_operation_duration_seconds", Help: "School Structure operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	schoolStructureQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_queries_total", Help: "Persistence queries issued by School Structure operations."},
+		[]string{"operation"},
+	)
+	schoolStructureRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_rows_total", Help: "Rows returned or changed by School Structure operations."},
+		[]string{"operation"},
+	)
+	schoolStructureStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_structure_statement_duration_seconds", Help: "Cumulative School Structure database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
 	feedbackOperations = prometheus.NewCounterVec(
@@ -386,6 +474,8 @@ var (
 	pwaStatsProvider PWAUsageStatsProvider
 	pwaGaugeMu       sync.Mutex
 	pwaGaugeLabels   = make(map[[2]string]struct{})
+	workerJobMaxMu   sync.Mutex
+	workerJobMax     = make(map[string]time.Duration)
 
 	dbOpenConnectionsDesc      = prometheus.NewDesc("phoenix_db_open_connections", "Open DB connections.", nil, nil)
 	dbInUseConnectionsDesc     = prometheus.NewDesc("phoenix_db_in_use_connections", "DB connections currently in use.", nil, nil)
@@ -411,6 +501,12 @@ func init() {
 		unitOfWorkPoolWait,
 		unitOfWorkLockWait,
 		workerJobDuration,
+		workerJobMaxDuration,
+		workerTenantBatchDuration,
+		workerTenantBatchTenants,
+		workerTenantBatchRetries,
+		workerTenantBatchBacklog,
+		workerTenantBatchPoolWait,
 		settingsLookups,
 		settingsLookupDuration,
 		settingsSideEffectFailures,
@@ -424,6 +520,17 @@ func init() {
 		organizationTenancyQueries,
 		organizationTenancyRowsChanged,
 		organizationTenancyStatementDuration,
+		peopleDirectoryOperations,
+		peopleDirectoryDuration,
+		peopleDirectoryQueries,
+		peopleDirectoryRowsChanged,
+		peopleDirectoryStatementDuration,
+		peopleDirectoryHTTPResponses,
+		schoolStructureOperations,
+		schoolStructureDuration,
+		schoolStructureQueries,
+		schoolStructureRows,
+		schoolStructureStatementDuration,
 		feedbackOperations,
 		feedbackHTTPResponses,
 		feedbackDuration,
@@ -562,6 +669,58 @@ func ObserveOrganizationTenancyOperation(operation string, duration time.Duratio
 	}
 }
 
+// ObservePeopleDirectoryOperation records the runtime evidence of one People
+// Directory capability call: outcome and stable code, duration, query count,
+// changed rows, and cumulative statement duration.
+func ObservePeopleDirectoryOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	peopleDirectoryOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	peopleDirectoryDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		peopleDirectoryQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		peopleDirectoryRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		peopleDirectoryStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObservePeopleDirectoryHTTPResponse counts one /api/users response by the
+// status class actually written and the stable outcome code.
+func ObservePeopleDirectoryHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
+func ObserveSchoolStructureOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	schoolStructureOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolStructureDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		schoolStructureQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		schoolStructureRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		schoolStructureStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
 func ObserveFeedbackHTTPResponse(surface string, status int, code string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
 	feedbackHTTPResponses.WithLabelValues(sanitizeLabel(surface), statusClass, sanitizeLabel(code)).Inc()
@@ -669,7 +828,32 @@ func RecordUnitOfWorkEvent(entryPoint, kind, result string, duration time.Durati
 
 // RecordWorkerRunEvent records one bounded embedded-job outcome.
 func RecordWorkerRunEvent(jobID, outcome string, duration time.Duration) {
-	workerJobDuration.WithLabelValues(sanitizeLabel(jobID), sanitizeLabel(outcome)).Observe(duration.Seconds())
+	jobID = sanitizeLabel(jobID)
+	workerJobDuration.WithLabelValues(jobID, sanitizeLabel(outcome)).Observe(duration.Seconds())
+	workerJobMaxMu.Lock()
+	if duration > workerJobMax[jobID] {
+		workerJobMax[jobID] = duration
+		workerJobMaxDuration.WithLabelValues(jobID).Set(duration.Seconds())
+	}
+	workerJobMaxMu.Unlock()
+}
+
+// RecordWorkerTenantBatchEvent records one bounded group of isolated tenant
+// commands. Labels contain only the registered job ID and fixed outcomes.
+func RecordWorkerTenantBatchEvent(jobID string, duration time.Duration, processed, failed, retries, backlog int, poolWait time.Duration) {
+	jobID = sanitizeLabel(jobID)
+	workerTenantBatchDuration.WithLabelValues(jobID).Observe(duration.Seconds())
+	workerTenantBatchTenants.WithLabelValues(jobID, "success").Add(float64(processed - failed))
+	workerTenantBatchTenants.WithLabelValues(jobID, "failure").Add(float64(failed))
+	workerTenantBatchRetries.WithLabelValues(jobID).Add(float64(retries))
+	workerTenantBatchBacklog.WithLabelValues(jobID).Set(float64(backlog))
+	workerTenantBatchPoolWait.WithLabelValues(jobID).Observe(poolWait.Seconds())
+}
+
+// SetWorkerTenantBatchBacklog records backlog when a job completes no tenant
+// batch, so an earlier non-zero value does not remain visible indefinitely.
+func SetWorkerTenantBatchBacklog(jobID string, backlog int) {
+	workerTenantBatchBacklog.WithLabelValues(sanitizeLabel(jobID)).Set(float64(backlog))
 }
 
 func ObserveSettingsLookup(key, cache, outcome string, duration time.Duration) {

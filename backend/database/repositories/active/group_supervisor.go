@@ -119,7 +119,8 @@ func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before ti
 
 // FindByActiveGroupID finds supervisors for a specific active group
 // If activeOnly is true, returns supervisors whose end date has not been reached.
-// Includes Staff.Person relation for staff name display
+// Includes the Staff relation; the composition layer attaches Staff.Person
+// through the People Directory for name display.
 func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -128,9 +129,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 		// Use explicit JOINs for schema-qualified tables (Relation() doesn't handle cross-schema properly)
 		ColumnExpr(`"group_supervisor".*`).
 		ColumnExpr(`"staff"."id" AS "staff__id", "staff"."person_id" AS "staff__person_id", "staff"."staff_notes" AS "staff__staff_notes"`).
-		ColumnExpr(`"person"."id" AS "staff__person__id", "person"."first_name" AS "staff__person__first_name", "person"."last_name" AS "staff__person__last_name"`).
 		Join(`LEFT JOIN users.staff AS "staff" ON "staff"."id" = "group_supervisor"."staff_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person"."id" = "staff"."person_id"`).
 		Where(`"group_supervisor".group_id = ?`, activeGroupID)
 
 	if activeOnly {
@@ -152,7 +151,8 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 
 // FindByActiveGroupIDs finds supervisors for multiple active groups in a single query
 // If activeOnly is true, returns supervisors whose end date has not been reached.
-// Includes Staff.Person relation for staff name display
+// Includes the Staff relation; the composition layer attaches Staff.Person
+// through the People Directory for name display.
 func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
 	if len(activeGroupIDs) == 0 {
 		return []*active.GroupSupervisor{}, nil
@@ -165,9 +165,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 		// Use explicit JOINs for schema-qualified tables (Relation() doesn't handle cross-schema properly)
 		ColumnExpr(`"group_supervisor".*`).
 		ColumnExpr(`"staff"."id" AS "staff__id", "staff"."person_id" AS "staff__person_id", "staff"."staff_notes" AS "staff__staff_notes"`).
-		ColumnExpr(`"person"."id" AS "staff__person__id", "person"."first_name" AS "staff__person__first_name", "person"."last_name" AS "staff__person__last_name"`).
 		Join(`LEFT JOIN users.staff AS "staff" ON "staff"."id" = "group_supervisor"."staff_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person"."id" = "staff"."person_id"`).
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs))
 
 	if activeOnly {
@@ -394,15 +392,14 @@ func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.
 
 // ListActiveSupervisionBlockers returns the staff member's still-open group
 // supervisions as caregiver-capability blocker rows. Custom raw-SQL method
-// (backend-conventions Rule 2): cross-schema join into the users blocker
-// read model with text-cast dates for the UI.
+// (backend-conventions Rule 2): text-cast dates for the UI. The group name
+// is resolved by the School Structure owner in the composition root.
 func (r *GroupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSupervision, error) {
 	var results []userModels.BlockerSupervision
 	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT gs.id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		SELECT gs.id, gs.group_id,
 		       gs.start_date::text AS start_date
 		FROM active.group_supervisors AS gs
-		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
 		WHERE gs.tenant_id = ?
 		  AND gs.staff_id = ?
 		  AND (gs.end_date IS NULL OR gs.end_date > NOW())

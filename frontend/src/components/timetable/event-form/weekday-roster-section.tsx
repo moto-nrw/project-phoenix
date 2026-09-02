@@ -65,7 +65,7 @@ export function WeekdayRosterSection({
   );
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="moto-content-surface flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-gray-700">
           Personal und Kinder

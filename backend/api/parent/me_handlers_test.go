@@ -69,6 +69,15 @@ type fakeParentService struct {
 	mealPlanErr          error
 	mealParticipation    parentService.MealParticipationPlan
 	mealParticipationErr error
+
+	consents           []parentService.ChildConsent
+	consentsErr        error
+	withdrawConsents   []parentService.ChildConsent
+	withdrawConsentErr error
+	grantConsents      []parentService.ChildConsent
+	grantConsentErr    error
+	gotConsentAccount  int64
+	gotConsentStudent  int64
 }
 
 // GetChildTodayStatus haelt das Double am Service-Interface. Ohne gesetzten
@@ -116,6 +125,21 @@ func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, in
 }
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
 	return nil, nil
+}
+func (f *fakeParentService) GetChildConsents(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.consents, f.consentsErr
+}
+func (f *fakeParentService) WithdrawPhotoConsent(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.withdrawConsents, f.withdrawConsentErr
+}
+func (f *fakeParentService) GrantPhotoConsent(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.grantConsents, f.grantConsentErr
 }
 func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string, []int64) (*parentService.SickNoteResult, error) {
 	return &parentService.SickNoteResult{}, nil

@@ -98,6 +98,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		Broadcaster:              broadcaster,
 		ParentEventEmitter:       parentEventEmitter,
 		StudentPhotos:            studentPhotos,
+		StudentConsents:          userService.NewStudentConsentService(repoFactory.StudentConsentChange),
 		ListExportService:        listexport.NewService(),
 		Logger:                   slog.Default(),
 		Now:                      firstClock(clocks),
