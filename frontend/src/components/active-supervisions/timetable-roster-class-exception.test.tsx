@@ -136,6 +136,32 @@ describe("TimetableRosterContent class arrival exception", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the line only for children expected in care", () => {
+    renderRoster(
+      roster([
+        rosterRow("1", "Abwesend", {
+          status: "absent",
+          warnings: classExceptionWarning,
+        }),
+        rosterRow("2", "Gegangen", {
+          status: "present",
+          visitId: "visit-2",
+          warnings: classExceptionWarning,
+        }),
+        rosterRow("3", "Nicht betreut", {
+          careDayStatus: "not_scheduled",
+          warnings: classExceptionWarning,
+        }),
+      ]),
+    );
+
+    expect(
+      screen.queryByText(
+        "Kommt heute um 12:45 Uhr (Klasse 4a: Unterricht fällt aus)",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("tells the reader that single check-in stays possible under Kommt später", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-02T12:50:00+02:00"));

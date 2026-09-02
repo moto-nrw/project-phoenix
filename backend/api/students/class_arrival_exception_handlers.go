@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -43,7 +44,7 @@ func (r *ClassArrivalExceptionRequest) Bind(_ *http.Request) error {
 	if _, err := time.Parse("15:04", r.ArrivalTime); err != nil {
 		return errors.New("invalid arrival_time format, expected HH:MM")
 	}
-	if r.Reason != nil && len(*r.Reason) > 255 {
+	if r.Reason != nil && utf8.RuneCountInString(*r.Reason) > 255 {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	return nil

@@ -210,10 +210,23 @@ describe("ClassArrivalExceptionPanel", () => {
       from: "2099-03-02",
       to: "2099-03-02",
       instances: [
-        { date: "2099-03-02", startTime: "12:45", status: "planned" },
-        { date: "2099-03-02", startTime: "11:45", status: "planned" },
+        {
+          date: "2099-03-02",
+          startTime: "12:45",
+          status: "planned",
+          activityGroupId: "selected-class",
+        },
+        {
+          date: "2099-03-02",
+          startTime: "11:45",
+          status: "planned",
+          activityGroupId: "selected-class",
+        },
         { date: "2099-03-02", startTime: "08:00", status: "cancelled" },
       ],
+    });
+    mockGetTemplates.mockResolvedValue({
+      templates: [{ id: "selected-class", targetSchoolClass: "4a" }],
     });
 
     render(
@@ -301,6 +314,50 @@ describe("ClassArrivalExceptionPanel", () => {
     });
     mockGetTemplates.mockResolvedValue({
       templates: [{ id: "selected-class", targetSchoolClass: "4a" }],
+    });
+
+    render(
+      <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+    );
+    await screen.findByLabelText("Kommt um");
+
+    fireEvent.change(screen.getByLabelText("Datum"), {
+      target: { value: "2099-03-02" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterricht fällt aus" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Kommt um")).toHaveValue("11:45");
+    });
+  });
+
+  it("uses only blocks with an explicit matching class", async () => {
+    mockGetWeek.mockResolvedValue({
+      from: "2099-03-02",
+      to: "2099-03-02",
+      instances: [
+        { date: "2099-03-02", startTime: "08:00", status: "planned" },
+        {
+          date: "2099-03-02",
+          startTime: "09:00",
+          status: "planned",
+          activityGroupId: "without-class",
+        },
+        {
+          date: "2099-03-02",
+          startTime: "11:45",
+          status: "planned",
+          activityGroupId: "selected-class",
+        },
+      ],
+    });
+    mockGetTemplates.mockResolvedValue({
+      templates: [
+        { id: "without-class" },
+        { id: "selected-class", targetSchoolClass: "4a" },
+      ],
     });
 
     render(

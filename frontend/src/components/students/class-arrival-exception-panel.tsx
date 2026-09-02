@@ -74,13 +74,10 @@ function appliesToSchoolClass(
     ...(template.targets?.map((target) => target.schoolClass) ?? []),
     ...(template.sourceSchoolClasses ?? []),
   ].filter((value): value is string => value !== undefined);
-  return (
-    classes.length === 0 ||
-    classes.some(
-      (schoolClassTarget) =>
-        normalizeSchoolClass(schoolClassTarget) ===
-        normalizeSchoolClass(schoolClass),
-    )
+  return classes.some(
+    (schoolClassTarget) =>
+      normalizeSchoolClass(schoolClassTarget) ===
+      normalizeSchoolClass(schoolClass),
   );
 }
 
@@ -100,10 +97,9 @@ async function earliestBlockStart(
       if (instance.date !== isoDate || instance.status === "cancelled") {
         return false;
       }
-      if (!instance.activityGroupId) {
-        return true;
-      }
-      const template = templatesByID.get(instance.activityGroupId);
+      const template = instance.activityGroupId
+        ? templatesByID.get(instance.activityGroupId)
+        : undefined;
       return (
         template !== undefined && appliesToSchoolClass(template, schoolClass)
       );

@@ -3,6 +3,7 @@ package students_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,6 +119,17 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{"arrival_time": "12:45"}), claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "class_arrival_exception_weekend")
+	})
+
+	t.Run("255 multibyte characters", func(t *testing.T) {
+		date := timezone.NewDate(2099, time.March, 2)
+		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", date)
+		reason := strings.Repeat("ä", 255)
+		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{
+			"arrival_time": "12:45",
+			"reason":       reason,
+		}), claims, []string{"admin:*"})
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("delete missing", func(t *testing.T) {

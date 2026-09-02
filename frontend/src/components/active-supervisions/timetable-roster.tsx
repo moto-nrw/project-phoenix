@@ -262,13 +262,14 @@ function TimetableRosterStudentRow({
   // other planning warning keeps its message — the preview showed it, so the
   // started view must not lose it. An arrival warning without a time cannot be
   // replaced by a time, so its message stays too.
-  const arrivalTime =
+  const expectsArrival =
     row.planned &&
     !row.currentlyPresent &&
     row.status === "expected" &&
-    isCareDayExpected(row.careDayStatus)
-      ? upcomingArrivalTime(row.warnings, now, rosterDate)
-      : null;
+    isCareDayExpected(row.careDayStatus);
+  const arrivalTime = expectsArrival
+    ? upcomingArrivalTime(row.warnings, now, rosterDate)
+    : null;
   const planningNotes = (row.warnings ?? []).filter(
     (warning) =>
       (warning.kind !== "arrival_after_slot_start" ||
@@ -310,7 +311,7 @@ function TimetableRosterStudentRow({
             Kommt um {arrivalTime} Uhr
           </div>
         ) : null}
-        {classException && !row.currentlyPresent ? (
+        {classException && expectsArrival ? (
           <div className="mt-1 text-sm text-gray-700">
             {classException.message}
           </div>
