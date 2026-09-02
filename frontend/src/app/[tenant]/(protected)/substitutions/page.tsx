@@ -858,7 +858,7 @@ type OverviewContentProps = Readonly<{
 
 function OverviewContent(props: OverviewContentProps) {
   if (props.data.error?.name === "SubstitutionAccessError") {
-    return <ForbiddenPage />;
+    return <ForbiddenPage embedded />;
   }
   if (props.data.error) {
     return (

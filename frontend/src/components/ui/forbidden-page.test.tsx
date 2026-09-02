@@ -14,9 +14,7 @@ describe("ForbiddenPage", () => {
       screen.getByText("Ihnen fehlt eine Berechtigung"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Ihre Leitung kann diese Seite in den Einstellungen freischalten.",
-      ),
+      screen.getByText("Bitte wenden Sie sich an Ihre Leitung."),
     ).toBeInTheDocument();
   });
 

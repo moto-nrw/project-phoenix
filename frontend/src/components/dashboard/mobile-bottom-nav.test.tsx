@@ -69,6 +69,15 @@ vi.mock("~/components/ui/drawer", () => ({
   ),
 }));
 
+vi.mock("./header/refresh-button", () => ({
+  RefreshButton: () => <button type="button">Aktualisieren</button>,
+}));
+
+vi.mock("~/components/staff-preview/staff-preview-modal", () => ({
+  StaffPreviewModal: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div>Vorschau-Dialog</div> : null,
+}));
+
 vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: vi.fn(() => ({
     user: { name: "Test User", email: "test@example.com", roles: [] },
@@ -185,6 +194,7 @@ describe("MobileBottomNav", () => {
       homeUrl: "/dashboard",
 
       profileUrl: "/profile",
+      canStartStaffPreview: false,
     });
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
@@ -301,6 +311,36 @@ describe("MobileBottomNav", () => {
 
       const spacer = container.querySelector(".h-16");
       expect(spacer).toBeInTheDocument();
+    });
+
+    it("keeps header actions available in the overflow menu", () => {
+      mockUseShellAuth.mockReturnValue({
+        user: { name: "Test User", email: "test@example.com", roles: [] },
+        profile: { firstName: "Test", lastName: "User" },
+        status: "authenticated",
+        isSessionExpired: true,
+        logout: vi.fn(),
+        mode: "teacher",
+        homeUrl: "/dashboard",
+        profileUrl: "/profile",
+        canStartStaffPreview: true,
+      });
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(
+        screen.getByText(
+          "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("Aktualisieren")).not.toHaveLength(0);
+      expect(screen.getByText("Erinnerungen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/reminders",
+      );
+      fireEvent.click(screen.getByText("Ansicht eines Mitarbeitenden"));
+      expect(screen.getByText("Vorschau-Dialog")).toBeInTheDocument();
     });
 
     it("prefixes the Anfragen overflow link in path-routing mode", () => {

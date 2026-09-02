@@ -26,7 +26,7 @@ const HEADLINE = "Ihnen fehlt eine Berechtigung";
 
 export function ForbiddenPage({
   title = "Kein Zugriff",
-  message = "Ihre Leitung kann diese Seite in den Einstellungen freischalten.",
+  message = "Bitte wenden Sie sich an Ihre Leitung.",
   embedded = false,
 }: ForbiddenPageProps) {
   const icon = <LockKeyIcon className="h-12 w-12" aria-hidden="true" />;

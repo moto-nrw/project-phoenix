@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import {
   useCallback,
   useEffect,
@@ -590,7 +590,7 @@ function TenantPageTabs({
           aria-selected={measuring ? undefined : active}
           tabIndex={measuring ? -1 : undefined}
           className={className}
-          onClick={(event) => {
+          onClick={(event: MouseEvent<HTMLAnchorElement>) => {
             // Mittelklick und Klick mit Zusatztaste öffnen ein zweites
             // Dokument -- die aktuelle Seite bleibt stehen, dort gibt es
             // nichts zu bewachen. Der schlichte Linksklick navigiert dagegen

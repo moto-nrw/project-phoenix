@@ -59,6 +59,9 @@ import {
   DrawerTitle,
 } from "~/components/ui/drawer";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
+import { RefreshButton } from "./header/refresh-button";
+import { Bell, Eye } from "lucide-react";
 
 // Icon component for consistent SVG rendering
 const Icon = ({ path, className }: { path: string; className?: string }) => (
@@ -527,6 +530,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // auch keinen Avatar mit Profilmenü: Profil und Abmelden wohnen hier im
   // „Mehr"-Menü, wie in der Eltern-App.
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [staffPreviewModalOpen, setStaffPreviewModalOpen] = useState(false);
 
   // Refs for sliding indicator
   const navRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -549,7 +553,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   } = useOptionalSupervision();
 
   // Get shell auth mode
-  const { mode } = useShellAuth();
+  const { mode, isSessionExpired, canStartStaffPreview } = useShellAuth();
 
   // Check if current path matches nav item
   const isActiveRoute = useCallback(
@@ -932,6 +936,59 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   );
                 })}
               </div>
+              {(mode === "teacher" ||
+                isSessionExpired ||
+                canStartStaffPreview) && (
+                <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+                  {isSessionExpired ? (
+                    <p className="bg-moto-red-soft text-moto-red-strong rounded-xl px-4 py-3 text-sm font-medium">
+                      Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut
+                      an.
+                    </p>
+                  ) : null}
+                  {mode !== "parent" ? (
+                    <div className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-2">
+                      <RefreshButton />
+                      <span className="text-base font-medium text-gray-900">
+                        Aktualisieren
+                      </span>
+                    </div>
+                  ) : null}
+                  {mode === "teacher" ? (
+                    <Link
+                      href={tenantPath("/reminders")}
+                      onClick={closeOverflowMenu}
+                      className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-gray-900 transition-all hover:bg-gray-100 active:bg-gray-200"
+                    >
+                      <Bell
+                        className="h-5 w-5 text-gray-600"
+                        aria-hidden="true"
+                      />
+                      <span className="text-base font-medium">
+                        Erinnerungen
+                      </span>
+                    </Link>
+                  ) : null}
+                  {mode === "teacher" && canStartStaffPreview ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeOverflowMenu();
+                        setStaffPreviewModalOpen(true);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-left text-gray-900 transition-all hover:bg-gray-100 active:bg-gray-200"
+                    >
+                      <Eye
+                        className="h-5 w-5 text-gray-600"
+                        aria-hidden="true"
+                      />
+                      <span className="text-base font-medium">
+                        Ansicht eines Mitarbeitenden
+                      </span>
+                    </button>
+                  ) : null}
+                </div>
+              )}
               {/* Konto-Zeilen wie im „Mehr"-Menü der Eltern-App: ohne
                   Shell-Kopfzeile gibt es mobil keinen Avatar mehr, Profil
                   und Abmelden brauchen deshalb hier einen Platz. */}
@@ -980,6 +1037,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         isOpen={logoutModalOpen}
         onClose={() => setLogoutModalOpen(false)}
       />
+      {mode === "teacher" && canStartStaffPreview ? (
+        <StaffPreviewModal
+          isOpen={staffPreviewModalOpen}
+          onClose={() => setStaffPreviewModalOpen(false)}
+        />
+      ) : null}
 
       {/* Modern Pill-Style Bottom Navigation (shadcn-inspired) */}
       <nav

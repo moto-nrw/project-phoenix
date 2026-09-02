@@ -52,7 +52,7 @@ export function AppShell({ children }: AppShellProps) {
             <StaffPreviewBanner />
             <div
               data-staff-safe-area-top
-              className="relative z-10 h-[env(safe-area-inset-top)] min-h-8 bg-transparent lg:hidden"
+              className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent lg:hidden"
               aria-hidden="true"
             />
           </>
