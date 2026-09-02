@@ -241,3 +241,108 @@ describe("SettingsCategory", () => {
     expect(container.querySelector("label")).toBeNull();
   });
 });
+
+describe("SettingsCategory collapsible (#2830)", () => {
+  it("collapsed: shows the summary line and hides the fields", () => {
+    const onToggle = vi.fn();
+    const { getByRole, getByText, queryByText } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory()}
+        collapsible
+        collapsed
+        onToggle={onToggle}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const heading = getByRole("button", { name: /Test Category/ });
+    expect(heading.getAttribute("aria-expanded")).toBe("false");
+    expect(getByText("Enabled, Name")).toBeDefined();
+    expect(getByText("1 geändert")).toBeDefined();
+    expect(queryByText("Toggle")).toBeNull();
+    expect(queryByText("A name")).toBeNull();
+
+    heading.click();
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("expanded: renders the fields and no summary", () => {
+    const { getByRole, getByText, queryByText } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory()}
+        collapsible
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(
+      getByRole("button", { name: /Test Category/ }).getAttribute(
+        "aria-expanded",
+      ),
+    ).toBe("true");
+    expect(getByText("Toggle")).toBeDefined();
+    expect(queryByText("Enabled, Name")).toBeNull();
+  });
+
+  it("summarises long categories with a remainder count", () => {
+    const items = ["A", "B", "C", "D", "E"].map((label, idx) => ({
+      ...makeCategory().items[0]!,
+      key: `test.${label.toLowerCase()}`,
+      label,
+      sort_order: idx,
+    }));
+    const { getByText } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory({ items })}
+        collapsible
+        collapsed
+        onToggle={vi.fn()}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("A, B, C und 2 weitere")).toBeDefined();
+  });
+
+  it("filterQuery keeps only matching settings and shows the kicker", () => {
+    const { getByText, queryByText } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory()}
+        filterQuery="name"
+        kicker="Betrieb"
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("Betrieb")).toBeDefined();
+    expect(getByText("Name")).toBeDefined();
+    expect(queryByText("Enabled")).toBeNull();
+  });
+
+  it("filterQuery matching the category name keeps every setting", () => {
+    const { getByText } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory()}
+        filterQuery="test category"
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("Name")).toBeDefined();
+    expect(getByText("Enabled")).toBeDefined();
+  });
+
+  it("filterQuery without a hit renders nothing", () => {
+    const { container } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory()}
+        filterQuery="zzz"
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(container.querySelector("h3")).toBeNull();
+  });
+});

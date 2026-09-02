@@ -81,3 +81,44 @@ export const OperatorAudience: Story = {
     audience: "operator",
   },
 };
+
+/**
+ * On the tenant settings page every category starts collapsed (#2830): the
+ * heading is a disclosure button, the line below lists what the category
+ * contains, and a badge counts settings that differ from their default.
+ */
+export const Collapsed: Story = {
+  args: {
+    collapsible: true,
+    collapsed: true,
+    category: {
+      ...booleanCategory,
+      items: [
+        ...booleanCategory.items,
+        makeSetting({
+          key: "operations.session_grace_minutes",
+          type: "number",
+          label: "Nachlaufzeit (Minuten)",
+          value: 10,
+          is_default: false,
+        }),
+      ],
+    },
+  },
+};
+
+/** The same category opened; the parent owns the state via `onToggle`. */
+export const Expanded: Story = {
+  args: {
+    collapsible: true,
+    collapsed: false,
+  },
+};
+
+/** A search hit: only matching settings, labelled with the tab it lives in. */
+export const SearchHit: Story = {
+  args: {
+    kicker: "Betrieb",
+    filterQuery: "sitzungsende",
+  },
+};
