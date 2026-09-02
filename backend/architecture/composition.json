@@ -441,17 +441,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 120,
+          "line": 129,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 234,
+          "line": 226,
+          "declaration": "newUsersResource"
+        },
+        {
+          "file": "api/base.go",
+          "line": 300,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 719,
+          "line": 787,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +466,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 355,
+          "line": 421,
           "declaration": "New"
         }
       ]
@@ -471,12 +476,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 120,
-          "declaration": "initializeModuleServices"
+          "line": 123,
+          "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 231,
+          "line": 297,
           "declaration": "type API"
         }
       ]
@@ -561,27 +566,27 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 415,
+          "line": 416,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 435,
+          "line": 437,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 14,
+          "line": 15,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 22,
+          "line": 23,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 33,
+          "line": 34,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
@@ -16614,7 +16619,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        355
+        421
       ],
       "tables": []
     },
@@ -17846,16 +17851,6 @@
       "tables": [
         "auth.accounts"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "api/users/users_test.go",
-      "declaration": "setupUsersRoute",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        31
-      ],
-      "tables": []
     },
     {
       "scope": "test",

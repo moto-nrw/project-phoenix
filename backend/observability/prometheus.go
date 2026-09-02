@@ -253,6 +253,30 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_statement_duration_seconds", Help: "Cumulative Organization and Tenancy database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	peopleDirectoryOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_operations_total", Help: "People Directory operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	peopleDirectoryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_people_directory_operation_duration_seconds", Help: "People Directory operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	peopleDirectoryQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_queries_total", Help: "Persistence queries issued by People Directory operations."},
+		[]string{"operation"},
+	)
+	peopleDirectoryRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_rows_changed_total", Help: "Rows changed by People Directory commands."},
+		[]string{"operation"},
+	)
+	peopleDirectoryStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_people_directory_statement_duration_seconds", Help: "Cumulative People Directory database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	peopleDirectoryHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_http_responses_total", Help: "People Directory HTTP responses by actual status class and stable code."},
+		[]string{"status_class", "code"},
+	)
 	feedbackOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_feedback_operations_total", Help: "Feedback operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -476,6 +500,12 @@ func init() {
 		organizationTenancyQueries,
 		organizationTenancyRowsChanged,
 		organizationTenancyStatementDuration,
+		peopleDirectoryOperations,
+		peopleDirectoryDuration,
+		peopleDirectoryQueries,
+		peopleDirectoryRowsChanged,
+		peopleDirectoryStatementDuration,
+		peopleDirectoryHTTPResponses,
 		feedbackOperations,
 		feedbackHTTPResponses,
 		feedbackDuration,
@@ -612,6 +642,37 @@ func ObserveOrganizationTenancyOperation(operation string, duration time.Duratio
 	if statementDuration > 0 {
 		organizationTenancyStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
+}
+
+// ObservePeopleDirectoryOperation records the runtime evidence of one People
+// Directory capability call: outcome and stable code, duration, query count,
+// changed rows, and cumulative statement duration.
+func ObservePeopleDirectoryOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	peopleDirectoryOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	peopleDirectoryDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		peopleDirectoryQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		peopleDirectoryRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		peopleDirectoryStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObservePeopleDirectoryHTTPResponse counts one /api/users response by the
+// status class actually written and the stable outcome code.
+func ObservePeopleDirectoryHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
 }
 
 func ObserveFeedbackHTTPResponse(surface string, status int, code string) {

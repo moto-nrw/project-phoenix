@@ -52,7 +52,6 @@ import (
 	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
-	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
@@ -79,6 +78,9 @@ import (
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -117,7 +119,14 @@ func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, e
 	}
 }
 
-func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (*services.Factory, *mealplanModule.Module, *feedbackModule.Module, error) {
+type moduleServices struct {
+	services *services.Factory
+	mealPlan *mealplanModule.Module
+	feedback *feedbackModule.Module
+	persons  *peopleModule.Module
+}
+
+func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
 		Observe: func(observation organizationCompose.Observation) {
@@ -125,7 +134,16 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		},
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return moduleServices{}, err
+	}
+	persons, err := peopleCompose.New(peopleCompose.Dependencies{
+		DB: db,
+		Observe: func(observation peopleCompose.Observation) {
+			observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopleModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
 	}
 	mealPlanSettings := mealplanCompose.NewSettings()
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
@@ -136,7 +154,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		},
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return moduleServices{}, err
 	}
 	feedbackSettings := feedbackCompose.NewSettings()
 	feedbackCapability, err := feedbackCompose.New(feedbackCompose.Dependencies{
@@ -156,11 +174,11 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		},
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return moduleServices{}, err
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
-		organizations,
+		organizations, persons,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,
@@ -168,9 +186,9 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		observability.ObserveDurableDelivery,
 	)
 	if err != nil {
-		return nil, nil, nil, err
+		return moduleServices{}, err
 	}
-	return factory, mealPlan, feedbackCapability, nil
+	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons}, nil
 }
 
 var mealPlanErrorRules = []apiCommon.ErrorRule{
@@ -201,6 +219,54 @@ func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI
 		},
 		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
 			renderMealPlanFailure(w, r, err, internalMessage)
+		},
+	})
+}
+
+func newUsersResource(module *peopleModule.Module, repoFactory *repositories.Factory, db *bun.DB) *usersAPI.Resource {
+	return usersAPI.NewResource(module, usersAPI.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(router, db, register)
+		},
+		Permission: func(permission string) usersAPI.Middleware {
+			return apiCommon.RequiresPermission(permission)
+		},
+		ParsePagination: apiCommon.ParsePagination,
+		Success:         apiCommon.Respond,
+		SuccessPaginated: func(w http.ResponseWriter, r *http.Request, status int, data any, pagination usersAPI.Pagination, message string) {
+			apiCommon.RespondPaginated(w, r, status, data, apiCommon.PaginationParams{Page: pagination.Page, PageSize: pagination.PageSize, Total: pagination.Total}, message)
+		},
+		NoContent: apiCommon.RespondNoContent,
+		Failure: func(w http.ResponseWriter, r *http.Request, kind usersAPI.FailureKind, err error) {
+			switch kind {
+			case usersAPI.FailureInvalidRequest:
+				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+			case usersAPI.FailureNotFound:
+				apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))
+			case usersAPI.FailureConflict:
+				apiCommon.RenderError(w, r, apiCommon.ErrorConflict(err))
+			default:
+				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
+			}
+		},
+		// The equality-filter listings distinguish "absent" from "failed"
+		// without the root having to classify repository errors.
+		AccountEmail: func(ctx context.Context, accountID int64) (string, bool, error) {
+			accounts, err := repoFactory.Account.List(ctx, map[string]any{"id": accountID})
+			if err != nil || len(accounts) == 0 {
+				return "", false, err
+			}
+			return accounts[0].Email, true, nil
+		},
+		TagExists: func(ctx context.Context, tagID string) (bool, error) {
+			cards, err := repoFactory.RFIDCard.List(ctx, map[string]any{"id": tagID})
+			if err != nil {
+				return false, err
+			}
+			return len(cards) > 0, nil
+		},
+		ObserveResponse: func(status int, code string) {
+			observability.ObservePeopleDirectoryHTTPResponse(status, code)
 		},
 	})
 }
@@ -355,10 +421,11 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	repoFactory := repositories.NewFactory(db)
 
 	// Compose one authoritative instance of each migrated module.
-	serviceFactory, mealPlanCapability, feedbackCapability, err := initializeModuleServices(repoFactory, db, logger)
+	modules, err := initializeModuleServices(repoFactory, db, logger)
 	if err != nil {
 		return nil, err
 	}
+	serviceFactory := modules.services
 	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
@@ -410,7 +477,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		tracer:             tracer,
 		metricsBearerToken: metricsBearerToken,
 		databaseLogger:     logger.With("handler", "database"),
-		feedback:           feedbackCapability,
+		feedback:           modules.feedback,
 	}
 
 	// Setup router middleware
@@ -444,8 +511,9 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
-	api.MealPlan = newMealPlanResource(mealPlanCapability, db)
-	api.Feedback = newFeedbackResource(feedbackCapability, db)
+	api.MealPlan = newMealPlanResource(modules.mealPlan, db)
+	api.Feedback = newFeedbackResource(modules.feedback, db)
+	api.Users = newUsersResource(modules.persons, repoFactory, db)
 
 	// Register routes with rate limiting
 	api.securityLogging = os.Getenv("SECURITY_LOGGING_ENABLED") == "true"
@@ -936,7 +1004,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.SSE.SetSchoolAccess(api.Services.Auth)
-	api.Users = usersAPI.NewResource(api.Services.Users, db)
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))

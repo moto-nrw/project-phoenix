@@ -23,6 +23,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -50,6 +52,7 @@ import (
 type Factory struct {
 	db                       *bun.DB
 	organizationTenancyBound bool
+	peopleDirectoryBound     bool
 
 	// Auth domain
 	Account                authModels.AccountRepository
@@ -388,6 +391,29 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 	return organizationCompose.New(organizationCompose.Dependencies{
 		DB:      db,
 		Observe: func(organizationCompose.Observation) {},
+	})
+}
+
+// BindPeopleDirectory replaces the legacy adapters that used to join
+// users.persons themselves with compositions over the public People
+// Directory capability (#2661).
+func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
+	if capability == nil {
+		panic("repository factory: people directory capability is required")
+	}
+	if f.peopleDirectoryBound {
+		return
+	}
+	f.peopleDirectoryBound = true
+	f.bindPersonProjections(capability)
+}
+
+// NewPeopleDirectory composes the person owner behind the legacy
+// composition seam for test graphs and CLI roots.
+func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
+	return peopleCompose.New(peopleCompose.Dependencies{
+		DB:      db,
+		Observe: func(peopleCompose.Observation) {},
 	})
 }
 
