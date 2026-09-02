@@ -566,7 +566,7 @@
         },
         {
           "file": "services/factory.go",
-          "line": 436,
+          "line": 437,
           "declaration": "newFactory"
         },
         {
