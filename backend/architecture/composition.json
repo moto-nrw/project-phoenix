@@ -28465,7 +28465,7 @@
       "declaration": "TestNewFactory_DefaultEmailFrom_WhenNotConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        247
+        258
       ],
       "tables": []
     },
@@ -28475,7 +28475,17 @@
       "declaration": "TestNewFactory_EmailFrom_WhenConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        262
+        273
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/factory_test.go",
+      "declaration": "TestNewFactory_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        84
       ],
       "tables": []
     },
@@ -28485,7 +28495,7 @@
       "declaration": "TestNewFactory_FrontendURL_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        208
+        219
       ],
       "tables": []
     },
@@ -28495,7 +28505,7 @@
       "declaration": "TestNewFactory_FrontendURL_TrailingSlashRemoved",
       "target": "database/repositories.NewFactory",
       "lines": [
-        192
+        203
       ],
       "tables": []
     },
@@ -28505,7 +28515,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        114
+        125
       ],
       "tables": []
     },
@@ -28515,7 +28525,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        130
+        141
       ],
       "tables": []
     },
@@ -28525,7 +28535,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        100
+        111
       ],
       "tables": []
     },
@@ -28535,7 +28545,7 @@
       "declaration": "TestNewFactory_NegativeInvitationExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        280
+        291
       ],
       "tables": []
     },
@@ -28545,7 +28555,7 @@
       "declaration": "TestNewFactory_NegativePasswordResetExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        296
+        307
       ],
       "tables": []
     },
@@ -28555,7 +28565,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        160
+        171
       ],
       "tables": []
     },
@@ -28565,7 +28575,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        176
+        187
       ],
       "tables": []
     },
@@ -28575,7 +28585,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        146
+        157
       ],
       "tables": []
     },
@@ -28585,7 +28595,7 @@
       "declaration": "TestNewFactory_PortalURLs_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        222
+        233
       ],
       "tables": []
     },
@@ -28595,7 +28605,7 @@
       "declaration": "TestNewFactory_RejectsPartialVAPIDConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        84
+        95
       ],
       "tables": []
     },
