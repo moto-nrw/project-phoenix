@@ -16763,7 +16763,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        271
+        272
       ],
       "tables": []
     },
@@ -16773,7 +16773,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        272
+        273
       ],
       "tables": []
     },
@@ -16783,7 +16783,7 @@
       "declaration": "setupOperatorInvitationRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        299
+        300
       ],
       "tables": []
     },
@@ -16793,7 +16793,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        289
+        290
       ],
       "tables": []
     },
@@ -16803,7 +16803,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        290
+        291
       ],
       "tables": []
     },
