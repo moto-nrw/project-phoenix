@@ -23133,7 +23133,7 @@
       "declaration": "TestGuestMembershipAdapter_FindsByStaffAndActiveWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        392
+        395
       ],
       "tables": []
     },
@@ -23143,7 +23143,7 @@
       "declaration": "TestStaffMembershipAdapter_AccountActivityStaysTenantScoped",
       "target": "database/repositories.NewFactory",
       "lines": [
-        226
+        229
       ],
       "tables": [
         "auth.account_tenants",
@@ -23156,7 +23156,7 @@
       "declaration": "TestStaffMembershipAdapter_AccountIDsExcludeUnreachableStaff",
       "target": "database/repositories.NewFactory",
       "lines": [
-        181
+        184
       ],
       "tables": []
     },
@@ -23176,7 +23176,7 @@
       "declaration": "TestStaffMembershipAdapter_CalendarReachabilityUsesEffectivePermissions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        261
+        264
       ],
       "tables": []
     },
@@ -23186,7 +23186,7 @@
       "declaration": "TestStaffMembershipAdapter_ExcludesSoftDeletedPersons",
       "target": "database/repositories.NewFactory",
       "lines": [
-        202
+        205
       ],
       "tables": [
         "users.persons"
@@ -23195,10 +23195,10 @@
     {
       "scope": "test",
       "file": "database/repositories/staff_membership_adapters_test.go",
-      "declaration": "TestStaffMembershipAdapter_IDLookupsIncludeOffboardedStaff",
+      "declaration": "TestStaffMembershipAdapter_IDLookupsKeepLegacyDeletedSemantics",
       "target": "database/repositories.NewFactory",
       "lines": [
-        163
+        166
       ],
       "tables": []
     },
@@ -23208,7 +23208,7 @@
       "declaration": "TestStaffMembershipAdapter_ListRejectsUnknownFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        420
+        423
       ],
       "tables": []
     },
@@ -23238,7 +23238,7 @@
       "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversNeedAccountAndSystemRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        310
+        313
       ],
       "tables": []
     },
@@ -23248,7 +23248,7 @@
       "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversResolveInAdminContext",
       "target": "database/repositories.NewFactory",
       "lines": [
-        355
+        358
       ],
       "tables": [
         "users.teachers"
@@ -23260,7 +23260,7 @@
       "declaration": "TestTeacherMembershipAdapter_ResolvesStaffAndPerson",
       "target": "database/repositories.NewFactory",
       "lines": [
-        277
+        280
       ],
       "tables": []
     },
