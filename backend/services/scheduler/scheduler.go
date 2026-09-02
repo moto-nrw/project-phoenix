@@ -1612,11 +1612,6 @@ func wasRunAt(lastRunMap *sync.Map, tenantID int64, now time.Time) bool {
 	return lastRun.Year() == now.Year() && lastRun.YearDay() == now.YearDay()
 }
 
-// markRunToday records that a per-tenant job ran today.
-func markRunToday(lastRunMap *sync.Map, tenantID int64) {
-	markRunAt(lastRunMap, tenantID, time.Now())
-}
-
 func markRunTodayAfterCommit(ctx context.Context, lastRunMap *sync.Map, tenantID int64) {
 	markRunAtAfterCommit(ctx, lastRunMap, tenantID, time.Now())
 }

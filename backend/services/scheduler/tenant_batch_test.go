@@ -14,6 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// RetrySafeTenantCommandFunc adapts an explicitly retry-safe test command.
+type RetrySafeTenantCommandFunc func(context.Context, tenant.TenantID) error
+
+func (command RetrySafeTenantCommandFunc) Execute(ctx context.Context, tenantID tenant.TenantID) error {
+	return command(ctx, tenantID)
+}
+
+func (RetrySafeTenantCommandFunc) RetrySafeTenantCommand() {}
+
 func TestTenantBatchesBoundWorkAndPreserveEveryOutcome(t *testing.T) {
 	t.Parallel()
 

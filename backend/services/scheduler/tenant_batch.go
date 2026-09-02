@@ -38,15 +38,6 @@ func (command TenantCommandFunc) Execute(ctx context.Context, tenantID tenant.Te
 	return command(ctx, tenantID)
 }
 
-// RetrySafeTenantCommandFunc adapts an explicitly retry-safe owner command.
-type RetrySafeTenantCommandFunc func(context.Context, tenant.TenantID) error
-
-func (command RetrySafeTenantCommandFunc) Execute(ctx context.Context, tenantID tenant.TenantID) error {
-	return command(ctx, tenantID)
-}
-
-func (RetrySafeTenantCommandFunc) RetrySafeTenantCommand() {}
-
 func adaptTenantCommand(command func(context.Context, int64) error) TenantCommand {
 	return TenantCommandFunc(func(ctx context.Context, tenantID tenant.TenantID) error {
 		return command(ctx, tenantID.Int64())

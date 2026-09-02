@@ -2302,7 +2302,7 @@ func TestWasRunToday_RanToday(t *testing.T) {
 	t.Parallel()
 
 	var m sync.Map
-	markRunToday(&m, 1)
+	m.Store(int64(1), time.Now())
 	assert.True(t, wasRunToday(&m, 1))
 }
 
@@ -2328,7 +2328,7 @@ func TestWasRunToday_DifferentTenant(t *testing.T) {
 	t.Parallel()
 
 	var m sync.Map
-	markRunToday(&m, 1)
+	m.Store(int64(1), time.Now())
 	assert.False(t, wasRunToday(&m, 2))
 }
 
