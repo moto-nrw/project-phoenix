@@ -339,6 +339,10 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/reminders",
       );
+      expect(screen.getByText("Profil").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/profile",
+      );
       fireEvent.click(screen.getByText("Ansicht eines Mitarbeitenden"));
       expect(screen.getByText("Vorschau-Dialog")).toBeInTheDocument();
     });

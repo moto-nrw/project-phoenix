@@ -1,6 +1,5 @@
 "use client";
 
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 interface MobileBackButtonProps {
@@ -11,8 +10,8 @@ interface MobileBackButtonProps {
 }
 
 /**
- * Mobile-only back button that navigates to parent page.
- * Only renders on mobile viewports (< 768px).
+ * Back button that navigates to the parent page whenever the shell header is
+ * hidden. It is visible below `lg`, matching the staff shell breakpoint.
  *
  * Extracted to eliminate code duplication across database pages.
  */
@@ -20,16 +19,13 @@ export function MobileBackButton({
   href = "/database",
   ariaLabel = "Zurück zur Datenverwaltung",
 }: Readonly<MobileBackButtonProps>) {
-  const isMobile = useIsMobile();
   const router = useTenantRouter();
-
-  if (!isMobile) return null;
 
   return (
     <button
       type="button"
       onClick={() => router.push(href)}
-      className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
+      className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900 lg:hidden"
       aria-label={ariaLabel}
     >
       <svg

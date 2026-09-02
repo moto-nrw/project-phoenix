@@ -2,12 +2,6 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MobileBackButton } from "./mobile-back-button";
 
-// Mock useIsMobile hook
-const mockIsMobile = vi.fn();
-vi.mock("~/components/ui/hooks/useIsMobile", () => ({
-  useIsMobile: (): boolean => mockIsMobile() as boolean,
-}));
-
 const mockPush = vi.fn();
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockPush }),
@@ -18,25 +12,19 @@ describe("MobileBackButton", () => {
     vi.clearAllMocks();
   });
 
-  it("renders on mobile", () => {
-    mockIsMobile.mockReturnValue(true);
-
+  it("renders below the desktop header breakpoint", () => {
     render(<MobileBackButton />);
 
     expect(screen.getByText("Zurück")).toBeInTheDocument();
   });
 
-  it("does not render on desktop", () => {
-    mockIsMobile.mockReturnValue(false);
+  it("is hidden when the desktop header is visible", () => {
+    render(<MobileBackButton />);
 
-    const { container } = render(<MobileBackButton />);
-
-    expect(container.firstChild).toBeNull();
+    expect(screen.getByRole("button")).toHaveClass("lg:hidden");
   });
 
   it("uses default href when not provided", () => {
-    mockIsMobile.mockReturnValue(true);
-
     render(<MobileBackButton />);
 
     const button = screen.getByRole("button");
@@ -46,8 +34,6 @@ describe("MobileBackButton", () => {
   });
 
   it("uses custom href when provided", () => {
-    mockIsMobile.mockReturnValue(true);
-
     render(<MobileBackButton href="/groups" />);
 
     const button = screen.getByRole("button");
@@ -57,8 +43,6 @@ describe("MobileBackButton", () => {
   });
 
   it("has correct aria-label", () => {
-    mockIsMobile.mockReturnValue(true);
-
     render(<MobileBackButton ariaLabel="Zurück zur Übersicht" />);
 
     const button = screen.getByLabelText("Zurück zur Übersicht");
@@ -66,8 +50,6 @@ describe("MobileBackButton", () => {
   });
 
   it("renders the back icon", () => {
-    mockIsMobile.mockReturnValue(true);
-
     const { container } = render(<MobileBackButton />);
 
     const svg = container.querySelector("svg");

@@ -994,22 +994,26 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   Shell-Kopfzeile gibt es mobil keinen Avatar mehr, Profil
                   und Abmelden brauchen deshalb hier einen Platz. */}
               <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
-                <Link
-                  href={profileUrl ?? tenantPath("/profile")}
-                  onClick={closeOverflowMenu}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
-                    isActiveRoute(profileUrl ?? "/profile")
-                      ? "bg-gray-100 font-semibold text-gray-900"
-                      : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
-                  }`}
-                >
-                  <MobileNavIcon
-                    item={{ iconKey: "profile" }}
-                    active={isActiveRoute(profileUrl ?? "/profile")}
-                    className="h-5 w-5 text-gray-600"
-                  />
-                  <span className="text-base font-medium">Profil</span>
-                </Link>
+                {profileUrl ? (
+                  <Link
+                    href={
+                      mode === "teacher" ? tenantPath(profileUrl) : profileUrl
+                    }
+                    onClick={closeOverflowMenu}
+                    className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
+                      isActiveRoute(profileUrl)
+                        ? "bg-gray-100 font-semibold text-gray-900"
+                        : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
+                    }`}
+                  >
+                    <MobileNavIcon
+                      item={{ iconKey: "profile" }}
+                      active={isActiveRoute(profileUrl)}
+                      className="h-5 w-5 text-gray-600"
+                    />
+                    <span className="text-base font-medium">Profil</span>
+                  </Link>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {
