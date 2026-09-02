@@ -1,46 +1,15 @@
 "use client";
 
-import type { ResolvedSetting, SchemaCategory } from "~/lib/settings-api";
+import type { SchemaCategory } from "~/lib/settings-api";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { SettingsField } from "./settings-field";
-
-// Override labels for category keys that don't capitalize cleanly via CSS
-// (acronyms read wrong when only the first letter is uppercased).
-const categoryLabelOverrides: Record<string, string> = {
-  mfa: "Zwei-Faktor-Authentifizierung",
-  pin: "PIN",
-  aktivitaeten: "Aktivitäten",
-  stundenplan: "Betreuungsplan",
-};
-
-function displayCategoryLabel(category: SchemaCategory): string {
-  return categoryLabelOverrides[category.key] ?? category.label;
-}
-
-const ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY: Record<string, string> = {
-  "enrollment.legal_agb_text": "enrollment.legal_terms_enabled",
-  "enrollment.legal_dsgvo_text": "enrollment.legal_dsgvo_enabled",
-  "enrollment.legal_photo_text": "enrollment.legal_photo_enabled",
-  "enrollment.legal_email_contact_text":
-    "enrollment.legal_email_contact_enabled",
-};
-
-const HIDDEN_COMPANION_SETTINGS = new Set([
-  "enrollment.legal_agb_document_url",
-  "enrollment.legal_agb_display_mode",
-]);
-
-function shouldShowCategoryItem(
-  item: ResolvedSetting,
-  items: ResolvedSetting[],
-): boolean {
-  if (!item.visible) return false;
-  if (HIDDEN_COMPANION_SETTINGS.has(item.key)) return false;
-  if (item.key === "enrollment.legal_agb_text") return true;
-  const toggleKey = ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY[item.key];
-  if (!toggleKey) return true;
-  const toggle = items.find((candidate) => candidate.key === toggleKey);
-  return toggle?.value === true;
-}
+import {
+  categorySummary,
+  changedCount,
+  displayCategoryLabel,
+  filterCategoryItems,
+} from "./settings-filter";
 
 interface SettingsCategoryProps {
   readonly category: SchemaCategory;
@@ -58,6 +27,24 @@ interface SettingsCategoryProps {
   // endpoint when unset. The operator page passes a school-bound function
   // so password reveal hits the operator endpoint instead.
   readonly revealFn?: (key: string) => Promise<string | null>;
+  /**
+   * Renders the category as a collapsible `SectionCard` (#2830). The open
+   * state is controlled by the parent via `collapsed` + `onToggle`, so a tab
+   * can expand the category that holds a deep-linked setting or expand every
+   * category at once. Off by default: the operator page and the isolated
+   * component keep the flat, always-open card.
+   */
+  readonly collapsible?: boolean;
+  readonly collapsed?: boolean;
+  readonly onToggle?: () => void;
+  /**
+   * Lower-cased search query. When set, only matching settings are listed
+   * (all of them when the category name itself matches). The category
+   * renders nothing when no setting matches.
+   */
+  readonly filterQuery?: string;
+  /** Small label above the heading, e.g. the tab name in search results. */
+  readonly kicker?: string;
 }
 
 export function SettingsCategory({
@@ -69,20 +56,43 @@ export function SettingsCategory({
   onBookingAuthorityEnable,
   audience = "admin",
   revealFn,
+  collapsible = false,
+  collapsed = false,
+  onToggle,
+  filterQuery = "",
+  kicker,
 }: SettingsCategoryProps) {
-  const visibleItems = category.items.filter((item) =>
-    shouldShowCategoryItem(item, category.items),
-  );
+  const visibleItems = filterCategoryItems(category, filterQuery);
 
   if (visibleItems.length === 0) {
     return null;
   }
 
+  const isCollapsed = collapsible && collapsed;
+  const changed = changedCount(visibleItems);
+
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6">
-      <h3 className="mb-1 text-base font-semibold text-gray-900 capitalize">
-        {displayCategoryLabel(category)}
-      </h3>
+    <SectionCard
+      headingLevel={3}
+      kicker={kicker}
+      title={displayCategoryLabel(category)}
+      titleClassName="capitalize"
+      titleBadge={
+        changed > 0 ? (
+          <StatusBadge
+            tone="gray"
+            showDot={false}
+            label={`${changed} geändert`}
+          />
+        ) : undefined
+      }
+      // While collapsed the card names what it holds, so a person can tell
+      // from the closed header whether the setting they need lives here.
+      description={isCollapsed ? categorySummary(visibleItems) : undefined}
+      collapsible={collapsible}
+      collapsed={collapsible ? collapsed : undefined}
+      onCollapsedChange={onToggle}
+    >
       <div className="divide-y divide-gray-100">
         {visibleItems.map((setting) => (
           <SettingsField
@@ -99,6 +109,6 @@ export function SettingsCategory({
           />
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }
