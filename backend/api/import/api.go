@@ -139,8 +139,11 @@ func (rs *Resource) Router() chi.Router {
 
 		// Staff (Mitarbeiter) import endpoints
 		r.Route("/teachers", func(r chi.Router) {
-			// Template download - requires UsersRead
-			r.With(common.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadStaffTemplate)
+			// Template download - the template carries no tenant data, so
+			// everyone who may import (users:create) gets it as well as the
+			// directory readers; the import page opens on users:create alone
+			// (#2906).
+			r.With(common.RequiresAnyPermission(permUsersRead, permUsersCreate), withTx).Get(routeTemplate, rs.DownloadStaffTemplate)
 
 			// Preview - requires UsersCreate
 			// Note: no withTx here — the handler owns its tenant transaction

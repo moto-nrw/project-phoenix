@@ -1737,6 +1737,48 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schoolstructure",
+      "owner": "school-structure",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/compose",
+      "owner": "school-structure",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/application",
+      "owner": "school-structure",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/domain",
+      "owner": "school-structure",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/ports",
+      "owner": "school-structure",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/adapters/postgres",
+      "owner": "school-structure",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/messaging",
       "owner": "communication",
       "role": "application",
@@ -5501,6 +5543,148 @@
       "source_owner": "organization-tenancy",
       "source_role": "application",
       "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.port-domain",
+      "description": "School Structure ports express persistence operations using their own domain values.",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "school-structure.compose.application",
+      "description": "School Structure composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "school-structure.compose.domain",
+      "description": "School Structure composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "school-structure.compose.orm-sql",
+      "description": "School Structure composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-structure.compose.port",
+      "description": "School Structure composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "port"
+    },
+    {
+      "id": "school-structure.compose.postgres",
+      "description": "School Structure composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "postgres"
+    },
+    {
+      "id": "school-structure.compose.public",
+      "description": "School Structure composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.compose.tenant-runtime",
+      "description": "School Structure composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.internal-test.orm-sql",
+      "description": "School Structure composition tests supply the concrete Bun test database.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-structure",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-structure.internal-test.tenant-runtime",
+      "description": "School Structure composition tests verify transaction and RLS behavior through the shared tenant runtime.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-structure",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.integration-test.public",
+      "description": "School Structure integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-structure",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.integration-test.support",
+      "description": "School Structure integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-structure",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "root-composition.to.school-structure-compose",
+      "description": "The production root constructs the School Structure module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.school-structure-public",
+      "description": "The production root records stable School Structure capability outcomes.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.school-structure-compose",
+      "description": "Legacy test graph composition constructs the required School Structure capability.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.school-structure-public",
+      "description": "Legacy composition passes the School Structure facade to the group-name projections.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "school-structure",
       "target_role": "public"
     },
     {

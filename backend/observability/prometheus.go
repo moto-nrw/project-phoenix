@@ -277,6 +277,26 @@ var (
 		prometheus.CounterOpts{Name: "phoenix_people_directory_http_responses_total", Help: "People Directory HTTP responses by actual status class and stable code."},
 		[]string{"status_class", "code"},
 	)
+	schoolStructureOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_operations_total", Help: "School Structure operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	schoolStructureDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_structure_operation_duration_seconds", Help: "School Structure operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	schoolStructureQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_queries_total", Help: "Persistence queries issued by School Structure operations."},
+		[]string{"operation"},
+	)
+	schoolStructureRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_rows_total", Help: "Rows returned or changed by School Structure operations."},
+		[]string{"operation"},
+	)
+	schoolStructureStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_structure_statement_duration_seconds", Help: "Cumulative School Structure database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	feedbackOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_feedback_operations_total", Help: "Feedback operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -506,6 +526,11 @@ func init() {
 		peopleDirectoryRowsChanged,
 		peopleDirectoryStatementDuration,
 		peopleDirectoryHTTPResponses,
+		schoolStructureOperations,
+		schoolStructureDuration,
+		schoolStructureQueries,
+		schoolStructureRows,
+		schoolStructureStatementDuration,
 		feedbackOperations,
 		feedbackHTTPResponses,
 		feedbackDuration,
@@ -673,6 +698,27 @@ func ObservePeopleDirectoryOperation(operation string, duration time.Duration, q
 func ObservePeopleDirectoryHTTPResponse(status int, code string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
 	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
+func ObserveSchoolStructureOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	schoolStructureOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolStructureDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		schoolStructureQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		schoolStructureRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		schoolStructureStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
 }
 
 func ObserveFeedbackHTTPResponse(surface string, status int, code string) {

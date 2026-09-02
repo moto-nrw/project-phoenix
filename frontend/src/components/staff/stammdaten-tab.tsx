@@ -30,8 +30,9 @@ import {
 
 // Stammdaten tab (#1417 Tranche 2b + #1423): the master-data home of one
 // staff member. Sections Person / Kontakt / Arbeitsvertrag / Qualifikationen
-// ride on the directory permissions (users:read to see, users:update to
-// edit), Abrechnung stays behind time_tracking:manage, and Bank & Steuer is
+// ride on the personnel permission staff:stammdaten (#2906 — deliberately not
+// users:read or users:update, both of which the ordinary Betreuer role
+// holds), Abrechnung stays behind time_tracking:manage, and Bank & Steuer is
 // staff:financial only — the card renders a lock hint without it, and every
 // read of the stored values is access-logged server-side.
 

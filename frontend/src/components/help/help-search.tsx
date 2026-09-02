@@ -327,7 +327,7 @@ function HelpSearchResults({
         return (
           <li key={hit.record.id} role="presentation">
             <Link
-              ref={(el) => {
+              ref={(el: HTMLAnchorElement | null) => {
                 linkRefs.current[index] = el;
               }}
               id={optionId(index)}

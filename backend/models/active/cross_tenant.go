@@ -13,6 +13,7 @@ type CrossTenantStudent struct {
 	StudentID    int64  `json:"student_id"`
 	PersonID     int64  `json:"-"`
 	HomeTenantID int64  `json:"-"`
+	GroupID      *int64 `json:"-"`
 	FirstName    string `json:"first_name"`
 	LastName     string `json:"last_name"`
 	GroupName    string `json:"group_name"`

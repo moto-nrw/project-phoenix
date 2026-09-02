@@ -391,15 +391,14 @@ func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.
 
 // ListActiveSupervisionBlockers returns the staff member's still-open group
 // supervisions as caregiver-capability blocker rows. Custom raw-SQL method
-// (backend-conventions Rule 2): cross-schema join into the users blocker
-// read model with text-cast dates for the UI.
+// (backend-conventions Rule 2): text-cast dates for the UI. The group name
+// is resolved by the School Structure owner in the composition root.
 func (r *GroupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSupervision, error) {
 	var results []userModels.BlockerSupervision
 	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT gs.id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		SELECT gs.id, gs.group_id,
 		       gs.start_date::text AS start_date
 		FROM active.group_supervisors AS gs
-		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
 		WHERE gs.tenant_id = ?
 		  AND gs.staff_id = ?
 		  AND (gs.end_date IS NULL OR gs.end_date > NOW())

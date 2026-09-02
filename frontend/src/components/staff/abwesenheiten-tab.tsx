@@ -190,11 +190,16 @@ function TabLoadingBoundary({
 export function AbwesenheitenTab({
   staffId,
   canEdit,
+  canEditQuota,
   canManageSickReports,
   staff,
 }: {
   readonly staffId: string;
   readonly canEdit: boolean;
+  // Der Urlaubsanspruch hängt an einer eigenen Berechtigung: PUT
+  // /api/staff/{id}/vacation/quota verlangt time_tracking:manage, nicht die
+  // Antragsentscheidung (vacation:approve darf nur lesen, #2906).
+  readonly canEditQuota: boolean;
   readonly canManageSickReports: boolean;
   // Passed in from the staff detail page so the "Krank melden" modal has the
   // person's name. Optional so the tab still renders (without the action)
@@ -386,7 +391,7 @@ export function AbwesenheitenTab({
               : "Tage"
           }
           tone="primary"
-          onEdit={canEdit ? () => setQuotaModal(true) : undefined}
+          onEdit={canEditQuota ? () => setQuotaModal(true) : undefined}
         />
         <QuotaTile
           label="Genommen"

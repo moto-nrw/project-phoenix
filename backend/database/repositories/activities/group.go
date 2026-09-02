@@ -268,8 +268,6 @@ func (r *GroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []
 		Model(&targets).
 		ModelTableExpr(`activities.group_targets AS "target"`).
 		ColumnExpr(`"target".*`).
-		ColumnExpr(`COALESCE("education_group".name, '') AS education_group_name`).
-		Join(`LEFT JOIN education.groups AS "education_group" ON "education_group".tenant_id = "target".tenant_id AND "education_group".id = "target".education_group_id`).
 		Where(`"target".tenant_id = ?`, tenantID).
 		Where(`"target".activity_group_id IN (?)`, bun.List(groupIDs)).
 		OrderExpr(`"target".activity_group_id ASC, "target".id ASC`).
@@ -692,7 +690,6 @@ const templateListSelect = `
 				g.planned_room_id AS room_id,
 				COALESCE(r.name, '') AS room_name,
 				g.education_group_id,
-				COALESCE(eg.name, '') AS education_group_name,
 				g.is_open,
 			COALESCE(g.max_participants, 0) AS max_participants,
 			g.required_staff,
@@ -732,9 +729,7 @@ const templateListSelect = `
 			LEFT JOIN schedule.shift_types AS st
 				ON st.id = c.shift_type_id AND st.tenant_id = g.tenant_id
 			LEFT JOIN facilities.rooms AS r
-				ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
-			LEFT JOIN education.groups AS eg
-				ON eg.id = g.education_group_id AND eg.tenant_id = g.tenant_id`
+				ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id`
 
 // enrollmentDisplayValidityFilter is the student-row admission test shared by
 // the template display-roster reads. Open rows (valid_until IS NULL) always

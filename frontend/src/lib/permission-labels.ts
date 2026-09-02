@@ -34,6 +34,8 @@ export const actionLabels: Record<string, string> = {
   own: "Eigene",
   apply: "Anwenden",
   financial: "Bank- & Steuerdaten",
+  stammdaten: "Personalstammdaten",
+  documents: "Personalunterlagen",
   "*": "Alle",
 };
 
@@ -142,6 +144,12 @@ const permissionDescriptions: Record<string, string> = {
   // Staff Stammdaten
   "staff:financial":
     "Bank- und Steuerdaten von Mitarbeitenden ansehen und bearbeiten (IBAN, Steuer-ID, SV-Nummer)",
+  "staff:stammdaten":
+    "Personalstammdaten von Mitarbeitenden ansehen und bearbeiten (Geburtsdatum, Privatanschrift, Notfallkontakt, Vertrag, Qualifikationen)",
+  "staff:documents":
+    "Allgemeine Personalunterlagen von Mitarbeitenden verwalten (Arbeitsvertrag, Zeugnis, Bewerbung, Sonstiges)",
+  "staff:manage":
+    "Mitarbeiter-Datensätze anderer Personen ändern (Notizen, Betreuungsprofil, Qualifikationen)",
 
   // Guardian payment data
   "guardians:financial":

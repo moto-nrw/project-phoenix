@@ -81,6 +81,8 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -145,6 +147,15 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	groups, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{
+		DB: db,
+		Observe: func(observation schoolStructureCompose.Observation) {
+			observability.ObserveSchoolStructureOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolStructureModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
 	mealPlanSettings := mealplanCompose.NewSettings()
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db,
@@ -178,7 +189,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
-		organizations, persons,
+		organizations, persons, groups,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,

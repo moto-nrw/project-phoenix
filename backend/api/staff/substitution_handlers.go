@@ -169,7 +169,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Create teacher response using pre-loaded data (false for wasPresentToday - not needed here)
-		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false, "", "", "", "", ""))
+		responses = append(responses, newTeacherResponse(r.Context(), teacher.Staff, teacher, false, "", "", "", "", ""))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available staff members retrieved successfully")

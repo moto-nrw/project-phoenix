@@ -33,6 +33,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -417,6 +418,7 @@ func NewFactoryWithModules(
 	logger *slog.Logger,
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
+	groups schoolstructure.Query,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -426,10 +428,10 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("organization tenancy, people directory, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -439,6 +441,7 @@ func newFactory(
 	cfg FactoryConfig,
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
+	groups schoolstructure.Query,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -454,6 +457,8 @@ func newFactory(
 	// Persons first: the school projections sort by the names this binds.
 	repos.BindPeopleDirectory(persons)
 	repos.BindOrganizationTenancy(organizations)
+	repos.BindSchoolStructure(groups)
+	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
 	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 

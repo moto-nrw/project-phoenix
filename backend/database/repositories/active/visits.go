@@ -985,7 +985,6 @@ func (r *VisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.Contex
 		ColumnExpr("v.updated_at").
 		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
 		ColumnExpr("s.group_id").
-		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
 		ColumnExpr("s.sick").
 		ColumnExpr("s.sick_since").
 		ColumnExpr("s.excused").
@@ -993,7 +992,6 @@ func (r *VisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.Contex
 		ColumnExpr("s.photo_path").
 		TableExpr("active.visits AS v").
 		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
-		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
 		Where("v.active_group_id = ?", activeGroupID).
 		Where("v.exit_time IS NULL").
 		OrderExpr("v.entry_time DESC").

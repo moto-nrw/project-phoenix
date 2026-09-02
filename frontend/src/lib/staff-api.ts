@@ -2000,7 +2000,7 @@ async function throwStammdatenError(
 }
 
 // Stammdaten (#1423): section-scoped master data of one staff member. The
-// non-sensitive sections ride on users:read/users:update, the bank & tax
+// non-sensitive sections ride on staff:stammdaten (#2906), the bank & tax
 // section is staff:financial only — callers gate rendering on the permission
 // so no request fires without it.
 class StaffStammdatenService {
