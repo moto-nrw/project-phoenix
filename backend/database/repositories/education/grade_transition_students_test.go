@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -72,7 +73,9 @@ func TestGradeTransitionRepository_ReleaseStudentTagsByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	// The tag writes run through the People Directory composition (#2661),
+	// so the test drives the composed repository the service graph uses.
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns nothing for an empty id list", func(t *testing.T) {
@@ -119,7 +122,7 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := education.NewGradeTransitionRepository(db)
+	repo := newPersonComposedGradeTransitionRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("does nothing without a ledgered tag", func(t *testing.T) {
@@ -489,4 +492,14 @@ func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, records)
 	})
+}
+
+// newPersonComposedGradeTransitionRepository returns the grade transition
+// repository as the service graph composes it: the RFID tag commands are
+// served through the People Directory (#2661).
+func newPersonComposedGradeTransitionRepository(t *testing.T, db *bun.DB) educationModels.GradeTransitionRepository {
+	t.Helper()
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	return factory.GradeTransition
 }

@@ -52,7 +52,9 @@ func TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules(t *testing.
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	ctx := context.Background()
+	// Supervisor names resolve through the People Directory, which needs the
+	// tenant runtime on every read (#2661).
+	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "with-details-original")
 	staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
@@ -60,7 +62,7 @@ func TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules(t *testing.
 	group.Name = "with-details-renamed"
 
 	var updated *activitiesModels.Group
-	txErr := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, ctx, db), db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		updated, err = service.UpdateGroupWithDetails(txCtx, group, 0, true, []int64{staff.ID}, nil)
 		return err

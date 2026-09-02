@@ -60,9 +60,8 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 	type row struct {
 		StudentID         int64          `bun:"student_id"`
 		TenantID          int64          `bun:"tenant_id"`
+		PersonID          int64          `bun:"person_id"`
 		GuardianProfileID int64          `bun:"guardian_profile_id"`
-		FirstName         string         `bun:"first_name"`
-		LastName          string         `bun:"last_name"`
 		SchoolClass       string         `bun:"school_class"`
 		Status            string         `bun:"status"`
 		EnrolledFrom      *timezone.Date `bun:"enrolled_from"`
@@ -70,13 +69,14 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 		Permissions       map[string]any `bun:"guardian_permissions"`
 	}
 
+	// The person names, the deleted-person filter, and the name order are
+	// applied by the composition layer through the People Directory (#2661).
 	const query = `
 		SELECT
 			s.id           AS student_id,
 			s.tenant_id    AS tenant_id,
+			s.person_id    AS person_id,
 			gp.id          AS guardian_profile_id,
-			p.first_name   AS first_name,
-			p.last_name    AS last_name,
 			COALESCE(s.school_class, '') AS school_class,
 			s.status       AS status,
 			s.enrolled_from  AS enrolled_from,
@@ -92,15 +92,11 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 		JOIN users.students AS s
 			ON s.id        = sg.student_id
 			AND s.tenant_id = at.tenant_id
-		JOIN users.persons AS p
-			ON p.id        = s.person_id
-			AND p.tenant_id = at.tenant_id
 		WHERE at.account_id = ?
 		  AND at.status     = 'active'
-		  AND p.deleted_at IS NULL
 		  AND s.status     <> ?
 		  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-		ORDER BY first_name, last_name
+		ORDER BY s.tenant_id, s.id
 	`
 
 	var rows []row
@@ -117,9 +113,8 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 		out = append(out, &parentModels.ChildSummary{
 			StudentID:           rr.StudentID,
 			TenantID:            rr.TenantID,
+			PersonID:            rr.PersonID,
 			GuardianProfileID:   rr.GuardianProfileID,
-			FirstName:           rr.FirstName,
-			LastName:            rr.LastName,
 			SchoolClass:         rr.SchoolClass,
 			Status:              rr.Status,
 			EnrolledFrom:        rr.EnrolledFrom,
@@ -154,9 +149,8 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 	type row struct {
 		StudentID         int64          `bun:"student_id"`
 		TenantID          int64          `bun:"tenant_id"`
+		PersonID          int64          `bun:"person_id"`
 		GuardianProfileID int64          `bun:"guardian_profile_id"`
-		FirstName         string         `bun:"first_name"`
-		LastName          string         `bun:"last_name"`
 		SchoolClass       string         `bun:"school_class"`
 		Status            string         `bun:"status"`
 		EnrolledFrom      *timezone.Date `bun:"enrolled_from"`
@@ -168,9 +162,8 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		SELECT
 			s.id           AS student_id,
 			s.tenant_id    AS tenant_id,
+			s.person_id    AS person_id,
 			gp.id          AS guardian_profile_id,
-			p.first_name   AS first_name,
-			p.last_name    AS last_name,
 			COALESCE(s.school_class, '') AS school_class,
 			s.status       AS status,
 			s.enrolled_from  AS enrolled_from,
@@ -186,13 +179,9 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		JOIN users.students AS s
 			ON s.id        = sg.student_id
 			AND s.tenant_id = at.tenant_id
-		JOIN users.persons AS p
-			ON p.id        = s.person_id
-			AND p.tenant_id = at.tenant_id
 		WHERE at.account_id = ?
 		  AND s.id          = ?
 		  AND at.status     = 'active'
-		  AND p.deleted_at IS NULL
 		  AND s.status     <> ?
 		  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 		LIMIT 1
@@ -215,9 +204,8 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 	return &parentModels.ChildSummary{
 		StudentID:           rr.StudentID,
 		TenantID:            rr.TenantID,
+		PersonID:            rr.PersonID,
 		GuardianProfileID:   rr.GuardianProfileID,
-		FirstName:           rr.FirstName,
-		LastName:            rr.LastName,
 		SchoolClass:         rr.SchoolClass,
 		Status:              rr.Status,
 		EnrolledFrom:        rr.EnrolledFrom,

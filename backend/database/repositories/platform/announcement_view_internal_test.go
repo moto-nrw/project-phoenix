@@ -21,3 +21,14 @@ func TestBuildUnreadArgs_CountMatchesPlaceholders(t *testing.T) {
 			len(args), expectedArgs, fromPlaceholders, wherePlaceholders)
 	}
 }
+
+func TestUnreadWhereClauseUsesDatabaseClockForActivityWindow(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(unreadWhereClause, "a.published_at <= CURRENT_TIMESTAMP") {
+		t.Error("published_at activity check must use the database clock")
+	}
+	if !strings.Contains(unreadWhereClause, "a.expires_at > CURRENT_TIMESTAMP") {
+		t.Error("expires_at activity check must use the database clock")
+	}
+}

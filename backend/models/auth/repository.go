@@ -179,6 +179,7 @@ type TokenRepository interface {
 	DeleteByTenantIDReturning(ctx context.Context, tenantID int64) ([]*Token, error)
 
 	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*Token, error)
+	RetireFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
 }
 
@@ -371,6 +372,17 @@ type AccountTenantAccessInfo struct {
 	DeactivatedAt    *time.Time `bun:"deactivated_at" json:"deactivated_at,omitempty"`
 	HasPerson        bool       `bun:"has_person" json:"has_person"`
 	HasStaff         bool       `bun:"has_staff" json:"has_staff"`
+}
+
+// CaregiverChain is the staff and teacher record behind one person at one
+// school. The account listings combine it with the People Directory's
+// person rows to derive the caregiver facts (#2661).
+type CaregiverChain struct {
+	PersonID    int64  `bun:"person_id"`
+	TenantID    int64  `bun:"tenant_id"`
+	StaffID     int64  `bun:"staff_id"`
+	TeacherID   int64  `bun:"teacher_id"`
+	TeacherRole string `bun:"teacher_role"`
 }
 
 // AccountTenantRepository defines operations for querying account-tenant mappings.

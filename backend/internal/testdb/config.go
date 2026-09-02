@@ -6,9 +6,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/uptrace/bun/driver/pgdriver"
 )
+
+const testConnectionReadTimeout = time.Minute
+const testConnectionTimezone = "Europe/Berlin"
 
 const (
 	// lifecycleAdvisoryLockKey serializes all test-database DDL (template
@@ -67,6 +71,10 @@ func NewConfig(dsn string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	query := parsed.Query()
+	query.Set("read_timeout", testConnectionReadTimeout.String())
+	query.Set("timezone", testConnectionTimezone)
+	parsed.RawQuery = query.Encode()
 	return &Config{templateURL: parsed}, nil
 }
 
@@ -126,10 +134,20 @@ func (c *Config) DatabaseDSN(name string) string {
 
 // openSQL opens a small throwaway pool for lifecycle DDL and checks.
 func openSQL(dsn string) *sql.DB {
-	db := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
+	db := sql.OpenDB(newLifecycleConnector(dsn))
 	db.SetMaxOpenConns(2)
 	db.SetMaxIdleConns(1)
 	return db
+}
+
+func newLifecycleConnector(dsn string) *pgdriver.Connector {
+	return pgdriver.NewConnector(
+		pgdriver.WithDSN(dsn),
+		// Lifecycle DDL can legitimately wait behind another worktree's clone
+		// or forced checkpoint. Every caller already supplies a bounded context,
+		// so the driver's shorter 10-second socket default must not preempt it.
+		pgdriver.WithReadTimeout(0),
+	)
 }
 
 // acquireLifecycleLock pins the cross-process lifecycle lock to one

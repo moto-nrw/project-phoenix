@@ -127,7 +127,10 @@ type AuthService interface {
 	GetActiveTokens(ctx context.Context, accountID int) ([]*auth.Token, error)
 
 	// Tenant Switching
-	SwitchTenant(ctx context.Context, accountID int64, tenantSlug string) (accessToken, refreshToken string, err error)
+	// presentedFamilyID is the refresh-token family behind the caller's access
+	// token; it is retired with a short grace period because the browser
+	// replaces that session with the returned one. Empty skips retirement.
+	SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (accessToken, refreshToken string, err error)
 	// HasSchoolPortalAccess reports whether the account still holds a
 	// school-portal role at this school. For surfaces that authenticate once
 	// and then stay open for the token's whole lifetime — the school SSE

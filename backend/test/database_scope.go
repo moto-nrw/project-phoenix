@@ -21,12 +21,42 @@ var perTestDatabases bool
 // calling SetupTestDB; only the exceptional package pays the isolation cost.
 func PerTestDatabases() { perTestDatabases = true }
 
+// Explicit isolated clones are substantially heavier than tenant-isolated
+// tests on the package database: each clone has its own pool and CREATE
+// DATABASE copies the complete template. With -p 4 and -parallel 8, allowing
+// every package test to clone at once creates an I/O spike of up to 32
+// databases and makes otherwise unrelated queries time out. One explicit
+// clone per package bounds that spike to four databases while ordinary tests
+// and packages intentionally running wholly on per-test databases remain
+// parallel.
+const maxConcurrentIsolatedTestDatabases = 1
+
+type isolatedTestDatabaseLimiter struct {
+	slots chan struct{}
+}
+
+func newIsolatedTestDatabaseLimiter(limit int) *isolatedTestDatabaseLimiter {
+	return &isolatedTestDatabaseLimiter{slots: make(chan struct{}, limit)}
+}
+
+func (l *isolatedTestDatabaseLimiter) acquire() func() {
+	l.slots <- struct{}{}
+	var once sync.Once
+	return func() {
+		once.Do(func() { <-l.slots })
+	}
+}
+
+var isolatedTestDatabaseSlots = newIsolatedTestDatabaseLimiter(maxConcurrentIsolatedTestDatabases)
+
 type isolatedTestDatabase struct {
-	once    sync.Once
-	db      *bun.DB
-	clone   *testdb.CloneHandle
-	runtime tenant.UnitOfWork
-	err     error
+	once        sync.Once
+	dropOnce    sync.Once
+	db          *bun.DB
+	clone       *testdb.CloneHandle
+	runtime     tenant.UnitOfWork
+	releaseSlot func()
+	err         error
 }
 
 var isolatedTestDatabases sync.Map // top-level test name -> *isolatedTestDatabase
@@ -51,11 +81,16 @@ func setupIsolatedTestDB(tb testing.TB) *bun.DB {
 }
 
 func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) {
+	if !perTestDatabases {
+		entry.releaseSlot = isolatedTestDatabaseSlots.acquire()
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	entry.clone, err = testdb.CreateClone(ctx, packageCloneCfg, testdb.RunID()+"-"+name)
 	if err != nil {
+		entry.drop()
 		return err
 	}
 	defer func() {
@@ -122,16 +157,20 @@ func openTestPool(dsn string) (*bun.DB, error) {
 }
 
 func (entry *isolatedTestDatabase) drop() {
-	if entry.db != nil {
-		_ = entry.db.Close()
-	}
-	if entry.clone == nil {
-		return
-	}
-	_ = entry.clone.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	_ = testdb.DropClone(ctx, packageCloneCfg, entry.clone.Name)
+	entry.dropOnce.Do(func() {
+		if entry.db != nil {
+			_ = entry.db.Close()
+		}
+		if entry.clone != nil {
+			_ = entry.clone.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			_ = testdb.DropClone(ctx, packageCloneCfg, entry.clone.Name)
+		}
+		if entry.releaseSlot != nil {
+			entry.releaseSlot()
+		}
+	})
 }
 
 func isolatedTestDSN(tb testing.TB) (string, bool) {

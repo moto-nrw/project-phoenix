@@ -204,7 +204,6 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 	type enrollmentResult struct {
 		Enrollment *activities.StudentEnrollment `bun:"student_enrollment"`
 		Student    *users.Student                `bun:"student"`
-		Person     *users.Person                 `bun:"person"`
 	}
 
 	var results []enrollmentResult
@@ -238,16 +237,9 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		ColumnExpr(`"student".guardian_email AS "student__guardian_email"`).
 		ColumnExpr(`"student".guardian_phone AS "student__guardian_phone"`).
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
-		ColumnExpr(`"person".id AS "person__id"`).
-		ColumnExpr(`"person".created_at AS "person__created_at"`).
-		ColumnExpr(`"person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".first_name AS "person__first_name"`).
-		ColumnExpr(`"person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
-		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		// Properly schema-qualified joins
+		// Properly schema-qualified joins. Student.Person is attached by the
+		// composition layer through the People Directory.
 		Join(`LEFT JOIN users.students AS "student" ON "student".id = "student_enrollment".student_id`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		// Filter by group ID
 		Where(`"student_enrollment".activity_group_id = ?`, groupID)
 
@@ -269,9 +261,6 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 	for i, result := range results {
 		enrollments[i] = result.Enrollment
 		enrollments[i].Student = result.Student
-		if result.Student != nil {
-			result.Student.Person = result.Person
-		}
 	}
 
 	return enrollments, nil

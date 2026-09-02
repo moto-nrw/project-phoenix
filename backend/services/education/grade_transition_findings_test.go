@@ -10,7 +10,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -210,7 +209,7 @@ func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo: educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo: newGradeTransitionRepository(t, db),
 		StudentRepo:    usersRepo.NewStudentRepository(db),
 		PersonRepo:     usersRepo.NewPersonRepository(db),
 		VisitRepo:      activeRepo.NewVisitRepository(db),
@@ -388,7 +387,7 @@ func TestGradeTransitionService_SuggestMappings_CountErrorPropagates(t *testing.
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo: &failingCountRepo{
-			GradeTransitionRepository: educationRepo.NewGradeTransitionRepository(db),
+			GradeTransitionRepository: newGradeTransitionRepository(t, db),
 		},
 	})
 

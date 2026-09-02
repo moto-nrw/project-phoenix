@@ -82,6 +82,13 @@ type Service interface {
 	// having to dig out the email-link status URL.
 	ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error)
 
+	// GetChildConsents returns the four consent/acknowledgement states currently
+	// stored for the child. Visibility requires parent_portal.access; only the
+	// voluntary photo consent can be withdrawn through this interface.
+	GetChildConsents(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error)
+	WithdrawPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error)
+	GrantPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error)
+
 	GetProfile(ctx context.Context, accountID int64) (*Profile, error)
 
 	UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*Profile, error)
@@ -510,6 +517,8 @@ type ServiceConfig struct {
 	// pickup/emergency flag change (append-only).
 	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
 	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
+	StudentConsents         usersSvc.StudentConsentService
+	StudentPhotos           usersSvc.StudentPhotoService
 
 	DB     *bun.DB
 	Logger *slog.Logger
@@ -553,6 +562,18 @@ func (s *service) todayDate() timezone.Date {
 // would force every test double to grow a method none of them call.
 type AbsenceNotifierSetter interface {
 	SetAbsenceNotifier(notifier notificationsSvc.AbsenceNotifier)
+}
+
+// StudentPhotoSetter injects the photo lifecycle after API bootstrap. The
+// unlinker lives in the API layer, so the parent service cannot receive this
+// dependency during the main service-factory construction.
+type StudentPhotoSetter interface {
+	SetStudentPhotos(photos usersSvc.StudentPhotoService)
+}
+
+// SetStudentPhotos implements StudentPhotoSetter.
+func (s *service) SetStudentPhotos(photos usersSvc.StudentPhotoService) {
+	s.StudentPhotos = photos
 }
 
 // SetAbsenceNotifier implements AbsenceNotifierSetter.

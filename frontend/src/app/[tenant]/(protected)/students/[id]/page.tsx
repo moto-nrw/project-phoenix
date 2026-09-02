@@ -53,6 +53,7 @@ import {
   type AggregatedRequestFilters,
 } from "~/components/students/aggregated-request-list";
 import { FamilyProtectionControl } from "~/components/students/family-protection-control";
+import { StudentConsentsReadOnly } from "~/components/students/student-consents-read-only";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -1756,6 +1757,7 @@ function FullAccessView({
             onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
           />
         )}
+        <StudentConsentsReadOnly consents={student.consents} />
         {canManageFamilyProtection ? (
           <SectionCard
             title="Familienschutz"

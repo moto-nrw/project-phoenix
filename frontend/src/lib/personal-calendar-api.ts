@@ -1,4 +1,7 @@
 import { toISODate } from "~/lib/date-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "personal-calendar-api" });
 
 interface ApiEnvelope<T> {
   readonly status?: string;
@@ -137,16 +140,46 @@ function unwrap<T>(json: ApiEnvelope<T>): T {
   return json as T;
 }
 
-async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-    credentials: "include",
+// Shown when the request never arrived or the answer came back unreadable —
+// cases where the school user has nothing to correct, only to retry.
+const REQUEST_FAILED_MESSAGE =
+  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
+
+/**
+ * One German sentence for a failure that carries no message from the backend.
+ *
+ * The calendar page renders `error.message` verbatim in its red box, so a
+ * native browser error used to land in front of school staff: Safari reports a
+ * truncated or non-JSON 2xx body as "The string did not match the expected
+ * pattern." (its default SyntaxError text), and a cut connection as "Load
+ * failed". Both are English, technical, and name nothing the reader can do.
+ * The technical detail goes to the log instead — client logs ship to
+ * /api/logs, which is where a stale or truncated response is diagnosable.
+ */
+function requestFailed(path: string, stage: string, cause: unknown): Error {
+  logger.error("calendar_request_failed", {
+    path,
+    stage,
+    error: cause instanceof Error ? cause.message : String(cause),
   });
+  return new Error(REQUEST_FAILED_MESSAGE, { cause });
+}
+
+async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...init?.headers,
+      },
+      credentials: "include",
+    });
+  } catch (cause) {
+    throw requestFailed(path, "network", cause);
+  }
   if (!response.ok) {
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
     try {
@@ -158,7 +191,23 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message);
   }
   if (response.status === 204) return undefined as T;
-  return unwrap<T>((await response.json()) as ApiEnvelope<T>);
+
+  // Read the body as text and parse it here rather than calling
+  // response.json(): a browser's parse failure carries an English native
+  // message, and this is the one place that can turn it into readable German
+  // before it reaches the calendar's error box.
+  let body: string;
+  try {
+    body = await response.text();
+  } catch (cause) {
+    throw requestFailed(path, "body", cause);
+  }
+  if (body.trim() === "") throw requestFailed(path, "empty", "empty body");
+  try {
+    return unwrap<T>(JSON.parse(body) as ApiEnvelope<T>);
+  } catch (cause) {
+    throw requestFailed(path, "parse", cause);
+  }
 }
 
 function buildCalendarQuery(from: Date, to: Date): string {

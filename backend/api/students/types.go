@@ -210,8 +210,9 @@ type SupervisorContact struct {
 // StudentDetailResponse represents a detailed student response with access control
 type StudentDetailResponse struct {
 	StudentResponse
-	HasFullAccess  bool `json:"has_full_access"`
-	HasWriteAccess bool `json:"has_write_access"`
+	HasFullAccess  bool                     `json:"has_full_access"`
+	HasWriteAccess bool                     `json:"has_write_access"`
+	Consents       []StudentConsentResponse `json:"consents,omitempty"`
 	// HasAbsenceWriteAccess gates the Krankmeldung / Entschuldigung /
 	// Klassenfahrt actions specifically. It is a superset of HasWriteAccess: in
 	// a school running operations.group_mode = open_care, staff holding
@@ -221,6 +222,12 @@ type StudentDetailResponse struct {
 	GroupSupervisors      []SupervisorContact `json:"group_supervisors,omitempty"`
 	AttendanceLogEnabled  bool                `json:"attendance_log_enabled"`
 	FeedbackEnabled       bool                `json:"feedback_enabled"`
+}
+
+type StudentConsentResponse struct {
+	Key       string     `json:"key"`
+	State     string     `json:"state"`
+	ChangedAt *time.Time `json:"changed_at,omitempty"`
 }
 
 type StudentStatusDayResponse struct {

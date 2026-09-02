@@ -79,6 +79,7 @@ func (v *Visit) GetDuration() time.Duration {
 type VisitWithStudentDisplay struct {
 	VisitID       int64      `bun:"visit_id"`
 	StudentID     int64      `bun:"student_id"`
+	PersonID      int64      `bun:"person_id"`
 	ActiveGroupID int64      `bun:"active_group_id"`
 	EntryTime     time.Time  `bun:"entry_time"`
 	ExitTime      *time.Time `bun:"exit_time"`
