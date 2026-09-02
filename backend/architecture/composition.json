@@ -23133,7 +23133,7 @@
       "declaration": "TestGuestMembershipAdapter_FindsByStaffAndActiveWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        368
+        392
       ],
       "tables": []
     },
@@ -23143,7 +23143,7 @@
       "declaration": "TestStaffMembershipAdapter_AccountActivityStaysTenantScoped",
       "target": "database/repositories.NewFactory",
       "lines": [
-        202
+        226
       ],
       "tables": [
         "auth.account_tenants",
@@ -23176,9 +23176,21 @@
       "declaration": "TestStaffMembershipAdapter_CalendarReachabilityUsesEffectivePermissions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        237
+        261
       ],
       "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/staff_membership_adapters_test.go",
+      "declaration": "TestStaffMembershipAdapter_ExcludesSoftDeletedPersons",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        202
+      ],
+      "tables": [
+        "users.persons"
+      ]
     },
     {
       "scope": "test",
@@ -23196,7 +23208,7 @@
       "declaration": "TestStaffMembershipAdapter_ListRejectsUnknownFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        396
+        420
       ],
       "tables": []
     },
@@ -23226,7 +23238,7 @@
       "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversNeedAccountAndSystemRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        286
+        310
       ],
       "tables": []
     },
@@ -23236,7 +23248,7 @@
       "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversResolveInAdminContext",
       "target": "database/repositories.NewFactory",
       "lines": [
-        331
+        355
       ],
       "tables": [
         "users.teachers"
@@ -23248,7 +23260,7 @@
       "declaration": "TestTeacherMembershipAdapter_ResolvesStaffAndPerson",
       "target": "database/repositories.NewFactory",
       "lines": [
-        253
+        277
       ],
       "tables": []
     },

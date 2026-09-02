@@ -84,20 +84,21 @@ func (rs *Resource) teacherByStaff(ctx context.Context, staffID int64) *schoolme
 	return &teacher
 }
 
-// personFor loads the linked person. Best effort: a failure is logged, and
-// the response goes out without the person block, as before.
-func (rs *Resource) personFor(ctx context.Context, staff schoolmembership.Staff) *Person {
+// personFor loads the linked person. A missing person remains an empty person
+// block, as the previous left join did; other lookup failures reach the
+// handler so it can return an internal failure instead of partial data.
+func (rs *Resource) personFor(ctx context.Context, staff schoolmembership.Staff) (*Person, error) {
 	if staff.PersonID <= 0 {
-		return nil
+		return nil, nil
 	}
 	person, err := rs.runtime.Person(ctx, staff.PersonID)
 	if err != nil {
-		rs.runtime.Log.Warn("failed to get person data for staff member",
-			slog.Int64("staff_id", staff.ID),
-			slog.String("error", err.Error()))
-		return nil
+		if rs.runtime.PersonNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
 	}
-	return &person
+	return &person, nil
 }
 
 // personIndex batch-loads the persons behind a staff list, keyed by person ID.

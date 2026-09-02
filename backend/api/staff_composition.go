@@ -143,6 +143,7 @@ func newStaffResource(module schoolMembershipModule.Capability, svc *services.Fa
 		CurrentUsername:  currentStaffUsername,
 
 		Person:            staffPersonLookup(runtime),
+		PersonNotFound:    apiCommon.IsNotFound,
 		Persons:           staffPersonsLookup(runtime),
 		PersonIDByAccount: runtime.PersonIDByAccount,
 

@@ -115,7 +115,12 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) resolveUpdateTarget(w http.ResponseWriter, r *http.Request, staff schoolmembership.Staff, personID int64) (*Person, bool) {
 	ctx := r.Context()
 	if staff.PersonID == personID {
-		return rs.personFor(ctx, staff), true
+		person, err := rs.personFor(ctx, staff)
+		if err != nil {
+			rs.internal(w, r, err)
+			return nil, false
+		}
+		return person, true
 	}
 	if !rs.runtime.HasPermission(permissions.UsersManage, rs.runtime.Permissions(ctx)) {
 		rs.failure(w, r, FailureForbidden, errors.New("insufficient permission to reassign a staff record to another person"), "forbidden")

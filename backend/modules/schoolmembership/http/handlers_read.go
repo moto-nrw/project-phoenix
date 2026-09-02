@@ -153,7 +153,11 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	person := rs.personFor(ctx, staff)
+	person, err := rs.personFor(ctx, staff)
+	if err != nil {
+		rs.internal(w, r, err)
+		return
+	}
 	access := rs.fieldAccess(ctx)
 
 	accountIDs := []int64{}
@@ -188,7 +192,11 @@ func (rs *Resource) getMinimalStaffProfile(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	person := rs.personFor(r.Context(), staff)
+	person, err := rs.personFor(r.Context(), staff)
+	if err != nil {
+		rs.internal(w, r, err)
+		return
+	}
 	if person == nil {
 		rs.failure(w, r, FailureNotFound, errors.New(msgStaffNotFound), "not_found")
 		return
@@ -215,7 +223,11 @@ func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	person := rs.personFor(ctx, staff)
+	person, personErr := rs.personFor(ctx, staff)
+	if personErr != nil {
+		http.NotFound(w, r)
+		return
+	}
 	if person == nil || person.AccountID == nil {
 		http.NotFound(w, r)
 		return

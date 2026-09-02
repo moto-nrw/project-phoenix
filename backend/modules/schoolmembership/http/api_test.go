@@ -253,6 +253,7 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 			}
 			return person, nil
 		},
+		PersonNotFound: func(err error) bool { return err.Error() == "person not found" },
 		Persons: func(_ context.Context, ids []int64) ([]staffHTTP.Person, error) {
 			if h.personsErr != nil {
 				return nil, h.personsErr
@@ -553,6 +554,31 @@ func TestGetStaffSplitsTeacherAndStaffBranch(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, invalid.Code)
 	assert.Equal(t, "invalid staff ID", decodeError(t, invalid).Error)
 	assert.Contains(t, h.observed, "Bad Request:invalid_parameters")
+}
+
+func TestGetStaffFailsWhenThePersonLookupFails(t *testing.T) {
+	t.Parallel()
+
+	h := withPersons(newHarness(t, directoryFixture()))
+	h.allow("users:read")
+	h.personErr = errors.New("person store down")
+
+	recorder := h.do(t, http.MethodGet, "/staff/1", nil)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Equal(t, "person store down", decodeError(t, recorder).Error)
+}
+
+func TestGetStaffKeepsMissingPersonResponse(t *testing.T) {
+	t.Parallel()
+
+	h := withPersons(newHarness(t, directoryFixture()))
+	h.allow("users:read")
+	delete(h.persons, h.membership.staff[1].PersonID)
+
+	recorder := h.do(t, http.MethodGet, "/staff/1", nil)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
 }
 
 func TestMinimalProfilesReturnIdentityOnly(t *testing.T) {

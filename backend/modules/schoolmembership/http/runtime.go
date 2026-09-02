@@ -154,8 +154,9 @@ type Runtime struct {
 	CurrentUsername  func(context.Context) string
 
 	// Person / Persons resolve People Directory entries for staff rows.
-	Person  func(context.Context, int64) (Person, error)
-	Persons func(context.Context, []int64) ([]Person, error)
+	Person         func(context.Context, int64) (Person, error)
+	PersonNotFound func(error) bool
+	Persons        func(context.Context, []int64) ([]Person, error)
 	// PersonIDByAccount reports the person linked to an account, if any.
 	PersonIDByAccount func(context.Context, int64) (int64, bool, error)
 
@@ -212,7 +213,7 @@ func NewResource(membership schoolmembership.Capability, runtime Runtime) *Resou
 		runtime.ServeAvatar == nil || runtime.WriteFailure == nil || runtime.SchoolClassFailure == nil ||
 		runtime.PINFailure == nil || runtime.Permissions == nil || runtime.HasPermission == nil ||
 		runtime.CurrentAccountID == nil || runtime.CurrentUsername == nil ||
-		runtime.Person == nil || runtime.Persons == nil || runtime.PersonIDByAccount == nil ||
+		runtime.Person == nil || runtime.PersonNotFound == nil || runtime.Persons == nil || runtime.PersonIDByAccount == nil ||
 		runtime.PresentStaffIDs == nil || runtime.WorkStatusMap == nil || runtime.AbsenceMap == nil ||
 		runtime.AbsenceLabelMap == nil || runtime.AccountRoles == nil || runtime.AccountEmails == nil ||
 		runtime.AccountAvatars == nil || runtime.AccountHasRole == nil ||

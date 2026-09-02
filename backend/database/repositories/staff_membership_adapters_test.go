@@ -195,6 +195,30 @@ func TestStaffMembershipAdapter_AccountIDsExcludeUnreachableStaff(t *testing.T) 
 	assert.NotContains(t, all, withoutAccount.ID)
 }
 
+func TestStaffMembershipAdapter_ExcludesSoftDeletedPersons(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	factory := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "Deleted", "Person")
+	_, err := db.NewRaw(`UPDATE users.persons SET deleted_at = NOW() WHERE id = ?`, staff.PersonID).Exec(ctx)
+	require.NoError(t, err)
+
+	accounts, err := factory.Staff.ListAccountIDsByStaffIDs(ctx, []int64{staff.ID})
+	require.NoError(t, err)
+	assert.NotContains(t, accounts, staff.ID)
+
+	all, err := factory.Staff.ListAllStaffAccountIDs(ctx)
+	require.NoError(t, err)
+	assert.NotContains(t, all, staff.ID)
+
+	withPerson, err := factory.Staff.FindWithPersonByIDs(ctx, []int64{staff.ID})
+	require.NoError(t, err)
+	require.Contains(t, withPerson, staff.ID)
+	assert.Nil(t, withPerson[staff.ID].Person)
+}
+
 func TestStaffMembershipAdapter_AccountActivityStaysTenantScoped(t *testing.T) {
 	t.Parallel()
 
