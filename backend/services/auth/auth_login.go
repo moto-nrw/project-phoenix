@@ -401,25 +401,30 @@ func (e *mintGuardError) Unwrap() error { return e.err }
 
 // createRefreshTokenWithRetry creates a refresh token with retry logic for concurrent logins
 func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth.Account, tenantID int64, scope string) (*auth.Token, error) {
-	return s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, scope, nil)
+	return s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, scope, nil, "")
 }
 
 // createRefreshTokenWithRetryGuarded is createRefreshTokenWithRetry with an
 // authorization re-check that runs inside the persistence transaction. A guard
 // failure is terminal — the retry loop only exists for token-family
 // collisions, and re-running a guard that just said "no" would be pointless.
+//
+// retireFamilyID (optional) names the caller's current family; it is retired
+// in the same transaction, before the session cap runs, so the new token
+// replaces that session instead of adding to it (tenant switch, #2952).
 func (s *Service) createRefreshTokenWithRetryGuarded(
 	ctx context.Context,
 	account *auth.Account,
 	tenantID int64,
 	scope string,
 	guard mintGuard,
+	retireFamilyID string,
 ) (*auth.Token, error) {
 	token := s.newRefreshToken(account.ID, scope)
 
 	maxRetries := 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := s.persistTokenInTransaction(ctx, account, token, tenantID, guard)
+		err := s.persistTokenInTransaction(ctx, account, token, tenantID, guard, retireFamilyID)
 
 		if err == nil {
 			return token, nil
@@ -468,7 +473,7 @@ func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 //
 // guard (optional) re-validates the caller's authorization inside this
 // transaction, before anything is written — see mintGuard.
-func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
+func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard, retireFamilyID string) error {
 	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		if err := s.applyMintGuard(ctx, account, guard); err != nil {
 			return err
@@ -482,6 +487,15 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		}
 		loginTime := time.Now()
 		account.LastLogin = &loginTime
+
+		// The replaced session keeps the rotation recovery grace for requests
+		// still carrying the old cookie. Retiring it here, after the account
+		// lock and before the cap, makes it the cap's first candidate.
+		if retireFamilyID != "" {
+			if err := s.repos.Token.RetireFamily(ctx, account.ID, retireFamilyID, loginTime.Add(rotation.RecoveryGrace)); err != nil {
+				return fmt.Errorf("retire replaced refresh-token family: %w", err)
+			}
+		}
 
 		// Set tenant ID from DB resolution (not from context — login is a public route)
 		token.SetTenantID(tenantID)

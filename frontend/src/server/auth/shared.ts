@@ -570,6 +570,13 @@ const refreshCacheMap = new Map<
 const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 100;
 
+// Refresh tokens the backend has explicitly rejected (401/403). A rejected
+// token never becomes valid again, and the session callback's terminal error
+// only reaches the cookie from a context that may set cookies. Until then,
+// every server-component request would repeat the doomed refresh (#2952);
+// this memo makes each dead token cost one backend call.
+const terminalRefreshKeys = new Map<string, number>();
+
 function createRefreshRecoveryProof(): string {
   return randomBytes(32).toString("base64url");
 }
@@ -629,6 +636,9 @@ function pruneRefreshCache(): void {
   for (const [key, entry] of refreshCacheMap) {
     if (now >= entry.expiresAt) refreshCacheMap.delete(key);
   }
+  for (const [key, expiresAt] of terminalRefreshKeys) {
+    if (now >= expiresAt) terminalRefreshKeys.delete(key);
+  }
   // Safety cap: if still too large, drop oldest entries
   if (refreshCacheMap.size > MAX_CACHE_ENTRIES) {
     const excess = refreshCacheMap.size - MAX_CACHE_ENTRIES;
@@ -644,6 +654,34 @@ function pruneRefreshCache(): void {
 export function _resetRefreshState(): void {
   activeRefreshes.clear();
   refreshCacheMap.clear();
+  terminalRefreshKeys.clear();
+}
+
+// A 401/403 from the refresh endpoint is final; everything else may be retried.
+// The dead token is remembered for as long as a cookie could still carry it.
+function classifyRefreshFailure(
+  status: number,
+  refreshKey: string,
+  refreshTokenExpiry: unknown,
+): RefreshAttempt {
+  if (status === 401 || status === 403) {
+    const rememberUntil =
+      typeof refreshTokenExpiry === "number"
+        ? refreshTokenExpiry
+        : Date.now() + REFRESH_CACHE_TTL_MS;
+    terminalRefreshKeys.set(refreshKey, rememberUntil);
+    if (terminalRefreshKeys.size > MAX_CACHE_ENTRIES) {
+      const oldest = terminalRefreshKeys.keys().next();
+      if (!oldest.done) terminalRefreshKeys.delete(oldest.value);
+    }
+    return { status: "terminal" };
+  }
+  return { status: "transient" };
+}
+
+function isKnownTerminalRefresh(refreshKey: string): boolean {
+  const expiresAt = terminalRefreshKeys.get(refreshKey);
+  return expiresAt !== undefined && Date.now() < expiresAt;
 }
 
 /** @internal Exposed for unit testing only */
@@ -780,6 +818,7 @@ async function refreshAdminTokenForPreview(
       refreshTokenExpiresAt: cached.refreshTokenExpiresAt,
     };
   }
+  if (isKnownTerminalRefresh(refreshKey)) return { status: "terminal" };
 
   const inflight = activeRefreshes.get(refreshKey);
   if (inflight) return inflight;
@@ -823,9 +862,11 @@ async function refreshAdminTokenForPreview(
       logger.warn("staff_preview_admin_refresh_failed", {
         status: response.status,
       });
-      return response.status === 401 || response.status === 403
-        ? { status: "terminal" }
-        : { status: "transient" };
+      return classifyRefreshFailure(
+        response.status,
+        refreshKey,
+        token.refreshTokenExpiry,
+      );
     } catch (err) {
       logger.warn("staff_preview_admin_refresh_error", {
         error: err instanceof Error ? err.message : String(err),
@@ -1213,10 +1254,13 @@ export const sharedJwtCallback: NonNullable<
   }
 
   // RefreshTokenError is terminal and is set only after the backend has
-  // explicitly rejected the refresh session (401/403) after access expiry.
-  // Timeouts, network interruptions, and 5xx responses preserve the refresh
-  // token so a sleeping/offline tablet can retry when connectivity returns.
-  // Once terminal, the session callback strips both tokens and requires login.
+  // explicitly rejected the refresh session (401/403). That rejection is
+  // final (the token was revoked, replaced, or never existed), so the session
+  // ends right away instead of retrying on every request until the access
+  // token expires (#2952). Timeouts, network interruptions, and 5xx responses
+  // preserve the refresh token so a sleeping/offline tablet can retry when
+  // connectivity returns. Once terminal, the session callback strips both
+  // tokens and requires login.
   if (token.error === "RefreshTokenError") {
     return token;
   }
@@ -1274,6 +1318,14 @@ export const sharedJwtCallback: NonNullable<
       return token;
     }
 
+    // The backend already rejected this token: no second attempt.
+    if (isKnownTerminalRefresh(refreshKey)) {
+      token.error = "RefreshTokenError";
+      token.needsRefresh = true;
+      logger.warn("token_refresh_terminal_failure_remembered");
+      return token;
+    }
+
     // Join in-flight refresh for the SAME token (per-token dedup)
     const inflight = activeRefreshes.get(refreshKey);
     if (inflight) {
@@ -1291,10 +1343,10 @@ export const sharedJwtCallback: NonNullable<
           syncTokenFromPayload(token, inflightPayload);
         }
         logger.info("proactive_token_refresh_succeeded");
-      } else if (attempt.status === "terminal" && now > tokenExpiry) {
+      } else if (attempt.status === "terminal") {
         token.error = "RefreshTokenError";
         token.needsRefresh = true;
-        logger.warn("token_refresh_terminal_failure_post_expiry");
+        logger.warn("token_refresh_terminal_failure");
       } else if (attempt.status === "transient") {
         logger.warn("token_refresh_deferred_after_transient_failure");
       }
@@ -1357,9 +1409,11 @@ export const sharedJwtCallback: NonNullable<
           status: response.status,
           scope: token.scope,
         });
-        return response.status === 401 || response.status === 403
-          ? { status: "terminal" }
-          : { status: "transient" };
+        return classifyRefreshFailure(
+          response.status,
+          refreshKey,
+          token.refreshTokenExpiry,
+        );
       } catch (err) {
         logger.warn("proactive_token_refresh_error", {
           error: err instanceof Error ? err.message : String(err),
@@ -1387,10 +1441,10 @@ export const sharedJwtCallback: NonNullable<
         syncTokenFromPayload(token, refreshedPayload);
       }
       logger.info("proactive_token_refresh_succeeded");
-    } else if (attempt.status === "terminal" && now > tokenExpiry) {
+    } else if (attempt.status === "terminal") {
       token.error = "RefreshTokenError";
       token.needsRefresh = true;
-      logger.warn("token_refresh_terminal_failure_post_expiry");
+      logger.warn("token_refresh_terminal_failure");
     } else if (attempt.status === "transient") {
       logger.warn("token_refresh_deferred_after_transient_failure");
     }

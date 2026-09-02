@@ -395,6 +395,10 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 //
 // Tenant and org share the staff allowance. Unknown legacy rows are isolated
 // so a known-portal login cannot evict a session whose portal is unknown.
+//
+// Sessions closest to expiry are evicted first. Families retired by a tenant switch
+// (RetireFamily) sit at the end of the order, so a burst of switches evicts
+// its own leftovers before it touches a session on another device (#2952).
 func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, portalScope string, keepCount int) ([]*auth.Token, error) {
 	scopes := auth.CapPortalScopes(portalScope)
 	var tokens []*auth.Token
@@ -405,7 +409,7 @@ func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Contex
 		Where(`"token".portal_scope IN (?)`, bun.List(scopes)).
 		Where(`"token".rotated_at IS NULL`).
 		Where(`"token".expiry > ?`, time.Now()).
-		OrderExpr(`"token".id DESC`)
+		OrderExpr(`"token".expiry DESC, "token".id DESC`)
 	if !tenant.IsAdminTx(ctx) {
 		selectQuery = base.WithTenantFilter(ctx, selectQuery, "token")
 	}
@@ -432,6 +436,27 @@ func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Contex
 		return nil, &modelBase.DatabaseError{Op: "delete and return old tokens", Err: base.TranslateNotFound(err)}
 	}
 	return deleted, nil
+}
+
+// RetireFamily caps the expiry of a family's live tokens so a tenant switch
+// hands the browser's previous session a bounded grace period instead of
+// leaving it alive for the full refresh lifetime. UPDATE ... LEAST() on one
+// family is a domain operation the generic column update cannot express.
+func (r *TokenRepository) RetireFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Set(`expiry = LEAST("token".expiry, ?)`, expiry).
+		Where(`"token".account_id = ?`, accountID).
+		Where(`"token".family_id = ?`, familyID).
+		Where(`"token".rotated_at IS NULL`)
+	if !tenant.IsAdminTx(ctx) {
+		query = base.WithTenantFilter(ctx, query, "token")
+	}
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "retire refresh-token family", Err: base.TranslateNotFound(err)}
+	}
+	return nil
 }
 
 // DeleteByFamilyIDReturning uses DELETE ... RETURNING so family revocation and

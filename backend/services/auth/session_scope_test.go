@@ -226,7 +226,7 @@ func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 		_, _, err = service.Login(ctx, email, testPassword)
 		require.NoError(t, err)
 	}
-	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID))
+	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), "")
 	require.NoError(t, err)
 
 	count, err := db.NewSelect().

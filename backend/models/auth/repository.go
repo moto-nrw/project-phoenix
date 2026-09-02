@@ -179,6 +179,7 @@ type TokenRepository interface {
 	DeleteByTenantIDReturning(ctx context.Context, tenantID int64) ([]*Token, error)
 
 	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*Token, error)
+	RetireFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
 }
 
