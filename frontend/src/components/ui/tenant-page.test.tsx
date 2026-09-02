@@ -1,6 +1,15 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { TenantPage, TenantPageStats } from "./tenant-page";
+
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...props }: ComponentProps<"a">) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 describe("TenantPage", () => {
   it("rendert Titel als einzige h1, Statuszeile und Aktionen in der Kopfkarte", () => {
@@ -139,6 +148,30 @@ describe("TenantPage", () => {
 
     fireEvent.click(inaktiv);
     expect(onChange).toHaveBeenCalledWith("dokumente");
+  });
+
+  it("lässt einen Reiter mit Zielpfad wie einen Link navigieren", () => {
+    const onChange = vi.fn();
+    render(
+      <TenantPage
+        title="Datenverwaltung"
+        tabs={{
+          value: "kinder",
+          onChange,
+          items: [
+            { value: "kinder", label: "Kinder" },
+            { value: "personal", label: "Personal", href: "/personal" },
+          ],
+        }}
+      />,
+    );
+
+    const tab = screen.getByRole("tab", { name: "Personal" });
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    tab.dispatchEvent(event);
+
+    expect(onChange).toHaveBeenCalledWith("personal");
+    expect(event.defaultPrevented).toBe(false);
   });
 
   it("setzt zwischen die Wert-Label-Paare der Statuszeile ein Trennzeichen", () => {

@@ -59,6 +59,7 @@ vi.mock("~/lib/swr", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useCareOfferingsEnabled: mocks.useCareOfferingsEnabled,
+  useTenantRoutingModeSafe: () => "path",
   useTenantSlugSafe: () => "demo",
 }));
 

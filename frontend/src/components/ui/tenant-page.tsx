@@ -592,10 +592,8 @@ function TenantPageTabs({
           className={className}
           onClick={(event: MouseEvent<HTMLAnchorElement>) => {
             // Mittelklick und Klick mit Zusatztaste öffnen ein zweites
-            // Dokument -- die aktuelle Seite bleibt stehen, dort gibt es
-            // nichts zu bewachen. Der schlichte Linksklick navigiert dagegen
-            // weg und läuft deshalb weiter über `onChange`, das den Wächter
-            // für ungespeicherte Änderungen befragt.
+            // Dokument. Der schlichte Linksklick meldet den Reiterwechsel
+            // zusätzlich, lässt die Link-Navigation aber unangetastet.
             if (
               event.defaultPrevented ||
               event.button !== 0 ||
@@ -606,7 +604,6 @@ function TenantPageTabs({
             ) {
               return;
             }
-            event.preventDefault();
             onChange(item.value);
           }}
         >

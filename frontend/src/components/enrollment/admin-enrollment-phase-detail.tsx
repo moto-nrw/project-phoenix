@@ -70,6 +70,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
 import { studentService } from "~/lib/api";
@@ -135,6 +136,7 @@ const CARE_USAGE_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const careOfferingsEnabled = useCareOfferingsEnabled();
   const tenantSlug = useTenantSlugSafe();
+  const tenantPath = useTenantAwarePath();
   const toast = useToast();
   const [phase, setPhase] = useState<Phase | null>(null);
   const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
@@ -337,14 +339,13 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [classRosterSchoolClass, phaseId, toast],
   );
 
-  const overviewHref = "/admin/enrollments";
+  const overviewPath = "/admin/enrollments";
+  const overviewHref = tenantPath(overviewPath);
 
   const requestHref = useCallback(
     (requestId: string) =>
-      tenantSlug
-        ? `/${tenantSlug}/admin/enrollments/${requestId}`
-        : `/admin/enrollments/${requestId}`,
-    [tenantSlug],
+      tenantPath(`/admin/enrollments/${encodeURIComponent(requestId)}`),
+    [tenantPath],
   );
 
   const loadData = useCallback(
@@ -722,7 +723,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       <TenantPage
         title="Anmeldephase"
         back
-        backHref={overviewHref}
+        backHref={overviewPath}
         backLabel="Zurück zur Anmeldungs-Übersicht"
         statsLoading
         loading
@@ -735,7 +736,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       <TenantPage
         title="Anmeldephase"
         back
-        backHref={overviewHref}
+        backHref={overviewPath}
         backLabel="Zurück zur Anmeldungs-Übersicht"
         error={error}
       />
@@ -747,7 +748,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       <TenantPage
         title="Anmeldephase"
         back
-        backHref={overviewHref}
+        backHref={overviewPath}
         backLabel="Zurück zur Anmeldungs-Übersicht"
         leading={<ConceptIconTile concept="enrollments" variant="page" />}
         empty={{
@@ -774,7 +775,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     <TenantPage
       title={phase.name}
       back
-      backHref={overviewHref}
+      backHref={overviewPath}
       backLabel="Zurück zur Anmeldungs-Übersicht"
       stats={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)} · ${stats.total} ${stats.total === 1 ? "Eingang" : "Eingänge"} · ${stats.open} offen`}
       leading={<ConceptIconTile concept="enrollments" variant="page" />}
@@ -806,7 +807,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             />
           ) : null}
           <ButtonLink
-            href="/enrollment-phases"
+            href={tenantPath("/enrollment-phases")}
             variant="outline"
             size="md"
             className="inline-flex items-center justify-center"
