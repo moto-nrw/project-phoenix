@@ -29496,7 +29496,7 @@
       "declaration": "TestListSickDays_ExcludesStaffCreatedExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        833
+        840
       ],
       "tables": []
     },
@@ -29506,7 +29506,7 @@
       "declaration": "TestSubmitSickNote_ClearsClassTripForSubmittedDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        561
+        568
       ],
       "tables": []
     },
@@ -29516,7 +29516,7 @@
       "declaration": "TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        393
+        400
       ],
       "tables": []
     },
@@ -29526,7 +29526,7 @@
       "declaration": "TestSubmitSickNote_NonContiguousExcludesUnrelatedRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        704
+        711
       ],
       "tables": []
     },
@@ -29536,7 +29536,7 @@
       "declaration": "TestSubmitSickNote_RefusesPartialAbsenceConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        355
+        362
       ],
       "tables": []
     },
@@ -29546,7 +29546,7 @@
       "declaration": "buildMessagingWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        112
+        119
       ],
       "tables": []
     },
@@ -29556,7 +29556,7 @@
       "declaration": "buildWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        85
+        89
       ],
       "tables": []
     },
