@@ -1250,7 +1250,6 @@ function StudentDetailPageContent() {
         confirmText={checkingOut ? "Wird abgemeldet..." : "Geht nach Hause"}
         cancelText="Abbrechen"
         isConfirmLoading={checkingOut}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
       >
         <p>
           Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
@@ -1266,7 +1265,6 @@ function StudentDetailPageContent() {
         confirmText={checkingIn ? "Wird angemeldet..." : "Anmelden"}
         cancelText="Abbrechen"
         isConfirmLoading={checkingIn}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
       >
         <p>
           Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
@@ -1285,7 +1283,6 @@ function StudentDetailPageContent() {
         confirmText={sickConfirmText}
         cancelText="Abbrechen"
         isConfirmLoading={sickLoading}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
       >
         <p>
           {student.sick ? (
@@ -1332,7 +1329,6 @@ function StudentDetailPageContent() {
         confirmText={excusedConfirmText}
         cancelText="Abbrechen"
         isConfirmLoading={excusedLoading}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
       >
         <p>
           {isQuickExcused ? (
@@ -1363,7 +1359,6 @@ function StudentDetailPageContent() {
         confirmText={switchLoading ? "Wird gewechselt..." : "Status wechseln"}
         cancelText="Abbrechen"
         isConfirmLoading={switchLoading}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
       >
         <p>
           {switchTarget === "sick" ? (

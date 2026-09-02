@@ -481,7 +481,7 @@ export default function StaffImportPage() {
       )}
 
       {/* Download Template */}
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
+      <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
           <Download className="h-5 w-5 text-gray-600" aria-hidden="true" />
           Schritt 1: Vorlage herunterladen
@@ -536,7 +536,7 @@ export default function StaffImportPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
+      <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
           <RefreshCw className="h-5 w-5 text-gray-600" aria-hidden="true" />
           Schritt 2: Was soll der Import tun?
@@ -593,7 +593,7 @@ export default function StaffImportPage() {
             errors={stats.errors}
           />
 
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
+          <div className="moto-content-surface overflow-hidden rounded-xl border shadow-sm">
             <div className="border-b border-gray-100 p-4">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                 <ListChecks

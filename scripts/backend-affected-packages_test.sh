@@ -60,6 +60,25 @@ import "example.test/project/services/listexport"
 const Value = listexport.Value
 EOF
 printf 'package exportconsumer\n' >"$fixture/backend/exportconsumer/consumer_test.go"
+# Depth-2 import chain for the --direct (depth 1) mode, deliberately separate
+# from the core chain so the existing closure assertions stay untouched.
+mkdir -p "$fixture/backend"/{chainbase,chainmid,chainleaf}
+printf 'package chainbase\n\nconst Value = 1\n' >"$fixture/backend/chainbase/chainbase.go"
+printf 'package chainbase\n' >"$fixture/backend/chainbase/chainbase_test.go"
+cat >"$fixture/backend/chainmid/chainmid.go" <<'EOF'
+package chainmid
+
+import "example.test/project/chainbase"
+
+const Value = chainbase.Value
+EOF
+cat >"$fixture/backend/chainleaf/chainleaf.go" <<'EOF'
+package chainleaf
+
+import "example.test/project/chainmid"
+
+const Value = chainmid.Value
+EOF
 
 git -C "$fixture" init -q
 git -C "$fixture" config user.email selector-test@example.invalid
@@ -72,6 +91,11 @@ git -C "$fixture" update-ref refs/remotes/origin/base HEAD
 select_packages() {
   working_directory=${1:-$fixture}
   (cd "$working_directory" && "$repo_root/scripts/backend-affected-packages.sh" HEAD)
+}
+
+select_packages_direct() {
+  working_directory=${1:-$fixture}
+  (cd "$working_directory" && "$repo_root/scripts/backend-affected-packages.sh" --direct HEAD)
 }
 
 select_lint_packages() {
@@ -91,6 +115,16 @@ assert_output() {
   actual=$(select_packages "$working_directory")
   if [ "$actual" != "$expected" ]; then
     printf 'expected:\n%s\nactual:\n%s\n' "$expected" "$actual" >&2
+    exit 1
+  fi
+}
+
+assert_output_direct() {
+  expected=$1
+  working_directory=${2:-$fixture}
+  actual=$(select_packages_direct "$working_directory")
+  if [ "$actual" != "$expected" ]; then
+    printf 'expected (direct):\n%s\nactual:\n%s\n' "$expected" "$actual" >&2
     exit 1
   fi
 }
@@ -186,7 +220,18 @@ git -C "$fixture" restore backend/architecture/policy.json
 
 printf '\n// changed\n' >>"$fixture/backend/go.mod"
 assert_output './...'
+assert_output_direct './...'
 git -C "$fixture" restore backend/go.mod
+
+# --direct: depth-1 importers only, and no auto-appended ./test package.
+printf '\n// changed\n' >>"$fixture/backend/chainbase/chainbase.go"
+assert_output $'example.test/project/chainbase\nexample.test/project/chainleaf\nexample.test/project/chainmid\nexample.test/project/test'
+assert_output_direct $'example.test/project/chainbase\nexample.test/project/chainmid'
+git -C "$fixture" restore backend/chainbase/chainbase.go
+
+printf '\n// changed\n' >>"$fixture/backend/chainbase/chainbase_test.go"
+assert_output_direct 'example.test/project/chainbase'
+git -C "$fixture" restore backend/chainbase/chainbase_test.go
 
 mv "$fixture/backend/corex/corex.go" "$fixture/corex.go"
 if select_packages >/dev/null 2>&1; then
@@ -208,6 +253,9 @@ assert_workflow_filter backend-lint 'scripts/backend-affected-packages.sh' prese
 assert_workflow_filter backend-lint 'scripts/backend-affected-packages_test.sh' present
 assert_workflow_filter backend-lint 'scripts/backend-lint-packages.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-lint-packages.sh' present
+assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
+assert_workflow_filter backend-test-infra '.claude/hooks/guard-absolute-rules.sh' present
+assert_workflow_filter backend-test-infra '.claude/hooks/guard-absolute-rules_test.sh' present
 for pattern in \
   'backend/go.mod' \
   'backend/go.sum' \

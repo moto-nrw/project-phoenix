@@ -168,7 +168,10 @@ type Factory struct {
 	Attendance       activeModels.AttendanceRepository
 	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
 	// Statistics serves the aggregate reads of the Statistik page (#2606).
-	Statistics                      activeModels.StatisticsRepository
+	Statistics activeModels.StatisticsRepository
+	// CourseStatistics serves the course participation section of the
+	// Statistik page (#2891).
+	CourseStatistics                scheduleModels.CourseStatisticsRepository
 	ExcusedAbsenceRequest           activeModels.ExcusedAbsenceRequestRepository
 	WorkSession                     activeModels.WorkSessionRepository
 	WorkSessionBreak                activeModels.WorkSessionBreakRepository
@@ -484,6 +487,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		Attendance:                      attendance,
 		StudentStatusDay:                active.NewStudentStatusDayRepository(db),
 		Statistics:                      active.NewStatisticsRepository(db),
+		CourseStatistics:                schedule.NewCourseStatisticsRepository(db),
 		ExcusedAbsenceRequest:           active.NewExcusedAbsenceRequestRepository(db),
 		WorkSession:                     active.NewWorkSessionRepository(db, now),
 		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),

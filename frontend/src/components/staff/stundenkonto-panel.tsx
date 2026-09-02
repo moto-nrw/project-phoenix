@@ -13,8 +13,10 @@ import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
+import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
@@ -367,16 +369,16 @@ function AdjustmentModal({
           >
             {copy.amountLabel}
           </label>
-          <input
+          <Input
             id="adjustment-hours"
             type="number"
             min="0.25"
             max="1000"
             step="0.25"
+            controlSize="compact"
             value={hours}
             onChange={(e) => setHours(e.target.value)}
             placeholder="z. B. 8"
-            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
         <div>
@@ -523,14 +525,14 @@ function ResetModal({
           >
             Verbleibender Übertrag (Stunden)
           </label>
-          <input
+          <Input
             id="reset-carryover"
             type="number"
             min="0"
             step="0.25"
+            controlSize="compact"
             value={carryoverHours}
             onChange={(e) => setCarryoverHours(e.target.value)}
-            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
         <NoteField note={note} onChange={setNote} />
@@ -666,14 +668,14 @@ function OpeningModal({
           >
             Übernommener Saldo (Stunden)
           </label>
-          <input
+          <Input
             id="opening-balance"
             type="text"
             inputMode="decimal"
+            controlSize="compact"
             value={openingHours}
             onChange={(e) => setOpeningHours(e.target.value)}
             placeholder="z. B. 12,5 oder -3"
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
           />
         </div>
         <NoteField
@@ -741,13 +743,12 @@ function NoteField({
       >
         Begründung (Pflicht)
       </label>
-      <textarea
+      <Textarea
         id="adjustment-note"
         value={note}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
       />
     </div>
   );

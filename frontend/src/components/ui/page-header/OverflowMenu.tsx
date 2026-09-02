@@ -301,7 +301,7 @@ export function OverflowMenu({
               // escapes any clipping `overflow-hidden` ancestor. In
               // container-stretch mode the width comes from `menuStyle`, so the
               // 220px floor is dropped to let the menu match a narrow column.
-              className={`fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+              className={`moto-popover-surface fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border py-1 ${
                 matchContainerSelector ? "" : "min-w-[220px]"
               }`}
             >

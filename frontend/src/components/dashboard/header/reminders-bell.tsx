@@ -104,7 +104,7 @@ export function RemindersBell() {
         the bell.
       */}
       <div
-        className={`fixed top-14 right-3 left-3 z-50 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg transition-all duration-150 ease-out sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-80 ${
+        className={`moto-popover-surface fixed top-14 right-3 left-3 z-50 overflow-hidden rounded-2xl border transition-all duration-150 ease-out sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-80 ${
           isOpen
             ? "visible translate-y-0 opacity-100"
             : "invisible -translate-y-2 opacity-0"

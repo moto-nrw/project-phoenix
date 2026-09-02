@@ -446,7 +446,7 @@ function RoomsPageContent() {
           title="Raum löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+          confirmVariant="danger"
         >
           <p className="text-sm text-gray-700">
             Möchten Sie den Raum{" "}

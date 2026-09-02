@@ -244,7 +244,7 @@ function DatabaseContent() {
               <Link
                 key={section.id}
                 href={tenantPath(section.href)}
-                className="moto-content-surface moto-hover-elevated group relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                className="moto-content-surface moto-hover-elevated group relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
               >
                 <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // scheduleOutboxWorkerTask registers the platform email outbox tick.
@@ -46,6 +47,7 @@ func (s *Scheduler) resolveOutboxInterval() time.Duration {
 func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 	started := time.Now()
 	if !s.tenantRuntimeConfigured {
+		recordJobCommandFailure(ctx, tenant.ErrRuntimeRequired)
 		s.observeTenantRuntime("missing_tenant")
 		s.getLogger().Error("outbox worker runtime is not configured")
 		return
@@ -73,6 +75,7 @@ func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 	const batchSize = 25
 	processed, err := s.outboxWorker.RunOnce(ctx, batchSize)
 	if err != nil {
+		recordJobCommandFailure(ctx, err)
 		s.traceWorkerFailure(ctx, "email-outbox", "run_failure", err)
 		s.getLogger().Error("outbox worker tick failed",
 			slog.String("job_id", "email-outbox"),
@@ -86,6 +89,7 @@ func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 func (s *Scheduler) recordOutboxResult(ctx context.Context, processed int, started time.Time) {
 	backlog, err := s.outboxWorker.Backlog(ctx)
 	if err != nil {
+		recordJobCommandFailure(ctx, err)
 		s.traceWorkerFailure(ctx, "email-outbox", "backlog_failure", err)
 		s.getLogger().Error("outbox worker backlog query failed",
 			slog.String("job_id", "email-outbox"),

@@ -200,7 +200,7 @@ export function ArbeitszeitmodellTab({
           {schedule.weeklyTotals.map((total, idx) => (
             <div
               key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}
-              className="rounded-xl border border-gray-200 bg-white p-4"
+              className="moto-content-surface rounded-xl border p-4 shadow-sm"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
@@ -303,10 +303,10 @@ function FourWeekPreview({
           return (
             <div
               key={toDateKey(week.monday)}
-              className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
+              className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 shadow-sm ${
                 week.isCurrent
                   ? "border-[#F78C10]/40 bg-[#FFF4E6]"
-                  : "border-gray-200 bg-white"
+                  : "moto-content-surface"
               }`}
             >
               <span className="w-16 text-xs font-semibold tracking-wider text-gray-500 uppercase">

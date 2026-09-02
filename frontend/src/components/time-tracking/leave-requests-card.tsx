@@ -308,7 +308,7 @@ export function LeaveRequestsCard() {
         confirmText="Stornieren"
         cancelText="Behalten"
         isConfirmLoading={cancelSubmitting}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+        confirmVariant="danger"
       >
         {cancelTarget && (
           <div className="space-y-2 text-sm text-gray-700">
@@ -345,7 +345,7 @@ function AbsenceRequestItem({
       new Date(absence.dateStart).getTime() > currentTimestamp);
 
   return (
-    <li className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+    <li className="moto-content-surface rounded-xl border px-4 py-3 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-800">

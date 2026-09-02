@@ -385,7 +385,7 @@ function ActivitiesPageContent() {
                   type="button"
                   key={activity.id}
                   onClick={handleClick}
-                  className="moto-content-surface moto-hover-elevated group relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                  className="moto-content-surface moto-hover-elevated group relative w-full cursor-pointer overflow-hidden rounded-2xl border text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",
