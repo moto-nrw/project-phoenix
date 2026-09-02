@@ -2971,9 +2971,9 @@ function SearchPageContent() {
                   ))}
                 </ul>
                 <p className="text-sm text-gray-600">
-                  Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führst
-                  du die Aktion für genau diese Kinder noch einmal aus, auch
-                  wenn ein geänderter Filter sie gerade ausblendet.
+                  Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führen
+                  Sie die Aktion für diese Kinder noch einmal aus. Geänderte
+                  Filter blenden sie dabei nicht aus.
                 </p>
                 <div className="flex justify-end gap-2">
                   <Button

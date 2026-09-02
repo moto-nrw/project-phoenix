@@ -20,7 +20,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Die Statuszeile zählt die vom Standard abweichenden Einstellungen.
-const mockUseSettingsSchema = vi.fn(() => ({ data: null, isLoading: false }));
+const mockUseSettingsSchema = vi.fn<
+  () => { data: unknown; isLoading: boolean }
+>(() => ({ data: null, isLoading: false }));
 vi.mock("~/lib/hooks/use-settings-schema", () => ({
   useSettingsSchema: () => mockUseSettingsSchema(),
 }));
@@ -110,6 +112,42 @@ describe("SettingsPage", () => {
         screen.getByRole("tab", { name: "Datenschutz" }),
       ).toBeInTheDocument();
       expect(screen.getByText("Tab content")).toBeInTheDocument();
+    });
+  });
+
+  it("counts overrides only in visible settings tabs", async () => {
+    mockUseSettingsTabs.mockReturnValue({
+      tabs: [{ id: "settings-operations", label: "Betrieb", icon: "settings" }],
+      renderTab: () => <div>Tab content</div>,
+    });
+    mockUseSettingsSchema.mockReturnValue({
+      data: {
+        tabs: [
+          {
+            key: "operations",
+            categories: [
+              {
+                items: [{ visible: true, is_default: false }],
+              },
+            ],
+          },
+          {
+            key: "abrechnung",
+            categories: [
+              {
+                items: [{ visible: true, is_default: false }],
+              },
+            ],
+          },
+        ],
+      },
+      isLoading: false,
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/1 abweichend von der Vorgabe/)).toBeVisible();
     });
   });
 });

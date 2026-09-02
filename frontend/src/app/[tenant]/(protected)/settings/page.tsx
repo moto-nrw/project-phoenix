@@ -41,19 +41,24 @@ function SettingsContent() {
   // der Vorgabe abweichen — beides aus dem ohnehin geladenen Schema.
   const overrides = useMemo(
     () =>
-      (schema?.tabs ?? []).reduce(
-        (sum, tab) =>
-          sum +
-          tab.categories.reduce(
-            (inner, category) =>
-              inner +
-              category.items.filter((item) => item.visible && !item.is_default)
-                .length,
-            0,
-          ),
-        0,
-      ),
-    [schema],
+      (schema?.tabs ?? [])
+        .filter((tab) =>
+          flatTabItems.some((item) => item.value === `settings-${tab.key}`),
+        )
+        .reduce(
+          (sum, tab) =>
+            sum +
+            tab.categories.reduce(
+              (inner, category) =>
+                inner +
+                category.items.filter(
+                  (item) => item.visible && !item.is_default,
+                ).length,
+              0,
+            ),
+          0,
+        ),
+    [flatTabItems, schema],
   );
 
   if (status === "loading" || schemaLoading) {

@@ -15,7 +15,6 @@ import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   berlinTodayISO,
@@ -268,15 +267,12 @@ export default function AbsencesPage() {
   }, [todayIso]);
 
   // Statuszeile unter dem Titel: gezählte Einträge der aktuellen Seite und der
-  // gewählte Zeitraum. Beim ersten Laden hält ein Skeleton die Zeile.
-  const statusLine =
-    isLoading || !entries ? (
-      <Skeleton className="h-4 w-56" />
-    ) : (
-      `${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"}${
+  // gewählte Zeitraum. Der Ladezustand gehört separat in die Kopfkarte.
+  const statusLine = entries
+    ? `${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"}${
         displayedPage > 1 || hasMore ? ` auf Seite ${displayedPage}` : ""
       } · ${formatDate(effectiveFromIso!)} bis ${formatDate(effectiveToIso!)}`
-    );
+    : null;
 
   const isEmpty =
     error === null &&
@@ -290,6 +286,7 @@ export default function AbsencesPage() {
     <TenantPage
       title="Abwesenheiten"
       stats={statusLine}
+      statsLoading={isLoading || !entries}
       actions={
         <DateRangePicker
           value={range}
