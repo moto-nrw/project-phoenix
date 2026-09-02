@@ -269,7 +269,7 @@ describe("StaffDetailContent permissions", () => {
     },
   );
 
-  it.each(["users:update", "staff:financial"])(
+  it.each(["staff:stammdaten", "staff:financial"])(
     "shows Stammdaten to a role with %s",
     (permission) => {
       vi.mocked(useSession).mockReturnValue({
@@ -317,7 +317,7 @@ describe("StaffDetailContent permissions", () => {
     expect(replaceMock).not.toHaveBeenCalled();
   });
 
-  it.each(["users:update", "staff:financial"])(
+  it.each(["staff:documents", "staff:financial"])(
     "opens the documents tab from a document-directory deep link for %s",
     (permission) => {
       searchParams.set("tab", "dokumente");

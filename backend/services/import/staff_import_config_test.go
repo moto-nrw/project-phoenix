@@ -543,3 +543,38 @@ func TestStaffImportConfig_InvitationServiceCompileGuard(t *testing.T) {
 func (r stubStaffAccountRepo) AnonymizeForDeletion(context.Context, int64, string) error {
 	return nil
 }
+
+// TestStaffImportConfig_AuthorizeImportMode pins the permission boundary of
+// the update-capable import modes (#2906): users:create alone files new
+// records, changing existing ones needs both personnel permissions.
+func TestStaffImportConfig_AuthorizeImportMode(t *testing.T) {
+	t.Parallel()
+
+	config := NewStaffImportConfig(StaffImportDeps{})
+	cases := []struct {
+		name        string
+		mode        importModels.ImportMode
+		permissions []string
+		forbidden   bool
+	}{
+		{name: "create needs no personnel permission", mode: importModels.ImportModeCreate, permissions: []string{"users:create"}},
+		{name: "update refused for users:create alone", mode: importModels.ImportModeUpdate, permissions: []string{"users:create", "users:update"}, forbidden: true},
+		{name: "upsert refused for users:create alone", mode: importModels.ImportModeUpsert, permissions: []string{"users:create"}, forbidden: true},
+		{name: "update refused with staff:manage only", mode: importModels.ImportModeUpdate, permissions: []string{"users:create", "staff:manage"}, forbidden: true},
+		{name: "update refused with staff:stammdaten only", mode: importModels.ImportModeUpdate, permissions: []string{"users:create", "staff:stammdaten"}, forbidden: true},
+		{name: "update allowed with both personnel permissions", mode: importModels.ImportModeUpdate, permissions: []string{"users:create", "staff:manage", "staff:stammdaten"}},
+		{name: "upsert allowed for admin wildcard", mode: importModels.ImportModeUpsert, permissions: []string{"admin:*"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := ContextWithImporterPermissions(context.Background(), tc.permissions)
+			err := config.AuthorizeImportMode(ctx, tc.mode)
+			if tc.forbidden {
+				require.ErrorIs(t, err, ErrImportModeForbidden)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}

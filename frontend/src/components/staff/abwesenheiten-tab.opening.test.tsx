@@ -127,7 +127,9 @@ const existingOpening = {
 };
 
 function renderTab() {
-  return render(<AbwesenheitenTab staffId="4" canEdit canManageSickReports />);
+  return render(
+    <AbwesenheitenTab staffId="4" canEdit canEditQuota canManageSickReports />,
+  );
 }
 
 describe("AbwesenheitenTab vacation takeover", () => {
@@ -234,6 +236,7 @@ describe("AbwesenheitenTab vacation takeover", () => {
       <AbwesenheitenTab
         staffId="4"
         canEdit={false}
+        canEditQuota={false}
         canManageSickReports={false}
       />,
     );

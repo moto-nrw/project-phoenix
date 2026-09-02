@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -20,11 +20,15 @@ import { cn } from "~/lib/utils";
  *
  * `collapsible` opts into the disclosure toggle the staff Stammdaten tab uses
  * (many sections on one long page). Sections that are already short — the
- * parents portal's — leave it off.
+ * parents portal's — leave it off. The open state is uncontrolled by default
+ * (`defaultCollapsed`); pass `collapsed` when a parent owns it, e.g. to open
+ * the section that holds a deep-linked field or to expand every section at
+ * once (settings page, #2830).
  */
 export function SectionCard({
   kicker,
   title,
+  titleBadge,
   description,
   icon: Icon,
   leading,
@@ -34,6 +38,7 @@ export function SectionCard({
   testId,
   collapsible = false,
   defaultCollapsed = false,
+  collapsed: collapsedProp,
   onCollapsedChange,
   headingLevel = 2,
   titleClassName,
@@ -51,6 +56,8 @@ export function SectionCard({
    * className="moto-content-surface …">` selbst gebaut.
    */
   title?: string;
+  /** Small badge next to the title, e.g. a `StatusBadge` with a count. */
+  titleBadge?: ReactNode;
   description?: ReactNode;
   icon?: LucideIcon;
   /** Existing icon tile or other leading visual for non-Lucide icon systems. */
@@ -69,6 +76,8 @@ export function SectionCard({
   testId?: string;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
+  /** Controlled open state; `onCollapsedChange` then reports the requested one. */
+  collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
   /** 1 for a page's primary section, 2 (default) for the rest. */
   headingLevel?: 1 | 2 | 3;
@@ -80,7 +89,9 @@ export function SectionCard({
   children?: ReactNode;
   id?: string;
 }>) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [collapsedState, setCollapsedState] = useState(defaultCollapsed);
+  const collapsed = collapsedProp ?? collapsedState;
+  const bodyId = useId();
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
   const headerActions = actions ?? action;
   const hasBody = children != null && children !== false && children !== "";
@@ -123,16 +134,25 @@ export function SectionCard({
                   {kicker}
                 </p>
               )}
-              {title != null && (
-                <Heading
+              {(title != null || titleBadge != null) && (
+                <div
                   className={cn(
-                    "text-base font-semibold text-balance text-gray-900",
+                    "flex flex-wrap items-center gap-2",
                     kicker && "mt-1",
-                    titleClassName,
                   )}
                 >
-                  {title}
-                </Heading>
+                  {title != null && (
+                    <Heading
+                      className={cn(
+                        "text-base font-semibold text-balance text-gray-900",
+                        titleClassName,
+                      )}
+                    >
+                      {title}
+                    </Heading>
+                  )}
+                  {titleBadge}
+                </div>
               )}
               {description && (
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
@@ -158,9 +178,10 @@ export function SectionCard({
                   : `${title ?? "Abschnitt"} einklappen`
               }
               aria-expanded={!collapsed}
+              aria-controls={showBody ? bodyId : undefined}
               onClick={() => {
                 const next = !collapsed;
-                setCollapsed(next);
+                if (collapsedProp === undefined) setCollapsedState(next);
                 onCollapsedChange?.(next);
               }}
             >
@@ -174,6 +195,7 @@ export function SectionCard({
       )}
       {showBody && (
         <div
+          id={collapsible ? bodyId : undefined}
           className={
             hasHeader && !bare ? (bodyClassName ?? "mt-4") : bodyClassName
           }

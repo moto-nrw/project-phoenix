@@ -11,7 +11,7 @@ vi.mock("next-auth/react", () => ({
       user: {
         id: "1",
         token: "test-token",
-        permissions: ["users:manage"],
+        permissions: ["users:manage", "users:delete", "staff:manage"],
       },
       expires: "2099-01-01",
     },
@@ -188,7 +188,7 @@ vi.mock("@/components/teachers/staff-master-detail", () => ({
     selectedTeacher?: { name: string } | null;
     onSelect: (id: string | null) => void;
     onEditClick: () => void;
-    onDeleteClick: () => void;
+    onDeleteClick?: () => void;
     onUpdateNotes: (notes: string) => Promise<void>;
     onManageCaregiver?: () => void;
   }) => (
@@ -221,13 +221,15 @@ vi.mock("@/components/teachers/staff-master-detail", () => ({
           >
             Edit
           </button>
-          <button
-            type="button"
-            data-testid="trigger-delete"
-            onClick={onDeleteClick}
-          >
-            Delete
-          </button>
+          {onDeleteClick ? (
+            <button
+              type="button"
+              data-testid="trigger-delete"
+              onClick={onDeleteClick}
+            >
+              Delete
+            </button>
+          ) : null}
           <button
             type="button"
             data-testid="trigger-deselect"
@@ -235,13 +237,15 @@ vi.mock("@/components/teachers/staff-master-detail", () => ({
           >
             Close
           </button>
-          <button
-            type="button"
-            data-testid="trigger-notes"
-            onClick={() => void onUpdateNotes("Updated note")}
-          >
-            Save Notes
-          </button>
+          {onUpdateNotes ? (
+            <button
+              type="button"
+              data-testid="trigger-notes"
+              onClick={() => void onUpdateNotes("Updated note")}
+            >
+              Save Notes
+            </button>
+          ) : null}
           {onManageCaregiver ? (
             <button
               type="button"
@@ -368,7 +372,7 @@ describe("TeachersPage", () => {
         user: {
           id: "1",
           token: "test-token",
-          permissions: ["users:manage"],
+          permissions: ["users:manage", "users:delete", "staff:manage"],
         },
         expires: "2099-01-01",
       },
@@ -501,6 +505,103 @@ describe("TeachersPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("invitation-form")).toBeInTheDocument();
     });
+  });
+
+  // #2906: Personalnotizen gehören zum Mitarbeiter-Datensatz und brauchen
+  // staff:manage. Ohne die Berechtigung darf die Oberfläche die Aktion nicht
+  // anbieten — das Backend antwortet dort mit 403.
+  it("hides the notes editor without staff:manage", async () => {
+    setSelectedStaff("1");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["users:read", "users:update"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("trigger-notes")).not.toBeInTheDocument();
+  });
+
+  it("hides delete and the account actions without users:delete / users:manage", async () => {
+    setSelectedStaff("1");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["users:read", "staff:manage"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("trigger-delete")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("trigger-caregiver")).not.toBeInTheDocument();
+    // Der Datensatz selbst bleibt mit staff:manage bearbeitbar.
+    expect(screen.getByTestId("trigger-notes")).toBeInTheDocument();
+  });
+
+  // #2906: Der Personal-Import hängt im Backend an users:create
+  // (POST /api/import/teachers), nicht an der Leitungsrolle.
+  it("shows the staff import link with users:create", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["staff:manage", "users:create"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    expect(screen.getByRole("link", { name: "Importieren" })).toHaveAttribute(
+      "href",
+      "/database/personal/import",
+    );
+  });
+
+  it("hides the staff import link without users:create", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["staff:manage", "users:manage"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    expect(
+      screen.queryByRole("link", { name: "Importieren" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides invitation controls without users:manage", () => {

@@ -170,9 +170,20 @@ function StaffPageContent() {
   // users:read: sie zeigt Arbeitszeitdaten identifizierbarer Personen.
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
   const canReadUsers = hasPermission(session, "users:read");
+  // Personalstammdaten und Mitarbeiter-Datensatz (#2906). Beide Rechte
+  // beziehen sich auf eine bestimmte Person, sind also nur zu gebrauchen,
+  // wenn man diese Person auch finden kann — deshalb öffnen sie wie
+  // users:read die Mitarbeiterliste. Das Backend gatet GET /api/staff
+  // seit #2906 identisch.
+  const canEditStammdaten = hasPermission(session, "staff:stammdaten");
+  const canManageStaffRecords = hasPermission(session, "staff:manage");
+  const canListStaff =
+    canReadUsers || canEditStammdaten || canManageStaffRecords;
+  // Personalunterlagen hängen an staff:documents, nicht mehr an users:update
+  // (#2906): users:update hält die Betreuer-Standardrolle für die Kinderdaten.
   const canAccessDocuments =
     userIsAdmin ||
-    hasPermission(session, "users:update") ||
+    hasPermission(session, "staff:documents") ||
     hasPermission(session, "staff:financial") ||
     hasPermission(session, "staff_documents:health");
   // Document-only roles have no other staff view to navigate from. Roles that
@@ -181,7 +192,7 @@ function StaffPageContent() {
   const documentDirectoryOnly =
     canAccessDocuments &&
     !userIsAdmin &&
-    !canReadUsers &&
+    !canListStaff &&
     !canManageTimeTracking;
 
   // State variables for filters
@@ -206,11 +217,11 @@ function StaffPageContent() {
   const [saldoPreset, setSaldoPreset] = useState<SaldoPresetId>("all");
   const [customSaldoHours, setCustomSaldoHours] = useState("");
   const [showCustomSaldo, setShowCustomSaldo] = useState(false);
-  // Ohne users:read ist die Statusansicht nicht erlaubt. Manage-only-Konten
-  // landen deshalb direkt in den Zeitkonten, können aber zwischen Zeitkonten
-  // und Änderungsprotokoll wechseln.
+  // Ohne Zugriff auf die Mitarbeiterliste ist die Statusansicht nicht
+  // erlaubt. Zeitkonten-Konten landen deshalb direkt in den Zeitkonten,
+  // können aber zwischen Zeitkonten und Änderungsprotokoll wechseln.
   const view =
-    canReadUsers || selectedView === "audit" || selectedView === "documents"
+    canListStaff || selectedView === "audit" || selectedView === "documents"
       ? selectedView
       : "accounts";
   const showDocumentDirectory =
@@ -224,7 +235,7 @@ function StaffPageContent() {
     isLoading,
     error: staffError,
   } = useSWRAuth<Staff[]>(
-    canReadUsers ? "staff-list" : null,
+    canListStaff ? "staff-list" : null,
     async () => {
       const staffData = await staffService.getAllStaff({});
       return sortStaff(staffData);
@@ -269,7 +280,7 @@ function StaffPageContent() {
       : (saldoBounds.max ?? undefined);
 
   const needsAuditStaffOptions =
-    canManageTimeTracking && view === "audit" && !canReadUsers;
+    canManageTimeTracking && view === "audit" && !canListStaff;
   const accountsKey =
     canManageTimeTracking && view === "accounts"
       ? `staff-time-accounts-${monthAnchor.year}-${monthAnchor.month}-${employmentFilter}-${saldoMin ?? ""}-${saldoMax ?? ""}`
@@ -364,13 +375,13 @@ function StaffPageContent() {
   }, [accounts, searchTerm]);
   const auditStaffOptions = useMemo(
     () =>
-      canReadUsers
+      canListStaff
         ? (staffData ?? []).map((row) => ({ id: row.id, name: row.name }))
         : (accounts?.rows ?? []).map((row) => ({
             id: row.staffId,
             name: row.name,
           })),
-    [accounts?.rows, canReadUsers, staffData],
+    [accounts?.rows, canListStaff, staffData],
   );
 
   // Open absence requests (#1419): feeds the per-card pending indicators and
@@ -625,7 +636,7 @@ function StaffPageContent() {
     status === "loading" || isLoading || isDocumentDirectoryLoading;
 
   if (!showSkeleton) {
-    if (!canReadUsers && !canManageTimeTracking && !canAccessDocuments) {
+    if (!canListStaff && !canManageTimeTracking && !canAccessDocuments) {
       return <ForbiddenPage />;
     }
 
@@ -690,7 +701,7 @@ function StaffPageContent() {
   // und Unterlagen sind Verwaltungsflächen und gehören nicht gleichrangig
   // neben die tägliche Ansicht.
   const tabItems = [
-    ...(canReadUsers ? [{ value: "status", label: "Status" }] : []),
+    ...(canListStaff ? [{ value: "status", label: "Status" }] : []),
     { value: "accounts", label: "Zeitkonten" },
     { value: "audit", label: "Änderungsprotokoll" },
     ...(canAccessDocuments
@@ -893,11 +904,23 @@ function StaffPageContent() {
                   const pendingRequestCount =
                     pendingByStaff.get(Number(staffMember.id)) ?? 0;
 
-                  const canNavigateToStaff = userIsAdmin || canAccessDocuments;
-                  const navigateToStaff = () =>
+                  // Die Karte führt nur dann weiter, wenn dort auch etwas
+                  // freigeschaltet ist: das Profil mit Unterlagen oder
+                  // Stammdaten, sonst der Personal-Datensatz in der
+                  // Datenverwaltung (staff:manage, #2906).
+                  const profileTabAvailable =
+                    userIsAdmin || canAccessDocuments || canEditStammdaten;
+                  const canNavigateToStaff =
+                    profileTabAvailable || canManageStaffRecords;
+                  const navigateToStaff = () => {
+                    if (!profileTabAvailable) {
+                      router.push(`/database/personal?staff=${staffMember.id}`);
+                      return;
+                    }
                     router.push(
                       `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
                     );
+                  };
 
                   return (
                     <TileCard

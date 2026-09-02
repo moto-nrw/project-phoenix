@@ -19,6 +19,8 @@ interface TeacherEditModalProps {
   ) => Promise<void>;
   readonly loading?: boolean;
   readonly existingPositions?: readonly string[];
+  // Vorname, Nachname und NFC-Karte liegen am Personen-Datensatz (#2906).
+  readonly canEditPersonFields?: boolean;
 }
 
 const EMPTY_POSITIONS: readonly string[] = [];
@@ -34,6 +36,7 @@ export function TeacherEditModal({
   onSave,
   loading = false,
   existingPositions = EMPTY_POSITIONS,
+  canEditPersonFields = true,
 }: TeacherEditModalProps) {
   if (!teacher) return null;
 
@@ -69,6 +72,7 @@ export function TeacherEditModal({
               wrapInCard={false}
               submitLabel="Speichern"
               existingPositions={existingPositions}
+              canEditPersonFields={canEditPersonFields}
             />
           )}
         </div>

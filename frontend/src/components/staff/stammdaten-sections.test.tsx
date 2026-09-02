@@ -107,7 +107,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
     swrErrors.current = new Map();
   });
 
-  it("zeigt alle Sektionen mit Werten, aber ohne Bearbeiten-Buttons ohne users:update", () => {
+  it("zeigt alle Sektionen mit Werten, aber ohne Bearbeiten-Buttons ohne staff:stammdaten", () => {
     seedSWR();
     render(
       <StammdatenTab
@@ -134,7 +134,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("zeigt mit users:update EIN Bearbeiten für den ganzen Reiter", () => {
+  it("zeigt mit staff:stammdaten EIN Bearbeiten für den ganzen Reiter", () => {
     seedSWR();
     render(
       <StammdatenTab

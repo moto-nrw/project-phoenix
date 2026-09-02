@@ -33,7 +33,7 @@ import { useSWRAuth } from "~/lib/swr";
 // Dokumente tab (#1424, phase 1): flat file list per staff member with
 // upload, download, audited delete and category filter. The backend already
 // filters per category permission (AU → staff_documents:health, Lohn →
-// staff:financial, rest → users:update) and sends the caller's visible
+// staff:financial, rest → staff:documents, #2906) and sends the caller's visible
 // categories — the tab renders exactly that, no client-side authority.
 
 const logger = createLogger({ component: "DokumenteTab" });

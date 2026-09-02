@@ -234,7 +234,12 @@ func (rs *Resource) Router() chi.Router {
 			// Role management routes
 			r.Route("/roles", func(r chi.Router) {
 				r.With(common.RequiresPermission("roles:create")).Post("/", rs.createRole)
-				r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.listRoles)
+				// The list carries names and descriptions only (no
+				// permissions). Whoever may create users (users:create)
+				// assigns one of these roles by name, in the staff import
+				// for instance, so they read the list too; role details and
+				// permission sets stay behind roles:read (#2906).
+				r.With(common.RequiresAnyPermission(permRolesRead, permUsersCreate)).Get("/", rs.listRoles)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
 					r.With(common.RequiresPermission("roles:update")).Put("/", rs.updateRole)

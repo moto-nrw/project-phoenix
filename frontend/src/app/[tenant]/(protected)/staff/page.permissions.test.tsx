@@ -228,6 +228,29 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=dokumente");
   });
 
+  it("führt mit staff:manage von der Karte zum Personal-Datensatz (#2906)", () => {
+    const staff = [
+      {
+        id: "42",
+        name: "Datensatz Test",
+        firstName: "Datensatz",
+        lastName: "Test",
+        hasRfid: false,
+        isTeacher: false,
+        isSupervising: false,
+        supervisions: [],
+      },
+    ];
+    staffListRequest.data = staff;
+    getAllStaff.mockResolvedValue(staff);
+    mockSession(["users:read", "staff:manage"]);
+
+    render(<StaffPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Datensatz Test/ }));
+    expect(routerPush).toHaveBeenCalledWith("/database/personal?staff=42");
+  });
+
   it("behält mit time_tracking:manage die Zeitkonten statt der Dokumentenansicht", () => {
     documentDirectoryRequest.data = [
       {
