@@ -1,5 +1,8 @@
 "use client";
 
+import type { CSSProperties } from "react";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+
 // Segmented single-choice control: a small, fixed set of mutually exclusive
 // options rendered as one control.
 //
@@ -39,11 +42,32 @@ export interface SegmentedControlItem<T extends string> {
 // anderen Umschalter); die Farbtöne bleiben für die wenigen Fälle, in denen
 // die Wahl selbst eine Bedeutung trägt (Arbeitsmodus). Form und Höhe sind in
 // allen Fällen dieselben — nur die Tönung wechselt.
-const ACTIVE_PILL: Record<SegmentedControlTone, string> = {
-  neutral: "bg-white text-gray-900 shadow-sm",
-  green: "bg-[#83CD2D]/15 text-[#3F6F12] shadow-sm",
-  blue: "bg-[#5080D8]/15 text-[#5080D8] shadow-sm",
-  red: "bg-[#DC2626]/15 text-[#B91C1C] shadow-sm",
+const ACTIVE_PILL: Record<
+  SegmentedControlTone,
+  { className: string; style?: CSSProperties }
+> = {
+  neutral: { className: "bg-white text-gray-900 shadow-sm" },
+  green: {
+    className: "shadow-sm",
+    style: {
+      backgroundColor: MOTO_COLOR_PALETTE.green.soft,
+      color: MOTO_COLOR_PALETTE.green.strong,
+    },
+  },
+  blue: {
+    className: "shadow-sm",
+    style: {
+      backgroundColor: MOTO_COLOR_PALETTE.blue.soft,
+      color: MOTO_COLOR_PALETTE.blue.base,
+    },
+  },
+  red: {
+    className: "shadow-sm",
+    style: {
+      backgroundColor: MOTO_COLOR_PALETTE.red.soft,
+      color: MOTO_COLOR_PALETTE.red.strong,
+    },
+  },
 };
 
 export function SegmentedControl<T extends string>({
@@ -95,6 +119,7 @@ export function SegmentedControl<T extends string>({
       >
         {items.map((item) => {
           const active = item.value === value;
+          const activePill = ACTIVE_PILL[item.tone ?? "neutral"];
           return (
             <button
               key={item.value}
@@ -102,11 +127,8 @@ export function SegmentedControl<T extends string>({
               aria-pressed={active}
               disabled={item.disabled}
               onClick={() => onChange(item.value)}
-              className={`${base} rounded-md ${
-                active
-                  ? ACTIVE_PILL[item.tone ?? "neutral"]
-                  : "text-gray-500 hover:text-gray-900"
-              }`}
+              className={`${base} rounded-md ${active ? activePill.className : "text-gray-500 hover:text-gray-900"}`}
+              style={active ? activePill.style : undefined}
             >
               {item.label}
             </button>

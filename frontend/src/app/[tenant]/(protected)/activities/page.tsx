@@ -309,7 +309,7 @@ function ActivitiesPageContent() {
             type="button"
             variant="primary"
             size="md"
-            className="gap-2"
+            className="hidden gap-2 md:flex"
             onClick={() => setIsQuickCreateOpen(true)}
           >
             <Plus className="h-4 w-4" aria-hidden="true" />

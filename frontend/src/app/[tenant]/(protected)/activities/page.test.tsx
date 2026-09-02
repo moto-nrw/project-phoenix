@@ -313,9 +313,11 @@ describe("ActivitiesPage", () => {
     render(<ActivitiesPage />);
 
     const buttons = screen.getAllByLabelText("Aktivität erstellen");
-    const lastButton = buttons[buttons.length - 1];
-    if (lastButton) {
-      fireEvent.click(lastButton);
+    expect(buttons).toHaveLength(1);
+    const button = buttons[0];
+    expect(button).toHaveClass("md:hidden");
+    if (button) {
+      fireEvent.click(button);
     }
 
     expect(screen.getByTestId("quick-create-modal")).toBeInTheDocument();

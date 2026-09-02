@@ -8,11 +8,14 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: (): boolean => mockIsMobile() as boolean,
 }));
 
+const mockPush = vi.fn();
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ push: mockPush }),
+}));
+
 describe("MobileBackButton", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete (globalThis as { location?: unknown }).location;
-    (globalThis as { location: { href: string } }).location = { href: "" };
   });
 
   it("renders on mobile", () => {
@@ -39,7 +42,7 @@ describe("MobileBackButton", () => {
     const button = screen.getByRole("button");
     fireEvent.click(button);
 
-    expect(globalThis.location.href).toBe("/database");
+    expect(mockPush).toHaveBeenCalledWith("/database");
   });
 
   it("uses custom href when provided", () => {
@@ -50,7 +53,7 @@ describe("MobileBackButton", () => {
     const button = screen.getByRole("button");
     fireEvent.click(button);
 
-    expect(globalThis.location.href).toBe("/groups");
+    expect(mockPush).toHaveBeenCalledWith("/groups");
   });
 
   it("has correct aria-label", () => {

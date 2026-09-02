@@ -1,6 +1,7 @@
 "use client";
 
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { useTenantRouter } from "~/lib/tenant-router";
 
 interface MobileBackButtonProps {
   /** Destination URL when button is clicked */
@@ -20,13 +21,14 @@ export function MobileBackButton({
   ariaLabel = "Zurück zur Datenverwaltung",
 }: Readonly<MobileBackButtonProps>) {
   const isMobile = useIsMobile();
+  const router = useTenantRouter();
 
   if (!isMobile) return null;
 
   return (
     <button
       type="button"
-      onClick={() => (globalThis.location.href = href)}
+      onClick={() => router.push(href)}
       className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
       aria-label={ariaLabel}
     >
