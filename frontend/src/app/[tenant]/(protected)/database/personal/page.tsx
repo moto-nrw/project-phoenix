@@ -524,7 +524,7 @@ function TeachersPageContent() {
         />
       }
     >
-      <RoleGuard variant="adminOnly">
+      <RoleGuard variant="adminOnly" embedded>
         <div className="mb-4">
           <PendingInvitationsList refreshKey={invitationRefreshKey} />
         </div>

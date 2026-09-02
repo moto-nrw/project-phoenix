@@ -201,6 +201,42 @@ export default function EndedCarePage() {
           : null
       }
       back
+      overlays={
+        <>
+          {resumeTarget ? (
+            <CareResumeModal
+              isOpen
+              studentId={resumeTarget.studentId}
+              displayName={`${resumeTarget.firstName} ${resumeTarget.lastName}`}
+              onClose={() => setResumeTarget(null)}
+              onResumed={async () => {
+                toastSuccess(
+                  `Betreuung von ${resumeTarget.firstName} ${resumeTarget.lastName} wieder aufgenommen`,
+                );
+                setResumeTarget(null);
+                await refreshEndedCare();
+              }}
+            />
+          ) : null}
+
+          {deleteTarget ? (
+            <StudentDeletionModal
+              isOpen
+              studentId={deleteTarget.studentId}
+              displayName={`${deleteTarget.firstName} ${deleteTarget.lastName}`}
+              careEnded
+              onClose={() => setDeleteTarget(null)}
+              onDeleted={async () => {
+                toastSuccess(
+                  `${deleteTarget.firstName} ${deleteTarget.lastName} wurde gelöscht`,
+                );
+                setDeleteTarget(null);
+                await refreshEndedCare();
+              }}
+            />
+          ) : null}
+        </>
+      }
     >
       {contentEmpty ? (
         <ForbiddenPage
@@ -268,39 +304,6 @@ export default function EndedCarePage() {
           ) : null}
         </SectionCard>
       )}
-
-      {resumeTarget ? (
-        <CareResumeModal
-          isOpen
-          studentId={resumeTarget.studentId}
-          displayName={`${resumeTarget.firstName} ${resumeTarget.lastName}`}
-          onClose={() => setResumeTarget(null)}
-          onResumed={async () => {
-            toastSuccess(
-              `Betreuung von ${resumeTarget.firstName} ${resumeTarget.lastName} wieder aufgenommen`,
-            );
-            setResumeTarget(null);
-            await refreshEndedCare();
-          }}
-        />
-      ) : null}
-
-      {deleteTarget ? (
-        <StudentDeletionModal
-          isOpen
-          studentId={deleteTarget.studentId}
-          displayName={`${deleteTarget.firstName} ${deleteTarget.lastName}`}
-          careEnded
-          onClose={() => setDeleteTarget(null)}
-          onDeleted={async () => {
-            toastSuccess(
-              `${deleteTarget.firstName} ${deleteTarget.lastName} wurde gelöscht`,
-            );
-            setDeleteTarget(null);
-            await refreshEndedCare();
-          }}
-        />
-      ) : null}
     </TenantPage>
   );
 }

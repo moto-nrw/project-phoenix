@@ -21,9 +21,7 @@ const PROTECTED_DIR = path.join(SRC_DIR, "app", "[tenant]", "(protected)");
  * tragen seit dem Umbau dasselbe Gerüst wie alle anderen Seiten. Ein neuer
  * Eintrag braucht die Zustimmung im PR (Regel „When to deviate").
  */
-// Ausnahme auf Anweisung (30.08.2026): die Notfallliste bleibt exakt wie auf
-// development.
-const EXEMPT = new Set<string>(["emergency/page.tsx"]);
+const EXEMPT = new Set<string>();
 
 function collectPageFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {

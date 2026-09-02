@@ -28,7 +28,7 @@ import { cn } from "~/lib/utils";
 /**
  * Das Seitengerüst des Tenant-Portals. JEDE Seite unter
  * `app/[tenant]/(protected)` rendert genau dieses Gerüst als Wurzel
- * (Ausnahmen: `/dashboard`, `/profile`, `/emergency`).
+ * (Ausnahmen gibt es nicht.)
  *
  * Die Reihenfolge der Bausteine ist fest und liegt hier, nicht in der Seite:
  *

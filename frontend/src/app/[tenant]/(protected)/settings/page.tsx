@@ -86,11 +86,7 @@ function SettingsContent() {
   return (
     <TenantPage
       title="Einstellungen"
-      // Bauart „Einstellungen": die einzige Fläche, die automatisch speichert,
-      // und das Verhalten muss benannt sein. Es gehört in die Statuszeile des
-      // Kopfes, nicht in eine eigene Karte: eine Karte, die nichts enthält
-      // außer einem Nebensatz, liest sich als leerer Block.
-      stats={`${flatTabItems.length} ${flatTabItems.length === 1 ? "Bereich" : "Bereiche"} · ${overrides} abweichend von der Vorgabe · Änderungen werden sofort gespeichert`}
+      stats={`${flatTabItems.length} ${flatTabItems.length === 1 ? "Bereich" : "Bereiche"} · ${overrides} abweichend von der Vorgabe`}
       tabs={{
         value: activeTab,
         onChange: (value) => {
