@@ -43,3 +43,16 @@ func TestStatusRecorderKeepsFirstStatusAndReportsHeaderWritten(t *testing.T) {
 	assert.True(t, implicit.HeaderWritten())
 	assert.Equal(t, http.StatusOK, implicit.Status())
 }
+
+func TestStatusRecorderKeepsFinalStatusAfterInformationalResponse(t *testing.T) {
+	t.Parallel()
+	recorder := NewStatusRecorder(httptest.NewRecorder())
+
+	recorder.WriteHeader(http.StatusEarlyHints)
+	assert.False(t, recorder.HeaderWritten())
+	assert.Equal(t, http.StatusOK, recorder.Status())
+
+	recorder.WriteHeader(http.StatusInternalServerError)
+	assert.True(t, recorder.HeaderWritten())
+	assert.Equal(t, http.StatusInternalServerError, recorder.Status())
+}

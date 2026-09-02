@@ -24,8 +24,8 @@ const statusHeaderWritten uint32 = 1 << 31
 
 func (r *StatusRecorder) Status() int { return int(r.state.Load() &^ statusHeaderWritten) }
 
-// HeaderWritten reports whether the status has been sent to the client and
-// can no longer change.
+// HeaderWritten reports whether the final response status has been sent to the
+// client and can no longer change.
 func (r *StatusRecorder) HeaderWritten() bool { return r.state.Load()&statusHeaderWritten != 0 }
 
 func (r *StatusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
@@ -61,6 +61,9 @@ func (r *flushingStatusRecorder) Flush() {
 }
 
 func (r *StatusRecorder) commitStatus(status int) {
+	if status >= http.StatusContinue && status < http.StatusOK {
+		return
+	}
 	for {
 		state := r.state.Load()
 		if state&statusHeaderWritten != 0 {
