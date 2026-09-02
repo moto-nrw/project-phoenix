@@ -441,22 +441,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 135,
+          "line": 152,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 250,
+          "line": 267,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 316,
+          "line": 333,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 806,
+          "line": 823,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -466,7 +466,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 439,
+          "line": 456,
           "declaration": "New"
         }
       ]
@@ -476,12 +476,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 127,
+          "line": 144,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 313,
+          "line": 330,
           "declaration": "type API"
         },
         {
@@ -576,12 +576,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 417,
+          "line": 418,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 440,
+          "line": 441,
           "declaration": "newFactory"
         },
         {
