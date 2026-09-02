@@ -32,11 +32,10 @@ func (r *CrossTenantRepository) FindCrossTenantStudents(ctx context.Context, hos
 		ColumnExpr(`"s".id AS "student_id"`).
 		ColumnExpr(`"p".first_name AS "first_name"`).
 		ColumnExpr(`"p".last_name AS "last_name"`).
-		ColumnExpr(`COALESCE("eg".name, '') AS "group_name"`).
+		ColumnExpr(`"s".group_id AS "group_id"`).
 		ColumnExpr(`"s".tenant_id AS "home_tenant_id"`).
 		Join(`INNER JOIN users.students AS "s" ON "s".id = "v".student_id`).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
-		Join(`LEFT JOIN education.groups AS "eg" ON "eg".id = "s".group_id`).
 		Where(`"v".exit_time IS NULL`).
 		Where(`"v".tenant_id = ?`, hostingTenantID).
 		Where(`"s".tenant_id != ?`, hostingTenantID).
