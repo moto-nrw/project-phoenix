@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -24,7 +23,14 @@ const (
 // StudentEnrollmentRepository implements activities.StudentEnrollmentRepository interface
 type StudentEnrollmentRepository struct {
 	*base.Repository[*activities.StudentEnrollment]
-	db *bun.DB
+	db       *bun.DB
+	students StudentDirectory
+}
+
+// BindStudentDirectory installs the People Directory the group roster
+// resolves Student rows through (#2662).
+func (r *StudentEnrollmentRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
 }
 
 // NewStudentEnrollmentRepository creates a new StudentEnrollmentRepository
@@ -196,84 +202,6 @@ func (r *StudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context
 		result.Enrollment.ActivityGroup = result.ActivityGroup
 		enrollments = append(enrollments, result.Enrollment)
 	}
-	return enrollments, nil
-}
-
-// FindByGroupID finds all enrollments for a specific group
-func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activities.StudentEnrollment, error) {
-	type enrollmentResult struct {
-		Enrollment *activities.StudentEnrollment `bun:"student_enrollment"`
-		Student    *users.Student                `bun:"student"`
-		Person     *users.Person                 `bun:"person"`
-	}
-
-	var results []enrollmentResult
-
-	// Use explicit joins with schema qualification
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
-		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
-		// Explicit column mapping for each table
-		ColumnExpr(`"student_enrollment".id AS "student_enrollment__id"`).
-		ColumnExpr(`"student_enrollment".created_at AS "student_enrollment__created_at"`).
-		ColumnExpr(`"student_enrollment".updated_at AS "student_enrollment__updated_at"`).
-		ColumnExpr(`"student_enrollment".tenant_id AS "student_enrollment__tenant_id"`).
-		ColumnExpr(`"student_enrollment".student_id AS "student_enrollment__student_id"`).
-		ColumnExpr(`"student_enrollment".activity_group_id AS "student_enrollment__activity_group_id"`).
-		ColumnExpr(`"student_enrollment".valid_from AS "student_enrollment__valid_from"`).
-		ColumnExpr(`"student_enrollment".valid_until AS "student_enrollment__valid_until"`).
-		ColumnExpr(`"student_enrollment".calendar_period_id AS "student_enrollment__calendar_period_id"`).
-		ColumnExpr(`"student_enrollment".enrollment_request_child_id AS "student_enrollment__enrollment_request_child_id"`).
-		ColumnExpr(`"student_enrollment".selected_weekdays AS "student_enrollment__selected_weekdays"`).
-		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
-		ColumnExpr(`"student_enrollment".weekday AS "student_enrollment__weekday"`).
-		ColumnExpr(`"student".id AS "student__id"`).
-		ColumnExpr(`"student".created_at AS "student__created_at"`).
-		ColumnExpr(`"student".updated_at AS "student__updated_at"`).
-		ColumnExpr(`"student".person_id AS "student__person_id"`).
-		ColumnExpr(`"student".status AS "student__status"`).
-		ColumnExpr(`"student".school_class AS "student__school_class"`).
-		ColumnExpr(`"student".guardian_name AS "student__guardian_name"`).
-		ColumnExpr(`"student".guardian_contact AS "student__guardian_contact"`).
-		ColumnExpr(`"student".guardian_email AS "student__guardian_email"`).
-		ColumnExpr(`"student".guardian_phone AS "student__guardian_phone"`).
-		ColumnExpr(`"student".group_id AS "student__group_id"`).
-		ColumnExpr(`"person".id AS "person__id"`).
-		ColumnExpr(`"person".created_at AS "person__created_at"`).
-		ColumnExpr(`"person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".first_name AS "person__first_name"`).
-		ColumnExpr(`"person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
-		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		// Properly schema-qualified joins
-		Join(`LEFT JOIN users.students AS "student" ON "student".id = "student_enrollment".student_id`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		// Filter by group ID
-		Where(`"student_enrollment".activity_group_id = ?`, groupID)
-
-	query = base.WithTenantFilter(ctx, query, "student_enrollment")
-
-	err := query.
-		Order("student_enrollment.valid_from DESC").
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by group ID",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	// Convert results to StudentEnrollment objects
-	enrollments := make([]*activities.StudentEnrollment, len(results))
-	for i, result := range results {
-		enrollments[i] = result.Enrollment
-		enrollments[i].Student = result.Student
-		if result.Student != nil {
-			result.Student.Person = result.Person
-		}
-	}
-
 	return enrollments, nil
 }
 

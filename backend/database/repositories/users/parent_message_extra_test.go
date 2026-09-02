@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -131,7 +132,7 @@ func TestListInboxForStaff_ScopeFlag(t *testing.T) {
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
-	readRepo := usersRepo.NewParentMessageReadRepository(db)
+	readRepo := repositories.NewFactory(db).ParentMessageRead
 	ctx := tenantCtx(t)
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)

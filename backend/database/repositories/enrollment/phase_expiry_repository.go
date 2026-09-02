@@ -10,16 +10,48 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 var errPhaseExpiryTenantRequired = errors.New("phase expiry report requires a tenant context")
 
 type PhaseExpiryRepository struct {
-	db *bun.DB
+	db       *bun.DB
+	students StudentDirectory
 }
 
 func NewPhaseExpiryRepository(db *bun.DB) enrollmentModels.PhaseExpiryRepository {
 	return &PhaseExpiryRepository{db: db}
+}
+
+// BindStudentDirectory installs the People Directory the report reads the
+// children's lifecycle status and care windows through (#2662).
+func (r *PhaseExpiryRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
+}
+
+// directoryStudentArrays projects the tenant's non-alumni students into the
+// parallel arrays the report query unnests: id, status, and the care window
+// as YYYY-MM-DD text (” for unset, cast to NULL in SQL).
+func (r *PhaseExpiryRepository) directoryStudentArrays(ctx context.Context) ([]int64, []string, []string, []string, error) {
+	if r.students == nil {
+		return nil, nil, nil, nil, errStudentDirectoryRequired
+	}
+	students, err := r.students.ListEnrolledStudents(ctx)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	ids := make([]int64, 0, len(students))
+	statuses := make([]string, 0, len(students))
+	from := make([]string, 0, len(students))
+	until := make([]string, 0, len(students))
+	for _, student := range students {
+		ids = append(ids, student.ID)
+		statuses = append(statuses, student.Status)
+		from = append(from, student.EnrolledFrom)
+		until = append(until, student.EnrolledUntil)
+	}
+	return ids, statuses, from, until, nil
 }
 
 func (r *PhaseExpiryRepository) ListSnapshots(
@@ -37,8 +69,15 @@ func (r *PhaseExpiryRepository) ListSnapshots(
 		return nil, errPhaseExpiryTenantRequired
 	}
 
+	ids, statuses, enrolledFrom, enrolledUntil, err := r.directoryStudentArrays(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var rows []*enrollmentModels.PhaseExpirySnapshot
-	err := base.GetDB(ctx, r.db).NewRaw(phaseExpiryQuery, tenantID, asOf, warningThrough).Scan(ctx, &rows)
+	err = base.GetDB(ctx, r.db).NewRaw(phaseExpiryQuery, tenantID, asOf, warningThrough,
+		pgdialect.Array(ids), pgdialect.Array(statuses), pgdialect.Array(enrolledFrom), pgdialect.Array(enrolledUntil),
+	).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("list phase expiry snapshots for tenant %d: %w", tenantID, err)
 	}
@@ -51,6 +90,18 @@ WITH report_parameters AS (
         ?::bigint AS tenant_id,
         ?::date AS as_of,
         ?::date AS warning_through
+),
+-- The tenant's non-alumni students as the People Directory projects them
+-- (#2662): users.students belongs to that owner, so the report receives the
+-- lifecycle status and care window as bound arrays instead of joining the
+-- table.
+directory_students AS (
+    SELECT
+        raw.id,
+        raw.status,
+        NULLIF(raw.enrolled_from, '')::date AS enrolled_from,
+        NULLIF(raw.enrolled_until, '')::date AS enrolled_until
+    FROM unnest(?::bigint[], ?::text[], ?::text[], ?::text[]) AS raw(id, status, enrolled_from, enrolled_until)
 ),
 effective_source_bookings AS (
     SELECT
@@ -70,9 +121,8 @@ effective_source_bookings AS (
       ON request_child.tenant_id = request.tenant_id
      AND request_child.request_id = request.id
      AND request_child.status = 'approved'
-    JOIN users.students AS student
-      ON student.tenant_id = request_child.tenant_id
-     AND student.id = COALESCE(request_child.created_student_id, request_child.matched_student_id)
+    JOIN directory_students AS student
+      ON student.id = COALESCE(request_child.created_student_id, request_child.matched_student_id)
     JOIN enrollment.request_child_offerings AS child_offering
       ON child_offering.tenant_id = request_child.tenant_id
      AND child_offering.request_child_id = request_child.id

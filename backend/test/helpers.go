@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"sync/atomic"
@@ -270,3 +271,9 @@ func Int64Ptr(i int64) *int64 { return &i }
 
 // TimePtr returns a pointer to the given time value.
 func TimePtr(t time.Time) *time.Time { return &t }
+
+// IsNotFoundError reports whether err is a repository not-found error. Every
+// legacy repository — including the ones that are now compositions over an
+// owner module — wraps sql.ErrNoRows, and callers classify on exactly that.
+// Test packages use this instead of importing database/sql themselves.
+func IsNotFoundError(err error) bool { return errors.Is(err, sql.ErrNoRows) }

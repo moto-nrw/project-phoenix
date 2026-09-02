@@ -21,7 +21,12 @@ type StaffDocumentRepository struct {
 }
 
 // NewStaffDocumentRepository creates the staff document metadata repository.
-func NewStaffDocumentRepository(db *bun.DB) users.StaffDocumentRepository {
+//
+// It returns the concrete type on purpose: the offboarding cleanup listing
+// needs the offboarded staff, which School Membership owns, so the repository
+// factory completes the users.StaffDocumentRepository contract with a
+// composition over that owner.
+func NewStaffDocumentRepository(db *bun.DB) *StaffDocumentRepository {
 	repo := base.NewRepository[*users.StaffDocument](db, "users.staff_documents", "StaffDocument")
 	repo.TenantScoped = true
 	return &StaffDocumentRepository{Repository: repo, db: db}
@@ -115,13 +120,20 @@ func (r *StaffDocumentRepository) ListPendingFileCleanupByStaffID(ctx context.Co
 	return documents, nil
 }
 
-func (r *StaffDocumentRepository) ListOffboardedPendingFileCleanups(ctx context.Context) ([]*users.StaffDocument, error) {
+// ListPendingFileCleanupsForStaff returns the documents of the given staff
+// members whose stored file still has to be removed. The caller decides which
+// staff those are — offboarding cleanup passes the offboarded ones, resolved
+// through the School Membership owner, so this repository never joins
+// users.staff itself.
+func (r *StaffDocumentRepository) ListPendingFileCleanupsForStaff(ctx context.Context, staffIDs []int64) ([]*users.StaffDocument, error) {
+	if len(staffIDs) == 0 {
+		return []*users.StaffDocument{}, nil
+	}
 	var documents []*users.StaffDocument
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&documents).
 		ModelTableExpr(`users.staff_documents AS "staff_document"`).
-		Join(`JOIN users.staff AS "staff" ON "staff".tenant_id = "staff_document".tenant_id AND "staff".id = "staff_document".staff_id`).
-		Where(`"staff".deleted_at IS NOT NULL`).
+		Where(`"staff_document".staff_id IN (?)`, bun.List(staffIDs)).
 		Where(`"staff_document".file_deleted_at IS NULL`).
 		WhereAllWithDeleted()
 

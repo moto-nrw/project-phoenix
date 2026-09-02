@@ -10,7 +10,8 @@ production and staging.
 - cAdvisor captures Docker container CPU, memory, network, filesystem I/O, restarts, and OOM signals.
 - Existing Grafana can import the Prometheus datasource and dashboard provisioning files from `grafana/provisioning`.
 - Grafana provisions the Loki datasource, booking-consistency dashboard, and
-  booking-consistency alert rules from `grafana/provisioning`.
+  the booking-consistency, server-error, and Postgres-error alert rules from
+  `grafana/provisioning`.
 
 The stack does not run `postgres_exporter`. Phoenix exports connection-pool
 metrics from the backend process. Do not enable the exporter's table-statistics
@@ -67,6 +68,25 @@ curl -s http://localhost:3100/ready
 
 Then follow the post-deployment checks in the runbook. Test alert delivery in
 staging; never inject a synthetic audit failure into Production data.
+
+## Server and Postgres errors
+
+`grafana/provisioning/alerting/server-errors.yml` replaces the hand-made
+"Error Spike" rule (#2953). The server rule ignores `transaction_failure`
+lines without a 5xx status; the Postgres rule counts `ERROR:` and `PANIC:`
+lines from the database container. Both read the `service` label that Alloy
+derives from the journald tags `prod-server` and `prod-postgres`. After
+copying the file:
+
+```bash
+docker compose restart grafana
+```
+
+Then delete or pause the manually created "Error Spike" rule in the Grafana
+UI so the two do not fire side by side. Verify in Explore that
+`{env="prod",service="postgres"}` returns lines before trusting the Postgres
+rule; a different label means the Alloy mapping differs and both rules need
+the same correction. Runbook: [`runbooks/server-errors.md`](runbooks/server-errors.md).
 
 ## Caddy
 

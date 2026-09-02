@@ -25,7 +25,14 @@ const (
 // VisitRepository implements active.VisitRepository interface
 type VisitRepository struct {
 	*base.Repository[*active.Visit]
-	db *bun.DB
+	db       *bun.DB
+	students StudentDirectory
+}
+
+// BindStudentDirectory installs the People Directory the open-visit display
+// resolves student columns through (#2662).
+func (r *VisitRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
 }
 
 // NewVisitRepository creates a new VisitRepository
@@ -969,9 +976,15 @@ func (r *VisitRepository) GetCurrentRoomNamesForStudents(ctx context.Context, st
 }
 
 // FindActiveWithStudentDisplayByGroup returns the open visits of an active
-// group joined with student display data, newest entry first (issue #584:
-// moved verbatim out of api/active).
+// group with student display data, newest entry first (issue #584: moved
+// out of api/active). The student columns come from the People Directory
+// (#2662), the person names from the composition layer. A visit whose
+// student the directory does not return is dropped, as the former inner
+// join dropped it.
 func (r *VisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.Context, activeGroupID int64) ([]*active.VisitWithStudentDisplay, error) {
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
+	}
 	var results []*active.VisitWithStudentDisplay
 	err := base.GetDB(ctx, r.db).NewSelect().
 		ColumnExpr("v.id AS visit_id").
@@ -981,21 +994,41 @@ func (r *VisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.Contex
 		ColumnExpr("v.exit_time").
 		ColumnExpr("v.created_at").
 		ColumnExpr("v.updated_at").
-		ColumnExpr("p.first_name").
-		ColumnExpr("p.last_name").
-		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
-		ColumnExpr("s.group_id").
-		ColumnExpr("s.sick").
-		ColumnExpr("s.sick_since").
-		ColumnExpr("s.excused").
-		ColumnExpr("s.excused_since").
-		ColumnExpr("s.photo_path").
 		TableExpr("active.visits AS v").
-		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
-		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
 		Where("v.active_group_id = ?", activeGroupID).
 		Where("v.exit_time IS NULL").
 		OrderExpr("v.entry_time DESC").
 		Scan(ctx, &results)
-	return results, err
+	if err != nil || len(results) == 0 {
+		return results, err
+	}
+	ids := make([]int64, 0, len(results))
+	for _, row := range results {
+		ids = append(ids, row.StudentID)
+	}
+	students, err := r.students.ListStudentsByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[int64]DirectoryStudent, len(students))
+	for _, student := range students {
+		byID[student.ID] = student
+	}
+	kept := make([]*active.VisitWithStudentDisplay, 0, len(results))
+	for _, row := range results {
+		student, found := byID[row.StudentID]
+		if !found {
+			continue
+		}
+		row.PersonID = student.PersonID
+		row.SchoolClass = student.SchoolClass
+		row.GroupID = student.GroupID
+		row.Sick = student.Sick
+		row.SickSince = student.SickSince
+		row.Excused = student.Excused
+		row.ExcusedSince = student.ExcusedSince
+		row.PhotoPath = student.PhotoPath
+		kept = append(kept, row)
+	}
+	return kept, nil
 }

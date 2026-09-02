@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -29,11 +30,11 @@ func setupClassListEntryTransitionTest(t *testing.T) (*educationService.GradeTra
 	db := testpkg.SetupTestDB(t)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo:      educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo:      newGradeTransitionRepository(t, db),
 		StudentRepo:         usersRepo.NewStudentRepository(db),
 		PersonRepo:          usersRepo.NewPersonRepository(db),
 		ClassTeacherRepo:    educationRepo.NewClassTeacherRepository(db),
-		StaffRepo:           usersRepo.NewStaffRepository(db),
+		StaffRepo:           repositories.NewFactory(db).Staff,
 		ClassListEntryRepo:  usersRepo.NewClassListEntryRepository(db),
 		ClassListEntryAudit: auditRepo.NewClassListEntryChangeRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		DB:                  db,

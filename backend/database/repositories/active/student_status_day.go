@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -12,9 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 const tableExprActiveStudentStatusDaysAsStatusDay = `active.student_status_days AS "student_status_day"`
@@ -23,6 +24,13 @@ type StudentStatusDayRepository struct {
 	*base.Repository[*active.StudentStatusDay]
 	db       *bun.DB
 	slotRepo scheduleModels.InstanceStudentRepository
+	students StudentDirectory
+}
+
+// BindStudentDirectory installs the People Directory the dashboard absence
+// counts read the active students and their live flags through (#2662).
+func (r *StudentStatusDayRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
 }
 
 func NewStudentStatusDayRepository(db *bun.DB) active.StudentStatusDayOverviewRepository {
@@ -35,23 +43,26 @@ func NewStudentStatusDayRepository(db *bun.DB) active.StudentStatusDayOverviewRe
 	}
 }
 
-// ListOverviewWithOptions joins the student and person records because the
-// overview's stable date/name order must be applied before SQL pagination.
-// The generic single-table list cannot sort by these related columns.
-func (r *StudentStatusDayRepository) ListOverviewWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StudentStatusDay, error) {
+// ListOverviewWithOptions returns the matching rows in the supplied person
+// order. The service owns person lookups, while PostgreSQL applies that order
+// before pagination.
+func (r *StudentStatusDayRepository) ListOverviewWithOptions(ctx context.Context, options *modelBase.QueryOptions, orderedStudentIDs []int64) ([]*active.StudentStatusDay, error) {
 	var rows []*active.StudentStatusDay
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprActiveStudentStatusDaysAsStatusDay).
-		ColumnExpr(`"student_status_day".*`).
-		Join(`JOIN users.students AS "student" ON "student".id = "student_status_day".student_id AND "student".tenant_id = "student_status_day".tenant_id`).
-		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id AND "person".tenant_id = "student_status_day".tenant_id`).
-		OrderExpr(`"student_status_day".date ASC`).
-		OrderExpr(`"person".last_name ASC`).
-		OrderExpr(`"person".first_name ASC`).
-		OrderExpr(`"student_status_day".student_id ASC`).
-		OrderExpr(`"student_status_day".reported_at DESC`).
-		OrderExpr(`"student_status_day".id ASC`)
+		ColumnExpr(`"student_status_day".*`)
+	if len(orderedStudentIDs) > 0 {
+		query = query.OrderExpr(`"student_status_day".date ASC`).
+			OrderExpr(`array_position(?::bigint[], "student_status_day".student_id) ASC`, pgdialect.Array(orderedStudentIDs)).
+			OrderExpr(`"student_status_day".reported_at DESC`).
+			OrderExpr(`"student_status_day".id ASC`)
+	} else {
+		query = query.OrderExpr(`"student_status_day".date ASC`).
+			OrderExpr(`"student_status_day".student_id ASC`).
+			OrderExpr(`"student_status_day".reported_at DESC`).
+			OrderExpr(`"student_status_day".id ASC`)
+	}
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where(`"student_status_day".tenant_id = ?`, tenantID)
 	}
@@ -358,12 +369,8 @@ func (r *StudentStatusDayRepository) findByStudentAndDateRange(ctx context.Conte
 // clears the flag + its timestamp on users.students for every flagged
 // student. Returns the number of students cleared.
 //
-// Custom raw-SQL method (backend-conventions Rule 2/11 exception): the
-// INSERT...SELECT upsert spans users.students → active.student_status_days
-// and is not expressible through the generic shape. Column names are
-// interpolated but MUST be trusted constants from the scheduler's fixed
-// flag set ("sick"/"sick_since", "excused"/"excused_since") — never user
-// input. Tenant scoping comes from the caller's per-tenant RLS transaction.
+// The People Directory supplies the flagged students and clears its own
+// columns. This repository only owns the archived status-day upsert.
 func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
 	ctx context.Context,
 	flagColumn, sinceColumn, status string,
@@ -371,99 +378,76 @@ func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
 	reportedFallback time.Time,
 	source string,
 ) (int64, error) {
-	db := base.GetDB(ctx, r.db)
-
-	upsertQuery := fmt.Sprintf(`
-		INSERT INTO active.student_status_days
-			(tenant_id, student_id, date, status, reported_at, cleared_at, source)
-		SELECT tenant_id, id, ?, ?, COALESCE(%s, ?), ?, ?
-		FROM users.students
-		WHERE %s = TRUE
-		ON CONFLICT (tenant_id, student_id, date, status) DO UPDATE
-		SET reported_at = EXCLUDED.reported_at,
-		    cleared_at = EXCLUDED.cleared_at,
-		    source = EXCLUDED.source;
-	`, sinceColumn, flagColumn)
-	if _, err := db.NewRaw(upsertQuery, date, status, reportedFallback, reportedFallback, source).Exec(ctx); err != nil {
+	if r.students == nil {
+		return 0, errStudentDirectoryRequired
+	}
+	if (status == active.StudentStatusDaySick && (flagColumn != "sick" || sinceColumn != "sick_since")) ||
+		(status == active.StudentStatusDayExcused && (flagColumn != "excused" || sinceColumn != "excused_since")) {
+		return 0, fmt.Errorf("status flag columns do not match status %q", status)
+	}
+	candidates, err := r.students.ListStudentsWithStatusFlag(ctx, status)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "list students with status flag", Err: base.TranslateNotFound(err)}
+	}
+	if len(candidates) == 0 {
+		return 0, nil
+	}
+	ids := make([]int64, 0, len(candidates))
+	locked := make(map[int64]struct{}, len(candidates))
+	for _, student := range candidates {
+		ids = append(ids, student.ID)
+		locked[student.ID] = struct{}{}
+	}
+	slices.Sort(ids)
+	for _, studentID := range slices.Compact(ids) {
+		if err := r.students.LockStudent(ctx, studentID); err != nil {
+			return 0, &modelBase.DatabaseError{Op: "lock student for status flag archive", Err: base.TranslateNotFound(err)}
+		}
+	}
+	students, err := r.students.ListStudentsWithStatusFlag(ctx, status)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "re-read students with status flag", Err: base.TranslateNotFound(err)}
+	}
+	students = slices.DeleteFunc(students, func(student DirectoryStudent) bool {
+		_, ok := locked[student.ID]
+		return !ok
+	})
+	if len(students) == 0 {
+		return 0, nil
+	}
+	entries := make([]*active.StudentStatusDay, 0, len(students))
+	ids = make([]int64, 0, len(students))
+	for _, student := range students {
+		reportedAt := reportedFallback
+		if status == active.StudentStatusDaySick && student.SickSince != nil {
+			reportedAt = *student.SickSince
+		}
+		if status == active.StudentStatusDayExcused && student.ExcusedSince != nil {
+			reportedAt = *student.ExcusedSince
+		}
+		entries = append(entries, &active.StudentStatusDay{
+			TenantModel: modelBase.TenantModel{TenantID: student.TenantID}, StudentID: student.ID,
+			Date: date, Status: status, ReportedAt: reportedAt, ClearedAt: &reportedFallback, Source: source,
+		})
+		ids = append(ids, student.ID)
+	}
+	if _, err := base.GetDB(ctx, r.db).NewInsert().Model(&entries).
+		ModelTableExpr("active.student_status_days").
+		On("CONFLICT (tenant_id, student_id, date, status) DO UPDATE").
+		Set("reported_at = EXCLUDED.reported_at").
+		Set("cleared_at = EXCLUDED.cleared_at").
+		Set("source = EXCLUDED.source").Exec(ctx); err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "archive status flag",
 			Err: base.TranslateNotFound(err),
 		}
 	}
-
-	clearQuery := fmt.Sprintf(
-		`UPDATE users.students SET %s = FALSE, %s = NULL WHERE %s = TRUE`,
-		flagColumn, sinceColumn, flagColumn,
-	)
-	res, err := db.NewRaw(clearQuery).Exec(ctx)
+	affected, err := r.students.ClearStudentStatusFlags(ctx, ids, status)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "clear status flag",
 			Err: base.TranslateNotFound(err),
 		}
 	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "clear status flag rows affected",
-			Err: base.TranslateNotFound(err),
-		}
-	}
 	return affected, nil
-}
-
-// CountEffectiveDashboardAbsences counts the dashboard's effective absence
-// buckets for one date. It bridges the legacy live flags on users.students and
-// the newer date-scoped rows in active.student_status_days without double
-// counting overlaps. Sick wins over excused/class_trip, matching
-// api/students/status_days_response.go.
-func (r *StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.Context, date timezone.Date) (*active.StudentStatusCounts, error) {
-	counts := &active.StudentStatusCounts{}
-	db := base.GetDB(ctx, r.db)
-
-	perStudent := db.NewSelect().
-		TableExpr(`users.students AS "student"`).
-		ColumnExpr(`"student".id`).
-		ColumnExpr(`COALESCE("student".sick, FALSE) AS flag_sick`).
-		ColumnExpr(`COALESCE("student".excused, FALSE) AS flag_excused`).
-		ColumnExpr(`COALESCE(BOOL_OR("student_status_day".status = ?), FALSE) AS day_sick`, active.StudentStatusDaySick).
-		ColumnExpr(`COALESCE(BOOL_OR("student_status_day".status = ?), FALSE) AS day_excused`, active.StudentStatusDayExcused).
-		ColumnExpr(`COALESCE(BOOL_OR("student_status_day".status = ?), FALSE) AS day_class_trip`, active.StudentStatusDayClassTrip).
-		Join(`
-			LEFT JOIN active.student_status_days AS "student_status_day"
-				ON "student_status_day".tenant_id = "student".tenant_id
-				AND "student_status_day".student_id = "student".id
-				AND "student_status_day".date = ?
-				AND "student_status_day".cleared_at IS NULL
-		`, date).
-		Where(`"student".status = ?`, string(usersModels.StudentStatusActive)).
-		GroupExpr(`"student".id, "student".sick, "student".excused`)
-	perStudent = base.WithTenantFilter(ctx, perStudent, "student")
-
-	query := db.NewSelect().
-		TableExpr(`(?) AS "effective_student_status"`, perStudent).
-		ColumnExpr(`
-			COUNT(*) FILTER (
-				WHERE "effective_student_status".flag_sick
-					OR "effective_student_status".day_sick
-			) AS sick_count
-		`).
-		ColumnExpr(`
-			COUNT(*) FILTER (
-				WHERE NOT ("effective_student_status".flag_sick OR "effective_student_status".day_sick)
-					AND (
-						"effective_student_status".flag_excused
-						OR "effective_student_status".day_excused
-						OR "effective_student_status".day_class_trip
-					)
-			) AS excused_count
-		`).
-		ColumnExpr(`COUNT(*) AS total_count`)
-	if err := query.Scan(ctx, counts); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "count effective dashboard absences",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return counts, nil
 }

@@ -101,7 +101,13 @@ type StaffAbsence struct {
 type AbsenceRequestFilter struct {
 	Statuses []string
 	Types    []string
-	Search   string
+	// Search is a free-text match on the subject's name. The composition
+	// layer resolves it to SubjectPersonIDs through the People Directory
+	// before the repository runs; the repository itself never sees names.
+	Search string
+	// SubjectPersonIDs narrows the rows to absences whose subject staff
+	// belongs to one of these persons. Nil means no person filter.
+	SubjectPersonIDs []int64
 	// Limit caps the result; 0 means no cap.
 	Limit int
 	// Decided orders the newest decision first (history). Otherwise the
@@ -113,9 +119,11 @@ type AbsenceRequestFilter struct {
 // displays. Both names are empty when the person row is gone; callers render
 // "Unbekannt" in that case.
 type AbsenceRequestRow struct {
-	*StaffAbsence `bun:",extend"`
-	StaffName     string `bun:"staff_name" json:"staff_name"`
-	DecidedByName string `bun:"decided_by_name" json:"decided_by_name,omitempty"`
+	*StaffAbsence   `bun:",extend"`
+	SubjectPersonID *int64 `bun:"subject_person_id" json:"-"`
+	DeciderPersonID *int64 `bun:"decider_person_id" json:"-"`
+	StaffName       string `bun:"staff_name,scanonly" json:"staff_name"`
+	DecidedByName   string `bun:"decided_by_name,scanonly" json:"decided_by_name,omitempty"`
 }
 
 // Validate validates the absence record

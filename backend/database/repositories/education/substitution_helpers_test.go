@@ -4,34 +4,33 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 )
 
-// Tests for collectSubstitutionRelatedIDs
+// The staff half of these helpers moved to the composition layer with #2667:
+// substitutions carry only the staff IDs and School Membership resolves them.
+// What stays here is the group half.
 
-func TestCollectSubstitutionRelatedIDs_NilSlice(t *testing.T) {
+// Tests for collectSubstitutionGroupIDs
+
+func TestCollectSubstitutionGroupIDs_NilSlice(t *testing.T) {
 	t.Parallel()
 
-	groupIDs, staffIDs := collectSubstitutionRelatedIDs(nil)
+	groupIDs := collectSubstitutionGroupIDs(nil)
 	assert.NotNil(t, groupIDs)
-	assert.NotNil(t, staffIDs)
 	assert.Empty(t, groupIDs)
-	assert.Empty(t, staffIDs)
 }
 
-func TestCollectSubstitutionRelatedIDs_EmptySlice(t *testing.T) {
+func TestCollectSubstitutionGroupIDs_EmptySlice(t *testing.T) {
 	t.Parallel()
 
 	substitutions := []*education.GroupSubstitution{}
-	groupIDs, staffIDs := collectSubstitutionRelatedIDs(substitutions)
+	groupIDs := collectSubstitutionGroupIDs(substitutions)
 	assert.NotNil(t, groupIDs)
-	assert.NotNil(t, staffIDs)
 	assert.Empty(t, groupIDs)
-	assert.Empty(t, staffIDs)
 }
 
-func TestCollectSubstitutionRelatedIDs_SingleSubstitutionAllIDsPopulated(t *testing.T) {
+func TestCollectSubstitutionGroupIDs_SingleSubstitution(t *testing.T) {
 	t.Parallel()
 
 	regularStaffID := int64(10)
@@ -42,265 +41,117 @@ func TestCollectSubstitutionRelatedIDs_SingleSubstitutionAllIDsPopulated(t *test
 			SubstituteStaffID: 2,
 		},
 	}
-	groupIDs, staffIDs := collectSubstitutionRelatedIDs(substitutions)
+	groupIDs := collectSubstitutionGroupIDs(substitutions)
 
 	assert.Len(t, groupIDs, 1)
 	assert.True(t, groupIDs[1])
-
-	assert.Len(t, staffIDs, 2)
-	assert.True(t, staffIDs[10])
-	assert.True(t, staffIDs[2])
 }
 
-func TestCollectSubstitutionRelatedIDs_NilRegularStaffID(t *testing.T) {
+func TestCollectSubstitutionGroupIDs_ZeroGroupID(t *testing.T) {
 	t.Parallel()
 
-	substitutions := []*education.GroupSubstitution{
-		{
-			GroupID:           1,
-			RegularStaffID:    nil,
-			SubstituteStaffID: 2,
-		},
-	}
-	groupIDs, staffIDs := collectSubstitutionRelatedIDs(substitutions)
-
-	assert.Len(t, groupIDs, 1)
-	assert.True(t, groupIDs[1])
-
-	assert.Len(t, staffIDs, 1)
-	assert.True(t, staffIDs[2])
-	assert.False(t, staffIDs[0]) // Nil ID shouldn't be in map
-}
-
-func TestCollectSubstitutionRelatedIDs_ZeroGroupID(t *testing.T) {
-	t.Parallel()
-
-	regularStaffID := int64(10)
 	substitutions := []*education.GroupSubstitution{
 		{
 			GroupID:           0, // Should be skipped
-			RegularStaffID:    &regularStaffID,
 			SubstituteStaffID: 2,
 		},
 	}
-	groupIDs, staffIDs := collectSubstitutionRelatedIDs(substitutions)
+	groupIDs := collectSubstitutionGroupIDs(substitutions)
 
 	assert.Empty(t, groupIDs)
-
-	assert.Len(t, staffIDs, 2)
-	assert.True(t, staffIDs[10])
-	assert.True(t, staffIDs[2])
 }
 
-func TestCollectSubstitutionRelatedIDs_MultipleWithOverlappingIDs(t *testing.T) {
+func TestCollectSubstitutionGroupIDs_MultipleWithOverlappingIDs(t *testing.T) {
 	t.Parallel()
 
-	regularStaffID1 := int64(10)
-	regularStaffID2 := int64(10) // Same as first
 	substitutions := []*education.GroupSubstitution{
-		{
-			GroupID:           1,
-			RegularStaffID:    &regularStaffID1,
-			SubstituteStaffID: 2,
-		},
-		{
-			GroupID:           1,                // Duplicate group ID
-			RegularStaffID:    &regularStaffID2, // Duplicate staff ID
-			SubstituteStaffID: 3,
-		},
-		{
-			GroupID:           2,
-			RegularStaffID:    nil,
-			SubstituteStaffID: 2, // Duplicate staff ID
-		},
+		{GroupID: 1, SubstituteStaffID: 2},
+		{GroupID: 1, SubstituteStaffID: 3}, // Duplicate group ID
+		{GroupID: 2, SubstituteStaffID: 2},
 	}
-	groupIDs, staffIDs := collectSubstitutionRelatedIDs(substitutions)
+	groupIDs := collectSubstitutionGroupIDs(substitutions)
 
 	// Deduplication should occur
 	assert.Len(t, groupIDs, 2)
 	assert.True(t, groupIDs[1])
 	assert.True(t, groupIDs[2])
-
-	assert.Len(t, staffIDs, 3)
-	assert.True(t, staffIDs[10])
-	assert.True(t, staffIDs[2])
-	assert.True(t, staffIDs[3])
 }
 
-// Tests for assignRelationsToSubstitutions
+// Tests for assignGroupsToSubstitutions
 
-func TestAssignRelationsToSubstitutions_NilSubstitutions(t *testing.T) {
+func TestAssignGroupsToSubstitutions_NilSubstitutions(t *testing.T) {
 	t.Parallel()
 
 	group := &education.Group{Name: "Test"}
 	group.ID = 1
-	staff := &users.Staff{PersonID: 1}
-	staff.ID = 1
 
 	groupMap := map[int64]*education.Group{1: group}
-	staffMap := map[int64]*users.Staff{1: staff}
 
 	// Should not panic
 	assert.NotPanics(t, func() {
-		assignRelationsToSubstitutions(nil, groupMap, staffMap)
+		assignGroupsToSubstitutions(nil, groupMap)
 	})
 }
 
-func TestAssignRelationsToSubstitutions_EmptyMaps(t *testing.T) {
+func TestAssignGroupsToSubstitutions_EmptyMap(t *testing.T) {
 	t.Parallel()
 
-	regularStaffID := int64(10)
 	substitutions := []*education.GroupSubstitution{
-		{
-			GroupID:           1,
-			RegularStaffID:    &regularStaffID,
-			SubstituteStaffID: 2,
-		},
+		{GroupID: 1, SubstituteStaffID: 2},
 	}
 
-	groupMap := make(map[int64]*education.Group)
-	staffMap := make(map[int64]*users.Staff)
+	assignGroupsToSubstitutions(substitutions, make(map[int64]*education.Group))
 
-	assignRelationsToSubstitutions(substitutions, groupMap, staffMap)
-
-	// Relations should remain nil
 	assert.Nil(t, substitutions[0].Group)
 	assert.Nil(t, substitutions[0].RegularStaff)
 	assert.Nil(t, substitutions[0].SubstituteStaff)
 }
 
-func TestAssignRelationsToSubstitutions_MatchingIDs(t *testing.T) {
+func TestAssignGroupsToSubstitutions_MatchingIDs(t *testing.T) {
 	t.Parallel()
-
-	regularStaffID := int64(10)
 
 	group := &education.Group{Name: "Test Group"}
 	group.ID = 1
 
-	regularStaff := &users.Staff{PersonID: 1}
-	regularStaff.ID = 10
-
-	substituteStaff := &users.Staff{PersonID: 2}
-	substituteStaff.ID = 2
-
 	substitutions := []*education.GroupSubstitution{
-		{
-			GroupID:           1,
-			RegularStaffID:    &regularStaffID,
-			SubstituteStaffID: 2,
-		},
+		{GroupID: 1, SubstituteStaffID: 2},
 	}
 
-	groupMap := map[int64]*education.Group{1: group}
-	staffMap := map[int64]*users.Staff{10: regularStaff, 2: substituteStaff}
-
-	assignRelationsToSubstitutions(substitutions, groupMap, staffMap)
+	assignGroupsToSubstitutions(substitutions, map[int64]*education.Group{1: group})
 
 	assert.Equal(t, group, substitutions[0].Group)
-	assert.Equal(t, regularStaff, substitutions[0].RegularStaff)
-	assert.Equal(t, substituteStaff, substitutions[0].SubstituteStaff)
 }
 
-func TestAssignRelationsToSubstitutions_NonMatchingIDs(t *testing.T) {
+func TestAssignGroupsToSubstitutions_NonMatchingIDs(t *testing.T) {
 	t.Parallel()
-
-	regularStaffID := int64(10)
 
 	group := &education.Group{Name: "Other"}
 	group.ID = 99 // Different ID
 
-	staff := &users.Staff{PersonID: 1}
-	staff.ID = 99 // Different ID
-
 	substitutions := []*education.GroupSubstitution{
-		{
-			GroupID:           1,
-			RegularStaffID:    &regularStaffID,
-			SubstituteStaffID: 2,
-		},
+		{GroupID: 1, SubstituteStaffID: 2},
 	}
 
-	groupMap := map[int64]*education.Group{99: group}
-	staffMap := map[int64]*users.Staff{99: staff}
+	assignGroupsToSubstitutions(substitutions, map[int64]*education.Group{99: group})
 
-	assignRelationsToSubstitutions(substitutions, groupMap, staffMap)
-
-	// Relations should remain nil when IDs don't match
 	assert.Nil(t, substitutions[0].Group)
-	assert.Nil(t, substitutions[0].RegularStaff)
-	assert.Nil(t, substitutions[0].SubstituteStaff)
 }
 
-func TestAssignRelationsToSubstitutions_NilRegularStaffID(t *testing.T) {
+func TestAssignGroupsToSubstitutions_MultipleSubstitutions(t *testing.T) {
 	t.Parallel()
-
-	group := &education.Group{Name: "Test"}
-	group.ID = 1
-
-	substituteStaff := &users.Staff{PersonID: 1}
-	substituteStaff.ID = 2
-
-	substitutions := []*education.GroupSubstitution{
-		{
-			GroupID:           1,
-			RegularStaffID:    nil, // Nil pointer
-			SubstituteStaffID: 2,
-		},
-	}
-
-	groupMap := map[int64]*education.Group{1: group}
-	staffMap := map[int64]*users.Staff{2: substituteStaff}
-
-	assignRelationsToSubstitutions(substitutions, groupMap, staffMap)
-
-	assert.Equal(t, group, substitutions[0].Group)
-	assert.Nil(t, substitutions[0].RegularStaff) // Should skip lookup
-	assert.Equal(t, substituteStaff, substitutions[0].SubstituteStaff)
-}
-
-func TestAssignRelationsToSubstitutions_MultipleSubstitutions(t *testing.T) {
-	t.Parallel()
-
-	regularStaffID1 := int64(10)
-	regularStaffID2 := int64(11)
 
 	group1 := &education.Group{Name: "Group 1"}
 	group1.ID = 1
 	group2 := &education.Group{Name: "Group 2"}
 	group2.ID = 2
 
-	staff10 := &users.Staff{PersonID: 1}
-	staff10.ID = 10
-	staff11 := &users.Staff{PersonID: 2}
-	staff11.ID = 11
-	staff2 := &users.Staff{PersonID: 3}
-	staff2.ID = 2
-	staff3 := &users.Staff{PersonID: 4}
-	staff3.ID = 3
-
 	substitutions := []*education.GroupSubstitution{
-		{
-			GroupID:           1,
-			RegularStaffID:    &regularStaffID1,
-			SubstituteStaffID: 2,
-		},
-		{
-			GroupID:           2,
-			RegularStaffID:    &regularStaffID2,
-			SubstituteStaffID: 3,
-		},
+		{GroupID: 1, SubstituteStaffID: 2},
+		{GroupID: 2, SubstituteStaffID: 3},
 	}
 
-	groupMap := map[int64]*education.Group{1: group1, 2: group2}
-	staffMap := map[int64]*users.Staff{10: staff10, 11: staff11, 2: staff2, 3: staff3}
-
-	assignRelationsToSubstitutions(substitutions, groupMap, staffMap)
+	assignGroupsToSubstitutions(substitutions, map[int64]*education.Group{1: group1, 2: group2})
 
 	assert.Equal(t, group1, substitutions[0].Group)
-	assert.Equal(t, staff10, substitutions[0].RegularStaff)
-	assert.Equal(t, staff2, substitutions[0].SubstituteStaff)
-
 	assert.Equal(t, group2, substitutions[1].Group)
-	assert.Equal(t, staff11, substitutions[1].RegularStaff)
-	assert.Equal(t, staff3, substitutions[1].SubstituteStaff)
 }

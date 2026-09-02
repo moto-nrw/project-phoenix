@@ -7,9 +7,8 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -36,12 +35,12 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),
-		scheduleRepo.NewInstanceStudentRepository(db),
-		activitiesRepo.NewStudentEnrollmentRepository(db),
+		repositories.NewFactory(db).InstanceStudent,
+		repositories.NewFactory(db).StudentEnrollment,
 		nil,
 	)
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo:   educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo:   newGradeTransitionRepository(t, db),
 		StudentRepo:      usersRepo.NewStudentRepository(db),
 		PersonRepo:       usersRepo.NewPersonRepository(db),
 		VisitRepo:        activeRepo.NewVisitRepository(db),
@@ -384,13 +383,13 @@ func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationS
 
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),
-		scheduleRepo.NewInstanceStudentRepository(db),
-		activitiesRepo.NewStudentEnrollmentRepository(db),
+		repositories.NewFactory(db).InstanceStudent,
+		repositories.NewFactory(db).StudentEnrollment,
 		nil,
 		func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) },
 	)
 	return educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo:   educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo:   newGradeTransitionRepository(t, db),
 		StudentRepo:      usersRepo.NewStudentRepository(db),
 		PersonRepo:       usersRepo.NewPersonRepository(db),
 		VisitRepo:        activeRepo.NewVisitRepository(db),

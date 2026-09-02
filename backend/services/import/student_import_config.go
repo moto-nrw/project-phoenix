@@ -14,9 +14,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -130,8 +133,9 @@ type StudentImportDeps struct {
 	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
 	// RFIDCardRepo resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
-	RFIDCardRepo users.RFIDCardRepository
+	RFIDCardRepo auth.RFIDCardRepository
 	Resolver     *RelationshipResolver
+	Consents     usersService.StudentConsentChangeRecorder
 }
 
 // NewStudentImportConfig creates a new student import configuration
@@ -886,6 +890,18 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	if err := c.StudentRepo.Create(ctx, student); err != nil {
 		return nil, fmt.Errorf("create student: %w", err)
 	}
+	if c.Consents != nil {
+		if err := c.Consents.RecordTransitions(
+			ctx,
+			nil,
+			student,
+			auditModels.StudentConsentSourceImport,
+			nil,
+			time.Now(),
+		); err != nil {
+			return nil, fmt.Errorf("create student consent history: %w", err)
+		}
+	}
 
 	return student, nil
 }
@@ -1222,6 +1238,7 @@ func (c *StudentImportConfig) updatePersonFromRow(ctx context.Context, person *u
 }
 
 func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, student *users.Student, row importModels.StudentImportRow) error {
+	before := *student
 	if class := strings.TrimSpace(row.SchoolClass); class != "" {
 		student.SchoolClass = class
 	}
@@ -1280,6 +1297,18 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, student 
 
 	if err := c.StudentRepo.Update(ctx, student); err != nil {
 		return fmt.Errorf("Kind aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
+	if c.Consents != nil {
+		if err := c.Consents.RecordTransitions(
+			ctx,
+			&before,
+			student,
+			auditModels.StudentConsentSourceImport,
+			nil,
+			time.Now(),
+		); err != nil {
+			return fmt.Errorf("Einwilligungsverlauf aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		}
 	}
 	return nil
 }

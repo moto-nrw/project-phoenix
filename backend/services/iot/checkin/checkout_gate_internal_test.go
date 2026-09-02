@@ -430,9 +430,12 @@ func TestShouldShowDailyCheckoutWithGroup_NilActiveGroup(t *testing.T) {
 
 func TestShouldShowDailyCheckoutWithGroup_BeforeCheckoutTime(t *testing.T) {
 	t.Parallel()
-	// Set checkout time far in the future so we're always before it
+	fixedNow := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 
-	s := &CheckinService{dailyCheckoutFallback: "23:59"}
+	s := &CheckinService{
+		now:                   func() time.Time { return fixedNow },
+		dailyCheckoutFallback: "13:00",
+	}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
 	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
@@ -558,7 +561,10 @@ func TestShouldShowDailyCheckoutWithGroup_SchulhofRoom_BeforeCheckoutTime(t *tes
 	s, student, visit := newSchulhofScenario(t)
 	// A configured time in the future must still suppress the offer: the
 	// Schulhof relaxes the ROOM gate, never the time gate.
-	s.dailyCheckoutFallback = "23:59"
+	s.now = func() time.Time {
+		return time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	}
+	s.dailyCheckoutFallback = "13:00"
 
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "the time gate still applies at the Schulhof")
@@ -667,11 +673,12 @@ func TestIsAfterCheckoutTimeGate_PerStudentDisabled_FallsBackToGlobal(t *testing
 
 func TestIsAfterCheckoutTimeGate_PerStudentDisabled_GlobalTimeInFuture(t *testing.T) {
 	t.Parallel()
-	// Set a global time far in the future
+	fixedNow := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 
 	s := &CheckinService{
+		now:                   func() time.Time { return fixedNow },
 		settings:              newMockSettingsService(map[string]string{}, nil, nil),
-		dailyCheckoutFallback: "23:59",
+		dailyCheckoutFallback: "13:00",
 	}
 	student := &users.Student{Model: base.Model{ID: 1}}
 
@@ -710,10 +717,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_BeforeDelta(t *testing.T) {
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_AfterDelta(t *testing.T) {
 	t.Parallel()
 	// Pickup time 5 minutes from now, delta 15 min → already past threshold
-	now := time.Now()
-	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+5, 0, 0, now.Location())
+	fixedNow := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	pickupTime := time.Date(2000, 1, 1, 12, 5, 0, 0, time.UTC)
 
 	s := &CheckinService{
+		now: func() time.Time { return fixedNow },
 		settings: newMockSettingsService(
 			map[string]string{},
 			map[string]bool{"operations.per_student_checkout_enabled": true},
@@ -785,10 +793,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NilPickupService_FallsBackToG
 func TestIsAfterCheckoutTimeGate_PerStudentEnabled_DeltaZero(t *testing.T) {
 	t.Parallel()
 	// Pickup time 1 minute from now, delta 0 → not yet
-	now := time.Now()
-	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+1, 0, 0, now.Location())
+	fixedNow := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	pickupTime := time.Date(2000, 1, 1, 12, 1, 0, 0, time.UTC)
 
 	s := &CheckinService{
+		now: func() time.Time { return fixedNow },
 		settings: newMockSettingsService(
 			map[string]string{},
 			map[string]bool{"operations.per_student_checkout_enabled": true},

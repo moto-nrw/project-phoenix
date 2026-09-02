@@ -32,6 +32,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/absence"
@@ -290,7 +292,8 @@ type Factory struct {
 	// StudentPhotos is set by EnableStudentPhotos. nil until the API layer
 	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
 	// service-layer one).
-	StudentPhotos users.StudentPhotoService
+	StudentPhotos   users.StudentPhotoService
+	StudentConsents users.StudentConsentService
 }
 
 // SetSettingsObservers wires delivery-owned metrics without coupling the
@@ -416,7 +419,9 @@ func NewFactoryWithModules(
 	db *bun.DB,
 	logger *slog.Logger,
 	organizations organizationtenancy.Capability,
+	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
+	membership schoolmembership.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -426,10 +431,10 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || groups == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("organization tenancy, school structure, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || membership == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, school membership, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, groups, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, membership, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -438,7 +443,9 @@ func newFactory(
 	logger *slog.Logger,
 	cfg FactoryConfig,
 	organizations organizationtenancy.Capability,
+	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
+	membership schoolmembership.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -451,10 +458,15 @@ func newFactory(
 ) (*Factory, error) {
 	now := optionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
+	// Persons first: the school projections sort by the names this binds.
+	repos.BindPeopleDirectory(persons)
+	careStudentLock, studentNotFound := repositories.CareStudentLock(persons)
+	schedule.BindCareStudentLockForDB(db, careStudentLock, studentNotFound)
+	repos.BindSchoolMembership(membership)
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
-	settingsRuntime := newSettingsRuntime(db, nil)
+	settingsRuntime := newSettingsRuntime(db, nil).WithSchoolMembership(membership)
 	repos.SetConfigRuntime(settingsRuntime)
 
 	mailer, err := email.NewMailer(email.MailerConfig{
@@ -516,6 +528,7 @@ func newFactory(
 		return nil, err
 	}
 	repos.RouteAuditWrites(auditCommand)
+	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
 
@@ -784,7 +797,7 @@ func newFactory(
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
-	staffClockService := staffclock.NewService(usersService, repos.RFIDCard, workSessionService)
+	staffClockService := staffclock.NewService(usersService, newRFIDCardLookup(repos.RFIDCard.FindByID), workSessionService)
 
 	// Monatskarte read model (#1842) — everything computed on read, the
 	// Übertrag is live.
@@ -1143,6 +1156,7 @@ func newFactory(
 	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
 		RoomRepo:        repos.Room,
 		ActiveGroupRepo: repos.ActiveGroup,
+		PersonQuery:     newFacilitiesPersonQuery(persons),
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -1748,7 +1762,7 @@ func newFactory(
 		SSESettings:        settingsService,
 	}, usercontextLogger)
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
-		Groups: repos.Group, Substitutions: repos.GroupSubstitution,
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Persons: newEducationPersonQuery(persons),
 		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
@@ -1837,6 +1851,7 @@ func newFactory(
 			PickupScheduleRepo:  repos.StudentPickupSchedule,
 			RFIDCardRepo:        repos.RFIDCard,
 			Resolver:            relationshipResolver,
+			Consents:            studentConsentService,
 		},
 		db,
 	)
@@ -2132,6 +2147,7 @@ func newFactory(
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
 		StudentAudit:             studentAuditService,
+		StudentConsents:          studentConsentService,
 		CareWithdrawal:           careLifecycleService,
 		Broadcaster:              realtimeHub,
 		PickupGuardianNotifier:   pillEmitter,
@@ -2622,6 +2638,7 @@ func newFactory(
 		StudentGuardianRepo:       repos.StudentGuardian,
 		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
 		GuardianChangeAuditRepo:   repos.GuardianChange,
+		StudentConsents:           studentConsentService,
 		RequestChildRepo:          repos.RequestChild,
 		RequestChildOfferingRepo:  repos.RequestChildOffering,
 		CareOfferingRepo:          repos.CareOffering,
@@ -3038,6 +3055,7 @@ func newFactory(
 		StudentDeletion:      studentDeletionService,
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
+		StudentConsents:      studentConsentService,
 		MasterDataReview:     masterDataReviewService,
 		CareRequests:         careRequestService,
 		OfferingChanges:      offeringChangeRequestService,
@@ -3165,6 +3183,10 @@ func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
 		Unlinker:    deps.Unlinker,
 		DB:          deps.DB,
 		Logger:      deps.Logger,
+		Consents:    f.StudentConsents,
 	})
+	if setter, ok := f.Parent.(parent.StudentPhotoSetter); ok {
+		setter.SetStudentPhotos(f.StudentPhotos)
+	}
 	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }

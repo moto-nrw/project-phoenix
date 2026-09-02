@@ -3,7 +3,9 @@ package facilities
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -22,6 +24,59 @@ const (
 type RoomRepository struct {
 	*base.Repository[*facilities.Room]
 	db *bun.DB
+	// supervisorPersons maps supervising staff IDs to the persons behind
+	// them. School Membership owns those rows, so the composition root
+	// injects the lookup instead of this repository joining users.staff
+	// (#2667). Without it the occupancy rows carry staff IDs only.
+	supervisorPersons func(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
+}
+
+// SetSupervisorPersonsResolver installs the staff-to-person lookup used to
+// fill RoomOccupancyRow.SupervisorPersonIDs.
+func (r *RoomRepository) SetSupervisorPersonsResolver(resolve func(ctx context.Context, staffIDs []int64) (map[int64]int64, error)) {
+	r.supervisorPersons = resolve
+}
+
+// attachSupervisorPersons resolves the persons behind every row's supervising
+// staff. The replaced array_agg(DISTINCT st.person_id) handed the persons
+// over deduplicated and in ascending ID order; keep that so name rendering
+// stays stable. The former INNER JOIN carried no soft-delete filter, so the
+// resolver is expected to include offboarded staff.
+func (r *RoomRepository) attachSupervisorPersons(ctx context.Context, rows []facilities.RoomOccupancyRow) error {
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.SupervisorStaffIDs...)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	// Fail closed: a missing resolver would render every supervised room as
+	// unsupervised, which is wrong data rather than an obvious outage.
+	if r.supervisorPersons == nil {
+		return errors.New("room repository resolves supervising persons through School Membership")
+	}
+	persons, err := r.supervisorPersons(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("resolve supervising persons: %w", err)
+	}
+	for index := range rows {
+		personIDs := make([]int64, 0, len(rows[index].SupervisorStaffIDs))
+		seen := make(map[int64]struct{}, len(rows[index].SupervisorStaffIDs))
+		for _, staffID := range rows[index].SupervisorStaffIDs {
+			personID, found := persons[staffID]
+			if !found {
+				continue
+			}
+			if _, duplicate := seen[personID]; duplicate {
+				continue
+			}
+			seen[personID] = struct{}{}
+			personIDs = append(personIDs, personID)
+		}
+		slices.Sort(personIDs)
+		rows[index].SupervisorPersonIDs = personIDs
+	}
+	return nil
 }
 
 // FindByIDForUpdate retrieves and locks a room for capacity-sensitive writes.
@@ -269,14 +324,14 @@ func occupancyColumns(q *bun.SelectQuery) *bun.SelectQuery {
 			INNER JOIN active.groups ag ON ag.id = v.active_group_id
 			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND v.exit_time IS NULL
 		), 0)::int AS student_count`).
-		ColumnExpr(`(
-			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
+		// Only the supervising staff IDs are read here; the composition layer
+		// turns them into SupervisorPersonIDs through School Membership (#2667).
+		ColumnExpr(`COALESCE((
+			SELECT array_agg(DISTINCT gs.staff_id)
 			FROM active.group_supervisors gs
 			INNER JOIN active.groups ag ON ag.id = gs.group_id
-			INNER JOIN users.staff st ON st.id = gs.staff_id
-			INNER JOIN users.persons p ON p.id = st.person_id
 			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND gs.end_date IS NULL
-		) AS supervisor_names`)
+		), '{}'::bigint[]) AS supervisor_staff_ids`)
 }
 
 // FindWithOccupancy returns the room row plus its live occupancy aggregate.
@@ -297,7 +352,11 @@ func (r *RoomRepository) FindWithOccupancy(ctx context.Context, id int64) (*faci
 			Err: base.TranslateNotFound(err),
 		}
 	}
-	return &result, nil
+	rows := []facilities.RoomOccupancyRow{result}
+	if err := r.attachSupervisorPersons(ctx, rows); err != nil {
+		return nil, err
+	}
+	return &rows[0], nil
 }
 
 // ListWithOccupancy returns every room (optionally filtered) plus its live
@@ -321,6 +380,9 @@ func (r *RoomRepository) ListWithOccupancy(ctx context.Context, options *modelBa
 			Op:  "list rooms with occupancy",
 			Err: base.TranslateNotFound(err),
 		}
+	}
+	if err := r.attachSupervisorPersons(ctx, results); err != nil {
+		return nil, err
 	}
 	return results, nil
 }

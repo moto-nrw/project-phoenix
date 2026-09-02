@@ -103,7 +103,7 @@ func newDecisionServiceForTest(
 	settings enrollmentService.DecisionSettingsResolver,
 	lockTemplateRecurrence func(context.Context) error,
 ) enrollmentService.DecisionService {
-	return newDecisionServiceForTestWithCareWithdrawal(env, settings, lockTemplateRecurrence, nil)
+	return newDecisionServiceForTestWithDependencies(env, settings, lockTemplateRecurrence, nil, nil)
 }
 
 func newDecisionServiceForTestWithCareWithdrawal(
@@ -111,6 +111,23 @@ func newDecisionServiceForTestWithCareWithdrawal(
 	settings enrollmentService.DecisionSettingsResolver,
 	lockTemplateRecurrence func(context.Context) error,
 	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+) enrollmentService.DecisionService {
+	return newDecisionServiceForTestWithDependencies(env, settings, lockTemplateRecurrence, careWithdrawal, nil)
+}
+
+func newDecisionServiceForTestWithConsentAuditor(
+	env *rolloverTestEnv,
+	studentConsents enrollmentService.StudentConsentAuditor,
+) enrollmentService.DecisionService {
+	return newDecisionServiceForTestWithDependencies(env, nil, nil, nil, studentConsents)
+}
+
+func newDecisionServiceForTestWithDependencies(
+	env *rolloverTestEnv,
+	settings enrollmentService.DecisionSettingsResolver,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+	studentConsents enrollmentService.StudentConsentAuditor,
 ) enrollmentService.DecisionService {
 	repoFactory := repositories.NewFactory(env.db)
 	if careWithdrawal == nil {
@@ -159,6 +176,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 		RoleRepo:               repoFactory.Role,
 		OutboxEnqueuer:         env.outbox,
 		StudentAudit:           usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+		StudentConsents:        studentConsents,
 		CareWithdrawal:         careWithdrawal,
 		FrontendURL:            "http://localhost:3000",
 		ParentsURL:             "http://parents.localhost:3000",
@@ -173,6 +191,21 @@ func newDecisionServiceForTestWithCareWithdrawal(
 		Logger: slog.Default(),
 		Today:  func() timezone.Date { return decisionTestToday },
 	})
+}
+
+type failingStudentConsentAuditor struct {
+	err error
+}
+
+func (a failingStudentConsentAuditor) RecordTransitions(
+	context.Context,
+	*usersModels.Student,
+	*usersModels.Student,
+	string,
+	*int64,
+	time.Time,
+) error {
+	return a.err
 }
 
 func testBookingsAuthority(settings enrollmentService.DecisionSettingsResolver) func(context.Context) (bool, error) {
@@ -2245,6 +2278,49 @@ func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
 	require.NotNil(t, student.PhotoConsentGivenBy)
 	assert.Equal(t, env.creatorID, *student.PhotoConsentGivenBy,
 		"photo_consent_given_by must reference the reviewer account")
+}
+
+func TestDecisionService_Decide_ConsentAuditFailureRollsBackFreshStudent(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	auditErr := errors.New("consent audit unavailable")
+	env.decision = newDecisionServiceForTestWithConsentAuditor(
+		env.rolloverTestEnv,
+		failingStudentConsentAuditor{err: auditErr},
+	)
+
+	studentCountBefore, err := env.db.NewSelect().
+		TableExpr("users.students").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+
+	reqID, childID := submitOneChild(t, env, "audit-failure@example.com", "Anna", "Auditfehler")
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := env.decision.Decide(txCtx, enrollmentService.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentService.DecisionApproved,
+			ReviewedBy: env.creatorID,
+		})
+		return decisionErr
+	})
+	require.ErrorIs(t, decideErr, auditErr)
+
+	studentCountAfter, err := env.db.NewSelect().
+		TableExpr("users.students").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, studentCountBefore, studentCountAfter, "student creation must roll back with the missing consent audit")
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status)
+	assert.Nil(t, child.CreatedStudentID)
 }
 
 func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) {

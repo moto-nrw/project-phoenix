@@ -370,6 +370,18 @@ func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
 		Scan(ctx, &expiredID)
 	require.NoError(t, err)
 
+	// An expired invitation from another tenant must not be swept by this cleanup.
+	otherTenant := testpkg.NewTenantScope(t, db)
+	otherToken := uuid.Must(uuid.NewV4()).String()
+	var otherExpiredID int64
+	err = db.NewRaw(`
+		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, ?)
+		RETURNING id
+	`, "other-expired-delete@example.com", otherToken, role.ID, creator.ID, time.Now().Add(-1*time.Hour), otherTenant.TenantID).
+		Scan(otherTenant.Context(), &otherExpiredID)
+	require.NoError(t, err)
+
 	// Create valid invitation
 	validExpiry := time.Now().Add(48 * time.Hour)
 	validInv := createTestInvitationToken(t, db, "valid-delete@example.com", role.ID, creator.ID, validExpiry)
@@ -387,6 +399,10 @@ func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
 
 	// Verify valid still exists
 	_, err = repo.FindByID(ctx, validInv.ID)
+	assert.NoError(t, err)
+
+	// Verify another tenant's expired invitation still exists.
+	_, err = repo.FindByID(otherTenant.Context(), otherExpiredID)
 	assert.NoError(t, err)
 }
 

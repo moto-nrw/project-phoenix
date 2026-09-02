@@ -174,7 +174,7 @@ func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDe
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
 		Tracer:                 workerTracer(api),
 		Settings:               api.Services.Settings,
-		StaffDocumentCleaner:   api.Staff,
+		StaffDocumentCleaner:   api.StaffAdmin,
 		StudentDocumentCleaner: api.Students,
 		FileStoreCleaner:       api.FileStore,
 	}

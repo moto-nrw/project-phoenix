@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -68,16 +69,53 @@ func (s *StudentStatusDayOverviewService) GetOverview(ctx context.Context, group
 	if len(studentIDs) == 0 {
 		return &StatusDayOverview{Entries: []StatusDayOverviewEntry{}}, nil
 	}
+	orderedStudentIDs := orderOverviewStudentIDs(studentIDs, studentsByID, persons)
 	options := statusDayOverviewOptions(studentIDs, studentsByID, from, to, today, filters)
 	total, err := s.repo.CountWithOptions(ctx, options)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.repo.ListOverviewWithOptions(ctx, options)
+	rows, err := s.repo.ListOverviewWithOptions(ctx, options, orderedStudentIDs)
 	if err != nil {
 		return nil, err
 	}
 	return &StatusDayOverview{Entries: assembleStatusDayOverview(rows, studentsByID, persons, groupsByID, today), HasMore: filters.Page*filters.PageSize < total}, nil
+}
+
+// orderOverviewStudentIDs applies the name portion of the overview order. The
+// repository keeps date first and uses this rank before SQL pagination.
+func orderOverviewStudentIDs(ids []int64, students map[int64]*userModels.Student, persons map[int64]*userModels.Person) []int64 {
+	ordered := slices.Clone(ids)
+	personOf := func(studentID int64) *userModels.Person {
+		if student := students[studentID]; student != nil {
+			return persons[student.PersonID]
+		}
+		return nil
+	}
+	nameOf := func(person *userModels.Person) (string, string) {
+		if person == nil {
+			return "", ""
+		}
+		return person.LastName, person.FirstName
+	}
+	slices.SortFunc(ordered, func(left, right int64) int {
+		leftLast, leftFirst := nameOf(personOf(left))
+		rightLast, rightFirst := nameOf(personOf(right))
+		if order := strings.Compare(leftLast, rightLast); order != 0 {
+			return order
+		}
+		if order := strings.Compare(leftFirst, rightFirst); order != 0 {
+			return order
+		}
+		if left != right {
+			if left < right {
+				return -1
+			}
+			return 1
+		}
+		return 0
+	})
+	return ordered
 }
 
 func statusDayOverviewOptions(studentIDs []int64, students map[int64]*userModels.Student, from, to, today timezone.Date, filters StatusDayOverviewFilters) *modelBase.QueryOptions {
@@ -127,14 +165,20 @@ func statusDayEnrollmentFilter(studentIDs []int64, students map[int64]*userModel
 
 func filterOverviewStudentIDs(ids []int64, students map[int64]*userModels.Student, persons map[int64]*userModels.Person, query string) []int64 {
 	needle := strings.ToLower(strings.TrimSpace(query))
-	if needle == "" {
-		return ids
-	}
 	filtered := make([]int64, 0, len(ids))
 	for _, id := range ids {
 		student := students[id]
+		if student == nil {
+			continue
+		}
 		person := persons[student.PersonID]
-		if person != nil && strings.Contains(strings.ToLower(person.FirstName+" "+person.LastName+" "+student.SchoolClass), needle) {
+		if person == nil {
+			if needle == "" {
+				filtered = append(filtered, id)
+			}
+			continue
+		}
+		if needle == "" || strings.Contains(strings.ToLower(person.FirstName+" "+person.LastName+" "+student.SchoolClass), needle) {
 			filtered = append(filtered, id)
 		}
 	}

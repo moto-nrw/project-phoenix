@@ -84,17 +84,17 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 // buildUnreadArgs returns the fixed-size positional args shared by the FROM + WHERE
 // in the unread announcement query.
 // Arg order: userID (account JOIN), tenantID (membership JOIN), orgID (school JOIN),
-// now, now, pgArray(userRoles) — 6 args.
+// pgArray(userRoles) — 4 args. Activity windows use the database clock so they
+// are compared against persisted timestamps from the same clock source.
 func buildUnreadArgs(userID int64, userRoles []string, tenantID int64, orgID int64) []any {
-	now := time.Now()
 	if userRoles == nil {
 		userRoles = []string{}
 	}
-	return []any{userID, tenantID, orgID, now, now, pgdialect.Array(userRoles)}
+	return []any{userID, tenantID, orgID, pgdialect.Array(userRoles)}
 }
 
 // unreadWhereClause is the shared SQL fragment used by both GetUnreadForUser
-// and CountUnread. Arg positions are fixed (always 6 — see buildUnreadArgs).
+// and CountUnread. Arg positions are fixed (always 4 — see buildUnreadArgs).
 //
 // Role matching: a user matches if their JWT role names overlap with target_roles
 // (direct match) OR if any of their assigned roles in the current session tenant
@@ -105,8 +105,8 @@ func buildUnreadArgs(userID int64, userRoles []string, tenantID int64, orgID int
 const unreadWhereClause = `
 	WHERE a.active = true
 		AND a.published_at IS NOT NULL
-		AND a.published_at <= ?
-		AND (a.expires_at IS NULL OR a.expires_at > ?)
+		AND a.published_at <= CURRENT_TIMESTAMP
+		AND (a.expires_at IS NULL OR a.expires_at > CURRENT_TIMESTAMP)
 		AND a.published_at >= GREATEST(
 			s.created_at,
 			COALESCE(at.invited_at, at.created_at),
@@ -299,26 +299,23 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 func (r *AnnouncementViewRepository) GetViewDetails(ctx context.Context, announcementID int64) ([]*platform.AnnouncementViewDetail, error) {
 	var details []*platform.AnnouncementViewDetail
 
-	// Join with auth.accounts and users.persons to get user names.
-	// Use DISTINCT ON to avoid duplicate rows when an account has multiple persons
-	// (e.g. staff assigned to multiple tenants). Pick the most recently updated person.
+	// Join with auth.accounts for the e-mail fallback; the person name is
+	// attached by the composition layer through the People Directory, which
+	// picks the most recently updated person of an account with several.
 	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT user_id, user_name, seen_at, dismissed
+		SELECT user_id, account_email, user_name, seen_at, dismissed
 		FROM (
 			SELECT DISTINCT ON (v.user_id)
 				v.user_id,
-				COALESCE(
-					NULLIF(CONCAT(p.first_name, ' ', p.last_name), ' '),
-					acc.email
-				) as user_name,
+				acc.email AS account_email,
+				acc.email AS user_name,
 				v.seen_at,
 				v.dismissed
 			FROM platform.announcement_views v
 			JOIN auth.accounts acc ON acc.id = v.user_id
-			LEFT JOIN users.persons p ON p.account_id = acc.id
 			WHERE v.announcement_id = ?
-			ORDER BY v.user_id, p.updated_at DESC NULLS LAST
-		) sub
+			ORDER BY v.user_id, v.seen_at DESC
+		) AS latest_view
 		ORDER BY seen_at DESC
 	`, announcementID).Scan(ctx, &details)
 

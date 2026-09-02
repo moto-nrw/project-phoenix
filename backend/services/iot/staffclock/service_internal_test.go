@@ -46,22 +46,12 @@ func (s *stubPeople) GetStaffByPersonID(context.Context, int64) (*userModels.Sta
 }
 
 type stubCards struct {
-	card *userModels.RFIDCard
+	card *Card
 }
 
-func (s *stubCards) FindByID(context.Context, string) (*userModels.RFIDCard, error) {
+func (s *stubCards) FindCard(context.Context, string) (*Card, error) {
 	return s.card, nil
 }
-
-func (s *stubCards) Create(context.Context, *userModels.RFIDCard) error { return nil }
-func (s *stubCards) Update(context.Context, *userModels.RFIDCard) error {
-	return nil
-}
-func (s *stubCards) Delete(context.Context, string) error { return nil }
-func (s *stubCards) List(context.Context, map[string]any) ([]*userModels.RFIDCard, error) {
-	return nil, nil
-}
-func (s *stubCards) Deactivate(context.Context, string) error { return nil }
 
 type stubWorkSessions struct {
 	checkInErr  error
@@ -157,7 +147,7 @@ func newRacedService(checkInErr error) (*Service, *stubWorkSessions) {
 	person.ID = 42
 	staff := &userModels.Staff{PersonID: person.ID}
 	staff.ID = 7
-	card := &userModels.RFIDCard{Active: true}
+	card := &Card{Active: true}
 	card.ID = "A1654BEEF"
 
 	sessions := &stubWorkSessions{checkInErr: checkInErr}
@@ -423,7 +413,7 @@ func TestExecute_UnrelatedUniqueViolationStaysAnError(t *testing.T) {
 // gets — dereferencing the missing person turned an unassigned card into a 500.
 func TestGetState_UnassignedCardIsReportedAsUnknownTag(t *testing.T) {
 	t.Parallel()
-	card := &userModels.RFIDCard{Active: true}
+	card := &Card{Active: true}
 	card.ID = "A1654BEEF"
 	service := NewService(&stubPeople{}, &stubCards{card: card}, &stubWorkSessions{})
 

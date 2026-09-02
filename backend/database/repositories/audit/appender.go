@@ -114,6 +114,8 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 		table, query = "audit.student_deletions", db.NewInsert().Model(value).ModelTableExpr("audit.student_deletions")
 	case *auditModels.StudentFieldEdit:
 		table, query = "audit.student_field_edits", db.NewInsert().Model(value).ModelTableExpr("audit.student_field_edits")
+	case *auditModels.StudentConsentChange:
+		table, query = "audit.student_consent_changes", db.NewInsert().Model(value).ModelTableExpr("audit.student_consent_changes")
 	case *auditModels.SubstitutionChange:
 		table, query = "audit.substitution_changes", db.NewInsert().Model(value).ModelTableExpr("audit.substitution_changes")
 	case *auditModels.TimeTrackingDeletion:

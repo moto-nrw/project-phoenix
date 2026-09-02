@@ -253,6 +253,30 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_statement_duration_seconds", Help: "Cumulative Organization and Tenancy database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	peopleDirectoryOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_operations_total", Help: "People Directory operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	peopleDirectoryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_people_directory_operation_duration_seconds", Help: "People Directory operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	peopleDirectoryQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_queries_total", Help: "Persistence queries issued by People Directory operations."},
+		[]string{"operation"},
+	)
+	peopleDirectoryRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_rows_changed_total", Help: "Rows changed by People Directory commands."},
+		[]string{"operation"},
+	)
+	peopleDirectoryStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_people_directory_statement_duration_seconds", Help: "Cumulative People Directory database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	peopleDirectoryHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_http_responses_total", Help: "People Directory HTTP responses by actual status class and stable code."},
+		[]string{"status_class", "code"},
+	)
 	schoolStructureOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_school_structure_operations_total", Help: "School Structure operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -272,6 +296,30 @@ var (
 	schoolStructureStatementDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{Name: "phoenix_school_structure_statement_duration_seconds", Help: "Cumulative School Structure database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
+	)
+	schoolMembershipOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_operations_total", Help: "School Membership operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	schoolMembershipDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_membership_operation_duration_seconds", Help: "School Membership operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	schoolMembershipQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_queries_total", Help: "Persistence queries issued by School Membership operations."},
+		[]string{"operation"},
+	)
+	schoolMembershipRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_rows_total", Help: "Rows returned or changed by School Membership operations."},
+		[]string{"operation"},
+	)
+	schoolMembershipStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_membership_statement_duration_seconds", Help: "Cumulative School Membership database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	schoolMembershipHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_http_responses_total", Help: "School Membership HTTP responses under /api/staff by actual status class and stable code."},
+		[]string{"status_class", "code"},
 	)
 	feedbackOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_feedback_operations_total", Help: "Feedback operations by operation, outcome, and stable error code."},
@@ -496,11 +544,23 @@ func init() {
 		organizationTenancyQueries,
 		organizationTenancyRowsChanged,
 		organizationTenancyStatementDuration,
+		peopleDirectoryOperations,
+		peopleDirectoryDuration,
+		peopleDirectoryQueries,
+		peopleDirectoryRowsChanged,
+		peopleDirectoryStatementDuration,
+		peopleDirectoryHTTPResponses,
 		schoolStructureOperations,
 		schoolStructureDuration,
 		schoolStructureQueries,
 		schoolStructureRows,
 		schoolStructureStatementDuration,
+		schoolMembershipOperations,
+		schoolMembershipDuration,
+		schoolMembershipQueries,
+		schoolMembershipRows,
+		schoolMembershipStatementDuration,
+		schoolMembershipHTTPResponses,
 		feedbackOperations,
 		feedbackHTTPResponses,
 		feedbackDuration,
@@ -637,6 +697,68 @@ func ObserveOrganizationTenancyOperation(operation string, duration time.Duratio
 	if statementDuration > 0 {
 		organizationTenancyStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
+}
+
+// ObservePeopleDirectoryOperation records the runtime evidence of one People
+// Directory capability call: outcome and stable code, duration, query count,
+// changed rows, and cumulative statement duration.
+func ObservePeopleDirectoryOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	peopleDirectoryOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	peopleDirectoryDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		peopleDirectoryQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		peopleDirectoryRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		peopleDirectoryStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObservePeopleDirectoryHTTPResponse counts one /api/users response by the
+// status class actually written and the stable outcome code.
+func ObservePeopleDirectoryHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
+// ObserveSchoolMembershipOperation records the runtime evidence of one School
+// Membership capability call: outcome and stable code, duration, query
+// count, rows, and cumulative statement duration.
+func ObserveSchoolMembershipOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	schoolMembershipOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolMembershipDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		schoolMembershipQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		schoolMembershipRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		schoolMembershipStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveSchoolMembershipHTTPResponse counts one /api/staff membership
+// response by the status class actually written and the stable outcome code.
+func ObserveSchoolMembershipHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	schoolMembershipHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
 }
 
 func ObserveSchoolStructureOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {

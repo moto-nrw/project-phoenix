@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -26,7 +27,7 @@ func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTrans
 
 	db := testpkg.SetupTestDB(t)
 
-	transitionRepo := educationRepo.NewGradeTransitionRepository(db)
+	transitionRepo := newGradeTransitionRepository(t, db)
 	studentRepo := usersRepo.NewStudentRepository(db)
 	personRepo := usersRepo.NewPersonRepository(db)
 
@@ -35,7 +36,7 @@ func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTrans
 		StudentRepo:      studentRepo,
 		PersonRepo:       personRepo,
 		ClassTeacherRepo: educationRepo.NewClassTeacherRepository(db),
-		StaffRepo:        usersRepo.NewStaffRepository(db),
+		StaffRepo:        repositories.NewFactory(db).Staff,
 		DB:               db,
 	})
 
@@ -1261,7 +1262,7 @@ func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *test
 
 	reconciler := &recordingRosterReconciler{}
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo:   educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo:   newGradeTransitionRepository(t, db),
 		StudentRepo:      usersRepo.NewStudentRepository(db),
 		PersonRepo:       usersRepo.NewPersonRepository(db),
 		RosterReconciler: reconciler,
@@ -1320,7 +1321,7 @@ func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *
 
 	reconciler := &recordingRosterReconciler{}
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo:   educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo:   newGradeTransitionRepository(t, db),
 		StudentRepo:      usersRepo.NewStudentRepository(db),
 		PersonRepo:       usersRepo.NewPersonRepository(db),
 		RosterReconciler: reconciler,
@@ -1542,4 +1543,14 @@ func TestGradeTransitionService_PromotionSkipsAlumni(t *testing.T) {
 		Scan(ctx, &currentClass)
 	require.NoError(t, err)
 	assert.Equal(t, fromClass, currentClass)
+}
+
+// newGradeTransitionRepository returns the grade transition repository as
+// the service graph composes it: the RFID tag commands and the cohort names
+// run through the People Directory (#2661).
+func newGradeTransitionRepository(t *testing.T, db *bun.DB) education.GradeTransitionRepository {
+	t.Helper()
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	return factory.GradeTransition
 }

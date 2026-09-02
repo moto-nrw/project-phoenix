@@ -90,7 +90,11 @@ func (s *personService) updatePersonnelNumberInTx(
 
 	staff.PersonnelNumber = normalized
 	if err := s.StaffRepo.Update(ctx, staff); err != nil {
-		if base.IsUniqueViolationOn(err, userModels.PersonnelNumberUniqueConstraintName) {
+		// School Membership classifies the per-tenant duplicate itself, so the
+		// raw unique violation only reaches us on paths that still write the
+		// row directly. Both mean the same thing to the caller.
+		if base.IsUniqueViolationOn(err, userModels.PersonnelNumberUniqueConstraintName) ||
+			errors.Is(err, userModels.ErrPersonnelNumberConflict) {
 			return nil, ErrPersonnelNumberTaken
 		}
 		return nil, err

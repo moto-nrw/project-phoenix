@@ -14,13 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type flushRecorder struct {
-	*httptest.ResponseRecorder
-	flushed bool
-}
-
-func (r *flushRecorder) Flush() { r.flushed = true }
-
 type fakeSSEClientCounter struct{ count int }
 
 func (c fakeSSEClientCounter) GetClientCount() int { return c.count }
@@ -64,17 +57,6 @@ func TestHTTPMetricsSnapshotSortsAndLimitsRoutes(t *testing.T) {
 	require.Len(t, routes, 1)
 	assert.Equal(t, "/api/error", routes[0].Route)
 	assert.NotZero(t, routes[0].ErrorCount)
-}
-
-func TestStatusRecorderPreservesResponseWriterCapabilities(t *testing.T) {
-	t.Parallel()
-	base := &flushRecorder{ResponseRecorder: httptest.NewRecorder()}
-	recorder := &statusRecorder{ResponseWriter: base, status: http.StatusOK}
-	assert.Same(t, base, recorder.Unwrap())
-	_, ok := any(recorder).(http.Flusher)
-	assert.True(t, ok)
-	recorder.Flush()
-	assert.True(t, base.flushed)
 }
 
 func TestCapacityLoggerLogSnapshotUsesProviders(t *testing.T) {

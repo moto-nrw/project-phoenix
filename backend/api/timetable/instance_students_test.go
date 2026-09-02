@@ -27,6 +27,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -227,7 +228,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	_, err := db.NewInsert().Model(inst).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := repositories.NewFactory(db).InstanceStudent
 	row := &schedule.InstanceStudent{
 		InstanceID: inst.ID,
 		StudentID:  student.ID,

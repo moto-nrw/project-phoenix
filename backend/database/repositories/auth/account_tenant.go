@@ -182,6 +182,9 @@ func (r *AccountTenantRepository) ExistsActiveByAccountAndTenantForShare(ctx con
 // This is the inverse direction of the account listings below (account -> many
 // schools instead of school -> many accounts) and is therefore cross-tenant by
 // construction: callers must be operator-scoped.
+//
+// HasPerson and HasStaff are attached by the composition layer through the
+// People Directory (#2661); the rows leave here with both unset.
 func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenantAccessInfo, error) {
 	var rows []auth.AccountTenantAccessInfo
 	err := base.GetDB(ctx, r.db).NewSelect().
@@ -189,11 +192,9 @@ func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Contex
 		ColumnExpr(`"at".status`).
 		ColumnExpr(`"at".activated_at`).
 		ColumnExpr(`"at".deactivated_at`).
-		ColumnExpr(`("p".id IS NOT NULL) AS has_person`).
-		ColumnExpr(`("s".id IS NOT NULL) AS has_staff`).
+		ColumnExpr(`FALSE AS has_person`).
+		ColumnExpr(`FALSE AS has_staff`).
 		TableExpr(`auth.account_tenants AS "at"`).
-		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id AND "p".deleted_at IS NULL`).
-		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id AND "s".deleted_at IS NULL`).
 		Where(`"at".account_id = ?`, accountID).
 		OrderExpr(`"at".tenant_id ASC`).
 		Scan(ctx, &rows)
@@ -203,8 +204,12 @@ func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Contex
 	return rows, nil
 }
 
-// ListAccountsByTenantID returns all accounts for a given tenant with their roles and pedagogic info,
-// plus pending invitations that haven't been accepted yet.
+// ListAccountsByTenantID returns all accounts for a given tenant with their
+// roles, plus pending invitations that haven't been accepted yet. The person
+// names and the caregiver facts (pedagogic role, caregiver profile, active
+// caregiver) are attached by the composition layer through the People
+// Directory and CaregiverChainByPersonIDs (#2661); the account rows leave
+// here in account-id order and the invitations follow them.
 func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error) {
 	db := base.GetDB(ctx, r.db)
 
@@ -213,25 +218,22 @@ func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, te
 		ColumnExpr(`"at".account_id`).
 		ColumnExpr(`"a".email`).
 		ColumnExpr(`"a".active`).
-		ColumnExpr(`COALESCE("p".first_name, '') AS first_name`).
-		ColumnExpr(`COALESCE("p".last_name, '') AS last_name`).
+		ColumnExpr(`'' AS first_name`).
+		ColumnExpr(`'' AS last_name`).
 		ColumnExpr(`COALESCE(string_agg(DISTINCT "r".name, ', ' ORDER BY "r".name), '') AS role_name`).
-		ColumnExpr(`COALESCE("t".role, '') AS pedagogic_role`).
+		ColumnExpr(`'' AS pedagogic_role`).
 		ColumnExpr(`"at".status`).
 		ColumnExpr(`COALESCE(bool_or(LOWER("r".name) = 'admin'), false) AS has_admin_role`).
 		ColumnExpr(`COALESCE(bool_or(LOWER("r".name) = 'user'), false) AS has_user_role`).
-		ColumnExpr(`("p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS has_caregiver_profile`).
-		ColumnExpr(`(COALESCE(bool_or(LOWER("r".name) = 'user'), false) AND "p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS is_active_caregiver`).
+		ColumnExpr(`FALSE AS has_caregiver_profile`).
+		ColumnExpr(`FALSE AS is_active_caregiver`).
 		TableExpr(`auth.account_tenants AS "at"`).
 		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
 		Join(`LEFT JOIN auth.account_roles AS "ar" ON "ar".account_id = "at".account_id AND "ar".tenant_id = ?`, tenantID).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
-		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = ? AND "p".deleted_at IS NULL`, tenantID).
-		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = ? AND "s".deleted_at IS NULL`, tenantID).
-		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = ? AND "t".deleted_at IS NULL`, tenantID).
 		Where(`"at".tenant_id = ?`, tenantID).
-		GroupExpr(`"at".account_id, "a".email, "a".active, "p".id, "p".first_name, "p".last_name, "s".id, "t".id, "t".role, "at".status`).
-		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
+		GroupExpr(`"at".account_id, "a".email, "a".active, "at".status`).
+		OrderExpr(`"at".account_id ASC`).
 		Scan(ctx, &accounts)
 	if err != nil {
 		return nil, err
@@ -311,6 +313,9 @@ func (r *AccountTenantRepository) ListAccountsBySchoolIDs(ctx context.Context, s
 // Schools are only soft-deletable when their organization is still active, and
 // an organization can only be soft-deleted once all its schools are in the
 // Papierkorb, so filtering on school.deleted_at also covers the org-deleted case.
+//
+// The person names and caregiver facts are attached by the composition
+// layer (#2661); the rows leave here in school/account order.
 func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.IDB, schoolIDs []int64) ([]auth.OrgAccountInfo, error) {
 	var accounts []auth.OrgAccountInfo
 	q := db.NewSelect().
@@ -319,29 +324,30 @@ func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.I
 		ColumnExpr(`"at".account_id`).
 		ColumnExpr(`"a".email`).
 		ColumnExpr(`"a".active`).
-		ColumnExpr(`COALESCE("p".first_name, '') AS first_name`).
-		ColumnExpr(`COALESCE("p".last_name, '') AS last_name`).
+		ColumnExpr(`'' AS first_name`).
+		ColumnExpr(`'' AS last_name`).
 		ColumnExpr(`COALESCE(string_agg(DISTINCT "r".name, ', ' ORDER BY "r".name), '') AS role_name`).
-		ColumnExpr(`COALESCE("t".role, '') AS pedagogic_role`).
+		ColumnExpr(`'' AS pedagogic_role`).
 		ColumnExpr(`"at".status`).
 		ColumnExpr(`COALESCE(bool_or(LOWER("r".name) = 'admin'), false) AS has_admin_role`).
 		ColumnExpr(`COALESCE(bool_or(LOWER("r".name) = 'user'), false) AS has_user_role`).
-		ColumnExpr(`("p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS has_caregiver_profile`).
-		ColumnExpr(`(COALESCE(bool_or(LOWER("r".name) = 'user'), false) AND "p".id IS NOT NULL AND "s".id IS NOT NULL AND "t".id IS NOT NULL) AS is_active_caregiver`).
+		ColumnExpr(`FALSE AS has_caregiver_profile`).
+		ColumnExpr(`FALSE AS is_active_caregiver`).
 		TableExpr(`auth.account_tenants AS "at"`).
 		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
 		Join(`LEFT JOIN auth.account_roles AS "ar" ON "ar".account_id = "at".account_id AND "ar".tenant_id = "at".tenant_id`).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
-		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id AND "p".deleted_at IS NULL`).
-		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id AND "s".deleted_at IS NULL`).
-		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "at".tenant_id AND "t".deleted_at IS NULL`).
 		Where(`"at".tenant_id IN (?)`, bun.List(schoolIDs))
 	err := q.
-		GroupExpr(`"at".tenant_id, "at".account_id, "a".email, "a".active, "p".id, "p".first_name, "p".last_name, "s".id, "t".id, "t".role, "at".status`).
-		OrderExpr(`"at".tenant_id ASC, "p".last_name ASC, "p".first_name ASC`).
+		GroupExpr(`"at".tenant_id, "at".account_id, "a".email, "a".active, "at".status`).
+		OrderExpr(`"at".tenant_id ASC, "at".account_id ASC`).
 		Scan(ctx, &accounts)
 	return accounts, err
 }
+
+// The caregiver chain behind a person (staff plus teacher profile) is
+// resolved by the composition layer through School Membership (#2667); this
+// repository no longer reads users.staff or users.teachers.
 
 // queryOrgInvitations builds the shared org-level pending invitations query with an optional WHERE clause.
 func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bun.IDB, schoolIDs []int64) ([]auth.OrgAccountInfo, error) {
