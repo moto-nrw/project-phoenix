@@ -248,7 +248,10 @@ export function ClassArrivalExceptionPanel({
     <div className="space-y-4">
       <div className="space-y-2 text-sm text-gray-600">
         <p>Gilt nur an diesem Tag, für alle Kinder der Klasse.</p>
-        <p>Eine eigene Tagesausnahme eines Kindes bleibt bestehen.</p>
+        <p>
+          Eine eigene Wochenzeit eines Kindes wird an diesem Tag ersetzt. Eine
+          eigene Tagesausnahme eines Kindes bleibt bestehen.
+        </p>
         {!loading && !loadError && !canEdit ? (
           <p className="font-medium text-gray-700">
             Ändern kann das die Koordination.

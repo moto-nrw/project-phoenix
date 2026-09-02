@@ -97,7 +97,7 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 	})
 
 	t.Run("unknown class", func(t *testing.T) {
-		path := fmt.Sprintf("/class-arrival-exceptions/NOPE9/%s", timezone.TodayDate().String())
+		path := fmt.Sprintf("/class-arrival-exceptions/NOPE9/%s", classArrivalExceptionWorkday(0).String())
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{"arrival_time": "12:45"}), claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 	})

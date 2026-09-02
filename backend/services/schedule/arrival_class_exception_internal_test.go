@@ -109,6 +109,26 @@ func TestAppendArrivalWarningsAddsTheClassExceptionLine(t *testing.T) {
 	assert.Empty(t, warnings[2], "a regular arrival at block start carries no line")
 }
 
+func TestAppendArrivalWarningsKeepsOnlyTheReasonWhenTheClassArrivesLate(t *testing.T) {
+	t.Parallel()
+
+	inst := &scheduleModel.ActivityInstance{StartTime: mustClock(t, "12:45")}
+	late := mustClock(t, "13:30")
+	warnings := map[int64][]OperationRosterWarning{}
+
+	appendArrivalWarnings(warnings, map[int64]*EffectiveArrivalTime{
+		1: {ArrivalTime: &late, ClassException: &ClassArrivalExceptionInfo{
+			SchoolClass: "4a", ArrivalTime: "13:30", Label: "Klasse 4a: Wandertag",
+		}},
+	}, inst)
+
+	require.Len(t, warnings[1], 2)
+	assert.Equal(t, "arrival_after_slot_start", warnings[1][0].Kind)
+	assert.Equal(t, "class_arrival_exception", warnings[1][1].Kind)
+	assert.Equal(t, "Klasse 4a: Wandertag", warnings[1][1].Message,
+		"the roster already shows 'Kommt um 13:30 Uhr' from the late-arrival warning")
+}
+
 func mustClock(t *testing.T, hhmm string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", hhmm)
