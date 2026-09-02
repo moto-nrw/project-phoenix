@@ -433,7 +433,7 @@ export function SubstitutionPersonCard(props: PersonCardProps) {
   const { row, person } = props;
   return (
     <li
-      className={`rounded-xl border shadow-sm ${person.absent ? "border-moto-red/25 bg-moto-red/5" : "border-gray-200 bg-white"}`}
+      className={`rounded-xl border shadow-sm ${person.absent ? "border-moto-red/25 bg-moto-red/5" : "moto-content-surface"}`}
     >
       <PersonHeader
         row={row}

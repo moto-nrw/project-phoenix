@@ -187,7 +187,7 @@ export function StudentCard({
       data-checkin-state={checkinMode ? checkinState : undefined}
       data-checkin-selected={(selectMode && isCheckinSelected) || undefined}
       style={selectedRingStyle}
-      className={`group moto-content-surface moto-hover-elevated relative flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70 ${
+      className={`group moto-content-surface moto-hover-elevated relative flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70 ${
         // Click-time scale skipped in check-in mode: sub-pixel aliasing
         // during the scale animation flashes a 1px white seam at the
         // body→tap-strip boundary. Pending spinner gives the click feedback.

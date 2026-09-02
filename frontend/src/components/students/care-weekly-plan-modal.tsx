@@ -251,7 +251,7 @@ export function CareWeeklyPlanModal({
           )}
         </p>
 
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:rounded-2xl">
+        <div className="moto-content-surface overflow-hidden rounded-xl border shadow-sm sm:rounded-2xl">
           <div className="hidden grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:grid">
             <span>Betreuungstag</span>
             <span>Ankunft</span>

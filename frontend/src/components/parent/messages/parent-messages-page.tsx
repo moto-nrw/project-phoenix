@@ -218,7 +218,7 @@ export function ParentMessagesPage() {
         title={t("title")}
         description={t("description")}
       />
-      <ul className="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border shadow-sm">
         {rows.map((row) => (
           <li key={row.studentId}>
             <ConversationRow row={row} />

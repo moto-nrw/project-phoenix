@@ -18,6 +18,7 @@ import { Button } from "~/components/ui/button";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Radio } from "~/components/ui/radio";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -400,7 +401,7 @@ function PollAnswerRows({
           <fieldset
             key={child.student_id}
             disabled={closed || saving}
-            className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm disabled:opacity-60"
+            className="moto-content-surface rounded-2xl border p-4 shadow-sm disabled:opacity-60"
           >
             <legend className="mb-3 w-full">
               <span className="flex items-center justify-between gap-3">
@@ -414,13 +415,10 @@ function PollAnswerRows({
               {options.map((option) => {
                 const active = selected.includes(option.id);
                 return (
-                  <label
+                  <ChoiceTile
                     key={option.id}
-                    className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-base font-medium transition-colors has-[:disabled]:cursor-not-allowed ${
-                      active
-                        ? "border-gray-400 bg-gray-50 text-gray-950"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
+                    selected={active}
+                    className="min-h-12 px-4 py-3 text-base has-[:disabled]:cursor-not-allowed"
                   >
                     {multi ? (
                       <Checkbox
@@ -435,7 +433,7 @@ function PollAnswerRows({
                       />
                     )}
                     <span>{option.label}</span>
-                  </label>
+                  </ChoiceTile>
                 );
               })}
             </div>
@@ -484,14 +482,12 @@ export function NewsCard({
       : "news";
 
   return (
-    <button
-      type="button"
+    <ChoiceTile
+      as="button"
       onClick={() => onOpen(item)}
-      className={`focus-visible:ring-moto-blue flex min-h-12 w-full items-center gap-3 rounded-xl border p-4 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none active:bg-gray-100 ${
-        outstanding
-          ? "border-moto-blue/50 bg-moto-blue-soft hover:border-moto-blue/70 hover:bg-moto-blue/10"
-          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
-      }`}
+      selected={outstanding}
+      tone="blue"
+      className="min-h-12 w-full p-4 shadow-sm active:bg-gray-100"
     >
       <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
         <MotoConceptIcon concept={concept} tone="blue" size={22} />
@@ -529,7 +525,7 @@ export function NewsCard({
         className="h-5 w-5 shrink-0 text-gray-400"
         aria-hidden="true"
       />
-    </button>
+    </ChoiceTile>
   );
 }
 
@@ -635,7 +631,7 @@ function NewsMessageSection({
   return (
     <section
       aria-labelledby={headingId}
-      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h4 id={headingId} className="text-base font-semibold text-gray-950">
