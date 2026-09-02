@@ -21,12 +21,28 @@ type TenantCommand interface {
 	Execute(context.Context, tenant.TenantID) error
 }
 
+// RetrySafeTenantCommand explicitly permits the scheduler to replay its
+// callback after a rolled-back tenant transaction.
+type RetrySafeTenantCommand interface {
+	TenantCommand
+	RetrySafeTenantCommand()
+}
+
 // TenantCommandFunc adapts an owner command function to TenantCommand.
 type TenantCommandFunc func(context.Context, tenant.TenantID) error
 
 func (command TenantCommandFunc) Execute(ctx context.Context, tenantID tenant.TenantID) error {
 	return command(ctx, tenantID)
 }
+
+// RetrySafeTenantCommandFunc adapts an explicitly retry-safe owner command.
+type RetrySafeTenantCommandFunc func(context.Context, tenant.TenantID) error
+
+func (command RetrySafeTenantCommandFunc) Execute(ctx context.Context, tenantID tenant.TenantID) error {
+	return command(ctx, tenantID)
+}
+
+func (RetrySafeTenantCommandFunc) RetrySafeTenantCommand() {}
 
 func adaptTenantCommand(command func(context.Context, int64) error) TenantCommand {
 	return TenantCommandFunc(func(ctx context.Context, tenantID tenant.TenantID) error {
@@ -152,14 +168,15 @@ func (s *Scheduler) runTenantBatches(
 	command TenantCommand,
 ) TenantBatchResult {
 	result := TenantBatchResult{Outcomes: make([]TenantOutcome, 0, len(tenantIDs))}
+	stableJobID := workerJobID(ctx, JobID(jobID))
 	if command == nil || isNilDependency(command) {
 		result.Err = errors.New("tenant command is required")
 		result.Backlog = len(tenantIDs)
+		s.observeTenantBacklog(stableJobID, result.Backlog)
 		recordJobCommandFailure(ctx, result.Err)
 		return result
 	}
 
-	stableJobID := workerJobID(ctx, JobID(jobID))
 	tenantIDs = s.resumeTenantIDs(stableJobID, tenantIDs)
 	for tenantBatch := range slices.Chunk(tenantIDs, tenantBatchSize) {
 		if err := ctx.Err(); err != nil {
@@ -180,6 +197,9 @@ func (s *Scheduler) runTenantBatches(
 	}
 
 	result.Backlog = len(tenantIDs) - len(result.Outcomes)
+	if result.Batches == 0 {
+		s.observeTenantBacklog(stableJobID, result.Backlog)
+	}
 	recordJobCommandFailure(ctx, result.Err)
 	return result
 }
@@ -245,9 +265,15 @@ func (s *Scheduler) runTenantCommand(
 		outcome.Err = err
 		outcome.Classification = TenantOutcomeMissingTenant
 	} else {
-		outcome.Err = tenant.WithinTenantRetry(ctx, id, func(txCtx context.Context) error {
-			return command.Execute(txCtx, id)
-		})
+		if _, retrySafe := command.(RetrySafeTenantCommand); retrySafe {
+			outcome.Err = tenant.WithinTenantRetry(ctx, id, func(txCtx context.Context) error {
+				return command.Execute(txCtx, id)
+			})
+		} else {
+			outcome.Err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
+				return command.Execute(txCtx, id)
+			})
+		}
 		afterRetries, _ := evidence.snapshot()
 		outcome.Retries = afterRetries - beforeRetries
 		outcome.Classification = classifyTenantOutcome(outcome.Err, outcome.Retries)
@@ -314,6 +340,12 @@ func (s *Scheduler) reportTenantCommandFailure(jobID JobID, outcome TenantOutcom
 func (s *Scheduler) observeTenantBatch(evidence TenantBatchEvidence) {
 	if s.workerTracer.Batch != nil {
 		s.workerTracer.Batch(evidence)
+	}
+}
+
+func (s *Scheduler) observeTenantBacklog(jobID JobID, backlog int) {
+	if s.workerTracer.Backlog != nil {
+		s.workerTracer.Backlog(jobID, backlog)
 	}
 }
 

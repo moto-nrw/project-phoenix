@@ -259,6 +259,9 @@ func workerTracer(api *API) scheduler.WorkerTracer {
 				event.PoolWait,
 			)
 		},
+		Backlog: func(jobID scheduler.JobID, backlog int) {
+			observability.SetWorkerTenantBatchBacklog(string(jobID), backlog)
+		},
 	}
 }
 

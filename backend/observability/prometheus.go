@@ -743,6 +743,12 @@ func RecordWorkerTenantBatchEvent(jobID string, duration time.Duration, processe
 	workerTenantBatchPoolWait.WithLabelValues(jobID).Observe(poolWait.Seconds())
 }
 
+// SetWorkerTenantBatchBacklog records backlog when a job completes no tenant
+// batch, so an earlier non-zero value does not remain visible indefinitely.
+func SetWorkerTenantBatchBacklog(jobID string, backlog int) {
+	workerTenantBatchBacklog.WithLabelValues(sanitizeLabel(jobID)).Set(float64(backlog))
+}
+
 func ObserveSettingsLookup(key, cache, outcome string, duration time.Duration) {
 	settingsLookups.WithLabelValues(sanitizeLabel(key), sanitizeLabel(cache), sanitizeLabel(outcome)).Inc()
 	settingsLookupDuration.WithLabelValues(sanitizeLabel(key)).Observe(duration.Seconds())

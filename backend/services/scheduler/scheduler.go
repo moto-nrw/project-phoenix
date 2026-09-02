@@ -57,6 +57,7 @@ type WorkerTracer struct {
 	Failure  func(context.Context, string, string, error)
 	Run      func(JobID, string, time.Duration)
 	Batch    func(TenantBatchEvidence)
+	Backlog  func(JobID, int)
 }
 
 // TenantBatchEvidence is the bounded, low-cardinality runtime record emitted
@@ -744,11 +745,10 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 // retention jobs (visits, timetable, time-tracking). All three share
 // KeyDataCleanupEnabled + KeyDataCleanupTime — one admin switch and one
 // nightly window for all retention. dayCache dedupes per tenant per day; the
-// today-mark is set immediately to prevent double-fire from concurrent ticks
-// and cleared again when runForTenant returns an error so the tenant retries
-// on the next matching minute. Returning that error through forEachTenantSettings
-// also rolls back the tenant transaction, keeping cleanup audit rows and their
-// corresponding deletes atomic.
+// today-mark is set only after the tenant transaction commits, so a rollback
+// leaves the cleanup eligible for the next matching minute. Returning an error
+// through forEachTenantSettings also rolls back cleanup audit rows and their
+// corresponding deletes atomically.
 func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *ScheduledTask, dayCache *sync.Map, opName string, runForTenant func(ctx context.Context, tenantID int64, cleanupTime string) error) {
 	task.mu.Lock()
 	if task.Running {
@@ -781,14 +781,10 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 			return nil
 		}
 
-		// Mark immediately to prevent double-fire from concurrent ticks
-		markRunToday(dayCache, tenantID)
-
 		if err := runForTenant(tenantCtx, tenantID, cleanupTime); err != nil {
-			// Clear mark so cleanup retries on next matching minute
-			dayCache.Delete(tenantID)
 			return err
 		}
+		markRunTodayAfterCommit(tenantCtx, dayCache, tenantID)
 		return nil
 	})
 }
@@ -1229,7 +1225,7 @@ func (s *Scheduler) checkAndRunSessionEnd(ctx context.Context, task *ScheduledTa
 			return nil // failure already logged; retry on the next matching minute
 		}
 
-		markRunToday(&s.lastSessionEnd, tenantID)
+		markRunTodayAfterCommit(tenantCtx, &s.lastSessionEnd, tenantID)
 		return nil
 	})
 }
@@ -1355,7 +1351,7 @@ func (s *Scheduler) checkAndRunSessionCleanup(ctx context.Context, task *Schedul
 			)
 		}
 
-		s.lastSessionCleanup.Store(tenantID, time.Now())
+		markRunAtAfterCommit(tenantCtx, &s.lastSessionCleanup, tenantID, time.Now())
 		return nil
 	})
 }
@@ -1621,8 +1617,18 @@ func markRunToday(lastRunMap *sync.Map, tenantID int64) {
 	markRunAt(lastRunMap, tenantID, time.Now())
 }
 
+func markRunTodayAfterCommit(ctx context.Context, lastRunMap *sync.Map, tenantID int64) {
+	markRunAtAfterCommit(ctx, lastRunMap, tenantID, time.Now())
+}
+
 func markRunAt(lastRunMap *sync.Map, tenantID int64, now time.Time) {
 	lastRunMap.Store(tenantID, now)
+}
+
+func markRunAtAfterCommit(ctx context.Context, lastRunMap *sync.Map, tenantID int64, now time.Time) {
+	tenant.RegisterAfterCommit(ctx, func() {
+		markRunAt(lastRunMap, tenantID, now)
+	})
 }
 
 // scheduleStatusFlagClearTask schedules a daily task to clear sick / excused
@@ -1675,10 +1681,9 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 		if wasRunToday(&s.lastStatusFlagClear, tenantID) {
 			return nil
 		}
-		markRunToday(&s.lastStatusFlagClear, tenantID)
-
 		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeNextCheckin)
 		excusedMode := s.resolveStringSetting(tenantCtx, configModel.KeyExcusedClearMode, "", configModel.ClearModeEndOfDay)
+		succeeded := true
 
 		if sickMode == configModel.ClearModeEndOfDay {
 			if affected, err := s.clearStatusFlag(tenantCtx, "sick", "sick_since"); err != nil {
@@ -1686,7 +1691,7 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 					slog.Int64("tenant_id", tenantID),
 					slog.String("error", err.Error()),
 				)
-				s.lastStatusFlagClear.Delete(tenantID)
+				succeeded = false
 			} else if affected > 0 {
 				s.getLogger().Info("end-of-day sick clear completed",
 					slog.Int64("tenant_id", tenantID),
@@ -1701,13 +1706,16 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 					slog.Int64("tenant_id", tenantID),
 					slog.String("error", err.Error()),
 				)
-				s.lastStatusFlagClear.Delete(tenantID)
+				succeeded = false
 			} else if affected > 0 {
 				s.getLogger().Info("end-of-day excused clear completed",
 					slog.Int64("tenant_id", tenantID),
 					slog.Int64("students_cleared", affected),
 				)
 			}
+		}
+		if succeeded {
+			markRunTodayAfterCommit(tenantCtx, &s.lastStatusFlagClear, tenantID)
 		}
 
 		return nil
@@ -1813,7 +1821,7 @@ func (s *Scheduler) checkAndRunMaterializationWithContext(ctx context.Context, t
 		if wasRunAt(&s.lastMaterialization, tenantID, now) {
 			return nil
 		}
-		markRunAt(&s.lastMaterialization, tenantID, now)
+		markRunAtAfterCommit(tenantCtx, &s.lastMaterialization, tenantID, now)
 
 		weeksAhead := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableMaterializationWeeksAhead, "", 1)
 		from, to := s.materializer.ResolveWindow(timezone.DateFromTime(now), weeksAhead)
@@ -1828,9 +1836,8 @@ func (s *Scheduler) checkAndRunMaterializationWithContext(ctx context.Context, t
 
 		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, scheduleSvc.MaterializationSourceScheduler)
 		if err != nil {
-			// Clear today-mark so a retry on the next scheduler day succeeds.
-			// We do NOT clear immediately because that would cause every
-			// subsequent minute on the same day to retry a known-failing run.
+			// Keep the today-mark so every subsequent minute does not retry a
+			// known-failing run. It naturally expires on the next scheduler day.
 			s.getLogger().Error("timetable materialization failed for tenant",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),

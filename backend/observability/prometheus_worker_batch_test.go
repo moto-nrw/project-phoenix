@@ -35,3 +35,12 @@ func TestRecordWorkerTenantBatchEvidence(t *testing.T) {
 	assert.Equal(t, retriesBefore+3, testutil.ToFloat64(workerTenantBatchRetries.WithLabelValues(jobID)))
 	assert.Equal(t, float64(4), testutil.ToFloat64(workerTenantBatchBacklog.WithLabelValues(jobID)))
 }
+
+func TestSetWorkerTenantBatchBacklog(t *testing.T) {
+	t.Parallel()
+	const jobID = "test-worker-tenant-batch-backlog"
+
+	SetWorkerTenantBatchBacklog(jobID, 0)
+
+	assert.Zero(t, testutil.ToFloat64(workerTenantBatchBacklog.WithLabelValues(jobID)))
+}
