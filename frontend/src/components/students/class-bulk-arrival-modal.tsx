@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useToast } from "~/contexts/ToastContext";
+import { ClassArrivalExceptionPanel } from "./class-arrival-exception-panel";
 import type { Student } from "~/lib/api";
 import { createLogger } from "~/lib/logger";
 import {
@@ -31,6 +33,20 @@ interface FilteredBulkArrivalModalProps {
 }
 
 type DraftState = Record<number, string>;
+
+/**
+ * The two things a class carries (#2962): its weekly Unterrichtsschluss and
+ * single dates on which the whole class arrives at another time.
+ */
+type ClassArrivalView = "weekly" | "day";
+
+const CLASS_ARRIVAL_VIEWS: readonly {
+  value: ClassArrivalView;
+  label: string;
+}[] = [
+  { value: "weekly", label: "Jede Woche" },
+  { value: "day", label: "An einem Tag abweichend" },
+];
 
 /** ISO weekday to the day code the class timetable is keyed by. */
 const DAY_CODES: Record<number, string> = {
@@ -74,9 +90,11 @@ export function FilteredBulkArrivalModal({
   const [classTimesError, setClassTimesError] = useState(false);
   const [classTimesLoadAttempt, setClassTimesLoadAttempt] = useState(0);
   const [collisionCount, setCollisionCount] = useState(0);
+  const [view, setView] = useState<ClassArrivalView>("weekly");
   // A school class sets the class timetable once for everyone (#2414); a group
   // is not a class, so there it still sets a time per child.
   const isClassTimetable = filter.type === "school_class";
+  const showDayView = isClassTimetable && view === "day";
 
   // Open with what the class already carries, so nobody has to retype it blind
   // or guess whether anything is set at all (#2414).
@@ -88,6 +106,7 @@ export function FilteredBulkArrivalModal({
     setDraft(initialDraft());
     setLastChanged(null);
     setClassTimesError(false);
+    setView("weekly");
     if (!schoolClass) {
       setClassTimesLoading(false);
       return;
@@ -218,27 +237,51 @@ export function FilteredBulkArrivalModal({
       mobilePosition="bottom"
       footer={
         <div className="flex items-center justify-end gap-2 p-4">
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Abbrechen
-          </Button>
-          <Button
-            variant="success"
-            onClick={handleSubmit}
-            disabled={
-              saving ||
-              classTimesLoading ||
-              classTimesError ||
-              !hasAnyTime ||
-              hasInvalidEntry
-            }
-          >
-            {saving ? "Speichern..." : "Speichern"}
-          </Button>
+          {showDayView ? (
+            <Button variant="outline" onClick={onClose}>
+              Schließen
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose} disabled={saving}>
+                Abbrechen
+              </Button>
+              <Button
+                variant="success"
+                onClick={handleSubmit}
+                disabled={
+                  saving ||
+                  classTimesLoading ||
+                  classTimesError ||
+                  !hasAnyTime ||
+                  hasInvalidEntry
+                }
+              >
+                {saving ? "Speichern..." : "Speichern"}
+              </Button>
+            </>
+          )}
         </div>
       }
     >
       <div className="space-y-4 p-4">
         {isClassTimetable ? (
+          <SegmentedControl
+            items={CLASS_ARRIVAL_VIEWS}
+            value={view}
+            onChange={setView}
+            fullWidth
+            ariaLabel="Klassenzeit oder Tagesabweichung"
+          />
+        ) : null}
+        {showDayView && schoolClass ? (
+          <ClassArrivalExceptionPanel
+            schoolClass={schoolClass}
+            classLabel={targetTitle}
+            onChanged={onSuccess}
+          />
+        ) : null}
+        {showDayView ? null : isClassTimetable ? (
           <div className="space-y-2 text-sm text-gray-600">
             <p>Tragen Sie den Unterrichtsschluss für jeden Wochentag ein.</p>
             <p>
@@ -258,76 +301,81 @@ export function FilteredBulkArrivalModal({
             {targetTitle}. Leere Felder bleiben unverändert.
           </p>
         )}
-        {classTimesLoading ? (
-          <Alert type="info" message="Klassenzeiten werden geladen." />
-        ) : null}
-        {classTimesError ? (
-          <Alert
-            type="error"
-            message="Die Klassenzeiten konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
-            action={
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setClassTimesLoadAttempt((attempt) => attempt + 1)
+        {showDayView ? null : (
+          <>
+            {classTimesLoading ? (
+              <Alert type="info" message="Klassenzeiten werden geladen." />
+            ) : null}
+            {classTimesError ? (
+              <Alert
+                type="error"
+                message="Die Klassenzeiten konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
+                action={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setClassTimesLoadAttempt((attempt) => attempt + 1)
+                    }
+                  >
+                    Erneut laden
+                  </Button>
                 }
-              >
-                Erneut laden
-              </Button>
-            }
-          />
-        ) : null}
-        {collisionCount > 0 ? (
-          <Alert type="info" message={collisionMessage} />
-        ) : null}
-        <div className="space-y-2">
-          {WEEKDAYS.map((day) => {
-            const value = draft[day.value] ?? "";
-            const invalid = !isValidTime(value);
-            return (
-              <div
-                key={day.value}
-                className={cn(
-                  "grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5",
-                  invalid && "border-moto-red/30 bg-moto-red-soft",
-                )}
-              >
-                <label
-                  htmlFor={`bulk-arrival-${day.value}`}
-                  className="min-w-0 text-sm font-medium text-gray-700"
-                >
-                  {day.label}
-                </label>
-                <input
-                  id={`bulk-arrival-${day.value}`}
-                  type="time"
-                  value={value}
-                  disabled={
-                    isClassTimetable && (classTimesLoading || classTimesError)
-                  }
-                  onChange={(event) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      [day.value]: event.target.value.slice(0, 5),
-                    }))
-                  }
-                  className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:ring-2 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
-                />
-                {invalid ? (
-                  <span className="text-moto-red col-start-2 text-xs">
-                    Format HH:MM
-                  </span>
-                ) : value === "" ? (
-                  <span className="col-start-2 text-xs text-gray-400 italic">
-                    nicht ändern
-                  </span>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
+              />
+            ) : null}
+            {collisionCount > 0 ? (
+              <Alert type="info" message={collisionMessage} />
+            ) : null}
+            <div className="space-y-2">
+              {WEEKDAYS.map((day) => {
+                const value = draft[day.value] ?? "";
+                const invalid = !isValidTime(value);
+                return (
+                  <div
+                    key={day.value}
+                    className={cn(
+                      "grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5",
+                      invalid && "border-moto-red/30 bg-moto-red-soft",
+                    )}
+                  >
+                    <label
+                      htmlFor={`bulk-arrival-${day.value}`}
+                      className="min-w-0 text-sm font-medium text-gray-700"
+                    >
+                      {day.label}
+                    </label>
+                    <input
+                      id={`bulk-arrival-${day.value}`}
+                      type="time"
+                      value={value}
+                      disabled={
+                        isClassTimetable &&
+                        (classTimesLoading || classTimesError)
+                      }
+                      onChange={(event) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          [day.value]: event.target.value.slice(0, 5),
+                        }))
+                      }
+                      className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:ring-2 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                    />
+                    {invalid ? (
+                      <span className="text-moto-red col-start-2 text-xs">
+                        Format HH:MM
+                      </span>
+                    ) : value === "" ? (
+                      <span className="col-start-2 text-xs text-gray-400 italic">
+                        nicht ändern
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </FormModal>
   );

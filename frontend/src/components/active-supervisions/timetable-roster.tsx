@@ -271,7 +271,14 @@ function TimetableRosterStudentRow({
       : null;
   const planningNotes = (row.warnings ?? []).filter(
     (warning) =>
-      warning.kind !== "arrival_after_slot_start" || !warning.expectedArrival,
+      (warning.kind !== "arrival_after_slot_start" ||
+        !warning.expectedArrival) &&
+      warning.kind !== "class_arrival_exception",
+  );
+  // A class-wide day exception (#2962) is plain information, not a warning:
+  // the whole class arrives at another time today and the line says why.
+  const classException = (row.warnings ?? []).find(
+    (warning) => warning.kind === "class_arrival_exception",
   );
 
   return (
@@ -301,6 +308,11 @@ function TimetableRosterStudentRow({
         {arrivalTime ? (
           <div className="mt-1 text-sm font-medium text-gray-700">
             Kommt um {arrivalTime} Uhr
+          </div>
+        ) : null}
+        {classException && !row.currentlyPresent ? (
+          <div className="mt-1 text-sm text-gray-700">
+            {classException.message}
           </div>
         ) : null}
         {planningNotes.map((warning) => (
@@ -832,7 +844,7 @@ export function TimetableRosterContent({
         title="Kommt später"
         description={
           attendanceWebEnabled
-            ? "Diese Kinder kommen laut Plan später. Bei „Erwartete bestätigen“ sind sie nicht dabei."
+            ? "Diese Kinder kommen laut Plan später. Bei „Erwartete bestätigen“ sind sie nicht dabei. Kommt ein Kind früher, checken Sie es hier einzeln ein."
             : "Diese Kinder kommen laut Plan später."
         }
         rows={arrivingLater}
