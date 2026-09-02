@@ -268,14 +268,12 @@ function MessageThreadContent() {
     return (
       <TenantPage
         title="Unterhaltung"
-        error={
-          {
-            message: loadError
-              ? "Nachrichtenverlauf konnte nicht geladen werden."
-              : "Unterhaltung nicht gefunden.",
-            keepContent: true,
-          }
-        }
+        error={{
+          message: loadError
+            ? "Nachrichtenverlauf konnte nicht geladen werden."
+            : "Unterhaltung nicht gefunden.",
+          keepContent: true,
+        }}
       >
         <BackButton referrer="/messages" />
       </TenantPage>
@@ -288,19 +286,20 @@ function MessageThreadContent() {
       stats={statusLine}
       statsLoading={showSkeleton}
       actions={
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={() =>
-            thread &&
-            router.push(`/students/${thread.student_id}?from=/messages`)
-          }
-          className="flex-shrink-0"
-        >
-          <MotoConceptIcon concept="children" size={18} className="mr-1.5" />
-          Zum Kinderprofil
-        </Button>
+        thread ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() =>
+              router.push(`/students/${thread.student_id}?from=/messages`)
+            }
+            className="flex-shrink-0"
+          >
+            <MotoConceptIcon concept="children" size={18} className="mr-1.5" />
+            Zum Kinderprofil
+          </Button>
+        ) : null
       }
     >
       <BackButton referrer="/messages" />

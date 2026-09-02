@@ -614,6 +614,8 @@ function StaffPageContent() {
         const location = member.currentLocation ?? "Abwesend";
         if (location === "Abwesend" || absenceLocations.has(location)) {
           byLocation.set(location, (byLocation.get(location) ?? 0) + 1);
+        } else if (location === "Homeoffice") {
+          byLocation.set(location, (byLocation.get(location) ?? 0) + 1);
         } else if (location !== "Zuhause") {
           clockedIn += 1;
         }

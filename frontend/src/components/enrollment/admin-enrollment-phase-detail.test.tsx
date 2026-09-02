@@ -247,6 +247,14 @@ beforeEach(() => {
 });
 
 describe("AdminEnrollmentPhaseDetail", () => {
+  it("keeps the tenant in the parent enrollment link in path routing", async () => {
+    await renderPhase();
+
+    expect(
+      screen.getByRole("link", { name: "Elternansicht öffnen" }),
+    ).toHaveAttribute("href", "/demo/enroll/1");
+  });
+
   it("renders care offerings and starts with all statuses", async () => {
     await renderPhase();
 

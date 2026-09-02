@@ -790,7 +790,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             onExport={(format) => void handleExport(format)}
           />
           <ButtonLink
-            href={`/enroll/${encodeURIComponent(phase.id)}`}
+            href={tenantPath(`/enroll/${encodeURIComponent(phase.id)}`)}
             target="_blank"
             rel="noreferrer"
             variant="primary"
