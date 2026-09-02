@@ -8,8 +8,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -44,7 +45,7 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)})
+	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: statusDayRepository(t, db)})
 
 	// Create two students: one sick, one not, both in tenant 1.
 	sickStudent := testpkg.CreateTestStudent(t, db, "Clear", "SickFlag", "1a")
@@ -103,6 +104,13 @@ func TestClearStatusFlag_NilDBReturnsError(t *testing.T) {
 // sick_clear_mode, excused_clear_mode.
 type fakeStatusFlagSettings struct {
 	overrides map[string]string
+}
+
+func statusDayRepository(t *testing.T, db *bun.DB) activeModels.StudentStatusDayOverviewRepository {
+	t.Helper()
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	return factory.StudentStatusDay
 }
 
 func (f *fakeStatusFlagSettings) ResolveString(_ context.Context, key string) (string, error) {
@@ -223,7 +231,7 @@ func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)})
+	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: statusDayRepository(t, db)})
 
 	excStudent := testpkg.CreateTestStudent(t, db, "Clear", "ExcusedFlag", "1b")
 
@@ -331,7 +339,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 	s := isolatedUnitScheduler(t, db, &Scheduler{
 		db:                   db,
 		schoolRepo:           platformRepo.NewSchoolRepository(db),
-		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
+		studentStatusDayRepo: statusDayRepository(t, db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": nowHHMM,
@@ -390,7 +398,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 	s := isolatedUnitScheduler(t, db, &Scheduler{
 		db:                   db,
 		schoolRepo:           platformRepo.NewSchoolRepository(db),
-		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
+		studentStatusDayRepo: statusDayRepository(t, db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": nowHHMM,
@@ -437,7 +445,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 	s := isolatedUnitScheduler(t, db, &Scheduler{
 		db:                   db,
 		schoolRepo:           platformRepo.NewSchoolRepository(db),
-		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
+		studentStatusDayRepo: statusDayRepository(t, db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": "25:99",

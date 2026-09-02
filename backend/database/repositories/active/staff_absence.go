@@ -223,34 +223,40 @@ func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []
 	return absences, nil
 }
 
-// ListRequests returns absence requests with the subject and decider person
-// references the Anfragen module needs (#2433). Both staff joins are LEFT
-// joins so a request stays visible after its staff row is gone. The names
-// are attached by the composition layer through the People Directory, which
-// also turns filter.Search into filter.SubjectPersonIDs beforehand.
+// ListRequests is only correct once the composition layer has wrapped this
+// repository: the subject and decider persons behind the absence's staff IDs
+// belong to School Membership, and so does resolving filter.SubjectPersonIDs.
 func (r *StaffAbsenceRepository) ListRequests(ctx context.Context, filter active.AbsenceRequestFilter) ([]*active.AbsenceRequestRow, error) {
+	if filter.SubjectPersonIDs != nil {
+		return nil, errors.New("staff absence repository resolves subject persons through School Membership")
+	}
+	return r.ListRequestRows(ctx, filter, nil)
+}
+
+// ListRequestRows returns absence requests for the Anfragen module (#2433).
+// subjectStaffIDs narrows the rows to those subjects; nil means no subject
+// filter. The subject and decider persons plus their names are attached by
+// the composition layer, which also turns filter.Search into a person filter
+// and that into staff IDs beforehand.
+func (r *StaffAbsenceRepository) ListRequestRows(ctx context.Context, filter active.AbsenceRequestFilter, subjectStaffIDs []int64) ([]*active.AbsenceRequestRow, error) {
 	if len(filter.Statuses) == 0 {
 		return nil, errors.New("at least one status is required")
+	}
+	if subjectStaffIDs != nil && len(subjectStaffIDs) == 0 {
+		return []*active.AbsenceRequestRow{}, nil
 	}
 	var rows []*active.AbsenceRequestRow
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		ColumnExpr(`"staff_absence".*`).
-		ColumnExpr(`"subject_staff".person_id AS subject_person_id`).
-		ColumnExpr(`"decider_staff".person_id AS decider_person_id`).
-		Join(`LEFT JOIN users.staff AS "subject_staff" ON "subject_staff".id = "staff_absence".staff_id`).
-		Join(`LEFT JOIN users.staff AS "decider_staff" ON "decider_staff".id = "staff_absence".approved_by`).
 		Where(`"staff_absence".status IN (?)`, bun.List(filter.Statuses))
 
 	if len(filter.Types) > 0 {
 		query = query.Where(`"staff_absence".absence_type IN (?)`, bun.List(filter.Types))
 	}
-	if filter.SubjectPersonIDs != nil {
-		if len(filter.SubjectPersonIDs) == 0 {
-			return []*active.AbsenceRequestRow{}, nil
-		}
-		query = query.Where(`"subject_staff".person_id IN (?)`, bun.List(filter.SubjectPersonIDs))
+	if len(subjectStaffIDs) > 0 {
+		query = query.Where(`"staff_absence".staff_id IN (?)`, bun.List(subjectStaffIDs))
 	}
 	if filter.Decided {
 		query = query.OrderExpr(`COALESCE("staff_absence".approved_at, "staff_absence".updated_at) DESC, "staff_absence".id DESC`)

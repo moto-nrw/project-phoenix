@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -11,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -25,7 +25,14 @@ const (
 // InstanceStudentRepository implements schedule.InstanceStudentRepository.
 type InstanceStudentRepository struct {
 	*base.Repository[*schedule.InstanceStudent]
-	db *bun.DB
+	db       *bun.DB
+	students StudentDirectory
+}
+
+// BindStudentDirectory installs the People Directory the partial-absence
+// preview resolves the child's lifecycle status through (#2662).
+func (r *InstanceStudentRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
 }
 
 // NewInstanceStudentRepository creates a new InstanceStudentRepository.
@@ -876,11 +883,26 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 // It previews the actionable blocks that a partial absence would excuse.
 // Template-backed instances can precede their instance_students rows; mirror
 // materialization's enrollment predicate so those future rows are visible too.
+// That predicate excludes graduates; the child's lifecycle status belongs to
+// the People Directory (#2662) and is resolved before the query runs.
 func (r *InstanceStudentRepository) FindPartialAbsenceBlocks(
 	ctx context.Context, studentID int64, date timezone.Date, from time.Time,
 ) ([]schedule.PartialAbsenceBlock, error) {
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
+	}
+	students, err := r.students.ListStudentsByID(ctx, []int64{studentID})
+	if err != nil {
+		return nil, err
+	}
+	enrolled := false
+	for _, student := range students {
+		if student.ID == studentID && !student.Alumnus {
+			enrolled = true
+		}
+	}
 	rows := make([]schedule.PartialAbsenceBlock, 0)
-	err := base.GetDB(ctx, r.db).NewRaw(`
+	err = base.GetDB(ctx, r.db).NewRaw(`
 		SELECT instance.id, instance.title, instance.start_time, instance.end_time
 		FROM schedule.activity_instances AS instance
 		WHERE instance.tenant_id = ?
@@ -917,12 +939,10 @@ func (r *InstanceStudentRepository) FindPartialAbsenceBlocks(
 							AND attendance.instance_id = instance.id
 							AND attendance.student_id = ?
 					)
+					AND ?::boolean
 					AND EXISTS (
 						SELECT 1
 						FROM activities.student_enrollments AS enrollment
-						JOIN users.students AS student
-							ON student.tenant_id = enrollment.tenant_id
-							AND student.id = enrollment.student_id
 						WHERE enrollment.tenant_id = instance.tenant_id
 							AND enrollment.student_id = ?
 							AND enrollment.activity_group_id = instance.activity_group_id
@@ -932,7 +952,6 @@ func (r *InstanceStudentRepository) FindPartialAbsenceBlocks(
 							AND (enrollment.weekday IS NULL OR enrollment.weekday = EXTRACT(ISODOW FROM instance.date))
 							AND (COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) = 0
 								OR enrollment.selected_weekdays @> to_jsonb(ARRAY[EXTRACT(ISODOW FROM instance.date)::integer]))
-							AND student.status <> ?
 					)
 				)
 			)
@@ -940,7 +959,7 @@ func (r *InstanceStudentRepository) FindPartialAbsenceBlocks(
 	`, tenant.FromContext(ctx), date, timezone.NormalizeWallClock(from),
 		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted,
 		studentID, schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
-		studentID, studentID, string(users.StudentStatusAlumnus)).Scan(ctx, &rows)
+		studentID, enrolled, studentID).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find partial absence blocks", Err: base.TranslateNotFound(err)}
 	}
@@ -1613,8 +1632,19 @@ func (r *InstanceStudentRepository) lockRestoreCareExceptionDays(
 	// Student row then care-day for every pair (student FOR UPDATE is
 	// re-entrant within the same transaction when the same child appears on
 	// multiple dates). Matches partial-absence and excused-request writers.
+	// The row belongs to the People Directory (#2662), so the lock comes from
+	// the bound directory; the care-day advisory lock stays here.
+	if r.students == nil {
+		return errStudentDirectoryRequired
+	}
 	for _, day := range days {
-		if err := careplanning.LockStudentAndExceptionDay(ctx, r.db, day.StudentID, day.Date); err != nil {
+		if err := r.students.LockStudent(ctx, day.StudentID); err != nil {
+			if errors.Is(err, ErrStudentNotFound) {
+				return sql.ErrNoRows
+			}
+			return fmt.Errorf("lock student for care exception day: %w", err)
+		}
+		if err := careplanning.LockExceptionDay(ctx, r.db, day.StudentID, day.Date); err != nil {
 			return err
 		}
 	}

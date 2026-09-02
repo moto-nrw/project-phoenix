@@ -68,6 +68,9 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
 	t.Helper()
+	lock, notFound, err := repositories.NewCareStudentLock(db)
+	require.NoError(t, err)
+	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
 	repos := repositories.NewFactory(db)
 	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,

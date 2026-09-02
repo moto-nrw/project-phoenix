@@ -46,7 +46,7 @@ const (
 type PersonServiceDependencies struct {
 	// Repository dependencies
 	PersonRepo  userModels.PersonRepository
-	RFIDRepo    userModels.RFIDCardRepository
+	RFIDRepo    auth.RFIDCardRepository
 	AccountRepo auth.AccountRepository
 	StudentRepo userModels.StudentRepository
 	StaffRepo   userModels.StaffRepository
@@ -354,7 +354,7 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 	}
 	if card == nil {
 		// Auto-create RFID card on assignment (per RFID Implementation Guide)
-		newCard := &userModels.RFIDCard{
+		newCard := &auth.RFIDCard{
 			StringIDModel: base.StringIDModel{ID: tagID},
 			Active:        true,
 		}

@@ -215,7 +215,7 @@ func TestPerson_SetRFIDCard(t *testing.T) {
 			LastName:  "Doe",
 		}
 
-		card := &RFIDCard{
+		card := &auth.RFIDCard{
 			StringIDModel: base.StringIDModel{ID: "RFID123456AB"},
 		}
 

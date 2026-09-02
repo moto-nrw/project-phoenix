@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -108,7 +107,7 @@ func TestChildRepository_ListByAccount_RejectsNonPositive(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 
 	_, err := repo.ListByAccount(context.Background(), 0)
 	require.Error(t, err)
@@ -187,7 +186,7 @@ func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
 		account.ID, tenantID).Exec(context.Background())
 	require.NoError(t, err)
 
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var list []*parentModels.ChildSummary
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -219,7 +218,7 @@ func TestChildRepository_ListByAccount_FiltersMissingPortalAccess(t *testing.T) 
 	})
 	linkChildToAccountWithPermissions(t, db, account.ID, tenantID, student.ID, map[string]bool{})
 
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var list []*parentModels.ChildSummary
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -303,7 +302,7 @@ func TestChildRepository_ListByAccount_CrossTenant(t *testing.T) {
 	linkChildToAccount(t, db, account.ID, tenantA, studentA.ID)
 	linkChildToAccount(t, db, account.ID, tenantB, studentB.ID)
 
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var list []*parentModels.ChildSummary
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -366,7 +365,7 @@ func TestChildRepository_ListByAccount_UnknownAccountEmpty(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 
 	var list []*parentModels.ChildSummary
 	err := runAsAdmin(t, db, func(ctx context.Context) error {
@@ -383,7 +382,7 @@ func TestChildRepository_ListByAccount_UnknownAccountEmpty(t *testing.T) {
 // findChild runs the single-child resolver inside the required admin tx.
 func findChild(t *testing.T, db *bun.DB, accountID, studentID int64) *parentModels.ChildSummary {
 	t.Helper()
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var got *parentModels.ChildSummary
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		c, e := repo.FindForAccount(ctx, accountID, studentID)
@@ -397,7 +396,7 @@ func TestChildRepository_FindForAccount_RejectsNonPositive(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 
 	_, err := repo.FindForAccount(context.Background(), 0, 5)
 	require.Error(t, err)
@@ -513,7 +512,7 @@ func TestChildRepository_AlumnusChildIsHiddenAndUnwritable(t *testing.T) {
 	linkChildToAccount(t, db, account.ID, tenantID, sibling.ID)
 
 	// Before graduation both children are the guardian's to see and write.
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var before []*parentModels.ChildSummary
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error

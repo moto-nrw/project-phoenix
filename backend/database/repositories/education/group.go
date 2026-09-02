@@ -3,6 +3,7 @@ package education
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -17,6 +18,9 @@ import (
 type GroupRepository struct {
 	*base.Repository[*education.Group]
 	db *bun.DB
+	// supervisionStaff resolves the raw supervision references of a group to
+	// the staff members behind them, through School Membership (#2667).
+	supervisionStaff func(ctx context.Context, pairs GroupMembershipPairs) ([]education.StaffGroupID, error)
 }
 
 // NewGroupRepository creates a new GroupRepository
@@ -103,70 +107,97 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 	return groups, nil
 }
 
-// ListStaffIDsByEducationGroupIDs returns the (staff, group) pairs supervising
+// TeacherGroupID pairs a teacher profile with one education group they are
+// assigned to. The teacher is resolved to a staff member by the composition
+// layer.
+type TeacherGroupID struct {
+	TeacherID int64 `bun:"teacher_id"`
+	GroupID   int64 `bun:"group_id"`
+}
+
+// GroupMembershipPairs are the raw supervision references of a set of
+// education groups: teacher assignments and substitutions, both unresolved.
+// The composition layer turns them into (staff, group) pairs through School
+// Membership, dropping references to offboarded teachers and staff (#2667).
+type GroupMembershipPairs struct {
+	// Assigned pairs a group with the teacher assigned to it.
+	Assigned []TeacherGroupID
+	// Substituted pairs a group with the staff member substituting in it
+	// on the requested day.
+	Substituted []education.StaffGroupID
+}
+
+// SetSupervisionStaffResolver installs the lookup that turns the raw
+// supervision references into (staff, group) pairs. School Membership owns
+// users.teachers and users.staff, so the composition root injects it instead
+// of this repository joining those tables (#2667).
+func (r *GroupRepository) SetSupervisionStaffResolver(resolve func(ctx context.Context, pairs GroupMembershipPairs) ([]education.StaffGroupID, error)) {
+	r.supervisionStaff = resolve
+}
+
+// listGroupMembershipPairs returns the unresolved supervision references of
 // the given groups on the given day.
 //
-// The bulk mirror of usercontext.GetMyGroups read from the group side,
-// deliberately built from the same two sources with the same predicates:
-// teacher assignments plus substitutions active on the day, inner joins
-// throughout, soft-deleted staff and teachers excluded.
-func (r *GroupRepository) ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]education.StaffGroupID, error) {
+// The bulk mirror of usercontext.GetMyGroups read from the group side, built
+// from the same two sources with the same predicates: teacher assignments
+// plus substitutions active on the day.
+func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs []int64, on timezone.Date) (GroupMembershipPairs, error) {
+	var pairs GroupMembershipPairs
 	if len(groupIDs) == 0 {
-		return []education.StaffGroupID{}, nil
+		return pairs, nil
 	}
 
-	pairs := make([]education.StaffGroupID, 0, len(groupIDs))
-	seen := make(map[education.StaffGroupID]struct{}, len(groupIDs))
-
-	appendRows := func(rows []education.StaffGroupID) {
-		for _, row := range rows {
-			if _, dup := seen[row]; dup {
-				continue
-			}
-			seen[row] = struct{}{}
-			pairs = append(pairs, row)
-		}
-	}
-
-	var assigned []education.StaffGroupID
 	assignedQuery := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`education.groups AS "group"`).
-		ColumnExpr(`"staff".id AS staff_id, "group".id AS group_id`).
+		ColumnExpr(`"gt".teacher_id AS teacher_id, "group".id AS group_id`).
 		Join(`JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
-		Join(`JOIN users.teachers AS "teacher" ON "teacher".id = "gt".teacher_id AND "teacher".deleted_at IS NULL`).
-		Join(`JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id AND "staff".deleted_at IS NULL`).
 		Where(`"group".id IN (?)`, bun.List(groupIDs))
 
 	assignedQuery = base.WithTenantFilter(ctx, assignedQuery, "group")
 
-	if err := assignedQuery.Scan(ctx, &assigned); err != nil {
-		return nil, &modelBase.DatabaseError{
+	if err := assignedQuery.Scan(ctx, &pairs.Assigned); err != nil {
+		return GroupMembershipPairs{}, &modelBase.DatabaseError{
 			Op:  "list staff IDs by education group IDs (assigned)",
 			Err: base.TranslateNotFound(err),
 		}
 	}
-	appendRows(assigned)
 
-	var substituted []education.StaffGroupID
 	substitutedQuery := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`education.group_substitution AS "sub"`).
-		ColumnExpr(`"staff".id AS staff_id, "sub".group_id AS group_id`).
-		Join(`JOIN users.staff AS "staff" ON "staff".id = "sub".substitute_staff_id AND "staff".deleted_at IS NULL`).
+		ColumnExpr(`"sub".substitute_staff_id AS staff_id, "sub".group_id AS group_id`).
 		Where(`"sub".group_id IN (?)`, bun.List(groupIDs)).
 		Where(`"sub".start_date <= ?`, on).
 		Where(`"sub".end_date >= ?`, on)
 
 	substitutedQuery = base.WithTenantFilter(ctx, substitutedQuery, "sub")
 
-	if err := substitutedQuery.Scan(ctx, &substituted); err != nil {
-		return nil, &modelBase.DatabaseError{
+	if err := substitutedQuery.Scan(ctx, &pairs.Substituted); err != nil {
+		return GroupMembershipPairs{}, &modelBase.DatabaseError{
 			Op:  "list staff IDs by education group IDs (substitutions)",
 			Err: base.TranslateNotFound(err),
 		}
 	}
-	appendRows(substituted)
 
 	return pairs, nil
+}
+
+// ListStaffIDsByEducationGroupIDs returns the (staff, group) pairs
+// supervising the given groups on the given day: teacher assignments plus
+// substitutions active on that day, and nobody else. Resolving a teacher to
+// their staff member, and dropping offboarded teachers and staff, is done by
+// the injected School Membership lookup.
+func (r *GroupRepository) ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]education.StaffGroupID, error) {
+	if len(groupIDs) == 0 {
+		return []education.StaffGroupID{}, nil
+	}
+	if r.supervisionStaff == nil {
+		return nil, errors.New("group repository resolves supervising staff through School Membership")
+	}
+	pairs, err := r.listGroupMembershipPairs(ctx, groupIDs, on)
+	if err != nil {
+		return nil, err
+	}
+	return r.supervisionStaff(ctx, pairs)
 }
 
 // FindWithRoom retrieves a group with its associated room

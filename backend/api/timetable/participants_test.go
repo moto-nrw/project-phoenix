@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -92,7 +93,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 			StudentRepo: studentRepo,
 			PersonRepo:  personRepo,
-			StaffRepo:   usersRepo.NewStaffRepository(db),
+			StaffRepo:   repositories.NewFactory(db).Staff,
 		}),
 		// UserContextService intentionally nil: the admin-perm path
 		// short-circuits CanReadStudent; the non-staff test relies on the

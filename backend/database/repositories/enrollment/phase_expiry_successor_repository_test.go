@@ -82,7 +82,7 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		var snapshots []*enrollmentModels.PhaseExpirySnapshot
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			var listErr error
-			snapshots, listErr = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+			snapshots, listErr = newPhaseExpiryRepository(t, db).ListSnapshots(
 				ctx,
 				timezone.NewDate(2027, 1, 2),
 				timezone.NewDate(2027, 2, 1),

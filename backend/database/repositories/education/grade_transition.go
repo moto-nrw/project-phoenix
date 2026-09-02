@@ -25,7 +25,14 @@ const (
 // GradeTransitionRepository implements education.GradeTransitionRepository interface
 type GradeTransitionRepository struct {
 	*base.Repository[*education.GradeTransition]
-	db *bun.DB
+	db       *bun.DB
+	students StudentDirectory
+}
+
+// BindStudentDirectory installs the People Directory every student read
+// and write of the transition goes through (#2662).
+func (r *GradeTransitionRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
 }
 
 // NewGradeTransitionRepository creates a new GradeTransitionRepository
@@ -610,85 +617,52 @@ func (r *GradeTransitionRepository) GetClassListEntryHistory(ctx context.Context
 	return history, nil
 }
 
-// GetDistinctClasses retrieves all distinct school_class values from students
+// GetDistinctClasses retrieves all distinct school_class values of the
+// tenant's non-alumni students through the People Directory (#2662).
 func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]string, error) {
-	var classes []string
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students AS student`).
-		ColumnExpr(`DISTINCT student.school_class`).
-		Where(`student.school_class IS NOT NULL AND student.school_class != ''`).
-		Where(`student.status <> ?`, string(users.StudentStatusAlumnus)).
-		Order(`student.school_class ASC`)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx, &classes)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get distinct classes",
-			Err: base.TranslateNotFound(err),
-		}
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
 	}
-
-	return classes, nil
+	return r.students.ListSchoolClasses(ctx)
 }
 
-// GetStudentCountByClass returns the number of students in a class
+// GetStudentCountByClass returns the number of non-alumni students in a
+// class, read through the People Directory (#2662).
 func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, className string) (int, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students AS student`).
-		Where(`student.school_class = ?`, className).
-		Where(`student.status <> ?`, string(users.StudentStatusAlumnus))
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	count, err := query.Count(ctx)
-
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "get student count by class",
-			Err: base.TranslateNotFound(err),
-		}
+	if r.students == nil {
+		return 0, errStudentDirectoryRequired
 	}
-
-	return count, nil
+	students, err := r.students.ListStudentsByClasses(ctx, []string{className})
+	if err != nil {
+		return 0, err
+	}
+	return len(students), nil
 }
 
-// GetStudentsByClasses retrieves students in the given classes. The person
-// names and the name order are attached by the composition layer through
-// the People Directory (#2661); the rows leave here in class/id order.
-// Note: Using an unquoted alias (s) here because this is raw SQL via TableExpr/ColumnExpr,
-// not ModelTableExpr. The CLAUDE.md quoting rule applies to ModelTableExpr where BUN maps
-// results to struct fields via the alias. Here we use explicit column aliases (student_id,
-// person_id, etc.) which BUN scans by name directly.
+// GetStudentsByClasses retrieves the non-alumni students in the given
+// classes through the People Directory (#2662), in class/id order. The
+// person names and the name order are attached by the composition layer
+// (#2661).
 func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, classes []string) ([]*education.StudentClassInfo, error) {
 	if len(classes) == 0 {
 		return []*education.StudentClassInfo{}, nil
 	}
-
-	var students []*education.StudentClassInfo
-	query := base.GetDB(ctx, r.db).NewSelect().
-		ColumnExpr(`s.id AS student_id`).
-		ColumnExpr(`s.person_id`).
-		ColumnExpr(`s.school_class`).
-		ColumnExpr(`s.status`).
-		TableExpr(`users.students AS s`).
-		Where(`s.school_class IN (?)`, bun.List(classes)).
-		Where(`s.status <> ?`, string(users.StudentStatusAlumnus)).
-		Order(`s.school_class ASC, s.id ASC`)
-
-	query = base.WithTenantFilter(ctx, query, "s")
-
-	err := query.Scan(ctx, &students)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get students by classes",
-			Err: base.TranslateNotFound(err),
-		}
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
 	}
-
+	rows, err := r.students.ListStudentsByClasses(ctx, classes)
+	if err != nil {
+		return nil, err
+	}
+	students := make([]*education.StudentClassInfo, 0, len(rows))
+	for _, row := range rows {
+		students = append(students, &education.StudentClassInfo{
+			StudentID:   row.ID,
+			PersonID:    row.PersonID,
+			SchoolClass: row.SchoolClass,
+			Status:      row.Status,
+		})
+	}
 	return students, nil
 }
 
@@ -707,35 +681,10 @@ func (r *GradeTransitionRepository) PromoteStudentsByIDs(
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
-
-	updQuery := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("school_class = ?", toClass).
-		Set("updated_at = NOW()").
-		Where(`"student".id IN (?)`, bun.List(studentIDs)).
-		Where(`"student".school_class = ?`, fromClass).
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
-
-	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
-
-	result, err := updQuery.Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "promote students by ids",
-			Err: base.TranslateNotFound(err),
-		}
+	if r.students == nil {
+		return 0, errStudentDirectoryRequired
 	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "get rows affected",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return affected, nil
+	return r.students.PromoteStudents(ctx, studentIDs, fromClass, toClass)
 }
 
 // UpdateStudentClasses updates student classes based on transition mappings
@@ -792,33 +741,10 @@ func (r *GradeTransitionRepository) UpdateStudentClasses(ctx context.Context, tr
 // them again — school_class no longer equals toClass, the WHERE matches nothing,
 // and 0 rows are affected so the older revert cannot clobber the newer value.
 func (r *GradeTransitionRepository) RevertStudentClass(ctx context.Context, studentID int64, fromClass, toClass string) (int64, error) {
-	updQuery := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("school_class = ?", fromClass).
-		Set("updated_at = NOW()").
-		Where(`"student".id = ?`, studentID).
-		Where(`"student".school_class = ?`, toClass)
-
-	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
-
-	result, err := updQuery.Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "revert student class",
-			Err: base.TranslateNotFound(err),
-		}
+	if r.students == nil {
+		return 0, errStudentDirectoryRequired
 	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "get rows affected",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return affected, nil
+	return r.students.RevertStudentClass(ctx, studentID, fromClass, toClass)
 }
 
 // GraduateStudentsByClasses soft-deletes graduating students: their rows are
@@ -829,35 +755,10 @@ func (r *GradeTransitionRepository) GraduateStudentsByClasses(ctx context.Contex
 	if len(classes) == 0 {
 		return 0, nil
 	}
-
-	updQuery := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*struct{})(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("status = ?", string(users.StudentStatusAlumnus)).
-		Set("updated_at = NOW()").
-		Where(`"student".school_class IN (?)`, bun.List(classes)).
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
-
-	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
-
-	result, err := updQuery.Exec(ctx)
-
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "graduate students by classes",
-			Err: base.TranslateNotFound(err),
-		}
+	if r.students == nil {
+		return 0, errStudentDirectoryRequired
 	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "get rows affected",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return affected, nil
+	return r.students.GraduateStudentsByClasses(ctx, classes)
 }
 
 // GraduateStudentsByIDs soft-deletes exactly the given students (status flips to
@@ -869,34 +770,10 @@ func (r *GradeTransitionRepository) GraduateStudentsByIDs(ctx context.Context, s
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
-
-	updQuery := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*struct{})(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("status = ?", string(users.StudentStatusAlumnus)).
-		Set("updated_at = NOW()").
-		Where(`"student".id IN (?)`, bun.List(studentIDs)).
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
-
-	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
-
-	result, err := updQuery.Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "graduate students by ids",
-			Err: base.TranslateNotFound(err),
-		}
+	if r.students == nil {
+		return 0, errStudentDirectoryRequired
 	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "get rows affected",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return affected, nil
+	return r.students.GraduateStudents(ctx, studentIDs)
 }
 
 // ReactivateStudentsByIDs restores graduated (alumnus) students back to
@@ -925,36 +802,10 @@ func (r *GradeTransitionRepository) ReactivateStudentsToStatus(ctx context.Conte
 	if len(studentIDs) == 0 {
 		return nil, nil
 	}
-
-	type reactivatedRow struct {
-		ID int64 `bun:"id"`
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
 	}
-	var rows []reactivatedRow
-
-	updQuery := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*struct{})(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("status = ?", targetStatus).
-		Set("updated_at = NOW()").
-		Where(`"student".id IN (?)`, bun.List(studentIDs)).
-		Where(`"student".status = ?`, string(users.StudentStatusAlumnus)).
-		Returning(`"student".id`)
-
-	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
-
-	if _, err := updQuery.Exec(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "reactivate students to status",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	reactivated := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		reactivated = append(reactivated, row.ID)
-	}
-
-	return reactivated, nil
+	return r.students.ReactivateStudents(ctx, studentIDs, targetStatus)
 }
 
 // PersonIDsByStudentIDs maps the given students to their person ids. The
@@ -965,33 +816,16 @@ func (r *GradeTransitionRepository) PersonIDsByStudentIDs(ctx context.Context, s
 	if len(studentIDs) == 0 {
 		return map[int64]int64{}, nil
 	}
-
-	type studentPerson struct {
-		StudentID int64 `bun:"student_id"`
-		PersonID  int64 `bun:"person_id"`
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
 	}
-	var rows []studentPerson
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model((*struct{})(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		ColumnExpr(`"student".id AS student_id`).
-		ColumnExpr(`"student".person_id AS person_id`).
-		Where(`"student".id IN (?)`, bun.List(studentIDs)).
-		OrderExpr(`"student".id ASC`)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "read student person ids",
-			Err: base.TranslateNotFound(err),
-		}
+	rows, err := r.students.ListStudentsByID(ctx, studentIDs)
+	if err != nil {
+		return nil, err
 	}
-
 	result := make(map[int64]int64, len(rows))
 	for _, row := range rows {
-		result[row.StudentID] = row.PersonID
+		result[row.ID] = row.PersonID
 	}
 	return result, nil
 }
@@ -1027,28 +861,13 @@ func (r *GradeTransitionRepository) FindStudentStatesByIDs(ctx context.Context, 
 	if len(studentIDs) == 0 {
 		return map[int64]string{}, nil
 	}
-
-	type stateRow struct {
-		ID     int64  `bun:"id"`
-		Status string `bun:"status"`
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
 	}
-	var rows []stateRow
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model((*struct{})(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Column("id", "status").
-		Where(`"student".id IN (?)`, bun.List(studentIDs))
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find student states by IDs",
-			Err: base.TranslateNotFound(err),
-		}
+	rows, err := r.students.ListStudentsByID(ctx, studentIDs)
+	if err != nil {
+		return nil, err
 	}
-
 	states := make(map[int64]string, len(rows))
 	for _, row := range rows {
 		states[row.ID] = row.Status

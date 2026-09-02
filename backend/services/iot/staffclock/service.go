@@ -65,11 +65,25 @@ type workSessionService interface {
 	GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
 }
 
+// Card is the RFID card projection the stamp workflow reads. The card table
+// belongs to identity-access (#2662); the root adapts its repository to
+// CardLookup so this package never imports that owner's models.
+type Card struct {
+	ID     string
+	Active bool
+}
+
+// CardLookup resolves a normalized tag to a card of this school.
+type CardLookup interface {
+	// FindCard returns nil, nil when no card carries the id.
+	FindCard(ctx context.Context, id string) (*Card, error)
+}
+
 // Service owns the pure NFC stamp workflow. It deliberately accepts narrow
 // interfaces so its state machine can be tested without HTTP or a database.
 type Service struct {
 	people       personService
-	cards        userModels.RFIDCardRepository
+	cards        CardLookup
 	workSessions workSessionService
 	now          func() time.Time
 }
@@ -136,7 +150,7 @@ type Command struct {
 	PlannedDurationMinutes *int
 }
 
-func NewService(people personService, cards userModels.RFIDCardRepository, workSessions workSessionService) *Service {
+func NewService(people personService, cards CardLookup, workSessions workSessionService) *Service {
 	return &Service{people: people, cards: cards, workSessions: workSessions}
 }
 
@@ -271,13 +285,11 @@ func (s *Service) classifyCheckInError(ctx context.Context, err error) error {
 
 func (s *Service) resolveStaff(ctx context.Context, rawTag string) (*userModels.Person, *userModels.Staff, error) {
 	normalized := userModels.NormalizeTagID(rawTag)
-	cardCandidate := &userModels.RFIDCard{}
-	cardCandidate.ID = normalized
-	if err := cardCandidate.Validate(); err != nil {
+	if err := userModels.ValidateTagID(normalized); err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidRFIDTag, err)
 	}
 
-	card, err := s.cards.FindByID(ctx, normalized)
+	card, err := s.cards.FindCard(ctx, normalized)
 	if err != nil {
 		return nil, nil, fmt.Errorf("look up RFID card: %w", err)
 	}

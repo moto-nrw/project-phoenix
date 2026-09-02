@@ -112,7 +112,7 @@ func (s *Service) ListByIDs(ctx context.Context, ids []int64) (result []domain.P
 }
 
 func (s *Service) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) (result []domain.Person, err error) {
-	err = s.observeRun(ctx, "list_persons_across_tenants_by_id", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = observeRun(ctx, s.observe, "list_persons_across_tenants_by_id", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListByIDs(txCtx, ids)
 		stats.Add(queryStats)
@@ -155,7 +155,7 @@ func (s *Service) Search(ctx context.Context, filter domain.Filter) (result []do
 // own admin transaction; a tenant transaction in context would hide every
 // other school's rows.
 func (s *Service) CountByTenant(ctx context.Context) (result map[int64]int, err error) {
-	err = s.observeRun(ctx, "count_persons_by_tenant", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = observeRun(ctx, s.observe, "count_persons_by_tenant", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CountByTenant(txCtx)
 		stats.Add(queryStats)
@@ -276,18 +276,20 @@ func (s *Service) requireLocked(ctx context.Context, id int64, stats *domain.Ope
 }
 
 func (s *Service) runWrite(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) error {
-	return s.observeRun(ctx, operation, s.tx.RunWrite, fn)
+	return observeRun(ctx, s.observe, operation, s.tx.RunWrite, fn)
 }
 
 func (s *Service) runRead(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) error {
-	return s.observeRun(ctx, operation, s.tx.RunRead, fn)
+	return observeRun(ctx, s.observe, operation, s.tx.RunRead, fn)
 }
 
-func (s *Service) observeRun(ctx context.Context, operation string, run func(context.Context, func(context.Context) error) error, fn func(context.Context, *domain.OperationStats) error) (err error) {
+// observeRun runs fn inside run and reports one observation per operation,
+// shared by the person and the student service.
+func observeRun(ctx context.Context, observe ports.Observer, operation string, run func(context.Context, func(context.Context) error) error, fn func(context.Context, *domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}
 	defer func() {
-		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
+		observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	}()
 	err = run(ctx, func(txCtx context.Context) error { return fn(txCtx, &stats) })
 	if err != nil {

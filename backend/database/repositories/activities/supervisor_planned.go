@@ -22,12 +22,11 @@ const (
 	setSupervisorValidUntil    = "valid_until = ?"
 )
 
-// supervisorResult holds the result of a supervisor query with the joined
-// staff row. Staff.Person is attached by the composition layer through the
-// People Directory.
+// supervisorResult holds the result of a supervisor query. Staff stays nil
+// here: the composition layer attaches it through School Membership and
+// Staff.Person through the People Directory.
 type supervisorResult struct {
 	Supervisor *activities.SupervisorPlanned `bun:"supervisor"`
-	Staff      *users.Staff                  `bun:"staff"`
 }
 
 // applySupervisorColumnMapping adds all required column expressions for supervisor queries
@@ -53,23 +52,16 @@ func applySupervisorColumnMapping(q *bun.SelectQuery) *bun.SelectQuery {
 		// Weekday scope (#2129) — same reason as the validity window above:
 		// omitting it here would widen a Monday-only assignment to the whole
 		// series on the next full-row Update.
-		ColumnExpr(`"supervisor".weekday AS "supervisor__weekday"`).
-		// Staff columns
-		ColumnExpr(`"staff".id AS "staff__id"`).
-		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
-		ColumnExpr(`"staff".updated_at AS "staff__updated_at"`).
-		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
-		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
-		// Joins
-		Join(`LEFT JOIN users.staff AS "staff" ON "staff".id = "supervisor".staff_id`)
+		ColumnExpr(`"supervisor".weekday AS "supervisor__weekday"`)
+	// The staff member behind supervisor.staff_id is attached by the
+	// composition layer through School Membership (#2667).
 }
 
-// mapSupervisorResults converts supervisorResult slice to SupervisorPlanned slice with relations.
+// mapSupervisorResults converts supervisorResult slice to SupervisorPlanned slice.
 func mapSupervisorResults(results []supervisorResult) []*activities.SupervisorPlanned {
 	supervisors := make([]*activities.SupervisorPlanned, len(results))
 	for i, result := range results {
 		supervisors[i] = result.Supervisor
-		supervisors[i].Staff = result.Staff
 	}
 	return supervisors
 }
