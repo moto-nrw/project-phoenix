@@ -13,11 +13,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -292,6 +294,11 @@ func (rs *Resource) verifyNoteOwnership(w http.ResponseWriter, r *http.Request, 
 	)
 }
 
+var (
+	errPersonNotFoundForAccount = errors.New("person not found for account")
+	errUserNotStaff             = errors.New("user is not a staff member")
+)
+
 // getStaffIDFromJWT extracts the staff ID from JWT claims by looking up the person and staff
 func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	claims := jwt.ClaimsFromCtx(r.Context())
@@ -301,14 +308,26 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 
 	// Get person from account ID
 	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(claims.ID))
-	if err != nil || person == nil {
-		return 0, errors.New("person not found for account")
+	if err != nil {
+		if errors.Is(err, usersService.ErrPersonNotFound) {
+			return 0, errPersonNotFoundForAccount
+		}
+		return 0, fmt.Errorf("find person by account: %w", err)
+	}
+	if person == nil {
+		return 0, errPersonNotFoundForAccount
 	}
 
 	// Get staff from person ID
 	staff, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID)
-	if err != nil || staff == nil {
-		return 0, errors.New("user is not a staff member")
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return 0, errUserNotStaff
+		}
+		return 0, fmt.Errorf("find staff by person: %w", err)
+	}
+	if staff == nil {
+		return 0, errUserNotStaff
 	}
 
 	return staff.ID, nil

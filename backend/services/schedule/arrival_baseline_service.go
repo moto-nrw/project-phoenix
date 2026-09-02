@@ -52,18 +52,22 @@ type ArrivalPlansByStudent map[int64]ArrivalPlanByDate
 // ArrivalBaselineProjection is the recurring arrival plan applicable on every
 // date of a requested range.
 type ArrivalBaselineProjection struct {
-	WeeklyByStudentDate   ArrivalPlansByStudent
-	DerivedByStudentDate  ArrivalPlansByStudent
-	BookingsAuthoritative bool
+	WeeklyByStudentDate          ArrivalPlansByStudent
+	DerivedByStudentDate         ArrivalPlansByStudent
+	BookingsAuthoritative        bool
+	classExceptionsByStudentDate map[int64]classExceptionsByDate
 }
 
-// ForDate returns the effective recurring row for the date's weekday. Day
-// exceptions are deliberately outside this contract.
+// ForDate returns the effective recurring row for the date's weekday. A
+// class-wide day exception (#2962) is already folded in, because it changes
+// the class time for that date; per-child day exceptions are deliberately
+// outside this contract.
 func (p *ArrivalBaselineProjection) ForDate(studentID int64, date timezone.Date) *scheduleModel.StudentArrivalSchedule {
 	if p == nil {
 		return nil
 	}
-	return p.WeeklyByStudentDate[studentID][date][effectiveISOWeekday(date)]
+	row := p.WeeklyByStudentDate[studentID][date][effectiveISOWeekday(date)]
+	return classExceptionRow(row, p.classExceptionsByStudentDate[studentID][date])
 }
 
 // DerivedForDate returns the projected row hidden underneath a manual
@@ -80,7 +84,9 @@ func (p *ArrivalBaselineProjection) HasPlan(studentID int64, date timezone.Date)
 	return p != nil && len(p.WeeklyByStudentDate[studentID][date]) > 0
 }
 
-// WeeklyForDate returns the full recurring week applicable on date.
+// WeeklyForDate returns the full recurring week applicable on date. It never
+// includes class day exceptions: callers use this payload to edit a child's
+// recurring schedule, and a date-specific time must not become weekly data.
 func (p *ArrivalBaselineProjection) WeeklyForDate(studentID int64, date timezone.Date) ArrivalWeek {
 	if p == nil {
 		return nil
@@ -94,12 +100,13 @@ type ArrivalBaselineReader interface {
 }
 
 type arrivalBaselineService struct {
-	weekly     scheduleModel.StudentArrivalScheduleRepository
-	students   users.StudentRepository
-	classTimes educationModel.ClassArrivalTimeRepository
-	links      enrollmentModel.RequestChildOfferingRepository
-	offerings  enrollmentModel.CareOfferingRepository
-	settings   config.SettingsService
+	weekly          scheduleModel.StudentArrivalScheduleRepository
+	students        users.StudentRepository
+	classTimes      educationModel.ClassArrivalTimeRepository
+	classExceptions scheduleModel.ClassArrivalExceptionRepository
+	links           enrollmentModel.RequestChildOfferingRepository
+	offerings       enrollmentModel.CareOfferingRepository
+	settings        config.SettingsService
 }
 
 // NewArrivalBaselineService builds the date-aware regular-arrival projection.
@@ -109,20 +116,22 @@ func NewArrivalBaselineService(
 	weekly scheduleModel.StudentArrivalScheduleRepository,
 	students users.StudentRepository,
 	classTimes educationModel.ClassArrivalTimeRepository,
+	classExceptions scheduleModel.ClassArrivalExceptionRepository,
 	links enrollmentModel.RequestChildOfferingRepository,
 	offerings enrollmentModel.CareOfferingRepository,
 	settings config.SettingsService,
 ) ArrivalBaselineReader {
-	if weekly == nil || students == nil || classTimes == nil || links == nil || offerings == nil {
+	if weekly == nil || students == nil || classTimes == nil || classExceptions == nil || links == nil || offerings == nil {
 		panic("schedule.NewArrivalBaselineService: required dependency is nil")
 	}
 	return &arrivalBaselineService{
-		weekly:     weekly,
-		students:   students,
-		classTimes: classTimes,
-		links:      links,
-		offerings:  offerings,
-		settings:   settings,
+		weekly:          weekly,
+		students:        students,
+		classTimes:      classTimes,
+		classExceptions: classExceptions,
+		links:           links,
+		offerings:       offerings,
+		settings:        settings,
 	}
 }
 
@@ -132,8 +141,9 @@ func (s *arrivalBaselineService) Project(
 	from, to timezone.Date,
 ) (*ArrivalBaselineProjection, error) {
 	projection := &ArrivalBaselineProjection{
-		WeeklyByStudentDate:  make(ArrivalPlansByStudent, len(studentIDs)),
-		DerivedByStudentDate: make(ArrivalPlansByStudent, len(studentIDs)),
+		WeeklyByStudentDate:          make(ArrivalPlansByStudent, len(studentIDs)),
+		DerivedByStudentDate:         make(ArrivalPlansByStudent, len(studentIDs)),
+		classExceptionsByStudentDate: make(map[int64]classExceptionsByDate, len(studentIDs)),
 	}
 	studentIDs = uniquePositiveStudentIDs(studentIDs)
 	if len(studentIDs) == 0 || to.Before(from) {
@@ -157,9 +167,15 @@ func (s *arrivalBaselineService) Project(
 		return nil, err
 	}
 	projection.BookingsAuthoritative = careDays != nil
+	exceptionsByClass, err := s.loadClassExceptions(ctx, classByStudent, from, to)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, studentID := range studentIDs {
-		classTimes := timesByClass[schoolclass.Normalize(classByStudent[studentID])]
+		classKey := schoolclass.Normalize(classByStudent[studentID])
+		classTimes := timesByClass[classKey]
+		classExceptions := exceptionsByClass[classKey]
 		weekly := make(ArrivalPlanByDate)
 		derived := make(ArrivalPlanByDate)
 
@@ -188,6 +204,7 @@ func (s *arrivalBaselineService) Project(
 
 		projection.WeeklyByStudentDate[studentID] = weekly
 		projection.DerivedByStudentDate[studentID] = derived
+		projection.classExceptionsByStudentDate[studentID] = classExceptions
 	}
 	return projection, nil
 }
@@ -340,6 +357,65 @@ func (s *arrivalBaselineService) loadClassTimes(
 		}
 	}
 	return out, nil
+}
+
+// classExceptionsByDate is one class's day exceptions keyed by date.
+type classExceptionsByDate map[timezone.Date]*scheduleModel.ClassArrivalException
+
+// loadClassExceptions returns the class-wide day exceptions inside [from, to]
+// keyed by normalized class and date (#2962).
+func (s *arrivalBaselineService) loadClassExceptions(
+	ctx context.Context,
+	classByStudent map[int64]string,
+	from, to timezone.Date,
+) (map[string]classExceptionsByDate, error) {
+	classes := make([]string, 0, len(classByStudent))
+	for _, class := range classByStudent {
+		classes = append(classes, class)
+	}
+	if len(classes) == 0 {
+		return nil, nil
+	}
+	rows, err := s.classExceptions.FindByClassesAndDateRange(ctx, classes, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("project arrival baselines: load class arrival exceptions: %w", err)
+	}
+	out := make(map[string]classExceptionsByDate)
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		key := schoolclass.Normalize(row.SchoolClass)
+		if out[key] == nil {
+			out[key] = make(classExceptionsByDate)
+		}
+		out[key][row.Date] = row
+	}
+	return out, nil
+}
+
+// classExceptionRow returns a day-specific copy of a regular care-day row.
+// The weekly row stays untouched so it remains safe to use in edit payloads.
+func classExceptionRow(
+	row *scheduleModel.StudentArrivalSchedule,
+	exception *scheduleModel.ClassArrivalException,
+) *scheduleModel.StudentArrivalSchedule {
+	if exception == nil || row == nil {
+		return row
+	}
+	effective := *row
+	effective.ExpectedArrival = timezone.NormalizeWallClock(exception.ArrivalTime)
+	effective.Source = scheduleModel.ArrivalScheduleSourceClassException
+	effective.SourceClass = exception.SchoolClass
+	effective.SourceLabel = exception.Label()
+	// Notes is what every reader already shows next to the time (Meine
+	// Gruppe, Kinderkarte, parents portal), so the label travels there too.
+	notes := effective.SourceLabel
+	if row.Notes != nil && strings.TrimSpace(*row.Notes) != "" {
+		notes += ", " + strings.TrimSpace(*row.Notes)
+	}
+	effective.Notes = &notes
+	return &effective
 }
 
 // careDayIndex answers "is this child in care on that date's weekday". A nil

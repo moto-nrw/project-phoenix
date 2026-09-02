@@ -24,6 +24,7 @@ func classArrivalBaseline(t *testing.T, repos *repositories.Factory) scheduleSer
 		repos.StudentArrivalSchedule,
 		repos.Student,
 		repos.ClassArrivalTime,
+		repos.ClassArrivalException,
 		repos.RequestChildOffering,
 		repos.CareOffering,
 		nil,
