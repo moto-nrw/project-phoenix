@@ -42,9 +42,13 @@ type RoomOccupancyRow struct {
 	CreatedAt time.Time `bun:"created_at"`
 	UpdatedAt time.Time `bun:"updated_at"`
 
-	IsOccupied      bool    `bun:"is_occupied"`
-	GroupName       *string `bun:"group_name"`
-	CategoryName    *string `bun:"category_name"`
-	StudentCount    int     `bun:"student_count"`
-	SupervisorNames *string `bun:"supervisor_names"`
+	IsOccupied   bool    `bun:"is_occupied"`
+	GroupName    *string `bun:"group_name"`
+	CategoryName *string `bun:"category_name"`
+	StudentCount int     `bun:"student_count"`
+	// SupervisorPersonIDs are the persons currently supervising in the room.
+	// The composition layer turns them into SupervisorNames through the
+	// People Directory; the repository never reads person names itself.
+	SupervisorPersonIDs []int64 `bun:"supervisor_person_ids,array"`
+	SupervisorNames     *string `bun:"supervisor_names,scanonly"`
 }

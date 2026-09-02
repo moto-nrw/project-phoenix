@@ -22,16 +22,17 @@ const (
 	setSupervisorValidUntil    = "valid_until = ?"
 )
 
-// supervisorResult holds the result of a supervisor query with joined staff and person.
+// supervisorResult holds the result of a supervisor query with the joined
+// staff row. Staff.Person is attached by the composition layer through the
+// People Directory.
 type supervisorResult struct {
 	Supervisor *activities.SupervisorPlanned `bun:"supervisor"`
 	Staff      *users.Staff                  `bun:"staff"`
-	Person     *users.Person                 `bun:"person"`
 }
 
 // applySupervisorColumnMapping adds all required column expressions for supervisor queries
-// with staff and person joins. This eliminates duplication across FindByGroupID,
-// FindByGroupIDs, and FindPrimaryByGroupID.
+// with the staff join. This eliminates duplication across FindByGroupID and
+// FindByGroupIDs.
 func applySupervisorColumnMapping(q *bun.SelectQuery) *bun.SelectQuery {
 	return q.
 		ModelTableExpr(`activities.supervisors AS "supervisor"`).
@@ -59,17 +60,8 @@ func applySupervisorColumnMapping(q *bun.SelectQuery) *bun.SelectQuery {
 		ColumnExpr(`"staff".updated_at AS "staff__updated_at"`).
 		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
 		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
-		// Person columns
-		ColumnExpr(`"person".id AS "person__id"`).
-		ColumnExpr(`"person".created_at AS "person__created_at"`).
-		ColumnExpr(`"person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".first_name AS "person__first_name"`).
-		ColumnExpr(`"person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
-		ColumnExpr(`"person".account_id AS "person__account_id"`).
 		// Joins
-		Join(`LEFT JOIN users.staff AS "staff" ON "staff".id = "supervisor".staff_id`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`)
+		Join(`LEFT JOIN users.staff AS "staff" ON "staff".id = "supervisor".staff_id`)
 }
 
 // mapSupervisorResults converts supervisorResult slice to SupervisorPlanned slice with relations.
@@ -78,9 +70,6 @@ func mapSupervisorResults(results []supervisorResult) []*activities.SupervisorPl
 	for i, result := range results {
 		supervisors[i] = result.Supervisor
 		supervisors[i].Staff = result.Staff
-		if result.Staff != nil {
-			result.Staff.Person = result.Person
-		}
 	}
 	return supervisors
 }

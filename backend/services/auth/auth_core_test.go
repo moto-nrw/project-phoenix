@@ -2165,7 +2165,7 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 
 	t.Run("returns error for expired invitation", func(t *testing.T) {
 		// ARRANGE
-		role := testpkg.GetOrCreateTestRole(t, db, "User")
+		role := testpkg.CreateTestRole(t, db, "expired-invitation")
 		creatorEmail := fmt.Sprintf("creator-exp-%d@test.local", time.Now().UnixNano())
 		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexp%d", time.Now().UnixNano()), testPassword, nil, 0)
 		require.NoError(t, err)

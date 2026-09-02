@@ -99,6 +99,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		AlreadyLinked     bool          `bun:"already_linked"`
 		Audience          string        `bun:"audience"`
 		HasFamilyLink     bool          `bun:"has_family_link"`
+		EnrolledPersonIDs []int64       `bun:"enrolled_submit_person_ids,array"`
 	}
 
 	// The caller applies the enrollment master switch through the settings
@@ -120,7 +121,8 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			ph.enrollment_close_at AS enrollment_close_at,
 			ph.audience   AS audience,
 			(at.account_id IS NOT NULL) AS already_linked,
-			guard.has_family_link AS has_family_link
+			guard.has_family_link AS has_family_link,
+			guard.enrolled_submit_person_ids AS enrolled_submit_person_ids
 		FROM enrollment.phases AS ph
 		LEFT JOIN auth.account_tenants AS at
 			ON at.tenant_id  = ph.tenant_id
@@ -142,8 +144,8 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 						AND gp.account_id = ?
 						AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 				) AS has_submit_permission,
-				EXISTS (
-					SELECT 1
+				COALESCE((
+					SELECT array_agg(DISTINCT st.person_id)
 					FROM users.guardian_profiles AS gp
 					JOIN users.students_guardians AS sg
 						ON sg.guardian_profile_id = gp.id
@@ -152,9 +154,6 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 						ON st.id = sg.student_id
 						AND st.tenant_id = sg.tenant_id
 						AND st.status IN ('active', 'pending')
-					JOIN users.persons AS pe
-						ON pe.id = st.person_id
-						AND pe.deleted_at IS NULL
 					JOIN auth.account_tenants AS act
 						ON act.tenant_id  = gp.tenant_id
 						AND act.account_id = gp.account_id
@@ -162,7 +161,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 					WHERE gp.tenant_id = ph.tenant_id
 						AND gp.account_id = ?
 						AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-				) AS has_enrolled_submit_permission,
+				), '{}'::bigint[]) AS enrolled_submit_person_ids,
 				EXISTS (
 					SELECT 1
 					FROM users.guardian_profiles AS gp
@@ -181,7 +180,6 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		  AND (ph.enrollment_open_at IS NULL OR ph.enrollment_open_at <= NOW())
 		  AND (ph.enrollment_close_at IS NULL OR ph.enrollment_close_at >= NOW())
 		  AND (ph.audience <> 'linked_parents' OR guard.has_submit_permission)
-		  AND (ph.audience <> 'existing_students' OR guard.has_enrolled_submit_permission)
 		ORDER BY already_linked DESC, ph.service_start_date
 	`
 
@@ -211,6 +209,8 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			AlreadyLinked:     rr.AlreadyLinked,
 			Audience:          rr.Audience,
 			HasFamilyLink:     rr.HasFamilyLink,
+
+			EnrolledSubmitPersonIDs: rr.EnrolledPersonIDs,
 		})
 	}
 	return out, nil
@@ -235,10 +235,10 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 	}
 
 	type row struct {
-		Linked                      bool `bun:"linked"`
-		HasGuardianLink             bool `bun:"has_guardian_link"`
-		HasSubmitPermission         bool `bun:"has_submit_permission"`
-		HasEnrolledSubmitPermission bool `bun:"has_enrolled_submit_permission"`
+		Linked              bool    `bun:"linked"`
+		HasGuardianLink     bool    `bun:"has_guardian_link"`
+		HasSubmitPermission bool    `bun:"has_submit_permission"`
+		EnrolledPersonIDs   []int64 `bun:"enrolled_submit_person_ids,array"`
 	}
 
 	const query = `
@@ -268,8 +268,8 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 				WHERE gp.tenant_id = ? AND gp.account_id = ?
 					AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 			) AS has_submit_permission,
-			EXISTS (
-				SELECT 1
+			COALESCE((
+				SELECT array_agg(DISTINCT st.person_id)
 				FROM users.guardian_profiles AS gp
 				JOIN users.students_guardians AS sg
 					ON sg.guardian_profile_id = gp.id
@@ -278,16 +278,13 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 					ON st.id = sg.student_id
 					AND st.tenant_id = sg.tenant_id
 					AND st.status IN ('active', 'pending')
-				JOIN users.persons AS pe
-					ON pe.id = st.person_id
-					AND pe.deleted_at IS NULL
 				JOIN auth.account_tenants AS act
 					ON act.tenant_id  = gp.tenant_id
 					AND act.account_id = gp.account_id
 					AND act.status     = 'active'
 				WHERE gp.tenant_id = ? AND gp.account_id = ?
 					AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-			) AS has_enrolled_submit_permission
+			), '{}'::bigint[]) AS enrolled_submit_person_ids
 	`
 
 	var out row
@@ -303,9 +300,9 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 	}
 
 	return &parentModels.GuardianSubmitStatus{
-		Linked:                      out.Linked,
-		HasGuardianLink:             out.HasGuardianLink,
-		HasSubmitPermission:         out.HasSubmitPermission,
-		HasEnrolledSubmitPermission: out.HasEnrolledSubmitPermission,
+		Linked:                  out.Linked,
+		HasGuardianLink:         out.HasGuardianLink,
+		HasSubmitPermission:     out.HasSubmitPermission,
+		EnrolledSubmitPersonIDs: out.EnrolledPersonIDs,
 	}, nil
 }

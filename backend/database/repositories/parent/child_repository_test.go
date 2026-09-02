@@ -19,11 +19,15 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// newSchoolProjectionFactory composes the parent repositories the way the
+// service graph does: person names and eligibility through the People
+// Directory (#2661), then the school projections on top.
 func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 	t.Helper()
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
 	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	factory := repositories.NewFactory(db)
 	factory.BindOrganizationTenancy(capability)
 	return factory
 }
@@ -253,7 +257,9 @@ func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	repo := parentRepo.NewChildRepository(db)
+	// The deleted-person filter lives in the People Directory composition
+	// (#2661), so the test drives the composed repository.
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var list []*parentModels.ChildSummary
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error
@@ -344,7 +350,7 @@ func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
 	linkChildToAccount(t, db, account.ID, tenantID, studentZ.ID)
 	linkChildToAccount(t, db, account.ID, tenantID, studentA.ID)
 
-	repo := parentRepo.NewChildRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentChild
 	var list []*parentModels.ChildSummary
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var lErr error

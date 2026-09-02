@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -52,6 +53,7 @@ import (
 type Factory struct {
 	db                       *bun.DB
 	organizationTenancyBound bool
+	peopleDirectoryBound     bool
 	schoolStructureBound     bool
 
 	// Auth domain
@@ -393,6 +395,20 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 		DB:      db,
 		Observe: func(organizationCompose.Observation) {},
 	})
+}
+
+// BindPeopleDirectory replaces the legacy adapters that used to join
+// users.persons themselves with compositions over the public People
+// Directory capability (#2661).
+func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
+	if capability == nil {
+		panic("repository factory: people directory capability is required")
+	}
+	if f.peopleDirectoryBound {
+		return
+	}
+	f.peopleDirectoryBound = true
+	f.bindPersonProjections(capability)
 }
 
 // BindSchoolStructure replaces the group-enriched legacy adapters with

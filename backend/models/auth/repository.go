@@ -374,6 +374,17 @@ type AccountTenantAccessInfo struct {
 	HasStaff         bool       `bun:"has_staff" json:"has_staff"`
 }
 
+// CaregiverChain is the staff and teacher record behind one person at one
+// school. The account listings combine it with the People Directory's
+// person rows to derive the caregiver facts (#2661).
+type CaregiverChain struct {
+	PersonID    int64  `bun:"person_id"`
+	TenantID    int64  `bun:"tenant_id"`
+	StaffID     int64  `bun:"staff_id"`
+	TeacherID   int64  `bun:"teacher_id"`
+	TeacherRole string `bun:"teacher_role"`
+}
+
 // AccountTenantRepository defines operations for querying account-tenant mappings.
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error

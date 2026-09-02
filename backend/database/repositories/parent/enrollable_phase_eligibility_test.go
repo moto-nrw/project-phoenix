@@ -448,7 +448,7 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus_EnrolledPermissionTracks
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
 	load := func() *parentModels.GuardianSubmitStatus {
 		t.Helper()
 		var status *parentModels.GuardianSubmitStatus

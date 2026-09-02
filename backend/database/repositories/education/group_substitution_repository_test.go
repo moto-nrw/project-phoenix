@@ -586,7 +586,8 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 			if s.ID == sub1.ID || s.ID == sub2.ID {
 				assert.NotNil(t, s.Group, "Group should be loaded")
 				assert.NotNil(t, s.SubstituteStaff, "Substitute staff should be loaded")
-				assert.NotNil(t, s.SubstituteStaff.Person, "Staff person should be loaded")
+				// Staff.Person is attached by the substitution service through
+				// the People Directory (#2661); the repository stops at staff.
 			}
 		}
 	})
@@ -628,6 +629,5 @@ func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *test
 		found := subs[0]
 		assert.NotNil(t, found.Group)
 		assert.NotNil(t, found.SubstituteStaff)
-		assert.NotNil(t, found.SubstituteStaff.Person)
 	})
 }

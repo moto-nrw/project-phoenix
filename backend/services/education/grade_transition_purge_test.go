@@ -46,7 +46,7 @@ func TestGetHistoryWithStudentStates(t *testing.T) {
 
 	// Put one child back the way a revert does, and remove another the way the
 	// purge route does — the two states the ledger cannot express.
-	repo := educationRepo.NewGradeTransitionRepository(db)
+	repo := newGradeTransitionRepository(t, db)
 	reactivated, err := repo.ReactivateStudentsToStatus(ctx, []int64{restored.ID}, string(users.StudentStatusActive))
 	require.NoError(t, err)
 	require.Equal(t, []int64{restored.ID}, reactivated)

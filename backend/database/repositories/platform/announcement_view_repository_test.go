@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -24,7 +25,11 @@ func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	viewRepo := platform.NewAnnouncementViewRepository(db)
+	// Viewer names come from the People Directory composition (#2661), so
+	// the test drives the composed repository the service graph uses.
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	viewRepo := factory.AnnouncementView
 
 	// Create operator for announcement
 	operator := createTestOperator(t, db, "viewtest@example.com", "View Test Operator")
@@ -40,7 +45,7 @@ func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 		TargetRoles: []string{},
 	}
 	annoRepo := platform.NewAnnouncementRepository(db)
-	err := annoRepo.Create(ctx, announcement)
+	err = annoRepo.Create(ctx, announcement)
 	require.NoError(t, err)
 
 	// Create an auth account
@@ -89,6 +94,30 @@ func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 		}
 		require.NotNil(t, orphanDetail, "should find view detail for orphan account")
 		assert.Equal(t, "orphan@example.com", orphanDetail.UserName)
+	})
+
+	t.Run("orders viewers by most recent view", func(t *testing.T) {
+		olderAccountID := createTestAccount(t, db, "older@example.com")
+		newerAccountID := createTestAccount(t, db, "newer@example.com")
+		require.NoError(t, viewRepo.MarkSeen(ctx, olderAccountID, announcement.ID))
+		require.NoError(t, viewRepo.MarkSeen(ctx, newerAccountID, announcement.ID))
+
+		newer := time.Now().Add(time.Hour)
+		_, err := db.NewRaw(
+			`UPDATE platform.announcement_views SET seen_at = ? WHERE announcement_id = ? AND user_id = ?`,
+			newer.Add(-time.Hour), announcement.ID, olderAccountID,
+		).Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewRaw(
+			`UPDATE platform.announcement_views SET seen_at = ? WHERE announcement_id = ? AND user_id = ?`,
+			newer, announcement.ID, newerAccountID,
+		).Exec(ctx)
+		require.NoError(t, err)
+
+		details, err := viewRepo.GetViewDetails(ctx, announcement.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, details)
+		assert.Equal(t, newerAccountID, details[0].UserID)
 	})
 
 }
