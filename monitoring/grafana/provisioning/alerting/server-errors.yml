@@ -1,0 +1,149 @@
+apiVersion: 1
+
+# Server and database error alerting (#2953).
+#
+# The server rule counts ERROR lines but ignores `transaction_failure` records
+# that carry a status below 500. Backends built after #2953 no longer write
+# those lines for 4xx rollbacks at all; the filter keeps the rule honest while
+# an older image is still running. The Postgres rule reads the database
+# container's own log, where permission and query errors end up that the
+# server log swallows.
+
+groups:
+  - orgId: 1
+    name: Phoenix Server Errors
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: server-error-spike
+        title: Server error spike
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: >-
+                sum(count_over_time({env="prod",service="server"} | json | level="ERROR" | outcome!="transaction_failure" or status=~"5.." [5m])) or vector(0)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [10]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Mehr als 10 echte Fehlerzeilen in 5 Minuten im Production-Server-Log.
+          description: 4xx-Rollbacks zählen nicht. Pfad, Route und Status stehen in jeder Zeile. Runbook beachten.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/server-errors.md
+        labels:
+          env: prod
+          issue: "2953"
+          service: server
+          severity: critical
+        isPaused: false
+
+  - orgId: 1
+    name: Phoenix Postgres Errors
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: postgres-error-lines
+        title: Postgres errors
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: >-
+                sum(count_over_time({env="prod",service="postgres"} |~ `(ERROR|PANIC):` [5m])) or vector(0)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [5]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Mehr als 5 ERROR- oder PANIC-Zeilen in 5 Minuten im Production-Postgres-Log.
+          description: Rechte- und Query-Fehler landen nur hier, nicht im Server-Log. Runbook beachten.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/server-errors.md
+        labels:
+          env: prod
+          issue: "2953"
+          service: postgres
+          severity: critical
+        isPaused: false

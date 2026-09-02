@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -43,22 +44,95 @@ func TenantRuntimeMiddleware(runtime tenant.UnitOfWork) func(http.Handler) http.
 	}
 }
 
-func TenantRuntimeObserverMiddleware(observer func(context.Context, TenantRuntimeEvent)) func(http.Handler) http.Handler {
+// TenantRuntimeObservation is one runtime event together with the request,
+// the matched route and the status the client got. A rolled-back
+// transaction behind a 401 is expected behaviour; the same event behind a 500
+// is a failure. Only the final status tells them apart, so events are held
+// until the status is known (#2953). Route is captured here because chi
+// recycles the route context once the handler returns; an event raised by a
+// goroutine outliving the request would otherwise read a stale pattern.
+type TenantRuntimeObservation struct {
+	Request *http.Request
+	Route   string
+	Status  int
+	Event   TenantRuntimeEvent
+}
+
+type TenantRuntimeObserver func(TenantRuntimeObservation)
+
+func TenantRuntimeObserverMiddleware(observer TenantRuntimeObserver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requestCtx := context.WithValue(r.Context(), tenantRuntimeObserverKey{}, observer)
-			withObserver := tenant.WithRuntimeObserver(requestCtx, func(event TenantRuntimeEvent) {
-				observer(requestCtx, event)
-			})
-			next.ServeHTTP(w, r.WithContext(withObserver))
+			recorder := NewStatusRecorder(w)
+			collector := &tenantRuntimeCollector{observer: observer, status: recorder}
+			ctx := context.WithValue(r.Context(), tenantRuntimeObserverKey{}, collector.observe)
+			r = r.WithContext(tenant.WithRuntimeObserver(ctx, collector.observe))
+			collector.request = r
+			defer collector.flush()
+			next.ServeHTTP(recorder, r)
 		})
 	}
 }
 
+// tenantRuntimeCollector holds runtime events until the response status is
+// known. Once the header has been sent the status is final, so later events
+// (a streaming SSE handler, a goroutine outliving the request) are delivered
+// at once instead of piling up until the connection closes. The observer is
+// always called outside the lock, in arrival order.
+type tenantRuntimeCollector struct {
+	mu       sync.Mutex
+	observer TenantRuntimeObserver
+	request  *http.Request
+	status   *StatusRecorder
+	pending  []TenantRuntimeEvent
+	flushed  bool
+	route    string
+}
+
+func (c *tenantRuntimeCollector) observe(event TenantRuntimeEvent) {
+	c.mu.Lock()
+	if !c.flushed && !c.status.HeaderWritten() {
+		c.pending = append(c.pending, event)
+		c.mu.Unlock()
+		return
+	}
+	pending := append(c.pending, event)
+	c.pending = nil
+	route := c.routeLocked()
+	c.mu.Unlock()
+	c.deliver(pending, route)
+}
+
+func (c *tenantRuntimeCollector) flush() {
+	c.mu.Lock()
+	pending := c.pending
+	c.pending = nil
+	route := c.routeLocked()
+	c.flushed = true
+	c.mu.Unlock()
+	c.deliver(pending, route)
+}
+
+// routeLocked reads the route pattern while the handler still owns the chi
+// route context; flush is the last such read and events after it reuse it.
+func (c *tenantRuntimeCollector) routeLocked() string {
+	if !c.flushed {
+		c.route = RoutePattern(c.request)
+	}
+	return c.route
+}
+
+func (c *tenantRuntimeCollector) deliver(events []TenantRuntimeEvent, route string) {
+	status := c.status.Status()
+	for _, event := range events {
+		c.observer(TenantRuntimeObservation{Request: c.request, Route: route, Status: status, Event: event})
+	}
+}
+
 func observeTenantRuntime(ctx context.Context, event TenantRuntimeEvent) {
-	observer, _ := ctx.Value(tenantRuntimeObserverKey{}).(func(context.Context, TenantRuntimeEvent))
+	observer, _ := ctx.Value(tenantRuntimeObserverKey{}).(func(TenantRuntimeEvent))
 	if observer != nil {
-		observer(ctx, event)
+		observer(event)
 	}
 }
 
