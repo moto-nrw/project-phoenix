@@ -641,6 +641,8 @@ function TenantPageTabs({
     <OverflowMenu
       key="__mehr__"
       ariaLabel={MORE_LABEL}
+      triggerRole="tab"
+      triggerAriaSelected={Boolean(hiddenActive)}
       triggerClassName={cn(tabClass(Boolean(hiddenActive)), "max-sm:hidden")}
       // leading-6 am Inhalt: ohne das drückt das Pfeil-Symbol die Zeilenhöhe
       // um ein Pixel und der Reiter steht einen Hauch tiefer als seine
@@ -655,6 +657,7 @@ function TenantPageTabs({
         label: item.label,
         href: item.href,
         disabled: item.disabled,
+        selected: item.value === value,
         onClick: () => onChange(item.value),
       }))}
     />

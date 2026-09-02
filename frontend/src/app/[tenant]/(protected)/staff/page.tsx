@@ -713,7 +713,7 @@ function StaffPageContent() {
 
   return (
     <TenantPage
-      title="Mitarbeiter"
+      title="Mitarbeitende"
       stats={staffSummary}
       statsLoading={showSkeleton}
       search={

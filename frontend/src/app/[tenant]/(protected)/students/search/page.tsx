@@ -2642,8 +2642,9 @@ function SearchPageContent() {
     if (!isToday) {
       return `${total} ${total === 1 ? "Kind" : "Kinder"}`;
     }
-    // Zuhause ist ein eigener Aufenthaltsstatus. Unbekannte Orte und „Kommt
-    // heute nicht“ dürfen nicht als Zuhause erscheinen.
+    // Wie im Dashboard: Zuhause ist jedes Kind, das weder anwesend noch krank
+    // oder entschuldigt ist. Ohne eingecheckten Aufenthaltsort ist es deshalb
+    // zuhause, auch wenn der Status noch unbekannt ist.
     let sick = 0;
     let atHome = 0;
     for (const student of students) {
@@ -2651,8 +2652,22 @@ function SearchPageContent() {
         sick += 1;
         continue;
       }
+      if (student.excused === true || student.class_trip === true) continue;
       const status = parseLocation(student.current_location).status;
-      if (status === LOCATION_STATUSES.HOME) atHome += 1;
+      if (
+        status === LOCATION_STATUSES.SICK ||
+        status === LOCATION_STATUSES.EXCUSED ||
+        status === LOCATION_STATUSES.CLASS_TRIP
+      ) {
+        continue;
+      }
+      if (
+        status === LOCATION_STATUSES.HOME ||
+        status === LOCATION_STATUSES.UNKNOWN ||
+        status === LOCATION_STATUSES.NOT_ARRIVAL
+      ) {
+        atHome += 1;
+      }
     }
     return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atHome} zuhause · ${sick} krank`;
   }, [isToday, students]);

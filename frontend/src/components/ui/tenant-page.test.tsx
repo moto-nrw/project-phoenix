@@ -226,7 +226,7 @@ describe("TenantPage", () => {
         <TenantPage
           title="Datenverwaltung"
           tabs={{
-            value: "kinder",
+            value: "personal",
             onChange: vi.fn(),
             items: [
               { value: "kinder", label: "Kinder" },
@@ -243,7 +243,10 @@ describe("TenantPage", () => {
       const tablist = screen.getByRole("tablist", {
         name: "Seitenbereiche",
       });
-      const moreButton = screen.getByRole("button", { name: "Mehr" });
+      const moreButton = screen.getByRole("tab", { name: "Mehr" });
+
+      expect(moreButton).toHaveAttribute("role", "tab");
+      expect(moreButton).toHaveAttribute("aria-selected", "true");
 
       expect(
         within(tablist).queryByRole("button", { name: "Mehr" }),
@@ -253,6 +256,9 @@ describe("TenantPage", () => {
       expect(
         screen.getByRole("menuitem", { name: "Personal" }),
       ).toHaveAttribute("href", "/personal");
+      expect(
+        screen.getByRole("menuitem", { name: "Personal" }),
+      ).toHaveAttribute("aria-current", "true");
     } finally {
       clientWidth.mockRestore();
       offsetWidth.mockRestore();

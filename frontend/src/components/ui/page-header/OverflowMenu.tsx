@@ -35,6 +35,8 @@ export interface OverflowMenuItem {
   readonly href?: string;
   /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
   readonly external?: boolean;
+  /** Marks the current item in a navigational overflow menu. */
+  readonly selected?: boolean;
 }
 
 /** Non-interactive thin divider between item groups. */
@@ -415,6 +417,7 @@ export function OverflowMenu({
                       <a
                         key={`item-${item.label}`}
                         role="menuitem"
+                        aria-current={item.selected ? "true" : undefined}
                         tabIndex={0}
                         href={item.href}
                         target="_blank"
@@ -430,6 +433,7 @@ export function OverflowMenu({
                     <Link
                       key={`item-${item.label}`}
                       role="menuitem"
+                      aria-current={item.selected ? "true" : undefined}
                       tabIndex={0}
                       href={item.href}
                       onClick={onLinkActivate}
@@ -445,6 +449,7 @@ export function OverflowMenu({
                     key={`item-${item.label}`}
                     type="button"
                     role="menuitem"
+                    aria-current={item.selected ? "true" : undefined}
                     disabled={item.disabled}
                     onClick={() => {
                       if (item.disabled) return;

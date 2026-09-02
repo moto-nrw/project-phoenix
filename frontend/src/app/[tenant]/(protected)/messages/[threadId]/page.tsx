@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { ArrowLeft } from "lucide-react";
 import useSWR, { unstable_serialize, useSWRConfig } from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
@@ -43,6 +44,24 @@ export function isMessageSnapshotUnavailable(
 ): boolean {
   return (
     Boolean(loadError) || ((isLoading || isValidating) && messageCount === 0)
+  );
+}
+
+function MessagesBackNav() {
+  const router = useTenantRouter();
+
+  return (
+    <>
+      <BackButton referrer="/messages" />
+      <button
+        type="button"
+        onClick={() => router.push("/messages")}
+        className="mb-4 hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-900 md:flex"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Zurück zu Nachrichten
+      </button>
+    </>
   );
 }
 
@@ -275,7 +294,7 @@ function MessageThreadContent() {
           keepContent: true,
         }}
       >
-        <BackButton referrer="/messages" />
+        <MessagesBackNav />
       </TenantPage>
     );
   }
@@ -302,7 +321,7 @@ function MessageThreadContent() {
         ) : null
       }
     >
-      <BackButton referrer="/messages" />
+      <MessagesBackNav />
 
       <div
         ref={containerRef}
