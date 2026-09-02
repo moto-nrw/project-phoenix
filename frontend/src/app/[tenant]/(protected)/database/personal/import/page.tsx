@@ -134,6 +134,8 @@ export default function StaffImportPage() {
 
   // Load the tenant's role names so the user knows what to put in the
   // "Rolle" column (the import matches role names exactly, case-insensitive).
+  // The list endpoint accepts users:create, the permission this page opens
+  // on, so the hint is complete for every user who may import (#2906).
   const rolesService = useMemo(() => createCrudService(rolesConfig), []);
   const [availableRoles, setAvailableRoles] = useState<string[]>([]);
 
