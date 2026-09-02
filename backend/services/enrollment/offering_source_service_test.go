@@ -129,9 +129,15 @@ func loadTemplateEnrollments(t *testing.T, env *decisionTestEnv, templateID int6
 
 func offeringSourcePeriod(t *testing.T, env *decisionTestEnv) *scheduleModels.CalendarPeriod {
 	t.Helper()
+	// Keep generic source-resync cases in a fixed future phase so they do not
+	// turn expected rows into historical rows as calendar time advances.
+	env.sourcePhase.ServiceStartDate = timezone.NewDate(2099, 9, 1)
+	env.sourcePhase.ServiceEndDate = timezone.NewDate(2100, 7, 31)
+	require.NoError(t, env.repos.Phase.Update(testpkg.Ctx(t), env.sourcePhase))
+
 	return createCareOfferingTestPeriod(t, env.db, "offering-source",
-		timezone.NewDate(2026, 8, 1),
-		timezone.NewDate(2027, 8, 31))
+		timezone.NewDate(2099, 8, 1),
+		timezone.NewDate(2100, 8, 31))
 }
 
 func offeringResyncer(t *testing.T, env *decisionTestEnv) enrollmentService.OfferingRosterResyncer {
