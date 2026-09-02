@@ -13,7 +13,27 @@ import (
 // their interfaces; the person columns are resolved through the owner query
 // afterwards and the tag writes go through the owner command.
 func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
-	_ = persons
+	if f.CrossTenant != nil {
+		f.CrossTenant = personCrossTenantRepository{CrossTenantRepository: f.CrossTenant, persons: persons}
+	}
+	if f.GroupSupervisor != nil {
+		f.GroupSupervisor = personGroupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, persons: persons}
+	}
+	if f.StaffAbsence != nil {
+		f.StaffAbsence = personStaffAbsenceRepository{StaffAbsenceRepository: f.StaffAbsence, persons: persons}
+	}
+	if f.ActiveVisit != nil {
+		f.ActiveVisit = personVisitRepository{VisitRepository: f.ActiveVisit, persons: persons}
+	}
+	if f.ActivityGroup != nil {
+		f.ActivityGroup = personActivityGroupRepository{GroupRepository: f.ActivityGroup, persons: persons}
+	}
+	if f.StudentEnrollment != nil {
+		f.StudentEnrollment = personStudentEnrollmentRepository{StudentEnrollmentRepository: f.StudentEnrollment, persons: persons}
+	}
+	if f.ActivitySupervisor != nil {
+		f.ActivitySupervisor = personSupervisorPlannedRepository{SupervisorPlannedRepository: f.ActivitySupervisor, persons: persons}
+	}
 }
 
 // personsByID resolves the non-deleted persons for ids through the owner

@@ -68,6 +68,13 @@ func (transaction) RunSavepoint(ctx context.Context, callback func(context.Conte
 	return tenant.WithSavepoint(ctx, callback)
 }
 
+// RunAdminRead always opens its own admin transaction: a tenant transaction
+// already in context would keep row-level security on, which is exactly
+// what a platform-wide read must escape.
+func (transaction) RunAdminRead(ctx context.Context, callback func(context.Context) error) error {
+	return tenant.WithinAdmin(tenant.ContextWithoutTransaction(ctx), callback)
+}
+
 type engine struct{ service *application.Service }
 
 func (e engine) Create(ctx context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {
@@ -107,6 +114,11 @@ func (e engine) FindByTag(ctx context.Context, tagID string) (peopledirectory.Pe
 
 func (e engine) ListByIDs(ctx context.Context, ids []int64) ([]peopledirectory.Person, error) {
 	values, err := e.service.ListByIDs(ctx, ids)
+	return toPublicList(values), mapError(err)
+}
+
+func (e engine) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) ([]peopledirectory.Person, error) {
+	values, err := e.service.ListAcrossTenantsByIDs(ctx, ids)
 	return toPublicList(values), mapError(err)
 }
 

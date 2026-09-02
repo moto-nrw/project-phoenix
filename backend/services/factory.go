@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -1050,7 +1049,7 @@ func newFactory(
 		GroupMappingRepo:         repos.GroupMapping,
 		AttendanceRepo:           repos.Attendance,
 		StudentStatusRepo:        repos.StudentStatusDay,
-		CrossTenantRepo:          activeRepo.NewCrossTenantRepository(db),
+		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
 		StudentRepo:              repos.Student,
 		PersonRepo:               repos.Person,

@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -73,11 +74,79 @@ func (s *StudentStatusDayOverviewService) GetOverview(ctx context.Context, group
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.repo.ListOverviewWithOptions(ctx, options)
+	// The stable date/name order needs the person names, which live with
+	// the People Directory (#2661): list the filtered set unpaginated, order
+	// it here, then take the requested page.
+	//
+	// Ceiling: the whole filtered window is loaded per request. Overview
+	// windows are date-bounded, so this stays in the hundreds of rows; a far
+	// larger window should page by student instead of by name.
+	unpaginated := *options
+	unpaginated.Pagination = nil
+	rows, err := s.repo.ListOverviewWithOptions(ctx, &unpaginated)
 	if err != nil {
 		return nil, err
 	}
+	sortStatusDayOverviewRows(rows, studentsByID, persons)
+	rows = pageStatusDayOverviewRows(rows, options.Pagination)
 	return &StatusDayOverview{Entries: assembleStatusDayOverview(rows, studentsByID, persons, groupsByID, today), HasMore: filters.Page*filters.PageSize < total}, nil
+}
+
+// sortStatusDayOverviewRows applies the overview order: date, person last
+// and first name, student, newest report first, then row ID.
+func sortStatusDayOverviewRows(rows []*activeModels.StudentStatusDay, students map[int64]*userModels.Student, persons map[int64]*userModels.Person) {
+	personOf := func(row *activeModels.StudentStatusDay) *userModels.Person {
+		if student := students[row.StudentID]; student != nil {
+			return persons[student.PersonID]
+		}
+		return nil
+	}
+	nameOf := func(person *userModels.Person) (string, string) {
+		if person == nil {
+			return "", ""
+		}
+		return person.LastName, person.FirstName
+	}
+	slices.SortStableFunc(rows, func(left, right *activeModels.StudentStatusDay) int {
+		if order := left.Date.Compare(right.Date); order != 0 {
+			return order
+		}
+		leftLast, leftFirst := nameOf(personOf(left))
+		rightLast, rightFirst := nameOf(personOf(right))
+		if order := strings.Compare(leftLast, rightLast); order != 0 {
+			return order
+		}
+		if order := strings.Compare(leftFirst, rightFirst); order != 0 {
+			return order
+		}
+		if left.StudentID != right.StudentID {
+			if left.StudentID < right.StudentID {
+				return -1
+			}
+			return 1
+		}
+		if !left.ReportedAt.Equal(right.ReportedAt) {
+			return right.ReportedAt.Compare(left.ReportedAt)
+		}
+		if left.ID < right.ID {
+			return -1
+		}
+		if left.ID > right.ID {
+			return 1
+		}
+		return 0
+	})
+}
+
+func pageStatusDayOverviewRows(rows []*activeModels.StudentStatusDay, pagination *modelBase.Pagination) []*activeModels.StudentStatusDay {
+	if pagination == nil {
+		return rows
+	}
+	offset := pagination.Offset()
+	if offset >= len(rows) {
+		return []*activeModels.StudentStatusDay{}
+	}
+	return rows[offset:min(offset+pagination.PageSize, len(rows))]
 }
 
 func statusDayOverviewOptions(studentIDs []int64, students map[int64]*userModels.Student, from, to, today timezone.Date, filters StatusDayOverviewFilters) *modelBase.QueryOptions {

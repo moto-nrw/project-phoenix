@@ -511,8 +511,9 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	return groups, countMap, nil
 }
 
-// loadStaffWithPerson loads staff and person relations for a supervisor
-func (r *GroupRepository) loadStaffWithPerson(ctx context.Context, sup *activities.SupervisorPlanned) {
+// loadStaff loads the staff relation for a supervisor. Staff.Person is
+// attached by the composition layer through the People Directory.
+func (r *GroupRepository) loadStaff(ctx context.Context, sup *activities.SupervisorPlanned) {
 	if sup.StaffID <= 0 {
 		return
 	}
@@ -529,20 +530,6 @@ func (r *GroupRepository) loadStaffWithPerson(ctx context.Context, sup *activiti
 	}
 
 	sup.Staff = staff
-	if staff.PersonID <= 0 {
-		return
-	}
-
-	person := new(users.Person)
-	personErr := base.GetDB(ctx, r.db).NewSelect().
-		Model(person).
-		ModelTableExpr(`users.persons AS "person"`).
-		Where(whereIDEquals, staff.PersonID).
-		Scan(ctx)
-
-	if personErr == nil {
-		staff.Person = person
-	}
 }
 
 // FindWithSupervisors returns a group with its supervisors
@@ -585,9 +572,9 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 		}
 	}
 
-	// Load Staff and Person relations for each supervisor
+	// Load the Staff relation for each supervisor
 	for _, sup := range supervisors {
-		r.loadStaffWithPerson(ctx, sup)
+		r.loadStaff(ctx, sup)
 	}
 
 	return group, supervisors, nil

@@ -169,6 +169,7 @@ type Factory struct {
 	ActiveGroup      activeModels.GroupRepository
 	ActiveVisit      activeModels.VisitRepository
 	GroupSupervisor  activeModels.GroupSupervisorRepository
+	CrossTenant      activeModels.CrossTenantRepository
 	CombinedGroup    activeModels.CombinedGroupRepository
 	GroupMapping     activeModels.GroupMappingRepository
 	Attendance       activeModels.AttendanceRepository
@@ -408,6 +409,19 @@ func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
 	f.bindPersonProjections(capability)
 }
 
+// NewFactoryWithPeopleDirectory builds the repository factory with the
+// People Directory already bound, so repository tests read the same
+// person-enriched rows the service graph does.
+func NewFactoryWithPeopleDirectory(db *bun.DB, clocks ...func() time.Time) (*Factory, error) {
+	persons, err := NewPeopleDirectory(db)
+	if err != nil {
+		return nil, err
+	}
+	factory := NewFactory(db, clocks...)
+	factory.BindPeopleDirectory(persons)
+	return factory, nil
+}
+
 // NewPeopleDirectory composes the person owner behind the legacy
 // composition seam for test graphs and CLI roots.
 func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
@@ -559,6 +573,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ActiveGroup:                     active.NewGroupRepository(db),
 		ActiveVisit:                     active.NewVisitRepository(db),
 		GroupSupervisor:                 groupSupervisor,
+		CrossTenant:                     active.NewCrossTenantRepository(db),
 		CombinedGroup:                   active.NewCombinedGroupRepository(db),
 		GroupMapping:                    active.NewGroupMappingRepository(db),
 		Attendance:                      attendance,

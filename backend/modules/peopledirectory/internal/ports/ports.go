@@ -38,6 +38,9 @@ type Transaction interface {
 	// RunSavepoint runs fn inside a savepoint of the current transaction so
 	// a rejected statement leaves the outer transaction usable.
 	RunSavepoint(context.Context, func(context.Context) error) error
+	// RunAdminRead opens a separate admin transaction for the platform-wide
+	// reads that must see every tenant's rows.
+	RunAdminRead(context.Context, func(context.Context) error) error
 }
 
 type Observation struct {

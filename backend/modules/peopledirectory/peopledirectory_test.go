@@ -12,6 +12,7 @@ type recordingEngine struct {
 	created  peopledirectory.CreatePerson
 	updated  peopledirectory.UpdatePerson
 	listed   []int64
+	across   bool
 	searched peopledirectory.PersonFilter
 	tag      string
 	calls    int
@@ -50,6 +51,13 @@ func (e *recordingEngine) FindByTag(_ context.Context, tag string) (peopledirect
 func (e *recordingEngine) ListByIDs(_ context.Context, ids []int64) ([]peopledirectory.Person, error) {
 	e.calls++
 	e.listed = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) ListAcrossTenantsByIDs(_ context.Context, ids []int64) ([]peopledirectory.Person, error) {
+	e.calls++
+	e.listed = ids
+	e.across = true
 	return nil, nil
 }
 
@@ -148,8 +156,14 @@ func TestListPersonsByIDDeduplicatesAndSkipsEmptyInput(t *testing.T) {
 	if _, err := module.ListPersonsByID(context.Background(), []int64{3, 3, 1}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(engine.listed) != 2 || engine.listed[0] != 3 || engine.listed[1] != 1 {
-		t.Fatalf("expected deduplicated list, got %v", engine.listed)
+	if len(engine.listed) != 2 || engine.listed[0] != 3 || engine.listed[1] != 1 || engine.across {
+		t.Fatalf("expected deduplicated tenant-scoped list, got %v across=%v", engine.listed, engine.across)
+	}
+	if _, err := module.ListPersonsAcrossTenantsByID(context.Background(), []int64{5, 5}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(engine.listed) != 1 || !engine.across {
+		t.Fatalf("expected the cross-tenant engine call, got %v across=%v", engine.listed, engine.across)
 	}
 }
 

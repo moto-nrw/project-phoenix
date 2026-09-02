@@ -283,7 +283,11 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	// Person relations come from the People Directory composition (#2661),
+	// so this test drives the composed repository the service graph uses.
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	repo := factory.ActivitySupervisor
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors by group ID with loaded relations", func(t *testing.T) {
@@ -333,7 +337,11 @@ func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	// Person relations come from the People Directory composition (#2661),
+	// so this test drives the composed repository the service graph uses.
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	repo := factory.ActivitySupervisor
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors for multiple groups", func(t *testing.T) {

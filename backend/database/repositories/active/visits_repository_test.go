@@ -593,12 +593,16 @@ func TestVisitRepository_FindActiveWithStudentDisplayByGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	// The student names come from the People Directory composition (#2661),
+	// so the test drives the composed repository the service graph uses.
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	repo := factory.ActiveVisit
 	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
 
 	educationGroup := testpkg.CreateTestEducationGroup(t, db, "Visit Display Group")
-	_, err := db.NewUpdate().
+	_, err = db.NewUpdate().
 		Table("users.students").
 		Set("group_id = ?", educationGroup.ID).
 		Where("id = ?", data.Student1.ID).

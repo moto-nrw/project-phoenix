@@ -87,6 +87,18 @@ func TestModuleTenantIsolationHidesAnotherTenantsPersons(t *testing.T) {
 	_, err = module.UpdatePerson(otherCtx, peopledirectory.UpdatePerson{ID: person.ID, FirstName: "Hijacked", LastName: "Name"})
 	require.ErrorIs(t, err, peopledirectory.ErrPersonNotFound)
 	require.ErrorIs(t, module.DeletePerson(otherCtx, person.ID), peopledirectory.ErrPersonNotFound)
+
+	// Visiting-student names are the one deliberate way past the boundary,
+	// and they resolve even from inside the other tenant's transaction.
+	err = tenant.WithinCurrentTenant(otherCtx, func(txCtx context.Context) error {
+		across, err := module.ListPersonsAcrossTenantsByID(txCtx, []int64{person.ID})
+		require.NoError(t, err)
+		require.Len(t, across, 1)
+		assert.Equal(t, testpkg.Tenant(t), across[0].TenantID)
+		assert.Equal(t, "Isolated", across[0].FirstName)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestModuleAdminTransactionReadsAcrossTenantsAndCountsPerTenant(t *testing.T) {

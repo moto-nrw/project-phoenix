@@ -111,6 +111,16 @@ func (s *Service) ListByIDs(ctx context.Context, ids []int64) (result []domain.P
 	return result, err
 }
 
+func (s *Service) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) (result []domain.Person, err error) {
+	err = s.observeRun(ctx, "list_persons_across_tenants_by_id", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		result, queryStats, err = s.store.ListByIDs(txCtx, ids)
+		stats.Add(queryStats)
+		return err
+	})
+	return result, err
+}
+
 func (s *Service) ListByAccounts(ctx context.Context, accountIDs []int64) (result []domain.Person, err error) {
 	err = s.runRead(ctx, "list_persons_by_account", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats

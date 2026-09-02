@@ -35,20 +35,18 @@ func NewStudentStatusDayRepository(db *bun.DB) active.StudentStatusDayOverviewRe
 	}
 }
 
-// ListOverviewWithOptions joins the student and person records because the
-// overview's stable date/name order must be applied before SQL pagination.
-// The generic single-table list cannot sort by these related columns.
+// ListOverviewWithOptions returns the matching rows in a deterministic
+// date/student order. The overview's name order and its pagination are
+// applied by the service once it has resolved the persons, so callers that
+// need name order pass options without pagination and page the sorted
+// result themselves.
 func (r *StudentStatusDayRepository) ListOverviewWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StudentStatusDay, error) {
 	var rows []*active.StudentStatusDay
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprActiveStudentStatusDaysAsStatusDay).
 		ColumnExpr(`"student_status_day".*`).
-		Join(`JOIN users.students AS "student" ON "student".id = "student_status_day".student_id AND "student".tenant_id = "student_status_day".tenant_id`).
-		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id AND "person".tenant_id = "student_status_day".tenant_id`).
 		OrderExpr(`"student_status_day".date ASC`).
-		OrderExpr(`"person".last_name ASC`).
-		OrderExpr(`"person".first_name ASC`).
 		OrderExpr(`"student_status_day".student_id ASC`).
 		OrderExpr(`"student_status_day".reported_at DESC`).
 		OrderExpr(`"student_status_day".id ASC`)
