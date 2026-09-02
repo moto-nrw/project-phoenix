@@ -24,7 +24,7 @@ import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
-import { toISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, toISODate } from "~/lib/date-helpers";
 import {
   cancelStaffAppointment,
   cancelStaffAppointmentOccurrence,
@@ -296,8 +296,10 @@ const SchoolPlanReadView = dynamic(
  * Tab-Parameter beim nächsten Wechsel wieder abräumen; deshalb entscheidet
  * die Anwesenheit genau dieser Parameter über den Starttab.
  */
+const SCHOOL_PLAN_PARAMS = ["d", "view", "block"] as const;
+
 function hasSchoolPlanParams(params: URLSearchParams | null): boolean {
-  return ["d", "view", "block"].some((key) => params?.has(key) === true);
+  return SCHOOL_PLAN_PARAMS.some((key) => params?.has(key) === true);
 }
 
 type CalendarTab = "meine" | "schule";
@@ -326,16 +328,25 @@ function StaffCalendarPageInner() {
   const handleCalendarTabChange = useCallback(
     (value: string) => {
       const nextTab = value as CalendarTab;
+      const nextParams = new URLSearchParams(searchParams?.toString());
       if (nextTab === "meine") {
-        const nextParams = new URLSearchParams(searchParams?.toString());
-        for (const key of ["d", "view", "block"]) nextParams.delete(key);
-        const query = nextParams.toString();
-        window.history.replaceState(
-          null,
-          "",
-          query ? `?${query}` : window.location.pathname,
-        );
+        for (const key of SCHOOL_PLAN_PARAMS) nextParams.delete(key);
+      } else if (!hasSchoolPlanParams(nextParams)) {
+        // Der Betreuungsplan hält seinen Zustand ausschließlich in
+        // d/view/block. Wer den Tab von Hand wählt, hat noch keinen dieser
+        // Parameter — dann trägt das Öffnen eines Termins `block` ein und das
+        // Schließen räumt es wieder ab, die Fläche stünde ohne Plan-Parameter
+        // da und spränge zurück auf "Meine Termine" (#2957). Der sichtbare Tag
+        // ist der dauerhafte Zustand: heute, also genau das, was der Plan ohne
+        // `d` ohnehin anzeigt.
+        nextParams.set("d", berlinTodayISO());
       }
+      const query = nextParams.toString();
+      window.history.replaceState(
+        null,
+        "",
+        query ? `?${query}` : window.location.pathname,
+      );
       setActiveTab(nextTab);
     },
     [searchParams],

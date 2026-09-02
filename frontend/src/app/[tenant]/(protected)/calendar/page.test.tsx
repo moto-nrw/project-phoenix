@@ -412,6 +412,53 @@ describe("StaffCalendarPage", () => {
     );
   });
 
+  // #2957: Tab von Hand wählen, Termin öffnen, Termin schließen — die Fläche
+  // darf dabei nicht auf "Meine Termine" zurückspringen. Das Schließen räumt
+  // `block` ab; ohne den beim Tab-Wechsel gesetzten Tag stünde die URL danach
+  // ohne Plan-Parameter da.
+  it("hält den Betreuungsplan-Tab über Öffnen und Schließen eines Termins (#2957)", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own", "schedules:read"] } },
+      status: "authenticated",
+    });
+    window.history.replaceState(null, "", "/acme/kalender");
+    mockUseSearchParams.mockImplementation(
+      () => new URLSearchParams(window.location.search),
+    );
+
+    const { rerender } = render(<StaffCalendarPage />);
+
+    // Kit-Regel: Radix-Tabs aktivieren auf mousedown, nicht auf click.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Betreuungsplan" }));
+    rerender(<StaffCalendarPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toHaveAttribute("aria-selected", "true"),
+    );
+    const dayParam = new URLSearchParams(window.location.search).get("d");
+    expect(dayParam).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    // Termin öffnen: der Betreuungsplan schreibt `block` dazu.
+    window.history.replaceState(null, "", `?d=${dayParam}&block=42`);
+    rerender(<StaffCalendarPage />);
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    // Termin schließen: `block` verschwindet, der Tag bleibt.
+    window.history.replaceState(null, "", `?d=${dayParam}`);
+    rerender(<StaffCalendarPage />);
+
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(new URLSearchParams(window.location.search).get("d")).toBe(dayParam);
+  });
+
   it("clears Plan-Parameter when switching to Meine Termine", () => {
     mockUseSession.mockReturnValue({
       data: { user: { permissions: ["calendar:own", "schedules:read"] } },

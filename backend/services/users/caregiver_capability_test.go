@@ -826,7 +826,7 @@ func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRol
 	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
-	ctx := testpkg.TenantContext(tenantID)
+	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 
 	activeTeacher, activeAccount := createTestTeacherWithAccountForTenant(t, db, tenantID, "Active", "Caregiver")
 	testpkg.EnsureAccountTenant(t, db, activeAccount.ID, tenantID)
@@ -903,7 +903,7 @@ func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {
 
 	db, factory := setupCaregiverFactory(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
-	ctx := testpkg.TenantContext(tenantID)
+	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 
 	_, account := createTestTeacherWithAccountForTenant(t, db, tenantID, "Tenant", "UserRole")
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)

@@ -345,37 +345,9 @@ func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.I
 	return accounts, err
 }
 
-// CaregiverChainByPersonIDs returns the live staff record (and its teacher
-// record, when present) behind each person. Persons without a staff record
-// are absent from the result.
-func (r *AccountTenantRepository) CaregiverChainByPersonIDs(ctx context.Context, personIDs []int64) (map[int64]auth.CaregiverChain, error) {
-	result := make(map[int64]auth.CaregiverChain, len(personIDs))
-	if len(personIDs) == 0 {
-		return result, nil
-	}
-	var rows []auth.CaregiverChain
-	err := base.GetDB(ctx, r.db).NewSelect().
-		ColumnExpr(`"s".person_id`).
-		ColumnExpr(`"s".tenant_id`).
-		ColumnExpr(`"s".id AS staff_id`).
-		ColumnExpr(`COALESCE("t".id, 0) AS teacher_id`).
-		ColumnExpr(`COALESCE("t".role, '') AS teacher_role`).
-		TableExpr(`users.staff AS "s"`).
-		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "s".tenant_id AND "t".deleted_at IS NULL`).
-		Where(`"s".person_id IN (?)`, bun.List(personIDs)).
-		Where(`"s".deleted_at IS NULL`).
-		OrderExpr(`"s".person_id ASC, "s".id ASC`).
-		Scan(ctx, &rows)
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		if _, found := result[row.PersonID]; !found {
-			result[row.PersonID] = row
-		}
-	}
-	return result, nil
-}
+// The caregiver chain behind a person (staff plus teacher profile) is
+// resolved by the composition layer through School Membership (#2667); this
+// repository no longer reads users.staff or users.teachers.
 
 // queryOrgInvitations builds the shared org-level pending invitations query with an optional WHERE clause.
 func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bun.IDB, schoolIDs []int64) ([]auth.OrgAccountInfo, error) {

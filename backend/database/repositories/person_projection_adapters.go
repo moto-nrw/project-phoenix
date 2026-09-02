@@ -8,6 +8,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 // bindPersonProjections wraps every legacy repository that used to read or
@@ -54,9 +55,10 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if f.OperatorSummaries != nil {
 		f.OperatorSummaries = personOperatorSummariesRepository{
 			OperatorSummariesRepository: f.OperatorSummaries, persons: persons,
-			schools:  func() platformModels.SchoolRepository { return f.School },
-			accounts: func() authModels.AccountRepository { return f.Account },
-			db:       f.db,
+			schools:    func() platformModels.SchoolRepository { return f.School },
+			accounts:   func() authModels.AccountRepository { return f.Account },
+			membership: func() schoolmembership.Capability { return f.schoolMembership },
+			db:         f.db,
 		}
 	}
 	if f.AccountTenant != nil {

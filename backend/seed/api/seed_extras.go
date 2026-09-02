@@ -227,7 +227,7 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 		if !ok {
 			continue
 		}
-		// Der Tag muss hexadezimal sein (models/users.RFIDCard.Validate).
+		// Der Tag muss hexadezimal sein (models/auth.RFIDCard.Validate).
 		rfid := fmt.Sprintf("57A7%08X", studentID)
 		if _, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", studentID), map[string]string{"rfid_tag": rfid}, deviceKey, rt.StaffPIN); err != nil {
 			return fmt.Errorf("assign statistics demo RFID: %w", err)

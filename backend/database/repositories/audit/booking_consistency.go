@@ -6,22 +6,37 @@ import (
 	"fmt"
 
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 var errBookingConsistencyTenantRequired = errors.New("booking consistency audit requires a tenant context")
 
 type bookingConsistencyRepository struct {
-	runtime Runtime
+	runtime  Runtime
+	students StudentDirectory
 }
 
 func NewBookingConsistencyRepository(runtime Runtime) auditModel.BookingConsistencyRepository {
 	return &bookingConsistencyRepository{runtime: requireRuntime(runtime)}
 }
 
+// BindStudentDirectory installs the People Directory the audit resolves the
+// alumnus exclusion through (#2662).
+func (r *bookingConsistencyRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
+}
+
 // Audit checks approved booking windows for missing pickup projections and
 // offering coverage. Raw arrival rows and materialized class rosters are not
 // consistency signals: booking-led care deliberately ignores the former on
 // unbooked days and marks the latter not scheduled at read time.
+//
+// Graduates drop out of both checks. Their lifecycle status belongs to the
+// People Directory (#2662): the approved students are read first, the
+// directory names the alumni among them, and the audit query excludes those
+// ids. A request child whose student reference was cleared (ON DELETE SET
+// NULL) keeps the semantics of the former joins: it never counts as an
+// approved student, but still counts as approved without offering.
 func (r *bookingConsistencyRepository) Audit(
 	ctx context.Context,
 	auditDate auditModel.Date,
@@ -33,11 +48,15 @@ func (r *bookingConsistencyRepository) Audit(
 	if tenantID <= 0 {
 		return nil, errBookingConsistencyTenantRequired
 	}
+	alumni, err := r.approvedAlumniStudentIDs(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
 
 	report := &auditModel.BookingConsistencyReport{}
-	err := runtimeDB(ctx, r.runtime).NewRaw(`
+	err = runtimeDB(ctx, r.runtime).NewRaw(`
 WITH params AS (
-	SELECT ?::bigint AS tenant_id, ?::date AS audit_date
+	SELECT ?::bigint AS tenant_id, ?::date AS audit_date, ?::bigint[] AS alumni_student_ids
 ), audit_dates AS (
 	SELECT (params.audit_date + day_offset.day)::date AS date
 	FROM params
@@ -57,12 +76,10 @@ WITH params AS (
 	INNER JOIN enrollment.phases AS phase
 		ON phase.tenant_id = request.tenant_id
 		AND phase.id = request.phase_id
-	INNER JOIN users.students AS student
-		ON student.tenant_id = request_child.tenant_id
-		AND student.id = COALESCE(request_child.created_student_id, request_child.matched_student_id)
-		AND student.status <> 'alumnus'
 	INNER JOIN params ON params.tenant_id = request_child.tenant_id
 	WHERE request_child.status = 'approved'
+		AND COALESCE(request_child.created_student_id, request_child.matched_student_id) IS NOT NULL
+		AND NOT (COALESCE(request_child.created_student_id, request_child.matched_student_id) = ANY(params.alumni_student_ids))
 ), care_inputs AS (
 	SELECT
 		approved_students.student_id,
@@ -173,12 +190,12 @@ WITH params AS (
 	INNER JOIN enrollment.phases AS phase
 		ON phase.tenant_id = request.tenant_id
 		AND phase.id = request.phase_id
-	LEFT JOIN users.students AS student
-		ON student.tenant_id = request_child.tenant_id
-		AND student.id = COALESCE(request_child.created_student_id, request_child.matched_student_id)
 	INNER JOIN params ON params.tenant_id = request_child.tenant_id
 	WHERE request_child.status = 'approved'
-		AND (student.id IS NULL OR student.status <> 'alumnus')
+		AND (
+			COALESCE(request_child.created_student_id, request_child.matched_student_id) IS NULL
+			OR NOT (COALESCE(request_child.created_student_id, request_child.matched_student_id) = ANY(params.alumni_student_ids))
+		)
 		AND phase.service_start_date <= params.audit_date + 6
 		AND phase.service_end_date >= params.audit_date
 )
@@ -197,9 +214,44 @@ SELECT
 			AND NOT missing_required_offering
 			AND NOT has_choosable_offering)::int AS approved_without_optional_offering
 FROM params
-`, tenantID, auditDate).Scan(ctx, report)
+`, tenantID, auditDate, pgdialect.Array(alumni)).Scan(ctx, report)
 	if err != nil {
 		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
 	}
 	return report, nil
+}
+
+// approvedAlumniStudentIDs names the graduates among the tenant's approved
+// request children. The ids come from enrollment rows this owner reads; the
+// lifecycle status comes from the People Directory.
+func (r *bookingConsistencyRepository) approvedAlumniStudentIDs(ctx context.Context, tenantID int64) ([]int64, error) {
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
+	}
+	var studentIDs []int64
+	err := runtimeDB(ctx, r.runtime).NewRaw(`
+SELECT DISTINCT COALESCE(request_child.created_student_id, request_child.matched_student_id) AS student_id
+FROM enrollment.request_children AS request_child
+WHERE request_child.tenant_id = ?
+	AND request_child.status = 'approved'
+	AND COALESCE(request_child.created_student_id, request_child.matched_student_id) IS NOT NULL
+ORDER BY student_id
+`, tenantID).Scan(ctx, &studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list approved students for tenant %d: %w", tenantID, err)
+	}
+	alumni := []int64{}
+	if len(studentIDs) == 0 {
+		return alumni, nil
+	}
+	students, err := r.students.ListStudentsByID(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, student := range students {
+		if student.Alumnus {
+			alumni = append(alumni, student.ID)
+		}
+	}
+	return alumni, nil
 }
