@@ -90,6 +90,14 @@ type StudentCommand interface {
 	ReactivateStudents(ctx context.Context, ids []int64, status string) ([]int64, error)
 }
 
+// StudentStatusFlagCapability is the narrow owner capability for the legacy
+// live absence flags. The active owner archives their history; this owner
+// alone clears the columns on users.students.
+type StudentStatusFlagCapability interface {
+	ListStudentsWithStatusFlag(context.Context, string) ([]Student, error)
+	ClearStudentStatusFlags(context.Context, []int64, string) (int64, error)
+}
+
 type studentEngine interface {
 	ListStudentsByIDs(context.Context, []int64) ([]Student, error)
 	ListStudentsAcrossTenantsByIDs(context.Context, []int64) ([]Student, error)
@@ -190,6 +198,40 @@ func (m *Module) ReactivateStudents(ctx context.Context, ids []int64, status str
 		return nil, invalidStudent("target status must be a non-alumnus lifecycle status")
 	}
 	return m.engine.ReactivateStudents(ctx, ids, status)
+}
+
+func (m *Module) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]Student, error) {
+	if !validStatusFlag(status) {
+		return nil, invalidStudent("student status flag is invalid")
+	}
+	engine, ok := m.engine.(interface {
+		ListStudentsWithStatusFlag(context.Context, string) ([]Student, error)
+	})
+	if !ok {
+		return nil, errors.New("student status flag capability is not configured")
+	}
+	return engine.ListStudentsWithStatusFlag(ctx, status)
+}
+
+func (m *Module) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {
+	ids = uniquePositive(ids)
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	if !validStatusFlag(status) {
+		return 0, invalidStudent("student status flag is invalid")
+	}
+	engine, ok := m.engine.(interface {
+		ClearStudentStatusFlags(context.Context, []int64, string) (int64, error)
+	})
+	if !ok {
+		return 0, errors.New("student status flag capability is not configured")
+	}
+	return engine.ClearStudentStatusFlags(ctx, ids, status)
+}
+
+func validStatusFlag(status string) bool {
+	return status == "sick" || status == "excused"
 }
 
 func uniqueClasses(classes []string) []string {

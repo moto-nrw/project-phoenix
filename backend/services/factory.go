@@ -457,7 +457,8 @@ func newFactory(
 	today := timezone.CalendarDateClock(now)
 	// Persons first: the school projections sort by the names this binds.
 	repos.BindPeopleDirectory(persons)
-	schedule.BindCareStudentLock(repositories.CareStudentLock(persons))
+	careStudentLock, studentNotFound := repositories.CareStudentLock(persons)
+	schedule.BindCareStudentLockForDB(db, careStudentLock, studentNotFound)
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}

@@ -368,12 +368,8 @@ func (r *StudentStatusDayRepository) findByStudentAndDateRange(ctx context.Conte
 // clears the flag + its timestamp on users.students for every flagged
 // student. Returns the number of students cleared.
 //
-// Custom raw-SQL method (backend-conventions Rule 2/11 exception): the
-// INSERT...SELECT upsert spans users.students → active.student_status_days
-// and is not expressible through the generic shape. Column names are
-// interpolated but MUST be trusted constants from the scheduler's fixed
-// flag set ("sick"/"sick_since", "excused"/"excused_since") — never user
-// input. Tenant scoping comes from the caller's per-tenant RLS transaction.
+// The People Directory supplies the flagged students and clears its own
+// columns. This repository only owns the archived status-day upsert.
 func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
 	ctx context.Context,
 	flagColumn, sinceColumn, status string,
@@ -381,41 +377,51 @@ func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
 	reportedFallback time.Time,
 	source string,
 ) (int64, error) {
-	db := base.GetDB(ctx, r.db)
-
-	upsertQuery := fmt.Sprintf(`
-		INSERT INTO active.student_status_days
-			(tenant_id, student_id, date, status, reported_at, cleared_at, source)
-		SELECT tenant_id, id, ?, ?, COALESCE(%s, ?), ?, ?
-		FROM users.students
-		WHERE %s = TRUE
-		ON CONFLICT (tenant_id, student_id, date, status) DO UPDATE
-		SET reported_at = EXCLUDED.reported_at,
-		    cleared_at = EXCLUDED.cleared_at,
-		    source = EXCLUDED.source;
-	`, sinceColumn, flagColumn)
-	if _, err := db.NewRaw(upsertQuery, date, status, reportedFallback, reportedFallback, source).Exec(ctx); err != nil {
+	if r.students == nil {
+		return 0, errStudentDirectoryRequired
+	}
+	if (status == active.StudentStatusDaySick && (flagColumn != "sick" || sinceColumn != "sick_since")) ||
+		(status == active.StudentStatusDayExcused && (flagColumn != "excused" || sinceColumn != "excused_since")) {
+		return 0, fmt.Errorf("status flag columns do not match status %q", status)
+	}
+	students, err := r.students.ListStudentsWithStatusFlag(ctx, status)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "list students with status flag", Err: base.TranslateNotFound(err)}
+	}
+	if len(students) == 0 {
+		return 0, nil
+	}
+	entries := make([]*active.StudentStatusDay, 0, len(students))
+	ids := make([]int64, 0, len(students))
+	for _, student := range students {
+		reportedAt := reportedFallback
+		if status == active.StudentStatusDaySick && student.SickSince != nil {
+			reportedAt = *student.SickSince
+		}
+		if status == active.StudentStatusDayExcused && student.ExcusedSince != nil {
+			reportedAt = *student.ExcusedSince
+		}
+		entries = append(entries, &active.StudentStatusDay{
+			TenantModel: modelBase.TenantModel{TenantID: student.TenantID}, StudentID: student.ID,
+			Date: date, Status: status, ReportedAt: reportedAt, ClearedAt: &reportedFallback, Source: source,
+		})
+		ids = append(ids, student.ID)
+	}
+	if _, err := base.GetDB(ctx, r.db).NewInsert().Model(&entries).
+		ModelTableExpr("active.student_status_days").
+		On("CONFLICT (tenant_id, student_id, date, status) DO UPDATE").
+		Set("reported_at = EXCLUDED.reported_at").
+		Set("cleared_at = EXCLUDED.cleared_at").
+		Set("source = EXCLUDED.source").Exec(ctx); err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "archive status flag",
 			Err: base.TranslateNotFound(err),
 		}
 	}
-
-	clearQuery := fmt.Sprintf(
-		`UPDATE users.students SET %s = FALSE, %s = NULL WHERE %s = TRUE`,
-		flagColumn, sinceColumn, flagColumn,
-	)
-	res, err := db.NewRaw(clearQuery).Exec(ctx)
+	affected, err := r.students.ClearStudentStatusFlags(ctx, ids, status)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "clear status flag",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "clear status flag rows affected",
 			Err: base.TranslateNotFound(err),
 		}
 	}

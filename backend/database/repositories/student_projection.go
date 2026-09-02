@@ -21,13 +21,13 @@ import (
 // the raw repositories, before the person and school projections wrap them.
 func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, commands peopledirectory.StudentCommand) {
 	if repo, ok := f.CrossTenant.(*activeRepo.CrossTenantRepository); ok {
-		repo.BindStudentDirectory(activeStudentDirectory{students})
+		repo.BindStudentDirectory(activeStudentDirectory{students: students, commands: commands})
 	}
 	if repo, ok := f.ActiveVisit.(*activeRepo.VisitRepository); ok {
-		repo.BindStudentDirectory(activeStudentDirectory{students})
+		repo.BindStudentDirectory(activeStudentDirectory{students: students, commands: commands})
 	}
 	if repo, ok := f.StudentStatusDay.(*activeRepo.StudentStatusDayRepository); ok {
-		repo.BindStudentDirectory(activeStudentDirectory{students})
+		repo.BindStudentDirectory(activeStudentDirectory{students: students, commands: commands})
 	}
 	if repo, ok := f.ActivityGroup.(*activitiesRepo.GroupRepository); ok {
 		repo.BindStudentDirectory(activitiesStudentDirectory{students})
@@ -69,7 +69,10 @@ func (f *Factory) bindAuditStudentDirectory() {
 	}
 }
 
-type activeStudentDirectory struct{ students peopledirectory.StudentQuery }
+type activeStudentDirectory struct {
+	students peopledirectory.StudentQuery
+	commands peopledirectory.StudentCommand
+}
 
 func (d activeStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]activeRepo.DirectoryStudent, error) {
 	students, err := d.students.ListStudentsByID(ctx, ids)
@@ -93,6 +96,23 @@ func (d activeStudentDirectory) ListActiveStudents(ctx context.Context) ([]activ
 		}
 	}
 	return result, nil
+}
+
+func (d activeStudentDirectory) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]activeRepo.DirectoryStudent, error) {
+	flags, ok := d.students.(peopledirectory.StudentStatusFlagCapability)
+	if !ok {
+		return nil, errors.New("people directory: student status flag capability is not configured")
+	}
+	students, err := flags.ListStudentsWithStatusFlag(ctx, status)
+	return toActiveStudents(students), err
+}
+
+func (d activeStudentDirectory) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {
+	flags, ok := d.commands.(peopledirectory.StudentStatusFlagCapability)
+	if !ok {
+		return 0, errors.New("people directory: student status flag capability is not configured")
+	}
+	return flags.ClearStudentStatusFlags(ctx, ids, status)
 }
 
 func toActiveStudents(students []peopledirectory.Student) []activeRepo.DirectoryStudent {

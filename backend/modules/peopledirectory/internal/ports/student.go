@@ -19,6 +19,7 @@ type StudentStore interface {
 	ListEnrolled(context.Context) ([]domain.Student, domain.OperationStats, error)
 	// ListClasses returns the distinct non-empty classes of non-alumni rows.
 	ListClasses(context.Context) ([]string, domain.OperationStats, error)
+	ListByStatusFlag(context.Context, string) ([]domain.Student, domain.OperationStats, error)
 	// Lock takes the row FOR UPDATE and reports whether it exists.
 	Lock(context.Context, int64) (bool, domain.OperationStats, error)
 	Promote(ctx context.Context, ids []int64, fromClass, toClass string) (int64, domain.OperationStats, error)
@@ -27,4 +28,5 @@ type StudentStore interface {
 	GraduateByIDs(context.Context, []int64) (int64, domain.OperationStats, error)
 	// Reactivate moves alumni back to status and returns the ids it changed.
 	Reactivate(ctx context.Context, ids []int64, status string) ([]int64, domain.OperationStats, error)
+	ClearStatusFlags(ctx context.Context, ids []int64, status string) (int64, domain.OperationStats, error)
 }

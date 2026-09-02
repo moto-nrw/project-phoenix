@@ -105,6 +105,27 @@ func (s *StudentStore) ListClasses(ctx context.Context) ([]string, domain.Operat
 	return classes, stats, nil
 }
 
+func (s *StudentStore) ListByStatusFlag(ctx context.Context, status string) ([]domain.Student, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	if tenantID <= 0 {
+		return nil, domain.OperationStats{}, errors.New("people directory postgres: tenant is required to list students with a status flag")
+	}
+	rows := []studentRow{}
+	query := withStudentTenant(studentSelect(db, &rows), tenantID)
+	switch status {
+	case "sick":
+		query = query.Where(`"student".sick = TRUE`)
+	case "excused":
+		query = query.Where(`"student".excused = TRUE`)
+	default:
+		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: unsupported student status flag %q", status)
+	}
+	return scanStudents(ctx, rows, query.OrderExpr(`"student".id ASC`), "list students with status flag")
+}
+
 // Lock takes the student row FOR UPDATE. It is the first lock every care-day
 // writer acquires, so the statement stays a bare row lock without joins.
 func (s *StudentStore) Lock(ctx context.Context, id int64) (bool, domain.OperationStats, error) {
@@ -140,6 +161,9 @@ func (s *StudentStore) Promote(ctx context.Context, ids []int64, fromClass, toCl
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	if err := requireStudentWriteTenant(tenantID); err != nil {
+		return 0, domain.OperationStats{}, err
+	}
 	query := withStudentTenant(studentUpdate(db).
 		Set(`school_class = ?`, toClass).
 		Where(`"student".id IN (?)`, bun.List(ids)).
@@ -151,6 +175,9 @@ func (s *StudentStore) Promote(ctx context.Context, ids []int64, fromClass, toCl
 func (s *StudentStore) RevertClass(ctx context.Context, id int64, fromClass, toClass string) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	if err := requireStudentWriteTenant(tenantID); err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	query := withStudentTenant(studentUpdate(db).
@@ -165,6 +192,9 @@ func (s *StudentStore) GraduateByClasses(ctx context.Context, classes []string) 
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	if err := requireStudentWriteTenant(tenantID); err != nil {
+		return 0, domain.OperationStats{}, err
+	}
 	query := withStudentTenant(studentUpdate(db).
 		Set(`status = ?`, domain.StudentStatusAlumnus).
 		Where(`"student".school_class IN (?)`, bun.List(classes)).
@@ -177,6 +207,9 @@ func (s *StudentStore) GraduateByIDs(ctx context.Context, ids []int64) (int64, d
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	if err := requireStudentWriteTenant(tenantID); err != nil {
+		return 0, domain.OperationStats{}, err
+	}
 	query := withStudentTenant(studentUpdate(db).
 		Set(`status = ?`, domain.StudentStatusAlumnus).
 		Where(`"student".id IN (?)`, bun.List(ids)).
@@ -187,6 +220,9 @@ func (s *StudentStore) GraduateByIDs(ctx context.Context, ids []int64) (int64, d
 func (s *StudentStore) Reactivate(ctx context.Context, ids []int64, status string) ([]int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	if err := requireStudentWriteTenant(tenantID); err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	type idRow struct {
@@ -211,6 +247,28 @@ func (s *StudentStore) Reactivate(ctx context.Context, ids []int64, status strin
 		result = append(result, row.ID)
 	}
 	return result, stats, nil
+}
+
+func (s *StudentStore) ClearStatusFlags(ctx context.Context, ids []int64, status string) (int64, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	if err := requireStudentWriteTenant(tenantID); err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	query := studentUpdate(db).
+		Where(`"student".id IN (?)`, bun.List(ids)).
+		Where(`"student".tenant_id = ?`, tenantID)
+	switch status {
+	case "sick":
+		query = query.Set(`sick = FALSE`).Set(`sick_since = NULL`).Where(`"student".sick = TRUE`)
+	case "excused":
+		query = query.Set(`excused = FALSE`).Set(`excused_since = NULL`).Where(`"student".excused = TRUE`)
+	default:
+		return 0, domain.OperationStats{}, fmt.Errorf("people directory postgres: unsupported student status flag %q", status)
+	}
+	return execStudents(ctx, query, "clear student status flags")
 }
 
 func execStudents(ctx context.Context, query *bun.UpdateQuery, operation string) (int64, domain.OperationStats, error) {
@@ -258,6 +316,13 @@ func withStudentTenant[Q interface{ Where(string, ...any) Q }](query Q, tenantID
 		return query.Where(`"student".tenant_id = ?`, tenantID)
 	}
 	return query
+}
+
+func requireStudentWriteTenant(tenantID int64) error {
+	if tenantID <= 0 {
+		return errors.New("people directory postgres: tenant is required to write students")
+	}
+	return nil
 }
 
 func toStudent(row studentRow) domain.Student {

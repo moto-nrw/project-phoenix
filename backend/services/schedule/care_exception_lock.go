@@ -8,12 +8,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// BindCareStudentLock installs the People Directory's student row lock behind
-// every care-day writer (#2662). The composition root calls it once after it
-// composed the directory; the timetable services may not import that owner
-// themselves, so the lock and its not-found sentinel arrive as plain values.
-func BindCareStudentLock(lock func(ctx context.Context, studentID int64) error, notFound error) {
-	careplanning.BindStudentLock(lock, notFound)
+// BindCareStudentLock maps the owner lock to the care-day SQL contract for a
+// caller that retains it locally.
+func BindCareStudentLock(lock func(ctx context.Context, studentID int64) error, notFound error) func(context.Context, int64) error {
+	return careplanning.BindStudentLock(lock, notFound)
+}
+
+// BindCareStudentLockForDB installs a graph-scoped owner lock for the
+// database used by the timetable services.
+func BindCareStudentLockForDB(db *bun.DB, lock func(context.Context, int64) error, notFound error) {
+	careplanning.BindStudentLockForDB(db, lock, notFound)
 }
 
 // LockCareExceptionDay serializes pickup and arrival exception writes for one

@@ -34,6 +34,12 @@ type StudentDirectory interface {
 	// ListActiveStudents returns every student of the current tenant whose
 	// lifecycle status is active.
 	ListActiveStudents(ctx context.Context) ([]DirectoryStudent, error)
+	// ListStudentsWithStatusFlag returns every student with the requested
+	// legacy live absence flag in the current tenant.
+	ListStudentsWithStatusFlag(ctx context.Context, status string) ([]DirectoryStudent, error)
+	// ClearStudentStatusFlags clears one legacy live absence flag for the
+	// supplied student ids. The People Directory owns this write.
+	ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error)
 }
 
 var errStudentDirectoryRequired = errors.New("active repositories: student directory is not bound")

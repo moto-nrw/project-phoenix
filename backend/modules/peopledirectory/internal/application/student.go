@@ -74,6 +74,16 @@ func (s *StudentService) ListClasses(ctx context.Context) (result []string, err 
 	return result, err
 }
 
+func (s *StudentService) ListByStatusFlag(ctx context.Context, status string) (result []domain.Student, err error) {
+	err = s.run(ctx, "list_students_with_status_flag", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		result, queryStats, err = s.store.ListByStatusFlag(txCtx, status)
+		stats.Add(queryStats)
+		return err
+	})
+	return result, err
+}
+
 func (s *StudentService) Lock(ctx context.Context, id int64) error {
 	return s.run(ctx, "lock_student", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
 		found, lockStats, err := s.store.Lock(txCtx, id)
@@ -139,6 +149,16 @@ func (s *StudentService) Reactivate(ctx context.Context, ids []int64, status str
 		result = []int64{}
 	}
 	return result, err
+}
+
+func (s *StudentService) ClearStatusFlags(ctx context.Context, ids []int64, status string) (affected int64, err error) {
+	err = s.run(ctx, "clear_student_status_flags", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+		var writeStats domain.OperationStats
+		affected, writeStats, err = s.store.ClearStatusFlags(txCtx, ids, status)
+		stats.Add(writeStats)
+		return err
+	})
+	return affected, err
 }
 
 func (s *StudentService) run(ctx context.Context, operation string, run func(context.Context, func(context.Context) error) error, fn func(context.Context, *domain.OperationStats) error) error {

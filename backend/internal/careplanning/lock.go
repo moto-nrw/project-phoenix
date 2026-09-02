@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"sync/atomic"
+	"sync"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -28,18 +28,14 @@ func LockExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date tim
 }
 
 // StudentLock takes the student row FOR UPDATE inside the caller's tenant
-// transaction. The row belongs to the People Directory (#2662), so the
-// composition root binds the owner command here.
+// transaction. The row belongs to the People Directory (#2662).
 type StudentLock func(ctx context.Context, studentID int64) error
 
-var studentLock atomic.Pointer[StudentLock]
+var studentLocks sync.Map // map[*bun.DB]StudentLock
 
-// BindStudentLock installs the owner-backed student row lock. notFound is
-// the error the lock reports for a child the tenant does not have; every
-// care-day writer keeps seeing it as sql.ErrNoRows. The root calls this
-// once before any writer runs; the lock fails fast while unbound instead of
-// falling back to a foreign query.
-func BindStudentLock(lock StudentLock, notFound error) {
+// BindStudentLock maps an owner-backed lock to the SQL contract retained by
+// care-day writers. Callers can keep the returned value in their own graph.
+func BindStudentLock(lock StudentLock, notFound error) StudentLock {
 	if lock == nil || notFound == nil {
 		panic("careplanning: student lock and its not-found sentinel are required")
 	}
@@ -50,7 +46,17 @@ func BindStudentLock(lock StudentLock, notFound error) {
 		}
 		return err
 	})
-	studentLock.Store(&mapped)
+	return mapped
+}
+
+// BindStudentLockForDB binds an owner-backed lock to exactly one repository
+// graph. Independent factories may use different databases or capabilities
+// without replacing each other's lock.
+func BindStudentLockForDB(db *bun.DB, lock StudentLock, notFound error) {
+	if db == nil {
+		panic("careplanning: database is required")
+	}
+	studentLocks.Store(db, BindStudentLock(lock, notFound))
 }
 
 // LockStudent takes only the student row FOR UPDATE — the first lock every
@@ -59,7 +65,7 @@ func BindStudentLock(lock StudentLock, notFound error) {
 // care-day locks and cannot deadlock against exception writers.
 //
 // Returns sql.ErrNoRows when the student is missing under the tenant.
-func LockStudent(ctx context.Context, _ *bun.DB, studentID int64) error {
+func LockStudent(ctx context.Context, db *bun.DB, studentID int64) error {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
@@ -67,11 +73,18 @@ func LockStudent(ctx context.Context, _ *bun.DB, studentID int64) error {
 	if studentID <= 0 {
 		return errors.New("student id is required")
 	}
-	lock := studentLock.Load()
-	if lock == nil {
-		return errors.New("careplanning: student lock is not bound")
+	if db == nil {
+		return errors.New("careplanning: database is required")
 	}
-	err := (*lock)(ctx, studentID)
+	value, ok := studentLocks.Load(db)
+	if !ok {
+		return errors.New("careplanning: student lock is not bound for database")
+	}
+	lock, ok := value.(StudentLock)
+	if !ok {
+		return errors.New("careplanning: invalid student lock binding")
+	}
+	err := lock(ctx, studentID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return err

@@ -32,6 +32,11 @@ func (e engine) ListSchoolClasses(ctx context.Context) ([]string, error) {
 	return values, mapError(err)
 }
 
+func (e engine) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]peopledirectory.Student, error) {
+	values, err := e.students.ListByStatusFlag(ctx, status)
+	return toPublicStudents(values), mapError(err)
+}
+
 func (e engine) LockStudent(ctx context.Context, id int64) error {
 	return mapError(e.students.Lock(ctx, id))
 }
@@ -59,6 +64,11 @@ func (e engine) GraduateStudents(ctx context.Context, ids []int64) (int64, error
 func (e engine) ReactivateStudents(ctx context.Context, ids []int64, status string) ([]int64, error) {
 	values, err := e.students.Reactivate(ctx, ids, status)
 	return values, mapError(err)
+}
+
+func (e engine) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {
+	affected, err := e.students.ClearStatusFlags(ctx, ids, status)
+	return affected, mapError(err)
 }
 
 func toPublicStudents(values []domain.Student) []peopledirectory.Student {
