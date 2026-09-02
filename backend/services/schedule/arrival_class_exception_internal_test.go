@@ -8,13 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
-func classExceptionAt(class, hhmm, reason string) *educationModel.ClassArrivalException {
+func classExceptionAt(class, hhmm, reason string) *scheduleModel.ClassArrivalException {
 	parsed, _ := time.Parse("15:04", hhmm)
-	row := &educationModel.ClassArrivalException{SchoolClass: class, ArrivalTime: parsed}
+	row := &scheduleModel.ClassArrivalException{SchoolClass: class, ArrivalTime: parsed}
 	if reason != "" {
 		row.Reason = &reason
 	}

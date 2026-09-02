@@ -1,4 +1,4 @@
-package education
+package schedule
 
 import (
 	"errors"

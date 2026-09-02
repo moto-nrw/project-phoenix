@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -53,13 +52,13 @@ func (s *arrivalScheduleService) ListClassArrivalExceptions(
 	ctx context.Context,
 	schoolClass string,
 	from, to timezone.Date,
-) ([]*educationModel.ClassArrivalException, error) {
+) ([]*schedule.ClassArrivalException, error) {
 	if s.classExceptions == nil {
 		return nil, &ScheduleError{Op: opListClassArrivalExceptions, Err: ErrClassArrivalExceptionNotConfigured}
 	}
 	class := strings.TrimSpace(schoolClass)
 	if class == "" {
-		return []*educationModel.ClassArrivalException{}, nil
+		return []*schedule.ClassArrivalException{}, nil
 	}
 	rows, err := s.classExceptions.FindByClassesAndDateRange(ctx, []string{class}, from, to)
 	if err != nil {
@@ -75,7 +74,7 @@ func (s *arrivalScheduleService) UpsertClassArrivalException(
 	ctx context.Context,
 	input ClassArrivalExceptionInput,
 	createdBy int64,
-) (*educationModel.ClassArrivalException, error) {
+) (*schedule.ClassArrivalException, error) {
 	if s.classExceptions == nil {
 		return nil, &ScheduleError{Op: opUpsertClassArrivalException, Err: ErrClassArrivalExceptionNotConfigured}
 	}
@@ -87,7 +86,7 @@ func (s *arrivalScheduleService) UpsertClassArrivalException(
 		return nil, err
 	}
 
-	row := &educationModel.ClassArrivalException{
+	row := &schedule.ClassArrivalException{
 		SchoolClass: class,
 		Date:        input.Date,
 		ArrivalTime: timezone.NormalizeWallClock(input.ArrivalTime),

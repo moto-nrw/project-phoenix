@@ -20,7 +20,7 @@ import { timetableService } from "~/lib/timetable-api";
 const logger = createLogger({ component: "ClassArrivalExceptionPanel" });
 
 /** The preset reason the "Unterricht fällt aus" button writes. */
-export const CLASS_ARRIVAL_CANCELLED_REASON = "Unterricht fällt aus";
+const CLASS_ARRIVAL_CANCELLED_REASON = "Unterricht fällt aus";
 
 interface ClassArrivalExceptionPanelProps {
   readonly schoolClass: string;

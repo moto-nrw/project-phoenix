@@ -99,7 +99,7 @@ type arrivalBaselineService struct {
 	weekly          scheduleModel.StudentArrivalScheduleRepository
 	students        users.StudentRepository
 	classTimes      educationModel.ClassArrivalTimeRepository
-	classExceptions educationModel.ClassArrivalExceptionRepository
+	classExceptions scheduleModel.ClassArrivalExceptionRepository
 	links           enrollmentModel.RequestChildOfferingRepository
 	offerings       enrollmentModel.CareOfferingRepository
 	settings        config.SettingsService
@@ -112,7 +112,7 @@ func NewArrivalBaselineService(
 	weekly scheduleModel.StudentArrivalScheduleRepository,
 	students users.StudentRepository,
 	classTimes educationModel.ClassArrivalTimeRepository,
-	classExceptions educationModel.ClassArrivalExceptionRepository,
+	classExceptions scheduleModel.ClassArrivalExceptionRepository,
 	links enrollmentModel.RequestChildOfferingRepository,
 	offerings enrollmentModel.CareOfferingRepository,
 	settings config.SettingsService,
@@ -358,7 +358,7 @@ func (s *arrivalBaselineService) loadClassTimes(
 }
 
 // classExceptionsByDate is one class's day exceptions keyed by date.
-type classExceptionsByDate map[timezone.Date]*educationModel.ClassArrivalException
+type classExceptionsByDate map[timezone.Date]*scheduleModel.ClassArrivalException
 
 // loadClassExceptions returns the class-wide day exceptions inside [from, to]
 // keyed by normalized class and date (#2962).
@@ -401,7 +401,7 @@ func (s *arrivalBaselineService) loadClassExceptions(
 func applyClassException(
 	week ArrivalWeek,
 	date timezone.Date,
-	exception *educationModel.ClassArrivalException,
+	exception *scheduleModel.ClassArrivalException,
 ) {
 	if exception == nil {
 		return

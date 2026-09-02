@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -42,7 +41,7 @@ func setClassArrivalException(t *testing.T, repos *repositories.Factory, class s
 	t.Helper()
 	parsed, err := time.Parse("15:04", hhmm)
 	require.NoError(t, err)
-	row := &educationModel.ClassArrivalException{
+	row := &scheduleModel.ClassArrivalException{
 		SchoolClass: class,
 		Date:        date,
 		ArrivalTime: timezone.NormalizeWallClock(parsed),

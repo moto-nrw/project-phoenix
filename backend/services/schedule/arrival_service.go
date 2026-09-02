@@ -63,8 +63,8 @@ type ArrivalScheduleService interface {
 	GetClassArrivalTimes(ctx context.Context, schoolClass string) (*ClassArrivalTimes, error)
 
 	// Class-wide arrival day exceptions (#2962).
-	ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to timezone.Date) ([]*educationModel.ClassArrivalException, error)
-	UpsertClassArrivalException(ctx context.Context, input ClassArrivalExceptionInput, createdBy int64) (*educationModel.ClassArrivalException, error)
+	ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to timezone.Date) ([]*schedule.ClassArrivalException, error)
+	UpsertClassArrivalException(ctx context.Context, input ClassArrivalExceptionInput, createdBy int64) (*schedule.ClassArrivalException, error)
 	DeleteClassArrivalException(ctx context.Context, schoolClass string, date timezone.Date) error
 }
 
@@ -164,7 +164,7 @@ type arrivalScheduleService struct {
 	// classExceptions is the write side of class-wide arrival day exceptions
 	// (#2962); the read side runs through baselines. Nil means the class
 	// exception endpoints report "not configured".
-	classExceptions educationModel.ClassArrivalExceptionRepository
+	classExceptions schedule.ClassArrivalExceptionRepository
 	db              *bun.DB
 	logger          *slog.Logger
 }
@@ -174,7 +174,7 @@ type ArrivalScheduleOption func(*arrivalScheduleService)
 
 // WithClassArrivalExceptions wires the repository the class-wide arrival day
 // exceptions are written to (#2962).
-func WithClassArrivalExceptions(repo educationModel.ClassArrivalExceptionRepository) ArrivalScheduleOption {
+func WithClassArrivalExceptions(repo schedule.ClassArrivalExceptionRepository) ArrivalScheduleOption {
 	return func(s *arrivalScheduleService) { s.classExceptions = repo }
 }
 

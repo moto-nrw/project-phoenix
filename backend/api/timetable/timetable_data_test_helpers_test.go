@@ -76,7 +76,7 @@ func testTimetableDataWithOfferingCallbacks(
 			scheduleRepo.NewStudentArrivalScheduleRepository(db),
 			usersRepo.NewStudentRepository(db),
 			educationRepo.NewClassArrivalTimeRepository(db),
-			educationRepo.NewClassArrivalExceptionRepository(db),
+			scheduleRepo.NewClassArrivalExceptionRepository(db),
 			enrollmentRepo.NewRequestChildOfferingRepository(db),
 			enrollmentRepo.NewCareOfferingRepository(db),
 			nil,

@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -75,7 +75,7 @@ var classArrivalExceptionErrorRenderer = common.RulesRenderer([]common.ErrorRule
 	{Target: scheduleService.ErrClassArrivalExceptionNotFound, Render: common.ErrorNotFound},
 }, common.ErrorInternalServer)
 
-func mapClassArrivalException(row *educationModel.ClassArrivalException) ClassArrivalExceptionResponse {
+func mapClassArrivalException(row *scheduleModel.ClassArrivalException) ClassArrivalExceptionResponse {
 	return ClassArrivalExceptionResponse{
 		SchoolClass: row.SchoolClass,
 		Date:        row.Date.String(),

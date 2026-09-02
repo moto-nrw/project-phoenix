@@ -133,7 +133,7 @@ type Factory struct {
 	ClassTeacher     educationModels.ClassTeacherRepository
 	ClassArrivalTime educationModels.ClassArrivalTimeRepository
 	// ClassArrivalException holds class-wide arrival day exceptions (#2962).
-	ClassArrivalException educationModels.ClassArrivalExceptionRepository
+	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
 	GroupSubstitution     educationModels.GroupSubstitutionRepository
 	GradeTransition       educationModels.GradeTransitionRepository
 
@@ -553,7 +553,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		GroupTeacher:          education.NewGroupTeacherRepository(db),
 		ClassTeacher:          education.NewClassTeacherRepository(db),
 		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
-		ClassArrivalException: education.NewClassArrivalExceptionRepository(db),
+		ClassArrivalException: schedule.NewClassArrivalExceptionRepository(db),
 		GroupSubstitution:     education.NewGroupSubstitutionRepository(db),
 		GradeTransition:       education.NewGradeTransitionRepository(db),
 
