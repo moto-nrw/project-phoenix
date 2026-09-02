@@ -126,10 +126,9 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		// Use explicit JOINs for schema-qualified tables (Relation() doesn't handle cross-schema properly)
+		// Only the staff_id travels with the row; the composition layer
+		// resolves the staff member through School Membership (#2667).
 		ColumnExpr(`"group_supervisor".*`).
-		ColumnExpr(`"staff"."id" AS "staff__id", "staff"."person_id" AS "staff__person_id", "staff"."staff_notes" AS "staff__staff_notes"`).
-		Join(`LEFT JOIN users.staff AS "staff" ON "staff"."id" = "group_supervisor"."staff_id"`).
 		Where(`"group_supervisor".group_id = ?`, activeGroupID)
 
 	if activeOnly {
@@ -162,10 +161,9 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		// Use explicit JOINs for schema-qualified tables (Relation() doesn't handle cross-schema properly)
+		// Only the staff_id travels with the row; the composition layer
+		// resolves the staff member through School Membership (#2667).
 		ColumnExpr(`"group_supervisor".*`).
-		ColumnExpr(`"staff"."id" AS "staff__id", "staff"."person_id" AS "staff__person_id", "staff"."staff_notes" AS "staff__staff_notes"`).
-		Join(`LEFT JOIN users.staff AS "staff" ON "staff"."id" = "group_supervisor"."staff_id"`).
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs))
 
 	if activeOnly {

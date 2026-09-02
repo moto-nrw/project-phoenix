@@ -15,7 +15,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	organizations, persons, groups, err := newOwnerCapabilitiesForTests(db)
+	organizations, persons, groups, membership, err := newOwnerCapabilitiesForTests(db)
 	require.NoError(t, err)
 
 	observedAppends := 0
@@ -36,6 +36,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		organizations,
 		persons,
 		groups,
+		membership,
 		nil,
 		nil,
 		nil,

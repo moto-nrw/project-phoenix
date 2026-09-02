@@ -102,92 +102,9 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 	return mapBirthdayRows(rows, users.BirthdayKindStudent), nil
 }
 
-// FindBirthdaysOn returns every staff member of the current tenant whose
-// birthday falls on one of the given recurring days and who has not opted out
-// of the display.
-//
-// The opt-out is applied HERE rather than in the service so that no consumer
-// of this method can forget it: a person who declined the display must not
-// surface through a future caller either (#1542).
-func (r *StaffRepository) FindBirthdaysOn(ctx context.Context, days []users.MonthDay) ([]users.BirthdayEntry, error) {
-	if len(days) == 0 {
-		return nil, nil
-	}
-
-	var rows []birthdayRow
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(`users.staff AS "staff"`).
-		ColumnExpr(`"staff".id AS id`).
-		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
-		ColumnExpr(`"person".birthday AS birthday`).
-		ColumnExpr(`NULL::bigint AS group_id, '' AS group_name, '' AS school_class`).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-		Where(`"person".birthday IS NOT NULL`).
-		Where(`"staff".deleted_at IS NULL`).
-		Where(`"person".deleted_at IS NULL`).
-		Where(`"staff".birthday_display_opt_out = FALSE`)
-
-	condition, args := birthdayDayFilter(days)
-	query = query.Where(condition, args...)
-	query = base.WithTenantFilter(ctx, query, "staff")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff birthdays", Err: base.TranslateNotFound(err)}
-	}
-
-	return mapBirthdayRows(rows, users.BirthdayKindStaff), nil
-}
-
-// ListBirthdaysForExport returns every staff member of the current tenant with
-// a stored birthday, opt-outs INCLUDED.
-//
-// The opt-out governs the shared dashboard, not the administrative list: the
-// export is gated on users:update, the same permission that reveals the birth
-// date in the Stammdaten it comes from, so hiding rows there would produce an
-// incomplete list for the one role already entitled to the underlying data.
-func (r *StaffRepository) ListBirthdaysForExport(ctx context.Context) ([]users.BirthdayEntry, error) {
-	var rows []birthdayRow
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(`users.staff AS "staff"`).
-		ColumnExpr(`"staff".id AS id`).
-		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
-		ColumnExpr(`"person".birthday AS birthday`).
-		ColumnExpr(`NULL::bigint AS group_id, '' AS group_name, '' AS school_class`).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-		Where(`"person".birthday IS NOT NULL`).
-		Where(`"staff".deleted_at IS NULL`).
-		Where(`"person".deleted_at IS NULL`)
-
-	query = base.WithTenantFilter(ctx, query, "staff")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff birthdays for export", Err: base.TranslateNotFound(err)}
-	}
-
-	return mapBirthdayRows(rows, users.BirthdayKindStaff), nil
-}
-
-// SetBirthdayDisplayOptOut flips one staff member's display opt-out.
-func (r *StaffRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Staff)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`birthday_display_opt_out = ?`, optOut).
-		Set(`updated_at = CURRENT_TIMESTAMP`).
-		Where(`"staff".id = ?`, staffID).
-		Where(`"staff".deleted_at IS NULL`)
-
-	query = base.WithTenantFilter(ctx, query, "staff")
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "set staff birthday display opt-out", Err: base.TranslateNotFound(err)}
-	}
-
-	return base.AssertRowsAffected(result, 1, "set staff birthday display opt-out")
-}
+// The staff birthday projections moved to the School Membership composition
+// (database/repositories/staff_membership_adapters.go): staff rows belong to
+// that owner, so the staff half can no longer join users.staff here.
 
 func mapBirthdayRows(rows []birthdayRow, kind users.BirthdayKind) []users.BirthdayEntry {
 	entries := make([]users.BirthdayEntry, 0, len(rows))

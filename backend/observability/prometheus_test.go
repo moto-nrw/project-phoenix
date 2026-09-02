@@ -309,3 +309,29 @@ func TestObservePeopleDirectoryHTTPResponseUsesStatusClass(t *testing.T) {
 
 	assert.Equal(t, before+1, testutil.ToFloat64(peopleDirectoryHTTPResponses.WithLabelValues("4xx", "not_found")))
 }
+
+func TestObserveSchoolMembershipOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+	operation := "find_staff"
+	successBefore := testutil.ToFloat64(schoolMembershipOperations.WithLabelValues(operation, "success", "none"))
+	errorBefore := testutil.ToFloat64(schoolMembershipOperations.WithLabelValues(operation, "error", "not_found"))
+	queriesBefore := testutil.ToFloat64(schoolMembershipQueries.WithLabelValues(operation))
+	rowsBefore := testutil.ToFloat64(schoolMembershipRows.WithLabelValues(operation))
+
+	ObserveSchoolMembershipOperation(operation, time.Millisecond, 2, 1, time.Millisecond, "ignored", nil)
+	ObserveSchoolMembershipOperation(operation, time.Millisecond, 1, 0, 0, "not_found", errors.New("staff member not found"))
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(schoolMembershipOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(schoolMembershipOperations.WithLabelValues(operation, "error", "not_found")))
+	assert.Equal(t, queriesBefore+3, testutil.ToFloat64(schoolMembershipQueries.WithLabelValues(operation)))
+	assert.Equal(t, rowsBefore+1, testutil.ToFloat64(schoolMembershipRows.WithLabelValues(operation)))
+}
+
+func TestObserveSchoolMembershipHTTPResponseUsesStatusClass(t *testing.T) {
+	t.Parallel()
+	before := testutil.ToFloat64(schoolMembershipHTTPResponses.WithLabelValues("4xx", "not_found"))
+
+	ObserveSchoolMembershipHTTPResponse(404, "not_found")
+
+	assert.Equal(t, before+1, testutil.ToFloat64(schoolMembershipHTTPResponses.WithLabelValues("4xx", "not_found")))
+}

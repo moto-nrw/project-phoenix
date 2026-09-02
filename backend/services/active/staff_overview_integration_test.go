@@ -66,7 +66,7 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(tenantID)
+	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 	today := timezone.TodayDate()
 
 	f := &overviewFixture{
