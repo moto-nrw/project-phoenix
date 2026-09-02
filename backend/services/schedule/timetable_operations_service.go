@@ -1537,6 +1537,18 @@ func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals
 				SlotStart:       &slotStart,
 			})
 		}
+		// A class-wide day exception (#2962) is information, not a warning:
+		// the class arrives at a different time today and the row says why,
+		// so nobody wonders why the child is not under "Kommt später".
+		if arrival.ClassException != nil {
+			expectedArrival := arrival.ClassException.ArrivalTime
+			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
+				Kind:            "class_arrival_exception",
+				Message:         "Kommt heute um " + expectedArrival + " Uhr (" + arrival.ClassException.Label + ")",
+				ExpectedArrival: &expectedArrival,
+				SlotStart:       &slotStart,
+			})
+		}
 	}
 }
 

@@ -128,12 +128,14 @@ type Factory struct {
 	Room facilityModels.RoomRepository
 
 	// Education domain
-	Group             educationModels.GroupRepository
-	GroupTeacher      educationModels.GroupTeacherRepository
-	ClassTeacher      educationModels.ClassTeacherRepository
-	ClassArrivalTime  educationModels.ClassArrivalTimeRepository
-	GroupSubstitution educationModels.GroupSubstitutionRepository
-	GradeTransition   educationModels.GradeTransitionRepository
+	Group            educationModels.GroupRepository
+	GroupTeacher     educationModels.GroupTeacherRepository
+	ClassTeacher     educationModels.ClassTeacherRepository
+	ClassArrivalTime educationModels.ClassArrivalTimeRepository
+	// ClassArrivalException holds class-wide arrival day exceptions (#2962).
+	ClassArrivalException educationModels.ClassArrivalExceptionRepository
+	GroupSubstitution     educationModels.GroupSubstitutionRepository
+	GradeTransition       educationModels.GradeTransitionRepository
 
 	// Schedule domain
 	Dateframe                 scheduleModels.DateframeRepository
@@ -547,12 +549,13 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		Room: facilities.NewRoomRepository(db),
 
 		// Education repositories
-		Group:             education.NewGroupRepository(db),
-		GroupTeacher:      education.NewGroupTeacherRepository(db),
-		ClassTeacher:      education.NewClassTeacherRepository(db),
-		ClassArrivalTime:  education.NewClassArrivalTimeRepository(db),
-		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
-		GradeTransition:   education.NewGradeTransitionRepository(db),
+		Group:                 education.NewGroupRepository(db),
+		GroupTeacher:          education.NewGroupTeacherRepository(db),
+		ClassTeacher:          education.NewClassTeacherRepository(db),
+		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
+		ClassArrivalException: education.NewClassArrivalExceptionRepository(db),
+		GroupSubstitution:     education.NewGroupSubstitutionRepository(db),
+		GradeTransition:       education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories
 		Dateframe:                 schedule.NewDateframeRepository(db),

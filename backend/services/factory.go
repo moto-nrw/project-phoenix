@@ -1017,6 +1017,7 @@ func newFactory(
 		repos.StudentArrivalSchedule,
 		repos.Student,
 		repos.ClassArrivalTime,
+		repos.ClassArrivalException,
 		repos.RequestChildOffering,
 		repos.CareOffering,
 		settingsService,
@@ -1463,6 +1464,7 @@ func newFactory(
 		repos.ClassArrivalTime,
 		db,
 		logger.With("service", "arrival-schedule"),
+		schedule.WithClassArrivalExceptions(repos.ClassArrivalException),
 	)
 
 	timetableOperationsService := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{

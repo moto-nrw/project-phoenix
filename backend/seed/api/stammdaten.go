@@ -4,7 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sort"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // StaffCredentials stores login credentials for a staff member
@@ -52,9 +56,12 @@ type FixedResult struct {
 	GuardianIBANCount     int // Guardians with bank details stored (#2608)
 	PickupScheduleCount   int // Students with weekly pickup schedules seeded
 	ClassArrivalTimeCount int // Classes with seeded arrival times
-	ActivityCount         int
-	DeviceCount           int
-	StaffCredentials      []StaffCredentials // Login credentials for demo
+	// ClassArrivalExceptionCount is the number of class-wide arrival day
+	// exceptions seeded (#2962).
+	ClassArrivalExceptionCount int
+	ActivityCount              int
+	DeviceCount                int
+	StaffCredentials           []StaffCredentials // Login credentials for demo
 }
 
 // NewFixedSeeder creates a new fixed data seeder.
@@ -221,6 +228,31 @@ func (s *FixedSeeder) seedClassArrivalTimes(_ context.Context, result *FixedResu
 
 	if s.verbose {
 		fmt.Printf("  ✓ %d class arrival times seeded\n", result.ClassArrivalTimeCount)
+	}
+	return s.seedClassArrivalException(classNames, result)
+}
+
+// seedClassArrivalException gives the first class a class-wide arrival day
+// exception on the next school day (#2962), so the Klassen-Modal and the
+// roster show one on every dev machine.
+func (s *FixedSeeder) seedClassArrivalException(classNames []string, result *FixedResult) error {
+	if len(classNames) == 0 {
+		return nil
+	}
+	date := timezone.TodayDate()
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDays(1)
+	}
+	path := fmt.Sprintf("/api/students/class-arrival-exceptions/%s/%s", url.PathEscape(classNames[0]), date.String())
+	if _, err := s.client.Put(path, map[string]any{
+		"arrival_time": "11:00",
+		"reason":       "Unterricht fällt aus",
+	}); err != nil {
+		return fmt.Errorf("seed class arrival exception for %s: %w", classNames[0], err)
+	}
+	result.ClassArrivalExceptionCount++
+	if s.verbose {
+		fmt.Printf("  ✓ class arrival exception seeded for %s on %s\n", classNames[0], date.String())
 	}
 	return nil
 }

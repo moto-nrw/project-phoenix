@@ -57,8 +57,10 @@ type ArrivalBaselineProjection struct {
 	BookingsAuthoritative bool
 }
 
-// ForDate returns the effective recurring row for the date's weekday. Day
-// exceptions are deliberately outside this contract.
+// ForDate returns the effective recurring row for the date's weekday. A
+// class-wide day exception (#2962) is already folded in, because it changes
+// the class time for that date; per-child day exceptions are deliberately
+// outside this contract.
 func (p *ArrivalBaselineProjection) ForDate(studentID int64, date timezone.Date) *scheduleModel.StudentArrivalSchedule {
 	if p == nil {
 		return nil
@@ -94,12 +96,13 @@ type ArrivalBaselineReader interface {
 }
 
 type arrivalBaselineService struct {
-	weekly     scheduleModel.StudentArrivalScheduleRepository
-	students   users.StudentRepository
-	classTimes educationModel.ClassArrivalTimeRepository
-	links      enrollmentModel.RequestChildOfferingRepository
-	offerings  enrollmentModel.CareOfferingRepository
-	settings   config.SettingsService
+	weekly          scheduleModel.StudentArrivalScheduleRepository
+	students        users.StudentRepository
+	classTimes      educationModel.ClassArrivalTimeRepository
+	classExceptions educationModel.ClassArrivalExceptionRepository
+	links           enrollmentModel.RequestChildOfferingRepository
+	offerings       enrollmentModel.CareOfferingRepository
+	settings        config.SettingsService
 }
 
 // NewArrivalBaselineService builds the date-aware regular-arrival projection.
@@ -109,20 +112,22 @@ func NewArrivalBaselineService(
 	weekly scheduleModel.StudentArrivalScheduleRepository,
 	students users.StudentRepository,
 	classTimes educationModel.ClassArrivalTimeRepository,
+	classExceptions educationModel.ClassArrivalExceptionRepository,
 	links enrollmentModel.RequestChildOfferingRepository,
 	offerings enrollmentModel.CareOfferingRepository,
 	settings config.SettingsService,
 ) ArrivalBaselineReader {
-	if weekly == nil || students == nil || classTimes == nil || links == nil || offerings == nil {
+	if weekly == nil || students == nil || classTimes == nil || classExceptions == nil || links == nil || offerings == nil {
 		panic("schedule.NewArrivalBaselineService: required dependency is nil")
 	}
 	return &arrivalBaselineService{
-		weekly:     weekly,
-		students:   students,
-		classTimes: classTimes,
-		links:      links,
-		offerings:  offerings,
-		settings:   settings,
+		weekly:          weekly,
+		students:        students,
+		classTimes:      classTimes,
+		classExceptions: classExceptions,
+		links:           links,
+		offerings:       offerings,
+		settings:        settings,
 	}
 }
 
@@ -157,9 +162,15 @@ func (s *arrivalBaselineService) Project(
 		return nil, err
 	}
 	projection.BookingsAuthoritative = careDays != nil
+	exceptionsByClass, err := s.loadClassExceptions(ctx, classByStudent, from, to)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, studentID := range studentIDs {
-		classTimes := timesByClass[schoolclass.Normalize(classByStudent[studentID])]
+		classKey := schoolclass.Normalize(classByStudent[studentID])
+		classTimes := timesByClass[classKey]
+		classExceptions := exceptionsByClass[classKey]
 		weekly := make(ArrivalPlanByDate)
 		derived := make(ArrivalPlanByDate)
 
@@ -182,6 +193,10 @@ func (s *arrivalBaselineService) Project(
 					weekOfDate[weekday] = effective
 				}
 			}
+			// A class-wide day exception (#2962) replaces the time of that
+			// one date only. It needs a care day to land on: it changes when
+			// the class arrives, never whether a child is in care.
+			applyClassException(weekOfDate, date, classExceptions[date])
 			weekly[date] = weekOfDate
 			derived[date] = derivedOfDate
 		}
@@ -340,6 +355,75 @@ func (s *arrivalBaselineService) loadClassTimes(
 		}
 	}
 	return out, nil
+}
+
+// classExceptionsByDate is one class's day exceptions keyed by date.
+type classExceptionsByDate map[timezone.Date]*educationModel.ClassArrivalException
+
+// loadClassExceptions returns the class-wide day exceptions inside [from, to]
+// keyed by normalized class and date (#2962).
+func (s *arrivalBaselineService) loadClassExceptions(
+	ctx context.Context,
+	classByStudent map[int64]string,
+	from, to timezone.Date,
+) (map[string]classExceptionsByDate, error) {
+	classes := make([]string, 0, len(classByStudent))
+	for _, class := range classByStudent {
+		classes = append(classes, class)
+	}
+	if len(classes) == 0 {
+		return nil, nil
+	}
+	rows, err := s.classExceptions.FindByClassesAndDateRange(ctx, classes, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("project arrival baselines: load class arrival exceptions: %w", err)
+	}
+	out := make(map[string]classExceptionsByDate)
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		key := schoolclass.Normalize(row.SchoolClass)
+		if out[key] == nil {
+			out[key] = make(classExceptionsByDate)
+		}
+		out[key][row.Date] = row
+	}
+	return out, nil
+}
+
+// applyClassException swaps the time of the exception's date for the
+// class-wide one (#2962). Only a care day gets replaced: the exception says
+// when the class arrives, not whether a child is in care. It outranks a
+// per-child weekly deviation, because "Unterricht fällt aus" applies to the
+// child with six lessons as much as to the one with five; a per-child DAY
+// exception still wins later in the effective-time merge.
+func applyClassException(
+	week ArrivalWeek,
+	date timezone.Date,
+	exception *educationModel.ClassArrivalException,
+) {
+	if exception == nil {
+		return
+	}
+	weekday := effectiveISOWeekday(date)
+	row := week[weekday]
+	if row == nil {
+		return
+	}
+	effective := *row
+	effective.ExpectedArrival = timezone.NormalizeWallClock(exception.ArrivalTime)
+	effective.Source = scheduleModel.ArrivalScheduleSourceClassException
+	effective.SourceClass = exception.SchoolClass
+	effective.SourceLabel = exception.Label()
+	// Notes is what every reader already shows next to the time (Meine
+	// Gruppe, Kinderkarte, parents portal), so the label travels there too.
+	notes := effective.SourceLabel
+	if row.Notes != nil && strings.TrimSpace(*row.Notes) != "" {
+		notes += ", " + strings.TrimSpace(*row.Notes)
+	}
+	effective.Notes = &notes
+	week[weekday] = &effective
 }
 
 // careDayIndex answers "is this child in care on that date's weekday". A nil

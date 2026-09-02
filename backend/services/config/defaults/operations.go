@@ -181,6 +181,27 @@ func init() {
 		},
 	})
 
+	// --- Abweichende Ankunftszeit für eine Klasse (#2962) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyClassArrivalExceptionEditors,
+		Label:           "Andere Ankunftszeit für eine Klasse eintragen",
+		Description:     "Legt fest, wer für eine ganze Klasse an einem Tag eine andere Ankunftszeit eintragen darf, zum Beispiel bei Unterrichtsausfall. Sehen können die Änderung alle.",
+		Type:            config.FieldSelect,
+		Default:         config.ClassArrivalExceptionEditorsAdmins,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "aufsicht",
+		SortOrder:       2,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Nur Koordination und Admins", Value: config.ClassArrivalExceptionEditorsAdmins},
+				{Label: "Alle Mitarbeitenden", Value: config.ClassArrivalExceptionEditorsAllStaff},
+			},
+		},
+	})
+
 	// --- Zeiterfassung ---
 
 	config.Register(config.Definition{
