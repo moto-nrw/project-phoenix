@@ -15,6 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// notFoundSentinel mirrors models/base.ErrNotFound by its marker method.
+type notFoundSentinel struct{}
+
+func (notFoundSentinel) Error() string       { return "repository: not found" }
+func (notFoundSentinel) RepositoryNotFound() {}
+
 func TestRequireBalanceAdjustmentStaffClassifiesLookupErrors(t *testing.T) {
 	t.Parallel()
 
@@ -22,9 +28,9 @@ func TestRequireBalanceAdjustmentStaffClassifiesLookupErrors(t *testing.T) {
 	// TranslateNotFound produces: the persistence-neutral sentinel joined
 	// onto sql.ErrNoRows, wrapped by the domain error. This package may
 	// import neither models/base nor database/sql, so the shape is rebuilt
-	// from its stable message — the same identity common.IsNotFound matches.
+	// with the RepositoryNotFound marker common.IsNotFound matches.
 	notFound := fmt.Errorf("find by id: %w", errors.Join(
-		errors.New("repository: not found"),
+		notFoundSentinel{},
 		errors.New("sql: no rows in result set"),
 	))
 

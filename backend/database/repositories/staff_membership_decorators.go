@@ -35,9 +35,11 @@ func (f *Factory) bindStaffMembershipDecorators() {
 // staffAccountsByTenant maps every tenant visible in the caller's transaction
 // to the login accounts of its live staff. Under a tenant transaction that is
 // one school; under an admin transaction (the cross-tenant guardian inbox) it
-// is every school the caller may see.
-func staffAccountsByTenant(ctx context.Context, membership schoolmembership.Capability, persons userModels.PersonRepository) (map[int64][]int64, error) {
-	members, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{})
+// is every school the caller may see, unless tenantIDs bounds the lookup to
+// the schools the caller already knows — the guardian inbox does, so the
+// query never scans the whole platform's staff.
+func staffAccountsByTenant(ctx context.Context, membership schoolmembership.Capability, persons userModels.PersonRepository, tenantIDs []int64) (map[int64][]int64, error) {
+	members, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs})
 	if err != nil {
 		return nil, fmt.Errorf("list staff for message projection: %w", err)
 	}
@@ -106,7 +108,7 @@ type parentMessageStaffRepository struct {
 var _ userModels.ParentMessageReadRepository = parentMessageStaffRepository{}
 
 func (r parentMessageStaffRepository) staffAccounts(ctx context.Context) (map[int64][]int64, error) {
-	return staffAccountsByTenant(ctx, r.membership(), r.persons())
+	return staffAccountsByTenant(ctx, r.membership(), r.persons(), nil)
 }
 
 func (r parentMessageStaffRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*userModels.InboxThread, error) {
@@ -121,18 +123,9 @@ func (r parentMessageStaffRepository) ListThreadsForGuardianTenants(ctx context.
 	if len(tenantIDs) == 0 {
 		return []*userModels.InboxThread{}, nil
 	}
-	staffAccounts, err := r.staffAccounts(ctx)
+	staffAccounts, err := staffAccountsByTenant(ctx, r.membership(), r.persons(), tenantIDs)
 	if err != nil {
 		return nil, err
-	}
-	wanted := make(map[int64]bool, len(tenantIDs))
-	for _, tenantID := range tenantIDs {
-		wanted[tenantID] = true
-	}
-	for tenantID := range staffAccounts {
-		if !wanted[tenantID] {
-			delete(staffAccounts, tenantID)
-		}
 	}
 	return r.ListThreadsForGuardianTenantsWithStaff(ctx, accountID, tenantIDs, staffAccounts)
 }
@@ -149,7 +142,7 @@ func (r parentMessageStaffRepository) LatestReadCursorByOther(ctx context.Contex
 // in the caller's transaction — the staff-messaging surface is tenant-scoped,
 // so every account in the map belongs to the same school.
 func currentTenantStaffAccounts(ctx context.Context, membership schoolmembership.Capability, persons userModels.PersonRepository) ([]int64, error) {
-	byTenant, err := staffAccountsByTenant(ctx, membership, persons)
+	byTenant, err := staffAccountsByTenant(ctx, membership, persons, nil)
 	if err != nil {
 		return nil, err
 	}
