@@ -646,6 +646,8 @@ function TenantPageTabs({
       }
       items={(measuring ? items : hidden).map((item) => ({
         label: item.label,
+        href: item.href,
+        disabled: item.disabled,
         onClick: () => onChange(item.value),
       }))}
     />

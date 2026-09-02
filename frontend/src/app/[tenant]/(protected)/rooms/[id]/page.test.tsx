@@ -13,18 +13,22 @@ vi.mock("next/navigation", () => ({
 describe("RoomDetailRedirect (legacy /rooms/[id])", () => {
   it("redirects to the slide-over URL on /rooms with the room id", async () => {
     await expect(
-      RoomDetailRedirect({ params: Promise.resolve({ id: "42" }) }),
-    ).rejects.toThrow("NEXT_REDIRECT:/rooms?room=42");
+      RoomDetailRedirect({
+        params: Promise.resolve({ tenant: "demo", id: "42" }),
+      }),
+    ).rejects.toThrow("NEXT_REDIRECT:/demo/rooms?room=42");
 
-    expect(mockRedirect).toHaveBeenCalledWith("/rooms?room=42");
+    expect(mockRedirect).toHaveBeenCalledWith("/demo/rooms?room=42");
   });
 
   it("encodes special characters in the id", async () => {
     mockRedirect.mockClear();
     await expect(
-      RoomDetailRedirect({ params: Promise.resolve({ id: "a/b c" }) }),
+      RoomDetailRedirect({
+        params: Promise.resolve({ tenant: "demo", id: "a/b c" }),
+      }),
     ).rejects.toThrow();
 
-    expect(mockRedirect).toHaveBeenCalledWith("/rooms?room=a%2Fb%20c");
+    expect(mockRedirect).toHaveBeenCalledWith("/demo/rooms?room=a%2Fb%20c");
   });
 });

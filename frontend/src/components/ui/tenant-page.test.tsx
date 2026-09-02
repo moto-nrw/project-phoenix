@@ -174,6 +174,44 @@ describe("TenantPage", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it("erhält den Zielpfad eines Reiters im Überlaufmenü", () => {
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(120);
+    const offsetWidth = vi
+      .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+      .mockReturnValue(100);
+
+    try {
+      render(
+        <TenantPage
+          title="Datenverwaltung"
+          tabs={{
+            value: "kinder",
+            onChange: vi.fn(),
+            items: [
+              { value: "kinder", label: "Kinder" },
+              {
+                value: "personal",
+                label: "Personal",
+                href: "/personal",
+              },
+            ],
+          }}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("tab", { name: "Mehr" }));
+
+      expect(
+        screen.getByRole("menuitem", { name: "Personal" }),
+      ).toHaveAttribute("href", "/personal");
+    } finally {
+      clientWidth.mockRestore();
+      offsetWidth.mockRestore();
+    }
+  });
+
   it("setzt zwischen die Wert-Label-Paare der Statuszeile ein Trennzeichen", () => {
     render(
       <TenantPageStats
