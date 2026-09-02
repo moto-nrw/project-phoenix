@@ -23769,6 +23769,16 @@
     {
       "scope": "test",
       "file": "database/repositories/staff_membership_adapters_test.go",
+      "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversSortInGermanDictionaryOrder",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        444
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/staff_membership_adapters_test.go",
       "declaration": "TestTeacherMembershipAdapter_ResolvesStaffAndPerson",
       "target": "database/repositories.NewFactory",
       "lines": [

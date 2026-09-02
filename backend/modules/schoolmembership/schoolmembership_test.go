@@ -544,3 +544,24 @@ func TestErrorCodeIsStable(t *testing.T) {
 		}
 	}
 }
+
+func TestListStaffNormalizesTenantIDsLikeTheOtherIDFilters(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	module, engine := newModule()
+	if _, err := module.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: []int64{4, 4, 0, -1, 2}}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := engine.staffFilter.TenantIDs; len(got) != 2 || got[0] != 4 || got[1] != 2 {
+		t.Fatalf("tenant IDs were not deduplicated in order: %v", got)
+	}
+
+	module, engine = newModule()
+	if _, err := module.ListStaff(ctx, schoolmembership.StaffFilter{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if engine.staffFilter.TenantIDs != nil {
+		t.Fatalf("an unset tenant filter must stay nil: %+v", engine.staffFilter)
+	}
+}

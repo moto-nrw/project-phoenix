@@ -3,6 +3,7 @@ package facilities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -42,12 +43,17 @@ func (r *RoomRepository) SetSupervisorPersonsResolver(resolve func(ctx context.C
 // stays stable. The former INNER JOIN carried no soft-delete filter, so the
 // resolver is expected to include offboarded staff.
 func (r *RoomRepository) attachSupervisorPersons(ctx context.Context, rows []facilities.RoomOccupancyRow) error {
-	if r.supervisorPersons == nil || len(rows) == 0 {
-		return nil
-	}
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.SupervisorStaffIDs...)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	// Fail closed: a missing resolver would render every supervised room as
+	// unsupervised, which is wrong data rather than an obvious outage.
+	if r.supervisorPersons == nil {
+		return errors.New("room repository resolves supervising persons through School Membership")
 	}
 	persons, err := r.supervisorPersons(ctx, ids)
 	if err != nil {

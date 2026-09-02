@@ -6,13 +6,20 @@ import (
 	"testing"
 )
 
+// notFoundSentinel mirrors models/base.ErrNotFound: an error carrying the
+// RepositoryNotFound marker. This package may import neither models/base nor
+// database/sql, so the shape is spelled out here.
+type notFoundSentinel struct{}
+
+func (notFoundSentinel) Error() string       { return "repository: not found" }
+func (notFoundSentinel) RepositoryNotFound() {}
+
 // repositoryNotFound rebuilds what database/repositories/base.TranslateNotFound
 // returns: the persistence-neutral sentinel joined onto the SQL driver's
-// missing-row error. This package may import neither models/base nor
-// database/sql, so the shape is spelled out here.
+// missing-row error.
 func repositoryNotFound() error {
 	return errors.Join(
-		errors.New("repository: not found"),
+		notFoundSentinel{},
 		errors.New("sql: no rows in result set"),
 	)
 }

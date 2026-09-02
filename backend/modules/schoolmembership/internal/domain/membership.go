@@ -46,6 +46,7 @@ type StaffFilter struct {
 	IDs             []int64
 	PersonIDs       []int64
 	WorkTimeModelID *int64
+	TenantIDs       []int64
 	IncludeDeleted  bool
 }
 

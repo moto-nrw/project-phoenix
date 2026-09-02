@@ -433,3 +433,34 @@ func TestStaffMembershipAdapter_ListRejectsUnknownFilters(t *testing.T) {
 	_, err = factory.Staff.List(ctx, map[string]any{"staff_notes": "anything"})
 	require.Error(t, err, "an unsupported filter must fail loudly instead of listing everything")
 }
+
+// The replaced SQL ordered the caregiver pool under the database collation
+// (en_US.utf8); the composition sorts in Go and must keep German dictionary
+// order, so a first name starting with an umlaut stays next to its base letter.
+func TestTeacherMembershipAdapter_ActiveCaregiversSortInGermanDictionaryOrder(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	factory := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+
+	var expected []int64
+	for _, name := range [][2]string{{"Otto", "Meier"}, {"Özlem", "Yilmaz"}, {"Paul", "Zimmermann"}} {
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, name[0], name[1])
+		testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+		assignSystemCaregiverRole(t, db, account.ID, tenantID)
+		expected = append(expected, teacher.ID)
+	}
+
+	caregivers, err := factory.Teacher.ListActiveCaregivers(ctx)
+	require.NoError(t, err)
+	wanted := map[int64]bool{expected[0]: true, expected[1]: true, expected[2]: true}
+	var listed []int64
+	for _, entry := range caregivers {
+		if wanted[entry.TeacherID] {
+			listed = append(listed, entry.TeacherID)
+		}
+	}
+	assert.Equal(t, expected, listed, "Otto, Özlem, Paul: the umlaut sorts with its base letter, not after Z")
+}
