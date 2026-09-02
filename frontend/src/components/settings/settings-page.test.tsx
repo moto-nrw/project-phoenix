@@ -92,9 +92,12 @@ vi.mock("next/navigation", () => ({
   // throws "No 'useSearchParams' export is defined". Empty
   // URLSearchParams is the right default since these tests
   // never navigate.
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(mockSearchParams.value),
   usePathname: () => "/settings",
 }));
+
+// Mutable so a test can simulate the `?highlight=<key>` deep link.
+const mockSearchParams = { value: "" };
 
 vi.mock("~/lib/settings-api", () => ({
   SETTINGS_SCHEMA_SWR_KEY: "settings-schema",
@@ -190,6 +193,12 @@ function HookWrapper({
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(<ToastProvider>{ui}</ToastProvider>);
+}
+
+// Categories start collapsed (#2830); open the one under test so its fields
+// mount before a test looks for them.
+async function openCategory(name: RegExp | string = /Sitzungen/) {
+  fireEvent.click(await screen.findByRole("button", { name }));
 }
 
 // Renders the actual SettingsContent via the hook's renderTab.
@@ -294,6 +303,7 @@ describe("SettingsContent (via renderTab)", () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    await openCategory();
     expect(await screen.findByText("Aktiviert")).toBeDefined();
     expect(await screen.findByText("Uhrzeit")).toBeDefined();
   });
@@ -322,6 +332,7 @@ describe("SettingsContent (via renderTab)", () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -342,6 +353,7 @@ describe("SettingsContent (via renderTab)", () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    await openCategory();
     await screen.findByText("Aktiviert");
 
     const fetchCountBefore = mockFetchSchema.mock.calls.length;
@@ -367,6 +379,7 @@ describe("SettingsContent (via renderTab)", () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    await openCategory();
     await screen.findByText("Aktiviert");
 
     const fetchCountBefore = mockFetchSchema.mock.calls.length;
@@ -388,6 +401,7 @@ describe("SettingsContent (via renderTab)", () => {
     const { container } = renderWithProviders(
       <RenderedTab tabId="settings-operations" />,
     );
+    await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -408,6 +422,7 @@ describe("SettingsContent (via renderTab)", () => {
     const { container } = renderWithProviders(
       <RenderedTab tabId="settings-operations" />,
     );
+    await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -427,6 +442,7 @@ describe("SettingsContent (via renderTab)", () => {
     const { container } = renderWithProviders(
       <RenderedTab tabId="settings-operations" />,
     );
+    await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -447,6 +463,7 @@ describe("SettingsContent (via renderTab)", () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    await openCategory();
     await screen.findByText("Aktiviert");
 
     // Simulate a reset — the component calls resetSettingValue then loadSchema
@@ -519,6 +536,7 @@ describe("SettingsContent (via renderTab)", () => {
     mockFetchSchema.mockResolvedValue(schemaWithOverride);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    await openCategory();
     await screen.findByText("Aktiviert");
 
     // Find and click reset if available
@@ -545,6 +563,7 @@ describe("SettingsContent (via renderTab)", () => {
     const { container } = renderWithProviders(
       <RenderedTab tabId="settings-operations" />,
     );
+    await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -569,6 +588,7 @@ describe("SettingsContent (via renderTab)", () => {
     const { container } = renderWithProviders(
       <RenderedTab tabId="settings-operations" />,
     );
+    await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -626,6 +646,7 @@ describe("SettingsContent (via renderTab)", () => {
     mockSetSettingValue.mockResolvedValue(null);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    await openCategory(/Aufsicht/);
     fireEvent.click(await screen.findByRole("combobox"));
     fireEvent.click(
       screen.getByRole("option", {
@@ -643,6 +664,7 @@ describe("SettingsContent (via renderTab)", () => {
     mockSetSettingValue.mockResolvedValue(null);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -650,5 +672,161 @@ describe("SettingsContent (via renderTab)", () => {
       expect(mockSetSettingValue).toHaveBeenCalled();
     });
     expect(mockRefreshSupervision).not.toHaveBeenCalled();
+  });
+});
+
+describe("SettingsContent collapsed categories and search (#2830)", () => {
+  const twoTabSchema = {
+    tabs: [
+      {
+        key: "operations",
+        label: "Betrieb",
+        categories: [
+          mockSchema.tabs[0]!.categories[0]!,
+          {
+            key: "abholung",
+            label: "Abholung",
+            items: [
+              {
+                key: "ops.pickup_note",
+                label: "Abholnotiz",
+                description: "Hinweis bei der Abholung anzeigen",
+                type: "boolean" as const,
+                default: false,
+                value: true,
+                is_default: false,
+                writable: true,
+                visible: true,
+                sort_order: 1,
+                validation: null,
+                depends_on: null,
+                options: null,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        key: "gdpr",
+        label: "Datenschutz",
+        categories: [
+          {
+            key: "bewegungsdaten",
+            label: "Bewegungsdaten",
+            items: [
+              {
+                key: "gdpr.retention_days",
+                label: "Aufbewahrung Besuchsdaten",
+                description: "Wie lange Besuchsdaten gespeichert bleiben",
+                type: "number" as const,
+                default: 30,
+                value: 30,
+                is_default: true,
+                writable: true,
+                visible: true,
+                sort_order: 1,
+                validation: null,
+                depends_on: null,
+                options: null,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchParams.value = "";
+    mockSetSettingValue.mockResolvedValue(null);
+    mockResetSettingValue.mockResolvedValue(null);
+  });
+
+  it("starts collapsed and lists the settings of a category in one line", async () => {
+    mockFetchSchema.mockResolvedValue(mockSchema);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    const heading = await screen.findByRole("button", { name: /Sitzungen/ });
+    expect(heading.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByText("Aktiviert, Uhrzeit")).toBeDefined();
+    expect(screen.queryByText("Aktiviert")).toBeNull();
+    expect(screen.queryByRole("switch")).toBeNull();
+
+    fireEvent.click(heading);
+    expect(heading.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("switch")).toBeDefined();
+    expect(screen.queryByText("Aktiviert, Uhrzeit")).toBeNull();
+  });
+
+  it("shows how many settings of a category differ from the default", async () => {
+    mockFetchSchema.mockResolvedValue(twoTabSchema);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    expect(await screen.findByText("1 geändert")).toBeDefined();
+  });
+
+  it("opens the category that holds the deep-linked setting", async () => {
+    mockFetchSchema.mockResolvedValue(twoTabSchema);
+    mockSearchParams.value = "highlight=ops.pickup_note";
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    expect(await screen.findByText("Abholnotiz")).toBeDefined();
+    const other = screen.getByRole("button", { name: /Sitzungen/ });
+    expect(other.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("expands and collapses every category of the tab", async () => {
+    mockFetchSchema.mockResolvedValue(twoTabSchema);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Alle ausklappen" }),
+    );
+    expect(screen.getByText("Aktiviert")).toBeDefined();
+    expect(screen.getByText("Hinweis bei der Abholung anzeigen")).toBeDefined();
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Alle einklappen" }));
+    expect(screen.queryByText("Aktiviert")).toBeNull();
+    // The collapsed summary still names the setting; its field is gone.
+    expect(screen.queryByText("Hinweis bei der Abholung anzeigen")).toBeNull();
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Alle ausklappen" }),
+    ).toBeDefined();
+  });
+
+  it("searches across every tab and labels hits with their tab", async () => {
+    mockFetchSchema.mockResolvedValue(twoTabSchema);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    const search = await screen.findByRole("searchbox", {
+      name: "Einstellung suchen",
+    });
+    fireEvent.change(search, { target: { value: "aufbew" } });
+
+    expect(screen.getByText("Aufbewahrung Besuchsdaten")).toBeDefined();
+    expect(screen.getByText("Datenschutz")).toBeDefined();
+    expect(screen.getByText("1 Treffer in allen Bereichen")).toBeDefined();
+    expect(screen.queryByText("Aktiviert")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Sitzungen/ })).toBeNull();
+
+    fireEvent.change(search, { target: { value: "" } });
+    expect(screen.getByRole("button", { name: /Sitzungen/ })).toBeDefined();
+    expect(screen.queryByText("Aufbewahrung Besuchsdaten")).toBeNull();
+  });
+
+  it("shows an empty state when nothing matches the search", async () => {
+    mockFetchSchema.mockResolvedValue(twoTabSchema);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    const search = await screen.findByRole("searchbox", {
+      name: "Einstellung suchen",
+    });
+    fireEvent.change(search, { target: { value: "xyz" } });
+
+    expect(screen.getByText("Keine Einstellung passt zu „xyz“.")).toBeDefined();
+    expect(screen.getByText("0 Treffer in allen Bereichen")).toBeDefined();
   });
 });

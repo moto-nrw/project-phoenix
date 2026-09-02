@@ -1,6 +1,7 @@
 package staff
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -151,8 +152,25 @@ func newPersonResponse(person *users.Person, email string, avatar string) *Perso
 	return response
 }
 
-// newStaffResponse creates a staff response
-func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) StaffResponse {
+// newStaffResponse creates a staff response.
+//
+// The context decides how much of the record goes on the wire: everyone who
+// may see the directory at all (users:read) gets the minimal colleague view —
+// name, avatar, account role, teacher flag, work e-mail and today's presence
+// state. Everything beyond that is added per tier (#2906): the private staff
+// notes for whoever maintains the staff record (staff:manage), the free-text
+// qualifications and the personnel-file data (employment type, absence
+// reason, NFC tag) for the personnel and time-management roles. Redaction
+// lives here, in the single
+// constructor every staff response goes through, so a new endpoint cannot
+// forget it.
+func newStaffResponse(ctx context.Context, staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) StaffResponse {
+	return buildStaffResponse(staffFieldAccessFromCtx(ctx), staff, isTeacher, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
+}
+
+// buildStaffResponse is newStaffResponse with the tier decision already made,
+// so the mapping can be tested without minting a JWT context.
+func buildStaffResponse(access staffFieldAccess, staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) StaffResponse {
 	response := StaffResponse{
 		ID:              staff.ID,
 		PersonID:        staff.PersonID,
@@ -171,12 +189,38 @@ func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, 
 		response.Person = newPersonResponse(staff.Person, email, avatar)
 	}
 
+	redactStaffFields(&response, access)
+
 	return response
 }
 
+// redactStaffFields strips whatever the caller's tiers do not cover, leaving
+// the minimal colleague view (#2906). Keep the field lists in sync with
+// StaffResponse — a new field is visible to every colleague until it is
+// listed here.
+func redactStaffFields(response *StaffResponse, access staffFieldAccess) {
+	if !access.notes {
+		response.StaffNotes = ""
+	}
+	if !access.personnel {
+		response.AbsenceType = ""
+		response.AbsenceTypeLabel = ""
+		response.EmploymentType = nil
+		if response.Person != nil {
+			response.Person.TagID = ""
+		}
+	}
+}
+
 // newTeacherResponse creates a teacher response
-func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) TeacherResponse {
-	staffResponse := newStaffResponse(staff, true, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
+func newTeacherResponse(ctx context.Context, staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) TeacherResponse {
+	return buildTeacherResponse(staffFieldAccessFromCtx(ctx), staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
+}
+
+// buildTeacherResponse is newTeacherResponse with the tier decision already
+// made — see buildStaffResponse.
+func buildTeacherResponse(access staffFieldAccess, staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string, accountRole string, email string, avatar string) TeacherResponse {
+	staffResponse := buildStaffResponse(access, staff, true, wasPresentToday, workStatus, absenceType, accountRole, email, avatar)
 
 	response := TeacherResponse{
 		StaffResponse:  staffResponse,
@@ -186,21 +230,27 @@ func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentTo
 		Qualifications: teacher.Qualifications,
 	}
 
+	// Free-text qualifications are personnel data; Specialization and Role are
+	// the pedagogical labels the group and substitution screens display.
+	if !access.qualifications {
+		response.Qualifications = ""
+	}
+
 	return response
 }
 
 // updateStaffResponseFor maps the teacher-record outcome of the update to the
 // endpoint's historical response/message contract.
-func updateStaffResponseFor(staff *users.Staff, teacher *users.Teacher, action usersSvc.TeacherAction) (interface{}, string) {
+func updateStaffResponseFor(ctx context.Context, staff *users.Staff, teacher *users.Teacher, action usersSvc.TeacherAction) (interface{}, string) {
 	switch action {
 	case usersSvc.TeacherActionUpdated, usersSvc.TeacherActionCreated, usersSvc.TeacherActionExisting:
-		return newTeacherResponse(staff, teacher, false, "", "", "", "", ""), "Teacher updated successfully"
+		return newTeacherResponse(ctx, staff, teacher, false, "", "", "", "", ""), "Teacher updated successfully"
 	case usersSvc.TeacherActionUpdateFailed:
-		return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully, but failed to update teacher record"
+		return newStaffResponse(ctx, staff, false, false, "", "", "", "", ""), "Staff member updated successfully, but failed to update teacher record"
 	case usersSvc.TeacherActionCreateFailed:
-		return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully, but failed to create teacher record"
+		return newStaffResponse(ctx, staff, false, false, "", "", "", "", ""), "Staff member updated successfully, but failed to create teacher record"
 	default:
-		return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully"
+		return newStaffResponse(ctx, staff, false, false, "", "", "", "", ""), "Staff member updated successfully"
 	}
 }
 
