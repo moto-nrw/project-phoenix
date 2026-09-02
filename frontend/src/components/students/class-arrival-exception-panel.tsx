@@ -287,6 +287,7 @@ export function ClassArrivalExceptionPanel({
                 Datum
               </label>
               <DatePicker
+                id="class-arrival-exception-date"
                 value={date}
                 onChange={setDate}
                 minDate={today}

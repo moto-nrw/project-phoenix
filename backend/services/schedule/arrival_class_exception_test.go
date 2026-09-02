@@ -143,6 +143,12 @@ func TestClassArrivalExceptionStaysOutOfWeeklySchedules(t *testing.T) {
 	assert.Equal(t, "13:30", weekly[0].ExpectedArrival.Format("15:04"))
 	assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, weekly[0].Source)
 
+	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday)
+	require.NoError(t, err)
+	require.Len(t, data.Schedules, 1)
+	assert.Equal(t, "13:30", data.Schedules[0].ExpectedArrival.Format("15:04"))
+	assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, data.Schedules[0].Source)
+
 	effective, err := svc.GetEffectiveArrivalTimeForDate(ctx, student.ID, monday)
 	require.NoError(t, err)
 	require.NotNil(t, effective.ArrivalTime)

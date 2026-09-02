@@ -49,18 +49,20 @@ vi.mock("~/contexts/ToastContext", () => ({
 // on the panel's own behaviour.
 vi.mock("~/components/ui/date-picker", () => ({
   DatePicker: ({
+    id,
     value,
     onChange,
     maxDate,
     disabledDay,
   }: {
+    id?: string;
     value: Date | null;
     onChange: (date: Date | null) => void;
     maxDate?: Date;
     disabledDay?: (date: Date) => boolean;
   }) => (
     <input
-      aria-label="Datum"
+      id={id}
       type="date"
       value={value ? toISODate(value) : ""}
       data-max-date={maxDate ? toISODate(maxDate) : undefined}
@@ -198,6 +200,7 @@ describe("ClassArrivalExceptionPanel", () => {
     );
 
     const picker = await screen.findByLabelText("Datum");
+    expect(picker).toHaveAttribute("id", "class-arrival-exception-date");
     const expectedMax = new Date();
     expectedMax.setHours(0, 0, 0, 0);
     expectedMax.setDate(expectedMax.getDate() + 60);

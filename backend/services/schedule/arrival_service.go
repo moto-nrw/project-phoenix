@@ -745,7 +745,7 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 		// A range may include the same weekday twice. The latest date wins, so
 		// a booking that has ended cannot keep an earlier care-day marker alive.
 		delete(byWeekday, weekday)
-		if row := projection.ForDate(studentID, date); row != nil {
+		if row := projection.WeeklyForDate(studentID, date)[weekday]; row != nil {
 			byWeekday[weekday] = row
 		}
 	}

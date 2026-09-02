@@ -29179,7 +29179,7 @@
       "declaration": "TestClassArrivalExceptionDoesNotAddACareDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        157
+        163
       ],
       "tables": []
     },
@@ -29219,7 +29219,7 @@
       "declaration": "TestPerChildDayExceptionWinsOverTheClassException",
       "target": "database/repositories.NewFactory",
       "lines": [
-        179
+        185
       ],
       "tables": []
     },
@@ -29229,7 +29229,7 @@
       "declaration": "TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses",
       "target": "database/repositories.NewFactory",
       "lines": [
-        307
+        313
       ],
       "tables": []
     },
@@ -29239,7 +29239,7 @@
       "declaration": "TestUpsertClassArrivalExceptionReturnsPersistedMetadata",
       "target": "database/repositories.NewFactory",
       "lines": [
-        274
+        280
       ],
       "tables": []
     },
@@ -29249,7 +29249,7 @@
       "declaration": "TestUpsertClassArrivalExceptionWritesAndListsOneRowPerDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        225
+        231
       ],
       "tables": []
     },
