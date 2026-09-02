@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -26,6 +27,32 @@ func LockExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date tim
 	return nil
 }
 
+// StudentLock takes the student row FOR UPDATE inside the caller's tenant
+// transaction. The row belongs to the People Directory (#2662).
+type StudentLock func(ctx context.Context, studentID int64) error
+
+var studentLocks sync.Map // map[*bun.DB]StudentLock
+
+// BindStudentLockForDB binds an owner-backed lock to exactly one repository
+// graph. Independent factories may use different databases or capabilities
+// without replacing each other's lock.
+func BindStudentLockForDB(db *bun.DB, lock StudentLock, notFound error) {
+	if db == nil {
+		panic("careplanning: database is required")
+	}
+	if lock == nil || notFound == nil {
+		panic("careplanning: student lock and its not-found sentinel are required")
+	}
+	mapped := StudentLock(func(ctx context.Context, studentID int64) error {
+		err := lock(ctx, studentID)
+		if errors.Is(err, notFound) {
+			return sql.ErrNoRows
+		}
+		return err
+	})
+	studentLocks.Store(db, mapped)
+}
+
 // LockStudent takes only the student row FOR UPDATE — the first lock every
 // care-day writer acquires. Weekly-schedule writers take it BEFORE touching
 // their schedule rows so the global order stays student → schedule rows →
@@ -40,11 +67,18 @@ func LockStudent(ctx context.Context, db *bun.DB, studentID int64) error {
 	if studentID <= 0 {
 		return errors.New("student id is required")
 	}
-	var lockedID int64
-	err := base.GetDB(ctx, db).NewRaw(
-		`SELECT id FROM users.students WHERE id = ? AND tenant_id = ? FOR UPDATE`,
-		studentID, tenantID,
-	).Scan(ctx, &lockedID)
+	if db == nil {
+		return errors.New("careplanning: database is required")
+	}
+	value, ok := studentLocks.Load(db)
+	if !ok {
+		return errors.New("careplanning: student lock is not bound for database")
+	}
+	lock, ok := value.(StudentLock)
+	if !ok {
+		return errors.New("careplanning: invalid student lock binding")
+	}
+	err := lock(ctx, studentID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return err

@@ -1,4 +1,4 @@
-package users_test
+package auth_test
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func TestRFIDCardRepository_Create(t *testing.T) {
 
 	t.Run("creates RFID card with valid data", func(t *testing.T) {
 		uniqueID := generateHexID("ABCD")
-		card := &users.RFIDCard{
+		card := &auth.RFIDCard{
 			Active: true,
 		}
 		card.ID = uniqueID
@@ -57,7 +57,7 @@ func TestRFIDCardRepository_Create(t *testing.T) {
 
 	t.Run("creates RFID card and verifies creation", func(t *testing.T) {
 		uniqueID := generateHexID("DEAD")
-		card := &users.RFIDCard{
+		card := &auth.RFIDCard{
 			Active: true,
 		}
 		card.ID = uniqueID
@@ -253,6 +253,3 @@ func TestRFIDCardRepository_Update(t *testing.T) {
 		assert.Contains(t, err.Error(), "nil")
 	})
 }
-
-// NOTE: FindCardWithPerson exists in the implementation but is not exposed in the
-// RFIDCardRepository interface, so it cannot be tested through the interface.

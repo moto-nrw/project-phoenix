@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 
+	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 )
 
@@ -12,6 +13,17 @@ import (
 type staffActivityGroupRepository struct {
 	activitiesModels.GroupRepository
 	membership staffLookup
+}
+
+// BindStudentDirectory forwards the owner binding to the raw activity-group
+// repository. The staff projection remains outside it so supervisor and
+// student ownership can both be rebound at the service root.
+func (r staffActivityGroupRepository) BindStudentDirectory(students activitiesRepo.StudentDirectory) {
+	if repo, ok := r.GroupRepository.(interface {
+		BindStudentDirectory(activitiesRepo.StudentDirectory)
+	}); ok {
+		repo.BindStudentDirectory(students)
+	}
 }
 
 func (r staffActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activitiesModels.Group, []*activitiesModels.SupervisorPlanned, error) {

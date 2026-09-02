@@ -247,7 +247,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 }, userCtx slotListUserContext, participation scheduleSvc.CareParticipationResolver) slotlists.Service {
 	return slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStudentRepo: scheduleRepo.NewInstanceStudentRepository(db),
+		InstanceStudentRepo: newBoundInstanceStudentRepository(db),
 		VisitRepo:           activeRepo.NewVisitRepository(db),
 		AttendanceRepo:      activeRepo.NewAttendanceRepository(db),
 		StatusDayRepo:       activeRepo.NewStudentStatusDayRepository(db),
@@ -256,7 +256,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			ArrivalExceptions: scheduleRepo.NewStudentArrivalExceptionRepository(db),
 			PickupBaselines: scheduletest.NewPickupBaselineService(
 				scheduleRepo.NewStudentPickupScheduleRepository(db),
-				enrollmentRepo.NewRequestChildOfferingRepository(db),
+				newBoundRequestChildOfferingRepository(db),
 				enrollmentRepo.NewCareOfferingRepository(db),
 			),
 			PickupExceptions:  scheduleRepo.NewStudentPickupExceptionRepository(db),
@@ -265,7 +265,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 		PickupExceptionRepo: scheduleRepo.NewStudentPickupExceptionRepository(db),
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
-			enrollmentRepo.NewRequestChildOfferingRepository(db),
+			newBoundRequestChildOfferingRepository(db),
 			enrollmentRepo.NewCareOfferingRepository(db),
 		),
 		StudentRepo:        usersRepo.NewStudentRepository(db),
@@ -281,7 +281,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			nil,
 			scheduletest.NewPickupBaselineService(
 				scheduleRepo.NewStudentPickupScheduleRepository(db),
-				enrollmentRepo.NewRequestChildOfferingRepository(db),
+				newBoundRequestChildOfferingRepository(db),
 				enrollmentRepo.NewCareOfferingRepository(db),
 			),
 			db,
@@ -349,7 +349,7 @@ func buildMensaFixture(t *testing.T) *mensaFixture {
 	missing := testpkg.CreateTestStudent(t, db, "SL-Missing", fmt.Sprintf("M-%d", suffix), "3a")
 	walkIn := testpkg.CreateTestStudent(t, db, "SL-WalkIn", fmt.Sprintf("W-%d", suffix), "3b")
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	for _, studentID := range []int64{planned.ID, missing.ID} {
 		row := &scheduleModels.InstanceStudent{
 			InstanceID: instance.ID,
@@ -460,7 +460,7 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 	// Roster row corrected to absent by hand: ManualStatusAt records the human
 	// decision. The erroneous scan's visit still exists (created below).
 	manualAt := atOn(listDate, 12, 0)
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	row := &scheduleModels.InstanceStudent{
 		InstanceID:     instance.ID,
 		StudentID:      corrected.ID,
@@ -530,7 +530,7 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 	attended := testpkg.CreateTestStudent(t, db, "SL-LateAttended", fmt.Sprintf("LA-%d", suffix), "3a")
 	absent := testpkg.CreateTestStudent(t, db, "SL-LateAbsent", fmt.Sprintf("LB-%d", suffix), "3a")
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	for _, studentID := range []int64{attended.ID, absent.ID} {
 		row := &scheduleModels.InstanceStudent{
 			InstanceID: instance.ID,
@@ -664,7 +664,7 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 	// Roster row corrected to absent by hand: ManualStatusAt records the human
 	// decision. The erroneous scan's visit still exists (created below).
 	manualAt := atOn(listDate, 12, 0)
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	row := &scheduleModels.InstanceStudent{
 		InstanceID:     instance.ID,
 		StudentID:      corrected.ID,
@@ -1300,7 +1300,7 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 	excused := testpkg.CreateTestStudent(t, db, "SL-Excused", fmt.Sprintf("AB-%d", suffix), "5a")
 	noShow := testpkg.CreateTestStudent(t, db, "SL-NoShow", fmt.Sprintf("NS-%d", suffix), "5a")
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	excusedSubstatus := scheduleModels.AttendanceSubstatusExcused
 	for _, sc := range []struct {
 		studentID int64
@@ -1386,7 +1386,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 
 	// Completion stamped the cancelled child absent with no substatus, exactly
 	// how BulkUpdateStatus leaves it — the row carries no sign-off evidence.
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	row := &scheduleModels.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  child.ID,
@@ -1982,7 +1982,7 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 		Where(`id = ?`, ended.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	for _, id := range []int64{enrolled.ID, ended.ID} {
 		row := &scheduleModels.InstanceStudent{
 			InstanceID: instance.ID,
@@ -2054,7 +2054,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 		require.NoError(t, pickupRepo.Create(ctx, row))
 	}
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	for _, id := range []int64{booked.ID, unbooked.ID} {
 		row := &scheduleModels.InstanceStudent{
 			InstanceID: instance.ID,
@@ -2139,7 +2139,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 		require.NoError(t, pickupRepo.Create(ctx, row))
 	}
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	bookedRow := &scheduleModels.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  booked.ID,
@@ -2230,7 +2230,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 		require.NoError(t, err)
 	}
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	// attended checked in anyway → row flipped to present. noShow never showed →
 	// row still expected (the block has not ended, so it is not yet stamped absent).
 	attendedRow := &scheduleModels.InstanceStudent{
@@ -2334,7 +2334,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 		require.NoError(t, err)
 	}
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	// Both rows are still Expected: attended checked in but the best-effort sync
 	// left the row status untouched, and noShow never showed. The ONLY difference
 	// is the visit below.
@@ -2443,7 +2443,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 	// ownership of it via student_status_day_id.
 	statusDay := testpkg.CreateTestStudentStatusDay(t, db, sickUnbooked.ID, listDate, activeModels.StudentStatusDaySick)
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	bookedRow := &scheduleModels.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  booked.ID,
@@ -2553,7 +2553,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 	// student_status_day_id — a false absence on a day the child was never booked.
 	statusDay := testpkg.CreateTestStudentStatusDay(t, db, sickUnbooked.ID, pickupDate, activeModels.StudentStatusDaySick)
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	sickRow := &scheduleModels.InstanceStudent{
 		InstanceID:         future.ID,
 		StudentID:          sickUnbooked.ID,
@@ -2641,7 +2641,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 	_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 	require.NoError(t, err)
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	row := &scheduleModels.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  cancelled.ID,
@@ -2712,7 +2712,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 
 	planned := testpkg.CreateTestStudent(t, db, "SL-NysPlanned", fmt.Sprintf("NP-%d", suffix), "3a")
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	row := &scheduleModels.InstanceStudent{
 		InstanceID: future.ID,
 		StudentID:  planned.ID,
@@ -2818,7 +2818,7 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 	excused := testpkg.CreateTestStudent(t, db, "SL-RegAbsExcused", fmt.Sprintf("RE-%d", suffix), "3a")
 	notYetDue := testpkg.CreateTestStudent(t, db, "SL-RegAbsExpected", fmt.Sprintf("RP-%d", suffix), "3a")
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := newBoundInstanceStudentRepository(db)
 	excusedSubstatus := scheduleModels.AttendanceSubstatusExcused
 	for _, sc := range []struct {
 		studentID int64
@@ -2930,4 +2930,90 @@ func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing
 	assert.Equal(t, 1, result.Counters.Unplanned)
 	assert.Equal(t, 0, result.Counters.Excused)
 	assert.Equal(t, 0, result.Counters.Missing)
+}
+
+// The schedule and enrollment repositories read students through the People
+// Directory port (#2662). This binary may import neither the owner nor the
+// composition root, so it serves the ports from the legacy student
+// repository, which reads the same rows the owner does.
+type legacyStudentDirectory struct {
+	students userModels.StudentRepository
+}
+
+func (d legacyStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]scheduleRepo.DirectoryStudent, error) {
+	byID, err := d.students.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]scheduleRepo.DirectoryStudent, 0, len(byID))
+	for _, student := range byID {
+		result = append(result, scheduleRepo.DirectoryStudent{ID: student.ID, Alumnus: student.IsAlumnus()})
+	}
+	return result, nil
+}
+
+func (d legacyStudentDirectory) LockStudent(ctx context.Context, studentID int64) error {
+	locked, err := d.students.FindByIDsForUpdate(ctx, []int64{studentID})
+	if err != nil {
+		return err
+	}
+	if _, found := locked[studentID]; !found {
+		return scheduleRepo.ErrStudentNotFound
+	}
+	return nil
+}
+
+type legacyEnrollmentStudentDirectory struct {
+	students userModels.StudentRepository
+}
+
+func (d legacyEnrollmentStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]enrollmentRepo.DirectoryStudent, error) {
+	byID, err := d.students.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]enrollmentRepo.DirectoryStudent, 0, len(byID))
+	for _, student := range byID {
+		result = append(result, toEnrollmentDirectoryStudent(student))
+	}
+	return result, nil
+}
+
+func (d legacyEnrollmentStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]enrollmentRepo.DirectoryStudent, error) {
+	students, err := d.students.List(ctx, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]enrollmentRepo.DirectoryStudent, 0, len(students))
+	for _, student := range students {
+		if !student.IsAlumnus() {
+			result = append(result, toEnrollmentDirectoryStudent(student))
+		}
+	}
+	return result, nil
+}
+
+func toEnrollmentDirectoryStudent(student *userModels.Student) enrollmentRepo.DirectoryStudent {
+	row := enrollmentRepo.DirectoryStudent{
+		ID: student.ID, SchoolClass: student.SchoolClass, Status: string(student.Status), Alumnus: student.IsAlumnus(),
+	}
+	if student.EnrolledFrom != nil {
+		row.EnrolledFrom = student.EnrolledFrom.String()
+	}
+	if student.EnrolledUntil != nil {
+		row.EnrolledUntil = student.EnrolledUntil.String()
+	}
+	return row
+}
+
+func newBoundInstanceStudentRepository(db *bun.DB) *scheduleRepo.InstanceStudentRepository {
+	repo := scheduleRepo.NewInstanceStudentRepository(db).(*scheduleRepo.InstanceStudentRepository)
+	repo.BindStudentDirectory(legacyStudentDirectory{students: usersRepo.NewStudentRepository(db)})
+	return repo
+}
+
+func newBoundRequestChildOfferingRepository(db *bun.DB) *enrollmentRepo.RequestChildOfferingRepository {
+	repo := enrollmentRepo.NewRequestChildOfferingRepository(db).(*enrollmentRepo.RequestChildOfferingRepository)
+	repo.BindStudentDirectory(legacyEnrollmentStudentDirectory{students: usersRepo.NewStudentRepository(db)})
+	return repo
 }

@@ -1233,7 +1233,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 
 // CreateTestRFIDCard creates an RFID card in the database.
 // The ID is uppercase alphanumeric only (no hyphens) to match normalization in PersonRepository.
-func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard {
+func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *auth.RFIDCard {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1242,7 +1242,7 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard
 	// Make tag ID unique - use only alphanumeric chars (no hyphens) to match normalization
 	uniqueTagID := fmt.Sprintf("%s%d", tagID, uniqueFixtureSuffix())
 
-	card := &users.RFIDCard{
+	card := &auth.RFIDCard{
 		Active: true,
 	}
 	card.ID = uniqueTagID

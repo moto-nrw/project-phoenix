@@ -27,7 +27,7 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
+	database := func(ctx context.Context) (bun.IDB, int64, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
 			return nil, 0, errors.New("people directory postgres: transaction is required")
@@ -37,12 +37,14 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 			return nil, 0, fmt.Errorf("people directory postgres: unsupported transaction %T", transaction)
 		}
 		return tx, tenant.FromContext(ctx), nil
-	})
-	service := application.New(store, transaction{}, func(observation Observation) {
+	}
+	observe := func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
-	})
-	return peopledirectory.NewModule(engine{service: service}), nil
+	}
+	service := application.New(postgres.New(database), transaction{}, observe)
+	students := application.NewStudents(postgres.NewStudentStore(database), transaction{}, observe)
+	return peopledirectory.NewModule(engine{service: service, students: students}), nil
 }
 
 type transaction struct{}
@@ -75,7 +77,10 @@ func (transaction) RunAdminRead(ctx context.Context, callback func(context.Conte
 	return tenant.WithinAdmin(tenant.ContextWithoutTransaction(ctx), callback)
 }
 
-type engine struct{ service *application.Service }
+type engine struct {
+	service  *application.Service
+	students *application.StudentService
+}
 
 func (e engine) Create(ctx context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {
 	value, err := e.service.Create(ctx, domain.CreatePerson{
@@ -200,6 +205,8 @@ func mapError(err error) error {
 		return peopledirectory.ErrTagConflict
 	case errors.Is(err, domain.ErrAccountConflict):
 		return peopledirectory.ErrAccountConflict
+	case errors.Is(err, domain.ErrStudentNotFound):
+		return peopledirectory.ErrStudentNotFound
 	default:
 		return err
 	}

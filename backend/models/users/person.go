@@ -22,8 +22,8 @@ type Person struct {
 	DeletedAt *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Relations not stored in the database
-	Account  *auth.Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
-	RFIDCard *RFIDCard     `bun:"rel:belongs-to,join:tag_id=id" json:"rfid_card,omitempty"`
+	Account  *auth.Account  `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	RFIDCard *auth.RFIDCard `bun:"rel:belongs-to,join:tag_id=id" json:"rfid_card,omitempty"`
 }
 
 // Validate ensures person data is valid
@@ -63,7 +63,7 @@ func (p *Person) SetAccount(account *auth.Account) {
 }
 
 // SetRFIDCard links this person to an RFID card
-func (p *Person) SetRFIDCard(card *RFIDCard) {
+func (p *Person) SetRFIDCard(card *auth.RFIDCard) {
 	p.RFIDCard = card
 	if card != nil {
 		p.TagID = &card.ID

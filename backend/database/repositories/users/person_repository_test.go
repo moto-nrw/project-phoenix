@@ -503,9 +503,6 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 	})
 }
 
-// NOTE: FindWithRFIDCard exists in the implementation but is not exposed in the
-// PersonRepository interface, so it cannot be tested through the interface.
-
 // ============================================================================
 // Filter Tests
 // ============================================================================

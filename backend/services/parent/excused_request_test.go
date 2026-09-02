@@ -63,6 +63,9 @@ func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Se
 func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedRequiresApproval bool) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	lock, notFound, err := repositories.NewCareStudentLock(db)
+	require.NoError(t, err)
+	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(

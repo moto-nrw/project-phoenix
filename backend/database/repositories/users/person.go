@@ -372,54 +372,6 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 	return result.Person, nil
 }
 
-// FindWithRFIDCard retrieves a person with their associated RFID card
-func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*users.Person, error) {
-	// Use a more explicit approach with result struct to avoid table name conflicts
-	type personRFIDResult struct {
-		Person   *users.Person   `bun:"person"`
-		RFIDCard *users.RFIDCard `bun:"rfid_card"`
-	}
-
-	result := &personRFIDResult{
-		Person:   new(users.Person),
-		RFIDCard: new(users.RFIDCard),
-	}
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(result).
-		ModelTableExpr(`users.persons AS "person"`).
-		// Person columns with proper aliasing
-		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".tenant_id AS "person__tenant_id"`).
-		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
-		// RFID card columns
-		ColumnExpr(`"rfid_card".id AS "rfid_card__id", "rfid_card".created_at AS "rfid_card__created_at", "rfid_card".updated_at AS "rfid_card__updated_at"`).
-		ColumnExpr(`"rfid_card".is_active AS "rfid_card__is_active", "rfid_card".last_used AS "rfid_card__last_used"`).
-		// JOIN
-		Join(`LEFT JOIN users.rfid_cards AS "rfid_card" ON "rfid_card".id = "person".tag_id`).
-		Where(`"person".id = ?`, id).
-		Where(`"person".deleted_at IS NULL`)
-
-	query = base.WithTenantFilter(ctx, query, "person")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with RFID card",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	// Connect the RFID card to the person
-	if result.RFIDCard != nil && result.RFIDCard.ID != "" {
-		result.Person.RFIDCard = result.RFIDCard
-	}
-
-	return result.Person, nil
-}
-
 // Legacy method to maintain compatibility with old interface
 func (r *PersonRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Person, error) {
 	options := modelBase.NewQueryOptions()

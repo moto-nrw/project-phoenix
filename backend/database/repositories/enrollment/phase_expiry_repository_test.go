@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -82,7 +83,7 @@ func TestPhaseExpiryRepository_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	var snapshots []*enrollmentModels.PhaseExpirySnapshot
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		snapshots, err = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+		snapshots, err = newPhaseExpiryRepository(t, db).ListSnapshots(
 			ctx,
 			timezone.NewDate(2027, 1, 2),
 			timezone.NewDate(2027, 2, 1),
@@ -109,7 +110,7 @@ func TestPhaseExpiryRepository_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		snapshots, err = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+		snapshots, err = newPhaseExpiryRepository(t, db).ListSnapshots(
 			ctx,
 			timezone.NewDate(2027, 1, 2),
 			timezone.NewDate(2027, 2, 1),
@@ -135,7 +136,7 @@ func TestPhaseExpiryRepository_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		snapshots, err = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+		snapshots, err = newPhaseExpiryRepository(t, db).ListSnapshots(
 			ctx,
 			timezone.NewDate(2027, 1, 2),
 			timezone.NewDate(2027, 2, 1),
@@ -220,7 +221,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	var snapshots []*enrollmentModels.PhaseExpirySnapshot
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
-		snapshots, listErr = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+		snapshots, listErr = newPhaseExpiryRepository(t, db).ListSnapshots(
 			ctx,
 			timezone.NewDate(2027, 1, 2),
 			timezone.NewDate(2027, 2, 1),
@@ -243,7 +244,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
-		snapshots, listErr = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+		snapshots, listErr = newPhaseExpiryRepository(t, db).ListSnapshots(
 			ctx,
 			timezone.NewDate(2027, 1, 2),
 			timezone.NewDate(2027, 2, 1),
@@ -263,7 +264,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
-		snapshots, listErr = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+		snapshots, listErr = newPhaseExpiryRepository(t, db).ListSnapshots(
 			ctx,
 			timezone.NewDate(2027, 1, 2),
 			timezone.NewDate(2027, 2, 1),
@@ -286,7 +287,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
-		snapshots, listErr = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+		snapshots, listErr = newPhaseExpiryRepository(t, db).ListSnapshots(
 			ctx,
 			timezone.NewDate(2027, 1, 2),
 			timezone.NewDate(2027, 2, 1),
@@ -305,7 +306,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
-		snapshots, listErr = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+		snapshots, listErr = newPhaseExpiryRepository(t, db).ListSnapshots(
 			ctx,
 			timezone.NewDate(2027, 1, 2),
 			timezone.NewDate(2027, 2, 1),
@@ -317,7 +318,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
-		snapshots, listErr = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+		snapshots, listErr = newPhaseExpiryRepository(t, db).ListSnapshots(
 			ctx,
 			timezone.NewDate(2027, 2, 1),
 			timezone.NewDate(2027, 3, 3),
@@ -327,4 +328,60 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	require.NoError(t, err)
 	require.Len(t, snapshots, 1, "phase-driven inactivation must keep the overdue warning visible")
 	assert.Equal(t, 1, snapshots[0].AffectedChildren)
+}
+
+// legacyStudentDirectory serves the enrollment port from the legacy student
+// repository, so these tests stay inside the enrollment module's allowed
+// imports while the report reads students through the owner port (#2662).
+type legacyStudentDirectory struct {
+	students usersModels.StudentRepository
+}
+
+func (d legacyStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]enrollmentRepo.DirectoryStudent, error) {
+	byID, err := d.students.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]enrollmentRepo.DirectoryStudent, 0, len(byID))
+	for _, student := range byID {
+		result = append(result, toDirectoryStudent(student))
+	}
+	return result, nil
+}
+
+func (d legacyStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]enrollmentRepo.DirectoryStudent, error) {
+	students, err := d.students.List(ctx, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]enrollmentRepo.DirectoryStudent, 0, len(students))
+	for _, student := range students {
+		if student.IsAlumnus() {
+			continue
+		}
+		result = append(result, toDirectoryStudent(student))
+	}
+	return result, nil
+}
+
+func toDirectoryStudent(student *usersModels.Student) enrollmentRepo.DirectoryStudent {
+	row := enrollmentRepo.DirectoryStudent{
+		ID: student.ID, SchoolClass: student.SchoolClass, Status: string(student.Status), Alumnus: student.IsAlumnus(),
+	}
+	if student.EnrolledFrom != nil {
+		row.EnrolledFrom = student.EnrolledFrom.String()
+	}
+	if student.EnrolledUntil != nil {
+		row.EnrolledUntil = student.EnrolledUntil.String()
+	}
+	return row
+}
+
+// newPhaseExpiryRepository returns the phase-expiry repository with the
+// student port bound, as the service graph composes it.
+func newPhaseExpiryRepository(t *testing.T, db *bun.DB) enrollmentModels.PhaseExpiryRepository {
+	t.Helper()
+	repo := enrollmentRepo.NewPhaseExpiryRepository(db).(*enrollmentRepo.PhaseExpiryRepository)
+	repo.BindStudentDirectory(legacyStudentDirectory{students: usersRepo.NewStudentRepository(db)})
+	return repo
 }

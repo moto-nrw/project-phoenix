@@ -25,7 +25,7 @@ func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	inst, cleanupInst := createInstanceFixture(t, db, "stu", timezone.NewDate(2026, 9, 19))
 	defer cleanupInst()
@@ -105,7 +105,7 @@ func TestInstanceStudentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	inst, cleanupInst := createInstanceFixture(t, db, "stu-upd", timezone.NewDate(2026, 9, 20))
 	defer cleanupInst()
@@ -146,7 +146,7 @@ func TestInstanceStudentRepository_FindByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	student := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("Range-%d", time.Now().UnixNano()), "3a")
 
@@ -194,7 +194,7 @@ func TestInstanceStudentRepository_CreateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	t.Run("Create rejects nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -221,7 +221,7 @@ func TestInstanceStudentRepository_UpdateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	t.Run("Update rejects nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -248,7 +248,7 @@ func TestInstanceStudentRepository_FindByID_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	got, err := repo.FindByID(ctx, int64(999999999))
 	require.Error(t, err)
@@ -264,7 +264,7 @@ func TestInstanceStudentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	inst, cleanupInst := createInstanceFixture(t, db, "stu-list", timezone.NewDate(2026, 10, 8))
 	defer cleanupInst()
@@ -317,7 +317,7 @@ func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	cancelledCtx, cancel := context.WithCancel(ctx)
 	cancel()
@@ -366,7 +366,7 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	inst, cleanupInst := createInstanceFixture(t, db, "mirror", timezone.NewDate(2026, 10, 10))
 	defer cleanupInst()
@@ -491,7 +491,7 @@ func TestInstanceStudentRepository_UpdateAttendanceCheckout_GuardsMirroredPresen
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	inst, cleanupInst := createInstanceFixture(t, db, "checkout-guard", timezone.NewDate(2026, 10, 12))
 	defer cleanupInst()
 
@@ -541,7 +541,7 @@ func TestInstanceStudentRepository_CreateUnplannedPresentIfAbsent_PromotesConcur
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	inst, cleanupInst := createInstanceFixture(t, db, "unplanned-conflict", timezone.NewDate(2026, 10, 14))
 	defer cleanupInst()
 	student := testpkg.CreateTestStudent(t, db, "Conflict", fmt.Sprintf("Roster-%d", time.Now().UnixNano()), "3a")
@@ -570,7 +570,7 @@ func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	day := timezone.NewDate(2026, 10, 15)
 	student := testpkg.CreateTestStudent(t, db, "Candidate", fmt.Sprintf("Status-%d", time.Now().UnixNano()), "3a")
 
@@ -612,7 +612,7 @@ func TestInstanceStudentRepository_ReconcileAttendanceInterval_UsesPreviousInter
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	inst, cleanupInst := createInstanceFixture(t, db, "visit-revision", timezone.NewDate(2026, 10, 16))
 	defer cleanupInst()
 	student := testpkg.CreateTestStudent(t, db, "Revision", fmt.Sprintf("Guard-%d", time.Now().UnixNano()), "3a")
@@ -744,7 +744,7 @@ func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t 
 
 	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	date := timezone.NewDate(2026, 10, 14)
 	inst, cleanupInst := createInstanceFixture(t, db, "not-scheduled-sick", date)
@@ -793,7 +793,7 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsDecidedOutcomes(t *test
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	date := timezone.NewDate(2026, 10, 15)
 	inst, cleanupInst := createInstanceFixture(t, db, "not-scheduled-decided", date)
@@ -842,7 +842,7 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsManualExpected(t *testi
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	date := timezone.NewDate(2026, 10, 16)
 	inst, cleanupInst := createInstanceFixture(t, db, "not-scheduled-manual", date)
@@ -898,7 +898,7 @@ func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	for _, tc := range []struct {
@@ -948,7 +948,7 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	inst, cleanupInst := createInstanceFixture(t, db, "patch", timezone.NewDate(2026, 10, 11))
 	defer cleanupInst()
@@ -1055,7 +1055,7 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "mark-pairs")
@@ -1118,7 +1118,7 @@ func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	inst, cleanupInst := createInstanceFixture(t, db, "stu-bulk", timezone.NewDate(2026, 11, 2))
 	defer cleanupInst()
@@ -1213,7 +1213,7 @@ func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	inst, cleanupInst := createInstanceFixture(t, db, "stu-del", timezone.NewDate(2026, 10, 7))
 	defer cleanupInst()
@@ -1245,7 +1245,7 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_FiltersStatus(t *te
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	inst1, cleanup1 := createInstanceFixture(t, db, "b13-a", timezone.NewDate(2026, 9, 21))
 	defer cleanup1()
@@ -1322,7 +1322,7 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *tes
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	inst, cleanupInst := createInstanceFixture(t, db, "b13-iso", timezone.NewDate(2026, 9, 23))
 	defer cleanupInst()
@@ -1356,7 +1356,7 @@ func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *te
 
 	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	date := timezone.NewDate(2026, 10, 16)
 	inst, cleanupInst := createInstanceFixture(t, db, "candidates", date)
@@ -1420,7 +1420,7 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	t.Run("EmptySlice returns empty map without touching DB", func(t *testing.T) {
 		m, err := repo.CountNonAbsentByInstanceIDs(ctx, []int64{})
@@ -1482,7 +1482,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	account := testpkg.CreateTestAccount(t, db, "roster-archive@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -1695,7 +1695,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRo
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	account := testpkg.CreateTestAccount(t, db, "roster-archive-manual@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -1788,7 +1788,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	account := testpkg.CreateTestAccount(t, db, "roster-restore-frozen@test.local")
@@ -1870,7 +1870,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 
 	account := testpkg.CreateTestAccount(t, db, "roster-restore-status@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -1972,7 +1972,7 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	date := timezone.NewDate(2026, 11, 5)
 
@@ -2028,7 +2028,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	date := timezone.NewDate(2026, 11, 6)
 
@@ -2082,7 +2082,7 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	date := timezone.NewDate(2026, 11, 9)
 
@@ -2144,7 +2144,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	date := timezone.NewDate(2026, 11, 4)
 
 	// createInstanceFixture starts at 14:00 — after a 13:00 cutoff.
@@ -2202,7 +2202,7 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db).(*scheduleRepo.InstanceStudentRepository)
+	repo := repositories.NewFactory(db).InstanceStudent.(*scheduleRepo.InstanceStudentRepository)
 	date := timezone.NewDate(2026, 11, 10)
 
 	student := testpkg.CreateTestStudent(t, db, "Preview", fmt.Sprintf("Enrollment-%d", time.Now().UnixNano()), "3a")
@@ -2262,7 +2262,7 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	instRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Paula", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()), "1a")
@@ -2337,7 +2337,7 @@ func TestInstanceStudentRepository_BatchAttendanceMirrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := repositories.NewFactory(db).InstanceStudent
 	day := timezone.NewDate(2026, 10, 20)
 	inst, cleanupInst := createInstanceFixture(t, db, "batch-mirror", day)
 	defer cleanupInst()

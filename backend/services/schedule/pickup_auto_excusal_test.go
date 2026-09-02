@@ -47,6 +47,9 @@ func wallClockAt(h, m int) *time.Time {
 func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	lock, notFound, err := repositories.NewCareStudentLock(db)
+	require.NoError(t, err)
+	scheduleService.BindCareStudentLockForDB(db, lock, notFound)
 	repos := repositories.NewFactory(db)
 
 	syncer := scheduleService.NewPickupAutoExcusalSyncer(

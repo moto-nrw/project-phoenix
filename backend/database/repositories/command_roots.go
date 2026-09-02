@@ -9,7 +9,6 @@ import (
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -88,7 +87,7 @@ func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) Re
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return RetentionCleanupRepositories{
 		Visit: activeRepo.NewVisitRepository(db), Attendance: activeRepo.NewAttendanceRepository(db),
-		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Consent: usersRepo.NewPrivacyConsentRepository(db),
+		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Consent: activeRepo.NewPrivacyConsentRepository(db),
 		Deletion: RouteDataDeletionWrites(deletions, command),
 	}
 }

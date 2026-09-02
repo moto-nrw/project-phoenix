@@ -992,7 +992,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBEnrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, periodBEnrollment))
+	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, periodBEnrollment))
 
 	globalEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       studentC.ID,
@@ -1000,7 +1000,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ValidFrom:       timezone.NewDate(2026, time.January, 1),
 	}
 	globalEnrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, globalEnrollment))
+	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, globalEnrollment))
 
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
@@ -1139,7 +1139,7 @@ func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
 		SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
 	}
 	protected.SetTenantID(tenant.FromContext(s.ctx))
-	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, protected))
+	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
 
 	getW := doTemplateJSON(t, router, http.MethodGet,
 		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
@@ -1735,7 +1735,7 @@ func createCapacityEnrollment(
 		SelectedWeekdays: selectedWeekdays,
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, enrollment))
+	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, enrollment))
 }
 
 func createCapacitySupervisor(

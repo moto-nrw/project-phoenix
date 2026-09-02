@@ -58,12 +58,15 @@ type Factory struct {
 	schoolStructureBound     bool
 	schoolMembershipBound    bool
 
+	// students is the bound People Directory; audit adapters rebuilt by
+	// ConfigureAuditRuntime after the binding read it again (#2662).
 	// membershipDeps carries the owner-side lookups the staff, teacher and
 	// guest adapters compose with; it survives every rebinding.
 	membershipDeps *staffMembershipDeps
 	// schoolMembership is the bound capability, exposed to the service graph
 	// through SchoolMembership().
 	schoolMembership schoolmembership.Capability
+	students         peopledirectory.Capability
 
 	// Auth domain
 	Account                authModels.AccountRepository
@@ -89,7 +92,7 @@ type Factory struct {
 
 	// Users domain
 	Person              userModels.PersonRepository
-	RFIDCard            userModels.RFIDCardRepository
+	RFIDCard            authModels.RFIDCardRepository
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
 	ClassListEntry      userModels.ClassListEntryRepository
@@ -356,7 +359,8 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.ClassListEntryChange = audit.NewClassListEntryChangeRepository(runtime)
 	f.TimeTrackingAuditLog = audit.NewTimeTrackingAuditLogRepository(runtime)
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime)
-	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences)
+	f.bindAuditStudentDirectory()
+	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
 }
 
@@ -419,6 +423,10 @@ func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
 		return
 	}
 	f.peopleDirectoryBound = true
+	f.students = capability
+	// Students first: the observed directory replaces the default binding on
+	// the raw repositories before the person projections wrap them.
+	f.bindStudentDirectories(capability, capability)
 	f.bindPersonProjections(capability)
 }
 
@@ -542,10 +550,9 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 
 		// Users repositories
 		Person:              personRepo,
-		RFIDCard:            users.NewRFIDCardRepository(db),
+		RFIDCard:            auth.NewRFIDCardRepository(db),
 		Student:             users.NewStudentRepository(db),
 		ClassListEntry:      users.NewClassListEntryRepository(db),
-		StudentDeletion:     users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences),
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
@@ -554,7 +561,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StudentCompanion:    users.NewStudentCompanionRepository(db),
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
-		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
+		PrivacyConsent:      active.NewPrivacyConsentRepository(db),
 		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
 		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
 		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
@@ -750,6 +757,10 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ParentAnnouncement:                parentAnnouncement,
 		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
 	}
+	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents)
+	// Bind student ports while their repositories are still raw. The staff
+	// projections below wrap some of the same repositories.
+	factory.bindDefaultPeopleDirectory(db)
 	factory.membershipDeps = newStaffMembershipDeps(personRepo, accountRepo, accountTenantRepo, permissionRepo, roleRepo)
 	factory.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return factory.GroupTeacher }
 	// Staff, teachers and guests belong to School Membership. Without an
