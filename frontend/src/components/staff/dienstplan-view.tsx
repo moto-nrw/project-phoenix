@@ -410,24 +410,20 @@ function DienstplanContent() {
       error={pageError}
       empty={pageEmpty}
       actions={
-        // Unter sm nur die Symbole: der volle Text brach in der Kopfzeile
-        // zweizeilig um. EIN Button je Aktion mit ausgeblendetem Label statt
-        // zweier Breakpoint-Varianten — das `aria-label` hält sie für
-        // Screenreader und Tests unter demselben Namen auffindbar.
+        // Unter sm gibt das Gerüst jeder Textaktion eine volle Zeile; ein
+        // Knopf ohne Beschriftung wäre dort ein schwarzer Balken mit einem
+        // einsamen Symbol. Deshalb trägt der Knopf sein Label auf jeder
+        // Breite.
         <>
           <Button
             type="button"
             variant="primary"
             size="md"
-            aria-label="Schichtarten verwalten"
-            className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
             onClick={() => setManageOpen(true)}
             disabled={Boolean(shiftTypesError)}
           >
-            <Settings2 className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-            <span className="hidden whitespace-nowrap sm:inline">
-              Schichtarten verwalten
-            </span>
+            <Settings2 className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
+            <span className="whitespace-nowrap">Schichtarten verwalten</span>
           </Button>
           {/* Drucken/Exportieren (#2079) meint immer die Woche, die gerade auf
               dem Bildschirm steht -- deshalb hier und nicht auf der zentralen

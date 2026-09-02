@@ -254,8 +254,10 @@ function buildStudentTabItems(tabs: StudentTabId[]) {
 // reachable for deep links. Tradeoff, accepted on purpose: every section fetches
 // up front on page open (no lazy-per-tab win), but that matches the pre-tabs
 // behaviour where all sections rendered together, so it is not a regression.
+// Der Reiterinhalt ist EIN Kind des Gerüsts; die Karten darin bekommen
+// deshalb denselben 24-px-Rhythmus (mobil 12 px) wie die Karten der Seite.
 const TAB_CONTENT_CLASS =
-  "focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=inactive]:hidden";
+  "space-y-6 max-sm:space-y-3 focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=inactive]:hidden";
 
 /**
  * Ein Reiterinhalt der Kindakte. Die Reiterleiste selbst liefert `TenantPage`,
