@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -543,6 +544,56 @@ func TestGetStudent(t *testing.T) {
 
 		testutil.AssertNotFound(t, rr)
 	})
+}
+
+func TestGetStudentIncludesConsentWithdrawalForStaff(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "Consent", "Visible", "GS-Consent")
+	grantedAt := time.Date(2026, time.August, 20, 9, 0, 0, 0, time.UTC)
+	withdrawnAt := time.Date(2026, time.August, 31, 15, 0, 0, 0, time.UTC)
+	_, err := tc.db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("agb_accepted_at = ?", grantedAt).
+		Set("photo_consent_given_at = NULL").
+		Where("id = ?", student.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	change := &auditModel.StudentConsentChange{
+		Model:      auditModel.Model{CreatedAt: withdrawnAt, UpdatedAt: withdrawnAt},
+		StudentID:  student.ID,
+		ConsentKey: auditModel.StudentConsentPhoto,
+		Action:     auditModel.StudentConsentWithdrawn,
+		Source:     auditModel.StudentConsentSourceParentPortal,
+	}
+	change.SetTenantID(testpkg.Tenant(t))
+	_, err = tc.db.NewInsert().Model(change).Returning("id").Exec(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = tc.db.NewDelete().Model((*auditModel.StudentConsentChange)(nil)).
+			Where("id = ?", change.ID).
+			Exec(context.Background())
+	})
+
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var response struct {
+		Data struct {
+			Consents []students.StudentConsentResponse `json:"consents"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	require.Len(t, response.Data.Consents, 4)
+	assert.Equal(t, "agb", response.Data.Consents[0].Key)
+	assert.Equal(t, "granted", response.Data.Consents[0].State)
+	assert.Equal(t, "photo", response.Data.Consents[3].Key)
+	assert.Equal(t, "withdrawn", response.Data.Consents[3].State)
+	require.NotNil(t, response.Data.Consents[3].ChangedAt)
+	assert.True(t, response.Data.Consents[3].ChangedAt.Equal(withdrawnAt))
 }
 
 // =============================================================================

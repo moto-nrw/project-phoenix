@@ -20,6 +20,7 @@ func (f *Factory) RouteAuditWrites(command audit.Command) {
 	f.DataAccessLog = dataAccessLogCommand{f.DataAccessLog, command}
 	f.EnrollmentOfferingAdjustment = enrollmentOfferingAdjustmentCommand{f.EnrollmentOfferingAdjustment, command}
 	f.GuardianChange = guardianChangeCommand{f.GuardianChange, command}
+	f.StudentConsentChange = studentConsentChangeCommand{f.StudentConsentChange, command}
 	f.DeviationEvent = deviationEventCommand{f.DeviationEvent, command}
 	f.AuthEvent = authEventCommand{f.AuthEvent, command}
 	f.DataImport = dataImportCommand{f.DataImport, command}
@@ -105,6 +106,15 @@ type guardianChangeCommand struct {
 }
 
 func (r guardianChangeCommand) Create(ctx context.Context, event *audit.GuardianChange) error {
+	return r.command.Append(ctx, event)
+}
+
+type studentConsentChangeCommand struct {
+	audit.StudentConsentChangeRepository
+	command audit.Command
+}
+
+func (r studentConsentChangeCommand) Create(ctx context.Context, event *audit.StudentConsentChange) error {
 	return r.command.Append(ctx, event)
 }
 

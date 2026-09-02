@@ -118,6 +118,7 @@ type ResourceConfig struct {
 	ParentEventEmitter *parentmessaging.Emitter
 	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
+	StudentConsents    userService.StudentConsentService
 	// StudentDocumentService backs the child's Dokumente tab (#777).
 	StudentDocumentService  userService.StudentDocumentService
 	ListExportService       *listexport.RendererService
