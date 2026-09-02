@@ -33,6 +33,22 @@ describe("TenantPage", () => {
     expect(screen.getByText("Inhalt")).toBeInTheDocument();
   });
 
+  it("rendert die Kopfzeile auf Mobilgeräten ohne Kartenrahmen", () => {
+    const { container } = render(
+      <TenantPage title="Kinder">
+        <p>Inhalt</p>
+      </TenantPage>,
+    );
+
+    expect(container.querySelector("header")).toHaveClass(
+      "max-sm:rounded-none",
+      "max-sm:border-0",
+      "max-sm:bg-transparent",
+      "max-sm:p-0",
+      "max-sm:shadow-none",
+    );
+  });
+
   it("zeigt beim Laden ein Skelett statt der Statuszeile", () => {
     const { container } = render(
       <TenantPage title="Kinder" stats="116 Kinder" statsLoading>

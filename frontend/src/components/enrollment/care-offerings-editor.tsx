@@ -69,6 +69,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -1184,6 +1185,8 @@ function CareOfferingCatalogError({
 }
 
 function NoPhaseState() {
+  const tenantPath = useTenantAwarePath();
+
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
       <EmptyState
@@ -1195,7 +1198,11 @@ function NoPhaseState() {
         title="Erst eine Anmeldephase anlegen"
         description="Betreuungsangebote gehören immer zu einer Anmeldephase. Legen Sie zuerst den Zeitraum an, danach können Sie die passenden Angebote ergänzen."
         action={
-          <ButtonLink href="/enrollment-phases" size="md" className="gap-2">
+          <ButtonLink
+            href={tenantPath("/enrollment-phases")}
+            size="md"
+            className="gap-2"
+          >
             <MotoConceptIcon
               concept="calendarPeriods"
               colorMode="inherit"

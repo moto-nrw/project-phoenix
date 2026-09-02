@@ -385,7 +385,7 @@ function EnrollmentPhaseOverview({
           description="Legen Sie zuerst eine Anmeldephase an. Danach sehen Sie hier, welche Phasen laufen und wie viele Anmeldungen eingegangen sind."
           action={
             <ButtonLink
-              href="/enrollment-phases"
+              href={tenantPath("/enrollment-phases")}
               variant="primary"
               size="md"
               className="inline-flex items-center justify-center gap-2"
@@ -426,7 +426,7 @@ function EnrollmentPhaseOverview({
             <ExternalLink className="h-4 w-4" aria-hidden="true" />
           </ButtonLink>
           <ButtonLink
-            href="/enrollment-phases"
+            href={tenantPath("/enrollment-phases")}
             variant="outline"
             size="md"
             className="inline-flex items-center justify-center"
@@ -551,6 +551,7 @@ function EnrollmentSetupGuide({
   activeCareOfferingCount,
   requestCount,
 }: EnrollmentSetupGuideProps) {
+  const tenantPath = useTenantAwarePath();
   const readyForPreview =
     enrollmentEnabled === true &&
     activePhaseCount > 0 &&
@@ -598,7 +599,7 @@ function EnrollmentSetupGuide({
     {
       title: "Anmeldephase anlegen",
       description: "Zum Beispiel ein Halbjahr oder Schuljahr mit Anmeldefrist.",
-      href: "/enrollment-phases",
+      href: tenantPath("/enrollment-phases"),
       action: phaseCount > 0 ? "Anmeldephasen prüfen" : "Anlegen",
       status: activePhaseCount > 0 ? "done" : "todo",
       meta:
@@ -632,7 +633,9 @@ function EnrollmentSetupGuide({
       title: "Anmeldeformular festlegen",
       description:
         "Wählen Sie in der Anmeldephase das Basisformular oder eine eigene Vorlage aus.",
-      href: activePhaseCount === 0 ? "/enrollment-phases" : "/enrollment-form",
+      href: tenantPath(
+        activePhaseCount === 0 ? "/enrollment-phases" : "/enrollment-form",
+      ),
       action: formStepAction,
       status: formStepStatus,
       meta: formStepMeta,

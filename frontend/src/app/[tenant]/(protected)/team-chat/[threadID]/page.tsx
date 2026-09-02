@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { BackButton } from "~/components/ui/back-button";
+import { ButtonLink } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -10,6 +11,7 @@ import {
   type TeamChatThreadParts,
 } from "~/components/messaging/team-chat-thread";
 import { useTenantTeamChatPortal } from "~/lib/hooks/use-tenant-team-chat-portal";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 /**
  * Die Hülle des OGS-Portals um das geteilte Chat-Fenster. Der Titel der
@@ -66,6 +68,7 @@ export default function TeamThreadPage() {
   const threadID = params.threadID as string;
   const { data: session } = useSession();
   const portal = useTenantTeamChatPortal();
+  const tenantPath = useTenantAwarePath();
   // Which bubbles are "mine". The backend stamps every message with its sender
   // account, and the session carries the viewer's — so the side a bubble sits
   // on is decided here, not by the API.
@@ -76,7 +79,19 @@ export default function TeamThreadPage() {
       portal={portal}
       threadID={threadID}
       myAccountId={myAccountId}
-      backNav={<BackButton referrer="/team-chat" />}
+      backNav={
+        <>
+          <BackButton referrer="/team-chat" />
+          <ButtonLink
+            href={tenantPath("/team-chat")}
+            variant="ghost"
+            size="md"
+            className="mb-4 hidden md:inline-flex"
+          >
+            Zum Team-Chat
+          </ButtonLink>
+        </>
+      }
       frame={renderThreadFrame}
     />
   );
