@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { Button } from "./button";
 import { Modal } from "./modal";
 
 // Shared destructive-confirmation shell for the operator drill-in modals.
@@ -94,34 +95,40 @@ export function ConfirmDeleteModal({
 
   const footer = (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={close}
         disabled={loading}
-        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+        className="disabled:cursor-not-allowed"
       >
         Abbrechen
-      </button>
+      </Button>
       {inFirstStep ? (
-        <button
+        <Button
           type="button"
+          variant="danger"
+          size="md"
           onClick={() => setConfirmed(true)}
           disabled={gateBlocked}
-          className="rounded-lg bg-[#FF3130] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#CC2626] disabled:cursor-not-allowed disabled:opacity-50"
+          className="disabled:cursor-not-allowed"
         >
           {gate.mode === "twoStep" && gate.firstStepLabel
             ? gate.firstStepLabel
             : "Ja, löschen"}
-        </button>
+        </Button>
       ) : (
-        <button
+        <Button
           type="button"
+          variant="danger"
+          size="md"
           onClick={() => void onConfirm()}
           disabled={confirmDisabled}
-          className="rounded-lg bg-[#FF3130] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#CC2626] disabled:cursor-not-allowed disabled:opacity-50"
+          className="disabled:cursor-not-allowed"
         >
           {loading ? loadingLabel : confirmLabel}
-        </button>
+        </Button>
       )}
     </>
   );

@@ -9,9 +9,7 @@ import (
 
 // calendarFixtureClockExceptions contains only tests whose purpose requires
 // the system clock. Every exact function key needs its own reviewed reason.
-var calendarFixtureClockExceptions = map[string]string{
-	"services/enrollment/offering_change_request_service_test.go:TestOfferingChangeRequestService_ListPending_ReportsTheSelectableDateRange": "Verifies the queue boundary derived from the current date.",
-}
+var calendarFixtureClockExceptions = map[string]string{}
 
 func TestCalendarFixtureClockRatchet(t *testing.T) {
 	t.Parallel()

@@ -93,6 +93,20 @@ describe("DrawerContent", () => {
     );
   });
 
+  it("dims the page with the same tint as every other kit overlay", () => {
+    render(
+      <DrawerContent>
+        <div>Drawer content</div>
+      </DrawerContent>,
+    );
+
+    const overlay = screen.getByTestId("drawer-overlay");
+    // Shared with Modal, FormModal and SlideOver — the old bg-black/80 dimmed
+    // the page twice as hard as a stacked confirmation dialog (#2932).
+    expect(overlay).toHaveClass("bg-black/40");
+    expect(overlay.className).not.toContain("bg-black/80");
+  });
+
   it("renders iOS-style drag handle", () => {
     const { container } = render(
       <DrawerContent>

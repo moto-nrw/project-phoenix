@@ -745,10 +745,8 @@ export function SettingsField({
               : "Aktivieren"
           }
           cancelText="Abbrechen"
-          confirmButtonClass={
-            pendingValueRef.current === false
-              ? "bg-moto-red hover:bg-moto-red-strong"
-              : "bg-gray-900 hover:bg-gray-700"
+          confirmVariant={
+            pendingValueRef.current === false ? "danger" : "primary"
           }
         >
           <p className="text-sm text-gray-600">{activeConfirmConfig.body}</p>

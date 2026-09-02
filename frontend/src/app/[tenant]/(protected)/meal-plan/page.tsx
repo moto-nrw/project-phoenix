@@ -705,7 +705,7 @@ export default function MealPlanPage() {
           title="Gericht entfernen?"
           confirmText="Entfernen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+          confirmVariant="danger"
         >
           <p className="text-sm text-gray-600">
             {deleteTarget
@@ -721,7 +721,7 @@ export default function MealPlanPage() {
           title="Ungespeicherte Änderungen"
           confirmText="Verwerfen & wechseln"
           cancelText="Hierbleiben"
-          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+          confirmVariant="danger"
         >
           <p className="text-sm text-gray-600">
             Du hast Änderungen in dieser Woche, die noch nicht gespeichert sind.
@@ -736,7 +736,7 @@ export default function MealPlanPage() {
           title="Ungespeicherte Änderungen"
           confirmText="Verwerfen & verlassen"
           cancelText="Hierbleiben"
-          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+          confirmVariant="danger"
         >
           <p className="text-sm text-gray-600">
             Du hast Änderungen, die noch nicht gespeichert sind. Beim Verlassen
