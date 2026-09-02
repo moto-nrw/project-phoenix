@@ -57,7 +57,7 @@ func (r personGradeTransitionRepository) ReleaseStudentTagsByIDs(ctx context.Con
 	if len(studentIDs) == 0 {
 		return nil, nil
 	}
-	personIDs, err := r.GradeTransitionRepository.PersonIDsByStudentIDs(ctx, studentIDs)
+	personIDs, err := r.PersonIDsByStudentIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (r personGradeTransitionRepository) RestoreStudentTag(ctx context.Context, 
 	if tagID == "" {
 		return false, nil
 	}
-	personIDs, err := r.GradeTransitionRepository.PersonIDsByStudentIDs(ctx, []int64{studentID})
+	personIDs, err := r.PersonIDsByStudentIDs(ctx, []int64{studentID})
 	if err != nil {
 		return false, err
 	}

@@ -231,7 +231,7 @@ func TestListPersonsWithoutPermissionIsForbidden(t *testing.T) {
 
 func TestGetPersonAddsAccountEmailAndMapsNotFound(t *testing.T) {
 	t.Parallel()
-	accountID := int64(99)
+	var accountID int64 = 99
 	directory := &fakeDirectory{persons: map[int64]peopledirectory.Person{7: {ID: 7, FirstName: "Mia", LastName: "Muster", AccountID: &accountID}}}
 	h := newHarness(t, directory)
 	h.permitted["users:read"] = true
@@ -286,7 +286,7 @@ func TestCreatePersonValidatesBodyAndForeignReferences(t *testing.T) {
 
 func TestUpdatePersonKeepsStoredLinksWhenBodyOmitsThem(t *testing.T) {
 	t.Parallel()
-	accountID := int64(5)
+	var accountID int64 = 5
 	tag := "AABB"
 	directory := &fakeDirectory{persons: map[int64]peopledirectory.Person{7: {ID: 7, FirstName: "Old", LastName: "Name", AccountID: &accountID, TagID: &tag}}}
 	h := newHarness(t, directory)

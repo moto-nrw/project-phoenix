@@ -566,12 +566,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 416,
+          "line": 415,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 437,
+          "line": 436,
           "declaration": "newFactory"
         },
         {
@@ -16668,6 +16668,16 @@
       "tables": []
     },
     {
+      "scope": "production",
+      "file": "database/repositories/factory.go",
+      "declaration": "NewFactoryWithPeopleDirectory",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        420
+      ],
+      "tables": []
+    },
+    {
       "scope": "test",
       "file": "api/absence-types/api_test.go",
       "declaration": "setupAbsenceTypesRoute",
@@ -18831,7 +18841,7 @@
       "declaration": "TestVisitRepository_CountActiveByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1167
+        1171
       ],
       "tables": []
     },
@@ -18841,7 +18851,7 @@
       "declaration": "TestVisitRepository_CountActiveByRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1097
+        1101
       ],
       "tables": []
     },
@@ -18851,7 +18861,7 @@
       "declaration": "TestVisitRepository_CountExpiredVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        958
+        962
       ],
       "tables": [
         "active.visits",
@@ -18884,7 +18894,7 @@
       "declaration": "TestVisitRepository_DeleteExpiredVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        681
+        685
       ],
       "tables": [
         "active.visits"
@@ -18896,7 +18906,7 @@
       "declaration": "TestVisitRepository_EndVisit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        649
+        653
       ],
       "tables": []
     },
@@ -18906,8 +18916,8 @@
       "declaration": "TestVisitRepository_EndVisitsByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1229,
-        1230
+        1233,
+        1234
       ],
       "tables": []
     },
@@ -18917,7 +18927,7 @@
       "declaration": "TestVisitRepository_ExpiredVisitMonthlyCounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1567
+        1571
       ],
       "tables": []
     },
@@ -18940,19 +18950,6 @@
         236
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/visits_repository_test.go",
-      "declaration": "TestVisitRepository_FindActiveWithStudentDisplayByGroup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        596
-      ],
-      "tables": [
-        "education.groups",
-        "users.students"
-      ]
     },
     {
       "scope": "test",
@@ -19010,7 +19007,7 @@
       "declaration": "TestVisitRepository_GetCurrentByStudentIDWithRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1007
+        1011
       ],
       "tables": [
         "active.groups"
@@ -19044,7 +19041,7 @@
       "declaration": "TestVisitRepository_GetVisitRetentionStats",
       "target": "database/repositories.NewFactory",
       "lines": [
-        908
+        912
       ],
       "tables": [
         "active.visits",
@@ -19067,9 +19064,9 @@
       "declaration": "TestVisitRepository_ListActiveStudentIDsByRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1360,
-        1413,
-        1469
+        1364,
+        1417,
+        1473
       ],
       "tables": []
     },
@@ -19079,7 +19076,7 @@
       "declaration": "TestVisitRepository_OldestExpiredVisitDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1525
+        1529
       ],
       "tables": []
     },
@@ -19089,8 +19086,8 @@
       "declaration": "TestVisitRepository_TransferActiveVisitsBetweenGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        847,
-        848
+        851,
+        852
       ],
       "tables": []
     },
@@ -19100,8 +19097,8 @@
       "declaration": "TestVisitRepository_TransferVisitsFromRecentSessions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        740,
-        741
+        744,
+        745
       ],
       "tables": [
         "active.groups"
@@ -19133,7 +19130,7 @@
       "declaration": "TestVisitsRepository_GetCurrentByStudentIDs_Deduplication",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1329
+        1333
       ],
       "tables": []
     },
@@ -19891,7 +19888,7 @@
       "declaration": "TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        599
+        603
       ],
       "tables": [
         "enrollment.request_children"
@@ -19903,7 +19900,7 @@
       "declaration": "TestStudentEnrollmentRepository_CapActiveByGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        555
+        559
       ],
       "tables": []
     },
@@ -19913,7 +19910,7 @@
       "declaration": "TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        712
+        716
       ],
       "tables": []
     },
@@ -19953,7 +19950,7 @@
       "declaration": "TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        663
+        667
       ],
       "tables": []
     },
@@ -19963,7 +19960,7 @@
       "declaration": "TestStudentEnrollmentRepository_Delete_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        773
+        777
       ],
       "tables": []
     },
@@ -19974,16 +19971,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         432
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_FindByGroupID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        511
       ],
       "tables": []
     },
@@ -20083,27 +20070,7 @@
       "declaration": "TestSupervisorPlannedRepository_Delete_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        412
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_FindByGroupID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        286
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_FindByGroupIDs",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        336
+        420
       ],
       "tables": []
     },
@@ -20143,7 +20110,7 @@
       "declaration": "TestSupervisorPlannedRepository_SetPrimary",
       "target": "database/repositories.NewFactory",
       "lines": [
-        385
+        393
       ],
       "tables": []
     },
@@ -20652,16 +20619,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         157
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/account_tenant_repository_test.go",
-      "declaration": "newSchoolProjectedAccountTenantRepository",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        21
       ],
       "tables": []
     },
@@ -21972,7 +21929,7 @@
       "declaration": "TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        611
+        612
       ],
       "tables": []
     },
@@ -22497,16 +22454,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         269
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/parent/child_repository_test.go",
-      "declaration": "newSchoolProjectionFactory",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
       ],
       "tables": []
     },
@@ -25189,7 +25136,7 @@
       "declaration": "createActiveServiceWithCrossTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        21
+        20
       ],
       "tables": []
     },
@@ -26150,7 +26097,7 @@
       "declaration": "TestAdditionalSupervisionAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        221
+        224
       ],
       "tables": []
     },
@@ -26160,7 +26107,7 @@
       "declaration": "TestAdditionalSupervisionAuthorizationMatrix",
       "target": "database/repositories.NewFactory",
       "lines": [
-        137
+        140
       ],
       "tables": [
         "active.groups"
@@ -26169,22 +26116,10 @@
     {
       "scope": "test",
       "file": "services/education/substitution_module_test.go",
-      "declaration": "TestAdditionalSupervisionExternalInterface",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        51
-      ],
-      "tables": [
-        "audit.substitution_changes"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/education/substitution_module_test.go",
       "declaration": "TestAdditionalSupervisionRejectsConcurrentSessionEnd",
       "target": "database/repositories.NewFactory",
       "lines": [
-        307
+        310
       ],
       "tables": [
         "active.groups"
@@ -26196,7 +26131,7 @@
       "declaration": "TestAdditionalSupervisionSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        278
+        281
       ],
       "tables": []
     },
@@ -26206,7 +26141,7 @@
       "declaration": "TestAdditionalSupervisionTreatsFutureEndDateAsActive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        247
+        250
       ],
       "tables": [
         "active.group_supervisors"
@@ -26218,7 +26153,7 @@
       "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        529
+        532
       ],
       "tables": []
     },
@@ -26228,7 +26163,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        578
+        581
       ],
       "tables": []
     },
@@ -26238,7 +26173,7 @@
       "declaration": "TestGroupHandoverExternalInterface",
       "target": "database/repositories.NewFactory",
       "lines": [
-        366
+        369
       ],
       "tables": [
         "audit.substitution_changes"
@@ -26250,7 +26185,7 @@
       "declaration": "TestGroupHandoverPermissionsAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        429
+        432
       ],
       "tables": []
     },
@@ -26260,7 +26195,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        656
+        659
       ],
       "tables": []
     },
@@ -26270,7 +26205,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        616
+        619
       ],
       "tables": []
     },
@@ -28457,16 +28392,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         37
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_messaging_read_service_test.go",
-      "declaration": "buildReadServiceWithNotifier",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        39
       ],
       "tables": []
     },
