@@ -55,6 +55,60 @@ describe("MealParticipantList", () => {
       screen.queryByText("Mittagessen am 2026-09-07"),
     ).not.toBeInTheDocument();
     expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith("2026-09-07");
+    const datePicker = screen.getByRole("button", {
+      name: "Datum: 07.09.2026",
+    });
+    expect(datePicker).toBeInTheDocument();
+    expect(
+      document.querySelector('input[type="date"]'),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(datePicker);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dienstag, 8. September 2026" }),
+    );
+    await waitFor(() => {
+      expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith("2026-09-08");
+    });
+    expect(
+      screen.getByRole("button", { name: "Datum: 08.09.2026" }),
+    ).toBeInTheDocument();
+  });
+
+  it("groups the established PDF and Excel export actions", async () => {
+    let finishPdf: () => void = () => undefined;
+    mocks.downloadDailyMealParticipants
+      .mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finishPdf = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+    render(<MealParticipantList />);
+
+    await screen.findByText("Mittagessen am 07.09.2026");
+    expect(screen.getByRole("group", { name: "Export" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    expect(
+      screen.getByRole("button", { name: "PDF wird erstellt…" }),
+    ).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("PDF wird erstellt.");
+    await waitFor(() => {
+      expect(mocks.downloadDailyMealParticipants).toHaveBeenCalledWith(
+        "2026-09-07",
+        "pdf",
+      );
+    });
+    finishPdf();
+    await screen.findByRole("button", { name: "PDF" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Excel" }));
+    await waitFor(() => {
+      expect(mocks.downloadDailyMealParticipants).toHaveBeenCalledWith(
+        "2026-09-07",
+        "xlsx",
+      );
+    });
   });
 
   it("retries after a temporary load error", async () => {

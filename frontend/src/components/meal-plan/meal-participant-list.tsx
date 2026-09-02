@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Utensils } from "lucide-react";
+import { Download, FileSpreadsheet, Utensils } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Input } from "~/components/ui/input";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -93,55 +93,88 @@ export function MealParticipantList() {
   return (
     <section className="space-y-4" aria-labelledby="meal-participants-title">
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2
-              id="meal-participants-title"
-              className="text-lg font-semibold text-gray-900"
-            >
-              Tagesliste für die Küche
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen
-              angemeldet sind.
+        <div>
+          <h2
+            id="meal-participants-title"
+            className="text-lg font-semibold text-gray-900"
+          >
+            Tagesliste für die Küche
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen
+            angemeldet sind.
+          </p>
+          {cutoffTime ? (
+            <p className="mt-1 text-sm font-medium text-gray-700">
+              Änderungen für diesen Tag sind bis {cutoffTime} Uhr möglich.
             </p>
-            {cutoffTime ? (
-              <p className="mt-1 text-sm font-medium text-gray-700">
-                Änderungen für diesen Tag sind bis {cutoffTime} Uhr möglich.
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <Input
+          ) : null}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Datum</span>
+            <ISODatePicker
               id="meal-participant-date"
-              type="date"
-              label="Tag"
               value={date}
-              onChange={(event) => setDate(event.target.value)}
-              controlSize="compact"
+              onChange={setDate}
+              ariaLabel={`Datum: ${formatDate(date)}`}
+              calendarLayout="popover"
+              controlSize="md"
+              hideClearButton
+              required
+              className="min-w-0 flex-1 sm:w-44 sm:flex-none"
             />
+          </div>
+
+          <div
+            role="group"
+            aria-labelledby="meal-participant-export-label"
+            className="flex flex-col items-start gap-2 sm:ms-auto sm:flex-row sm:items-center"
+          >
+            <span
+              id="meal-participant-export-label"
+              className="text-sm font-medium text-gray-700"
+            >
+              Export
+            </span>
             <div className="flex gap-2">
               <Button
                 type="button"
-                variant="outline"
+                variant="primary"
+                size="sm"
+                className="gap-2"
+                aria-busy={exporting === "pdf"}
                 onClick={() => void download("pdf")}
                 isLoading={exporting === "pdf"}
+                loadingText="PDF wird erstellt…"
                 disabled={loading || error || exporting !== null}
               >
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="h-4 w-4" aria-hidden="true" />
                 PDF
               </Button>
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
+                className="gap-2 bg-white"
+                aria-busy={exporting === "xlsx"}
                 onClick={() => void download("xlsx")}
                 isLoading={exporting === "xlsx"}
+                loadingText="Excel wird erstellt…"
                 disabled={loading || error || exporting !== null}
               >
-                <Download className="mr-2 h-4 w-4" />
+                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
                 Excel
               </Button>
             </div>
+            <span className="sr-only" role="status" aria-live="polite">
+              {exporting === "pdf"
+                ? "PDF wird erstellt."
+                : exporting === "xlsx"
+                  ? "Excel wird erstellt."
+                  : ""}
+            </span>
           </div>
         </div>
       </div>
