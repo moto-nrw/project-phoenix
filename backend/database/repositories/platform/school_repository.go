@@ -24,6 +24,10 @@ func NewSchoolRepository(db *bun.DB) platform.SchoolRepository {
 	return &SchoolRepository{db: db}
 }
 
+func NewSchoolNotFoundError(operation string) error {
+	return &modelBase.DatabaseError{Op: operation, Err: base.TranslateNotFound(sql.ErrNoRows)}
+}
+
 // Create inserts a new school record.
 func (r *SchoolRepository) Create(ctx context.Context, school *platform.School) error {
 	if school == nil {

@@ -113,7 +113,8 @@ type EnrollablePhase struct {
 	// Audience mirrors enrollment.phases.audience (#1663) so the picker
 	// can label restricted phases. Phases the account is NOT eligible
 	// for are already filtered out by the repository.
-	Audience string `json:"audience"`
+	Audience      string `json:"audience"`
+	HasFamilyLink bool   `json:"-"`
 }
 
 // GuardianSubmitStatus captures the facts the parent enrollment submit

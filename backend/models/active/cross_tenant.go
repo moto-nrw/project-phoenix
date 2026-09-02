@@ -8,9 +8,10 @@ package active
 // Used by the Ferienbetreuung (holiday care) feature where students
 // from one school temporarily attend another school's program.
 type CrossTenantStudent struct {
-	StudentID  int64  `json:"student_id"`
-	FirstName  string `json:"first_name"`
-	LastName   string `json:"last_name"`
-	GroupName  string `json:"group_name"`
-	HomeTenant string `json:"home_tenant"` // slug of the student's home school
+	StudentID    int64  `json:"student_id"`
+	HomeTenantID int64  `json:"-"`
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+	GroupName    string `json:"group_name"`
+	HomeTenant   string `json:"home_tenant"` // slug of the student's home school
 }

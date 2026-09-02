@@ -571,17 +571,17 @@
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 16,
+          "line": 14,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 24,
+          "line": 22,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 35,
+          "line": 33,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
@@ -20662,6 +20662,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/auth/account_tenant_repository_test.go",
+      "declaration": "newSchoolProjectedAccountTenantRepository",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        21
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/auth/effective_admins_test.go",
       "declaration": "TestAccountRepository_ListEffectiveAdminAccountIDs",
       "target": "database/repositories.NewFactory",
@@ -22492,6 +22502,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         269
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/parent/child_repository_test.go",
+      "declaration": "newSchoolProjectionFactory",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        26
       ],
       "tables": []
     },
@@ -26784,7 +26804,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3802
+        3804
       ],
       "tables": []
     },
@@ -26794,7 +26814,7 @@
       "declaration": "newDecisionServiceForTestWithCareWithdrawal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        113
+        115
       ],
       "tables": []
     },

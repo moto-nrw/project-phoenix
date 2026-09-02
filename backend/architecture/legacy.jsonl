@@ -1348,7 +1348,6 @@
 {"scope":"production","rule":"database.direct-access","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/uptrace/bun.DB.Close","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"production","rule":"database.direct-access","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/uptrace/bun.DB.NewRaw","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"production","rule":"database.direct-access","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/uptrace/bun.DB.NewSelect","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
-{"scope":"production","rule":"database.direct-access","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/uptrace/bun.Tx.QueryContext","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"production","rule":"database.direct-access","source":"github.com/moto-nrw/project-phoenix/internal/careplanning","target":"github.com/uptrace/bun.IDB.NewRaw","issue":"https://github.com/moto-nrw/project-phoenix/issues/2679"}
 {"scope":"production","rule":"database.direct-access","source":"github.com/moto-nrw/project-phoenix/services/enrollment","target":"github.com/uptrace/bun.DB.RunInTx","issue":"https://github.com/moto-nrw/project-phoenix/issues/2733"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/absence-types","target":"github.com/moto-nrw/project-phoenix/api/common","issue":"https://github.com/moto-nrw/project-phoenix/issues/2688"}
@@ -1979,7 +1978,6 @@
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/moto-nrw/project-phoenix/middleware","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/moto-nrw/project-phoenix/models/auth","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/moto-nrw/project-phoenix/models/config","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
-{"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/moto-nrw/project-phoenix/models/platform","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/moto-nrw/project-phoenix/seed/api","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/moto-nrw/project-phoenix/services","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/cmd","target":"github.com/moto-nrw/project-phoenix/services/active","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
@@ -2700,7 +2698,6 @@
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/test","target":"testing","issue":"https://github.com/moto-nrw/project-phoenix/issues/2748"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix","target":"github.com/moto-nrw/project-phoenix/cmd","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/cmd","target":"auth.tokens","issue":"https://github.com/moto-nrw/project-phoenix/issues/2720"}
-{"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/cmd","target":"platform.schools","issue":"https://github.com/moto-nrw/project-phoenix/issues/2660"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/cmd","target":"users.guardian_profiles","issue":"https://github.com/moto-nrw/project-phoenix/issues/2663"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/cmd","target":"users.students_guardians","issue":"https://github.com/moto-nrw/project-phoenix/issues/2663"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/active","target":"active.excused_absence_requests","issue":"https://github.com/moto-nrw/project-phoenix/issues/2681"}
@@ -2717,7 +2714,6 @@
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/active","target":"education.groups","issue":"https://github.com/moto-nrw/project-phoenix/issues/2664"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/active","target":"facilities.rooms","issue":"https://github.com/moto-nrw/project-phoenix/issues/2665"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/active","target":"iot.devices","issue":"https://github.com/moto-nrw/project-phoenix/issues/2676"}
-{"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/active","target":"platform.schools","issue":"https://github.com/moto-nrw/project-phoenix/issues/2660"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/active","target":"users.persons","issue":"https://github.com/moto-nrw/project-phoenix/issues/2661"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/active","target":"users.staff","issue":"https://github.com/moto-nrw/project-phoenix/issues/2667"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/active","target":"users.students","issue":"https://github.com/moto-nrw/project-phoenix/issues/2662"}
@@ -2736,9 +2732,7 @@
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/audit","target":"enrollment.request_children","issue":"https://github.com/moto-nrw/project-phoenix/issues/2694"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/audit","target":"enrollment.requests","issue":"https://github.com/moto-nrw/project-phoenix/issues/2694"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/audit","target":"iot.devices","issue":"https://github.com/moto-nrw/project-phoenix/issues/2676"}
-{"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/audit","target":"platform.schools","issue":"https://github.com/moto-nrw/project-phoenix/issues/2660"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/audit","target":"users.students","issue":"https://github.com/moto-nrw/project-phoenix/issues/2662"}
-{"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/auth","target":"platform.schools","issue":"https://github.com/moto-nrw/project-phoenix/issues/2660"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/auth","target":"users.persons","issue":"https://github.com/moto-nrw/project-phoenix/issues/2661"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/auth","target":"users.staff","issue":"https://github.com/moto-nrw/project-phoenix/issues/2667"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/auth","target":"users.teachers","issue":"https://github.com/moto-nrw/project-phoenix/issues/2667"}
@@ -2788,7 +2782,6 @@
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/parent","target":"enrollment.phases","issue":"https://github.com/moto-nrw/project-phoenix/issues/2694"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/parent","target":"enrollment.request_children","issue":"https://github.com/moto-nrw/project-phoenix/issues/2694"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/parent","target":"enrollment.requests","issue":"https://github.com/moto-nrw/project-phoenix/issues/2694"}
-{"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/parent","target":"platform.schools","issue":"https://github.com/moto-nrw/project-phoenix/issues/2660"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/parent","target":"users.guardian_profiles","issue":"https://github.com/moto-nrw/project-phoenix/issues/2663"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/parent","target":"users.persons","issue":"https://github.com/moto-nrw/project-phoenix/issues/2661"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/parent","target":"users.students","issue":"https://github.com/moto-nrw/project-phoenix/issues/2662"}
@@ -2846,7 +2839,6 @@
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"enrollment.request_child_offerings","issue":"https://github.com/moto-nrw/project-phoenix/issues/2695"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"enrollment.request_children","issue":"https://github.com/moto-nrw/project-phoenix/issues/2694"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"facilities.rooms","issue":"https://github.com/moto-nrw/project-phoenix/issues/2665"}
-{"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"platform.schools","issue":"https://github.com/moto-nrw/project-phoenix/issues/2660"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"schedule.activity_instances","issue":"https://github.com/moto-nrw/project-phoenix/issues/2684"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"schedule.calendar_periods","issue":"https://github.com/moto-nrw/project-phoenix/issues/2666"}
 {"scope":"production","rule":"tables.foreign-read","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"schedule.care_schedule_change_requests","issue":"https://github.com/moto-nrw/project-phoenix/issues/2681"}
