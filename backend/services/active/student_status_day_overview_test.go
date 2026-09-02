@@ -1,9 +1,12 @@
 package active
 
 import (
+	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 )
@@ -45,4 +48,52 @@ func TestFilterOverviewStudentIDsExcludesPeopleTheDirectoryDoesNotReturn(t *test
 	persons := map[int64]*userModels.Person{11: {ID: 11, FirstName: "Mia", LastName: "Muster"}}
 
 	assert.Equal(t, []int64{1}, filterOverviewStudentIDs([]int64{1, 2}, students, persons, ""))
+}
+
+type cappedOverviewRepository struct {
+	activeModels.StudentStatusDayOverviewRepository
+	total      int
+	listCalled bool
+}
+
+func (r *cappedOverviewRepository) CountWithOptions(context.Context, *modelBase.QueryOptions) (int, error) {
+	return r.total, nil
+}
+
+func (r *cappedOverviewRepository) ListOverviewWithOptions(context.Context, *modelBase.QueryOptions) ([]*activeModels.StudentStatusDay, error) {
+	r.listCalled = true
+	return nil, nil
+}
+
+type overviewPeopleStub struct {
+	students []*userModels.Student
+	persons  map[int64]*userModels.Person
+}
+
+func (s overviewPeopleStub) GetStudentsByGroupIDs(context.Context, []int64) ([]*userModels.Student, error) {
+	return s.students, nil
+}
+
+func (s overviewPeopleStub) GetByIDs(context.Context, []int64) (map[int64]*userModels.Person, error) {
+	return s.persons, nil
+}
+
+func TestGetOverviewRejectsUnboundedEnrichment(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, 8, 20)
+	repo := &cappedOverviewRepository{total: maxStatusDayOverviewRows + 1}
+	people := overviewPeopleStub{
+		students: []*userModels.Student{{ID: 1, PersonID: 11, Status: userModels.StudentStatusActive}},
+		persons:  map[int64]*userModels.Person{11: {ID: 11, FirstName: "Mia", LastName: "Muster"}},
+	}
+
+	overview, err := NewStudentStatusDayOverviewService(repo, people).GetOverview(
+		context.Background(), nil, date, date, date,
+		StatusDayOverviewFilters{Page: 1, PageSize: 100},
+	)
+
+	assert.Nil(t, overview)
+	assert.ErrorContains(t, err, "exceeds")
+	assert.False(t, repo.listCalled)
 }

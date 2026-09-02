@@ -47,8 +47,9 @@ type Runtime struct {
 	SuccessPaginated func(http.ResponseWriter, *http.Request, int, any, Pagination, string)
 	NoContent        func(http.ResponseWriter, *http.Request)
 	Failure          func(http.ResponseWriter, *http.Request, FailureKind, error)
-	// AccountEmail returns the e-mail of an account, or found=false.
-	AccountEmail func(context.Context, int64) (email string, found bool, err error)
+	// AccountEmails returns e-mails keyed by account ID. Missing accounts are
+	// absent from the result.
+	AccountEmails func(context.Context, []int64) (map[int64]string, error)
 	// TagExists reports whether an RFID card with that identifier exists.
 	TagExists       func(context.Context, string) (bool, error)
 	ObserveResponse func(int, string)
@@ -62,7 +63,7 @@ type Resource struct {
 func NewResource(directory peopledirectory.Capability, runtime Runtime) *Resource {
 	if directory == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.ParsePagination == nil ||
 		runtime.Success == nil || runtime.SuccessPaginated == nil || runtime.NoContent == nil || runtime.Failure == nil ||
-		runtime.AccountEmail == nil || runtime.TagExists == nil || runtime.ObserveResponse == nil {
+		runtime.AccountEmails == nil || runtime.TagExists == nil || runtime.ObserveResponse == nil {
 		panic("users HTTP: all dependencies are required")
 	}
 	return &Resource{directory: directory, runtime: runtime}
@@ -231,12 +232,12 @@ func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
 // through the root-injected lookups before the write.
 func (rs *Resource) referencesExist(w http.ResponseWriter, r *http.Request, tagID *string, accountID *int64) bool {
 	if accountID != nil {
-		_, found, err := rs.runtime.AccountEmail(r.Context(), *accountID)
+		emails, err := rs.runtime.AccountEmails(r.Context(), []int64{*accountID})
 		if err != nil {
 			rs.failure(w, r, FailureInternal, err, "internal_error")
 			return false
 		}
-		if !found {
+		if _, found := emails[*accountID]; !found {
 			rs.failure(w, r, FailureNotFound, errors.New("account not found"), "account_not_found")
 			return false
 		}
@@ -266,29 +267,42 @@ func (rs *Resource) respondPerson(w http.ResponseWriter, r *http.Request, status
 }
 
 func (rs *Resource) personResponses(ctx context.Context, persons []peopledirectory.Person) ([]PersonResponse, error) {
-	responses := make([]PersonResponse, 0, len(persons))
+	accountIDs := make([]int64, 0, len(persons))
+	seenAccounts := make(map[int64]struct{}, len(persons))
 	for _, person := range persons {
-		response, err := rs.personResponse(ctx, person)
+		if person.AccountID == nil {
+			continue
+		}
+		if _, seen := seenAccounts[*person.AccountID]; !seen {
+			seenAccounts[*person.AccountID] = struct{}{}
+			accountIDs = append(accountIDs, *person.AccountID)
+		}
+	}
+	emails := make(map[int64]string, len(accountIDs))
+	if len(accountIDs) > 0 {
+		var err error
+		emails, err = rs.runtime.AccountEmails(ctx, accountIDs)
 		if err != nil {
 			return nil, err
 		}
-		responses = append(responses, response)
+	}
+	responses := make([]PersonResponse, 0, len(persons))
+	for _, person := range persons {
+		email := ""
+		if person.AccountID != nil {
+			email = emails[*person.AccountID]
+		}
+		responses = append(responses, newPersonResponse(person, email))
 	}
 	return responses, nil
 }
 
 func (rs *Resource) personResponse(ctx context.Context, person peopledirectory.Person) (PersonResponse, error) {
-	email := ""
-	if person.AccountID != nil {
-		value, found, err := rs.runtime.AccountEmail(ctx, *person.AccountID)
-		if err != nil {
-			return PersonResponse{}, err
-		}
-		if found {
-			email = value
-		}
+	responses, err := rs.personResponses(ctx, []peopledirectory.Person{person})
+	if err != nil {
+		return PersonResponse{}, err
 	}
-	return newPersonResponse(person, email), nil
+	return responses[0], nil
 }
 
 func (rs *Resource) parseID(w http.ResponseWriter, r *http.Request) (int64, bool) {

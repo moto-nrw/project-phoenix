@@ -303,16 +303,20 @@ func (r *AnnouncementViewRepository) GetViewDetails(ctx context.Context, announc
 	// attached by the composition layer through the People Directory, which
 	// picks the most recently updated person of an account with several.
 	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT DISTINCT ON (v.user_id)
-			v.user_id,
-			acc.email AS account_email,
-			acc.email AS user_name,
-			v.seen_at,
-			v.dismissed
-		FROM platform.announcement_views v
-		JOIN auth.accounts acc ON acc.id = v.user_id
-		WHERE v.announcement_id = ?
-		ORDER BY v.user_id, v.seen_at DESC
+		SELECT user_id, account_email, user_name, seen_at, dismissed
+		FROM (
+			SELECT DISTINCT ON (v.user_id)
+				v.user_id,
+				acc.email AS account_email,
+				acc.email AS user_name,
+				v.seen_at,
+				v.dismissed
+			FROM platform.announcement_views v
+			JOIN auth.accounts acc ON acc.id = v.user_id
+			WHERE v.announcement_id = ?
+			ORDER BY v.user_id, v.seen_at DESC
+		) AS latest_view
+		ORDER BY seen_at DESC
 	`, announcementID).Scan(ctx, &details)
 
 	if err != nil {

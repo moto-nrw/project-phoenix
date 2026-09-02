@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -12,6 +13,8 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
+
+const maxStatusDayOverviewRows = 10_000
 
 type statusDayOverviewPeople interface {
 	GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
@@ -74,13 +77,16 @@ func (s *StudentStatusDayOverviewService) GetOverview(ctx context.Context, group
 	if err != nil {
 		return nil, err
 	}
+	if total > maxStatusDayOverviewRows {
+		return nil, fmt.Errorf("status day overview exceeds %d rows; narrow the date range or group selection", maxStatusDayOverviewRows)
+	}
 	// The stable date/name order needs the person names, which live with
 	// the People Directory (#2661): list the filtered set unpaginated, order
 	// it here, then take the requested page.
 	//
-	// Ceiling: the whole filtered window is loaded per request. Overview
-	// windows are date-bounded, so this stays in the hundreds of rows; a far
-	// larger window should page by student instead of by name.
+	// The whole filtered window is loaded per request to apply the stable name
+	// order before pagination. The count above caps this enrichment at 10,000
+	// rows; larger requests must be narrowed by date range or group selection.
 	unpaginated := *options
 	unpaginated.Pagination = nil
 	rows, err := s.repo.ListOverviewWithOptions(ctx, &unpaginated)

@@ -260,15 +260,7 @@ func newUsersResource(module peopleModule.Capability, repoFactory *repositories.
 				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
 			}
 		},
-		// The equality-filter listings distinguish "absent" from "failed"
-		// without the root having to classify repository errors.
-		AccountEmail: func(ctx context.Context, accountID int64) (string, bool, error) {
-			accounts, err := repoFactory.Account.List(ctx, map[string]any{"id": accountID})
-			if err != nil || len(accounts) == 0 {
-				return "", false, err
-			}
-			return accounts[0].Email, true, nil
-		},
+		AccountEmails: repoFactory.Account.FindEmailsByAccountIDs,
 		TagExists: func(ctx context.Context, tagID string) (bool, error) {
 			cards, err := repoFactory.RFIDCard.List(ctx, map[string]any{"id": tagID})
 			if err != nil {

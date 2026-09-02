@@ -103,6 +103,7 @@ type harness struct {
 	router    chi.Router
 	observed  []string
 	accounts  map[int64]string
+	lookups   [][]int64
 	tags      map[string]bool
 	permitted map[string]bool
 	txCalls   int
@@ -156,9 +157,15 @@ func newHarness(t *testing.T, directory *fakeDirectory) *harness {
 		Failure: func(w http.ResponseWriter, r *http.Request, kind usersHTTP.FailureKind, err error) {
 			_ = render.Render(w, r, errorResponse{StatusCode: statusOf[kind], Status: "error", Kind: string(kind), Error: err.Error()})
 		},
-		AccountEmail: func(_ context.Context, id int64) (string, bool, error) {
-			email, ok := h.accounts[id]
-			return email, ok, nil
+		AccountEmails: func(_ context.Context, ids []int64) (map[int64]string, error) {
+			h.lookups = append(h.lookups, ids)
+			emails := make(map[int64]string, len(ids))
+			for _, id := range ids {
+				if email, found := h.accounts[id]; found {
+					emails[id] = email
+				}
+			}
+			return emails, nil
 		},
 		TagExists: func(_ context.Context, tag string) (bool, error) { return h.tags[tag], nil },
 		ObserveResponse: func(status int, code string) {
@@ -205,10 +212,15 @@ func TestListPersonsForwardsFiltersAndPaginates(t *testing.T) {
 	t.Parallel()
 	tag := "ABC"
 	var accountID int64 = 99
-	directory := &fakeDirectory{persons: map[int64]peopledirectory.Person{7: {ID: 7, FirstName: "Mia", LastName: "Muster", TagID: &tag, AccountID: &accountID}}}
+	var secondAccountID int64 = 100
+	directory := &fakeDirectory{persons: map[int64]peopledirectory.Person{
+		7: {ID: 7, FirstName: "Mia", LastName: "Muster", TagID: &tag, AccountID: &accountID},
+		8: {ID: 8, FirstName: "Noah", LastName: "Muster", AccountID: &secondAccountID},
+	}}
 	h := newHarness(t, directory)
 	h.permitted["users:read"] = true
 	h.accounts[accountID] = "mia@example.com"
+	h.accounts[secondAccountID] = "noah@example.com"
 
 	recorder := h.do(t, http.MethodGet, "/users?first_name=Mi&last_name=Mu&tag_id=ABC", nil)
 
@@ -216,9 +228,12 @@ func TestListPersonsForwardsFiltersAndPaginates(t *testing.T) {
 	assert.Equal(t, peopledirectory.PersonFilter{FirstNamePrefix: "Mi", LastNamePrefix: "Mu", TagID: "ABC", Page: 1, PageSize: 20}, directory.searched)
 	body := decode(t, recorder)
 	require.NotNil(t, body.Pagination)
-	assert.Equal(t, 1, body.Pagination.Total)
+	assert.Equal(t, 2, body.Pagination.Total)
 	assert.Contains(t, string(body.Data), `"tag_id":"ABC"`)
 	assert.Contains(t, string(body.Data), `"email":"mia@example.com"`)
+	assert.Contains(t, string(body.Data), `"email":"noah@example.com"`)
+	require.Len(t, h.lookups, 1)
+	assert.ElementsMatch(t, []int64{accountID, secondAccountID}, h.lookups[0])
 	assert.Equal(t, 1, h.txCalls, "the protected group wraps the handler in the injected transaction middleware")
 }
 

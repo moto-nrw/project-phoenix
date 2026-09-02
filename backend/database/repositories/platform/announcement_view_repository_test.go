@@ -96,6 +96,29 @@ func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 		assert.Equal(t, "orphan@example.com", orphanDetail.UserName)
 	})
 
+	t.Run("orders viewers by most recent view", func(t *testing.T) {
+		olderAccountID := createTestAccount(t, db, "older@example.com")
+		newerAccountID := createTestAccount(t, db, "newer@example.com")
+		require.NoError(t, viewRepo.MarkSeen(ctx, olderAccountID, announcement.ID))
+		require.NoError(t, viewRepo.MarkSeen(ctx, newerAccountID, announcement.ID))
+
+		newer := time.Now().Add(time.Hour)
+		_, err := db.NewRaw(`
+			UPDATE platform.announcement_views
+			SET seen_at = CASE user_id
+				WHEN ? THEN ?
+				WHEN ? THEN ?
+			END
+			WHERE announcement_id = ? AND user_id IN (?, ?)
+		`, olderAccountID, newer.Add(-time.Hour), newerAccountID, newer, announcement.ID, olderAccountID, newerAccountID).Exec(ctx)
+		require.NoError(t, err)
+
+		details, err := viewRepo.GetViewDetails(ctx, announcement.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, details)
+		assert.Equal(t, newerAccountID, details[0].UserID)
+	})
+
 }
 
 // Test helpers
