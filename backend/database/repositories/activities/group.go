@@ -1360,8 +1360,9 @@ func (r *GroupRepository) dynamicTargetPairs(ctx context.Context, templateIDs []
 	if err != nil {
 		return nil, nil, err
 	}
+	matches := matchTargetStudents(targets, enrolled, nil)
 	for _, templateID := range templateIDs {
-		for _, studentID := range matchTargetStudents(targets, enrolled, nil)[templateID] {
+		for _, studentID := range matches[templateID] {
 			templates = append(templates, templateID)
 			students = append(students, studentID)
 		}

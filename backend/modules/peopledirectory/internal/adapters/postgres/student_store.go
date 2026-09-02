@@ -49,7 +49,7 @@ func (s *StudentStore) ListByIDs(ctx context.Context, ids []int64) ([]domain.Stu
 	}
 	rows := []studentRow{}
 	query := withStudentTenant(studentSelect(db, &rows).Where(`"student".id IN (?)`, bun.List(ids)), tenantID)
-	return scanStudents(ctx, rows, query.OrderExpr(`"student".id ASC`), "list students by id")
+	return scanStudents(ctx, &rows, query.OrderExpr(`"student".id ASC`), "list students by id")
 }
 
 func (s *StudentStore) ListByClasses(ctx context.Context, classes []string) ([]domain.Student, domain.OperationStats, error) {
@@ -61,7 +61,7 @@ func (s *StudentStore) ListByClasses(ctx context.Context, classes []string) ([]d
 	query := withStudentTenant(studentSelect(db, &rows).
 		Where(`"student".school_class IN (?)`, bun.List(classes)).
 		Where(`"student".status <> ?`, domain.StudentStatusAlumnus), tenantID)
-	return scanStudents(ctx, rows, query.OrderExpr(`"student".school_class ASC, "student".id ASC`), "list students by class")
+	return scanStudents(ctx, &rows, query.OrderExpr(`"student".school_class ASC, "student".id ASC`), "list students by class")
 }
 
 func (s *StudentStore) ListEnrolled(ctx context.Context) ([]domain.Student, domain.OperationStats, error) {
@@ -75,7 +75,7 @@ func (s *StudentStore) ListEnrolled(ctx context.Context) ([]domain.Student, doma
 	rows := []studentRow{}
 	query := withStudentTenant(studentSelect(db, &rows).
 		Where(`"student".status <> ?`, domain.StudentStatusAlumnus), tenantID)
-	return scanStudents(ctx, rows, query.OrderExpr(`"student".id ASC`), "list enrolled students")
+	return scanStudents(ctx, &rows, query.OrderExpr(`"student".id ASC`), "list enrolled students")
 }
 
 func (s *StudentStore) ListClasses(ctx context.Context) ([]string, domain.OperationStats, error) {
@@ -123,7 +123,7 @@ func (s *StudentStore) ListByStatusFlag(ctx context.Context, status string) ([]d
 	default:
 		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: unsupported student status flag %q", status)
 	}
-	return scanStudents(ctx, rows, query.OrderExpr(`"student".id ASC`), "list students with status flag")
+	return scanStudents(ctx, &rows, query.OrderExpr(`"student".id ASC`), "list students with status flag")
 }
 
 // Lock takes the student row FOR UPDATE. It is the first lock every care-day
@@ -286,16 +286,16 @@ func execStudents(ctx context.Context, query *bun.UpdateQuery, operation string)
 	return stats.Rows, stats, nil
 }
 
-func scanStudents(ctx context.Context, rows []studentRow, query *bun.SelectQuery, operation string) ([]domain.Student, domain.OperationStats, error) {
+func scanStudents(ctx context.Context, rows *[]studentRow, query *bun.SelectQuery, operation string) ([]domain.Student, domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err := query.Scan(ctx, &rows)
+	err := query.Scan(ctx, rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, stats, fmt.Errorf("people directory postgres: %s: %w", operation, err)
 	}
-	result := make([]domain.Student, 0, len(rows))
-	for _, row := range rows {
+	result := make([]domain.Student, 0, len(*rows))
+	for _, row := range *rows {
 		result = append(result, toStudent(row))
 	}
 	return result, stats, nil
