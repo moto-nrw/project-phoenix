@@ -946,15 +946,20 @@ type activityEndSSEData struct {
 // queries when there is a broadcaster to deliver the event to. Without the
 // name repositories (the shape unit tests build) the event carries empty
 // names, as broadcastActivityEndEvent always did on a failed lookup.
-func (s *service) collectActivityEndSSE(ctx context.Context, group *active.Group) activityEndSSEData {
+func (s *service) collectActivityEndSSE(ctx context.Context, group *active.Group) (activityEndSSEData, error) {
 	if s.Broadcaster == nil || s.RoomRepo == nil || s.ActivityGroupRepo == nil {
-		return activityEndSSEData{RoomID: group.RoomID}
+		return activityEndSSEData{RoomID: group.RoomID}, nil
 	}
-	return activityEndSSEData{
-		RoomID:       group.RoomID,
-		ActivityName: s.getActivityName(ctx, group.GroupID),
-		RoomName:     s.getRoomName(ctx, group.RoomID),
+
+	activityName, err := s.getActivityEndActivityName(ctx, group.GroupID)
+	if err != nil {
+		return activityEndSSEData{}, err
 	}
+	roomName, err := s.getActivityEndRoomName(ctx, group.RoomID)
+	if err != nil {
+		return activityEndSSEData{}, err
+	}
+	return activityEndSSEData{RoomID: group.RoomID, ActivityName: activityName, RoomName: roomName}, nil
 }
 
 func (s *service) endActivitySessionLocked(ctx context.Context, group *active.Group) (sessionEndSSEData, error) {
@@ -981,7 +986,11 @@ func (s *service) endActivitySessionLocked(ctx context.Context, group *active.Gr
 	if err := s.GroupRepo.EndSession(ctx, activeGroupID); err != nil {
 		return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: err}
 	}
-	return sessionEndSSEData{Visits: visitsToNotify, End: s.collectActivityEndSSE(ctx, group)}, nil
+	endData, err := s.collectActivityEndSSE(ctx, group)
+	if err != nil {
+		return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: err}
+	}
+	return sessionEndSSEData{Visits: visitsToNotify, End: endData}, nil
 }
 
 func (s *service) endActiveSupervisors(ctx context.Context, activeGroupID int64) error {
@@ -1182,12 +1191,17 @@ func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) 
 		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
+	endData, err := s.collectActivityEndSSE(ctx, session)
+	if err != nil {
+		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+
 	return &TimeoutResult{
 		SessionID:          sessionID,
 		ActivityID:         session.GroupID,
 		StudentsCheckedOut: studentsCheckedOut,
 		TimeoutAt:          time.Now(),
-	}, s.collectActivityEndSSE(ctx, session), nil
+	}, endData, nil
 }
 
 // runInSessionTx runs fn inside a transaction, joining the caller's when one is

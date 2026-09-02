@@ -2,6 +2,7 @@ package active_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -28,18 +30,39 @@ func (w *recordingGuardianWaker) BroadcastChildUpdateToGuardians(_ int64, studen
 	w.studentIDs = append(w.studentIDs, studentID)
 }
 
+type transactionFailingRoomRepo struct {
+	facilityModels.RoomRepository
+}
+
+func (r transactionFailingRoomRepo) FindByID(ctx context.Context, _ any) (*facilityModels.Room, error) {
+	rawTx, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
+		return nil, errors.New("room lookup must run in a transaction")
+	}
+	tx, ok := rawTx.(bun.Tx)
+	if !ok {
+		return nil, errors.New("room lookup transaction has unexpected type")
+	}
+	_, err := tx.ExecContext(ctx, "SELECT 1 / 0")
+	return nil, err
+}
+
 func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 	return newServiceWithBroadcaster(t, testpkg.SetupTestDB(t))
 }
 
-func newServiceWithBroadcaster(t *testing.T, db *bun.DB) (active.Service, *testpkg.RecordingBroadcaster) {
+func newServiceWithBroadcaster(
+	t *testing.T,
+	db *bun.DB,
+	configure ...func(*active.ServiceDependencies),
+) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
 	repos := repositories.NewFactory(db)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{
+	deps := active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
 		SessionStartLock:   repos.SessionStartLock,
 		VisitRepo:          repos.ActiveVisit,
@@ -59,7 +82,11 @@ func newServiceWithBroadcaster(t *testing.T, db *bun.DB) (active.Service, *testp
 		DB:                 db,
 		Broadcaster:        broadcaster,
 		Logger:             slog.Default(),
-	})
+	}
+	for _, apply := range configure {
+		apply(&deps)
+	}
+	svc := active.NewService(deps)
 
 	return svc, broadcaster
 }
@@ -310,6 +337,7 @@ func TestBroadcast_EndActivitySessionEmitsActivityEndOnServeRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	serveDB := testpkg.SetupServeTestDB(t)
+	t.Cleanup(func() { assert.NoError(t, serveDB.Close()) })
 	svc, broadcaster := newServiceWithBroadcaster(t, serveDB)
 
 	room := testpkg.CreateTestRoom(t, db, "Serve Role End Room")
@@ -335,6 +363,32 @@ func TestBroadcast_EndActivitySessionEmitsActivityEndOnServeRole(t *testing.T) {
 	refreshes := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
 	require.Len(t, refreshes, 2, "batch checkout and activity end each emit one refresh")
 	assert.Equal(t, "activity_ended", *refreshes[1].Event.Data.Reason)
+}
+
+func TestBroadcast_EndActivitySessionKeepsBusinessTxOnOptionalSSELookupError(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	svc, broadcaster := newServiceWithBroadcaster(t, db, func(deps *active.ServiceDependencies) {
+		deps.RoomRepo = transactionFailingRoomRepo{RoomRepository: deps.RoomRepo}
+	})
+
+	room := testpkg.CreateTestRoom(t, db, "Optional SSE Lookup Room")
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "optional-sse-lookup")
+	session := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+	broadcaster.Reset()
+
+	require.NoError(t, svc.EndActivitySession(testpkg.Ctx(t), session.ID))
+
+	ended, err := repositories.NewFactory(db).ActiveGroup.FindByID(testpkg.Ctx(t), session.ID)
+	require.NoError(t, err)
+	require.NotNil(t, ended)
+	assert.False(t, ended.IsActive(), "optional SSE lookup failure must not roll back the session end")
+
+	ends := broadcaster.EventsOfType(realtime.EventActivityEnd)
+	require.Len(t, ends, 1)
+	assert.Equal(t, activityGroup.Name, *ends[0].Data.ActivityName)
+	assert.Empty(t, *ends[0].Data.RoomName)
 }
 
 // TestBroadcast_EndActivitySessionBatchesCheckouts verifies the issue #848 fix:

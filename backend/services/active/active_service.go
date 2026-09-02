@@ -1216,44 +1216,103 @@ func (s *service) broadcastWithLogging(ctx context.Context, activeGroupID, stude
 	}
 }
 
-// getActivityName retrieves the activity name by group ID, returning empty string on error.
-// A nil groupID marks a spontaneous session (WP-B6): there is no template to look up,
-// so we return an empty name and leave the display decision to the caller.
-// A failed lookup is logged: the SSE event still goes out, but a silent empty
-// name hid the broken lookup behind #2951 for a whole deploy.
-func (s *service) getActivityName(ctx context.Context, groupID *int64) string {
+func (s *service) findActivityName(ctx context.Context, groupID *int64) (string, error) {
 	if groupID == nil {
-		return ""
+		return "", nil
 	}
 	activity, err := s.ActivityGroupRepo.FindByID(ctx, *groupID)
+	if err != nil {
+		return "", err
+	}
+	if activity == nil {
+		return "", nil
+	}
+	return activity.Name, nil
+}
+
+func (s *service) findRoomName(ctx context.Context, roomID int64) (string, error) {
+	room, err := s.RoomRepo.FindByID(ctx, roomID)
+	if err != nil {
+		return "", err
+	}
+	if room == nil {
+		return "", nil
+	}
+	return room.Name, nil
+}
+
+// getActivityName retrieves an activity name for an SSE event. A nil groupID
+// marks a spontaneous session (WP-B6), which has no template to look up.
+func (s *service) getActivityName(ctx context.Context, groupID *int64) string {
+	name, err := s.findActivityName(ctx, groupID)
 	if err != nil {
 		s.getLogger().Warn("SSE activity name lookup failed",
 			slog.Int64("activity_group_id", *groupID),
 			slog.String("error", err.Error()),
 		)
-		return ""
 	}
-	if activity == nil {
-		return ""
-	}
-	return activity.Name
+	return name
 }
 
-// getRoomName retrieves the room name by room ID, returning empty string on error.
-// A failed lookup is logged for the same reason as in getActivityName.
+// getRoomName retrieves a room name for an SSE event.
 func (s *service) getRoomName(ctx context.Context, roomID int64) string {
-	room, err := s.RoomRepo.FindByID(ctx, roomID)
+	name, err := s.findRoomName(ctx, roomID)
 	if err != nil {
 		s.getLogger().Warn("SSE room name lookup failed",
 			slog.Int64("room_id", roomID),
 			slog.String("error", err.Error()),
 		)
-		return ""
 	}
-	if room == nil {
-		return ""
+	return name
+}
+
+// getActivityEndActivityName keeps an optional lookup from aborting the
+// session-ending transaction. PostgreSQL marks a transaction failed after a
+// query error, so the lookup has to use a savepoint before it can be ignored.
+func (s *service) getActivityEndActivityName(ctx context.Context, groupID *int64) (string, error) {
+	if groupID == nil {
+		return "", nil
 	}
-	return room.Name
+	return s.getActivityEndName(ctx, func(ctx context.Context) (string, error) {
+		return s.findActivityName(ctx, groupID)
+	}, "SSE activity name lookup failed", slog.Int64("activity_group_id", *groupID))
+}
+
+func (s *service) getActivityEndRoomName(ctx context.Context, roomID int64) (string, error) {
+	return s.getActivityEndName(ctx, func(ctx context.Context) (string, error) {
+		return s.findRoomName(ctx, roomID)
+	}, "SSE room name lookup failed", slog.Int64("room_id", roomID))
+}
+
+func (s *service) getActivityEndName(
+	ctx context.Context,
+	lookup func(context.Context) (string, error),
+	message string,
+	attrs slog.Attr,
+) (string, error) {
+	var name string
+	lookupFn := func(lookupCtx context.Context) error {
+		var err error
+		name, err = lookup(lookupCtx)
+		return err
+	}
+
+	if _, inTx := tenant.TransactionFromContext(ctx); inTx {
+		if err := tenant.WithSavepoint(ctx, lookupFn); err != nil {
+			if errors.Is(err, tenant.ErrSavepointControl) {
+				return "", err
+			}
+			s.getLogger().LogAttrs(ctx, slog.LevelWarn, message, attrs, slog.String("error", err.Error()))
+			return "", nil
+		}
+		return name, nil
+	}
+
+	if err := lookupFn(ctx); err != nil {
+		s.getLogger().LogAttrs(ctx, slog.LevelWarn, message, attrs, slog.String("error", err.Error()))
+		return "", nil
+	}
+	return name, nil
 }
 
 func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error) {
