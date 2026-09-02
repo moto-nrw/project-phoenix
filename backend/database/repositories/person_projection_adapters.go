@@ -37,6 +37,9 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if f.FileFolder != nil {
 		f.FileFolder = personFolderRepository{FolderRepository: f.FileFolder, persons: persons}
 	}
+	if f.GradeTransition != nil {
+		f.GradeTransition = personGradeTransitionRepository{GradeTransitionRepository: f.GradeTransition, persons: persons}
+	}
 }
 
 // personsByID resolves the non-deleted persons for ids through the owner

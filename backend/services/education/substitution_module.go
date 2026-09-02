@@ -44,8 +44,10 @@ type ActiveSupervisorCreator interface {
 }
 
 type SubstitutionDependencies struct {
-	Groups                  GroupStore
-	Substitutions           GroupHandoverStore
+	Groups        GroupStore
+	Substitutions GroupHandoverStore
+	// Persons resolves the staff names the overview shows (#2661).
+	Persons                 PersonQuery
 	Teachers                userModels.TeacherRepository
 	Staff                   StaffLockStore
 	Actors                  ActorResolver
@@ -187,7 +189,14 @@ func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int6
 		filter.GreaterThanOrEqual("end_date", today)
 	}
 	options.Filter = filter
-	return s.deps.Substitutions.ListWithRelations(ctx, options)
+	rows, err := s.deps.Substitutions.ListWithRelations(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	if err := attachSubstitutionPersons(ctx, s.deps.Persons, rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 func (s *substitutionModule) projectOverview(ctx context.Context, tenantID int64, access substitutionAccess, rows []*educationModels.GroupSubstitution, includeTargets bool) (*OverviewResult, error) {

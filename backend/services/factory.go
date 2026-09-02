@@ -1748,7 +1748,7 @@ func newFactory(
 		SSESettings:        settingsService,
 	}, usercontextLogger)
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
-		Groups: repos.Group, Substitutions: repos.GroupSubstitution,
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Persons: newEducationPersonQuery(persons),
 		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,

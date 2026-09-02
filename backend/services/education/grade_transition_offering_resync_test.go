@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -71,7 +70,7 @@ func TestGradeTransitionService_ApplyAndRevert_ArchiveBracketsOfferingResync(t *
 
 	log := make([]string, 0, 5)
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo:   educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo:   newGradeTransitionRepository(t, db),
 		StudentRepo:      usersRepo.NewStudentRepository(db),
 		PersonRepo:       usersRepo.NewPersonRepository(db),
 		VisitRepo:        activeRepo.NewVisitRepository(db),
@@ -112,7 +111,7 @@ func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *t
 	db := testpkg.SetupTestDB(t)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo: educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo: newGradeTransitionRepository(t, db),
 		StudentRepo:    usersRepo.NewStudentRepository(db),
 		PersonRepo:     usersRepo.NewPersonRepository(db),
 		VisitRepo:      activeRepo.NewVisitRepository(db),
