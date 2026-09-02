@@ -12,7 +12,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-const tenantBatchSize = 25
+const (
+	tenantBatchSize               = 25
+	maxRepresentativeTenantErrors = 3
+)
 
 // TenantCommand is the public command boundary used by tenant-scoped jobs.
 // The scheduler owns cadence, batching, transactions, and observations; the
@@ -71,7 +74,8 @@ const (
 	TenantOutcomeCancelled      TenantOutcomeClassification = "cancelled"
 )
 
-// TenantBatchResult reports every attempted tenant without hiding failures.
+// TenantBatchResult reports every attempted tenant. Outcomes retain full
+// failure detail; Err contains a bounded representative sample for job telemetry.
 type TenantBatchResult struct {
 	Outcomes []TenantOutcome
 	Batches  int
@@ -115,6 +119,30 @@ type tenantBatchExecution struct {
 	evidence  TenantBatchEvidence
 	err       error
 	cancelled bool
+}
+
+type representativeTenantErrors struct {
+	errors  []error
+	omitted int
+}
+
+func (failures *representativeTenantErrors) add(err error) {
+	if err == nil {
+		return
+	}
+	if len(failures.errors) == maxRepresentativeTenantErrors {
+		failures.omitted++
+		return
+	}
+	failures.errors = append(failures.errors, err)
+}
+
+func (failures representativeTenantErrors) result() error {
+	result := errors.Join(failures.errors...)
+	if result == nil || failures.omitted == 0 {
+		return result
+	}
+	return fmt.Errorf("%w; %d additional tenant failures omitted", result, failures.omitted)
 }
 
 type jobCommandFailures struct {
@@ -168,6 +196,7 @@ func (s *Scheduler) runTenantBatches(
 	command TenantCommand,
 ) TenantBatchResult {
 	result := TenantBatchResult{Outcomes: make([]TenantOutcome, 0, len(tenantIDs))}
+	failures := representativeTenantErrors{}
 	stableJobID := workerJobID(ctx, JobID(jobID))
 	if command == nil || isNilDependency(command) {
 		result.Err = errors.New("tenant command is required")
@@ -180,13 +209,18 @@ func (s *Scheduler) runTenantBatches(
 	tenantIDs = s.resumeTenantIDs(stableJobID, tenantIDs)
 	for tenantBatch := range slices.Chunk(tenantIDs, tenantBatchSize) {
 		if err := ctx.Err(); err != nil {
-			result.Err = errors.Join(result.Err, err)
+			failures.add(err)
 			break
 		}
 
-		batch := s.runTenantBatch(ctx, tenantBatch, stableJobID, jobID, command)
+		batch := s.runTenantBatch(ctx, tenantBatch, stableJobID, command)
 		result.Outcomes = append(result.Outcomes, batch.outcomes...)
-		result.Err = errors.Join(result.Err, batch.err)
+		failures.add(batch.err)
+		for _, outcome := range batch.outcomes {
+			if outcome.Err != nil {
+				failures.add(fmt.Errorf("%s tenant %d: %w", jobID, outcome.TenantID, outcome.Err))
+			}
+		}
 		result.Batches++
 		batch.evidence.Backlog = len(tenantIDs) - len(result.Outcomes)
 		s.observeTenantBatch(batch.evidence)
@@ -197,6 +231,7 @@ func (s *Scheduler) runTenantBatches(
 	}
 
 	result.Backlog = len(tenantIDs) - len(result.Outcomes)
+	result.Err = failures.result()
 	if result.Batches == 0 {
 		s.observeTenantBacklog(stableJobID, result.Backlog)
 	}
@@ -208,7 +243,6 @@ func (s *Scheduler) runTenantBatch(
 	ctx context.Context,
 	tenantIDs []int64,
 	jobID JobID,
-	operation string,
 	command TenantCommand,
 ) tenantBatchExecution {
 	started := time.Now()
@@ -225,9 +259,6 @@ func (s *Scheduler) runTenantBatch(
 		}
 		outcome := s.runTenantCommand(ctx, jobID, tenantID, command, runtimeEvidence)
 		batch.outcomes = append(batch.outcomes, outcome)
-		if outcome.Err != nil {
-			batch.err = errors.Join(batch.err, fmt.Errorf("%s tenant %d: %w", operation, tenantID, outcome.Err))
-		}
 	}
 
 	retries, poolWait := runtimeEvidence.snapshot()

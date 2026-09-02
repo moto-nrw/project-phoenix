@@ -49,6 +49,33 @@ func TestTenantBatchesBoundWorkAndPreserveEveryOutcome(t *testing.T) {
 	assert.Equal(t, []int{tenantBatchSize + 1, 1, 0}, []int{evidence[0].Backlog, evidence[1].Backlog, evidence[2].Backlog})
 }
 
+func TestTenantBatchErrorsKeepOnlyRepresentativeFailures(t *testing.T) {
+	t.Parallel()
+
+	scheduler := newTenantBatchTestScheduler(t, func(error) bool { return false })
+	failures := []error{
+		errors.New("tenant failure 1"),
+		errors.New("tenant failure 2"),
+		errors.New("tenant failure 3"),
+		errors.New("tenant failure 4"),
+		errors.New("tenant failure 5"),
+	}
+	tenantIDs := []int64{71, 72, 73, 74, 75}
+
+	result := scheduler.runTenantBatches(context.Background(), tenantIDs, "bounded-errors", TenantCommandFunc(func(_ context.Context, tenantID tenant.TenantID) error {
+		return failures[tenantID.Int64()-tenantIDs[0]]
+	}))
+
+	assert.Len(t, result.Outcomes, len(failures))
+	for _, failure := range failures[:3] {
+		assert.ErrorIs(t, result.Err, failure)
+	}
+	for _, failure := range failures[3:] {
+		assert.NotErrorIs(t, result.Err, failure)
+	}
+	assert.ErrorContains(t, result.Err, "2 additional tenant failures omitted")
+}
+
 func TestTenantBatchesStopOnCancellationAndReportBacklog(t *testing.T) {
 	t.Parallel()
 
