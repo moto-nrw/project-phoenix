@@ -156,7 +156,10 @@ func TestStaffMembershipAdapter_AttachesPersonAndAccount(t *testing.T) {
 	assert.Equal(t, "Person", info.FirstName)
 }
 
-func TestStaffMembershipAdapter_IDLookupsIncludeOffboardedStaff(t *testing.T) {
+// FindByIDs keeps the legacy soft-delete filter (its callers validate live
+// supervisors and ledger staff); FindWithPersonByIDs keeps resolving
+// offboarded staff for the historical projections.
+func TestStaffMembershipAdapter_IDLookupsKeepLegacyDeletedSemantics(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -167,7 +170,7 @@ func TestStaffMembershipAdapter_IDLookupsIncludeOffboardedStaff(t *testing.T) {
 
 	byID, err := factory.Staff.FindByIDs(ctx, []int64{staff.ID})
 	require.NoError(t, err)
-	require.Contains(t, byID, staff.ID)
+	require.NotContains(t, byID, staff.ID, "FindByIDs must keep excluding offboarded staff")
 
 	withPerson, err := factory.Staff.FindWithPersonByIDs(ctx, []int64{staff.ID})
 	require.NoError(t, err)

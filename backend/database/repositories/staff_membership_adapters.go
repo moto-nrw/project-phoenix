@@ -331,7 +331,10 @@ func (r staffMembershipRepository) FindByIDs(ctx context.Context, ids []int64) (
 	if len(ids) == 0 {
 		return make(map[int64]*userModels.Staff), nil
 	}
-	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids, IncludeDeleted: true})
+	// Live rows only: the legacy query scanned the Staff model, whose
+	// soft-delete tag excluded offboarded staff, and the callers validate
+	// assignable supervisors and live ledger staff with it.
+	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids})
 	if err != nil {
 		return nil, membershipError("find by IDs", err)
 	}
@@ -346,6 +349,9 @@ func (r staffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids 
 	if len(ids) == 0 {
 		return make(map[int64]*userModels.Staff), nil
 	}
+	// Offboarded staff stay resolvable here: the legacy query scanned a plain
+	// result struct without the soft-delete filter, and the historical
+	// projections (audit log, exports) rely on that.
 	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids, IncludeDeleted: true})
 	if err != nil {
 		return nil, membershipError("find with person by IDs", err)
