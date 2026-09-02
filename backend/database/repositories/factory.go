@@ -24,7 +24,6 @@ import (
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -407,28 +406,6 @@ func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
 	}
 	f.peopleDirectoryBound = true
 	f.bindPersonProjections(capability)
-}
-
-// NewFactoryWithPeopleDirectory builds the repository factory with the
-// People Directory already bound, so repository tests read the same
-// person-enriched rows the service graph does.
-func NewFactoryWithPeopleDirectory(db *bun.DB, clocks ...func() time.Time) (*Factory, error) {
-	persons, err := NewPeopleDirectory(db)
-	if err != nil {
-		return nil, err
-	}
-	factory := NewFactory(db, clocks...)
-	factory.BindPeopleDirectory(persons)
-	return factory, nil
-}
-
-// NewPeopleDirectory composes the person owner behind the legacy
-// composition seam for test graphs and CLI roots.
-func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
-	return peopleCompose.New(peopleCompose.Dependencies{
-		DB:      db,
-		Observe: func(peopleCompose.Observation) {},
-	})
 }
 
 // NewFactory creates a new repository factory with all repositories
