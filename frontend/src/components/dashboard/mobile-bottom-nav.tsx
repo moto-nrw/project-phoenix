@@ -987,7 +987,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    ref={(el: HTMLAnchorElement | null) => {
+                    ref={(el) => {
                       navRefs.current[index] = el;
                     }}
                     aria-label={item.label}

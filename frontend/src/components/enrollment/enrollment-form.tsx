@@ -2325,7 +2325,7 @@ export function EnrollmentForm({
           <Turnstile
             siteKey={captchaConfig.site_key}
             options={{ theme: "light" }}
-            onSuccess={(token: string) => setCaptchaToken(token)}
+            onSuccess={(token) => setCaptchaToken(token)}
             onExpire={() => setCaptchaToken("")}
             onError={() => setCaptchaToken("")}
           />

@@ -168,7 +168,7 @@ export function ParentBottomNav({
                   <li key={item.key}>
                     <Link
                       href={parentPath(item.href)}
-                      ref={(el: HTMLAnchorElement | null) => {
+                      ref={(el) => {
                         navRefs.current[index] = el;
                       }}
                       data-parent-nav-item={item.key}

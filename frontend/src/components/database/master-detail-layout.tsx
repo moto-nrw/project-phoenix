@@ -89,10 +89,10 @@ export function MasterDetailLayout({
             // DismissableLayer treats every tap inside an open modal as an
             // outside-click and closes the drawer — which unmounts the modal
             // before the user can interact with it. See issue #1358.
-            onInteractOutside={(event: Event) => {
+            onInteractOutside={(event) => {
               if (isModalOpen) event.preventDefault();
             }}
-            onEscapeKeyDown={(event: KeyboardEvent) => {
+            onEscapeKeyDown={(event) => {
               if (isModalOpen) event.preventDefault();
             }}
           >

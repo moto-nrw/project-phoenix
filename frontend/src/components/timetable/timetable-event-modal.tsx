@@ -484,12 +484,12 @@ export function TimetableEventModal({
         // the slide-over, unmounting the dialog before its buttons can
         // fire. See issue #1358. `submitting` additionally blocks dismissal
         // mid-save (both the form submit and the scope flow set it).
-        onInteractOutside={(event: Event) => {
+        onInteractOutside={(event) => {
           if (isModalOpen || choiceDialogOpen || submitting) {
             event.preventDefault();
           }
         }}
-        onEscapeKeyDown={(event: KeyboardEvent) => {
+        onEscapeKeyDown={(event) => {
           if (isModalOpen || choiceDialogOpen || submitting) {
             event.preventDefault();
           }

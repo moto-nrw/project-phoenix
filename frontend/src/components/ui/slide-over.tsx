@@ -156,16 +156,16 @@ const SlideOverOverlay = React.forwardRef<
 ));
 SlideOverOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
-type SlideOverContentProps = React.ComponentPropsWithoutRef<
+interface SlideOverContentProps extends React.ComponentPropsWithoutRef<
   typeof DrawerPrimitive.Content
-> & {
+> {
   /**
    * Panel width on desktop. Default 420px matches the timetable mockup.
    * Ignoriert, solange das Panel als Blatt von unten läuft (< sm) — dort ist
    * es immer volle Breite.
    */
   widthClass?: string;
-};
+}
 
 const SlideOverContent = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Content>,
