@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
@@ -23,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -50,6 +52,7 @@ import (
 type Factory struct {
 	db                       *bun.DB
 	organizationTenancyBound bool
+	schoolStructureBound     bool
 
 	// Auth domain
 	Account                authModels.AccountRepository
@@ -166,6 +169,7 @@ type Factory struct {
 	ActiveGroup      activeModels.GroupRepository
 	ActiveVisit      activeModels.VisitRepository
 	GroupSupervisor  activeModels.GroupSupervisorRepository
+	CrossTenant      CrossTenantQuery
 	CombinedGroup    activeModels.CombinedGroupRepository
 	GroupMapping     activeModels.GroupMappingRepository
 	Attendance       activeModels.AttendanceRepository
@@ -393,6 +397,41 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 	})
 }
 
+// BindSchoolStructure replaces the group-enriched legacy adapters with
+// compositions over the public School Structure query, so no repository
+// outside the owner reads education.groups itself.
+func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
+	if groups == nil {
+		panic("repository factory: school structure query is required")
+	}
+	if f.schoolStructureBound {
+		return
+	}
+	f.schoolStructureBound = true
+	if f.Student != nil {
+		f.Student = groupStudentRepository{StudentRepository: f.Student, groups: groups}
+	}
+	if f.ActiveVisit != nil {
+		f.ActiveVisit = groupVisitRepository{VisitRepository: f.ActiveVisit, groups: groups}
+	}
+	if f.GroupSupervisor != nil {
+		f.GroupSupervisor = groupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, groups: groups}
+	}
+	if f.CrossTenant != nil {
+		f.CrossTenant = groupCrossTenantRepository{CrossTenantQuery: f.CrossTenant, groups: groups}
+	}
+	if f.ActivityGroup != nil {
+		withTargets, ok := f.ActivityGroup.(activityGroupTargets)
+		if !ok {
+			panic(fmt.Sprintf("repository factory: activity group repository %T must also serve group targets", f.ActivityGroup))
+		}
+		f.ActivityGroup = groupActivityGroupRepository{activityGroupTargets: withTargets, groups: groups}
+	}
+	if f.ParentMessageRead != nil {
+		f.ParentMessageRead = groupParentMessageReadRepository{ParentMessageReadRepository: f.ParentMessageRead, groups: groups}
+	}
+}
+
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	var now func() time.Time
@@ -535,6 +574,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ActiveGroup:                     active.NewGroupRepository(db),
 		ActiveVisit:                     active.NewVisitRepository(db),
 		GroupSupervisor:                 groupSupervisor,
+		CrossTenant:                     active.NewCrossTenantRepository(db),
 		CombinedGroup:                   active.NewCombinedGroupRepository(db),
 		GroupMapping:                    active.NewGroupMappingRepository(db),
 		Attendance:                      attendance,

@@ -75,10 +75,8 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
 		ColumnExpr(`"person".birthday AS birthday`).
 		ColumnExpr(`"student".group_id AS group_id`).
-		ColumnExpr(`COALESCE("group".name, '') AS group_name`).
 		ColumnExpr(`"student".school_class AS school_class`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Where(`"person".birthday IS NOT NULL`).
 		Where(`"person".deleted_at IS NULL`).
 		// Graduation is the students table's soft delete: the row keeps

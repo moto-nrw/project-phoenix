@@ -10,6 +10,7 @@ package active
 type CrossTenantStudent struct {
 	StudentID    int64  `json:"student_id"`
 	HomeTenantID int64  `json:"-"`
+	GroupID      *int64 `json:"-"`
 	FirstName    string `json:"first_name"`
 	LastName     string `json:"last_name"`
 	GroupName    string `json:"group_name"`
