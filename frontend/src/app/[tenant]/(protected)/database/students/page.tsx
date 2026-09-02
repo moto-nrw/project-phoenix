@@ -737,7 +737,7 @@ function StudentsPageContent() {
                       {
                         label: "Jahrgangswechsel",
                         icon: <GraduationCap className="h-4 w-4" aria-hidden />,
-                        href: "/database/grade-transitions",
+                        href: tenantPath("/database/grade-transitions"),
                         // Navigation only: OverflowMenu verlangt onClick auch bei href.
                         onClick: () => undefined,
                       },

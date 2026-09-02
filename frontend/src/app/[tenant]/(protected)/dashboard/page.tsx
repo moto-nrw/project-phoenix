@@ -183,7 +183,7 @@ function DashboardContent() {
             />
           }
           loading={isLoading}
-          href="/students/search"
+          href={tenantPath("/students/search")}
         />
         {showRoomSurfaces ? (
           <>
@@ -197,7 +197,7 @@ function DashboardContent() {
                 />
               }
               loading={isLoading}
-              href="/students/search"
+              href={tenantPath("/students/search")}
             />
             <StatCard
               label="Unterwegs"
@@ -209,7 +209,7 @@ function DashboardContent() {
                 />
               }
               loading={isLoading}
-              href="/students/search?status=unterwegs"
+              href={tenantPath("/students/search?status=unterwegs")}
             />
           </>
         ) : null}
@@ -223,7 +223,7 @@ function DashboardContent() {
             />
           }
           loading={isLoading}
-          href="/students/search?status=schulhof"
+          href={tenantPath("/students/search?status=schulhof")}
         />
         <StatCard
           label="Krank"
@@ -235,7 +235,7 @@ function DashboardContent() {
             />
           }
           loading={isLoading}
-          href="/students/search?status=krank"
+          href={tenantPath("/students/search?status=krank")}
         />
         <StatCard
           label="Entschuldigt"
@@ -247,7 +247,7 @@ function DashboardContent() {
             />
           }
           loading={isLoading}
-          href="/students/search?status=entschuldigt"
+          href={tenantPath("/students/search?status=entschuldigt")}
         />
         <StatCard
           label="Zuhause"
@@ -259,7 +259,7 @@ function DashboardContent() {
             />
           }
           loading={isLoading}
-          href="/students/search?status=abwesend"
+          href={tenantPath("/students/search?status=abwesend")}
         />
         {showActivitySurfaces ? (
           <StatCard
@@ -272,7 +272,7 @@ function DashboardContent() {
               />
             }
             loading={isLoading}
-            href="/activities"
+            href={tenantPath("/activities")}
           />
         ) : null}
         {showRoomSurfaces ? (
@@ -400,7 +400,7 @@ function DashboardContent() {
           <ListCard
             title="Laufende Aktivitäten"
             concept="activities"
-            href="/activities"
+            href={tenantPath("/activities")}
           >
             {(() => {
               if (isLoading) {
@@ -463,7 +463,11 @@ function DashboardContent() {
 
         {/* Active Groups */}
         {!openCareGroupMode ? (
-          <ListCard title="Aktive Gruppen" concept="groups" href="/ogs-groups">
+          <ListCard
+            title="Aktive Gruppen"
+            concept="groups"
+            href={tenantPath("/ogs-groups")}
+          >
             {(() => {
               if (isLoading) {
                 // Mirrors the loaded row: rounded-xl p-3, name + meta line
