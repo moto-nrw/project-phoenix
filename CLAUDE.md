@@ -194,6 +194,7 @@ Shifts recur via `schedule.staff_shift_series` (weekdays + wall-clock window bou
 | Full backend run incl. immediate clone sweep (gotestsum) | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Fast unit-only backend run (skips all DB tests) | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` |
 | Test only what changed vs a base ref (backend + frontend) | `scripts/test-changed.sh [origin/development]` |
+| Fast fix-loop variant (direkt Betroffenes + direkte Importer, ohne repo-weite Ratchets; vor dem Push einmal ohne `--fast`) | `scripts/test-changed.sh --fast [origin/development]` |
 | Generate docs | `docker compose run server go run . gendoc --routes` |
 
 **Seeder is DEV-ONLY**: it creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.

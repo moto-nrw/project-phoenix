@@ -15,6 +15,7 @@ trap cleanup EXIT
 
 mkdir -p "$fixture"/{backend/probe,fake-bin,scripts}
 cp "$repo_root/scripts/test-changed.sh" "$fixture/scripts/test-changed.sh"
+cp "$repo_root/scripts/test-run-id.sh" "$fixture/scripts/test-run-id.sh"
 cat >"$fixture/scripts/backend-affected-packages.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -47,6 +48,7 @@ esac
 EOF
 chmod +x \
   "$fixture/scripts/test-changed.sh" \
+  "$fixture/scripts/test-run-id.sh" \
   "$fixture/scripts/backend-affected-packages.sh" \
   "$fixture/fake-bin/go"
 

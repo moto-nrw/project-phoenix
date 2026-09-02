@@ -4,7 +4,10 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "~/lib/utils";
-import { OVERLAY_BACKDROP_CLASS } from "./overlay-styles";
+import {
+  OVERLAY_BACKDROP_CLASS,
+  OVERLAY_BACKDROP_TINT_CLASS,
+} from "./overlay-styles";
 
 type DrawerDirection = "top" | "bottom" | "left" | "right";
 
@@ -39,7 +42,8 @@ const DrawerOverlay = React.forwardRef<
   <DrawerPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80",
+      "fixed inset-0 z-50",
+      OVERLAY_BACKDROP_TINT_CLASS,
       OVERLAY_BACKDROP_CLASS,
       className,
     )}

@@ -169,7 +169,7 @@ export function ReleaseSupervisionModal({
       onConfirm={onConfirm}
       title="Aufsicht abgeben"
       confirmText="Abgeben"
-      confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+      confirmVariant="danger"
       isConfirmLoading={isConfirmLoading}
     >
       <div className="space-y-4">

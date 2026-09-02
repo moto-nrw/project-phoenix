@@ -222,11 +222,7 @@ export function ChildConsentsSection({
         }
         isConfirmLoading={submittingAction}
         isDismissDisabled={submittingAction}
-        confirmButtonClass={
-          pendingAction === "withdraw"
-            ? "bg-moto-red hover:bg-moto-red-strong"
-            : undefined
-        }
+        confirmVariant={pendingAction === "withdraw" ? "danger" : "primary"}
         closeLabel={t("close")}
         backdropLabel={t("close")}
         mobileSheet

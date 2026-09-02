@@ -441,10 +441,13 @@ type OfferingChangeRequestServiceConfig struct {
 	shareVisibility parentmessaging.ShareVisibilityResolver
 	Logger          *slog.Logger
 	ReviewPolicy    RequestReviewPolicy
+	// Today returns the current calendar day; tests inject a fixed date so
+	// lead-day and care-end boundaries stay deterministic (mirrors the
+	// decision service). Nil falls back to timezone.TodayDate.
+	Today func() timezone.Date
 	// EventRecorder appends to the parent-request ledger inside the ambient
 	// transaction. Nil skips recording (tests, older wiring).
 	EventRecorder usersService.ParentRequestEventRecorder
-	Today         func() timezone.Date
 }
 
 type RequestReviewPolicy interface {
@@ -1483,11 +1486,11 @@ func (s *offeringChangeRequestService) pendingReviews(
 				phase = phasesByID[request.PhaseID]
 			}
 		}
-		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase, today)
+		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, today, phase)
 		dates[row.RequestChildID] = date
 		review := &pendingReview{AppliedDate: date}
 		if phase != nil {
-			review.EarliestDate = appliedOfferingChangeDateForPhase(today, phase, today)
+			review.EarliestDate = appliedOfferingChangeDateForPhase(today, today, phase)
 			review.LatestDate = phase.ServiceEndDate
 		}
 		reviews[row.ID] = review
@@ -2180,7 +2183,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	// office agreed, and a date in the past would be rejected by the adjustment
 	// validator. A date the office confirmed itself is never moved — see
 	// confirmedEffectiveFrom.
-	effectiveFrom, err := s.confirmedEffectiveFrom(input.EffectiveFrom, row.EffectiveFrom, phase)
+	effectiveFrom, err := confirmedEffectiveFrom(input.EffectiveFrom, row.EffectiveFrom, s.todayDate(), phase)
 	if err != nil {
 		return nil, err
 	}
@@ -2289,16 +2292,15 @@ func (s *offeringChangeRequestService) completeWithdrawalAt(
 // the reviewer confirmed is never moved: one outside the selectable range is
 // refused, so the office never applies a switch on a different day than the one
 // it just confirmed (#2484).
-func (s *offeringChangeRequestService) confirmedEffectiveFrom(
+func confirmedEffectiveFrom(
 	confirmed *timezone.Date,
-	requested timezone.Date,
+	requested, today timezone.Date,
 	phase *enrollmentModels.Phase,
 ) (timezone.Date, error) {
-	today := s.todayDate()
 	if confirmed == nil {
-		return appliedOfferingChangeDateForPhase(requested, phase, today), nil
+		return appliedOfferingChangeDateForPhase(requested, today, phase), nil
 	}
-	earliest := appliedOfferingChangeDateForPhase(today, phase, today)
+	earliest := appliedOfferingChangeDateForPhase(today, today, phase)
 	if confirmed.Before(earliest) {
 		return timezone.Date(""), fmt.Errorf("%w: %s is before %s",
 			ErrOfferingChangeDateOutOfRange, confirmed, earliest)
@@ -2336,7 +2338,7 @@ func appliedOfferingChangeDate(effectiveFrom, today timezone.Date) timezone.Date
 	return effectiveFrom
 }
 
-func appliedOfferingChangeDateForPhase(effectiveFrom timezone.Date, phase *enrollmentModels.Phase, today timezone.Date) timezone.Date {
+func appliedOfferingChangeDateForPhase(effectiveFrom, today timezone.Date, phase *enrollmentModels.Phase) timezone.Date {
 	effectiveFrom = appliedOfferingChangeDate(effectiveFrom, today)
 	if phase != nil && effectiveFrom.Before(phase.ServiceStartDate) {
 		return phase.ServiceStartDate
@@ -2770,7 +2772,7 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 	if err != nil {
 		return nil, err
 	}
-	rowCopy.EffectiveFrom, err = s.confirmedEffectiveFrom(effectiveFrom, rowCopy.EffectiveFrom, phase)
+	rowCopy.EffectiveFrom, err = confirmedEffectiveFrom(effectiveFrom, rowCopy.EffectiveFrom, s.todayDate(), phase)
 	if err != nil {
 		return nil, err
 	}

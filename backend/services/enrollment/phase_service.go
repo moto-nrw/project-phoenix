@@ -103,7 +103,10 @@ type PhaseServiceConfig struct {
 	Settings PhaseSettingsResolver
 	DB       *bun.DB
 	Logger   *slog.Logger
-	Today    func() timezone.Date
+	// Today returns the current calendar day; tests inject a fixed date so
+	// resync/detach boundaries stay deterministic (mirrors the decision and
+	// care-offering services). Nil falls back to timezone.TodayDate.
+	Today func() timezone.Date
 }
 
 type phaseService struct {

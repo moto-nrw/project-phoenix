@@ -14,10 +14,23 @@
 #
 # Usage: scripts/test-backend.sh [go-test-args...]     (Default: ./...)
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)/backend"
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root/backend"
 
-PHX_TEST_RUN_ID=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
-export PHX_TEST_RUN_ID
+sweep() {
+  status=$?
+  if ! go run ./internal/testdb/cmd/sweep && [ "$status" -eq 0 ]; then
+    status=1
+  fi
+  [ -n "${PHX_TEST_RUN_LOCK:-}" ] && rm -f "$PHX_TEST_RUN_LOCK"
+  return "$status"
+}
+# Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im
+# Helper. Der Trap muss vor dem Bootstrap stehen, damit dessen Fehlschlag das
+# gerade erworbene Lock ebenfalls aufräumt.
+# shellcheck source=scripts/test-run-id.sh
+source "$repo_root/scripts/test-run-id.sh"
+trap sweep EXIT
 
 # Handshake once per run instead of once per test binary: server erreichbar,
 # Template zum Migrations-Hash gebaut. Die Binaries bekommen das Ergebnis
@@ -26,15 +39,6 @@ export PHX_TEST_RUN_ID
 PHX_TEST_TEMPLATE=$(go run ./internal/testdb/cmd/bootstrap)
 export PHX_TEST_TEMPLATE
 
-sweep() {
-  status=$?
-  if ! go run ./internal/testdb/cmd/sweep && [ "$status" -eq 0 ]; then
-    status=1
-  fi
-  return "$status"
-}
-trap sweep EXIT
-
 if [ "$#" -eq 0 ]; then
   set -- ./...
 fi
@@ -42,11 +46,14 @@ fi
 # Concurrency is pinned rather than left at GOMAXPROCS, because the budget
 # that matters is a server-side one: `go test` runs -p package binaries at
 # once and each opens a pool of (-parallel + headroom) connections plus one
-# keeper. With these values that is 6 x 13 = 78 connections, leaving 22 of
-# PostgreSQL's stock 100 for lifecycle and maintenance sessions. Raising
-# either number without raising max_connections trades test failures for
-# "too many clients" errors.
-CONCURRENCY=(-p 6 -parallel 8)
+# keeper, i.e. 13 per binary at -parallel 8 (backend/test/db_clone.go).
+# The local postgres-test container runs max_connections=300
+# (docker-compose), so 10 x 13 = 130 leaves ample headroom for lifecycle
+# and maintenance sessions. CI's service container keeps PostgreSQL's stock
+# 100 but never runs this script: test.yml pins its own -p 4 / -p 6.
+# -parallel 8 stays pinned on purpose - -test.parallel is part of the Go
+# test cache key, and a drifting value would split the cache universe.
+CONCURRENCY=(-p 10 -parallel 8)
 
 if go tool gotestsum --help >/dev/null 2>&1; then
   go tool gotestsum --format pkgname-and-test-fails -- "${CONCURRENCY[@]}" "$@"
