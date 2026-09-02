@@ -182,6 +182,50 @@ func (r SettingsRuntimeAdapter) LockStaffBalance(ctx context.Context, staffID in
 
 func (SettingsRuntimeAdapter) TodayTime() time.Time { return timezone.TodayDate().UTCMidnight() }
 
+// AssignedStaffIDs and RebaseAssignedStaffAnchor stand in for the School
+// Membership capability the production settings runtime delegates to
+// (#2667). The test package cannot compose that module (its own tests import
+// this package), so it mirrors the owner's two statements directly. Keep
+// them in step with modules/schoolmembership if the owner's semantics move.
+func (r SettingsRuntimeAdapter) AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error) {
+	ids := []int64{}
+	query := r.DB(ctx).NewSelect().
+		TableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id`).
+		Where(`"staff".work_time_model_id = ?`, workTimeModelID).
+		Where(`"staff".deleted_at IS NULL`).
+		OrderExpr(`"staff".id ASC`)
+	if tenantID := r.TenantID(ctx); tenantID > 0 {
+		query = query.Where(`"staff".tenant_id = ?`, tenantID)
+	}
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (r SettingsRuntimeAdapter) RebaseAssignedStaffAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
+	ids, err := r.AssignedStaffIDs(ctx, workTimeModelID)
+	if err != nil || len(ids) == 0 {
+		return ids, err
+	}
+	var anchor any
+	if anchorDate != "" {
+		anchor = anchorDate
+	}
+	query := r.DB(ctx).NewUpdate().
+		TableExpr(`users.staff`).
+		Set("rotation_anchor_date = ?", anchor).
+		Where("id IN (?)", bun.List(ids))
+	if tenantID := r.TenantID(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	if _, err := query.Exec(ctx); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 func (r SettingsRuntimeAdapter) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
 	ctx = tenant.WithUnitOfWork(ctx, r.runtime)
 	return tenant.WithTenantTx(ctx, r.db, tenantID, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })

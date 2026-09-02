@@ -722,13 +722,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/staff",
-      "owner": "inbound-staff",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "api/staff-shifts",
       "owner": "inbound-staff-shifts",
       "role": "http",

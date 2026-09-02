@@ -100,7 +100,7 @@ func TestUpdateGroupTeachers_Unchanged_BroadcastsNothing(t *testing.T) {
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, _ := groupLeader(t, tc, "SSESameTeachers")
 
-	teachers, err := tc.resource.EducationService.GetGroupTeachers(t.Context(), groupID)
+	teachers, err := tc.resource.EducationService.GetGroupTeachers(testpkg.Ctx(t), groupID)
 	require.NoError(t, err)
 	require.Len(t, teachers, 1)
 

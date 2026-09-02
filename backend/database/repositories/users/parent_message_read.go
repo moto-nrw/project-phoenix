@@ -3,6 +3,9 @@ package users
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -18,8 +21,12 @@ type ParentMessageReadRepository struct {
 	db *bun.DB
 }
 
-// NewParentMessageReadRepository wires a fresh repository.
-func NewParentMessageReadRepository(db *bun.DB) users.ParentMessageReadRepository {
+// NewParentMessageReadRepository returns the concrete repository: the three
+// staff-gated projections need the school's staff accounts, which School
+// Membership owns, so the repository factory completes the
+// users.ParentMessageReadRepository contract with a composition over that
+// owner.
+func NewParentMessageReadRepository(db *bun.DB) *ParentMessageReadRepository {
 	return &ParentMessageReadRepository{db: db}
 }
 
@@ -183,7 +190,32 @@ func notReaderAuthored(alias string) string {
 // inboxSelect builds the InboxThread projection. staffReader switches the
 // "unread" side: staff readers count unread guardian-side activity, guardian
 // readers count unread staff-side activity (see counterpartUnread).
-func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.SelectQuery {
+// staffAccountPredicate renders "this read cursor belongs to a staff member of
+// the thread's school" from an explicit (tenant → staff account IDs) set.
+//
+// It replaces a correlated EXISTS over users.staff: School Membership owns the
+// staff rows, so the repository is handed the resolved accounts instead of
+// joining the table. The predicate stays tenant-correlated because the
+// cross-tenant guardian queries would otherwise accept a staff account of
+// school A as proof that school B read the message.
+func staffAccountPredicate(threadAlias, cursorAlias string, staffAccounts map[int64][]int64) (string, []any) {
+	clauses := make([]string, 0, len(staffAccounts))
+	args := make([]any, 0, 2*len(staffAccounts))
+	for _, tenantID := range slices.Sorted(maps.Keys(staffAccounts)) {
+		accountIDs := staffAccounts[tenantID]
+		if len(accountIDs) == 0 {
+			continue
+		}
+		clauses = append(clauses, fmt.Sprintf("(%s.tenant_id = ? AND %s.account_id IN (?))", threadAlias, cursorAlias))
+		args = append(args, tenantID, bun.List(accountIDs))
+	}
+	if len(clauses) == 0 {
+		return "FALSE", nil
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")", args
+}
+
+func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool, staffAccounts map[int64][]int64) *bun.SelectQuery {
 	// cm.tenant_id = t.tenant_id is REQUIRED for index usability, not just RLS. The
 	// only index on parent_messages leads with tenant_id (tenant_id, thread_id,
 	// created_at); the cross-tenant guardian queries (ListThreadsForGuardianTenants)
@@ -203,8 +235,11 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		WHERE cm.thread_id = t.id AND cm.tenant_id = t.tenant_id%s
 	) AS unread_count`, unreadPredicates)
 	lastMessageReadByStaff := "FALSE AS last_message_read_by_staff"
+	var staffArgs []any
 	if !staffReader {
-		lastMessageReadByStaff = `(
+		staffCondition, conditionArgs := staffAccountPredicate("t", "sr", staffAccounts)
+		staffArgs = conditionArgs
+		lastMessageReadByStaff = fmt.Sprintf(`(
 			t.last_sender_kind = 'guardian'
 			AND EXISTS (
 				SELECT 1
@@ -216,17 +251,9 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 					sr.last_read_at > t.last_message_at
 					OR (sr.last_read_at = t.last_message_at AND sr.last_read_message_id >= t.last_message_id)
 				  )
-				  AND EXISTS (
-					SELECT 1
-					FROM users.staff st
-					JOIN users.persons p ON p.id = st.person_id
-					WHERE p.account_id = sr.account_id
-					  AND st.tenant_id = t.tenant_id
-					  AND st.deleted_at IS NULL
-					  AND p.deleted_at IS NULL
-				  )
+				  AND %s
 			)
-		) AS last_message_read_by_staff`
+		) AS last_message_read_by_staff`, staffCondition)
 	}
 
 	return q.
@@ -257,7 +284,7 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		ColumnExpr("COALESCE(lm.request_type,'') AS last_request_type").
 		ColumnExpr("COALESCE(lm.request_status,'') AS last_request_status").
 		ColumnExpr("lm.payload AS last_message_payload").
-		ColumnExpr(lastMessageReadByStaff).
+		ColumnExpr(lastMessageReadByStaff, staffArgs...).
 		// accountID binds the notReaderAuthored `?` in unreadSub (cm.sender_account_id
 		// <> ?). bun renders args in SQL-fragment order, so this select-list arg
 		// precedes the read-cursor join's account-id arg below; both are the same id.
@@ -390,7 +417,7 @@ func applyStaffScope(q *bun.SelectQuery, allStudents bool) *bun.SelectQuery {
 // activity first. onlyUnread keeps only threads with an unread guardian message.
 func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*users.InboxThread, error) {
 	var rows []*users.InboxThread
-	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
+	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true, nil)
 	query = applyStaffScope(query, allStudents)
 	query = query.Where(threadHasMessages)
 	query = base.WithTenantFilter(ctx, query, "t")
@@ -410,7 +437,7 @@ func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, acc
 // tenant inbox and filtering client-side.
 func (r *ParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*users.InboxThread, error) {
 	var rows []*users.InboxThread
-	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true).
+	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true, nil).
 		Where("t.student_id = ?", studentID).
 		Where(threadHasMessages)
 	query = base.WithTenantFilter(ctx, query, "t")
@@ -425,9 +452,11 @@ func (r *ParentMessageReadRepository) ListThreadsForStudent(ctx context.Context,
 // per-child detail page uses this so it stops fetching the guardian's whole
 // cross-tenant inbox just to render one child's conversation. Runs under the
 // child's tenant tx (the caller resolves ownership first).
-func (r *ParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*users.InboxThread, error) {
+// staffAccounts maps each tenant to the login accounts of its live staff; the
+// repository factory resolves it through the School Membership owner.
+func (r *ParentMessageReadRepository) ListThreadsForGuardianStudentWithStaff(ctx context.Context, accountID, studentID int64, staffAccounts map[int64][]int64) ([]*users.InboxThread, error) {
 	var rows []*users.InboxThread
-	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, false).
+	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, false, staffAccounts).
 		Where("t.guardian_account_id = ?", accountID).
 		Where("t.student_id = ?", studentID).
 		Where(threadHasMessages).
@@ -446,12 +475,12 @@ func (r *ParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.
 // result to the guardian's OWN threads; tenantIDs gates it to the schools the
 // guardian currently has children at (preserving the per-tenant ownership gate
 // the old one-tx-per-tenant loop provided).
-func (r *ParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*users.InboxThread, error) {
+func (r *ParentMessageReadRepository) ListThreadsForGuardianTenantsWithStaff(ctx context.Context, accountID int64, tenantIDs []int64, staffAccounts map[int64][]int64) ([]*users.InboxThread, error) {
 	if len(tenantIDs) == 0 {
 		return []*users.InboxThread{}, nil
 	}
 	var rows []*users.InboxThread
-	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, false).
+	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, false, staffAccounts).
 		Where("t.guardian_account_id = ?", accountID).
 		Where("t.tenant_id IN (?)", bun.List(tenantIDs)).
 		Where(threadHasMessages).
@@ -520,7 +549,7 @@ func (r *ParentMessageReadRepository) FindThreadHeader(ctx context.Context, thre
 // the "OGS hat gelesen" trust indicator. Returning the composite (not just the
 // MAX timestamp) lets the receipt compare on the same tie-break the unread
 // predicates use, so a tied higher-id message is not stamped read prematurely.
-func (r *ParentMessageReadRepository) LatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*users.ReadCursor, error) {
+func (r *ParentMessageReadRepository) LatestReadCursorByOtherStaff(ctx context.Context, threadID, excludeAccountID int64, staffAccounts map[int64][]int64) (*users.ReadCursor, error) {
 	var rows []users.ReadCursor
 	// The "OGS hat gelesen" receipt must reflect a STAFF read, never another
 	// guardian's. A relationship-based exclusion ("drop every guardian of this
@@ -540,18 +569,11 @@ func (r *ParentMessageReadRepository) LatestReadCursorByOther(ctx context.Contex
 		ColumnExpr("r.last_read_message_id AS last_read_message_id").
 		Where("r.thread_id = ?", threadID).
 		Where("r.account_id <> ?", excludeAccountID).
-		Where(`EXISTS (
-			SELECT 1
-			FROM users.staff st
-			JOIN users.persons p ON p.id = st.person_id
-			WHERE p.account_id = r.account_id
-			  AND st.tenant_id = t.tenant_id
-			  AND st.deleted_at IS NULL
-			  AND p.deleted_at IS NULL
-		)`).
 		OrderExpr("r.last_read_at DESC").
 		OrderExpr("r.last_read_message_id DESC").
 		Limit(1)
+	staffCondition, staffArgs := staffAccountPredicate("t", "r", staffAccounts)
+	query = query.Where(staffCondition, staffArgs...)
 	query = base.WithTenantFilter(ctx, query, "r")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "latest parent message read cursor", Err: base.TranslateNotFound(err)}
