@@ -193,9 +193,14 @@ die Kosten einer Desktop-Karte in einer 390-px-Spalte. Das entscheidet
 - **Reiter als Pillen** im scrollenden Band: aktiv gefüllt, der Rest grau.
   Die Grundlinie des Desktops liest sich mobil als Text.
 - **Dichte**: Blöcke im 12-px-Rhythmus (`space-y-3`), `SectionCard` mit
-  `p-4` und `rounded-xl`, `StatCard` ohne Symbol mit `p-3`, Kacheln
-  (`TileCard`, Kinderkarte) mit `p-3`. Der 24-px-Rhythmus ist ein
-  Desktop-Maß.
+  `p-4`, `StatCard` ohne Symbol mit `p-3`, Kacheln (`TileCard`,
+  Kinderkarte) mit `p-3`. Der 24-px-Rhythmus ist ein Desktop-Maß.
+- **Ein Radius auf allen Breakpoints**: Karten bleiben auch auf dem Telefon
+  `rounded-2xl` (24 px, `--card-radius`), wie im Eltern-Portal und überall
+  sonst in der App. Eine Zwischenfassung hatte SectionCard, StatCard und
+  TileCard unter `sm` auf `rounded-xl` gesetzt; die Kopfkarte behielt 24 px,
+  und zwei Radien standen übereinander. Kein `max-sm:rounded-*` auf einer
+  Karte.
 
 ## Planungsflächen
 

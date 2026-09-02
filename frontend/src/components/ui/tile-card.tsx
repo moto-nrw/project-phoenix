@@ -22,7 +22,7 @@ import { cn } from "~/lib/utils";
  * Verwendungen — keine zweite Schreibweise.
  */
 export const TILE_CARD_SURFACE =
-  "group moto-content-surface moto-hover-elevated relative block w-full overflow-hidden rounded-2xl border max-sm:rounded-xl text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none";
+  "group moto-content-surface moto-hover-elevated relative block w-full overflow-hidden rounded-2xl border text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none";
 
 export function TileCard({
   href,

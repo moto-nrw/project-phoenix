@@ -126,7 +126,7 @@ export function StatCard(props: StatCardProps | StatTileProps) {
   const card = (
     <div
       title={title}
-      className={`moto-content-surface relative flex h-full flex-col rounded-2xl border p-4 shadow-sm max-sm:rounded-xl max-sm:p-3 sm:p-5 ${
+      className={`moto-content-surface relative flex h-full flex-col rounded-2xl border p-4 shadow-sm max-sm:p-3 sm:p-5 ${
         href
           ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md"
           : ""
