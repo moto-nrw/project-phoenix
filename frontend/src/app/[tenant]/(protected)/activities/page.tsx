@@ -412,18 +412,16 @@ function ActivitiesPageContent() {
       </TenantPage>
 
       {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="icon"
         onClick={() => setIsQuickCreateOpen(true)}
-        className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950 md:hidden"
+        className="fixed right-4 bottom-24 z-40 h-14 w-14 rounded-full md:hidden"
         aria-label="Aktivität erstellen"
       >
-        <Plus
-          className="relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
-          strokeWidth={2.5}
-          aria-hidden="true"
-        />
-      </button>
+        <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden="true" />
+      </Button>
 
       {/* Success toasts handled globally */}
     </>
