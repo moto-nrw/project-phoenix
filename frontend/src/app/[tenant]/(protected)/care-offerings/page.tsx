@@ -34,7 +34,9 @@ export default function CareOfferingsPage() {
           gilt auf allen Breakpoints. */}
       <DesktopOnlyNotice />
       {isReady ? (
-        <div className="hidden lg:block">
+        // Flex-Spalte, damit die Tabelle des Editors als letzte Fläche bis
+        // zur Unterkante wächst (`.moto-tenant-body`).
+        <div className="hidden lg:flex lg:flex-col">
           <CareOfferingsEditor onSummaryChange={handleSummaryChange} />
         </div>
       ) : (

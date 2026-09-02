@@ -39,7 +39,9 @@ export default function AdminEnrollmentsPage() {
     >
       <DesktopOnlyNotice />
       <PhaseExpiryWarnings />
-      <div className="hidden lg:block">
+      {/* Flex-Spalte, damit die letzte Fläche bis zur Unterkante wächst
+          (`.moto-tenant-body`). */}
+      <div className="hidden lg:flex lg:flex-col">
         <AdminEnrollmentsList onSummaryChange={handleSummaryChange} />
       </div>
     </TenantPage>

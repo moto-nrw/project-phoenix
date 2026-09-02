@@ -356,7 +356,11 @@ export function DataTable<T>({
   }, [pageSize, sortedRows.length]);
 
   return (
-    <div className="w-full">
+    // Flex-Spalte, damit die Tabellenfläche wächst, wenn die Seite ihr Platz
+    // gibt: als letzte Fläche einer Tenant-Seite reicht sie dann bis zur
+    // Unterkante des Bildschirms (`.moto-tenant-body`). Ohne den Platz
+    // ändert die Spalte nichts -- die Kinder stehen wie zuvor untereinander.
+    <div className="flex w-full flex-col">
       {isLoading && (
         <output aria-live="polite" className="sr-only">
           Wird geladen…
@@ -399,7 +403,9 @@ export function DataTable<T>({
           Rand hinaus. */}
       <div
         className={
-          stackedOnMobile ? `${surfaceClass} hidden md:block` : surfaceClass
+          stackedOnMobile
+            ? `${surfaceClass} hidden grow md:block`
+            : `${surfaceClass} grow`
         }
         data-testid={stackedOnMobile ? "data-table-table" : undefined}
       >

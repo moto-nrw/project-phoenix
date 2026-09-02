@@ -43,6 +43,10 @@ export function AppShell({ children }: AppShellProps) {
             : "sticky top-0 z-40 hidden lg:block"
         }
         backgroundClassName="moto-dotted-background--full"
+        // Flex-Spalte, damit `TenantPage` bis zur Unterkante wächst und
+        // seine letzte Fläche den Bildschirm füllt (kein Seitenrest aus
+        // nacktem Punktraster unter einer einzeiligen Karte).
+        contentClassName="flex flex-1 flex-col"
         topLayer={
           <>
             <StaffPreviewBanner />
@@ -53,7 +57,12 @@ export function AppShell({ children }: AppShellProps) {
             />
           </>
         }
-        sidebar={<Sidebar className="hidden lg:block" />}
+        // `min-h-0!`: die Seitenleiste bringt ein eigenes `min-h-screen` mit.
+        // In der Flex-Zeile der Shell, die ohnehin bis zur Unterkante reicht,
+        // schob das jede Seite um die Höhe der Kopfzeile (65 px) unter den
+        // Bildschirmrand -- die wachsende letzte Fläche endete dann unter der
+        // Kante statt an ihr. Die Zeile bestimmt die Höhe, nicht die Leiste.
+        sidebar={<Sidebar className="hidden min-h-0! lg:block" />}
         bottomNav={<MobileBottomNav />}
       >
         {children}

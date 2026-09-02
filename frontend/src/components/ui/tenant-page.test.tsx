@@ -85,6 +85,34 @@ describe("TenantPage", () => {
     expect(screen.getByText("Noch kein Kind angelegt")).toBeInTheDocument();
   });
 
+  it("lässt den Rumpf die Höhe füllen: Wurzel als Flex-Spalte, Leerzustand als letzte Fläche darin", () => {
+    const { container } = render(
+      <TenantPage
+        title="Kinder"
+        empty={{ title: "Noch kein Kind angelegt" }}
+        testId="seite"
+      >
+        <p>Inhalt</p>
+      </TenantPage>,
+    );
+
+    expect(screen.getByTestId("seite")).toHaveClass(
+      "flex",
+      "flex-1",
+      "flex-col",
+    );
+    const body = container.querySelector(".moto-tenant-body");
+    expect(body).not.toBeNull();
+    // `.moto-tenant-body > .moto-content-surface:last-child` ist die Fläche,
+    // die bis zur Unterkante wächst (globals.css). Der Leersatz muss also
+    // direkt und als letztes Kind im Rumpf stehen -- eine weitere Hülle
+    // darum würde die Regel still ins Leere laufen lassen.
+    const last = body?.lastElementChild;
+    expect(last?.tagName).toBe("SECTION");
+    expect(last).toHaveClass("moto-content-surface");
+    expect(last).toHaveTextContent("Noch kein Kind angelegt.");
+  });
+
   it("schaltet Seitenreiter per Klick, nicht erst per mousedown", () => {
     const onChange = vi.fn();
     render(

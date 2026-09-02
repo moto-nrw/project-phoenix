@@ -873,7 +873,10 @@ export function CareOfferingsEditor({
   );
 
   return (
-    <div className="space-y-4">
+    // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
+    // Platz an die Tabelle weiter, die dann bis zur Unterkante des
+    // Bildschirms wächst (`.moto-tenant-body`).
+    <div className="flex flex-col space-y-4">
       {error && (
         <div
           className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"

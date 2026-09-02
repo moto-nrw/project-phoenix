@@ -951,7 +951,9 @@ export function PhasesEditor() {
       }
     >
       <DesktopOnlyNotice />
-      <div className="hidden space-y-4 lg:block">
+      {/* Flex-Spalte statt Block: so wächst die Tabelle als letzte Fläche
+          bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
+      <div className="hidden space-y-4 lg:flex lg:flex-col">
         {/* Speicher- und Aktivierungsfehler stehen über der Liste; sie dürfen
             das gerade bearbeitete Formular nicht ersetzen. */}
         {error ? <Alert type="error" message={error} /> : null}

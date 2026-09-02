@@ -36,7 +36,8 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
 1. Kopfkarte: Titel + Aktionen rechts, darunter Statuszeile, darunter Suche
    und Filter (auf den Planungsflächen steht dort die `PlanningContextBar`)
 2. Reiter (horizontal, eine einzige Bauart)
-3. Inhalt im 24-px-Rhythmus, jede Fläche darin aus dem Kit
+3. Inhalt im 24-px-Rhythmus, jede Fläche darin aus dem Kit; er füllt die
+   Höhe des Bildschirms — die letzte Fläche wächst bis zur Unterkante
 
 ## Regeln
 
@@ -85,6 +86,21 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Zustand mit Symbol (ForbiddenPage, FeatureOffPage). Eine Bühne für einen
    Sachverhalt, an dem niemand etwas tun kann, ist eine Aufgabe, die keine
    ist.
+   **Der Rumpf füllt die Höhe.** Die Karte mit dem Leersatz, die Tabelle mit
+   einem Eintrag und die Liste mit dreißig haben denselben Umriss: die
+   letzte Fläche wächst bis zur Unterkante des Bildschirms
+   (`.moto-tenant-body` in `globals.css`, die Shell reicht dafür eine
+   Flex-Spalte bis zur Inhaltshülle durch). Vorher endete eine leere Seite
+   nach einer 60-px-Zeile, darunter der halbe Bildschirm nacktes
+   Punktraster. Es wächst nur eine Fläche aus dem Kit (`section` oder
+   `div` mit `moto-content-surface`) direkt im Rumpf oder bis zu zwei
+   Hüllen tiefer (Seitenhülle um Kennzahlen und Tabelle, `DataTable` um
+   ihre Fläche) — jede Hülle dazwischen muss selbst eine Flex-Spalte sein
+   (`flex flex-col`, bei `hidden lg:block` also `hidden lg:flex
+   lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
+   Gitter und Anklickbares (`TileCard`) wachsen nie. Eine Seite, deren
+   letzter Block nicht wächst, verpackt ihn zu tief — nicht mit `min-h-*`
+   nachhelfen, die Hülle abbauen.
 7. **Reiter**: Seitenreiter über `tabs`. `ui/Tabs` bleibt nur für Reiter
    INNERHALB einer Karte (Slide-over: Bearbeiten/Verlauf), `SegmentedControl`
    für jede Wertauswahl — auch Monat/Woche/Tag, A/B-Woche, Exportzeitraum,

@@ -473,7 +473,10 @@ export function GradeTransitionsManager({
   );
 
   return (
-    <div className="space-y-4">
+    // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
+    // Platz an die Liste weiter, die dann bis zur Unterkante des
+    // Bildschirms wächst (`.moto-tenant-body`).
+    <div className="flex flex-col space-y-4">
       {loadError && <Alert type="error" message={loadError} />}
 
       {/* Titel, Erklärung und Aktion stehen in der Kopfzeile derselben Karte,

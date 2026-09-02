@@ -278,6 +278,12 @@ Fläche, und ihr Titel samt Zeitraumwahl schwebt danach auf dem Punktraster.
 `bare` ist nur zulässig, wenn der Abschnitt AUSSCHLIESSLICH andere Karten
 enthält und selbst weder Titel noch Text trägt.
 
+**Der Grund endet nie mitten im Bild.** Der Rumpf einer Seite füllt die Höhe
+des Bildschirms; seine letzte Fläche wächst bis zur Unterkante
+(TENANT-PAGE-SPEC, Regel 6). Eine leere Prüfliste ist damit dieselbe weiße
+Fläche wie eine volle, nicht eine 60-px-Zeile über einem halben Bildschirm
+Punktraster.
+
 ## 2. Die Kopfkarte ist eine geschlossene Fläche
 
 Titel, Statuszeile, Reiter und Suche gehören in EINE Karte, in genau dieser

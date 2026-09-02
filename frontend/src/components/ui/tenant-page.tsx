@@ -299,7 +299,10 @@ export function TenantPage({
   );
 
   return (
-    <div className="w-full" data-testid={testId}>
+    // `flex-1 flex-col`: die Seite wächst in der Inhaltshülle der Shell bis
+    // zur Unterkante des Bildschirms, damit der Rumpf darunter die Höhe
+    // füllen kann (siehe `.moto-tenant-body`).
+    <div className="flex w-full flex-1 flex-col" data-testid={testId}>
       {/* Die Kopfkarte trägt Titel, Statuszeile, Aktionen und die Such- und
           Filterzeile. Sie schließt eng um ihren Inhalt: 20 px Rand, 4 px
           zwischen Titel und Statuszeile, 16 px vor der Suchzeile. Kein
@@ -414,7 +417,13 @@ export function TenantPage({
         )}
       </header>
 
-      <div className="mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3">
+      {/* Der Rumpf füllt die Höhe des Bildschirms: seine letzte Fläche
+          wächst bis zur Unterkante (`.moto-tenant-body` in globals.css).
+          Vorher endete eine Seite mit einem Eintrag oder mit dem Leersatz
+          nach 60 px Karte, und darunter stand der halbe Bildschirm nacktes
+          Punktraster -- ein anderer Umriss auf jeder Seite. Jetzt haben die
+          Seite mit einer Zeile, die mit dreißig und die leere denselben. */}
+      <div className="moto-tenant-body mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3">
         <TenantPageBody
           loading={loading}
           loadingLabel={loadingLabel ?? `${title} wird geladen…`}
@@ -672,7 +681,13 @@ function TenantPageTabs({
           // Unter sm scrollt das Band bis an den Kartenrand; der Innenrand
           // der Karte sitzt als Polster im Scrollbereich, damit der erste
           // und der letzte Reiter nicht am Rahmen kleben.
-          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:gap-2 max-sm:overflow-x-auto max-sm:px-4 max-sm:[&::-webkit-scrollbar]:hidden"
+          // Ab sm schneidet die Zeile ab (`clip`, kein Scrollkasten): die
+          // Messung sorgt dafür, dass im Ruhezustand alles passt, aber
+          // während die Seitenleiste auf- oder zuklappt, kann ein Bild lang
+          // ein Reiter über den Kartenrand ragen, bis die Zeile neu gemessen
+          // ist. Ohne Clip stand er in einem Screenshot halb außerhalb der
+          // Karte.
+          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:gap-2 max-sm:overflow-x-auto max-sm:px-4 sm:overflow-x-clip max-sm:[&::-webkit-scrollbar]:hidden"
         >
           {visible.map((item) => renderTab(item))}
           {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im

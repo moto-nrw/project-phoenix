@@ -969,7 +969,10 @@ export function EnrollmentFormEditor({
   }
 
   return (
-    <div className="space-y-5">
+    // Flex-Spalte (wie die beiden anderen Ansichten dieser Seite): als
+    // Editor-Wurzel einer Tenant-Seite reicht sie den Platz an die letzte
+    // Fläche weiter, die bis zur Unterkante wächst (`.moto-tenant-body`).
+    <div className="flex flex-col space-y-5">
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
           <Button
@@ -1170,9 +1173,15 @@ function EnrollmentFormsOverview({
   ).length;
 
   return (
-    <div className="space-y-5">
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+    // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
+    // Platz an die Fläche weiter, die bis zur Unterkante wächst
+    // (`.moto-tenant-body`).
+    <div className="flex flex-col space-y-5">
+      {/* Karte als Flex-Spalte und das Raster darin `flex-1`: wächst die
+          Karte bis zur Unterkante, läuft die graue Seitenspalte mit bis
+          dorthin, statt über dem Kartenrand zu enden. */}
+      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="space-y-6 p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1507,9 +1516,10 @@ function FormTemplateDetail({
   ).length;
 
   return (
-    <div className="space-y-5">
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+    // Flex-Spalte, siehe die Übersicht derselben Seite.
+    <div className="flex flex-col space-y-5">
+      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
             <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
               <Button

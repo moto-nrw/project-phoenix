@@ -30,10 +30,12 @@ Kopfkarte:  Titel  ..................................  Aktionen
             Statuszeile (echte Zahlen der Seite)
             Suche + Filter
 Reiter:     horizontale Seitenreiter
-Inhalt:     Karten im 24-px-Rhythmus
+Inhalt:     Karten im 24-px-Rhythmus, die letzte Fläche bis zur Unterkante
 ```
 
 What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second `<main>`, a hand-written `<h1>`, a separate action row above or below the head, a row that only carries a counter or a single select, and a bespoke loading/empty/error branch. Those live in the scaffold.
+
+**The body fills the screen.** The last kit surface in the body grows to the bottom edge (`.moto-tenant-body` in `globals.css`; the shell hands a flex column down to the content wrapper), so an empty page, a one-row table and a thirty-row list share one outline instead of ending after 60 px with half a screen of bare dot pattern. Only a `section`/`div` surface grows, directly in the body or up to two wrappers deeper (page wrapper, `DataTable`), and every wrapper in between must itself be a flex column (`flex flex-col`); grids and clickable tiles never grow. Do not fake it per page with `min-h-*` — unwrap the block instead.
 
 **No mini-heading above the title.** The blue uppercase kicker is gone from the tenant portal: it meant six different things at once (sidebar area, entity type, a repeat of the title, wizard step, a date, a status), so it taught the reader nothing. Where the user is comes from the breadcrumbs and the sidebar. `SectionCard`'s `kicker` prop survives for the parents portal only.
 

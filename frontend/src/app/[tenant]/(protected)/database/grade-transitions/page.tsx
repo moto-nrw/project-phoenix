@@ -64,7 +64,9 @@ export default function GradeTransitionsPage() {
     >
       <DesktopOnlyNotice description="Der Jahrgangswechsel ist für die Arbeit am Computer optimiert. Bitte öffnen Sie diese Seite auf einem Laptop oder Desktop-Rechner." />
 
-      <div className="hidden lg:block">
+      {/* Flex-Spalte, damit die Liste als letzte Fläche bis zur Unterkante
+          wächst (`.moto-tenant-body`). */}
+      <div className="hidden lg:flex lg:flex-col">
         {canRead ? (
           <GradeTransitionsManager
             permissions={permissions}

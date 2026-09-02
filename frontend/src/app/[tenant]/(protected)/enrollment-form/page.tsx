@@ -27,7 +27,9 @@ export default function EnrollmentFormPage() {
       loading={!isReady}
     >
       <DesktopOnlyNotice />
-      <div className="hidden lg:block">
+      {/* Flex-Spalte, damit die letzte Fläche bis zur Unterkante wächst
+          (`.moto-tenant-body`). */}
+      <div className="hidden lg:flex lg:flex-col">
         <EnrollmentFormEditor
           onTemplateCountChange={handleTemplateCountChange}
         />

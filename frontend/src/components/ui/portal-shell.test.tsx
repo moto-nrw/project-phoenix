@@ -81,4 +81,42 @@ describe("PortalShell", () => {
     expect(main.className).toContain("flex-1");
     expect(main.className).not.toContain("moto-dotted-background");
   });
+
+  it("reicht eine Flex-Spalte bis zur Inhaltshuelle durch, damit eine Seite die Hoehe fuellen kann", () => {
+    render(
+      <PortalShell
+        header={<header />}
+        contentClassName="flex flex-1 flex-col"
+        sidebar={<nav />}
+        bottomNav={<nav />}
+      >
+        <div data-testid="content" />
+      </PortalShell>,
+    );
+
+    const main = screen.getByRole("main");
+    // Jede Stufe waechst in der naechsten: Wurzel -> Zeile -> main -> Huelle.
+    expect(main.className).toContain("flex-col");
+    expect(main.parentElement).toHaveClass("flex", "flex-1");
+    expect(main.parentElement?.parentElement).toHaveClass(
+      "flex",
+      "min-h-screen",
+      "flex-col",
+    );
+    expect(screen.getByTestId("content").parentElement).toHaveClass(
+      "flex",
+      "flex-1",
+      "flex-col",
+    );
+  });
+
+  it("laesst die Inhaltshuelle ohne Angabe ein gewoehnlicher Block", () => {
+    render(
+      <PortalShell header={<header />} sidebar={<nav />} bottomNav={<nav />}>
+        <div data-testid="content" />
+      </PortalShell>,
+    );
+
+    expect(screen.getByTestId("content").parentElement).not.toHaveClass("flex");
+  });
 });
