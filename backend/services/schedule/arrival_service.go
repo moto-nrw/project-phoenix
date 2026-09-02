@@ -260,7 +260,7 @@ func (s *arrivalScheduleService) projectedWeekRange(
 	rows := make([]*schedule.StudentArrivalSchedule, 0, len(studentIDs)*schedule.WeekdayFriday)
 	for _, studentID := range uniquePositiveStudentIDs(studentIDs) {
 		for date := from; !date.After(to); date = date.AddDays(1) {
-			if row := projection.ForDate(studentID, date); row != nil {
+			if row := projection.WeeklyForDate(studentID, date)[effectiveISOWeekday(date)]; row != nil {
 				rows = append(rows, row)
 			}
 		}

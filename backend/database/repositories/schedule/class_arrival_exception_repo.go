@@ -63,7 +63,7 @@ func (r *ClassArrivalExceptionRepository) FindByClassesAndDateRange(
 // the normalized class plus date is the race-safe backstop.
 func (r *ClassArrivalExceptionRepository) Upsert(ctx context.Context, row *schedule.ClassArrivalException) error {
 	base.EnsureTenantID(ctx, row)
-	_, err := base.GetDB(ctx, r.db).NewInsert().
+	err := base.GetDB(ctx, r.db).NewInsert().
 		Model(row).
 		ModelTableExpr(`education.class_arrival_exceptions`).
 		On("CONFLICT (tenant_id, (LOWER(BTRIM(school_class))), date) DO UPDATE").
@@ -73,7 +73,7 @@ func (r *ClassArrivalExceptionRepository) Upsert(ctx context.Context, row *sched
 		Set("created_by = EXCLUDED.created_by").
 		Set("updated_at = NOW()").
 		Returning("*").
-		Exec(ctx)
+		Scan(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "upsert class arrival exception", Err: base.TranslateNotFound(err)}
 	}

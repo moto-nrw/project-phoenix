@@ -16,6 +16,7 @@ import {
   upsertClassArrivalException,
 } from "~/lib/student-arrival-api";
 import { timetableService } from "~/lib/timetable-api";
+import { normalizeSchoolClass } from "~/lib/timetable-helpers";
 
 const logger = createLogger({ component: "ClassArrivalExceptionPanel" });
 
@@ -73,7 +74,14 @@ function appliesToSchoolClass(
     ...(template.targets?.map((target) => target.schoolClass) ?? []),
     ...(template.sourceSchoolClasses ?? []),
   ].filter((value): value is string => value !== undefined);
-  return classes.length === 0 || classes.includes(schoolClass);
+  return (
+    classes.length === 0 ||
+    classes.some(
+      (schoolClassTarget) =>
+        normalizeSchoolClass(schoolClassTarget) ===
+        normalizeSchoolClass(schoolClass),
+    )
+  );
 }
 
 async function earliestBlockStart(
@@ -92,10 +100,13 @@ async function earliestBlockStart(
       if (instance.date !== isoDate || instance.status === "cancelled") {
         return false;
       }
-      const template = instance.activityGroupId
-        ? templatesByID.get(instance.activityGroupId)
-        : undefined;
-      return !template || appliesToSchoolClass(template, schoolClass);
+      if (!instance.activityGroupId) {
+        return true;
+      }
+      const template = templatesByID.get(instance.activityGroupId);
+      return (
+        template !== undefined && appliesToSchoolClass(template, schoolClass)
+      );
     })
     .map((instance) => instance.startTime)
     .sort();

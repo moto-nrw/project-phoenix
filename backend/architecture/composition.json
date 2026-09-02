@@ -29179,7 +29179,7 @@
       "declaration": "TestClassArrivalExceptionDoesNotAddACareDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        129
+        157
       ],
       "tables": []
     },
@@ -29206,10 +29206,20 @@
     {
       "scope": "test",
       "file": "services/schedule/arrival_class_exception_test.go",
+      "declaration": "TestClassArrivalExceptionStaysOutOfWeeklySchedules",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        129
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/schedule/arrival_class_exception_test.go",
       "declaration": "TestPerChildDayExceptionWinsOverTheClassException",
       "target": "database/repositories.NewFactory",
       "lines": [
-        151
+        179
       ],
       "tables": []
     },
@@ -29219,7 +29229,17 @@
       "declaration": "TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses",
       "target": "database/repositories.NewFactory",
       "lines": [
-        246
+        307
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/schedule/arrival_class_exception_test.go",
+      "declaration": "TestUpsertClassArrivalExceptionReturnsPersistedMetadata",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        274
       ],
       "tables": []
     },
@@ -29229,7 +29249,7 @@
       "declaration": "TestUpsertClassArrivalExceptionWritesAndListsOneRowPerDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        197
+        225
       ],
       "tables": []
     },

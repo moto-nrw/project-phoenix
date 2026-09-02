@@ -52,9 +52,10 @@ type ArrivalPlansByStudent map[int64]ArrivalPlanByDate
 // ArrivalBaselineProjection is the recurring arrival plan applicable on every
 // date of a requested range.
 type ArrivalBaselineProjection struct {
-	WeeklyByStudentDate   ArrivalPlansByStudent
-	DerivedByStudentDate  ArrivalPlansByStudent
-	BookingsAuthoritative bool
+	WeeklyByStudentDate          ArrivalPlansByStudent
+	DerivedByStudentDate         ArrivalPlansByStudent
+	BookingsAuthoritative        bool
+	classExceptionsByStudentDate map[int64]classExceptionsByDate
 }
 
 // ForDate returns the effective recurring row for the date's weekday. A
@@ -65,7 +66,8 @@ func (p *ArrivalBaselineProjection) ForDate(studentID int64, date timezone.Date)
 	if p == nil {
 		return nil
 	}
-	return p.WeeklyByStudentDate[studentID][date][effectiveISOWeekday(date)]
+	row := p.WeeklyByStudentDate[studentID][date][effectiveISOWeekday(date)]
+	return classExceptionRow(row, p.classExceptionsByStudentDate[studentID][date])
 }
 
 // DerivedForDate returns the projected row hidden underneath a manual
@@ -82,7 +84,9 @@ func (p *ArrivalBaselineProjection) HasPlan(studentID int64, date timezone.Date)
 	return p != nil && len(p.WeeklyByStudentDate[studentID][date]) > 0
 }
 
-// WeeklyForDate returns the full recurring week applicable on date.
+// WeeklyForDate returns the full recurring week applicable on date. It never
+// includes class day exceptions: callers use this payload to edit a child's
+// recurring schedule, and a date-specific time must not become weekly data.
 func (p *ArrivalBaselineProjection) WeeklyForDate(studentID int64, date timezone.Date) ArrivalWeek {
 	if p == nil {
 		return nil
@@ -137,8 +141,9 @@ func (s *arrivalBaselineService) Project(
 	from, to timezone.Date,
 ) (*ArrivalBaselineProjection, error) {
 	projection := &ArrivalBaselineProjection{
-		WeeklyByStudentDate:  make(ArrivalPlansByStudent, len(studentIDs)),
-		DerivedByStudentDate: make(ArrivalPlansByStudent, len(studentIDs)),
+		WeeklyByStudentDate:          make(ArrivalPlansByStudent, len(studentIDs)),
+		DerivedByStudentDate:         make(ArrivalPlansByStudent, len(studentIDs)),
+		classExceptionsByStudentDate: make(map[int64]classExceptionsByDate, len(studentIDs)),
 	}
 	studentIDs = uniquePositiveStudentIDs(studentIDs)
 	if len(studentIDs) == 0 || to.Before(from) {
@@ -193,16 +198,13 @@ func (s *arrivalBaselineService) Project(
 					weekOfDate[weekday] = effective
 				}
 			}
-			// A class-wide day exception (#2962) replaces the time of that
-			// one date only. It needs a care day to land on: it changes when
-			// the class arrives, never whether a child is in care.
-			applyClassException(weekOfDate, date, classExceptions[date])
 			weekly[date] = weekOfDate
 			derived[date] = derivedOfDate
 		}
 
 		projection.WeeklyByStudentDate[studentID] = weekly
 		projection.DerivedByStudentDate[studentID] = derived
+		projection.classExceptionsByStudentDate[studentID] = classExceptions
 	}
 	return projection, nil
 }
@@ -392,24 +394,14 @@ func (s *arrivalBaselineService) loadClassExceptions(
 	return out, nil
 }
 
-// applyClassException swaps the time of the exception's date for the
-// class-wide one (#2962). Only a care day gets replaced: the exception says
-// when the class arrives, not whether a child is in care. It outranks a
-// per-child weekly deviation, because "Unterricht fällt aus" applies to the
-// child with six lessons as much as to the one with five; a per-child DAY
-// exception still wins later in the effective-time merge.
-func applyClassException(
-	week ArrivalWeek,
-	date timezone.Date,
+// classExceptionRow returns a day-specific copy of a regular care-day row.
+// The weekly row stays untouched so it remains safe to use in edit payloads.
+func classExceptionRow(
+	row *scheduleModel.StudentArrivalSchedule,
 	exception *scheduleModel.ClassArrivalException,
-) {
-	if exception == nil {
-		return
-	}
-	weekday := effectiveISOWeekday(date)
-	row := week[weekday]
-	if row == nil {
-		return
+) *scheduleModel.StudentArrivalSchedule {
+	if exception == nil || row == nil {
+		return row
 	}
 	effective := *row
 	effective.ExpectedArrival = timezone.NormalizeWallClock(exception.ArrivalTime)
@@ -423,7 +415,7 @@ func applyClassException(
 		notes += ", " + strings.TrimSpace(*row.Notes)
 	}
 	effective.Notes = &notes
-	week[weekday] = &effective
+	return &effective
 }
 
 // careDayIndex answers "is this child in care on that date's weekday". A nil

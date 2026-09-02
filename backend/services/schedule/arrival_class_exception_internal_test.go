@@ -23,7 +23,6 @@ func classExceptionAt(class, hhmm, reason string) *scheduleModel.ClassArrivalExc
 func TestApplyClassExceptionReplacesTheCareDayRowOnly(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2027, 3, 1)
 	notes := "eigene Notiz"
 	week := ArrivalWeek{
 		scheduleModel.WeekdayMonday: {
@@ -35,7 +34,10 @@ func TestApplyClassExceptionReplacesTheCareDayRowOnly(t *testing.T) {
 		},
 	}
 
-	applyClassException(week, monday, classExceptionAt("4a", "12:45", "Unterricht fällt aus"))
+	week[scheduleModel.WeekdayMonday] = classExceptionRow(
+		week[scheduleModel.WeekdayMonday],
+		classExceptionAt("4a", "12:45", "Unterricht fällt aus"),
+	)
 
 	row := week[scheduleModel.WeekdayMonday]
 	require.NotNil(t, row)
@@ -48,14 +50,12 @@ func TestApplyClassExceptionReplacesTheCareDayRowOnly(t *testing.T) {
 	assert.Equal(t, int64(7), row.StudentID)
 }
 
-func TestApplyClassExceptionSkipsDaysWithoutCare(t *testing.T) {
+func TestClassExceptionRowSkipsDaysWithoutCare(t *testing.T) {
 	t.Parallel()
 
 	week := ArrivalWeek{}
-	applyClassException(week, timezone.NewDate(2027, 3, 1), classExceptionAt("4a", "12:45", ""))
-	assert.Empty(t, week)
-
-	applyClassException(week, timezone.NewDate(2027, 3, 1), nil)
+	assert.Nil(t, classExceptionRow(nil, classExceptionAt("4a", "12:45", "")))
+	assert.Nil(t, classExceptionRow(nil, nil))
 	assert.Empty(t, week)
 }
 

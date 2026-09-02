@@ -237,7 +237,7 @@ describe("ClassArrivalExceptionPanel", () => {
     expect(mockGetWeek).toHaveBeenCalledWith("2099-03-02", "2099-03-02");
   });
 
-  it("uses only blocks that apply to the selected class for the preset", async () => {
+  it("uses only blocks that apply to the selected normalized class for the preset", async () => {
     mockGetWeek.mockResolvedValue({
       from: "2099-03-02",
       to: "2099-03-02",
@@ -259,8 +259,48 @@ describe("ClassArrivalExceptionPanel", () => {
     mockGetTemplates.mockResolvedValue({
       templates: [
         { id: "other-class", targetSchoolClass: "4b" },
-        { id: "selected-class", targetSchoolClass: "4a" },
+        { id: "selected-class", targetSchoolClass: " 4A " },
       ],
+    });
+
+    render(
+      <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+    );
+    await screen.findByLabelText("Kommt um");
+
+    fireEvent.change(screen.getByLabelText("Datum"), {
+      target: { value: "2099-03-02" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterricht fällt aus" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Kommt um")).toHaveValue("11:45");
+    });
+  });
+
+  it("ignores blocks whose activity group is no longer in the templates response", async () => {
+    mockGetWeek.mockResolvedValue({
+      from: "2099-03-02",
+      to: "2099-03-02",
+      instances: [
+        {
+          date: "2099-03-02",
+          startTime: "08:00",
+          status: "planned",
+          activityGroupId: "missing-template",
+        },
+        {
+          date: "2099-03-02",
+          startTime: "11:45",
+          status: "planned",
+          activityGroupId: "selected-class",
+        },
+      ],
+    });
+    mockGetTemplates.mockResolvedValue({
+      templates: [{ id: "selected-class", targetSchoolClass: "4a" }],
     });
 
     render(

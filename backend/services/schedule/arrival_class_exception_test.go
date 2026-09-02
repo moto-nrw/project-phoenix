@@ -122,6 +122,34 @@ func TestClassArrivalExceptionOutranksAPerChildWeeklyDeviation(t *testing.T) {
 	assert.Equal(t, "Klasse 4b: andere Ankunftszeit", row.SourceLabel)
 }
 
+func TestClassArrivalExceptionStaysOutOfWeeklySchedules(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := arrivalServiceWithClassExceptions(t, repos)
+
+	student := testpkg.CreateTestStudent(t, db, "Wochenplan", "Kind", "4b")
+	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
+	setClassArrivalTimes(t, repos, "4b", map[string]string{"mon": "13:30"})
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+	monday := mondayOnOrAfter(timezone.TodayDate())
+	setClassArrivalException(t, repos, "4b", monday, "11:45", "Unterricht fällt aus")
+
+	weekly, err := svc.GetWeeklySchedulesByStudentIDsForDate(ctx, []int64{student.ID}, monday)
+	require.NoError(t, err)
+	require.Len(t, weekly, 1)
+	assert.Equal(t, "13:30", weekly[0].ExpectedArrival.Format("15:04"))
+	assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, weekly[0].Source)
+
+	effective, err := svc.GetEffectiveArrivalTimeForDate(ctx, student.ID, monday)
+	require.NoError(t, err)
+	require.NotNil(t, effective.ArrivalTime)
+	assert.Equal(t, "11:45", effective.ArrivalTime.Format("15:04"))
+	require.NotNil(t, effective.ClassException)
+}
+
 func TestClassArrivalExceptionDoesNotAddACareDay(t *testing.T) {
 	t.Parallel()
 
@@ -237,6 +265,39 @@ func TestUpsertClassArrivalExceptionWritesAndListsOneRowPerDate(t *testing.T) {
 
 	err = svc.DeleteClassArrivalException(ctx, "2b", monday)
 	assert.True(t, errors.Is(err, scheduleService.ErrClassArrivalExceptionNotFound))
+}
+
+func TestUpsertClassArrivalExceptionReturnsPersistedMetadata(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := arrivalServiceWithClassExceptions(t, repos)
+
+	testpkg.CreateTestStudent(t, db, "Klassen", "Kind", "2c")
+	staff := testpkg.CreateTestStaff(t, db, "Koordination", "Person")
+	monday := mondayOnOrAfter(timezone.TodayDate())
+
+	created, err := svc.UpsertClassArrivalException(ctx, scheduleService.ClassArrivalExceptionInput{
+		SchoolClass: "2c",
+		Date:        monday,
+		ArrivalTime: time.Date(2000, 1, 1, 14, 15, 0, 0, time.UTC),
+	}, staff.ID)
+	require.NoError(t, err)
+	assert.Positive(t, created.ID)
+	assert.False(t, created.CreatedAt.IsZero())
+	assert.False(t, created.UpdatedAt.IsZero())
+
+	updated, err := svc.UpsertClassArrivalException(ctx, scheduleService.ClassArrivalExceptionInput{
+		SchoolClass: "2c",
+		Date:        monday,
+		ArrivalTime: time.Date(2000, 1, 1, 11, 45, 0, 0, time.UTC),
+	}, staff.ID)
+	require.NoError(t, err)
+	assert.Equal(t, created.ID, updated.ID)
+	assert.Equal(t, created.CreatedAt, updated.CreatedAt)
+	assert.Equal(t, "11:45", updated.ArrivalTime.Format("15:04"))
 }
 
 func TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses(t *testing.T) {
