@@ -175,6 +175,51 @@ describe("RoleGuard", () => {
     expect(screen.getByText("Group Content")).toBeInTheDocument();
   });
 
+  it("opens adminOnly when one of several permissions is held (#2906)", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          roles: ["user"],
+          permissions: ["staff:stammdaten"],
+          token: "tok",
+        },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard
+        variant="adminOnly"
+        permission={["staff:manage", "staff:stammdaten"]}
+      >
+        <div>Personal</div>
+      </RoleGuard>,
+    );
+
+    expect(screen.getByText("Personal")).toBeInTheDocument();
+  });
+
+  it("keeps adminOnly closed when none of the listed permissions is held (#2906)", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { roles: ["user"], permissions: ["users:read"], token: "tok" },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard
+        variant="adminOnly"
+        permission={["staff:manage", "staff:stammdaten"]}
+      >
+        <div>Personal</div>
+      </RoleGuard>,
+    );
+
+    expect(screen.queryByText("Personal")).not.toBeInTheDocument();
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+  });
+
   it("shows custom message on ForbiddenPage", () => {
     mockUseSession.mockReturnValue({
       data: { user: { roles: ["user"], token: "tok" } },

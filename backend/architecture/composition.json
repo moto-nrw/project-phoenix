@@ -17316,10 +17316,20 @@
     {
       "scope": "test",
       "file": "api/staff/staff_test.go",
+      "declaration": "TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        1683
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/staff/staff_test.go",
       "declaration": "TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1445
+        1479
       ],
       "tables": []
     },
@@ -17329,13 +17339,23 @@
       "declaration": "TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1376,
-        1415
+        1410,
+        1449
       ],
       "tables": [
         "config.work_time_models",
         "users.staff"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "api/staff/staff_test.go",
+      "declaration": "TestUpdateStaff_ChangePersonIDRequiresUsersManage",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        1332
+      ],
+      "tables": []
     },
     {
       "scope": "test",

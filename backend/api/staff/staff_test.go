@@ -564,8 +564,8 @@ func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
 
 // POST /api/staff is gated on users:create alone, but a person that already
 // carries a staff record adopts it — an edit of someone who is already in the
-// directory. That write belongs to users:update, so a create-only caller is
-// refused (#2222 review).
+// directory. That write belongs to staff:manage (#2906), so a create-only
+// caller is refused (#2222 review).
 func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
 	t.Parallel()
 
@@ -587,7 +587,7 @@ func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
 
 	// And the same request goes through once the caller may update.
 	req = testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
-		testutil.WithJWTBearer(authToken(t, "users:create", "users:update")))
+		testutil.WithJWTBearer(authToken(t, "users:create", "staff:manage")))
 
 	rr = testutil.ExecuteRequest(ctx.router, req)
 
@@ -614,7 +614,7 @@ func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
-		testutil.WithJWTBearer(authToken(t, "users:create", "users:update")))
+		testutil.WithJWTBearer(authToken(t, "users:create", "staff:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -682,7 +682,7 @@ func TestUpdateStaff_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithJWTBearer(authToken(t, "users:update")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -700,7 +700,7 @@ func TestUpdateStaff_NotFound(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/999999", body,
-		testutil.WithJWTBearer(authToken(t, "users:update")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -717,7 +717,7 @@ func TestUpdateStaff_InvalidID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/invalid", body,
-		testutil.WithJWTBearer(authToken(t, "users:update")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -1192,7 +1192,7 @@ func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithJWTBearer(authToken(t, "users:update")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -1226,7 +1226,7 @@ func TestUpdateStaff_UpdateExistingTeacher(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", teacher.StaffID), body,
-		testutil.WithJWTBearer(authToken(t, "users:update")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -1248,7 +1248,7 @@ func TestUpdateStaff_KeepExistingTeacherWithoutIsTeacher(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", teacher.StaffID), body,
-		testutil.WithJWTBearer(authToken(t, "users:update")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -1268,7 +1268,7 @@ func TestUpdateStaff_InvalidRequest(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithJWTBearer(authToken(t, "users:update")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -1295,11 +1295,43 @@ func TestUpdateStaff_ChangePersonID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithJWTBearer(authToken(t, "users:update")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage", "users:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// TestUpdateStaff_ChangePersonIDRequiresUsersManage pins the boundary added in
+// #2906: staff:manage maintains a staff record, it does not move that record
+// onto a different person.
+func TestUpdateStaff_ChangePersonIDRequiresUsersManage(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+
+	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	person1 := testpkg.CreateTestPerson(t, ctx.db, "Keep"+uniqueSuffix, "Person")
+	person2 := testpkg.CreateTestPerson(t, ctx.db, "Steal"+uniqueSuffix, "Person")
+
+	staff := testpkg.CreateTestStaffForPerson(t, ctx.db, person1.ID)
+
+	body := map[string]interface{}{
+		"person_id":   person2.ID,
+		"staff_notes": "Reassignment attempt",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertForbidden(t, rr)
+
+	// The record still belongs to the original person.
+	reloaded, err := repositories.NewFactory(ctx.db).Staff.FindByID(testpkg.Ctx(t), staff.ID)
+	require.NoError(t, err)
+	require.Equal(t, person1.ID, reloaded.PersonID)
 }
 
 func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
@@ -1315,8 +1347,10 @@ func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
 		"staff_notes": "Should fail",
 	}
 
+	// users:manage is what a reassignment needs since #2906 — without it the
+	// request would stop at 403 and never reach the lookup under test.
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
-		testutil.WithJWTBearer(authToken(t, "users:update")))
+		testutil.WithJWTBearer(authToken(t, "staff:manage", "users:manage")))
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -1504,3 +1538,210 @@ func TestGetStaffGroups_InvalidID(t *testing.T) {
 // =============================================================================
 // GET STAFF SUBSTITUTIONS - INVALID ID TEST
 // =============================================================================
+
+// =============================================================================
+// #2906 — THE BETREUER DEFAULT ROLE HAS NO AUTHORITY OVER COLLEAGUE HR DATA
+// =============================================================================
+
+// betreuerPermissions is the effective permission set of the unmodified `user`
+// (Betreuer) system role for the staff surfaces: it may read the directory and
+// write child data, and that is all. Migration 1.9.4 grants users:update to
+// this role, which is exactly why users:update must not gate any personnel
+// surface (#2906).
+var betreuerPermissions = []string{
+	"users:read", "users:list", "users:create", "users:update", "users:absence",
+	"groups:read", "visits:read", "time_tracking:own",
+}
+
+// TestBetreuerRoleCannotReachColleaguePersonnelData pins acceptance criteria
+// 1-3 of #2906: with nothing but the Betreuer permissions, every personnel
+// read, personnel write and staff-record write on another person is refused.
+func TestBetreuerRoleCannotReachColleaguePersonnelData(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	colleague := testpkg.CreateTestStaff(t, ctx.db, "Kollegin", "Personalakte")
+	token := authToken(t, betreuerPermissions...)
+
+	forbiddenReads := []string{
+		fmt.Sprintf("/staff/%d/stammdaten", colleague.ID),
+		fmt.Sprintf("/staff/%d/documents", colleague.ID),
+		fmt.Sprintf("/staff/documents-profile/%d", colleague.ID),
+		"/staff/documents-directory",
+		fmt.Sprintf("/staff/%d/stammdaten/bank-steuer", colleague.ID),
+	}
+	for _, path := range forbiddenReads {
+		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, testutil.WithJWTBearer(token))
+		rr := testutil.ExecuteRequest(ctx.router, req)
+		assert.Equal(t, http.StatusForbidden, rr.Code, "GET %s must be refused: %s", path, rr.Body.String())
+	}
+
+	forbiddenWrites := []struct {
+		method string
+		path   string
+		body   map[string]interface{}
+	}{
+		{http.MethodPut, fmt.Sprintf("/staff/%d", colleague.ID),
+			map[string]interface{}{"person_id": colleague.PersonID, "staff_notes": "Fremde Notiz"}},
+		{http.MethodPut, fmt.Sprintf("/staff/%d/stammdaten/person", colleague.ID),
+			map[string]interface{}{"first_name": "Neu", "last_name": "Name"}},
+		{http.MethodPut, fmt.Sprintf("/staff/%d/stammdaten/kontakt", colleague.ID),
+			map[string]interface{}{"phone": "+49 170 1"}},
+		{http.MethodPut, fmt.Sprintf("/staff/%d/stammdaten/arbeitsvertrag", colleague.ID),
+			map[string]interface{}{"weekly_hours": 20}},
+		{http.MethodPut, fmt.Sprintf("/staff/%d/stammdaten/qualifikationen", colleague.ID),
+			map[string]interface{}{"qualifikationen": []any{}}},
+		{http.MethodPut, fmt.Sprintf("/staff/%d/vacation/quota", colleague.ID),
+			map[string]interface{}{"year": 2026, "days": 30}},
+	}
+	for _, tc := range forbiddenWrites {
+		req := testutil.NewAuthenticatedRequest(t, tc.method, tc.path, tc.body, testutil.WithJWTBearer(token))
+		rr := testutil.ExecuteRequest(ctx.router, req)
+		assert.Equal(t, http.StatusForbidden, rr.Code, "%s %s must be refused: %s", tc.method, tc.path, rr.Body.String())
+	}
+}
+
+// TestBetreuerRoleSeesOnlyTheMinimalColleagueView pins acceptance criterion 4:
+// the directory a Betreuer may read carries names, work e-mail, account role
+// and today's presence — never notes, employment type, absence reason or NFC
+// tag (#2906).
+func TestBetreuerRoleSeesOnlyTheMinimalColleagueView(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	colleague := testpkg.CreateTestStaff(t, ctx.db, "Sichtbare", "Kollegin")
+
+	// Give the record something to leak.
+	body := map[string]interface{}{
+		"person_id":   colleague.PersonID,
+		"staff_notes": "Geheime Personalnotiz",
+	}
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/staff/%d", colleague.ID), body,
+		testutil.WithJWTBearer(authToken(t, "staff:manage")))
+	testutil.AssertSuccessResponse(t, testutil.ExecuteRequest(ctx.router, req), http.StatusOK)
+
+	betreuer := testutil.WithJWTBearer(authToken(t, betreuerPermissions...))
+	for _, path := range []string{"/staff", fmt.Sprintf("/staff/%d", colleague.ID)} {
+		rr := testutil.ExecuteRequest(ctx.router,
+			testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, betreuer))
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.NotContains(t, rr.Body.String(), "Geheime Personalnotiz",
+			"%s must not carry staff notes for the Betreuer tier", path)
+		assert.NotContains(t, rr.Body.String(), `"staff_notes"`, path)
+		assert.NotContains(t, rr.Body.String(), `"employment_type"`, path)
+		assert.NotContains(t, rr.Body.String(), `"absence_type"`, path)
+		assert.NotContains(t, rr.Body.String(), `"tag_id"`, path)
+	}
+
+	// The private staff notes follow the permission that writes them: only
+	// staff:manage reads them back. Maintaining the personnel file
+	// (staff:stammdaten) opens the personnel-file fields, not the notes.
+	rr := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet,
+		fmt.Sprintf("/staff/%d", colleague.ID), nil, testutil.WithJWTBearer(authToken(t, "staff:manage", "users:read"))))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "Geheime Personalnotiz")
+
+	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet,
+		fmt.Sprintf("/staff/%d", colleague.ID), nil, testutil.WithJWTBearer(authToken(t, "staff:stammdaten"))))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.NotContains(t, rr.Body.String(), "Geheime Personalnotiz",
+		"staff:stammdaten maintains the personnel file, not the private staff notes")
+}
+
+// TestPersonnelPermissionsReachTheStaffDirectory pins that the two personnel
+// permissions of #2906 are usable on their own: both open the staff list and
+// the profile of the person whose record they may work on. Without that a
+// holder would have to guess a numeric ID in the URL to reach anything.
+func TestPersonnelPermissionsReachTheStaffDirectory(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	colleague := testpkg.CreateTestStaff(t, ctx.db, "Erreichbare", "Kollegin")
+
+	for _, permission := range []string{"staff:stammdaten", "staff:manage"} {
+		auth := testutil.WithJWTBearer(authToken(t, permission))
+		for _, path := range []string{"/staff", fmt.Sprintf("/staff/%d", colleague.ID)} {
+			rr := testutil.ExecuteRequest(ctx.router,
+				testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, auth))
+			assert.Equal(t, http.StatusOK, rr.Code,
+				"GET %s must be reachable with %s: %s", path, permission, rr.Body.String())
+		}
+	}
+}
+
+// TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording pins the second half of
+// acceptance criterion 4: the school's own Abwesenheitsart wording (#2403)
+// names today's absence reason just as absence_type does, so it follows the
+// same personnel gate on BOTH staff read paths — the list and the single
+// record (#2906).
+func TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	colleague := testpkg.CreateTestStaff(t, ctx.db, "Abwesende", "Kollegin")
+	tenantCtx := testpkg.Ctx(t)
+	repos := repositories.NewFactory(ctx.db)
+
+	absenceType := &active.StaffAbsenceType{
+		Name:     "Regenerationstag",
+		BaseType: active.AbsenceTypeOther,
+		IsActive: true,
+	}
+	absenceType.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.StaffAbsenceType.Create(tenantCtx, absenceType))
+
+	today := timezone.TodayDate()
+	absence := &active.StaffAbsence{
+		StaffID:       colleague.ID,
+		AbsenceType:   active.AbsenceTypeOther,
+		AbsenceTypeID: &absenceType.ID,
+		DateStart:     today,
+		DateEnd:       today,
+		Status:        active.AbsenceStatusApproved,
+		CreatedBy:     colleague.ID,
+	}
+	absence.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.StaffAbsence.Create(tenantCtx, absence))
+
+	betreuer := testutil.WithJWTBearer(authToken(t, betreuerPermissions...))
+	for _, path := range []string{"/staff", fmt.Sprintf("/staff/%d", colleague.ID)} {
+		rr := testutil.ExecuteRequest(ctx.router,
+			testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, betreuer))
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.NotContains(t, rr.Body.String(), "Regenerationstag",
+			"%s must not carry the school's absence wording for the Betreuer tier", path)
+		assert.NotContains(t, rr.Body.String(), `"absence_type_label"`, path)
+	}
+
+	// The personnel tier still sees it on both paths.
+	personnel := testutil.WithJWTBearer(authToken(t, "users:read", "staff:stammdaten"))
+	for _, path := range []string{"/staff", fmt.Sprintf("/staff/%d", colleague.ID)} {
+		rr := testutil.ExecuteRequest(ctx.router,
+			testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, personnel))
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "Regenerationstag", path)
+	}
+}
+
+// TestVacationQuotaWriteStaysOnTheTimeTrackingTier pins the gate on
+// PUT /{id}/vacation/quota (#2906): the quota belongs to the time-tracking
+// tier, which also owns reading it back and the Abwesenheiten tab that shows
+// it. staff:manage — the personnel-record authority — must not be able to
+// write a value it can never see.
+func TestVacationQuotaWriteStaysOnTheTimeTrackingTier(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	colleague := testpkg.CreateTestStaff(t, ctx.db, "Urlaubs", "Kontingent")
+	path := fmt.Sprintf("/staff/%d/vacation/quota", colleague.ID)
+	body := map[string]interface{}{"year": timezone.TodayDate().Year(), "days": 30}
+
+	refused := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(
+		t, http.MethodPut, path, body, testutil.WithJWTBearer(authToken(t, "staff:manage"))))
+	assert.Equal(t, http.StatusForbidden, refused.Code,
+		"staff:manage must not write a quota it cannot read: %s", refused.Body.String())
+
+	allowed := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(
+		t, http.MethodPut, path, body, testutil.WithJWTBearer(authToken(t, "time_tracking:manage"))))
+	assert.Equal(t, http.StatusOK, allowed.Code, allowed.Body.String())
+}

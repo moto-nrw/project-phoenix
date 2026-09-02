@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -174,18 +175,24 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	rs.ensureStaffPerson(r.Context(), staff)
 	accountRole, accountEmail, accountAvatar := rs.loadStaffAccountInfo(r.Context(), staff)
 	wasPresentToday, workStatus, absenceType := rs.resolveStaffPresence(r.Context(), staff)
-	absenceTypeLabel := rs.loadAbsenceLabelMap(r.Context())[staff.ID]
+	// The school's own wording for today's absence names the reason just as
+	// AbsenceType does, so it follows the same personnel check the response
+	// constructors make (#2906).
+	absenceTypeLabel := ""
+	if staffFieldAccessFromCtx(r.Context()).personnel {
+		absenceTypeLabel = rs.loadAbsenceLabelMap(r.Context())[staff.ID]
+	}
 
 	// Check if this staff member is also a teacher
 	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		response := newTeacherResponse(staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
+		response := newTeacherResponse(r.Context(), staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 		response.AbsenceTypeLabel = absenceTypeLabel
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
-	response := newStaffResponse(staff, false, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
+	response := newStaffResponse(r.Context(), staff, false, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 	response.AbsenceTypeLabel = absenceTypeLabel
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
@@ -382,20 +389,20 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	staff.Person = person
 
 	if teacherCreationFailed {
-		response := newStaffResponse(staff, false, false, "", "", "", "", "")
+		response := newStaffResponse(r.Context(), staff, false, false, "", "", "", "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
 		return
 	}
 
 	if isTeacher {
 		// Return teacher response
-		response := newTeacherResponse(staff, teacher, false, "", "", "", "", "")
+		response := newTeacherResponse(r.Context(), staff, teacher, false, "", "", "", "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Teacher created successfully")
 		return
 	}
 
 	// Return staff response
-	response := newStaffResponse(staff, isTeacher, false, "", "", "", "", "")
+	response := newStaffResponse(r.Context(), staff, isTeacher, false, "", "", "", "", "")
 	common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully")
 }
 
@@ -421,8 +428,18 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	// Update basic fields
 	staff.StaffNotes = req.StaffNotes
 
-	// Handle person ID change
+	// Handle person ID change. Re-pointing a staff record at a different
+	// person moves the whole record — notes, teacher data, qualifications,
+	// time tracking — onto another human being. That is directory authority,
+	// not personnel-record maintenance, so staff:manage alone must not do it
+	// (#2906); the caller needs users:manage, the same tier that replaces a
+	// Lehrkraft's class assignments. Ordinary staff edits send the record's
+	// own person_id back unchanged and never reach this branch.
 	if staff.PersonID != req.PersonID.Int64() {
+		if !authorize.HasPermission(permissions.UsersManage, jwt.PermissionsFromCtx(r.Context())) {
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("insufficient permission to reassign a staff record to another person")))
+			return
+		}
 		if rs.updateStaffPerson(r.Context(), staff, req.PersonID.Int64()) != nil {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("person not found")))
 			return
@@ -435,7 +452,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, message := updateStaffResponseFor(staff, teacher, action)
+	response, message := updateStaffResponseFor(r.Context(), staff, teacher, action)
 	common.Respond(w, r, http.StatusOK, response, message)
 }
 

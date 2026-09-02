@@ -34,9 +34,11 @@ interface StaffMasterDetailProps {
   selectedId: string | null;
   selectedTeacher: Teacher | null;
   onSelect: (id: string | null) => void;
-  onEditClick: () => void;
-  onDeleteClick: () => void;
-  onUpdateNotes: (notes: string) => Promise<void>;
+  // Optional: ohne staff:manage gibt PUT /api/staff/{id} 403, deshalb wird
+  // die Bearbeiten-Schaltflaeche dann gar nicht erst angeboten (#2906).
+  onEditClick?: () => void;
+  onDeleteClick?: () => void;
+  onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
   onManageRole?: () => void;
@@ -157,9 +159,9 @@ export function StaffMasterDetail({
 
 interface StaffDetailContentProps {
   teacher: Teacher;
-  onEditClick: () => void;
-  onDeleteClick: () => void;
-  onUpdateNotes: (notes: string) => Promise<void>;
+  onEditClick?: () => void;
+  onDeleteClick?: () => void;
+  onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
   onManageRole?: () => void;
@@ -178,15 +180,17 @@ function StaffDetailContent({
 
   const headerActions = (
     <>
-      <button
-        type="button"
-        onClick={onEditClick}
-        className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        <Pencil className="h-3.5 w-3.5" aria-hidden />
-        Bearbeiten
-      </button>
-      <DetailDeleteButton onClick={onDeleteClick} />
+      {onEditClick ? (
+        <button
+          type="button"
+          onClick={onEditClick}
+          className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden />
+          Bearbeiten
+        </button>
+      ) : null}
+      {onDeleteClick ? <DetailDeleteButton onClick={onDeleteClick} /> : null}
     </>
   );
 
@@ -225,7 +229,7 @@ function StaffDetailContent({
 
 interface StaffStammdatenTabProps {
   teacher: Teacher;
-  onUpdateNotes: (notes: string) => Promise<void>;
+  onUpdateNotes?: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
   onManageMFA?: () => void;
   onManageRole?: () => void;
@@ -307,22 +311,28 @@ function StaffStammdatenTab({
         </InfoSection>
       ) : null}
 
-      <InfoSection
-        title="Notizen"
-        icon={
-          <MotoDuotoneIcon
-            icon={MOTO_CONCEPTS.feedback.icon}
-            tone={MOTO_CONCEPTS.feedback.tone}
-            size={18}
+      {/* Personalnotizen gehören zum Mitarbeiter-Datensatz und brauchen
+          staff:manage (#2906). Ohne die Berechtigung liefert das Backend das
+          Feld gar nicht erst aus, also entfällt die Sektion komplett statt
+          eine Bearbeiten-Schaltfläche anzubieten, die 403 zurückgibt. */}
+      {onUpdateNotes ? (
+        <InfoSection
+          title="Notizen"
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.feedback.icon}
+              tone={MOTO_CONCEPTS.feedback.tone}
+              size={18}
+            />
+          }
+          accentColor="green"
+        >
+          <InlineNotesEditor
+            initialNotes={teacher.staff_notes ?? ""}
+            onSave={onUpdateNotes}
           />
-        }
-        accentColor="green"
-      >
-        <InlineNotesEditor
-          initialNotes={teacher.staff_notes ?? ""}
-          onSave={onUpdateNotes}
-        />
-      </InfoSection>
+        </InfoSection>
+      ) : null}
 
       {teacher.created_at || teacher.updated_at ? (
         <InfoSection

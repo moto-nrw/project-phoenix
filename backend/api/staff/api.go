@@ -94,15 +94,23 @@ func (rs *Resource) Router() chi.Router {
 		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/overview", rs.getTimeTrackingOverview)
 
 		// Staff profile reads are also needed by absence management and the
-		// section-specific Stammdaten workflows below.
-		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
-		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.StaffFinancial, permissions.StaffDocumentsHealth), withTx).Get("/documents-directory", rs.listDocumentDirectory)
+		// section-specific Stammdaten workflows below. The two personnel
+		// permissions are on the gate as well (#2906): without the directory
+		// a holder of them has no way to reach the person whose record they
+		// may open, and the list response is field-scoped per caller anyway.
+		r.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.StaffManage, permissions.StaffStammdaten), withTx).Get("/", rs.listStaff)
+		r.With(common.RequiresAnyPermission(permissions.StaffDocuments, permissions.StaffFinancial, permissions.StaffDocumentsHealth), withTx).Get("/documents-directory", rs.listDocumentDirectory)
 		r.With(common.RequiresPermission(permissions.StaffFinancial), withTx).Get("/financial-profile/{id}", rs.getFinancialProfile)
-		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.StaffFinancial, permissions.StaffDocumentsHealth), withTx).Get("/documents-profile/{id}", rs.getDocumentProfile)
-		r.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.UsersUpdate, permissions.TimeTrackingManage), withTx).Get("/{id}", rs.getStaff)
+		r.With(common.RequiresAnyPermission(permissions.StaffDocuments, permissions.StaffFinancial, permissions.StaffDocumentsHealth), withTx).Get("/documents-profile/{id}", rs.getDocumentProfile)
+		// The profile itself stays on the directory tier — the response is
+		// field-scoped by the caller's permissions (#2906), so users:read gets
+		// the minimal colleague view and the personnel tiers get the record.
+		r.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.StaffManage, permissions.StaffStammdaten, permissions.TimeTrackingManage), withTx).Get("/{id}", rs.getStaff)
 
-		// Other staff reads require users:read permission.
-		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/avatar", rs.serveStaffAvatar)
+		// Other staff reads require users:read permission. The avatar follows
+		// the list and profile gate instead — whoever may see the directory
+		// entry sees the picture that belongs to it.
+		r.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.StaffManage, permissions.StaffStammdaten, permissions.TimeTrackingManage), withTx).Get("/{id}/avatar", rs.serveStaffAvatar)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/groups", rs.getStaffGroups)
 
 		// School class assignments (#1772): which classes a Lehrkraft is
@@ -118,9 +126,14 @@ func (rs *Resource) Router() chi.Router {
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/available", rs.getAvailableStaff)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/by-role", rs.getStaffByRole)
 
-		// Write operations require users:create, users:update, or users:delete permission
+		// Write operations. Creating and deleting a staff member stay on the
+		// users:* directory tier; changing an existing person's record
+		// (staff notes, teacher flag, qualifications) is staff:manage since
+		// #2906 — users:update is held by the plain Betreuer role for the
+		// child-data surfaces, and must not double as authority over a
+		// colleague's personnel record.
 		r.With(common.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStaff)
-		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStaff)
+		r.With(common.RequiresPermission(permissions.StaffManage), withTx).Put("/{id}", rs.updateStaff)
 		r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
 
 		// Personnel number (payroll identifier, #1417): time_tracking:manage
@@ -134,16 +147,18 @@ func (rs *Resource) Router() chi.Router {
 		// qualifications are HR-file data about identifiable people, and
 		// users:read is held by everyone who may see the staff list at all
 		// (same reasoning as /time-tracking/overview and /payroll-number).
-		// Readable only for those who maintain staff (users:update) or hold
-		// the management view (time_tracking:manage). The bank & tax section
-		// is staff:financial ONLY — the directory maintainers are not the
-		// Träger payroll office (school admins still match via the admin:*
-		// wildcard).
-		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.TimeTrackingManage), withTx).Get("/{id}/stammdaten", rs.getStammdaten)
-		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/person", rs.updateStammdatenPerson)
-		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/kontakt", rs.updateStammdatenKontakt)
-		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/arbeitsvertrag", rs.updateStammdatenArbeitsvertrag)
-		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/stammdaten/qualifikationen", rs.updateStammdatenQualifikationen)
+		// Readable only for the personnel administrators (staff:stammdaten,
+		// #2906) or holders of the management view (time_tracking:manage).
+		// Until #2906 this tier was users:update, which the plain Betreuer
+		// role holds — every colleague could read and edit the whole HR file.
+		// The bank & tax section is staff:financial ONLY — the personnel
+		// administrators are not the Träger payroll office (school admins
+		// still match via the admin:* wildcard).
+		r.With(common.RequiresAnyPermission(permissions.StaffStammdaten, permissions.TimeTrackingManage), withTx).Get("/{id}/stammdaten", rs.getStammdaten)
+		r.With(common.RequiresPermission(permissions.StaffStammdaten), withTx).Put("/{id}/stammdaten/person", rs.updateStammdatenPerson)
+		r.With(common.RequiresPermission(permissions.StaffStammdaten), withTx).Put("/{id}/stammdaten/kontakt", rs.updateStammdatenKontakt)
+		r.With(common.RequiresPermission(permissions.StaffStammdaten), withTx).Put("/{id}/stammdaten/arbeitsvertrag", rs.updateStammdatenArbeitsvertrag)
+		r.With(common.RequiresPermission(permissions.StaffStammdaten), withTx).Put("/{id}/stammdaten/qualifikationen", rs.updateStammdatenQualifikationen)
 		r.With(common.RequiresPermission(permissions.StaffFinancial), withTx).Get("/{id}/stammdaten/bank-steuer", rs.getStammdatenFinancial)
 		r.With(common.RequiresPermission(permissions.StaffFinancial), withTx).Put("/{id}/stammdaten/bank-steuer", rs.updateStammdatenFinancial)
 		r.With(common.RequiresPermission(permissions.StaffFinancial), withTx).Post("/{id}/stammdaten/bank-steuer/reveal", rs.revealStammdatenFinancial)
@@ -151,10 +166,10 @@ func (rs *Resource) Router() chi.Router {
 		// Dokumente tab (#1424). The route gate only proves the caller may
 		// reach the tab at all — any of the three category permissions.
 		// Per-category authority (AU → staff_documents:health, Lohn →
-		// staff:financial, rest → users:update) is enforced in the document
+		// staff:financial, rest → staff:documents) is enforced in the document
 		// service, including list filtering, so a payroll-only account sees
 		// exactly the Lohnabrechnung category and nothing else.
-		documentsGate := common.RequiresAnyPermission(permissions.UsersUpdate, permissions.StaffFinancial, permissions.StaffDocumentsHealth)
+		documentsGate := common.RequiresAnyPermission(permissions.StaffDocuments, permissions.StaffFinancial, permissions.StaffDocumentsHealth)
 		r.With(documentsGate, withTx).Get("/{id}/documents", rs.listStaffDocuments)
 		// Upload and download each commit their own service transaction before
 		// touching filesystem bytes, so failed commits cannot orphan uploads or
@@ -214,7 +229,13 @@ func (rs *Resource) Router() chi.Router {
 		r.With(common.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
 		r.With(common.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/question", rs.questionAbsence)
 		r.With(common.RequiresAnyPermission(permissions.VacationApprove, permissions.TimeTrackingManage), withTx).Get("/{id}/vacation/quota", rs.getStaffVacationQuota)
-		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/vacation/quota", rs.setStaffVacationQuota)
+		// The vacation quota belongs to the time-tracking tier, not to the
+		// personnel record: reading is vacation:approve or
+		// time_tracking:manage, writing is time_tracking:manage. staff:manage
+		// is deliberately NOT on this write — a holder of it can neither read
+		// the quota back nor open the Abwesenheiten tab, so it would be an
+		// authority that only ever writes blind (#2906).
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/vacation/quota", rs.setStaffVacationQuota)
 		// Audit trail of a single work session, admin-facing. The MA-side
 		// /api/time-tracking/{id}/edits enforces session-staff ownership
 		// against the JWT subject; here the route guarantees the session
