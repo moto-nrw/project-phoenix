@@ -601,7 +601,7 @@ function StaffPageContent() {
       return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
     }
     if (view === "accounts") {
-      const count = accounts?.rows.length ?? 0;
+      const count = accounts?.rows?.length ?? 0;
       return `${count} ${count === 1 ? "Zeitkonto" : "Zeitkonten"}`;
     }
     if (canReadUsers) {
