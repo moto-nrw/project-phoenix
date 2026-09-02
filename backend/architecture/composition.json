@@ -26824,17 +26824,17 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3804
+        3880
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "services/enrollment/decision_service_test.go",
-      "declaration": "newDecisionServiceForTestWithCareWithdrawal",
+      "declaration": "newDecisionServiceForTestWithDependencies",
       "target": "database/repositories.NewFactory",
       "lines": [
-        115
+        132
       ],
       "tables": []
     },
@@ -27707,6 +27707,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         21
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/factory_student_consent_test.go",
+      "declaration": "TestNewFactoryStudentConsentUsesAuditRoutedRepository",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        17
       ],
       "tables": []
     },
