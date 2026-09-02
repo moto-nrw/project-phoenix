@@ -141,8 +141,11 @@ func (s *Service) Search(ctx context.Context, filter domain.Filter) (result []do
 	return result, err
 }
 
+// CountByTenant is platform-wide by definition, so it always reads in its
+// own admin transaction; a tenant transaction in context would hide every
+// other school's rows.
 func (s *Service) CountByTenant(ctx context.Context) (result map[int64]int, err error) {
-	err = s.runRead(ctx, "count_persons_by_tenant", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.observeRun(ctx, "count_persons_by_tenant", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CountByTenant(txCtx)
 		stats.Add(queryStats)

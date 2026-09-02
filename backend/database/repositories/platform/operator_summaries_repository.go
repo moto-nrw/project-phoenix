@@ -87,15 +87,6 @@ device_agg AS (
 	WHERE "s".deleted_at IS NULL
 		AND "d".archived_at IS NULL
 	GROUP BY "s".organization_id
-),
-person_agg AS (
-	SELECT "s".organization_id,
-		COUNT(*) AS personen_count
-	FROM users.persons AS "p"
-	INNER JOIN platform.schools AS "s" ON "s".id = "p".tenant_id
-	WHERE "s".deleted_at IS NULL
-		AND "p".deleted_at IS NULL
-	GROUP BY "s".organization_id
 )
 SELECT
 	"o".id,
@@ -109,17 +100,18 @@ SELECT
 	COALESCE("sa".schulen_count, 0) AS schulen_count,
 	COALESCE("aa".konten_count, 0) AS konten_count,
 	COALESCE("da".geraete_count, 0) AS geraete_count,
-	COALESCE("pa".personen_count, 0) AS personen_count
+	0 AS personen_count
 FROM platform.organizations AS "o"
 LEFT JOIN school_agg AS "sa" ON "sa".organization_id = "o".id
 LEFT JOIN account_agg AS "aa" ON "aa".organization_id = "o".id
 LEFT JOIN device_agg AS "da" ON "da".organization_id = "o".id
-LEFT JOIN person_agg AS "pa" ON "pa".organization_id = "o".id
 ORDER BY "o".name ASC
 `
 
 // OrganizationSummaries returns all organizations (including soft-deleted)
-// with per-row aggregate counts. Counts only include non-deleted child entities.
+// with per-row aggregate counts. Counts only include non-deleted child
+// entities. PersonenCount is attached by the composition layer through the
+// People Directory (#2661) and leaves here as zero.
 func (r *OperatorSummariesRepository) OrganizationSummaries(ctx context.Context) ([]*platform.OrganizationSummary, error) {
 	var result []*platform.OrganizationSummary
 	if err := base.GetDB(ctx, r.db).NewRaw(organizationSummariesQuery).Scan(ctx, &result); err != nil {
@@ -148,13 +140,6 @@ device_agg AS (
 	FROM iot.devices AS "d"
 	WHERE "d".archived_at IS NULL
 	GROUP BY "d".tenant_id
-),
-person_agg AS (
-	SELECT "p".tenant_id,
-		COUNT(*) AS personen_count
-	FROM users.persons AS "p"
-	WHERE "p".deleted_at IS NULL
-	GROUP BY "p".tenant_id
 )
 SELECT
 	"s".id,
@@ -176,16 +161,16 @@ SELECT
 	COALESCE("s".settings, '{}') AS settings,
 	COALESCE("aa".konten_count, 0) AS konten_count,
 	COALESCE("da".geraete_count, 0) AS geraete_count,
-	COALESCE("pa".personen_count, 0) AS personen_count
+	0 AS personen_count
 FROM platform.schools AS "s"
 INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
 LEFT JOIN account_agg AS "aa" ON "aa".tenant_id = "s".id
 LEFT JOIN device_agg AS "da" ON "da".tenant_id = "s".id
-LEFT JOIN person_agg AS "pa" ON "pa".tenant_id = "s".id
 ORDER BY "o".name ASC, "s".name ASC
 `
 
 // SchoolSummaries returns every school globally with per-row counts.
+// PersonenCount is attached by the composition layer (#2661).
 func (r *OperatorSummariesRepository) SchoolSummaries(ctx context.Context) ([]*platform.SchoolSummary, error) {
 	var result []*platform.SchoolSummary
 	if err := base.GetDB(ctx, r.db).NewRaw(schoolSummariesQueryGlobal).Scan(ctx, &result); err != nil {
@@ -231,12 +216,7 @@ SELECT
 		WHERE "d".tenant_id = "s".id
 			AND "d".archived_at IS NULL
 	), 0) AS geraete_count,
-	COALESCE((
-		SELECT COUNT(*)
-		FROM users.persons AS "p"
-		WHERE "p".tenant_id = "s".id
-			AND "p".deleted_at IS NULL
-	), 0) AS personen_count
+	0 AS personen_count
 FROM platform.schools AS "s"
 INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
 WHERE "s".organization_id = ?
@@ -244,6 +224,7 @@ ORDER BY "s".name ASC
 `
 
 // SchoolSummariesByOrganization returns schools for a single organization.
+// PersonenCount is attached by the composition layer (#2661).
 func (r *OperatorSummariesRepository) SchoolSummariesByOrganization(ctx context.Context, organizationID int64) ([]*platform.SchoolSummary, error) {
 	var result []*platform.SchoolSummary
 	if err := base.GetDB(ctx, r.db).NewRaw(schoolSummariesQueryByOrg, organizationID).Scan(ctx, &result); err != nil {

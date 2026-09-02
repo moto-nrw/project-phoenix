@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -24,7 +25,11 @@ func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	viewRepo := platform.NewAnnouncementViewRepository(db)
+	// Viewer names come from the People Directory composition (#2661), so
+	// the test drives the composed repository the service graph uses.
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	viewRepo := factory.AnnouncementView
 
 	// Create operator for announcement
 	operator := createTestOperator(t, db, "viewtest@example.com", "View Test Operator")
@@ -40,7 +45,7 @@ func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 		TargetRoles: []string{},
 	}
 	annoRepo := platform.NewAnnouncementRepository(db)
-	err := annoRepo.Create(ctx, announcement)
+	err = annoRepo.Create(ctx, announcement)
 	require.NoError(t, err)
 
 	// Create an auth account

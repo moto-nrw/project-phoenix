@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -180,7 +181,10 @@ func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := platformRepo.NewOperatorSummariesRepository(db)
+	// Person counts come from the People Directory composition (#2661).
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	repo := factory.OperatorSummaries
 	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
@@ -227,7 +231,10 @@ func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := platformRepo.NewOperatorSummariesRepository(db)
+	// Person counts come from the People Directory composition (#2661).
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	repo := factory.OperatorSummaries
 	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
@@ -267,7 +274,10 @@ func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T)
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := platformRepo.NewOperatorSummariesRepository(db)
+	// Person counts come from the People Directory composition (#2661).
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	require.NoError(t, err)
+	repo := factory.OperatorSummaries
 	ctx := testpkg.Ctx(t)
 
 	fix := setupSummariesFixture(t, db)
