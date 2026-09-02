@@ -59,7 +59,7 @@ describe("MealParticipantList", () => {
       name: "Datum: 07.09.2026",
     });
     expect(datePicker).toBeInTheDocument();
-    expect(datePicker).toHaveClass("h-8", "rounded-full");
+    expect(datePicker).toHaveClass("h-10", "min-w-44", "rounded-lg");
     expect(
       document.querySelector('input[type="date"]'),
     ).not.toBeInTheDocument();

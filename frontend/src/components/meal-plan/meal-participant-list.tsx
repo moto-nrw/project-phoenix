@@ -118,11 +118,12 @@ export function MealParticipantList() {
               value={date}
               onChange={setDate}
               ariaLabel={`Datum: ${formatDate(date)}`}
-              calendarLayout="popover"
+              calendarLayout="popover-below"
+              controlSize="md"
               hideClearButton
               required
-              className="w-full sm:w-auto"
-              triggerClassName="h-8 w-full flex-none justify-center rounded-full px-3 py-0 text-xs font-medium sm:w-auto sm:justify-start"
+              className="w-full sm:w-44"
+              triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
             />
 
             <div
