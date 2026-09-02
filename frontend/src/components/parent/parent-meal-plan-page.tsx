@@ -180,19 +180,136 @@ function MealPlanLoadingSection({ loadingLabel }: { loadingLabel: string }) {
   );
 }
 
+function WeekNavigation({
+  weekOffset,
+  mondayISO,
+  weekRange,
+  weekReady,
+  onWeekChange,
+}: Readonly<{
+  weekOffset: 0 | 1;
+  mondayISO: string;
+  weekRange: string;
+  weekReady: boolean;
+  onWeekChange: (offset: 0 | 1) => void;
+}>) {
+  const t = useTranslations("parentMealPlan");
+
+  return (
+    <nav
+      aria-label={t("weekNavigation")}
+      className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="min-h-11 min-w-11"
+        aria-label={t("previousWeek")}
+        disabled={!weekReady || weekOffset === 0}
+        onClick={() => onWeekChange(0)}
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+      </Button>
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="min-w-40 text-center"
+      >
+        <p className="text-sm font-semibold text-gray-900">
+          {t("calendarWeek", { week: isoWeek(mondayISO) })}
+          <span className="ml-1.5 text-gray-500">
+            · {weekOffset === 0 ? t("thisWeek") : t("nextWeek")}
+          </span>
+        </p>
+        <p className="text-xs text-gray-500">{weekRange}</p>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="min-h-11 min-w-11"
+        aria-label={t("nextWeek")}
+        disabled={!weekReady || weekOffset === 1}
+        onClick={() => onWeekChange(1)}
+      >
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </nav>
+  );
+}
+
 const participationWeekdays = [1, 2, 3, 4, 5] as const;
 
-function ParticipationCard({
+function MealParticipationDaysSkeleton({
+  loadingLabel,
+}: Readonly<{ loadingLabel: string }>) {
+  return (
+    <div
+      aria-busy="true"
+      data-testid="meal-participation-week-skeleton"
+      className="divide-y divide-gray-100"
+    >
+      <div role="status" aria-label={loadingLabel} className="sr-only">
+        {loadingLabel}
+      </div>
+      {participationWeekdays.map((weekday) => (
+        <div
+          key={weekday}
+          className="grid gap-3 px-4 py-4 sm:px-5 md:grid-cols-[minmax(9rem,0.7fr)_minmax(0,1.4fr)_minmax(12rem,0.9fr)] md:items-center"
+          aria-hidden="true"
+        >
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-36 rounded-full" />
+            <Skeleton className="h-8 w-24 rounded-md" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ParticipationWeek({
   studentId,
   childName,
   today,
-}: Readonly<{ studentId: string; childName: string; today: string }>) {
+  weekDates,
+  weekOffset,
+  mondayISO,
+  weekRange,
+  weekReady,
+  weekError,
+  dishesByDate,
+  onWeekChange,
+}: Readonly<{
+  studentId: string;
+  childName: string;
+  today: string;
+  weekDates: string[];
+  weekOffset: 0 | 1;
+  mondayISO: string;
+  weekRange: string;
+  weekReady: boolean;
+  weekError: boolean;
+  dishesByDate: ReadonlyMap<string, MealPlanEntry[]>;
+  onWeekChange: (offset: 0 | 1) => void;
+}>) {
   const t = useTranslations("parentMealPlan");
   const locale = useLocale();
   const [participation, setParticipation] = useState<MealParticipation | null>(
     null,
   );
   const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [editingRegularDays, setEditingRegularDays] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
@@ -204,19 +321,22 @@ function ParticipationCard({
     return { from: monday, to: toISODate(end) };
   }, [today]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setError(false);
+    setParticipation(null);
     try {
       const value = await getMealParticipation(studentId, range.from, range.to);
       setParticipation(value);
       setWeekdays(value.weekdays);
+      return true;
     } catch (loadError) {
       logger.error("parent_meal_participation_load_failed", {
         error:
           loadError instanceof Error ? loadError.message : String(loadError),
       });
       setError(true);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -238,7 +358,7 @@ function ParticipationCard({
     setSaving(true);
     try {
       await replaceMealParticipationSchedule(studentId, weekdays);
-      await load();
+      if (await load()) setEditingRegularDays(false);
     } catch (saveError) {
       logger.error("parent_meal_participation_schedule_failed", {
         error:
@@ -248,6 +368,11 @@ function ParticipationCard({
     } finally {
       setSaving(false);
     }
+  }
+
+  function cancelRegularDaysEdit() {
+    setWeekdays(participation?.weekdays ?? []);
+    setEditingRegularDays(false);
   }
 
   async function changeDay(
@@ -271,132 +396,264 @@ function ParticipationCard({
     }
   }
 
-  return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <h2 className="text-lg font-semibold text-gray-900">
-        {t("participationTitle", { name: childName })}
-      </h2>
-      <p className="mt-1 text-sm text-gray-600">
-        {participation
-          ? t("participationCutoff", { time: participation.cutoff_time })
-          : t("participationDescription")}
-      </p>
-      {participation ? (
-        <p className="mt-1 text-sm text-gray-600">
-          {t("participationSickness", { time: participation.cutoff_time })}
-        </p>
-      ) : null}
+  const regularDaysLabel = useMemo(() => {
+    if (!participation || participation.weekdays.length === 0)
+      return t("noRegularDays");
+    if (participation.weekdays.length === participationWeekdays.length)
+      return t("allWeekdays");
+    const labels = participation.weekdays.map((weekday) =>
+      t(`weekday${weekday}`),
+    );
+    return new Intl.ListFormat(locale, {
+      style: "long",
+      type: "conjunction",
+    }).format(labels);
+  }, [locale, participation, t]);
 
-      {error ? (
-        <div className="mt-4 space-y-3">
-          <Alert type="error" message={t("participationError")} />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            {t("retry")}
-          </Button>
-        </div>
-      ) : loading || !participation ? (
-        <div className="mt-4 space-y-3" aria-label={t("participationLoading")}>
-          <Skeleton className="h-12 w-full rounded-xl" />
-          <Skeleton className="h-28 w-full rounded-xl" />
-        </div>
-      ) : (
-        <div className="mt-5 space-y-6">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">
-              {t("regularDays")}
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">{t("regularDaysHint")}</p>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-              {participationWeekdays.map((weekday) => (
-                <label
-                  key={weekday}
-                  className="moto-content-surface flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-800 shadow-sm"
-                >
-                  <Checkbox
-                    checked={weekdays.includes(weekday)}
-                    onChange={() => toggleWeekday(weekday)}
-                    disabled={saving}
-                  />
-                  {t(`weekday${weekday}`)}
-                </label>
-              ))}
-            </div>
+  const participationByDate = useMemo(
+    () => new Map(participation?.days.map((day) => [day.date, day]) ?? []),
+    [participation],
+  );
+
+  const fullDate = (iso: string) =>
+    parseISODate(iso).toLocaleDateString(locale, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+
+  return (
+    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <div className="p-4 sm:p-5">
+        <h2 className="text-lg font-semibold text-gray-900">
+          {t("participationTitle", { name: childName })}
+        </h2>
+
+        {error ? (
+          <div className="mt-4 space-y-3">
+            <Alert type="error" message={t("participationError")} />
             <Button
               type="button"
-              variant="primary"
-              size="touch"
-              className="mt-3 w-full sm:w-auto"
-              onClick={() => void saveRegularDays()}
-              disabled={saving}
-              isLoading={saving}
-              loadingText={t("saving")}
+              size="md"
+              variant="outline"
+              onClick={() => void load()}
+              disabled={loading}
             >
-              {t("saveRegularDays")}
+              {t("retry")}
             </Button>
-            {participation.effective_from ? (
-              <p className="mt-2 text-xs text-gray-500">
-                {t("regularEffective", {
-                  date: parseISODate(
-                    participation.effective_from,
-                  ).toLocaleDateString(locale),
-                })}
-              </p>
-            ) : null}
           </div>
-
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">
-              {t("individualDays")}
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {t("individualDaysHint")}
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {participation.days.map((day) => {
-                const date = parseISODate(day.date);
-                return (
-                  <div
-                    key={day.date}
-                    className="moto-content-surface rounded-xl border border-gray-200 p-3 shadow-sm"
+        ) : loading || !participation ? (
+          <div
+            className="mt-4 rounded-xl bg-gray-50 p-4 ring-1 ring-gray-200"
+            aria-label={t("participationLoading")}
+          >
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="mt-2 h-5 w-52 max-w-full" />
+            <Skeleton className="mt-3 h-9 w-24 rounded-md" />
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl bg-gray-50 p-4 ring-1 ring-gray-200">
+            {editingRegularDays ? (
+              <fieldset>
+                <legend className="text-sm font-semibold text-gray-900">
+                  {t("editRegularDaysTitle")}
+                </legend>
+                <p className="mt-1 text-sm text-gray-600">
+                  {t("editRegularDaysHint", { name: childName })}
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  {participationWeekdays.map((weekday) => (
+                    <label
+                      key={weekday}
+                      className="flex min-h-12 cursor-pointer items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium text-gray-800 ring-1 ring-gray-200"
+                    >
+                      <Checkbox
+                        checked={weekdays.includes(weekday)}
+                        onChange={() => toggleWeekday(weekday)}
+                        disabled={saving}
+                      />
+                      {t(`weekday${weekday}`)}
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="md"
+                    className="min-h-11"
+                    onClick={cancelRegularDaysEdit}
+                    disabled={saving}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {date.toLocaleDateString(locale, {
-                            weekday: "long",
-                            day: "2-digit",
-                            month: "2-digit",
-                          })}
+                    {t("cancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    className="min-h-11"
+                    onClick={() => void saveRegularDays()}
+                    disabled={saving}
+                    isLoading={saving}
+                    loadingText={t("saving")}
+                  >
+                    {t("save")}
+                  </Button>
+                </div>
+              </fieldset>
+            ) : (
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    {t("regularDays")}
+                  </h3>
+                  <p className="mt-1 text-base font-medium text-gray-800">
+                    {regularDaysLabel}
+                  </p>
+                  {participation.effective_from ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {t("regularEffective", {
+                        date: parseISODate(
+                          participation.effective_from,
+                        ).toLocaleDateString(locale, {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        }),
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  className="min-h-11 shrink-0"
+                  aria-expanded={false}
+                  onClick={() => setEditingRegularDays(true)}
+                >
+                  {t("edit")}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {participation ? (
+          <p className="mt-3 text-sm text-gray-600">
+            {t("participationCutoff", { time: participation.cutoff_time })}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="border-t border-gray-200">
+        <WeekNavigation
+          weekOffset={weekOffset}
+          mondayISO={mondayISO}
+          weekRange={weekRange}
+          weekReady={weekReady}
+          onWeekChange={onWeekChange}
+        />
+      </div>
+
+      {!weekReady ? (
+        <MealParticipationDaysSkeleton loadingLabel={t("loading")} />
+      ) : (
+        <>
+          {weekError ? (
+            <div className="border-b border-gray-200 p-4">
+              <Alert type="error" message={t("loadError")} />
+            </div>
+          ) : null}
+          <ul className="divide-y divide-gray-100">
+            {weekDates.map((date) => {
+              const dishes = dishesByDate.get(date) ?? [];
+              const day = participationByDate.get(date);
+              const isToday = date === today;
+              const statusLabel = day
+                ? day.source === "sick"
+                  ? t("cancelledBySickNote")
+                  : day.participating
+                    ? t("registered")
+                    : t("notRegistered")
+                : t("participationUnavailable");
+              const statusTone =
+                day?.source === "sick"
+                  ? "red"
+                  : day?.participating
+                    ? "green"
+                    : "gray";
+
+              return (
+                <li
+                  key={date}
+                  className={`grid gap-3 px-4 py-4 sm:px-5 md:grid-cols-[minmax(9rem,0.7fr)_minmax(0,1.4fr)_minmax(12rem,0.9fr)] md:items-center ${
+                    isToday ? "bg-moto-green/[0.04]" : ""
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3 md:block">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {fullDate(date)}
+                      </p>
+                      {isToday ? (
+                        <p className="text-moto-green-strong mt-1 text-xs font-semibold">
+                          {t("today")}
                         </p>
-                        <p className="mt-0.5 text-sm text-gray-600">
-                          {day.source === "sick"
-                            ? t("cancelledBySickNote")
-                            : day.participating
-                              ? t("registered")
-                              : t("notRegistered")}
-                        </p>
-                      </div>
-                      {!day.changeable ? (
-                        <StatusBadge
-                          label={t("closed")}
-                          tone="gray"
-                          showDot={false}
-                        />
                       ) : null}
                     </div>
-                    {day.changeable && day.source !== "sick" ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
+                  </div>
+
+                  <div className="order-3 min-w-0 md:order-2">
+                    {weekError ? (
+                      <p className="text-sm text-gray-500">
+                        {t("mealUnavailable")}
+                      </p>
+                    ) : dishes.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {dishes.map((entry) => (
+                          <div key={entry.position}>
+                            <p className="text-sm leading-snug font-medium text-gray-900">
+                              {entry.dish}
+                            </p>
+                            {entry.note ? (
+                              <p className="text-xs leading-snug text-gray-500">
+                                {entry.note}
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">{t("noMeal")}</p>
+                    )}
+                  </div>
+
+                  <div className="order-2 md:order-3">
+                    {loading ? (
+                      <Skeleton className="h-6 w-40 rounded-full" />
+                    ) : (
+                      <StatusBadge label={statusLabel} tone={statusTone} />
+                    )}
+                    {day?.source === "override" ? (
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        {t("singleChange")}
+                      </p>
+                    ) : null}
+                    {day && !day.changeable ? (
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        {t("closed")}
+                      </p>
+                    ) : null}
+                    {day?.changeable && day.source !== "sick" ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
                         <Button
                           type="button"
                           variant={
                             day.participating ? "outline_danger" : "success"
                           }
                           size="compact"
+                          className="min-h-11"
                           disabled={saving}
                           onClick={() =>
                             void changeDay(day.date, !day.participating)
@@ -409,6 +666,7 @@ function ParticipationCard({
                             type="button"
                             variant="ghost"
                             size="compact"
+                            className="min-h-11"
                             disabled={saving}
                             onClick={() =>
                               void changeDay(day.date, false, true)
@@ -420,12 +678,18 @@ function ParticipationCard({
                       </div>
                     ) : null}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
+
+      {participation ? (
+        <p className="border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 sm:px-5">
+          {t("participationSickness", { time: participation.cutoff_time })}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -641,163 +905,89 @@ export function ParentMealPlanPage() {
           description={t("empty")}
           className="moto-content-surface rounded-2xl border px-5 shadow-sm backdrop-blur-md"
         />
+      ) : selectedSchool?.registrationEnabled ? (
+        <ParticipationWeek
+          key={selectedSchool.studentId}
+          studentId={selectedSchool.studentId}
+          childName={selectedSchool.childName}
+          today={today}
+          weekDates={weekDates}
+          weekOffset={weekOffset}
+          mondayISO={mondayISO}
+          weekRange={weekRange}
+          weekReady={weekReady}
+          weekError={weekError}
+          dishesByDate={dishesByDate}
+          onWeekChange={setWeekOffset}
+        />
       ) : (
-        <>
-          {selectedSchool?.registrationEnabled ? (
-            <ParticipationCard
-              studentId={selectedSchool.studentId}
-              childName={selectedSchool.childName}
-              today={today}
+        <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+          <WeekNavigation
+            weekOffset={weekOffset}
+            mondayISO={mondayISO}
+            weekRange={weekRange}
+            weekReady={weekReady}
+            onWeekChange={setWeekOffset}
+          />
+
+          {!weekReady ? (
+            <MealPlanWeekSkeleton loadingLabel={t("loading")} />
+          ) : weekError ? (
+            <div className="p-4">
+              <Alert type="error" message={t("loadError")} />
+            </div>
+          ) : weekIsEmpty ? (
+            <EmptyState
+              icon={<Utensils className="h-10 w-10" />}
+              title={
+                weekOffset === 0
+                  ? t("emptyThisWeekTitle")
+                  : t("emptyNextWeekTitle")
+              }
+              description={t("emptyWeek")}
+              className="px-5"
             />
-          ) : null}
-          <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-            <nav
-              aria-label={t("weekNavigation")}
-              className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t("previousWeek")}
-                disabled={!weekReady || weekOffset === 0}
-                onClick={() => setWeekOffset(0)}
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-              </Button>
-              <div
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-                className="min-w-40 text-center"
-              >
-                <p className="text-sm font-semibold text-gray-900">
-                  {t("calendarWeek", { week: isoWeek(mondayISO) })}
-                  <span className="ml-1.5 text-gray-500">
-                    · {weekOffset === 0 ? t("thisWeek") : t("nextWeek")}
-                  </span>
-                </p>
-                <p className="text-xs text-gray-500">{weekRange}</p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t("nextWeek")}
-                disabled={!weekReady || weekOffset === 1}
-                onClick={() => setWeekOffset(1)}
-              >
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </nav>
-
-            {!weekReady ? (
-              <MealPlanWeekSkeleton loadingLabel={t("loading")} />
-            ) : weekError ? (
-              <div className="p-4">
-                <Alert type="error" message={t("loadError")} />
-              </div>
-            ) : weekIsEmpty ? (
-              <EmptyState
-                icon={<Utensils className="h-10 w-10" />}
-                title={
-                  weekOffset === 0
-                    ? t("emptyThisWeekTitle")
-                    : t("emptyNextWeekTitle")
-                }
-                description={t("emptyWeek")}
-                className="px-5"
-              />
-            ) : (
-              <>
-                {/* Mobile: today first, then the rest of the week as a list. */}
-                <div className="md:hidden">
-                  {todayInWeek &&
-                    (() => {
-                      const dishes = dishesByDate.get(today) ?? [];
-                      return (
-                        <div className="overflow-hidden border-b border-gray-200">
-                          <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-                            <div className="text-sm font-semibold text-gray-900">
-                              {weekdayLabel(today)}
-                            </div>
-                            <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                              {t("today")}
-                            </span>
+          ) : (
+            <>
+              {/* Mobile: today first, then the rest of the week as a list. */}
+              <div className="md:hidden">
+                {todayInWeek &&
+                  (() => {
+                    const dishes = dishesByDate.get(today) ?? [];
+                    return (
+                      <div className="overflow-hidden border-b border-gray-200">
+                        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
+                          <div className="text-sm font-semibold text-gray-900">
+                            {weekdayLabel(today)}
                           </div>
-                          <div className="flex flex-col gap-2.5 p-3">
-                            {dishes.length > 0 ? (
-                              dishes.map((entry) => (
-                                <DishCard key={entry.position} entry={entry} />
-                              ))
-                            ) : (
-                              <p className="py-3 text-center text-sm text-gray-300">
-                                {t("noMeal")}
-                              </p>
-                            )}
-                          </div>
+                          <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                            {t("today")}
+                          </span>
                         </div>
-                      );
-                    })()}
+                        <div className="flex flex-col gap-2.5 p-3">
+                          {dishes.length > 0 ? (
+                            dishes.map((entry) => (
+                              <DishCard key={entry.position} entry={entry} />
+                            ))
+                          ) : (
+                            <p className="py-3 text-center text-sm text-gray-300">
+                              {t("noMeal")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
-                  <div className="overflow-hidden">
-                    <div className="divide-y divide-gray-100">
-                      {weekDates
-                        .filter((date) => !(todayInWeek && date === today))
-                        .map((date) => {
-                          const dishes = dishesByDate.get(date) ?? [];
-                          return (
-                            <div key={date} className="flex gap-3 px-4 py-3">
-                              <div className="w-20 shrink-0">
-                                <div className="text-sm font-semibold text-gray-900">
-                                  {weekdayLabel(date)}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {shortDate(date)}
-                                </div>
-                              </div>
-                              <div className="min-w-0 flex-1 space-y-1.5">
-                                {dishes.length > 0 ? (
-                                  dishes.map((entry) => (
-                                    <div key={entry.position}>
-                                      <p className="text-sm leading-snug font-medium text-gray-900">
-                                        {entry.dish}
-                                      </p>
-                                      {entry.note ? (
-                                        <p className="text-xs leading-snug text-gray-500">
-                                          {entry.note}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                  ))
-                                ) : (
-                                  <p className="text-sm text-gray-300">
-                                    {t("noMeal")}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Desktop: full five-column week grid. */}
-                <div className="hidden md:block">
-                  <div className="grid grid-cols-5 divide-x divide-gray-200">
-                    {weekDates.map((date) => {
-                      const dishes = dishesByDate.get(date) ?? [];
-                      const isToday = date === today;
-                      return (
-                        <div
-                          key={date}
-                          className={`flex flex-col ${
-                            isToday ? "bg-moto-green/[0.04]" : ""
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-                            <div>
+                <div className="overflow-hidden">
+                  <div className="divide-y divide-gray-100">
+                    {weekDates
+                      .filter((date) => !(todayInWeek && date === today))
+                      .map((date) => {
+                        const dishes = dishesByDate.get(date) ?? [];
+                        return (
+                          <div key={date} className="flex gap-3 px-4 py-3">
+                            <div className="w-20 shrink-0">
                               <div className="text-sm font-semibold text-gray-900">
                                 {weekdayLabel(date)}
                               </div>
@@ -805,37 +995,85 @@ export function ParentMealPlanPage() {
                                 {shortDate(date)}
                               </div>
                             </div>
-                            {isToday && (
-                              <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                                {t("today")}
-                              </span>
-                            )}
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                              {dishes.length > 0 ? (
+                                dishes.map((entry) => (
+                                  <div key={entry.position}>
+                                    <p className="text-sm leading-snug font-medium text-gray-900">
+                                      {entry.dish}
+                                    </p>
+                                    {entry.note ? (
+                                      <p className="text-xs leading-snug text-gray-500">
+                                        {entry.note}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-sm text-gray-300">
+                                  {t("noMeal")}
+                                </p>
+                              )}
+                            </div>
                           </div>
-
-                          <div className="flex flex-1 flex-col gap-2.5 p-3">
-                            {dishes.length > 0 ? (
-                              dishes.map((entry) => (
-                                <DishCard
-                                  key={entry.position}
-                                  entry={entry}
-                                  highlight={isToday}
-                                />
-                              ))
-                            ) : (
-                              <p className="py-6 text-center text-sm text-gray-300">
-                                {t("noMeal")}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 </div>
-              </>
-            )}
-          </section>
-        </>
+              </div>
+
+              {/* Desktop: full five-column week grid. */}
+              <div className="hidden md:block">
+                <div className="grid grid-cols-5 divide-x divide-gray-200">
+                  {weekDates.map((date) => {
+                    const dishes = dishesByDate.get(date) ?? [];
+                    const isToday = date === today;
+                    return (
+                      <div
+                        key={date}
+                        className={`flex flex-col ${
+                          isToday ? "bg-moto-green/[0.04]" : ""
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">
+                              {weekdayLabel(date)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {shortDate(date)}
+                            </div>
+                          </div>
+                          {isToday && (
+                            <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                              {t("today")}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex flex-1 flex-col gap-2.5 p-3">
+                          {dishes.length > 0 ? (
+                            dishes.map((entry) => (
+                              <DishCard
+                                key={entry.position}
+                                entry={entry}
+                                highlight={isToday}
+                              />
+                            ))
+                          ) : (
+                            <p className="py-6 text-center text-sm text-gray-300">
+                              {t("noMeal")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </section>
       )}
     </ParentPage>
   );

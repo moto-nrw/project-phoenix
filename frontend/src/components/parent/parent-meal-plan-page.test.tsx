@@ -197,11 +197,19 @@ describe("ParentMealPlanPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the cutoff and changes one lunch day", async () => {
+  it("combines meals and participation while keeping regular days compact", async () => {
     mocks.getChildFeatures.mockResolvedValue({
       meal_plan_enabled: true,
       meal_registration_enabled: true,
     });
+    mocks.getChildMealPlan.mockResolvedValue([
+      {
+        date: "2026-08-12",
+        position: 0,
+        dish: "Gemüse-Lasagne",
+        note: "mit Salat",
+      },
+    ]);
     mocks.getMealParticipation.mockResolvedValue({
       weekdays: [1, 3],
       effective_from: "2026-08-10",
@@ -215,6 +223,9 @@ describe("ParentMealPlanPage", () => {
         },
       ],
     });
+    mocks.replaceMealParticipationSchedule.mockResolvedValue({
+      effective_from: "2026-08-17",
+    });
     mocks.setMealParticipationDay.mockResolvedValue(undefined);
 
     render(<ParentMealPlanPage />);
@@ -226,17 +237,34 @@ describe("ParentMealPlanPage", () => {
     ).toBeInTheDocument();
     expect(
       await screen.findByText(
-        "Änderungen für den gleichen Tag sind bis 09:00 Uhr möglich.",
+        "Sie können die Anmeldung am selben Tag bis 09:00 Uhr ändern.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Montag und Mittwoch")).toBeInTheDocument();
+    expect(screen.getByText("Gemüse-Lasagne")).toBeInTheDocument();
+    expect(screen.getByText("mit Salat")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Eine bestätigte Krankmeldung bis 09:00 Uhr meldet Ihr Kind für diesen Tag vom Mittagessen ab. Eine spätere Krankmeldung ändert die Küchenliste nicht mehr.",
+        "Eine bestätigte Krankmeldung bis 09:00 Uhr meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
       ),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("parentMealPlan.participationSickness"),
     ).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("checkbox", { name: "Dienstag" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Dienstag" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => {
+      expect(mocks.replaceMealParticipationSchedule).toHaveBeenCalledWith(
+        "child-1",
+        [1, 2, 3],
+      );
+    });
+
     fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
     await waitFor(() => {
       expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
