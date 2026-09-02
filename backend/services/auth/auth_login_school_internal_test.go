@@ -477,7 +477,7 @@ func TestCreateRefreshTokenWithRetryGuarded_GuardRefusalWritesNoToken(t *testing
 	before := countAccountTokens(t, db, account.ID)
 
 	token, err := service.createRefreshTokenWithRetryGuarded(
-		context.Background(), account, tenantID, tenant.ScopeSchool, service.schoolMintGuard(account.ID, tenantID, new(*accountMetadata)))
+		context.Background(), account, tenantID, tenant.ScopeSchool, service.schoolMintGuard(account.ID, tenantID, new(*accountMetadata)), "")
 
 	require.Error(t, err)
 	assert.Nil(t, token)

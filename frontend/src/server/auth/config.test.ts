@@ -311,7 +311,7 @@ describe("authConfig", () => {
       expect(result?.token).toBe("access-token");
     });
 
-    it("should gracefully handle failed proactive refresh", async () => {
+    it("should end the session on a rejected proactive refresh (#2952)", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -335,10 +335,11 @@ describe("authConfig", () => {
         session: undefined,
       });
 
-      // Token stays unchanged — no error set, Axios interceptor handles fallback
+      // A 401 on refresh is final: the session callback strips the tokens.
       expect(result?.token).toBe("old-access-token");
       expect(result?.refreshToken).toBe("old-refresh-token");
-      expect(result?.error).toBeUndefined();
+      expect(result?.error).toBe("RefreshTokenError");
+      expect(result?.needsRefresh).toBe(true);
     });
 
     it("should gracefully handle network error during proactive refresh", async () => {
