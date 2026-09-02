@@ -16614,7 +16614,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        355
+        367
       ],
       "tables": []
     },
@@ -18836,7 +18836,7 @@
       "declaration": "TestVisitRepository_CountActiveByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1167
+        1178
       ],
       "tables": []
     },
@@ -18846,7 +18846,7 @@
       "declaration": "TestVisitRepository_CountActiveByRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1097
+        1108
       ],
       "tables": []
     },
@@ -18856,7 +18856,7 @@
       "declaration": "TestVisitRepository_CountExpiredVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        958
+        969
       ],
       "tables": [
         "active.visits",
@@ -18889,7 +18889,7 @@
       "declaration": "TestVisitRepository_DeleteExpiredVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        681
+        692
       ],
       "tables": [
         "active.visits"
@@ -18901,7 +18901,7 @@
       "declaration": "TestVisitRepository_EndVisit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        649
+        660
       ],
       "tables": []
     },
@@ -18911,8 +18911,8 @@
       "declaration": "TestVisitRepository_EndVisitsByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1229,
-        1230
+        1240,
+        1241
       ],
       "tables": []
     },
@@ -18922,7 +18922,7 @@
       "declaration": "TestVisitRepository_ExpiredVisitMonthlyCounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1567
+        1578
       ],
       "tables": []
     },
@@ -18945,19 +18945,6 @@
         236
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/visits_repository_test.go",
-      "declaration": "TestVisitRepository_FindActiveWithStudentDisplayByGroup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        596
-      ],
-      "tables": [
-        "education.groups",
-        "users.students"
-      ]
     },
     {
       "scope": "test",
@@ -19015,7 +19002,7 @@
       "declaration": "TestVisitRepository_GetCurrentByStudentIDWithRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1007
+        1018
       ],
       "tables": [
         "active.groups"
@@ -19049,7 +19036,7 @@
       "declaration": "TestVisitRepository_GetVisitRetentionStats",
       "target": "database/repositories.NewFactory",
       "lines": [
-        908
+        919
       ],
       "tables": [
         "active.visits",
@@ -19072,9 +19059,9 @@
       "declaration": "TestVisitRepository_ListActiveStudentIDsByRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1360,
-        1413,
-        1469
+        1371,
+        1424,
+        1480
       ],
       "tables": []
     },
@@ -19084,7 +19071,7 @@
       "declaration": "TestVisitRepository_OldestExpiredVisitDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1525
+        1536
       ],
       "tables": []
     },
@@ -19094,8 +19081,8 @@
       "declaration": "TestVisitRepository_TransferActiveVisitsBetweenGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        847,
-        848
+        858,
+        859
       ],
       "tables": []
     },
@@ -19105,8 +19092,8 @@
       "declaration": "TestVisitRepository_TransferVisitsFromRecentSessions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        740,
-        741
+        751,
+        752
       ],
       "tables": [
         "active.groups"
@@ -19138,7 +19125,7 @@
       "declaration": "TestVisitsRepository_GetCurrentByStudentIDs_Deduplication",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1329
+        1340
       ],
       "tables": []
     },
@@ -19149,6 +19136,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         40
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/visits_repository_test.go",
+      "declaration": "newGroupProjectionFactory",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        597
       ],
       "tables": []
     },
@@ -22293,6 +22290,26 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/group_projection_adapters_test.go",
+      "declaration": "TestStudentRosterGroupNamesAreEmptyWithoutGroup",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        57
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/group_projection_adapters_test.go",
+      "declaration": "TestSupervisionBlockersResolveGroupNamesThroughTheOwner",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        35
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/iot/device_repository_test.go",
       "declaration": "TestDeviceRepository_ArchivedDevicesAreHistoricalOnly",
       "target": "database/repositories.NewFactory",
@@ -24720,16 +24737,6 @@
     {
       "scope": "test",
       "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_FindAllWithGroups",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        636
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_repository_test.go",
       "declaration": "TestStudentRepository_FindByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -24763,7 +24770,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        973
+        984
       ],
       "tables": []
     },
@@ -24773,7 +24780,7 @@
       "declaration": "TestStudentRepository_FindByNameAndClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        820
+        831
       ],
       "tables": []
     },
@@ -24802,22 +24809,10 @@
     {
       "scope": "test",
       "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_FindByTeacherIDWithGroups",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        600
-      ],
-      "tables": [
-        "education.group_teacher"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_repository_test.go",
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        705
+        716
       ],
       "tables": [
         "users.students"
@@ -24829,7 +24824,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        762
+        773
       ],
       "tables": [
         "users.students"
@@ -24861,7 +24856,7 @@
       "declaration": "TestStudentRepository_LockPhotoFeature",
       "target": "database/repositories.NewFactory",
       "lines": [
-        924
+        935
       ],
       "tables": []
     },
@@ -24871,7 +24866,7 @@
       "declaration": "TestStudentRepository_PurgeAllPhotos",
       "target": "database/repositories.NewFactory",
       "lines": [
-        869
+        880
       ],
       "tables": []
     },
@@ -24894,6 +24889,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         248
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/student_repository_test.go",
+      "declaration": "newGroupProjectionFactory",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        601
       ],
       "tables": []
     },

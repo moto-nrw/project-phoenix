@@ -1441,9 +1441,7 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
 	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
-		ColumnExpr(`"group".name AS "group_name"`).
-		Join(`INNER JOIN education.groups AS "group" ON "group".id = "student".group_id`).
-		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
+		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "student".group_id`).
 		Where(`"gt".teacher_id = ? AND "student".group_id IS NOT NULL`, teacherID).
 		Distinct().
 		Scan(ctx)
@@ -1467,8 +1465,6 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
 	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
-		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
-		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Distinct().
 		OrderExpr(`"person".last_name, "person".first_name`).
 		Scan(ctx)
@@ -1509,8 +1505,6 @@ func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.Stu
 func (r *StudentRepository) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
 	query := r.newStudentWithGroupQuery(ctx, &results).
-		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
-		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, from).
 		Where(`NOT ("student".enrolled_from IS NULL AND "student".enrolled_until IS NULL AND "student".status = ?)`,
 			string(users.StudentStatusInactive))
