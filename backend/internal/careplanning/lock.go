@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -31,10 +32,14 @@ func LockExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date tim
 // transaction. The row belongs to the People Directory (#2662).
 type StudentLock func(ctx context.Context, studentID int64) error
 
-var studentLocks sync.Map // map[*bun.DB]StudentLock
+var (
+	studentLocks      sync.Map // map[*bun.DB]StudentLock
+	legacyStudentLock atomic.Pointer[StudentLock]
+)
 
-// BindStudentLock maps an owner-backed lock to the SQL contract retained by
-// care-day writers. Callers can keep the returned value in their own graph.
+// BindStudentLock is retained for hand-wired test graphs. Production graphs
+// bind by database with BindStudentLockForDB so independent factories cannot
+// overwrite each other.
 func BindStudentLock(lock StudentLock, notFound error) StudentLock {
 	if lock == nil || notFound == nil {
 		panic("careplanning: student lock and its not-found sentinel are required")
@@ -46,6 +51,7 @@ func BindStudentLock(lock StudentLock, notFound error) StudentLock {
 		}
 		return err
 	})
+	legacyStudentLock.Store(&mapped)
 	return mapped
 }
 
@@ -56,7 +62,17 @@ func BindStudentLockForDB(db *bun.DB, lock StudentLock, notFound error) {
 	if db == nil {
 		panic("careplanning: database is required")
 	}
-	studentLocks.Store(db, BindStudentLock(lock, notFound))
+	if lock == nil || notFound == nil {
+		panic("careplanning: student lock and its not-found sentinel are required")
+	}
+	mapped := StudentLock(func(ctx context.Context, studentID int64) error {
+		err := lock(ctx, studentID)
+		if errors.Is(err, notFound) {
+			return sql.ErrNoRows
+		}
+		return err
+	})
+	studentLocks.Store(db, mapped)
 }
 
 // LockStudent takes only the student row FOR UPDATE — the first lock every
@@ -78,7 +94,11 @@ func LockStudent(ctx context.Context, db *bun.DB, studentID int64) error {
 	}
 	value, ok := studentLocks.Load(db)
 	if !ok {
-		return errors.New("careplanning: student lock is not bound for database")
+		lock := legacyStudentLock.Load()
+		if lock == nil {
+			return errors.New("careplanning: student lock is not bound for database")
+		}
+		value = *lock
 	}
 	lock, ok := value.(StudentLock)
 	if !ok {
