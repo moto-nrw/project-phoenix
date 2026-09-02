@@ -1,4 +1,4 @@
-export type ConsentKey = "agb" | "data_processing" | "email_contact" | "photo";
+type ConsentKey = "agb" | "data_processing" | "email_contact" | "photo";
 
 export type ConsentState = "granted" | "withdrawn" | "not_recorded";
 

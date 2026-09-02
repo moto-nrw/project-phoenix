@@ -5,7 +5,7 @@ import type {
   CompanionExtensionConfirmation,
   StudentCompanion,
 } from "./student-companion-api";
-import type { ConsentKey, ConsentRecord } from "./consent-types";
+import type { ConsentRecord } from "./consent-types";
 import {
   LOCATION_STATUSES,
   parseLocation,
@@ -538,8 +538,6 @@ export interface BackendStudent {
   created_at: string;
   updated_at: string;
 }
-
-export type StudentConsentKey = ConsentKey;
 
 export type StudentConsent = ConsentRecord;
 
