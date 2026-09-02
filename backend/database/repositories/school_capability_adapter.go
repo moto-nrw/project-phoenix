@@ -1,13 +1,11 @@
-package platform
+package repositories
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
@@ -181,11 +179,14 @@ func (a *schoolCapabilityAdapter) enrichOrganizations(ctx context.Context, schoo
 	}
 	byID := make(map[int64]*platformModels.Organization, len(organizations))
 	for _, organization := range organizations {
-		byID[organization.ID] = &platformModels.Organization{
-			Model: modelBase.Model{ID: organization.ID, CreatedAt: organization.CreatedAt, UpdatedAt: organization.UpdatedAt},
-			Name:  organization.Name, Slug: organization.Slug, Active: organization.Active,
+		legacy := &platformModels.Organization{
+			Name: organization.Name, Slug: organization.Slug, Active: organization.Active,
 			DeletedAt: organization.DeletedAt, Settings: organization.Settings,
 		}
+		legacy.ID = organization.ID
+		legacy.CreatedAt = organization.CreatedAt
+		legacy.UpdatedAt = organization.UpdatedAt
+		byID[organization.ID] = legacy
 	}
 	for _, school := range schools {
 		if school != nil {
@@ -214,7 +215,7 @@ func legacySchoolResult(value organizationtenancy.School, err error, operation s
 		if nilNotFound {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: operation, Err: base.TranslateNotFound(sql.ErrNoRows)}
+		return nil, platformRepo.NewSchoolNotFoundError(operation)
 	}
 	if err != nil {
 		return nil, err
@@ -237,18 +238,23 @@ func toLegacySchool(value organizationtenancy.School) *platformModels.School {
 	var organization *platformModels.Organization
 	if value.Organization != nil {
 		organization = &platformModels.Organization{
-			Model: modelBase.Model{ID: value.Organization.ID, CreatedAt: value.Organization.CreatedAt, UpdatedAt: value.Organization.UpdatedAt},
-			Name:  value.Organization.Name, Slug: value.Organization.Slug, Active: value.Organization.Active,
+			Name: value.Organization.Name, Slug: value.Organization.Slug, Active: value.Organization.Active,
 			DeletedAt: value.Organization.DeletedAt, Settings: value.Organization.Settings,
 		}
+		organization.ID = value.Organization.ID
+		organization.CreatedAt = value.Organization.CreatedAt
+		organization.UpdatedAt = value.Organization.UpdatedAt
 	}
-	return &platformModels.School{
-		Model:          modelBase.Model{ID: value.ID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt},
+	result := &platformModels.School{
 		OrganizationID: value.OrganizationID, Name: value.Name, Slug: value.Slug, Subdomain: value.Subdomain,
 		Active: value.Active, Hidden: value.Hidden, DeletedAt: value.DeletedAt, Settings: value.Settings,
 		Address: value.Address, City: value.City, Zip: value.Zip, Phone: value.Phone, Email: value.Email,
 		DevicePinHash: value.DevicePinHash, Organization: organization,
 	}
+	result.ID = value.ID
+	result.CreatedAt = value.CreatedAt
+	result.UpdatedAt = value.UpdatedAt
+	return result
 }
 
 func createSchoolInput(value *platformModels.School) organizationtenancy.CreateSchool {

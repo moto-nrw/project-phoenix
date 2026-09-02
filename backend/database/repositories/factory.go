@@ -41,6 +41,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 
 	"github.com/uptrace/bun"
 )
@@ -359,7 +360,7 @@ func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capabil
 	if f.Account != nil {
 		f.Account = schoolAccountRepository{AccountRepository: f.Account, schools: capability}
 	}
-	f.School = platformRepo.NewSchoolCapabilityAdapter(capability, memberships)
+	f.School = NewSchoolCapabilityAdapter(capability, memberships)
 	if f.ParentChild != nil {
 		f.ParentChild = schoolChildRepository{ChildRepository: f.ParentChild, schools: capability}
 	}
@@ -375,6 +376,16 @@ func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capabil
 	if f.ParentMessageRead != nil {
 		f.ParentMessageRead = schoolParentMessageReadRepository{ParentMessageReadRepository: f.ParentMessageRead, schools: capability}
 	}
+}
+
+// NewOrganizationTenancy composes the school owner behind the legacy
+// composition seam. Consumers should depend on a narrow projection instead
+// of importing the module's compose package themselves.
+func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) {
+	return organizationCompose.New(organizationCompose.Dependencies{
+		DB:      db,
+		Observe: func(organizationCompose.Observation) {},
+	})
 }
 
 // NewFactory creates a new repository factory with all repositories

@@ -8,7 +8,6 @@ import (
 	"text/tabwriter"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/spf13/cobra"
 )
@@ -50,7 +49,7 @@ type settingOverrideRow struct {
 
 type settingsCommandContext struct {
 	*cleanupContext
-	schools organizationtenancy.Query
+	schools services.SchoolQuery
 	values  configModel.SettingValueRepository
 }
 
@@ -90,7 +89,7 @@ func selectedSettingOverrideKeys() []string {
 	return activationSettingKeys
 }
 
-func collectSettingOverrideRows(ctx context.Context, schools []organizationtenancy.School, keys []string, values configModel.SettingValueRepository) ([]settingOverrideRow, error) {
+func collectSettingOverrideRows(ctx context.Context, schools []services.School, keys []string, values configModel.SettingValueRepository) ([]settingOverrideRow, error) {
 	rows := []settingOverrideRow{}
 	for _, school := range schools {
 		for _, key := range keys {

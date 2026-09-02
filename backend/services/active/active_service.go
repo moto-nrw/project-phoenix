@@ -21,7 +21,6 @@ import (
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -65,7 +64,12 @@ type CrossTenantRepo interface {
 }
 
 type SchoolQuery interface {
-	ListSchoolsByID(context.Context, []int64) ([]organizationtenancy.School, error)
+	ListSchoolsByID(context.Context, []int64) ([]School, error)
+}
+
+type School struct {
+	ID   int64
+	Slug string
 }
 
 // SettingsResolver resolves tenant-scoped settings. Implemented by config.SettingsService.

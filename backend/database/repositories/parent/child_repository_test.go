@@ -15,17 +15,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 	t.Helper()
-	capability, err := organizationCompose.New(organizationCompose.Dependencies{
-		DB:      db,
-		Observe: func(organizationCompose.Observation) {},
-	})
+	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	factory := repositories.NewFactory(db)
 	factory.BindOrganizationTenancy(capability)

@@ -571,17 +571,17 @@
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 16,
+          "line": 14,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 24,
+          "line": 22,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 35,
+          "line": 33,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
@@ -20666,7 +20666,7 @@
       "declaration": "newSchoolProjectedAccountTenantRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        21
       ],
       "tables": []
     },
@@ -22511,7 +22511,7 @@
       "declaration": "newSchoolProjectionFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        30
+        26
       ],
       "tables": []
     },
@@ -26804,7 +26804,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3802
+        3804
       ],
       "tables": []
     },
@@ -26814,7 +26814,7 @@
       "declaration": "newDecisionServiceForTestWithCareWithdrawal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        113
+        115
       ],
       "tables": []
     },
@@ -28471,7 +28471,7 @@
       "declaration": "buildReadServiceWithNotifier",
       "target": "database/repositories.NewFactory",
       "lines": [
-        40
+        39
       ],
       "tables": []
     },

@@ -13,8 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -49,7 +47,7 @@ type cleanupContext struct {
 	Output                     io.Writer
 	Logger                     *log.Logger
 	Audit                      services.AuditCommand
-	Schools                    organizationtenancy.Capability
+	Schools                    services.SchoolCapability
 }
 
 type authCleanupService interface {
@@ -168,7 +166,7 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	schools, err := organizationCompose.New(organizationCompose.Dependencies{DB: db, Observe: func(organizationCompose.Observation) {}})
+	schools, err := services.NewOrganizationTenancy(db)
 	if err != nil {
 		_ = db.Close()
 		return nil, err

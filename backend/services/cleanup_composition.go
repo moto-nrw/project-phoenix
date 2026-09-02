@@ -18,6 +18,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
+type School = organizationtenancy.School
+type SchoolQuery = organizationtenancy.Query
+type SchoolCapability = organizationtenancy.Capability
+
+func NewOrganizationTenancy(db *bun.DB) (SchoolCapability, error) {
+	return repositories.NewOrganizationTenancy(db)
+}
+
 // NewCleanupAuditCommand builds the same fail-closed Audit command used by
 // the HTTP service graph. Cleanup producers must already be inside their
 // authoritative transaction when they append an event.

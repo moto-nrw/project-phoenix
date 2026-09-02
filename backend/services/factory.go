@@ -1047,7 +1047,7 @@ func newFactory(
 		AttendanceRepo:           repos.Attendance,
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          activeRepo.NewCrossTenantRepository(db),
-		Schools:                  organizations,
+		Schools:                  newActiveSchoolQuery(organizations),
 		StudentRepo:              repos.Student,
 		PersonRepo:               repos.Person,
 		TeacherRepo:              repos.Teacher,

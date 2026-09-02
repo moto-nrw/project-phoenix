@@ -60,6 +60,7 @@ func newOfferingChangeServiceForTestWithCareRepo(
 		Applier:                  changeRequestApplierForTest(t, env),
 		Settings:                 env.settings,
 		Logger:                   slog.Default(),
+		Today:                    func() timezone.Date { return decisionTestToday },
 	})
 }
 

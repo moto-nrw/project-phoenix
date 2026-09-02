@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,10 +16,7 @@ import (
 
 func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) authModels.AccountTenantRepository {
 	t.Helper()
-	capability, err := organizationCompose.New(organizationCompose.Dependencies{
-		DB:      db,
-		Observe: func(organizationCompose.Observation) {},
-	})
+	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	factory := repositories.NewFactory(db)
 	factory.BindOrganizationTenancy(capability)

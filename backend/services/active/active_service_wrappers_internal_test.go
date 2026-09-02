@@ -10,7 +10,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,12 +62,12 @@ func (r *crossTenantRepoForActiveWrapperTest) FindCrossTenantStudents(_ context.
 }
 
 type schoolQueryForActiveWrapperTest struct {
-	schools []organizationtenancy.School
+	schools []School
 	err     error
 	gotIDs  []int64
 }
 
-func (q *schoolQueryForActiveWrapperTest) ListSchoolsByID(_ context.Context, ids []int64) ([]organizationtenancy.School, error) {
+func (q *schoolQueryForActiveWrapperTest) ListSchoolsByID(_ context.Context, ids []int64) ([]School, error) {
 	q.gotIDs = append([]int64(nil), ids...)
 	return q.schools, q.err
 }
@@ -361,7 +360,7 @@ func TestGetCrossTenantStudents_Branches(t *testing.T) {
 	t.Run("returns repository rows", func(t *testing.T) {
 		rows := []activeModels.CrossTenantStudent{{StudentID: 20, HomeTenantID: 30}}
 		repo := &crossTenantRepoForActiveWrapperTest{students: rows}
-		schools := &schoolQueryForActiveWrapperTest{schools: []organizationtenancy.School{{ID: 30, Slug: "home"}}}
+		schools := &schoolQueryForActiveWrapperTest{schools: []School{{ID: 30, Slug: "home"}}}
 		svc := &service{ServiceDependencies: ServiceDependencies{CrossTenantRepo: repo, Schools: schools}}
 
 		students, err := svc.GetCrossTenantStudents(ctx, 10)
