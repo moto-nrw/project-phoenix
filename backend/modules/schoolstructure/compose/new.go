@@ -55,7 +55,7 @@ func New(dependencies Dependencies) (*schoolstructure.Module, error) {
 
 type engine struct{ service *application.Service }
 
-func (e engine) FindGroupByID(ctx context.Context, id int64) (schoolstructure.Group, error) {
+func (e engine) FindGroup(ctx context.Context, id int64) (schoolstructure.Group, error) {
 	value, err := e.service.FindByID(ctx, id)
 	return toPublic(value), mapError(err)
 }

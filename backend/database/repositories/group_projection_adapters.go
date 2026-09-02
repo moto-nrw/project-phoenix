@@ -11,12 +11,43 @@ import (
 )
 
 // unknownGroupName is the caregiver-capability blocker label for a
-// supervision whose group is no longer visible (kept from the former SQL).
+// supervision whose group is not visible (kept from the former SQL).
 const unknownGroupName = "Unbekannte Gruppe"
 
-// groupNamesByID resolves display names through the School Structure owner.
-// Absent groups stay absent, mirroring the LEFT JOIN + COALESCE the callers
-// used before the cutover; a query failure is returned, never swallowed.
+// enrichGroupNames fills a display name on every row from the School
+// Structure owner with one batched query. A group the owner cannot see in
+// the caller's transaction yields the fallback, mirroring the former
+// LEFT JOIN + COALESCE; a query failure is returned, never swallowed.
+func enrichGroupNames[T any](
+	ctx context.Context,
+	query schoolstructure.Query,
+	rows []T,
+	groupID func(T) int64,
+	setName func(T, string),
+	fallback string,
+	op string,
+) ([]T, error) {
+	if len(rows) == 0 {
+		return rows, nil
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, groupID(row))
+	}
+	names, err := groupNamesByID(ctx, query, ids)
+	if err != nil {
+		return nil, fmt.Errorf("load groups for %s: %w", op, err)
+	}
+	for index := range rows {
+		name, found := names[groupID(rows[index])]
+		if !found {
+			name = fallback
+		}
+		setName(rows[index], name)
+	}
+	return rows, nil
+}
+
 func groupNamesByID(ctx context.Context, query schoolstructure.Query, ids []int64) (map[int64]string, error) {
 	unique := make([]int64, 0, len(ids))
 	seen := make(map[int64]struct{}, len(ids))
@@ -63,19 +94,18 @@ type groupCrossTenantRepository struct {
 
 func (r groupCrossTenantRepository) FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]activeModels.CrossTenantStudent, error) {
 	rows, err := r.CrossTenantQuery.FindCrossTenantStudents(ctx, hostingTenantID)
-	if err != nil || len(rows) == 0 {
-		return rows, err
-	}
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, optionalGroupID(row.GroupID))
-	}
-	names, err := groupNamesByID(ctx, r.groups, ids)
 	if err != nil {
-		return nil, fmt.Errorf("load groups for cross-tenant students: %w", err)
+		return nil, err
 	}
+	pointers := make([]*activeModels.CrossTenantStudent, len(rows))
 	for index := range rows {
-		rows[index].GroupName = names[optionalGroupID(rows[index].GroupID)]
+		pointers[index] = &rows[index]
+	}
+	if _, err := enrichGroupNames(ctx, r.groups, pointers,
+		func(row *activeModels.CrossTenantStudent) int64 { return optionalGroupID(row.GroupID) },
+		func(row *activeModels.CrossTenantStudent, name string) { row.GroupName = name },
+		"", "cross-tenant students"); err != nil {
+		return nil, err
 	}
 	return rows, nil
 }
@@ -87,23 +117,18 @@ type groupSupervisorRepository struct {
 
 func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]usersModels.BlockerSupervision, error) {
 	rows, err := r.GroupSupervisorRepository.ListActiveSupervisionBlockers(ctx, staffID, tenantID)
-	if err != nil || len(rows) == 0 {
-		return rows, err
-	}
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.GroupID)
-	}
-	names, err := groupNamesByID(ctx, r.groups, ids)
 	if err != nil {
-		return nil, fmt.Errorf("load groups for supervision blockers: %w", err)
+		return nil, err
 	}
+	pointers := make([]*usersModels.BlockerSupervision, len(rows))
 	for index := range rows {
-		name, found := names[rows[index].GroupID]
-		if !found {
-			name = unknownGroupName
-		}
-		rows[index].GroupName = name
+		pointers[index] = &rows[index]
+	}
+	if _, err := enrichGroupNames(ctx, r.groups, pointers,
+		func(row *usersModels.BlockerSupervision) int64 { return row.GroupID },
+		func(row *usersModels.BlockerSupervision, name string) { row.GroupName = name },
+		unknownGroupName, "supervision blockers"); err != nil {
+		return nil, err
 	}
 	return rows, nil
 }
@@ -115,21 +140,13 @@ type groupVisitRepository struct {
 
 func (r groupVisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.Context, activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error) {
 	rows, err := r.VisitRepository.FindActiveWithStudentDisplayByGroup(ctx, activeGroupID)
-	if err != nil || len(rows) == 0 {
-		return rows, err
-	}
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, optionalGroupID(row.GroupID))
-	}
-	names, err := groupNamesByID(ctx, r.groups, ids)
 	if err != nil {
-		return nil, fmt.Errorf("load groups for active group visits: %w", err)
+		return nil, err
 	}
-	for _, row := range rows {
-		row.OGSGroupName = names[optionalGroupID(row.GroupID)]
-	}
-	return rows, nil
+	return enrichGroupNames(ctx, r.groups, rows,
+		func(row *activeModels.VisitWithStudentDisplay) int64 { return optionalGroupID(row.GroupID) },
+		func(row *activeModels.VisitWithStudentDisplay, name string) { row.OGSGroupName = name },
+		"", "active group visits")
 }
 
 // activityGroupTargets is the shape the timetable services type-assert on
@@ -146,23 +163,18 @@ type groupActivityGroupRepository struct {
 
 func (r groupActivityGroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error) {
 	byGroup, err := r.activityGroupTargets.FindTargetsByGroupIDs(ctx, groupIDs)
-	if err != nil || len(byGroup) == 0 {
-		return byGroup, err
-	}
-	ids := make([]int64, 0, len(byGroup))
-	for _, targets := range byGroup {
-		for _, target := range targets {
-			ids = append(ids, optionalGroupID(target.EducationGroupID))
-		}
-	}
-	names, err := groupNamesByID(ctx, r.groups, ids)
 	if err != nil {
-		return nil, fmt.Errorf("load groups for template targets: %w", err)
+		return nil, err
 	}
+	all := make([]*activitiesModels.GroupTarget, 0, len(byGroup))
 	for _, targets := range byGroup {
-		for _, target := range targets {
-			target.EducationGroupName = names[optionalGroupID(target.EducationGroupID)]
-		}
+		all = append(all, targets...)
+	}
+	if _, err := enrichGroupNames(ctx, r.groups, all,
+		func(row *activitiesModels.GroupTarget) int64 { return optionalGroupID(row.EducationGroupID) },
+		func(row *activitiesModels.GroupTarget, name string) { row.EducationGroupName = name },
+		"", "template targets"); err != nil {
+		return nil, err
 	}
 	return byGroup, nil
 }
@@ -183,27 +195,28 @@ func (r groupActivityGroupRepository) ListTemplateRowsForPeriod(ctx context.Cont
 }
 
 func (r groupActivityGroupRepository) enrichTemplateRows(ctx context.Context, rows []activitiesModels.TemplateListRow, queryErr error) ([]activitiesModels.TemplateListRow, error) {
-	if queryErr != nil || len(rows) == 0 {
-		return rows, queryErr
+	if queryErr != nil {
+		return nil, queryErr
 	}
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		if row.EducationGroupID.Valid {
-			ids = append(ids, row.EducationGroupID.Int64)
-		}
-	}
-	names, err := groupNamesByID(ctx, r.groups, ids)
-	if err != nil {
-		return nil, fmt.Errorf("load groups for template rows: %w", err)
-	}
+	pointers := make([]*activitiesModels.TemplateListRow, len(rows))
 	for index := range rows {
-		// The former SQL projected COALESCE(name, ''), so the column was
-		// always non-NULL; keep that shape for the row consumers.
-		rows[index].EducationGroupName.Valid = true
-		rows[index].EducationGroupName.String = ""
-		if rows[index].EducationGroupID.Valid {
-			rows[index].EducationGroupName.String = names[rows[index].EducationGroupID.Int64]
-		}
+		pointers[index] = &rows[index]
+	}
+	if _, err := enrichGroupNames(ctx, r.groups, pointers,
+		func(row *activitiesModels.TemplateListRow) int64 {
+			if !row.EducationGroupID.Valid {
+				return 0
+			}
+			return row.EducationGroupID.Int64
+		},
+		func(row *activitiesModels.TemplateListRow, name string) {
+			// The former SQL projected COALESCE(name, ''), so the column was
+			// always non-NULL; keep that shape for the row consumers.
+			row.EducationGroupName.Valid = true
+			row.EducationGroupName.String = name
+		},
+		"", "template rows"); err != nil {
+		return nil, err
 	}
 	return rows, nil
 }
@@ -234,21 +247,13 @@ func (r groupParentMessageReadRepository) ListThreadsForGuardianTenants(ctx cont
 }
 
 func enrichInboxGroups(ctx context.Context, query schoolstructure.Query, rows []*usersModels.InboxThread, queryErr error) ([]*usersModels.InboxThread, error) {
-	if queryErr != nil || len(rows) == 0 {
-		return rows, queryErr
+	if queryErr != nil {
+		return nil, queryErr
 	}
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, optionalGroupID(row.GroupID))
-	}
-	names, err := groupNamesByID(ctx, query, ids)
-	if err != nil {
-		return nil, fmt.Errorf("load groups for parent message inbox: %w", err)
-	}
-	for _, row := range rows {
-		row.GroupName = names[optionalGroupID(row.GroupID)]
-	}
-	return rows, nil
+	return enrichGroupNames(ctx, query, rows,
+		func(row *usersModels.InboxThread) int64 { return optionalGroupID(row.GroupID) },
+		func(row *usersModels.InboxThread, name string) { row.GroupName = name },
+		"", "parent message inbox")
 }
 
 type groupStudentRepository struct {
@@ -258,62 +263,50 @@ type groupStudentRepository struct {
 
 func (r groupStudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*usersModels.StudentWithGroupInfo, error) {
 	rows, err := r.StudentRepository.FindByTeacherIDWithGroups(ctx, teacherID)
-	return r.enrichStudents(ctx, rows, err)
+	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
 }
 
 func (r groupStudentRepository) FindAllWithGroups(ctx context.Context) ([]*usersModels.StudentWithGroupInfo, error) {
 	rows, err := r.StudentRepository.FindAllWithGroups(ctx)
-	return r.enrichStudents(ctx, rows, err)
+	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
 }
 
 // FindOverlappingWithGroups is decorated in the services composition root
 // (services/group_projection.go): its calendar-date signature would pull
 // internal/timezone into this package.
 
-func (r groupStudentRepository) enrichStudents(ctx context.Context, rows []*usersModels.StudentWithGroupInfo, queryErr error) ([]*usersModels.StudentWithGroupInfo, error) {
-	return EnrichStudentGroupNames(ctx, r.groups, rows, queryErr)
-}
-
 // EnrichStudentGroupNames fills StudentWithGroupInfo.GroupName from the
 // School Structure owner. Exported for the one roster read whose signature
 // keeps its decorator in the services composition root.
 func EnrichStudentGroupNames(ctx context.Context, groups schoolstructure.Query, rows []*usersModels.StudentWithGroupInfo, queryErr error) ([]*usersModels.StudentWithGroupInfo, error) {
-	if queryErr != nil || len(rows) == 0 {
-		return rows, queryErr
+	if queryErr != nil {
+		return nil, queryErr
 	}
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		if row.Student != nil {
-			ids = append(ids, optionalGroupID(row.GroupID))
-		}
-	}
-	names, err := groupNamesByID(ctx, groups, ids)
-	if err != nil {
-		return nil, fmt.Errorf("load groups for student roster: %w", err)
-	}
-	for _, row := range rows {
-		if row.Student != nil {
-			row.GroupName = names[optionalGroupID(row.GroupID)]
-		}
-	}
-	return rows, nil
+	return enrichGroupNames(ctx, groups, rows,
+		func(row *usersModels.StudentWithGroupInfo) int64 {
+			if row.Student == nil {
+				return 0
+			}
+			return optionalGroupID(row.GroupID)
+		},
+		func(row *usersModels.StudentWithGroupInfo, name string) { row.GroupName = name },
+		"", "student roster")
 }
 
 func (r groupStudentRepository) FindBirthdaysOn(ctx context.Context, days []usersModels.MonthDay) ([]usersModels.BirthdayEntry, error) {
 	rows, err := r.StudentRepository.FindBirthdaysOn(ctx, days)
-	if err != nil || len(rows) == 0 {
-		return rows, err
-	}
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, optionalGroupID(row.GroupID))
-	}
-	names, err := groupNamesByID(ctx, r.groups, ids)
 	if err != nil {
-		return nil, fmt.Errorf("load groups for birthdays: %w", err)
+		return nil, err
 	}
+	pointers := make([]*usersModels.BirthdayEntry, len(rows))
 	for index := range rows {
-		rows[index].GroupName = names[optionalGroupID(rows[index].GroupID)]
+		pointers[index] = &rows[index]
+	}
+	if _, err := enrichGroupNames(ctx, r.groups, pointers,
+		func(row *usersModels.BirthdayEntry) int64 { return optionalGroupID(row.GroupID) },
+		func(row *usersModels.BirthdayEntry, name string) { row.GroupName = name },
+		"", "birthdays"); err != nil {
+		return nil, err
 	}
 	return rows, nil
 }

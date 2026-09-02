@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
@@ -417,7 +418,11 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 	if f.CrossTenant != nil {
 		f.CrossTenant = groupCrossTenantRepository{CrossTenantQuery: f.CrossTenant, groups: groups}
 	}
-	if withTargets, ok := f.ActivityGroup.(activityGroupTargets); ok {
+	if f.ActivityGroup != nil {
+		withTargets, ok := f.ActivityGroup.(activityGroupTargets)
+		if !ok {
+			panic(fmt.Sprintf("repository factory: activity group repository %T must also serve group targets", f.ActivityGroup))
+		}
 		f.ActivityGroup = groupActivityGroupRepository{activityGroupTargets: withTargets, groups: groups}
 	}
 	if f.ParentMessageRead != nil {

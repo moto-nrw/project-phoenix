@@ -35,7 +35,7 @@ type Capability interface {
 }
 
 type engine interface {
-	FindGroupByID(context.Context, int64) (Group, error)
+	FindGroup(context.Context, int64) (Group, error)
 	ListGroupsByID(context.Context, []int64) ([]Group, error)
 }
 
@@ -52,7 +52,7 @@ func (m *Module) FindGroup(ctx context.Context, id int64) (Group, error) {
 	if id <= 0 {
 		return Group{}, ErrInvalidGroup
 	}
-	return m.engine.FindGroupByID(ctx, id)
+	return m.engine.FindGroup(ctx, id)
 }
 
 // ListGroupsByID returns the groups visible in the caller's transaction for

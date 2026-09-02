@@ -16,7 +16,7 @@ type recordingEngine struct {
 	calls   int
 }
 
-func (e *recordingEngine) FindGroupByID(_ context.Context, id int64) (schoolstructure.Group, error) {
+func (e *recordingEngine) FindGroup(_ context.Context, id int64) (schoolstructure.Group, error) {
 	e.calls++
 	e.findID = id
 	return schoolstructure.Group{ID: id, Name: "Igel"}, nil
