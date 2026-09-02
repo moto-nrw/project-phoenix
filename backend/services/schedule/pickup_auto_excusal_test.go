@@ -47,6 +47,9 @@ func wallClockAt(h, m int) *time.Time {
 func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	lock, notFound, err := repositories.NewCareStudentLock(db)
+	require.NoError(t, err)
+	scheduleService.BindCareStudentLockForDB(db, lock, notFound)
 	repos := repositories.NewFactory(db)
 
 	syncer := scheduleService.NewPickupAutoExcusalSyncer(
@@ -500,17 +503,4 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 	assert.Equal(t, scheduleModel.AttendanceSubstatusExcused, *restored.Substatus)
 	require.NotNil(t, restored.PickupExceptionID)
 	assert.Equal(t, row.ID, *restored.PickupExceptionID)
-}
-
-// The care-day writers lock the student row through the People Directory
-// (#2662). services.NewFactory binds that lock in production; this binary
-// wires its services by hand, so it binds the lock once. The directory reads
-// the transaction from the context, so the pool handed to the composition is
-// never used.
-func init() {
-	lock, notFound, err := repositories.NewCareStudentLock(testpkg.NewBunDB(nil))
-	if err != nil {
-		panic(err)
-	}
-	scheduleService.BindCareStudentLock(lock, notFound)
 }

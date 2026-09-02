@@ -8,12 +8,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// BindCareStudentLock maps the owner lock to the care-day SQL contract for a
-// caller that retains it locally.
-func BindCareStudentLock(lock func(ctx context.Context, studentID int64) error, notFound error) func(context.Context, int64) error {
-	return careplanning.BindStudentLock(lock, notFound)
-}
-
 // BindCareStudentLockForDB installs a graph-scoped owner lock for the
 // database used by the timetable services.
 func BindCareStudentLockForDB(db *bun.DB, lock func(context.Context, int64) error, notFound error) {

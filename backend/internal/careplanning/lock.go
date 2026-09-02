@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -32,28 +31,7 @@ func LockExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date tim
 // transaction. The row belongs to the People Directory (#2662).
 type StudentLock func(ctx context.Context, studentID int64) error
 
-var (
-	studentLocks      sync.Map // map[*bun.DB]StudentLock
-	legacyStudentLock atomic.Pointer[StudentLock]
-)
-
-// BindStudentLock is retained for hand-wired test graphs. Production graphs
-// bind by database with BindStudentLockForDB so independent factories cannot
-// overwrite each other.
-func BindStudentLock(lock StudentLock, notFound error) StudentLock {
-	if lock == nil || notFound == nil {
-		panic("careplanning: student lock and its not-found sentinel are required")
-	}
-	mapped := StudentLock(func(ctx context.Context, studentID int64) error {
-		err := lock(ctx, studentID)
-		if errors.Is(err, notFound) {
-			return sql.ErrNoRows
-		}
-		return err
-	})
-	legacyStudentLock.Store(&mapped)
-	return mapped
-}
+var studentLocks sync.Map // map[*bun.DB]StudentLock
 
 // BindStudentLockForDB binds an owner-backed lock to exactly one repository
 // graph. Independent factories may use different databases or capabilities
@@ -94,11 +72,7 @@ func LockStudent(ctx context.Context, db *bun.DB, studentID int64) error {
 	}
 	value, ok := studentLocks.Load(db)
 	if !ok {
-		lock := legacyStudentLock.Load()
-		if lock == nil {
-			return errors.New("careplanning: student lock is not bound for database")
-		}
-		value = *lock
+		return errors.New("careplanning: student lock is not bound for database")
 	}
 	lock, ok := value.(StudentLock)
 	if !ok {
