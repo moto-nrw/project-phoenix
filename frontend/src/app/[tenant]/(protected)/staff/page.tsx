@@ -600,6 +600,10 @@ function StaffPageContent() {
       const count = documentDirectory?.length ?? 0;
       return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
     }
+    if (view === "accounts") {
+      const count = accounts?.rows.length ?? 0;
+      return `${count} ${count === 1 ? "Zeitkonto" : "Zeitkonten"}`;
+    }
     if (canReadUsers) {
       // Dieselben Zustände wie die Badges auf den Karten: "Abwesend" ist der
       // Standard für "nicht eingestempelt", gemeldete Arten (Krank, Urlaub …)
@@ -623,10 +627,6 @@ function StaffPageContent() {
         if (location !== "Abwesend") parts.push(`${count} ${location}`);
       }
       return parts.join(" · ");
-    }
-    if (canManageTimeTracking) {
-      const count = accounts?.rows.length ?? 0;
-      return `${count} ${count === 1 ? "Zeitkonto" : "Zeitkonten"}`;
     }
     const count = documentDirectory?.length ?? 0;
     return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
@@ -748,10 +748,10 @@ function StaffPageContent() {
             }
           : undefined
       }
-      // Ladefehler und Leerzustand der Personalliste gehören ins Gerüst, nicht
-      // in den Inhalt. Beides betrifft nur die Karten-Ansicht „Status".
+      // Der Ladefehler der Personalliste gehört ins Gerüst. Ihr Leerzustand
+      // bleibt dagegen bei den Karten, damit unabhängige Bereiche sichtbar
+      // bleiben.
       error={view === "status" ? error : null}
-      empty={statusEmptyState}
       overlays={
         <>
           {showCloseModal && (
@@ -892,138 +892,145 @@ function StaffPageContent() {
           )}
 
           {/* Staff Grid */}
-          {view === "status" && filteredStaff.length > 0 && (
-            <div>
-              <CollectionGrid>
-                {filteredStaff.map((staffMember) => {
-                  const locationStatus = getStaffLocationStatus(staffMember);
-                  const displayType = getStaffDisplayType(staffMember);
-                  const cardInfo = getStaffCardInfo(staffMember);
-                  const notes = formatStaffNotes(staffMember.staffNotes, 80);
-                  const supervisions = staffMember.supervisions ?? [];
-                  const pendingRequestCount =
-                    pendingByStaff.get(Number(staffMember.id)) ?? 0;
+          {view === "status" &&
+            (statusEmptyState ? (
+              <EmptyState {...statusEmptyState} />
+            ) : filteredStaff.length > 0 ? (
+              <div>
+                <CollectionGrid>
+                  {filteredStaff.map((staffMember) => {
+                    const locationStatus = getStaffLocationStatus(staffMember);
+                    const displayType = getStaffDisplayType(staffMember);
+                    const cardInfo = getStaffCardInfo(staffMember);
+                    const notes = formatStaffNotes(staffMember.staffNotes, 80);
+                    const supervisions = staffMember.supervisions ?? [];
+                    const pendingRequestCount =
+                      pendingByStaff.get(Number(staffMember.id)) ?? 0;
 
-                  // Die Karte führt nur dann weiter, wenn dort auch etwas
-                  // freigeschaltet ist: das Profil mit Unterlagen oder
-                  // Stammdaten, sonst der Personal-Datensatz in der
-                  // Datenverwaltung (staff:manage, #2906).
-                  const profileTabAvailable =
-                    userIsAdmin || canAccessDocuments || canEditStammdaten;
-                  const canNavigateToStaff =
-                    profileTabAvailable || canManageStaffRecords;
-                  const navigateToStaff = () => {
-                    if (!profileTabAvailable) {
-                      router.push(`/database/personal?staff=${staffMember.id}`);
-                      return;
-                    }
-                    router.push(
-                      `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
-                    );
-                  };
-
-                  return (
-                    <TileCard
-                      key={staffMember.id}
-                      onClick={canNavigateToStaff ? navigateToStaff : undefined}
-                      ariaLabel={
-                        canNavigateToStaff
-                          ? `${staffMember.firstName} ${staffMember.lastName} - ${
-                              userIsAdmin
-                                ? "Details öffnen"
-                                : "Personalunterlagen öffnen"
-                            }`
-                          : undefined
+                    // Die Karte führt nur dann weiter, wenn dort auch etwas
+                    // freigeschaltet ist: das Profil mit Unterlagen oder
+                    // Stammdaten, sonst der Personal-Datensatz in der
+                    // Datenverwaltung (staff:manage, #2906).
+                    const profileTabAvailable =
+                      userIsAdmin || canAccessDocuments || canEditStammdaten;
+                    const canNavigateToStaff =
+                      profileTabAvailable || canManageStaffRecords;
+                    const navigateToStaff = () => {
+                      if (!profileTabAvailable) {
+                        router.push(
+                          `/database/personal?staff=${staffMember.id}`,
+                        );
+                        return;
                       }
-                    >
-                      <div className="relative">
-                        <div className="relative flex min-h-[104px] flex-col">
-                          <div className="mb-3 flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              {/* Ein Name, eine Zeile: der Umbruch zwischen Vor-
+                      router.push(
+                        `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
+                      );
+                    };
+
+                    return (
+                      <TileCard
+                        key={staffMember.id}
+                        onClick={
+                          canNavigateToStaff ? navigateToStaff : undefined
+                        }
+                        ariaLabel={
+                          canNavigateToStaff
+                            ? `${staffMember.firstName} ${staffMember.lastName} - ${
+                                userIsAdmin
+                                  ? "Details öffnen"
+                                  : "Personalunterlagen öffnen"
+                              }`
+                            : undefined
+                        }
+                      >
+                        <div className="relative">
+                          <div className="relative flex min-h-[104px] flex-col">
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                {/* Ein Name, eine Zeile: der Umbruch zwischen Vor-
                                 und Nachname ließ jede Karte wie zwei Personen
                                 aussehen. Wohin die Kachel führt, sagt ihr
                                 aria-label, kein Pfeil-Ornament. */}
-                              <h3 className="truncate text-base font-bold text-gray-900">
-                                {staffMember.firstName} {staffMember.lastName}
-                              </h3>
-                              <p className="mt-0.5 truncate text-xs text-gray-500">
-                                {staffMember.specialization ?? displayType}
-                              </p>
-                            </div>
+                                <h3 className="truncate text-base font-bold text-gray-900">
+                                  {staffMember.firstName} {staffMember.lastName}
+                                </h3>
+                                <p className="mt-0.5 truncate text-xs text-gray-500">
+                                  {staffMember.specialization ?? displayType}
+                                </p>
+                              </div>
 
-                            <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                              {/* Dieselbe Pille wie beim Kind: helle Fläche,
+                              <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                                {/* Dieselbe Pille wie beim Kind: helle Fläche,
                                 farbiger Punkt, dunkle Schrift. Vollflächige
                                 Badges in Signalfarbe waren auf einer Liste mit
                                 24 Personen eine Wand aus Rot. */}
-                              <StatusDotBadge
-                                label={locationStatus.label}
-                                color={locationStatus.customBgColor}
-                              />
-                            </span>
-                          </div>
-
-                          <div className="flex-1 space-y-2">
-                            {pendingRequestCount > 0 && (
-                              <div className="text-moto-orange-strong flex items-center gap-1.5 text-xs font-medium">
-                                <BellSimpleRingingIcon
-                                  className="text-moto-orange h-[18px] w-[18px] shrink-0"
-                                  aria-hidden="true"
+                                <StatusDotBadge
+                                  label={locationStatus.label}
+                                  color={locationStatus.customBgColor}
                                 />
-                                <span>
-                                  <span className="font-semibold">
-                                    {pendingRequestCount}
-                                  </span>{" "}
-                                  {pendingRequestCount === 1
-                                    ? "offener Abwesenheitsantrag"
-                                    : "offene Abwesenheitsanträge"}
-                                </span>
-                              </div>
-                            )}
+                              </span>
+                            </div>
 
-                            {supervisions.length > 0 && (
-                              <div className="text-sm text-gray-600">
-                                <span className="font-medium">
-                                  Aktuelle Aufsicht:
-                                </span>
-                                <ul className="mt-0.5 list-inside">
-                                  {supervisions.map((supervision) => (
-                                    <li
-                                      key={`${supervision.roomId}-${supervision.activeGroupId}`}
-                                    >
-                                      • {supervision.roomName}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {cardInfo.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {cardInfo.map((info) => (
-                                  <span
-                                    key={info}
-                                    className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700"
-                                  >
-                                    {info}
+                            <div className="flex-1 space-y-2">
+                              {pendingRequestCount > 0 && (
+                                <div className="text-moto-orange-strong flex items-center gap-1.5 text-xs font-medium">
+                                  <BellSimpleRingingIcon
+                                    className="text-moto-orange h-[18px] w-[18px] shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                  <span>
+                                    <span className="font-semibold">
+                                      {pendingRequestCount}
+                                    </span>{" "}
+                                    {pendingRequestCount === 1
+                                      ? "offener Abwesenheitsantrag"
+                                      : "offene Abwesenheitsanträge"}
                                   </span>
-                                ))}
-                              </div>
-                            )}
+                                </div>
+                              )}
 
-                            {notes && (
-                              <p className="text-xs text-gray-500">{notes}</p>
-                            )}
+                              {supervisions.length > 0 && (
+                                <div className="text-sm text-gray-600">
+                                  <span className="font-medium">
+                                    Aktuelle Aufsicht:
+                                  </span>
+                                  <ul className="mt-0.5 list-inside">
+                                    {supervisions.map((supervision) => (
+                                      <li
+                                        key={`${supervision.roomId}-${supervision.activeGroupId}`}
+                                      >
+                                        • {supervision.roomName}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {cardInfo.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {cardInfo.map((info) => (
+                                    <span
+                                      key={info}
+                                      className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700"
+                                    >
+                                      {info}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {notes && (
+                                <p className="text-xs text-gray-500">{notes}</p>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </TileCard>
-                  );
-                })}
-              </CollectionGrid>
-            </div>
-          )}
+                      </TileCard>
+                    );
+                  })}
+                </CollectionGrid>
+              </div>
+            ) : null)}
         </>
       )}
     </TenantPage>

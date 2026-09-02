@@ -462,6 +462,7 @@ function TenantPageTabs({
   // buendelt auch dann, wenn der Platz laengst reicht. Stattdessen wird
   // gemessen -- sichtbar ist, was hineinpasst, der Rest steht unter „Mehr".
   const rowRef = useRef<HTMLDivElement>(null);
+  const tablistRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(items.length);
   // Liegen im scrollenden Band (unter sm) rechts noch Reiter? Dann zeigt ein
@@ -472,9 +473,11 @@ function TenantPageTabs({
   const [canScrollRight, setCanScrollRight] = useState(false);
 
   const updateScrollHint = useCallback(() => {
-    const row = rowRef.current;
-    if (!row) return;
-    setCanScrollRight(row.scrollWidth - row.clientWidth - row.scrollLeft > 1);
+    const tablist = tablistRef.current;
+    if (!tablist) return;
+    setCanScrollRight(
+      tablist.scrollWidth - tablist.clientWidth - tablist.scrollLeft > 1,
+    );
   }, []);
 
   const measure = useCallback(() => {
@@ -521,8 +524,9 @@ function TenantPageTabs({
     measure();
     updateScrollHint();
     const row = rowRef.current;
-    if (!row) return;
-    row.addEventListener("scroll", updateScrollHint, { passive: true });
+    const tablist = tablistRef.current;
+    if (!row || !tablist) return;
+    tablist.addEventListener("scroll", updateScrollHint, { passive: true });
     let observer: ResizeObserver | undefined;
     if (typeof ResizeObserver !== "undefined") {
       observer = new ResizeObserver(() => {
@@ -530,9 +534,10 @@ function TenantPageTabs({
         updateScrollHint();
       });
       observer.observe(row);
+      observer.observe(tablist);
     }
     return () => {
-      row.removeEventListener("scroll", updateScrollHint);
+      tablist.removeEventListener("scroll", updateScrollHint);
       observer?.disconnect();
     };
   }, [measure, updateScrollHint, items]);
@@ -540,7 +545,7 @@ function TenantPageTabs({
   // Auf dem Telefon rueckt der aktive Reiter ins Sichtfenster des Bandes,
   // sonst steht die Seite auf einem Bereich, den man nicht sieht.
   useEffect(() => {
-    const active = rowRef.current?.querySelector<HTMLElement>(
+    const active = tablistRef.current?.querySelector<HTMLElement>(
       '[role="tab"][aria-selected="true"]',
     );
     if (typeof active?.scrollIntoView !== "function") return;
@@ -673,6 +678,7 @@ function TenantPageTabs({
       <div className="relative border-b border-gray-200 max-sm:border-0 sm:px-5">
         <div ref={rowRef} className="flex items-end gap-6 max-sm:gap-0">
           <div
+            ref={tablistRef}
             role="tablist"
             aria-label={label}
             // Unter sm scrollt das Band bis an den Kartenrand; der Innenrand
