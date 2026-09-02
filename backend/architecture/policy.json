@@ -1723,6 +1723,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/peopledirectory/internal/adapters/postgres/calendar",
+      "owner": "people-directory",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/internal/domain",
       "owner": "people-directory",
       "role": "domain",
@@ -5980,13 +5987,24 @@
       "same_owner": true
     },
     {
-      "id": "people-directory.postgres.calendar-date",
-      "description": "People Directory persistence maps PostgreSQL DATE columns with the repository calendar-date type.",
+      "id": "people-directory.postgres.calendar-adapter",
+      "description": "People Directory persistence maps calendar dates through its internal calendar adapter.",
       "scopes": [
         "production"
       ],
       "source_owner": "people-directory",
       "source_role": "postgres",
+      "target_owner": "people-directory",
+      "target_role": "adapter"
+    },
+    {
+      "id": "people-directory.calendar-adapter.date",
+      "description": "The People Directory calendar adapter uses the repository calendar-date type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "adapter",
       "target_owner": "legacy-shared",
       "target_role": "domain"
     },

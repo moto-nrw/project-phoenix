@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -35,7 +35,7 @@ type personRow struct {
 	LastName      string    `bun:"last_name,notnull"`
 	// Birthday models the PostgreSQL DATE column. toDomain converts it to the
 	// public YYYY-MM-DD string representation.
-	Birthday  *timezone.Date `bun:"birthday,type:date"`
+	Birthday  *calendar.Date `bun:"birthday,type:date"`
 	TagID     *string        `bun:"tag_id"`
 	AccountID *int64         `bun:"account_id"`
 	DeletedAt *time.Time     `bun:"deleted_at"`
@@ -454,11 +454,11 @@ func toDomain(row personRow) domain.Person {
 	}
 }
 
-func optionalDate(value string) (*timezone.Date, error) {
+func optionalDate(value string) (*calendar.Date, error) {
 	if value == "" {
 		return nil, nil
 	}
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	if err != nil {
 		return nil, fmt.Errorf("people directory postgres: parse birthday: %w", err)
 	}
