@@ -99,6 +99,11 @@ describe("FilteredBulkArrivalModal day view", () => {
 
     expect(await screen.findByLabelText("Montag")).toBeInTheDocument();
     expect(
+      screen.getByRole("dialog", {
+        name: "Unterrichtsschluss für Klasse 4a",
+      }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("button", { name: "Speichern" }),
     ).toBeInTheDocument();
 
@@ -109,6 +114,11 @@ describe("FilteredBulkArrivalModal day view", () => {
     expect(
       screen.getByTestId("class-arrival-exception-panel"),
     ).toHaveTextContent("4a / Klasse 4a");
+    expect(
+      screen.getByRole("dialog", {
+        name: "Ankunftszeit an einem Tag für Klasse 4a",
+      }),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Montag")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Speichern" }),

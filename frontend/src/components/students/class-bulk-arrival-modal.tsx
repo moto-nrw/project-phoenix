@@ -229,9 +229,11 @@ export function FilteredBulkArrivalModal({
       isOpen={isOpen}
       onClose={onClose}
       title={
-        isClassTimetable
-          ? `Unterrichtsschluss für ${targetTitle}`
-          : `Ankunftszeiten für ${targetTitle}`
+        showDayView
+          ? `Ankunftszeit an einem Tag für ${targetTitle}`
+          : isClassTimetable
+            ? `Unterrichtsschluss für ${targetTitle}`
+            : `Ankunftszeiten für ${targetTitle}`
       }
       size="md"
       mobilePosition="bottom"
