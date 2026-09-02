@@ -156,6 +156,24 @@ func TestStaffMembershipAdapter_AttachesPersonAndAccount(t *testing.T) {
 	assert.Equal(t, "Person", info.FirstName)
 }
 
+func TestStaffMembershipAdapter_IDLookupsIncludeOffboardedStaff(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	factory := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Historical", "Staff")
+	require.NoError(t, factory.Staff.Delete(ctx, staff.ID))
+
+	byID, err := factory.Staff.FindByIDs(ctx, []int64{staff.ID})
+	require.NoError(t, err)
+	require.Contains(t, byID, staff.ID)
+
+	withPerson, err := factory.Staff.FindWithPersonByIDs(ctx, []int64{staff.ID})
+	require.NoError(t, err)
+	require.Contains(t, withPerson, staff.ID)
+}
+
 func TestStaffMembershipAdapter_AccountIDsExcludeUnreachableStaff(t *testing.T) {
 	t.Parallel()
 
@@ -175,6 +193,41 @@ func TestStaffMembershipAdapter_AccountIDsExcludeUnreachableStaff(t *testing.T) 
 	require.NoError(t, err)
 	assert.Contains(t, all, withAccount.ID)
 	assert.NotContains(t, all, withoutAccount.ID)
+}
+
+func TestStaffMembershipAdapter_AccountActivityStaysTenantScoped(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	factory := repositories.NewFactory(db)
+	primary, account := testpkg.CreateTestStaffWithAccount(t, db, "Primary", "Account")
+	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
+	foreign, _ := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenant, "Foreign", "Account")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := db.NewRaw(`UPDATE users.persons SET account_id = ? WHERE id = ?`, account.ID, foreign.PersonID).Exec(ctx)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, foreignTenant)
+	_, err = db.NewRaw(`UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?`, account.ID, foreignTenant).Exec(ctx)
+	require.NoError(t, err)
+
+	err = testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
+		byID, err := factory.Staff.ListAccountIDsByStaffIDs(adminCtx, []int64{primary.ID, foreign.ID})
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, account.ID, byID[primary.ID])
+		assert.NotContains(t, byID, foreign.ID)
+
+		all, err := factory.Staff.ListAllStaffAccountIDs(adminCtx)
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, account.ID, all[primary.ID])
+		assert.NotContains(t, all, foreign.ID)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestStaffMembershipAdapter_CalendarReachabilityUsesEffectivePermissions(t *testing.T) {

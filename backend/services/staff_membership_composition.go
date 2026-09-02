@@ -319,6 +319,8 @@ func ClassifyStaffWriteFailure(err error) (StaffFailureKind, error) {
 	switch {
 	case errors.Is(err, usersSvc.ErrStaffAdoptionNotPermitted):
 		return StaffFailureForbidden, err
+	case errors.Is(err, schoolmembership.ErrStaffPersonConflict):
+		return StaffFailureConflict, err
 	case errors.Is(err, usersSvc.ErrStaffLehrkraftCaregiverProfile):
 		return StaffFailureConflict, err
 	case errors.Is(err, usersSvc.ErrStaffInUse):

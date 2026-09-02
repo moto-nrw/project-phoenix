@@ -331,7 +331,7 @@ func (r staffMembershipRepository) FindByIDs(ctx context.Context, ids []int64) (
 	if len(ids) == 0 {
 		return make(map[int64]*userModels.Staff), nil
 	}
-	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids})
+	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids, IncludeDeleted: true})
 	if err != nil {
 		return nil, membershipError("find by IDs", err)
 	}
@@ -346,7 +346,7 @@ func (r staffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids 
 	if len(ids) == 0 {
 		return make(map[int64]*userModels.Staff), nil
 	}
-	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids})
+	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids, IncludeDeleted: true})
 	if err != nil {
 		return nil, membershipError("find with person by IDs", err)
 	}
@@ -365,6 +365,11 @@ func (r staffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids 
 type staffAccountLink struct {
 	staff     schoolmembership.Staff
 	person    *userModels.Person
+	accountID int64
+}
+
+type tenantAccountID struct {
+	tenantID  int64
 	accountID int64
 }
 
@@ -397,19 +402,19 @@ func (r staffMembershipRepository) resolveStaffAccounts(ctx context.Context, mem
 // activeAccountsByTenant narrows the links to accounts that can act at the
 // tenant of their own staff row (the legacy join condition was
 // account_tenant.tenant_id = staff.tenant_id, not the request tenant).
-func (r staffMembershipRepository) activeAccountsByTenant(ctx context.Context, links []staffAccountLink) (map[int64]bool, error) {
+func (r staffMembershipRepository) activeAccountsByTenant(ctx context.Context, links []staffAccountLink) (map[tenantAccountID]bool, error) {
 	byTenant := make(map[int64][]int64)
 	for _, link := range links {
 		byTenant[link.staff.TenantID] = append(byTenant[link.staff.TenantID], link.accountID)
 	}
-	active := make(map[int64]bool, len(links))
+	active := make(map[tenantAccountID]bool, len(links))
 	for tenantID, accountIDs := range byTenant {
 		allowed, err := r.deps.memberships.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)
 		if err != nil {
 			return nil, err
 		}
 		for _, accountID := range allowed {
-			active[accountID] = true
+			active[tenantAccountID{tenantID: tenantID, accountID: accountID}] = true
 		}
 	}
 	return active, nil
@@ -430,7 +435,7 @@ func (r staffMembershipRepository) accountIDsByStaff(ctx context.Context, filter
 	}
 	result := make(map[int64]int64, len(links))
 	for _, link := range links {
-		if active[link.accountID] {
+		if active[tenantAccountID{tenantID: link.staff.TenantID, accountID: link.accountID}] {
 			result[link.staff.ID] = link.accountID
 		}
 	}

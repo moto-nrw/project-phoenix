@@ -177,6 +177,21 @@ func TestPersonnelPermissionsReachTheStaffDirectory(t *testing.T) {
 	}
 }
 
+func TestStaffPersonConflictIsHTTPConflict(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffCompositionRoute(t)
+	staffID, _ := ctx.createStaff("Bestehende", "Zuordnung")
+	_, conflictingPersonID := ctx.createStaff("Doppelte", "Zuordnung")
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/staff/%d", staffID),
+		map[string]interface{}{"person_id": conflictingPersonID},
+		testutil.WithJWTBearer(staffCompositionToken(t, "staff:manage", "users:manage")))
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+}
+
 // TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording pins that the school's
 // own Abwesenheitsart wording (#2403) follows the personnel gate on both
 // staff read paths (#2906).
