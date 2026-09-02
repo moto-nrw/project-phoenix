@@ -359,7 +359,7 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 	// Get account ID from JWT claims
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	accessToken, refreshToken, err := rs.AuthService.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug)
+	accessToken, refreshToken, err := rs.AuthService.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug, claims.FamilyID)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {

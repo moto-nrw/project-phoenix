@@ -25144,17 +25144,17 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        181
+        190
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "services/active/broadcast_test.go",
-      "declaration": "setupServiceWithBroadcaster",
+      "declaration": "newServiceWithBroadcaster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        34
+        42
       ],
       "tables": []
     },
