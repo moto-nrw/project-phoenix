@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getDailyMealParticipants: vi.fn(),
   downloadDailyMealParticipants: vi.fn(),
   toastError: vi.fn(),
+  today: "2026-09-07",
 }));
 
 vi.mock("~/lib/meal-plan-api", () => ({
@@ -14,7 +15,7 @@ vi.mock("~/lib/meal-plan-api", () => ({
 }));
 
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
-  useBerlinToday: () => "2026-09-07",
+  useBerlinToday: () => mocks.today,
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -26,6 +27,7 @@ import { MealParticipantList } from "./meal-participant-list";
 describe("MealParticipantList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.today = "2026-09-07";
     mocks.getDailyMealParticipants.mockResolvedValue({
       date: "2026-09-07",
       cutoffTime: "09:00",
@@ -38,6 +40,27 @@ describe("MealParticipantList", () => {
         },
       ],
     });
+  });
+
+  it("starts on Monday and disables weekends when opened on a weekend", async () => {
+    mocks.today = "2026-09-05";
+
+    render(<MealParticipantList />);
+
+    await waitFor(() => {
+      expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith("2026-09-07");
+    });
+    const datePicker = screen.getByRole("button", {
+      name: "Datum: 07.09.2026",
+    });
+    fireEvent.click(datePicker);
+
+    expect(
+      screen.getByRole("button", { name: "Samstag, 12. September 2026" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Sonntag, 13. September 2026" }),
+    ).toBeDisabled();
   });
 
   it("shows the kitchen cutoff and registered children", async () => {

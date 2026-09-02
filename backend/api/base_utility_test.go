@@ -326,7 +326,7 @@ func setupOperatorInvitationRoute(t *testing.T) chi.Router {
 		},
 	})
 	require.NoError(t, err)
-	api.MealPlan = newMealPlanResource(mealPlan, db, nil)
+	api.MealPlan = newMealPlanResource(mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(feedback, db)
 	persons, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)

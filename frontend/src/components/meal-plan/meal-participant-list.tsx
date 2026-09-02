@@ -9,7 +9,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { useToast } from "~/contexts/ToastContext";
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   downloadDailyMealParticipants,
@@ -20,10 +20,20 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "MealParticipantList" });
 
+const isWeekendDay = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
+
+function nextWeekday(date: string): string {
+  const candidate = parseISODate(date);
+  while (isWeekendDay(candidate)) {
+    candidate.setDate(candidate.getDate() + 1);
+  }
+  return toISODate(candidate);
+}
+
 export function MealParticipantList() {
   const today = useBerlinToday();
   const toast = useToast();
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(() => nextWeekday(today));
   const [cutoffTime, setCutoffTime] = useState("");
   const [participants, setParticipants] = useState<DailyMealParticipant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,6 +130,7 @@ export function MealParticipantList() {
               ariaLabel={`Datum: ${formatDate(date)}`}
               calendarLayout="popover-below"
               controlSize="md"
+              disabledDay={isWeekendDay}
               hideClearButton
               required
               className="w-full sm:w-44"

@@ -216,6 +216,7 @@ func (s *Service) requireRegistration(ctx context.Context) (string, error) {
 }
 
 func (s *Service) resolveParticipation(data domain.ParticipationData, from, to domain.Date, cutoffTime string) domain.ParticipationPlan {
+	now := s.now()
 	overrides := make(map[domain.Date]bool, len(data.Overrides))
 	for _, override := range data.Overrides {
 		overrides[override.Date] = override.Participating
@@ -250,12 +251,12 @@ func (s *Service) resolveParticipation(data domain.ParticipationData, from, to d
 			participating = false
 			source = domain.ParticipationSick
 		}
-		plan.Days = append(plan.Days, domain.ParticipationDay{Date: date, Participating: participating, Source: source, Changeable: domain.Changeable(s.now(), date, cutoffTime)})
+		plan.Days = append(plan.Days, domain.ParticipationDay{Date: date, Participating: participating, Source: source, Changeable: domain.Changeable(now, date, cutoffTime)})
 	}
-	if len(data.Schedules) > 0 {
-		latest := data.Schedules[len(data.Schedules)-1]
-		plan.EffectiveFrom = latest.EffectiveFrom
-		plan.Weekdays = append([]domain.Weekday(nil), latest.Weekdays...)
+	editableSchedule := scheduleForDate(data.Schedules, domain.NextEffectiveDate(now, cutoffTime))
+	if editableSchedule != nil {
+		plan.EffectiveFrom = editableSchedule.EffectiveFrom
+		plan.Weekdays = append([]domain.Weekday(nil), editableSchedule.Weekdays...)
 	}
 	return plan
 }

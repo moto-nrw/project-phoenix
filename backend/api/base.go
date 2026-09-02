@@ -622,7 +622,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
-	api.MealPlan = newMealPlanResource(modules.mealPlan, db, services.NewSimpleListRenderer())
+	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
 	api.Users = newUsersResource(modules.persons, repoFactory, db)
 
@@ -1537,4 +1537,10 @@ func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
 	w.Header().Set("Cache-Control", "private, max-age=3600")
 	_, _ = w.Write([]byte(content))
+}
+
+// newMealPlanExportRenderer keeps the export adapter construction in the API
+// composition layer so both production and route tests receive a real renderer.
+func newMealPlanExportRenderer() services.SimpleListRenderer {
+	return services.NewSimpleListRenderer()
 }

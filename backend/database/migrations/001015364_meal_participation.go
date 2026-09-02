@@ -167,27 +167,6 @@ func mealParticipationUp(ctx context.Context, db *bun.DB) error {
 			BEFORE UPDATE ON schedule.meal_participation_overrides
 			FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
-		ALTER TABLE schedule.meal_participation_schedules ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE schedule.meal_participation_schedules FORCE ROW LEVEL SECURITY;
-		CREATE POLICY tenant_isolation_schedule_meal_participation_schedules
-			ON schedule.meal_participation_schedules FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::BIGINT)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::BIGINT);
-
-		ALTER TABLE schedule.meal_participation_overrides ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE schedule.meal_participation_overrides FORCE ROW LEVEL SECURITY;
-		CREATE POLICY tenant_isolation_schedule_meal_participation_overrides
-			ON schedule.meal_participation_overrides FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::BIGINT)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::BIGINT);
-
-		ALTER TABLE schedule.meal_sickness_status_history ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE schedule.meal_sickness_status_history FORCE ROW LEVEL SECURITY;
-		CREATE POLICY tenant_isolation_schedule_meal_sickness_status_history
-			ON schedule.meal_sickness_status_history FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::BIGINT)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::BIGINT);
-
 		GRANT SELECT, INSERT, UPDATE, DELETE ON schedule.meal_participation_schedules TO phoenix_tenant;
 		GRANT SELECT, INSERT, UPDATE, DELETE ON schedule.meal_participation_overrides TO phoenix_tenant;
 		GRANT SELECT, INSERT ON schedule.meal_sickness_status_history TO phoenix_tenant;
@@ -197,6 +176,15 @@ func mealParticipationUp(ctx context.Context, db *bun.DB) error {
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("create meal participation tables: %w", err)
+	}
+	if err := provisionTenantRLS(
+		ctx,
+		tx,
+		"schedule.meal_participation_schedules",
+		"schedule.meal_participation_overrides",
+		"schedule.meal_sickness_status_history",
+	); err != nil {
+		return fmt.Errorf("provision meal participation tenant isolation: %w", err)
 	}
 	return tx.Commit()
 }
