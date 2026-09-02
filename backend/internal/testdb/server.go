@@ -33,19 +33,40 @@ func ensureServer(
 	start func(context.Context) error,
 	repairAuthentication func(context.Context, *Config) error,
 ) error {
-	pingErr := pingServer(ctx, cfg)
+	return ensureServerWithDependencies(
+		ctx,
+		cfg,
+		start,
+		repairAuthentication,
+		pingServer,
+		isPostgresAuthenticationFailure,
+	)
+}
+
+type serverPinger func(context.Context, *Config) error
+type authenticationFailureClassifier func(error) bool
+
+func ensureServerWithDependencies(
+	ctx context.Context,
+	cfg *Config,
+	start func(context.Context) error,
+	repairAuthentication func(context.Context, *Config) error,
+	ping serverPinger,
+	isAuthenticationFailure authenticationFailureClassifier,
+) error {
+	pingErr := ping(ctx, cfg)
 	if pingErr == nil {
 		return nil
 	}
 
 	if isPostgresStarting(pingErr) {
-		return waitForServer(ctx, cfg)
+		return waitForServer(ctx, cfg, repairAuthentication, ping, isAuthenticationFailure)
 	}
-	if isPostgresAuthenticationFailure(pingErr) {
+	if isAuthenticationFailure(pingErr) {
 		if err := repairAuthentication(ctx, cfg); err != nil {
 			return fmt.Errorf("test database authentication failed and local password synchronization failed: %v: %w", pingErr, err)
 		}
-		if err := pingServer(ctx, cfg); err != nil {
+		if err := ping(ctx, cfg); err != nil {
 			return fmt.Errorf("test database authentication still fails after local password synchronization: %w", err)
 		}
 		return nil
@@ -61,14 +82,30 @@ To run integration tests manually:
   1. Start test database: docker compose --profile test up -d postgres-test
   2. Ensure .env contains: TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable`, err)
 	}
-	return waitForServer(ctx, cfg)
+	return waitForServer(ctx, cfg, repairAuthentication, ping, isAuthenticationFailure)
 }
 
-func waitForServer(ctx context.Context, cfg *Config) error {
+func waitForServer(
+	ctx context.Context,
+	cfg *Config,
+	repairAuthentication func(context.Context, *Config) error,
+	ping serverPinger,
+	isAuthenticationFailure authenticationFailureClassifier,
+) error {
 	deadline := time.Now().Add(60 * time.Second)
+	authenticationRepaired := false
 	for {
-		if err := pingServer(ctx, cfg); err == nil {
+		if err := ping(ctx, cfg); err == nil {
 			return nil
+		} else if isAuthenticationFailure(err) {
+			if authenticationRepaired {
+				return fmt.Errorf("test database authentication still fails after local password synchronization: %w", err)
+			}
+			if repairErr := repairAuthentication(ctx, cfg); repairErr != nil {
+				return fmt.Errorf("test database authentication failed after container start and local password synchronization failed: %v: %w", err, repairErr)
+			}
+			authenticationRepaired = true
+			continue
 		} else if time.Now().After(deadline) {
 			return fmt.Errorf("test database server did not become ready within 60s after container start: %w", err)
 		}
@@ -285,11 +322,16 @@ func runTestContainerUp(ctx context.Context, cfg *Config, composeProject string)
 	return nil
 }
 
-func testContainerCommand(ctx context.Context, cfg *Config) (*exec.Cmd, error) {
-	return testContainerCommandForProject(ctx, cfg, composeProjectFor(cfg))
+func testContainerCommandForProject(ctx context.Context, cfg *Config, composeProject string) (*exec.Cmd, error) {
+	return testContainerCommandForProjectWithEnvironment(ctx, cfg, composeProject, os.Environ())
 }
 
-func testContainerCommandForProject(ctx context.Context, cfg *Config, composeProject string) (*exec.Cmd, error) {
+func testContainerCommandForProjectWithEnvironment(
+	ctx context.Context,
+	cfg *Config,
+	composeProject string,
+	environment []string,
+) (*exec.Cmd, error) {
 	username := cfg.templateURL.User.Username()
 	password, hasPassword := cfg.templateURL.User.Password()
 	if username != "postgres" || !hasPassword || password == "" {
@@ -318,7 +360,7 @@ func testContainerCommandForProject(ctx context.Context, cfg *Config, composePro
 	// worktrees with distinct assigned ports cannot replace each other's service.
 	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", composeProject, "-f", composeFile, "--profile", "test", "up", "-d", "postgres-test")
 	cmd.Dir = projectRoot
-	cmd.Env = replaceCommandEnvironment(os.Environ(), "TEST_DB_PORT", port)
+	cmd.Env = replaceCommandEnvironment(environment, "TEST_DB_PORT", port)
 	cmd.Env = replaceCommandEnvironment(cmd.Env, "POSTGRES_PASSWORD", password)
 	return cmd, nil
 }

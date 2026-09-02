@@ -43,14 +43,6 @@ func parentStudentConsentsUp(ctx context.Context, db *bun.DB) error {
 			ON audit.student_consent_changes (actor_account_id, created_at DESC)
 			WHERE actor_account_id IS NOT NULL;
 
-		ALTER TABLE audit.student_consent_changes ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE audit.student_consent_changes FORCE ROW LEVEL SECURITY;
-		CREATE POLICY tenant_isolation_audit_student_consent_changes
-			ON audit.student_consent_changes
-			FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-
 		GRANT SELECT, INSERT ON audit.student_consent_changes TO phoenix_tenant;
 		REVOKE UPDATE, DELETE, TRUNCATE ON audit.student_consent_changes FROM phoenix_tenant;
 		GRANT USAGE ON SEQUENCE audit.student_consent_changes_id_seq TO phoenix_tenant;
@@ -115,7 +107,7 @@ func parentStudentConsentsUp(ctx context.Context, db *bun.DB) error {
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("create parent student consent history: %w", err)
 	}
-	return nil
+	return provisionTenantRLS(ctx, db, "audit.student_consent_changes")
 }
 
 func parentStudentConsentsDown(ctx context.Context, db *bun.DB) error {

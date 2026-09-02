@@ -101,3 +101,17 @@ func TestGrantPhotoConsentRequiresPreviousWithdrawal(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"photo_consent_not_withdrawn"`)
 }
+
+func TestGrantPhotoConsentMapsEndedCareError(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeParentService{grantConsentErr: parentService.ErrChildCareEnded}
+	rs := &Resource{ParentService: fake}
+	req := parentRequestWithStudentID(http.MethodPut, "/children/42/consents/photo", "{}", "42")
+	w := httptest.NewRecorder()
+
+	rs.grantPhotoConsent(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"child_care_ended"`)
+}

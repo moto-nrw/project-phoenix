@@ -99,6 +99,9 @@ var grantPhotoConsentErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: parentService.ErrGuardianPermissionDenied, Render: func(err error) render.Renderer {
 		return common.ErrorForbiddenWithCode(err, "guardian_permission_denied")
 	}},
+	{Target: parentService.ErrChildCareEnded, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, "child_care_ended")
+	}},
 	{Target: parentService.ErrPhotoConsentNotWithdrawn, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "photo_consent_not_withdrawn")
 	}},
