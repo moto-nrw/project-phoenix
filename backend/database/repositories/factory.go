@@ -43,7 +43,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
 	"github.com/uptrace/bun"
 )
@@ -424,15 +423,6 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 	if f.ParentMessageRead != nil {
 		f.ParentMessageRead = groupParentMessageReadRepository{ParentMessageReadRepository: f.ParentMessageRead, groups: groups}
 	}
-}
-
-// NewSchoolStructure composes the group owner behind the legacy composition
-// seam for test graphs and CLI roots that do not record observations.
-func NewSchoolStructure(db *bun.DB) (schoolstructure.Capability, error) {
-	return schoolStructureCompose.New(schoolStructureCompose.Dependencies{
-		DB:      db,
-		Observe: func(schoolStructureCompose.Observation) {},
-	})
 }
 
 // NewFactory creates a new repository factory with all repositories
