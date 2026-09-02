@@ -21,8 +21,11 @@ import (
 type ChildSummary struct {
 	// Student identity (per-tenant id; the (TenantID, StudentID) pair
 	// is globally unique).
-	StudentID   int64  `json:"student_id"`
-	TenantID    int64  `json:"tenant_id"`
+	StudentID int64 `json:"student_id"`
+	TenantID  int64 `json:"tenant_id"`
+	// PersonID is the student's person reference; the names below are
+	// attached by the composition layer through the People Directory.
+	PersonID    int64  `json:"-"`
 	FirstName   string `json:"first_name"`
 	LastName    string `json:"last_name"`
 	SchoolClass string `json:"school_class,omitempty"`
@@ -115,6 +118,12 @@ type EnrollablePhase struct {
 	// for are already filtered out by the repository.
 	Audience      string `json:"audience"`
 	HasFamilyLink bool   `json:"-"`
+	// EnrolledSubmitPersonIDs are the persons of the ACTIVE or PENDING
+	// students whose guardian relationship grants submit permission. The
+	// composition layer checks them against the People Directory to decide
+	// the existing_students eligibility (a soft-deleted person does not
+	// count); the repository itself never reads person rows.
+	EnrolledSubmitPersonIDs []int64 `json:"-"`
 }
 
 // GuardianSubmitStatus captures the facts the parent enrollment submit
@@ -143,6 +152,10 @@ type GuardianSubmitStatus struct {
 	// (ListEnrollable) hides those phases and the form gate must refuse them
 	// with the same fact.
 	HasEnrolledSubmitPermission bool
+	// EnrolledSubmitPersonIDs carries the candidate persons behind
+	// HasEnrolledSubmitPermission for the composition layer; see
+	// EnrollablePhase.EnrolledSubmitPersonIDs.
+	EnrolledSubmitPersonIDs []int64
 }
 
 // EnrollablePhaseRepository is the cross-tenant lookup for the parent

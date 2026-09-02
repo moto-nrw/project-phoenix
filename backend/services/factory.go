@@ -451,8 +451,9 @@ func newFactory(
 ) (*Factory, error) {
 	now := optionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
-	repos.BindOrganizationTenancy(organizations)
+	// Persons first: the school projections sort by the names this binds.
 	repos.BindPeopleDirectory(persons)
+	repos.BindOrganizationTenancy(organizations)
 	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 

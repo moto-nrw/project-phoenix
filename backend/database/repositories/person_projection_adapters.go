@@ -40,6 +40,12 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if f.GradeTransition != nil {
 		f.GradeTransition = personGradeTransitionRepository{GradeTransitionRepository: f.GradeTransition, persons: persons}
 	}
+	if f.ParentChild != nil {
+		f.ParentChild = personChildRepository{ChildRepository: f.ParentChild, persons: persons}
+	}
+	if f.ParentEnrollablePhase != nil {
+		f.ParentEnrollablePhase = personEnrollablePhaseRepository{EnrollablePhaseRepository: f.ParentEnrollablePhase, persons: persons}
+	}
 }
 
 // personsByID resolves the non-deleted persons for ids through the owner
