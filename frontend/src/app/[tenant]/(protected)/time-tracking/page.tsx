@@ -3810,6 +3810,7 @@ function TimeTrackingContent() {
       // Laden kommt aus dem Gerüst (Bauart 3, Regel 5) — kein eigenes
       // Seiten-Skelett neben den Zuständen der TenantPage.
       loading={authStatus === "loading"}
+      loadingLabel="Zeiterfassung wird geladen…"
       stats={
         metricsPending
           ? undefined
@@ -4045,7 +4046,14 @@ function TimeTrackingContent() {
 /** Ladezustand der Seite: der eingebaute Zustand des Gerüsts, kein eigenes
  *  Skelett daneben (Bauart 3, Regel 5). */
 function TimeTrackingPageSkeleton() {
-  return <TenantPage title="Zeiterfassung" statsLoading loading />;
+  return (
+    <TenantPage
+      title="Zeiterfassung"
+      statsLoading
+      loading
+      loadingLabel="Zeiterfassung wird geladen…"
+    />
+  );
 }
 
 export default function TimeTrackingPage() {

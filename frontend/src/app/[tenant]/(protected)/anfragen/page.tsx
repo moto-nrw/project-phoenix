@@ -442,6 +442,7 @@ export default function AnfragenPage() {
       // Der Ladezustand kommt aus dem Gerüst, nicht aus einem eigenen Skelett
       // im Inhalt.
       loading={!isReady}
+      loadingLabel="Anfragen werden geladen…"
     >
       {staffActive ? (
         <MitarbeitendeTab

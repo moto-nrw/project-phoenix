@@ -136,9 +136,9 @@ describe("AnfragenPage", () => {
 
     render(<AnfragenPage />);
 
-    // Der Ladezustand kommt jetzt aus dem Gerüst; es beschriftet ihn mit dem
-    // Seitentitel.
-    expect(screen.getByLabelText("Anfragen wird geladen…")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Anfragen werden geladen…"),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("aggregated-list")).toBeNull();
     expect(mockRedirect).not.toHaveBeenCalled();
     expect(mockUseSession).toHaveBeenCalledWith({ required: true });
@@ -153,7 +153,9 @@ describe("AnfragenPage", () => {
 
     render(<AnfragenPage />);
 
-    expect(screen.getByLabelText("Anfragen wird geladen…")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Anfragen werden geladen…"),
+    ).toBeInTheDocument();
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 

@@ -443,6 +443,7 @@ function MeinRaumPageContent() {
       tabs={supervisionTabs}
       statsLoading={isPageLoading}
       loading={isPageLoading}
+      loadingLabel="Aktuelle Aufsicht wird geladen…"
       empty={
         hasNoAccess
           ? {
@@ -611,7 +612,14 @@ function ActiveSupervisionGate({
   const { overviewEnabled, isLoadingSupervision } = useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
-    return <TenantPage title="Aktuelle Aufsicht" statsLoading loading />;
+    return (
+      <TenantPage
+        title="Aktuelle Aufsicht"
+        statsLoading
+        loading
+        loadingLabel="Aktuelle Aufsicht wird geladen…"
+      />
+    );
   }
 
   // Caregivers (user/teacher role) always have access
@@ -639,7 +647,14 @@ export default function MeinRaumPage() {
   return (
     <BinaryModeGuard title="Aktuelle Aufsicht">
       <Suspense
-        fallback={<TenantPage title="Aktuelle Aufsicht" statsLoading loading />}
+        fallback={
+          <TenantPage
+            title="Aktuelle Aufsicht"
+            statsLoading
+            loading
+            loadingLabel="Aktuelle Aufsicht wird geladen…"
+          />
+        }
       >
         <ActiveSupervisionGate>
           <SSEErrorBoundary>

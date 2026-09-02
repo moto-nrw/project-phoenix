@@ -27,10 +27,14 @@ const logger = createLogger({ component: "ProfilePage" });
 
 // Der Ladezustand kommt aus dem Seitengeruest, nicht aus einem eigenen
 // Skelett: dieselbe Kopfkarte und dieselben Platzhalterflaechen wie auf jeder
-// anderen Flaeche des Portals. Der Vorlesetext bildet `TenantPage` aus dem
-// Titel („Profil wird geladen…").
+// anderen Flaeche des Portals. Der Vorlesetext benennt die Profilseite.
 const profileLoadingFallback = (
-  <TenantPage title="Profil" statsLoading loading />
+  <TenantPage
+    title="Profil"
+    statsLoading
+    loading
+    loadingLabel="Profil wird geladen…"
+  />
 );
 
 function ProfileContent() {
