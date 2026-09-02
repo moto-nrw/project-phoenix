@@ -1701,6 +1701,7 @@ function TimetablesContent() {
       loading={
         contentLoading ? <TimetableContentSkeleton view={view} /> : false
       }
+      loadingLabel="Betreuungsplan wird geladen…"
       error={
         errorMessage && !data
           ? {
