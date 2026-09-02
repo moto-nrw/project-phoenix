@@ -40,6 +40,9 @@ type StudentDirectory interface {
 	// ClearStudentStatusFlags clears one legacy live absence flag for the
 	// supplied student ids. The People Directory owns this write.
 	ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error)
+	// LockStudent takes a student row FOR UPDATE in the caller's transaction.
+	// Status archival locks every candidate before it re-reads and clears flags.
+	LockStudent(ctx context.Context, studentID int64) error
 }
 
 var errStudentDirectoryRequired = errors.New("active repositories: student directory is not bound")

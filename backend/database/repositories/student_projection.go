@@ -115,6 +115,10 @@ func (d activeStudentDirectory) ClearStudentStatusFlags(ctx context.Context, ids
 	return flags.ClearStudentStatusFlags(ctx, ids, status)
 }
 
+func (d activeStudentDirectory) LockStudent(ctx context.Context, studentID int64) error {
+	return d.commands.LockStudent(ctx, studentID)
+}
+
 func toActiveStudents(students []peopledirectory.Student) []activeRepo.DirectoryStudent {
 	result := make([]activeRepo.DirectoryStudent, 0, len(students))
 	for _, student := range students {

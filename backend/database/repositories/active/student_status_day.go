@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -384,15 +385,38 @@ func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
 		(status == active.StudentStatusDayExcused && (flagColumn != "excused" || sinceColumn != "excused_since")) {
 		return 0, fmt.Errorf("status flag columns do not match status %q", status)
 	}
-	students, err := r.students.ListStudentsWithStatusFlag(ctx, status)
+	candidates, err := r.students.ListStudentsWithStatusFlag(ctx, status)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "list students with status flag", Err: base.TranslateNotFound(err)}
 	}
+	if len(candidates) == 0 {
+		return 0, nil
+	}
+	ids := make([]int64, 0, len(candidates))
+	locked := make(map[int64]struct{}, len(candidates))
+	for _, student := range candidates {
+		ids = append(ids, student.ID)
+		locked[student.ID] = struct{}{}
+	}
+	slices.Sort(ids)
+	for _, studentID := range slices.Compact(ids) {
+		if err := r.students.LockStudent(ctx, studentID); err != nil {
+			return 0, &modelBase.DatabaseError{Op: "lock student for status flag archive", Err: base.TranslateNotFound(err)}
+		}
+	}
+	students, err := r.students.ListStudentsWithStatusFlag(ctx, status)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "re-read students with status flag", Err: base.TranslateNotFound(err)}
+	}
+	students = slices.DeleteFunc(students, func(student DirectoryStudent) bool {
+		_, ok := locked[student.ID]
+		return !ok
+	})
 	if len(students) == 0 {
 		return 0, nil
 	}
 	entries := make([]*active.StudentStatusDay, 0, len(students))
-	ids := make([]int64, 0, len(students))
+	ids = make([]int64, 0, len(students))
 	for _, student := range students {
 		reportedAt := reportedFallback
 		if status == active.StudentStatusDaySick && student.SickSince != nil {
