@@ -77,6 +77,17 @@ func TestNewFactory(t *testing.T) {
 	})
 }
 
+func TestNewFactory_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+
+	factory, err := services.NewFactoryForTestsWithConfig(repositories.NewFactory(db), db, slog.Default(), testFactoryConfig())
+	require.NoError(t, err)
+
+	_, err = factory.EnrollmentDeletion.PreviewRequest(testpkg.Ctx(t), testpkg.UniqueTestTenantID(t))
+	require.EqualError(t, err, "enrollment deletion target not found")
+}
+
 func TestNewFactory_RejectsPartialVAPIDConfig(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

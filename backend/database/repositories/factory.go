@@ -362,6 +362,9 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.bindAuditStudentDirectory()
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
+	if f.students != nil {
+		f.bindGuardianDirectories(f.students)
+	}
 }
 
 // BindOrganizationTenancy replaces school-owning and school-enriched legacy
