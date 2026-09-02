@@ -172,11 +172,11 @@ func TestSearchPersonsCapsPageSizeAndTrimsFilters(t *testing.T) {
 	engine := &recordingEngine{}
 	module := peopledirectory.NewModule(engine)
 
-	_, err := module.SearchPersons(context.Background(), peopledirectory.PersonFilter{FirstNamePrefix: " Mi ", PageSize: 5000, Page: 2})
+	_, err := module.SearchPersons(context.Background(), peopledirectory.PersonFilter{FirstNamePrefix: " Mi ", TagID: " aa:bb-cc ", PageSize: 5000, Page: 2})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if engine.searched.FirstNamePrefix != "Mi" || engine.searched.PageSize != peopledirectory.MaxPageSize || engine.searched.Page != 2 {
+	if engine.searched.FirstNamePrefix != "Mi" || engine.searched.TagID != "AABBCC" || engine.searched.PageSize != peopledirectory.MaxPageSize || engine.searched.Page != 2 {
 		t.Fatalf("filter was not normalized: %+v", engine.searched)
 	}
 	if _, err := module.SearchPersons(context.Background(), peopledirectory.PersonFilter{Page: -1}); !errors.Is(err, peopledirectory.ErrInvalidPerson) {

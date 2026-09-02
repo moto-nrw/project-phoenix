@@ -204,9 +204,11 @@ func decodeError(t *testing.T, recorder *httptest.ResponseRecorder) errorRespons
 func TestListPersonsForwardsFiltersAndPaginates(t *testing.T) {
 	t.Parallel()
 	tag := "ABC"
-	directory := &fakeDirectory{persons: map[int64]peopledirectory.Person{7: {ID: 7, FirstName: "Mia", LastName: "Muster", TagID: &tag}}}
+	var accountID int64 = 99
+	directory := &fakeDirectory{persons: map[int64]peopledirectory.Person{7: {ID: 7, FirstName: "Mia", LastName: "Muster", TagID: &tag, AccountID: &accountID}}}
 	h := newHarness(t, directory)
 	h.permitted["users:read"] = true
+	h.accounts[accountID] = "mia@example.com"
 
 	recorder := h.do(t, http.MethodGet, "/users?first_name=Mi&last_name=Mu&tag_id=ABC", nil)
 
@@ -216,6 +218,7 @@ func TestListPersonsForwardsFiltersAndPaginates(t *testing.T) {
 	require.NotNil(t, body.Pagination)
 	assert.Equal(t, 1, body.Pagination.Total)
 	assert.Contains(t, string(body.Data), `"tag_id":"ABC"`)
+	assert.Contains(t, string(body.Data), `"email":"mia@example.com"`)
 	assert.Equal(t, 1, h.txCalls, "the protected group wraps the handler in the injected transaction middleware")
 }
 

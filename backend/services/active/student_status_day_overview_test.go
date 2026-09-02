@@ -34,3 +34,15 @@ func TestStudentEnrolledOn(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterOverviewStudentIDsExcludesPeopleTheDirectoryDoesNotReturn(t *testing.T) {
+	t.Parallel()
+
+	students := map[int64]*userModels.Student{
+		1: {ID: 1, PersonID: 11},
+		2: {ID: 2, PersonID: 22},
+	}
+	persons := map[int64]*userModels.Person{11: {ID: 11, FirstName: "Mia", LastName: "Muster"}}
+
+	assert.Equal(t, []int64{1}, filterOverviewStudentIDs([]int64{1, 2}, students, persons, ""))
+}

@@ -196,14 +196,17 @@ func statusDayEnrollmentFilter(studentIDs []int64, students map[int64]*userModel
 
 func filterOverviewStudentIDs(ids []int64, students map[int64]*userModels.Student, persons map[int64]*userModels.Person, query string) []int64 {
 	needle := strings.ToLower(strings.TrimSpace(query))
-	if needle == "" {
-		return ids
-	}
 	filtered := make([]int64, 0, len(ids))
 	for _, id := range ids {
 		student := students[id]
+		if student == nil {
+			continue
+		}
 		person := persons[student.PersonID]
-		if person != nil && strings.Contains(strings.ToLower(person.FirstName+" "+person.LastName+" "+student.SchoolClass), needle) {
+		if person == nil {
+			continue
+		}
+		if needle == "" || strings.Contains(strings.ToLower(person.FirstName+" "+person.LastName+" "+student.SchoolClass), needle) {
 			filtered = append(filtered, id)
 		}
 	}

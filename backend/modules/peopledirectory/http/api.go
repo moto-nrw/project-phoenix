@@ -125,9 +125,10 @@ func (rs *Resource) listPersons(w http.ResponseWriter, r *http.Request) {
 		rs.moduleFailure(w, r, err)
 		return
 	}
-	responses := make([]PersonResponse, 0, len(persons))
-	for _, person := range persons {
-		responses = append(responses, newPersonResponse(person, ""))
+	responses, err := rs.personResponses(r.Context(), persons)
+	if err != nil {
+		rs.failure(w, r, FailureInternal, err, "internal_error")
+		return
 	}
 	rs.runtime.SuccessPaginated(w, r, http.StatusOK, responses, Pagination{Page: page, PageSize: pageSize, Total: len(responses)}, "Persons retrieved successfully")
 	rs.runtime.ObserveResponse(http.StatusOK, "none")
@@ -255,19 +256,39 @@ func (rs *Resource) referencesExist(w http.ResponseWriter, r *http.Request, tagI
 }
 
 func (rs *Resource) respondPerson(w http.ResponseWriter, r *http.Request, status int, person peopledirectory.Person, message string) {
+	response, err := rs.personResponse(r.Context(), person)
+	if err != nil {
+		rs.failure(w, r, FailureInternal, err, "internal_error")
+		return
+	}
+	rs.runtime.Success(w, r, status, response, message)
+	rs.runtime.ObserveResponse(status, "none")
+}
+
+func (rs *Resource) personResponses(ctx context.Context, persons []peopledirectory.Person) ([]PersonResponse, error) {
+	responses := make([]PersonResponse, 0, len(persons))
+	for _, person := range persons {
+		response, err := rs.personResponse(ctx, person)
+		if err != nil {
+			return nil, err
+		}
+		responses = append(responses, response)
+	}
+	return responses, nil
+}
+
+func (rs *Resource) personResponse(ctx context.Context, person peopledirectory.Person) (PersonResponse, error) {
 	email := ""
 	if person.AccountID != nil {
-		value, found, err := rs.runtime.AccountEmail(r.Context(), *person.AccountID)
+		value, found, err := rs.runtime.AccountEmail(ctx, *person.AccountID)
 		if err != nil {
-			rs.failure(w, r, FailureInternal, err, "internal_error")
-			return
+			return PersonResponse{}, err
 		}
 		if found {
 			email = value
 		}
 	}
-	rs.runtime.Success(w, r, status, newPersonResponse(person, email), message)
-	rs.runtime.ObserveResponse(status, "none")
+	return newPersonResponse(person, email), nil
 }
 
 func (rs *Resource) parseID(w http.ResponseWriter, r *http.Request) (int64, bool) {

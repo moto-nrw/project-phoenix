@@ -255,7 +255,7 @@ func (m *Module) SearchPersons(ctx context.Context, filter PersonFilter) ([]Pers
 	filter.FirstNamePrefix = strings.TrimSpace(filter.FirstNamePrefix)
 	filter.LastNamePrefix = strings.TrimSpace(filter.LastNamePrefix)
 	filter.FullNameContains = strings.TrimSpace(filter.FullNameContains)
-	filter.TagID = strings.TrimSpace(filter.TagID)
+	filter.TagID = NormalizeTagID(filter.TagID)
 	filter.AccountIDs = uniquePositive(filter.AccountIDs)
 	if filter.Page < 0 || filter.PageSize < 0 {
 		return nil, invalid("page and page size must not be negative")
