@@ -224,7 +224,7 @@ export function TeamChatInbox({ portal }: { readonly portal: TeamChatPortal }) {
                     <button
                       type="button"
                       onClick={() => navigate(threadHref(thread.thread_id))}
-                      className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
+                      className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">

@@ -80,7 +80,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
             {daySkeletonEvents.map((event) => (
               <div
                 key={`${event.top}-${event.height}`}
-                className="absolute left-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:left-2.5"
+                className="moto-content-surface absolute left-2 rounded-xl border p-2 shadow-sm sm:left-2.5"
                 style={{
                   top: `${event.top}px`,
                   height: `${event.height}px`,
@@ -176,7 +176,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
               {(weekSkeletonEvents[day] ?? []).map((event) => (
                 <div
                   key={`${day}-${event.top}-${event.height}-${event.width}`}
-                  className="absolute left-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:left-2.5"
+                  className="moto-content-surface absolute left-2 rounded-xl border p-2 shadow-sm sm:left-2.5"
                   style={{
                     top: `${event.top}px`,
                     height: `${event.height}px`,

@@ -183,7 +183,7 @@ export function MultiCheckboxSelect({
           aria-label={ariaLabel}
           onKeyDown={handleKeyDown}
           className={cn(
-            "absolute top-full left-0 z-50 mt-1 min-w-full overflow-hidden rounded-xl border border-gray-200 bg-white py-2 shadow-lg",
+            "moto-popover-surface absolute top-full left-0 z-50 mt-1 min-w-full overflow-hidden rounded-xl border py-2",
             menuClassName,
           )}
         >

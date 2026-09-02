@@ -380,7 +380,7 @@ export function AccountTenantAccessModal({
                   description="Dieses Konto ist derzeit keiner Schule zugeordnet und kann sich nicht anmelden."
                 />
               ) : (
-                <ul className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
+                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border shadow-sm">
                   {activeEntries.map((entry) => (
                     <li
                       key={entry.tenantId}
@@ -556,7 +556,7 @@ export function AccountTenantAccessModal({
                   // FormModal rendert seinen Titel als h3.
                   level={4}
                 />
-                <ul className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
+                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border shadow-sm">
                   {formerEntries.map((entry) => (
                     <li
                       key={entry.tenantId}

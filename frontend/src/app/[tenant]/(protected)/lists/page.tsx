@@ -13,7 +13,6 @@ import { useSearchParams } from "next/navigation";
 import {
   AlarmClock,
   BookOpen,
-  Check,
   Clock3,
   Clock4,
   Download,
@@ -27,6 +26,8 @@ import {
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -2078,7 +2079,7 @@ export default function SlotListsPage() {
       {/* Selection: source + date + data mode */}
       <section
         aria-label="Listenauswahl"
-        className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
+        className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5"
       >
         <p className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
           Quelle
@@ -2139,23 +2140,21 @@ export default function SlotListsPage() {
                       ? "Prüfe Datum…"
                       : option.description;
             return (
-              <button
+              <ChoiceTile
+                as="button"
                 key={option.id}
-                type="button"
                 onClick={() => pickSelection(option)}
                 disabled={disabledForPastDate}
+                selected={selected}
+                tone="green"
                 aria-pressed={selected}
                 title={
                   disabledForPastDate
                     ? "Ganztag-Listen sind nur für heute und künftige Tage verfügbar"
                     : undefined
                 }
-                className={`flex h-full items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+                className={`h-full p-3 ${
                   option.id === "slots" ? "col-span-2 lg:col-span-3" : ""
-                } ${
-                  selected
-                    ? "border-moto-green/50 bg-moto-green/10"
-                    : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
                 }`}
               >
                 <span
@@ -2163,8 +2162,8 @@ export default function SlotListsPage() {
                     selected
                       ? "bg-moto-green/20 text-moto-green-strong"
                       : available || !hasAvailability
-                        ? "bg-white text-gray-500"
-                        : "bg-white text-gray-400"
+                        ? "text-gray-500"
+                        : "text-gray-400"
                   }`}
                 >
                   <Icon className="h-5 w-5" aria-hidden />
@@ -2177,7 +2176,7 @@ export default function SlotListsPage() {
                     {detail}
                   </span>
                 </span>
-              </button>
+              </ChoiceTile>
             );
           })}
         </div>
@@ -2215,38 +2214,18 @@ export default function SlotListsPage() {
                   const selected =
                     !cancelled && selectedSlotIdSet.has(slot.instance_id);
                   return (
-                    <label
+                    <ChoiceTile
                       key={slot.instance_id}
                       title={`${slot.time_range} ${slot.title}`}
-                      className={`flex h-14 min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors focus-within:border-gray-400 ${
-                        cancelled
-                          ? "cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400"
-                          : selected
-                            ? "cursor-pointer border-gray-300 bg-gray-50 text-gray-700"
-                            : "cursor-pointer border-gray-100 bg-white text-gray-700 hover:border-gray-200 hover:bg-gray-50"
-                      }`}
+                      selected={selected}
+                      disabled={cancelled}
+                      className="h-14 min-w-0"
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selected}
                         disabled={cancelled}
                         onChange={() => toggleSlot(slot.instance_id)}
-                        className="sr-only"
                       />
-                      <span
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                          selected
-                            ? "border-gray-900 bg-gray-900"
-                            : "border-gray-300 bg-white"
-                        }`}
-                        aria-hidden="true"
-                      >
-                        <Check
-                          className={`h-3.5 w-3.5 text-white transition-opacity ${
-                            selected ? "opacity-100" : "opacity-0"
-                          }`}
-                        />
-                      </span>
                       <span className="min-w-0 flex-1 leading-snug">
                         <span className="block truncate">{slot.title}</span>
                         <span className="block truncate text-xs font-normal text-gray-500 tabular-nums">
@@ -2254,7 +2233,7 @@ export default function SlotListsPage() {
                           {cancelled ? " · Abgesagt" : ""}
                         </span>
                       </span>
-                    </label>
+                    </ChoiceTile>
                   );
                 })}
               </div>
@@ -2344,7 +2323,7 @@ export default function SlotListsPage() {
       {/* Preview + export */}
       <section
         aria-label="Vorschau und Export"
-        className="moto-content-surface mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
+        className="moto-content-surface mt-4 rounded-2xl border p-4 shadow-sm sm:p-5"
       >
         <div className="space-y-3 border-b border-gray-100 pb-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">

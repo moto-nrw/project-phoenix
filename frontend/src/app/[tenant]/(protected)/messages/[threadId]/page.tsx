@@ -405,7 +405,7 @@ function MessageThreadContent() {
 // non-interactive "event" pills (ChatEventCard) with a German body.
 function RequestHistoryCard({ message }: Readonly<{ message: Message }>) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-900">{message.body}</p>

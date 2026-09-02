@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
@@ -471,9 +472,9 @@ export function CalendarPeriodModal({
           </Field>
         </div>
 
-        <label
+        <ChoiceTile
           htmlFor="period_active"
-          className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:bg-gray-50"
+          className="gap-2 px-3 py-2 font-normal shadow-sm"
         >
           <Checkbox
             id="period_active"
@@ -490,7 +491,7 @@ export function CalendarPeriodModal({
               Nur aktive Zeiträume legen Termine aus Regelterminen an
             </span>
           </span>
-        </label>
+        </ChoiceTile>
 
         {isEdit && initial && phaseLink && phaseLink.phases.length > 0 && (
           <fieldset className="rounded-xl border border-gray-200 p-3">

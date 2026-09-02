@@ -57,7 +57,7 @@ export default function RemindersPage() {
         </SkeletonRegion>
       ) : error && !data ? null : count === 0 ? (
         data?.enabled === false ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
+          <div className="moto-content-surface rounded-2xl border p-10 text-center shadow-sm">
             <p className="font-medium text-gray-900">
               Keine aktiven Erinnerungen
             </p>
@@ -81,7 +81,7 @@ export default function RemindersPage() {
             return (
               <section
                 key={section.type}
-                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+                className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm"
               >
                 <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                   <h2 className="font-semibold text-gray-900">
