@@ -704,7 +704,7 @@ export default function ClassListEntriesPage() {
                           Kind-Datensatz #{studentId}
                         </span>
                         <Link
-                          href={`/students/${studentId}`}
+                          href={tenantPath(`/students/${studentId}`)}
                           target="_blank"
                           className="text-xs font-medium text-gray-600 underline hover:text-gray-900"
                         >

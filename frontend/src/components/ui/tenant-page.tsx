@@ -632,8 +632,6 @@ function TenantPageTabs({
     <OverflowMenu
       key="__mehr__"
       ariaLabel={MORE_LABEL}
-      triggerRole={measuring ? undefined : "tab"}
-      triggerAriaSelected={measuring ? undefined : Boolean(hiddenActive)}
       triggerClassName={cn(tabClass(Boolean(hiddenActive)), "max-sm:hidden")}
       // leading-6 am Inhalt: ohne das drückt das Pfeil-Symbol die Zeilenhöhe
       // um ein Pixel und der Reiter steht einen Hauch tiefer als seine
@@ -673,25 +671,26 @@ function TenantPageTabs({
           dem Inhalt darunter; eine einzeln getönte Pille sagt das nicht, sie
           liest sich als Filter. */}
       <div className="relative border-b border-gray-200 max-sm:border-0 sm:px-5">
-        <div
-          ref={rowRef}
-          role="tablist"
-          aria-label={label}
-          // Unter sm scrollt das Band bis an den Kartenrand; der Innenrand
-          // der Karte sitzt als Polster im Scrollbereich, damit der erste
-          // und der letzte Reiter nicht am Rahmen kleben.
-          // Ab sm schneidet die Zeile ab (`clip`, kein Scrollkasten): die
-          // Messung sorgt dafür, dass im Ruhezustand alles passt, aber
-          // während die Seitenleiste auf- oder zuklappt, kann ein Bild lang
-          // ein Reiter über den Kartenrand ragen, bis die Zeile neu gemessen
-          // ist. Ohne Clip stand er in einem Screenshot halb außerhalb der
-          // Karte.
-          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:gap-2 max-sm:overflow-x-auto max-sm:px-4 sm:overflow-x-clip max-sm:[&::-webkit-scrollbar]:hidden"
-        >
-          {visible.map((item) => renderTab(item))}
-          {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im
-              Band stehen; der Sammelreiter verschwindet dort. */}
-          {hidden.map((item) => renderTab(item, false, "sm:hidden"))}
+        <div ref={rowRef} className="flex items-end gap-6 max-sm:gap-0">
+          <div
+            role="tablist"
+            aria-label={label}
+            // Unter sm scrollt das Band bis an den Kartenrand; der Innenrand
+            // der Karte sitzt als Polster im Scrollbereich, damit der erste
+            // und der letzte Reiter nicht am Rahmen kleben.
+            // Ab sm schneidet die Zeile ab (`clip`, kein Scrollkasten): die
+            // Messung sorgt dafür, dass im Ruhezustand alles passt, aber
+            // während die Seitenleiste auf- oder zuklappt, kann ein Bild lang
+            // ein Reiter über den Kartenrand ragen, bis die Zeile neu gemessen
+            // ist. Ohne Clip stand er in einem Screenshot halb außerhalb der
+            // Karte.
+            className="flex min-w-0 flex-1 items-end gap-6 max-sm:[scrollbar-width:none] max-sm:gap-2 max-sm:overflow-x-auto max-sm:px-4 sm:overflow-x-clip max-sm:[&::-webkit-scrollbar]:hidden"
+          >
+            {visible.map((item) => renderTab(item))}
+            {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im
+                Band stehen; der Sammelreiter verschwindet dort. */}
+            {hidden.map((item) => renderTab(item, false, "sm:hidden"))}
+          </div>
           {hidden.length > 0 && moreTrigger()}
         </div>
         {/* Scroll-Hinweis des mobilen Bandes: solange rechts Reiter liegen,

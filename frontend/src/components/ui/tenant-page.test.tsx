@@ -201,7 +201,15 @@ describe("TenantPage", () => {
         />,
       );
 
-      fireEvent.click(screen.getByRole("tab", { name: "Mehr" }));
+      const tablist = screen.getByRole("tablist", {
+        name: "Seitenbereiche",
+      });
+      const moreButton = screen.getByRole("button", { name: "Mehr" });
+
+      expect(
+        within(tablist).queryByRole("button", { name: "Mehr" }),
+      ).toBeNull();
+      fireEvent.click(moreButton);
 
       expect(
         screen.getByRole("menuitem", { name: "Personal" }),
