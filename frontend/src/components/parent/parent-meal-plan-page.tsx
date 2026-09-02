@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, Utensils } from "lucide-react";
 
@@ -20,7 +20,8 @@ import {
   getMealParticipation,
   listMyChildren,
   replaceMealParticipationSchedule,
-  changeMealParticipationDays,
+  setMealParticipationDay,
+  clearMealParticipationDay,
   type MealParticipation,
   type MealPlanEntry,
 } from "~/lib/parent-api";
@@ -249,17 +250,21 @@ function MealParticipationEditActions({
   saving,
   onCancel,
   onSave,
+  align = "end",
   className = "",
 }: Readonly<{
   saving: boolean;
   onCancel: () => void;
   onSave: () => void;
+  align?: "start" | "end";
   className?: string;
 }>) {
   const t = useTranslations("parentMealPlan");
 
   return (
-    <div className={`flex flex-wrap justify-end gap-2 ${className}`}>
+    <div
+      className={`flex flex-wrap gap-2 ${align === "start" ? "justify-start" : "justify-end"} ${className}`}
+    >
       <Button
         type="button"
         variant="ghost"
@@ -334,6 +339,7 @@ function ParticipationWeek({
   weekError,
   dishesByDate,
   onWeekChange,
+  onEditingChange,
 }: Readonly<{
   studentId: string;
   childName: string;
@@ -346,6 +352,7 @@ function ParticipationWeek({
   weekError: boolean;
   dishesByDate: ReadonlyMap<string, MealPlanEntry[]>;
   onWeekChange: (offset: 0 | 1) => void;
+  onEditingChange: (editing: boolean) => void;
 }>) {
   const t = useTranslations("parentMealPlan");
   const locale = useLocale();
@@ -354,13 +361,41 @@ function ParticipationWeek({
   );
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [editingRegularDays, setEditingRegularDays] = useState(false);
-  const [editingWeek, setEditingWeek] = useState(false);
-  const [dayChanges, setDayChanges] = useState<Record<string, DraftDayChange>>(
-    {},
-  );
+  const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [dayChange, setDayChange] = useState<DraftDayChange | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
+  const dayEditorRef = useRef<HTMLFieldSetElement | null>(null);
+  const dayEditTriggerRefs = useRef(
+    new Map<string, HTMLButtonElement | null>(),
+  );
+  const restoreFocusDateRef = useRef<string | null>(null);
+
+  const isEditing = editingRegularDays || editingDate !== null;
+
+  useEffect(() => {
+    onEditingChange(isEditing);
+  }, [isEditing, onEditingChange]);
+
+  useEffect(
+    () => () => {
+      onEditingChange(false);
+    },
+    [onEditingChange],
+  );
+
+  useEffect(() => {
+    if (editingDate) {
+      dayEditorRef.current?.focus();
+      return;
+    }
+
+    const date = restoreFocusDateRef.current;
+    if (!date) return;
+    dayEditTriggerRefs.current.get(date)?.focus();
+    restoreFocusDateRef.current = null;
+  }, [editingDate]);
 
   const range = useMemo(() => {
     const monday = mondayISOFromOffset(today, 0);
@@ -423,49 +458,50 @@ function ParticipationWeek({
     setEditingRegularDays(false);
   }
 
-  function beginWeekEdit() {
-    setDayChanges({});
-    setEditingWeek(true);
+  function beginDayEdit(date: string) {
+    restoreFocusDateRef.current = date;
+    setDayChange(null);
+    setEditingDate(date);
   }
 
-  function cancelWeekEdit() {
-    setDayChanges({});
-    setEditingWeek(false);
+  function cancelDayEdit() {
+    setDayChange(null);
+    setEditingDate(null);
   }
 
   function stageDayChange(
     day: MealParticipation["days"][number],
     participating: boolean,
   ) {
-    setDayChanges((current) => {
-      const next = { ...current };
-      if (participating === day.participating) delete next[day.date];
-      else next[day.date] = { mode: "set", participating };
-      return next;
-    });
+    setDayChange(
+      participating === day.participating
+        ? null
+        : { mode: "set", participating },
+    );
   }
 
-  function stageDayReset(date: string) {
-    setDayChanges((current) => ({
-      ...current,
-      [date]: { mode: "reset" },
-    }));
+  function stageDayReset() {
+    setDayChange({ mode: "reset" });
   }
 
-  async function saveWeekChanges() {
-    const changes = Object.entries(dayChanges).map(([date, change]) => ({
-      date,
-      ...change,
-    }));
-    if (changes.length === 0) {
-      cancelWeekEdit();
+  async function saveDayChange() {
+    if (!editingDate || !dayChange) {
+      cancelDayEdit();
       return;
     }
 
     setSaving(true);
     try {
-      await changeMealParticipationDays(studentId, changes);
-      if (await load()) cancelWeekEdit();
+      if (dayChange.mode === "reset") {
+        await clearMealParticipationDay(studentId, editingDate);
+      } else {
+        await setMealParticipationDay(
+          studentId,
+          editingDate,
+          dayChange.participating,
+        );
+      }
+      if (await load()) cancelDayEdit();
     } catch (saveError) {
       logger.error("parent_meal_participation_day_failed", {
         error:
@@ -496,11 +532,6 @@ function ParticipationWeek({
     [participation],
   );
 
-  const currentWeekIsChangeable = weekDates.some((date) => {
-    const day = participationByDate.get(date);
-    return day?.changeable && day.source !== "sick";
-  });
-
   const fullDate = (iso: string) =>
     parseISODate(iso).toLocaleDateString(locale, {
       weekday: "long",
@@ -511,25 +542,9 @@ function ParticipationWeek({
   return (
     <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
       <div className="p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("participationTitle", { name: childName })}
-          </h2>
-          {!editingWeek &&
-          !editingRegularDays &&
-          participation &&
-          currentWeekIsChangeable ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="compact"
-              className="min-h-11 shrink-0"
-              onClick={beginWeekEdit}
-            >
-              {t("editRegistrations")}
-            </Button>
-          ) : null}
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900">
+          {t("participationTitle", { name: childName })}
+        </h2>
 
         {error ? (
           <div className="mt-4 space-y-3">
@@ -578,6 +593,7 @@ function ParticipationWeek({
                     </label>
                   ))}
                 </div>
+                <p className="mt-3 text-xs text-gray-500">{t("finishEdit")}</p>
                 <MealParticipationEditActions
                   saving={saving}
                   onCancel={cancelRegularDaysEdit}
@@ -608,7 +624,7 @@ function ParticipationWeek({
                     </p>
                   ) : null}
                 </div>
-                {!editingWeek ? (
+                {!editingDate ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -637,16 +653,10 @@ function ParticipationWeek({
           weekOffset={weekOffset}
           mondayISO={mondayISO}
           weekRange={weekRange}
-          weekReady={weekReady && !editingWeek}
+          weekReady={weekReady && !isEditing}
           onWeekChange={onWeekChange}
         />
       </div>
-
-      {editingWeek ? (
-        <p className="border-b border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-600 sm:px-5">
-          {t("finishWeekEdit")}
-        </p>
-      ) : null}
 
       {!weekReady ? (
         <MealParticipationDaysSkeleton loadingLabel={t("loading")} />
@@ -661,7 +671,7 @@ function ParticipationWeek({
             {weekDates.map((date) => {
               const dishes = dishesByDate.get(date) ?? [];
               const day = participationByDate.get(date);
-              const draftChange = dayChanges[date];
+              const draftChange = editingDate === date ? dayChange : null;
               const regularParticipation = weekdays.includes(
                 parseISODate(date).getDay(),
               );
@@ -741,7 +751,29 @@ function ParticipationWeek({
                     {loading ? (
                       <Skeleton className="h-6 w-40 rounded-full" />
                     ) : (
-                      <StatusBadge label={statusLabel} tone={statusTone} />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge label={statusLabel} tone={statusTone} />
+                        {day?.changeable &&
+                        day.source !== "sick" &&
+                        !editingRegularDays &&
+                        editingDate === null ? (
+                          <Button
+                            ref={(node) => {
+                              dayEditTriggerRefs.current.set(date, node);
+                            }}
+                            type="button"
+                            variant="ghost"
+                            size="compact"
+                            className="ml-auto min-h-11 text-sm underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                            aria-label={t("editDayRegistration", {
+                              date: fullDate(date),
+                            })}
+                            onClick={() => beginDayEdit(date)}
+                          >
+                            {t("edit")}
+                          </Button>
+                        ) : null}
+                      </div>
                     )}
                     {displayedSource === "override" ? (
                       <p className="mt-1.5 text-xs text-gray-500">
@@ -753,39 +785,60 @@ function ParticipationWeek({
                         {t("closed")}
                       </p>
                     ) : null}
-                    {editingWeek && day?.changeable && day.source !== "sick" ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant={
-                            displayedParticipation
-                              ? "outline_danger"
-                              : "success"
-                          }
-                          size="compact"
-                          className="min-h-11"
-                          disabled={saving}
-                          onClick={() =>
-                            stageDayChange(day, !displayedParticipation)
-                          }
-                        >
-                          {displayedParticipation
-                            ? t("unregister")
-                            : t("register")}
-                        </Button>
-                        {displayedSource === "override" ? (
+                    {editingDate === date &&
+                    day?.changeable &&
+                    day.source !== "sick" ? (
+                      <fieldset
+                        ref={dayEditorRef}
+                        tabIndex={-1}
+                        className="mt-3 rounded-xl bg-gray-50 p-3 ring-1 ring-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
+                      >
+                        <legend className="sr-only">
+                          {t("editDayRegistration", { date: fullDate(date) })}
+                        </legend>
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             type="button"
-                            variant="ghost"
+                            variant={
+                              displayedParticipation
+                                ? "outline_danger"
+                                : "success"
+                            }
                             size="compact"
                             className="min-h-11"
                             disabled={saving}
-                            onClick={() => stageDayReset(day.date)}
+                            onClick={() =>
+                              stageDayChange(day, !displayedParticipation)
+                            }
                           >
-                            {t("useRegular")}
+                            {displayedParticipation
+                              ? t("unregister")
+                              : t("register")}
                           </Button>
-                        ) : null}
-                      </div>
+                          {displayedSource === "override" ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="compact"
+                              className="min-h-11"
+                              disabled={saving}
+                              onClick={stageDayReset}
+                            >
+                              {t("useRegular")}
+                            </Button>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-xs text-gray-500">
+                          {t("finishEdit")}
+                        </p>
+                        <MealParticipationEditActions
+                          saving={saving}
+                          onCancel={cancelDayEdit}
+                          onSave={() => void saveDayChange()}
+                          align="start"
+                          className="mt-2"
+                        />
+                      </fieldset>
                     ) : null}
                   </div>
                 </li>
@@ -794,15 +847,6 @@ function ParticipationWeek({
           </ul>
         </>
       )}
-
-      {editingWeek ? (
-        <MealParticipationEditActions
-          saving={saving}
-          onCancel={cancelWeekEdit}
-          onSave={() => void saveWeekChanges()}
-          className="border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-5"
-        />
-      ) : null}
 
       {participation ? (
         <p className="border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 sm:px-5">
@@ -833,6 +877,7 @@ export function ParentMealPlanPage() {
   // as "no meal plan available" / "no plan entered" — false information.
   const [schoolsError, setSchoolsError] = useState(false);
   const [weekError, setWeekError] = useState(false);
+  const [participationEditing, setParticipationEditing] = useState(false);
 
   // useBerlinToday re-renders on the Berlin midnight rollover, so a page left
   // mounted overnight follows the date instead of freezing on yesterday.
@@ -1000,6 +1045,7 @@ export function ParentMealPlanPage() {
               }))}
               onChange={setSelectedStudent}
               ariaLabel={t("child")}
+              disabled={participationEditing}
               className="w-full sm:w-60"
             />
           ) : undefined
@@ -1038,6 +1084,7 @@ export function ParentMealPlanPage() {
           weekError={weekError}
           dishesByDate={dishesByDate}
           onWeekChange={setWeekOffset}
+          onEditingChange={setParticipationEditing}
         />
       ) : (
         <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">

@@ -76,11 +76,6 @@ type MealParticipationPlan struct {
 	Days          []MealParticipationDay
 }
 
-type MealParticipationDayChange struct {
-	Date          timezone.Date
-	Participating *bool
-}
-
 // Service is the public contract consumed by HTTP handlers.
 type Service interface {
 	// GuardianAnnouncementTenant reports the school of an announcement whose
@@ -188,7 +183,6 @@ type Service interface {
 	ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error)
 	SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error
 	ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error
-	ChangeMealParticipationDays(ctx context.Context, accountID, studentID int64, changes []MealParticipationDayChange) error
 
 	// SubmitCareExceptionWithReason requires a
 	// concrete pickup time and stores the parent's explanation with it. Arrival

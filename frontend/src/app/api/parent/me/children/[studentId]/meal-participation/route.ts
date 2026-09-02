@@ -1,9 +1,4 @@
-import {
-  createParentPatchHandler,
-  parentApiPatch,
-  proxyGet,
-  proxyPut,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet, proxyPut } from "~/lib/parent/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 const endpoint = (params: Record<string, unknown>) =>
@@ -11,7 +6,3 @@ const endpoint = (params: Record<string, unknown>) =>
 
 export const GET = proxyGet(endpoint);
 export const PUT = proxyPut(endpoint);
-export const PATCH = createParentPatchHandler<unknown>(
-  async (_request, body, token, params) =>
-    parentApiPatch(endpoint(params), token, body),
-);
