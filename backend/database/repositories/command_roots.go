@@ -8,7 +8,6 @@ import (
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -17,7 +16,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -127,18 +125,16 @@ func NewTimeTrackingCleanupRepositories(db *bun.DB, command auditModels.Command)
 }
 
 type CleanupSettingsRepositories struct {
-	Value  configModels.SettingValueRepository
-	Audit  configModels.SettingAuditRepository
-	School platformModels.SchoolRepository
+	Value configModels.SettingValueRepository
+	Audit configModels.SettingAuditRepository
 }
 
 func NewCleanupSettingsRepositories(db *bun.DB, runtime configRepo.Runtime) CleanupSettingsRepositories {
 	return CleanupSettingsRepositories{
 		Value: configRepo.NewSettingValueRepository(runtime), Audit: configRepo.NewSettingAuditRepository(runtime),
-		School: platformRepo.NewSchoolRepository(db),
 	}
 }
 
-func NewSettingsCommandRepositories(db *bun.DB) (platformModels.SchoolRepository, configModels.SettingValueRepository) {
-	return platformRepo.NewSchoolRepository(db), configRepo.NewSettingValueRepository(configRepo.NewRuntime(db))
+func NewSettingsCommandRepository(db *bun.DB) configModels.SettingValueRepository {
+	return configRepo.NewSettingValueRepository(configRepo.NewRuntime(db))
 }

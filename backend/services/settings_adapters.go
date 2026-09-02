@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -84,18 +84,18 @@ func (r settingsRuntime) AfterCommit(ctx context.Context, fn func()) {
 }
 
 type schoolSettingsStore struct {
-	repo platformModels.SchoolRepository
+	schools organizationtenancy.Capability
 }
 
-func newSchoolSettingsStore(repo platformModels.SchoolRepository) configService.SchoolSettingsStore {
-	if repo == nil {
+func newSchoolSettingsStore(schools organizationtenancy.Capability) configService.SchoolSettingsStore {
+	if schools == nil {
 		return nil
 	}
-	return schoolSettingsStore{repo: repo}
+	return schoolSettingsStore{schools: schools}
 }
 
 func (s schoolSettingsStore) FindSettings(ctx context.Context, schoolID int64) (string, error) {
-	school, err := s.repo.FindByID(ctx, schoolID)
+	school, err := s.schools.FindSchool(ctx, schoolID)
 	if err != nil {
 		return "", err
 	}
@@ -103,7 +103,7 @@ func (s schoolSettingsStore) FindSettings(ctx context.Context, schoolID int64) (
 }
 
 func (s schoolSettingsStore) UpdateSettings(ctx context.Context, schoolID int64, update func(string) (string, error)) error {
-	school, err := s.repo.FindByIDForUpdate(ctx, schoolID)
+	school, err := s.schools.FindSchoolForMutation(ctx, schoolID)
 	if err != nil {
 		return err
 	}
@@ -111,6 +111,11 @@ func (s schoolSettingsStore) UpdateSettings(ctx context.Context, schoolID int64,
 	if err != nil {
 		return err
 	}
-	school.Settings = settings
-	return s.repo.Update(ctx, school)
+	_, err = s.schools.UpdateSchool(ctx, organizationtenancy.UpdateSchool{
+		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
+		Subdomain: school.Subdomain, Active: school.Active, Hidden: school.Hidden, Settings: settings,
+		Address: school.Address, City: school.City, Zip: school.Zip, Phone: school.Phone,
+		Email: school.Email, DevicePinHash: school.DevicePinHash,
+	})
+	return err
 }

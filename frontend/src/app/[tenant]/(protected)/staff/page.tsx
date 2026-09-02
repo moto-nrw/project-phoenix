@@ -3,7 +3,6 @@
 import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -786,9 +785,9 @@ function StaffPageContent() {
       {/* Verweis auf die Anfragen (#2433): Urlaub, Krank und Fortbildung
           werden dort entschieden, nicht hier. */}
       {!showSkeleton && canReviewAbsences && (
-        <Link
+        <TileCard
           href={tenantPath("/anfragen")}
-          className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:bg-gray-50"
+          className="flex items-center justify-between gap-3"
         >
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-900">
@@ -810,7 +809,7 @@ function StaffPageContent() {
               aria-hidden="true"
             />
           </div>
-        </Link>
+        </TileCard>
       )}
 
       {showSkeleton ? (

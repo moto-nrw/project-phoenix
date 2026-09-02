@@ -67,8 +67,6 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 		Status            string         `bun:"status"`
 		EnrolledFrom      *timezone.Date `bun:"enrolled_from"`
 		EnrolledUntil     *timezone.Date `bun:"enrolled_until"`
-		SchoolName        string         `bun:"school_name"`
-		SchoolSlug        string         `bun:"school_slug"`
 		Permissions       map[string]any `bun:"guardian_permissions"`
 	}
 
@@ -83,8 +81,6 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 			s.status       AS status,
 			s.enrolled_from  AS enrolled_from,
 			s.enrolled_until AS enrolled_until,
-			COALESCE(sch.name, '')  AS school_name,
-			COALESCE(sch.slug, '')  AS school_slug,
 			COALESCE(sg.permissions, '{}'::jsonb) AS guardian_permissions
 		FROM auth.account_tenants AS at
 		JOIN users.guardian_profiles AS gp
@@ -99,14 +95,12 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 		JOIN users.persons AS p
 			ON p.id        = s.person_id
 			AND p.tenant_id = at.tenant_id
-		LEFT JOIN platform.schools AS sch
-			ON sch.id = at.tenant_id
 		WHERE at.account_id = ?
 		  AND at.status     = 'active'
 		  AND p.deleted_at IS NULL
 		  AND s.status     <> ?
 		  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-		ORDER BY school_name, first_name, last_name
+		ORDER BY first_name, last_name
 	`
 
 	var rows []row
@@ -130,8 +124,6 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 			Status:              rr.Status,
 			EnrolledFrom:        rr.EnrolledFrom,
 			EnrolledUntil:       rr.EnrolledUntil,
-			SchoolName:          rr.SchoolName,
-			SchoolSlug:          rr.SchoolSlug,
 			GuardianPermissions: rr.Permissions,
 		})
 	}
@@ -169,8 +161,6 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		Status            string         `bun:"status"`
 		EnrolledFrom      *timezone.Date `bun:"enrolled_from"`
 		EnrolledUntil     *timezone.Date `bun:"enrolled_until"`
-		SchoolName        string         `bun:"school_name"`
-		SchoolSlug        string         `bun:"school_slug"`
 		Permissions       map[string]any `bun:"guardian_permissions"`
 	}
 
@@ -185,8 +175,6 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 			s.status       AS status,
 			s.enrolled_from  AS enrolled_from,
 			s.enrolled_until AS enrolled_until,
-			COALESCE(sch.name, '')  AS school_name,
-			COALESCE(sch.slug, '')  AS school_slug,
 			COALESCE(sg.permissions, '{}'::jsonb) AS guardian_permissions
 		FROM auth.account_tenants AS at
 		JOIN users.guardian_profiles AS gp
@@ -201,8 +189,6 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		JOIN users.persons AS p
 			ON p.id        = s.person_id
 			AND p.tenant_id = at.tenant_id
-		LEFT JOIN platform.schools AS sch
-			ON sch.id = at.tenant_id
 		WHERE at.account_id = ?
 		  AND s.id          = ?
 		  AND at.status     = 'active'
@@ -236,8 +222,6 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		Status:              rr.Status,
 		EnrolledFrom:        rr.EnrolledFrom,
 		EnrolledUntil:       rr.EnrolledUntil,
-		SchoolName:          rr.SchoolName,
-		SchoolSlug:          rr.SchoolSlug,
 		GuardianPermissions: rr.Permissions,
 	}, nil
 }

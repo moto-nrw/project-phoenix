@@ -183,7 +183,7 @@ export function ProfileDropdownMenu({
 
   return (
     <div
-      className={`w-72 rounded-2xl border border-gray-200 bg-white shadow-lg transition-[opacity,transform,visibility] duration-150 ease-out ${
+      className={`moto-popover-surface w-72 rounded-2xl border transition-[opacity,transform,visibility] duration-150 ease-out ${
         isOpen
           ? "visible translate-y-0 opacity-100"
           : "invisible -translate-y-2 opacity-0"

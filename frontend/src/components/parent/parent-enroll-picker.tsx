@@ -139,7 +139,7 @@ function SchoolCard({
   locale,
 }: Readonly<{ group: SchoolGroup; locale: string }>) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
           <MotoConceptIcon concept="schools" size={22} />
@@ -254,7 +254,7 @@ function ParentEnrollSkeleton() {
       {[0, 1].map((card) => (
         <div
           key={card}
-          className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+          className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm"
         >
           <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
             <Skeleton className="size-11 shrink-0 rounded-xl" />

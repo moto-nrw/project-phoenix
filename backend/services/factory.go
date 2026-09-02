@@ -449,6 +449,7 @@ func newFactory(
 ) (*Factory, error) {
 	now := optionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
+	repos.BindOrganizationTenancy(organizations)
 	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 
@@ -637,7 +638,7 @@ func newFactory(
 	settingsService := config.NewSettingsService(
 		repos.SettingValue,
 		repos.SettingAudit,
-		newSchoolSettingsStore(repos.School),
+		newSchoolSettingsStore(organizations),
 		settingsRuntime,
 		logger,
 	)
@@ -1046,6 +1047,7 @@ func newFactory(
 		AttendanceRepo:           repos.Attendance,
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          activeRepo.NewCrossTenantRepository(db),
+		Schools:                  newActiveSchoolQuery(organizations),
 		StudentRepo:              repos.Student,
 		PersonRepo:               repos.Person,
 		TeacherRepo:              repos.Teacher,
@@ -3043,6 +3045,7 @@ func newFactory(
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
 		Statistics: statistics.NewService(statistics.Config{
 			Statistics:      repos.Statistics,
+			Courses:         repos.CourseStatistics,
 			Holidays:        holidayService,
 			ClosingDays:     closingDayService,
 			Periods:         repos.CalendarPeriod,

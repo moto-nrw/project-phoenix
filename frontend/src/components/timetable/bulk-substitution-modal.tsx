@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
@@ -407,9 +408,9 @@ export function BulkSubstitutionModal({
                     const checked = !deselected.has(group.date);
                     return (
                       <li key={group.date}>
-                        <label
+                        <ChoiceTile
                           htmlFor={`bulk-day-${group.date}`}
-                          className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-colors hover:bg-gray-50"
+                          className="items-start p-3 shadow-sm"
                         >
                           <span className="mt-0.5 inline-flex">
                             <Checkbox
@@ -438,7 +439,7 @@ export function BulkSubstitutionModal({
                                 .join(" · ")}
                             </span>
                           </span>
-                        </label>
+                        </ChoiceTile>
                       </li>
                     );
                   })}

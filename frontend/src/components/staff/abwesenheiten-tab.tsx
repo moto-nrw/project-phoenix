@@ -48,6 +48,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import {
   CardGridSkeleton,
@@ -58,6 +59,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatCard, type StatCardTone } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -501,7 +503,7 @@ export function AbwesenheitenTab({
             {customAllowances.map((entry) => (
               <div
                 key={entry.type.id}
-                className="rounded-xl border border-gray-200 bg-white p-3"
+                className="moto-content-surface rounded-xl border p-3 shadow-sm"
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <h4 className="text-sm font-semibold text-gray-900">
@@ -924,7 +926,7 @@ function AbsenceRow({
   const showNote = row.note && !isRedundantNote(row.absence_type, row.note);
   const canDelete = onDelete && row.status === "reported";
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3">
+    <li className="moto-content-surface flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 shadow-sm">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <StatusDotBadge
@@ -1191,14 +1193,14 @@ function VacationOpeningModal({
           >
             Resturlaub zum Stichtag (Tage)
           </label>
-          <input
+          <Input
             id="vacation-opening-remaining"
             type="text"
             inputMode="decimal"
+            controlSize="compact"
             value={remainingDays}
             onChange={(e) => setRemainingDays(e.target.value)}
             placeholder="z. B. 12,5"
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
           />
           {remainingDays.trim() !== "" && !remainingValid && (
             <p className="mt-1 text-xs text-[#FF3130]" role="alert">
@@ -1238,13 +1240,12 @@ function VacationOpeningModal({
           >
             Begründung (Pflicht)
           </label>
-          <textarea
+          <Textarea
             id="vacation-opening-note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             placeholder="z. B. Übernahme aus Urlaubsliste, Stand 31.07."
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
           />
         </div>
       </div>
@@ -1335,15 +1336,15 @@ function EditQuotaModal({
           >
             Jahresanspruch (Tage)
           </label>
-          <input
+          <Input
             id="quota-entitled"
             type="number"
             min="0"
             max="366"
             step="0.5"
+            controlSize="compact"
             value={entitled}
             onChange={(e) => setEntitled(e.target.value)}
-            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
         <div>
@@ -1353,15 +1354,15 @@ function EditQuotaModal({
           >
             Übertrag aus Vorjahr (Tage)
           </label>
-          <input
+          <Input
             id="quota-carryover"
             type="number"
             min="0"
             max="366"
             step="0.5"
+            controlSize="compact"
             value={carryover}
             onChange={(e) => setCarryover(e.target.value)}
-            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
       </div>

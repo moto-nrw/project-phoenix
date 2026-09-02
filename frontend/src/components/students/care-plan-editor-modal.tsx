@@ -851,7 +851,7 @@ export function CarePlanEditorModal({
         confirmText="Trotzdem überschreiben"
         cancelText="Abbrechen"
         isConfirmLoading={isSubmitting}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
       >
         <p className="text-sm leading-6 text-gray-600">
           Du überschreibst eine von den Eltern gesetzte Zeit. Die ursprüngliche
@@ -868,7 +868,7 @@ export function CarePlanEditorModal({
         confirmText="Trotzdem speichern"
         cancelText="Zurück"
         isConfirmLoading={isSubmitting}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+        confirmVariant="danger"
       >
         <div className="space-y-2 text-sm leading-6 text-gray-600">
           <p>
@@ -933,7 +933,7 @@ function LegSection({
   const timeId = `exception-${label.toLowerCase()}-time`;
   const reasonId = `exception-${label.toLowerCase()}-reason`;
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-4">
+    <section className="moto-content-surface rounded-xl border p-3 shadow-sm sm:rounded-2xl sm:p-4">
       <div className="mb-3 flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100">
           {icon}
@@ -1228,7 +1228,7 @@ function WeeklySection({
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:rounded-2xl">
+      <div className="moto-content-surface overflow-hidden rounded-xl border shadow-sm sm:rounded-2xl">
         <div className="hidden grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:grid">
           <span>Tag</span>
           <span>Ankunft</span>

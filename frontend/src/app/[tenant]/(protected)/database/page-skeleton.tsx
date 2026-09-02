@@ -8,7 +8,7 @@ function DatabaseCardSkeleton() {
   // Mirrors a database section card: icon block, count badge, title,
   // description, footer link.
   return (
-    <div className="moto-content-surface w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="moto-content-surface w-full overflow-hidden rounded-2xl border shadow-sm">
       <div className="p-4 sm:p-6">
         <div className="mb-4 flex items-start justify-between">
           <Skeleton className="h-12 w-12 rounded-2xl" />

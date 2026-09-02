@@ -291,7 +291,7 @@ export function ConflictDecisionGroup({
 
   const name = `conflict-${group.key}`;
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold text-gray-900">
           {group.expectedCount} Wünsche für {group.label}

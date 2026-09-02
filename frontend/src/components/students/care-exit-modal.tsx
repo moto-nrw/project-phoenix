@@ -402,7 +402,7 @@ function CareExitPreviewList({
       ) : null}
 
       {ready.length > 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white">
+        <div className="moto-content-surface rounded-xl border shadow-sm">
           <div className="border-b border-gray-200 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">
               {ready.length === 1

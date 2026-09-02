@@ -7,7 +7,7 @@ function StaffCardSkeleton() {
   // Mirrors the staff card: avatar-less header (name lines + status badge),
   // supervision/qualification rows, footer hint, auf derselben p-4-Fläche.
   return (
-    <div className="moto-content-surface w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="moto-content-surface w-full overflow-hidden rounded-2xl border shadow-sm">
       <div className="p-4">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">

@@ -24,6 +24,7 @@ import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useToast } from "~/contexts/ToastContext";
@@ -594,7 +595,7 @@ function StudentsInRoomBody({
     // room.
     return (
       <div className="flex flex-col gap-2">
-        <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">
+        <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500 shadow-sm">
           Aktuell keine Kinder im Raum.
         </div>
       </div>
@@ -653,13 +654,7 @@ function SelectableStudentRow({
   );
 
   return (
-    <div
-      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors ${
-        isSelected
-          ? "border-gray-300 bg-gray-50"
-          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-      }`}
-    >
+    <ChoiceTile as="div" selected={isSelected} className="gap-2">
       {selectable ? (
         <button
           type="button"
@@ -702,6 +697,6 @@ function SelectableStudentRow({
         Profil
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </Button>
-    </div>
+    </ChoiceTile>
   );
 }

@@ -768,13 +768,7 @@ func (r *ParentAnnouncementRepository) ResolveDeliveryRecipients(ctx context.Con
 
 // SchoolName returns the tenant's school name (empty when unknown).
 func (r *ParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID int64) (string, error) {
-	var name string
-	if err := base.GetDB(ctx, r.DB).NewRaw(
-		`SELECT COALESCE(name, '') FROM platform.schools WHERE id = ?`, tenantID,
-	).Scan(ctx, &name); err != nil {
-		return "", &modelBase.DatabaseError{Op: "resolve school name", Err: base.TranslateNotFound(err)}
-	}
-	return name, nil
+	return "", errors.New("resolve school name through organization tenancy capability")
 }
 
 // AudienceRecipients returns the guardian ACCOUNTS an announcement currently
@@ -904,11 +898,9 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
 			a.response_type, a.response_deadline, a.delivery_mode, a.system_kind,
-			COALESCE(sch.name, '') AS school_name,
 			par.read_at AS read_at,
 			par.acknowledged_at AS acknowledged_at
 		FROM users.parent_announcements a
-		LEFT JOIN platform.schools sch ON sch.id = a.tenant_id
 		LEFT JOIN users.parent_announcement_reads par
 			ON par.announcement_id = a.id AND par.account_id = ?
 		WHERE ` + feedScopePredicate + `

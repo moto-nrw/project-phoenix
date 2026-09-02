@@ -2884,7 +2884,7 @@ function SearchPageContent() {
               }}
               title="Aus der Betreuung abmelden?"
               confirmText="Abmelden"
-              confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+              confirmVariant="danger"
             >
               <p className="text-sm text-gray-600">
                 <span className="font-medium text-gray-900">
@@ -2915,7 +2915,7 @@ function SearchPageContent() {
               }}
               title="Ausgewählte Kinder abmelden?"
               confirmText="Abmelden"
-              confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+              confirmVariant="danger"
             >
               <p className="text-sm text-gray-600">
                 <span className="font-medium text-gray-900">

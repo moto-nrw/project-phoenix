@@ -60,7 +60,7 @@ export function RoomOccupancyPanel({ rooms, totals }: RoomOccupancyPanelProps) {
             return (
               <li
                 key={room.name}
-                className="rounded-2xl border border-gray-200 bg-white p-5"
+                className="moto-content-surface rounded-2xl border p-5 shadow-sm"
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <p className="truncate text-2xl font-semibold text-gray-900">

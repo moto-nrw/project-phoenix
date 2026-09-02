@@ -12,6 +12,7 @@ import type { DataTableColumn } from "~/components/ui/data-table";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
+import { SectionCard } from "~/components/ui/section-card";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -454,9 +455,9 @@ function TokenModal({
             <span className="ml-2">{copied ? "Kopiert" : "Kopieren"}</span>
           </Button>
         </div>
-        <div className="flex justify-center rounded-2xl border border-gray-200 bg-white p-6">
+        <SectionCard className="flex justify-center">
           <QRCodeSVG value={state.url} size={192} />
-        </div>
+        </SectionCard>
         <p className="text-sm text-gray-500">
           Öffnen Sie den Link im Browser des Fernsehers oder Smartboards. Das
           Dashboard aktualisiert sich automatisch.

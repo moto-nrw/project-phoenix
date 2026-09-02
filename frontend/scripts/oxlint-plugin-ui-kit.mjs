@@ -1,9 +1,9 @@
 // UI-kit drift ratchet (issue #1629).
 //
-// Nine rules that stop drift away from the shared UI kit. Hand-rolled card
-// surfaces tolerate existing stock via a shrink-only baseline; generic brand
-// colors, hand-rolled overlays, rounded-3xl and unlabeled checkboxes are
-// hard-zero:
+// Five hard-zero rules that stop drift away from the shared UI kit. The
+// hand-rolled surface rule started with a shrink-only baseline (#2934) that
+// was brought to zero and deleted in #2933; the first production match of
+// any rule now fails `pnpm run check`:
 //
 //   ui-kit/no-generic-brand-colors  — generic Tailwind hues (bg-green-500 …)
 //                                     used for brand semantics; use the brand
@@ -15,8 +15,10 @@
 //   ui-kit/no-hand-rolled-surface   — hand-built card surfaces
 //                                     (`rounded-xl/2xl` + `border` + `bg-white`)
 //                                     outside src/components/ui/; use
-//                                     moto-content-surface or a kit surface
-//                                     component (issue #2933)
+//                                     moto-content-surface (cards),
+//                                     moto-popover-surface (floating menus),
+//                                     ChoiceTile (selectable rows) or a kit
+//                                     surface component (issue #2933)
 //   ui-kit/no-rounded-3xl           — off-scale surface radius; cards are
 //                                     rounded-2xl (moto-content-surface)
 //   ui-kit/require-checkbox-label   — every shared Checkbox is wrapped by a
@@ -33,145 +35,24 @@
 //   ui-kit/no-tabs-as-value-switcher — ui/Tabs is for content panels; values
 //                                     go on SegmentedControl
 //
-// The surface and tiny-text baselines below are SHRINK-ONLY: matches may be
-// removed when a file is migrated, but never added. Test/stories files are
-// exempt from the class-string rules.
+// The tiny-text baseline below is SHRINK-ONLY: matches may be removed when
+// a file is migrated, but never added.
 
-// Filled by the ratchet introduction (issue #2933): per-file count of
-// hand-rolled surfaces existing at rule-introduction time. Shrink-only.
-const SURFACE_BASELINE = new Map([
-  ["src/app/[tenant]/(protected)/activities/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/database/page-skeleton.tsx", 1],
-  ["src/app/[tenant]/(protected)/database/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/database/personal/import/page.tsx", 4],
-  [
-    "src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx",
-    7,
-  ],
-  [
-    "src/app/[tenant]/(protected)/database/students/class-list/import/page.tsx",
-    1,
-  ],
-  ["src/app/[tenant]/(protected)/database/students/import/page.tsx", 4],
-  ["src/app/[tenant]/(protected)/day-log/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/info-displays/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/lists/page.tsx", 5],
-  ["src/app/[tenant]/(protected)/meal-plan/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/messages/[threadId]/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/messages/page-skeleton.tsx", 1],
-  ["src/app/[tenant]/(protected)/messages/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/reminders/page.tsx", 2],
-  ["src/app/[tenant]/(protected)/rooms/page.tsx", 2],
-  ["src/app/[tenant]/(protected)/staff/page-skeleton.tsx", 1],
-  ["src/app/[tenant]/(protected)/staff/page.tsx", 1],
-  ["src/app/[tenant]/(protected)/students/[id]/page-skeleton.tsx", 1],
-  ["src/app/[tenant]/(protected)/time-tracking/page.tsx", 1],
-  ["src/app/[tenant]/(public)/enroll/page.tsx", 1],
-  ["src/app/help/nfc/erste-schritte/page.tsx", 1],
-  ["src/app/operator/announcements/page.tsx", 1],
-  ["src/app/operator/email-confirm/email-confirm-content.tsx", 3],
-  ["src/app/operator/operators/page.tsx", 3],
-  ["src/app/operator/organizations/[slug]/page.tsx", 1],
-  ["src/app/operator/organizations/[slug]/schools/[schoolSlug]/page.tsx", 2],
-  ["src/app/operator/organizations/page.tsx", 1],
-  ["src/app/operator/persons/page.tsx", 1],
-  ["src/app/operator/schools/[id]/settings/page.tsx", 1],
-  ["src/app/operator/settings/page.tsx", 2],
-  ["src/app/parents/accept-guardian-invite/[token]/page.tsx", 1],
-  ["src/app/start/page.tsx", 2],
-  ["src/components/active-supervisions/planned-now-section.tsx", 1],
-  ["src/components/active-supervisions/spontaneous-activity-start.tsx", 1],
-  ["src/components/activities/quick-create-modal.tsx", 2],
-  ["src/components/admin/guardian-approval-queue.tsx", 2],
-  ["src/components/admin/invitation-form.tsx", 1],
-  ["src/components/admin/pending-invitations-list.tsx", 2],
-  ["src/components/auth/auth-shell.tsx", 3],
-  ["src/components/auth/role-permission-management-modal.tsx", 1],
-  ["src/components/calendar/personal-calendar.tsx", 1],
-  ["src/components/class-day/student-row.tsx", 1],
-  ["src/components/dashboard/header/profile-dropdown.tsx", 1],
-  ["src/components/dashboard/header/reminders-bell.tsx", 1],
-  ["src/components/database/grade-transitions/transition-preview-modal.tsx", 3],
-  ["src/components/database/master-detail-layout.tsx", 3],
-  ["src/components/display/activities-panel.tsx", 2],
-  ["src/components/display/pickup-times-panel.tsx", 1],
-  ["src/components/display/room-occupancy-panel.tsx", 1],
-  ["src/components/enrollment/admin-enrollment-deletion-modal.tsx", 1],
-  ["src/components/enrollment/admin-enrollment-phase-detail.tsx", 3],
-  ["src/components/enrollment/admin-enrollments-list.tsx", 1],
-  ["src/components/enrollment/care-offerings-editor.tsx", 1],
-  ["src/components/enrollment/enrollment-form-editor.tsx", 7],
-  ["src/components/enrollment/enrollment-form.tsx", 3],
-  ["src/components/enrollment/enrollment-status-view.tsx", 7],
-  ["src/components/enrollment/phase-enrollment-actions.tsx", 1],
-  ["src/components/enrollment/phases-editor.tsx", 1],
-  ["src/components/enrollment/rollover-form.tsx", 1],
-  ["src/components/groups/group-transfer-modal.tsx", 1],
-  ["src/components/guardians/student-guardian-manager.tsx", 1],
-  ["src/components/help/guide-components.tsx", 8],
-  ["src/components/help/help-search.tsx", 2],
-  ["src/components/import/student-row-card.tsx", 1],
-  ["src/components/import/upload-section.tsx", 1],
-  ["src/components/messaging/team-chat-inbox.tsx", 1],
-  ["src/components/messaging/team-chat-skeletons.tsx", 1],
-  ["src/components/operator/account-tenant-access-modal.tsx", 2],
-  ["src/components/operator/entity-header-card.tsx", 1],
-  ["src/components/parent/child/child-day-card.tsx", 1],
-  ["src/components/parent/child/weekly-schedule-section.tsx", 1],
-  ["src/components/parent/language-switcher.tsx", 1],
-  ["src/components/parent/messages/parent-messages-page.tsx", 1],
-  ["src/components/parent/news/news-components.tsx", 4],
-  ["src/components/parent/news/parent-news-page.tsx", 1],
-  ["src/components/parent/ogs-conversation.tsx", 2],
-  ["src/components/parent/parent-enroll-picker.tsx", 2],
-  ["src/components/parent/parent-page.tsx", 1],
-  ["src/components/parent/start/parent-start-page.tsx", 1],
-  ["src/components/rooms/room-detail-content.tsx", 1],
-  ["src/components/rooms/students-in-room-section.tsx", 3],
-  ["src/components/rooms/transit-students-section.tsx", 3],
-  ["src/components/school/supervisions/supervisions-overview.tsx", 1],
-  ["src/components/settings/settings-field.tsx", 2],
-  ["src/components/settings/trusted-devices-section.tsx", 1],
-  ["src/components/staff/abwesenheiten-tab.tsx", 6],
-  ["src/components/staff/arbeitszeitmodell-tab.tsx", 2],
-  ["src/components/staff/month-close-modal.tsx", 1],
-  ["src/components/staff/staff-export-button.tsx", 1],
-  ["src/components/staff/stundenkonto-panel.tsx", 4],
-  ["src/components/staff/use-absence-type-select.tsx", 1],
-  ["src/components/students/care-exit-modal.tsx", 1],
-  ["src/components/students/care-plan-editor-modal.tsx", 2],
-  ["src/components/students/care-plan-view.tsx", 1],
-  ["src/components/students/care-resume-modal.tsx", 1],
-  ["src/components/students/care-schedule-manager.tsx", 1],
-  ["src/components/students/care-weekly-plan-modal.tsx", 1],
-  ["src/components/students/requests/conflict-decision-group.tsx", 1],
-  ["src/components/students/school-checkin-mode-mobile.tsx", 1],
-  ["src/components/students/student-card-skeleton.tsx", 1],
-  ["src/components/students/student-card.tsx", 1],
-  ["src/components/students/student-deletion-modal.tsx", 1],
-  ["src/components/students/student-export-modal.tsx", 2],
-  ["src/components/students/student-form-fields.tsx", 1],
-  ["src/components/time-tracking/leave-requests-card.tsx", 1],
-  ["src/components/time-tracking/vacation-request-modal.tsx", 4],
-  ["src/components/timetable/betreuungsplan-skeleton.tsx", 2],
-  ["src/components/timetable/bulk-substitution-modal.tsx", 1],
-  ["src/components/timetable/calendar-period-modal.tsx", 1],
-  ["src/components/timetable/event-form/weekday-roster-section.tsx", 1],
-  ["src/components/timetable/staff-pool-slide-over.tsx", 1],
-  ["src/components/timetable/substitution-person-card.tsx", 1],
-  ["src/components/timetable/substitution-slide-over.tsx", 2],
-  ["src/components/timetable/tagesplan-view.tsx", 1],
-  ["src/components/timetable/timetable-style.ts", 3],
-  ["src/components/timetable/weekly-calendar-grid.tsx", 1],
-]);
+// Test/stories files are exempt from the class-string rules. A deliberate
+// non-card match stays behind `oxlint-disable-next-line` with a reason; there
+// is no baseline to grow.
 
 const BRAND_COLOR_RE =
   /\b(?:text|bg|border(?:-[trblxyse])?|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+(?:\/(?:\d+|\[[^\]\s]+\]))?(?![\w-])/g;
 const FIXED_RE = /\bfixed\b/;
 const INSET_0_RE = /\binset-0\b/;
-const SURFACE_ROUNDED_RE = /\brounded-(?:xl|2xl)\b/;
-const SURFACE_BORDER_RE = /\bborder\b/;
-const SURFACE_BG_RE = /\bbg-white\b/;
+// A surface is three UNPREFIXED tokens: `print:border`, `sm:rounded-2xl` and
+// `focus:bg-white` belong to another state, `border-0` / `border-none` /
+// `border-b` draw no frame, and `bg-white/80` is not the solid card fill.
+// `\b` accepted all of those because `-` and `:` are word boundaries.
+const SURFACE_ROUNDED_RE = /(?:^|\s)rounded-(?:xl|2xl)(?=\s|$)/;
+const SURFACE_BORDER_RE = /(?:^|\s)border(?:-[1-9]\d*)?(?=\s|$)/;
+const SURFACE_BG_RE = /(?:^|\s)bg-white(?=\s|$)/;
 const ROUNDED_3XL_RE = /\brounded-3xl\b/g;
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
@@ -431,11 +312,11 @@ const noHandRolledSurface = {
     type: "problem",
     docs: {
       description:
-        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface or a kit surface component (InfoCard, SectionCard).",
+        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (InfoCard, SectionCard).",
     },
     messages: {
       handRolledSurface:
-        "Hand-rolled card surface ('{{match}}'). Use the moto-content-surface utility or a kit surface component (InfoCard, SectionCard) instead. The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only (issue #2933).",
+        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (InfoCard, SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
     },
     schema: [],
   },
@@ -445,20 +326,13 @@ const noHandRolledSurface = {
     if (EXEMPT_FILE_RE.test(key)) return {};
     if (key.startsWith(UI_KIT_DIR)) return {};
 
-    const baseline = SURFACE_BASELINE.get(key) ?? 0;
-    let seenMatches = 0;
-
     const check = (node, text) => {
       if (!isSurfaceCombo(text)) return;
-
-      seenMatches += 1;
-      if (seenMatches > baseline) {
-        context.report({
-          node,
-          messageId: "handRolledSurface",
-          data: { match: "rounded-xl/2xl … border … bg-white" },
-        });
-      }
+      context.report({
+        node,
+        messageId: "handRolledSurface",
+        data: { match: "rounded-xl/2xl … border … bg-white" },
+      });
     };
 
     return {
@@ -793,11 +667,31 @@ function jsxName(node) {
   return node?.type === "JSXIdentifier" ? node.name : null;
 }
 
+/**
+ * `<ChoiceTile>` renders a native `<label>` unless its `as` prop says
+ * otherwise, so a Checkbox inside the default tile already owns the whole
+ * hit area. `as="button"` / `as="div"` tiles are not labels.
+ */
+function isLabelChoiceTile(openingElement) {
+  if (jsxName(openingElement.name) !== "ChoiceTile") return false;
+  const asAttribute = openingElement.attributes.find(
+    (attribute) =>
+      attribute.type === "JSXAttribute" &&
+      attribute.name.type === "JSXIdentifier" &&
+      attribute.name.name === "as",
+  );
+  if (!asAttribute) return true;
+  return (
+    asAttribute.value?.type === "Literal" && asAttribute.value.value === "label"
+  );
+}
+
 function hasLabelAncestor(node) {
   for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
+    if (ancestor.type !== "JSXElement") continue;
     if (
-      ancestor.type === "JSXElement" &&
-      jsxName(ancestor.openingElement.name) === "label"
+      jsxName(ancestor.openingElement.name) === "label" ||
+      isLabelChoiceTile(ancestor.openingElement)
     ) {
       return true;
     }

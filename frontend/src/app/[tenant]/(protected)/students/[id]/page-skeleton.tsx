@@ -47,7 +47,7 @@ export function StudentDetailSkeleton({
       </div>
 
       <div className="mt-4 space-y-4 sm:mt-6 sm:space-y-6">
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
           <Skeleton className="mb-4 h-5 w-40 rounded" />
           <dl className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 md:gap-x-4 md:gap-y-3">
             {Array.from({ length: 6 }, (_, field) => (

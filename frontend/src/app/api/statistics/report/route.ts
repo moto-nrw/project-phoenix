@@ -26,8 +26,12 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
     const value = request.nextUrl.searchParams.get(key);
     if (value) queryParams.set(key, value);
   }
-  for (const groupId of request.nextUrl.searchParams.getAll("group_id")) {
-    if (groupId) queryParams.append("group_id", groupId);
+  // section and group_id are repeatable on the backend: forward every value,
+  // not just the first, or a two-section request silently loses a section.
+  for (const key of ["section", "group_id"] as const) {
+    for (const value of request.nextUrl.searchParams.getAll(key)) {
+      if (value) queryParams.append(key, value);
+    }
   }
   const endpoint = `/api/statistics/report?${queryParams.toString()}`;
 

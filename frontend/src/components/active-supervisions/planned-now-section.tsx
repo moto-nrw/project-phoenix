@@ -203,7 +203,7 @@ export function PlannedNowSection({
               return (
                 <article
                   key={instance.id}
-                  className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+                  className="moto-content-surface overflow-hidden rounded-xl border shadow-sm"
                 >
                   <div className="p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

@@ -9,6 +9,7 @@ type ButtonVariant =
   | "outline"
   | "outline_danger"
   | "danger"
+  | "warning"
   | "success"
   | "surface"
   | "ghost";
@@ -79,6 +80,11 @@ function buttonClassName({
       "bg-moto-red-soft text-moto-red-strong ring-moto-red/30 shadow-md ring-1 hover:bg-moto-red/20 hover:ring-moto-red/50",
     danger:
       "bg-moto-red text-white shadow-md hover:bg-moto-red-strong hover:shadow-lg",
+    // Bestätigung mit Nebenwirkung, die kein Löschen ist (Schließtag trotzdem
+    // planen, Einzelanpassungen verwerfen): Orange statt Rot. Dunkler Text wie
+    // bei success: Weiß auf moto-orange erreicht nur 2,4:1 und verfehlt AA.
+    warning:
+      "bg-moto-orange text-gray-950 shadow-md hover:bg-moto-orange-hover hover:shadow-lg",
     success:
       "bg-moto-green text-gray-950 shadow-md hover:bg-moto-green-hover hover:shadow-lg active:scale-95",
     surface:

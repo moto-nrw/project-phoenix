@@ -9,6 +9,7 @@ import { useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
+import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
 
 export function MonthCloseReasonModal({
@@ -89,13 +90,12 @@ export function MonthCloseReasonModal({
           >
             Begründung (Pflicht)
           </label>
-          <textarea
+          <Textarea
             id="month-close-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             placeholder="z. B. Monatsabschluss für die Lohnabrechnung"
-            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
       </div>

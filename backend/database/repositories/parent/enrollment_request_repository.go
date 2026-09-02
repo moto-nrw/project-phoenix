@@ -48,8 +48,6 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		ServiceStartDate         timezone.Date `bun:"service_start_date"`
 		ServiceEndDate           timezone.Date `bun:"service_end_date"`
 		ShowStatusReasonToParent bool          `bun:"show_status_reason_to_parent"`
-		SchoolName               string        `bun:"school_name"`
-		SchoolSlug               string        `bun:"school_slug"`
 	}
 
 	// Two-pronged match:
@@ -73,12 +71,9 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 			ph.name             AS phase_name,
 			ph.service_start_date AS service_start_date,
 			ph.service_end_date   AS service_end_date,
-			ph.show_status_reason_to_parent AS show_status_reason_to_parent,
-			sch.name            AS school_name,
-			sch.slug            AS school_slug
+			ph.show_status_reason_to_parent AS show_status_reason_to_parent
 		FROM enrollment.requests AS req
 		JOIN enrollment.phases AS ph ON ph.id = req.phase_id
-		JOIN platform.schools AS sch ON sch.id = req.tenant_id
 		LEFT JOIN auth.accounts AS acc ON acc.id = ?
 		WHERE (
 		    req.guardian_account_id = ?
@@ -88,7 +83,6 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		      AND LOWER(TRIM(req.guardian_email)) = LOWER(TRIM(acc.email))
 		    )
 		  )
-		  AND sch.deleted_at IS NULL
 		  AND NOT EXISTS (
 		    SELECT 1
 		    FROM enrollment.request_children AS rc_created
@@ -180,8 +174,6 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 			ServiceStartDate:         rr.ServiceStartDate,
 			ServiceEndDate:           rr.ServiceEndDate,
 			ShowStatusReasonToParent: rr.ShowStatusReasonToParent,
-			SchoolName:               rr.SchoolName,
-			SchoolSlug:               rr.SchoolSlug,
 			Children:                 childrenByRequest[rr.RequestID],
 		})
 	}

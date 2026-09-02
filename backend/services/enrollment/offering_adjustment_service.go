@@ -810,7 +810,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	// The recurrence gate is already held — taken with the shared class-writes
 	// gate before the first row lock above.
 	if student.SchoolClass != previousSchoolClass {
-		if err := s.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()); err != nil {
+		if err := s.ResyncOfferingSourcedTemplates(ctx, s.todayDate()); err != nil {
 			return nil, fmt.Errorf("decision: resync sourced templates after class change: %w", err)
 		}
 	}

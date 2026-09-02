@@ -215,12 +215,20 @@ func (s *Service) CountByIDs(ctx context.Context, ids []int64) (result int, err 
 }
 
 func (s *Service) run(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {
+	return s.observeRun(ctx, operation, s.tx.RunAdmin, fn)
+}
+
+func (s *Service) runRead(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {
+	return s.observeRun(ctx, operation, s.tx.RunRead, fn)
+}
+
+func (s *Service) observeRun(ctx context.Context, operation string, run func(context.Context, func(context.Context) error) error, fn func(context.Context, *domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}
 	defer func() {
 		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	}()
-	err = s.tx.RunAdmin(ctx, func(txCtx context.Context) error { return fn(txCtx, &stats) })
+	err = run(ctx, func(txCtx context.Context) error { return fn(txCtx, &stats) })
 	if err != nil {
 		stats.Rows = 0
 	}

@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -17,6 +17,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+type School = organizationtenancy.School
+type SchoolQuery = organizationtenancy.Query
+type SchoolCapability = organizationtenancy.Capability
+
+func NewOrganizationTenancy(db *bun.DB) (SchoolCapability, error) {
+	return repositories.NewOrganizationTenancy(db)
+}
 
 // NewCleanupAuditCommand builds the same fail-closed Audit command used by
 // the HTTP service graph. Cleanup producers must already be inside their
@@ -67,13 +75,13 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) auth.Invitatio
 	})
 }
 
-func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger) active.Service {
+func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger) active.Service {
 	repos := repositories.NewSessionCleanupRepositories(db)
 	service := active.NewService(active.ServiceDependencies{
 		GroupRepo: repos.Group, VisitRepo: repos.Visit, SupervisorRepo: repos.Supervisor,
 		DeviceRepo: repos.Device, TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
 	})
-	service.SetSettingsService(NewCleanupSettingsService(db, runtime, logger))
+	service.SetSettingsService(NewCleanupSettingsService(db, runtime, schools, logger))
 	return service
 }
 
@@ -85,21 +93,21 @@ func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCo
 	)
 }
 
-func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) schedule.TimetableCleanupService {
+func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) schedule.TimetableCleanupService {
 	repos := repositories.NewTimetableCleanupRepositories(db, command)
 	return schedule.NewTimetableCleanupService(
 		repos.Instance, repos.Exception, repos.Student, repos.Deletion, repos.Deviation,
-		NewCleanupSettingsService(db, runtime, logger), logger,
+		NewCleanupSettingsService(db, runtime, schools, logger), logger,
 	)
 }
 
-func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) active.TimeTrackingCleanupService {
+func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) active.TimeTrackingCleanupService {
 	repos := repositories.NewTimeTrackingCleanupRepositories(db, command)
 	return active.NewTimeTrackingCleanupService(
-		repos.Session, repos.Absence, repos.Deletion, NewCleanupSettingsService(db, runtime, logger), logger,
+		repos.Session, repos.Absence, repos.Deletion, NewCleanupSettingsService(db, runtime, schools, logger), logger,
 	)
 }
 
-func NewSettingsCommandRepositories(db *bun.DB) (platformModels.SchoolRepository, configModels.SettingValueRepository) {
-	return repositories.NewSettingsCommandRepositories(db)
+func NewSettingsCommandRepository(db *bun.DB) configModels.SettingValueRepository {
+	return repositories.NewSettingsCommandRepository(db)
 }

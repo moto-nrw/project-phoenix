@@ -194,19 +194,20 @@ Shifts recur via `schedule.staff_shift_series` (weekdays + wall-clock window bou
 
 **RULE: Always suggest Docker Compose commands** when advising how to run, build, test, or debug services. Never default to bare `go run` or `pnpm run dev` unless the user explicitly asks for it.
 
-| Task                                                                          | Command                                                                                                                 |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Start all services                                                            | `docker compose up -d`                                                                                                  |
-| Rebuild backend (go.mod / Dockerfile changes; air hot-reloads plain Go edits) | `docker compose build server && docker compose up -d server`                                                            |
-| Run migrations                                                                | `docker compose run server go run . migrate`                                                                            |
-| Reset DB                                                                      | `docker compose run server go run . migrate reset` (then seed — see `docs/getting-started.md` for the credential flags) |
-| View logs                                                                     | `docker compose logs -f server`                                                                                         |
-| Quality check (frontend)                                                      | `cd frontend && pnpm run check`                                                                                         |
-| Run backend tests (self-initializing; clones GC'd next run)                   | `cd backend && ../scripts/run-go-toolchain.sh go test ./...`                                                            |
-| Full backend run incl. immediate clone sweep (gotestsum)                      | `scripts/run-go-toolchain.sh scripts/test-backend.sh`                                                                   |
-| Fast unit-only backend run (skips all DB tests)                               | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...`                                                     |
-| Test only what changed vs a base ref (backend + frontend)                     | `scripts/test-changed.sh [origin/development]`                                                                          |
-| Generate docs                                                                 | `docker compose run server go run . gendoc --routes`                                                                    |
+| Task | Command |
+|------|---------|
+| Start all services | `docker compose up -d` |
+| Rebuild backend (go.mod / Dockerfile changes; air hot-reloads plain Go edits) | `docker compose build server && docker compose up -d server` |
+| Run migrations | `docker compose run server go run . migrate` |
+| Reset DB | `docker compose run server go run . migrate reset` (then seed — see `docs/getting-started.md` for the credential flags) |
+| View logs | `docker compose logs -f server` |
+| Quality check (frontend) | `cd frontend && pnpm run check` |
+| Run backend tests (self-initializing; clones GC'd next run) | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
+| Full backend run incl. immediate clone sweep (gotestsum) | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
+| Fast unit-only backend run (skips all DB tests) | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` |
+| Test only what changed vs a base ref (backend + frontend) | `scripts/test-changed.sh [origin/development]` |
+| Fast fix-loop variant (direkt Betroffenes + direkte Importer, ohne repo-weite Ratchets; vor dem Push einmal ohne `--fast`) | `scripts/test-changed.sh --fast [origin/development]` |
+| Generate docs | `docker compose run server go run . gendoc --routes` |
 
 **Seeder is DEV-ONLY**: it creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
 

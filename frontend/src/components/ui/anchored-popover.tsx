@@ -163,7 +163,7 @@ export function AnchoredPopover({
           close();
         }}
         className={cn(
-          "scrollbar-thin overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white shadow-lg",
+          "moto-popover-surface scrollbar-thin overflow-y-auto overscroll-contain rounded-xl border",
           className,
         )}
         style={{ ...panelStyle, visibility: panelStyle ? "visible" : "hidden" }}

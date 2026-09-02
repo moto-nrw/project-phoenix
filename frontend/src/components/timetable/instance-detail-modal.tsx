@@ -31,7 +31,7 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ChoiceModal } from "~/components/ui/choice-modal";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { type ConfirmVariant, ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -104,7 +104,7 @@ const CONFIRM_DIALOGS: Record<
     title: string;
     body: string;
     confirmText: string;
-    confirmButtonClass?: string;
+    confirmVariant?: ConfirmVariant;
   }
 > = {
   complete: {
@@ -121,7 +121,7 @@ const CONFIRM_DIALOGS: Record<
     title: "Abgesagten Termin löschen?",
     body: "Der abgesagte Termin wird dauerhaft entfernt.",
     confirmText: "Löschen",
-    confirmButtonClass: "bg-moto-red hover:bg-moto-red-strong",
+    confirmVariant: "danger",
   },
   reopen: {
     title: "Termin wieder öffnen?",
@@ -1119,9 +1119,7 @@ export function InstanceDetailModal({
           }
           confirmText={CONFIRM_DIALOGS[pendingConfirm].confirmText}
           cancelText="Abbrechen"
-          confirmButtonClass={
-            CONFIRM_DIALOGS[pendingConfirm].confirmButtonClass
-          }
+          confirmVariant={CONFIRM_DIALOGS[pendingConfirm].confirmVariant}
           isConfirmDisabled={
             pendingConfirm === "cancel" &&
             guardianNoticeIncomplete(

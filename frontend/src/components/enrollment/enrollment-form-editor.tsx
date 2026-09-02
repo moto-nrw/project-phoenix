@@ -41,6 +41,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Input } from "~/components/ui/input";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
@@ -1715,7 +1716,7 @@ function DeleteSchemaDialog({
       confirmText="Löschen"
       cancelText="Abbrechen"
       isConfirmLoading={deleting}
-      confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+      confirmVariant="danger"
     >
       <div className="space-y-3 text-sm leading-6 text-gray-600">
         <p>
@@ -2249,7 +2250,7 @@ function LegalBlocksSection({
   }) => (
     <div
       key={`${block.key}-${index}-editor`}
-      className="rounded-xl border border-gray-200 bg-white p-4"
+      className="moto-content-surface rounded-xl border p-4 shadow-sm"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <StyledCheckboxButton
@@ -2443,7 +2444,7 @@ function LegalBlocksSection({
           return (
             <div
               key={`${block.key}-${index}`}
-              className="rounded-xl border border-gray-200 bg-white p-4"
+              className="moto-content-surface rounded-xl border p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -2573,15 +2574,13 @@ function AGBTemplateSourceEditor({
   return (
     <div className="mt-3 space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT}
           onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_TEXT)}
           disabled={disabled}
-          className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-3"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4" aria-hidden="true" />
@@ -2595,16 +2594,14 @@ function AGBTemplateSourceEditor({
               Text gespeichert
             </span>
           ) : null}
-        </button>
-        <button
-          type="button"
+        </ChoiceTile>
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === LEGAL_BLOCK_DISPLAY_MODE_PDF}
           onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_PDF)}
           disabled={disabled}
-          className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            mode === LEGAL_BLOCK_DISPLAY_MODE_PDF
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-3"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileUp className="h-4 w-4" aria-hidden="true" />
@@ -2618,7 +2615,7 @@ function AGBTemplateSourceEditor({
               PDF gespeichert
             </span>
           ) : null}
-        </button>
+        </ChoiceTile>
       </div>
 
       {mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT ? (
@@ -2935,16 +2932,13 @@ function TargetSuggestions({
         {TARGET_PICKER_ORDER.map((target) => {
           const selected = selectedTargets.has(target);
           return (
-            <button
+            <ChoiceTile
               key={target}
-              type="button"
-              onClick={() => onAdd(target)}
+              as="button"
+              selected={selected}
               disabled={disabled || selected}
-              className={`flex min-h-24 items-start gap-3 rounded-xl border p-3 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-default ${
-                selected
-                  ? "border-gray-200 bg-white text-gray-500"
-                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-              }`}
+              onClick={() => onAdd(target)}
+              className="min-h-24 items-start p-3 shadow-sm"
             >
               <span
                 className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
@@ -2970,7 +2964,7 @@ function TargetSuggestions({
                   {selected ? "Ist drin" : "Hinzufügen"}
                 </span>
               </span>
-            </button>
+            </ChoiceTile>
           );
         })}
       </div>
@@ -3642,7 +3636,7 @@ function ConditionEditor({
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3">
+    <div className="moto-content-surface rounded-xl border p-3 shadow-sm">
       <FormChoice
         checked={condition !== null}
         onChange={(checked) =>

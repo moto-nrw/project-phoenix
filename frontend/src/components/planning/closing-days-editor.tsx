@@ -232,7 +232,7 @@ export function ClosingDaysEditor() {
         title="Schließtag löschen"
         confirmText="Löschen"
         isConfirmLoading={deleteLoading}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+        confirmVariant="danger"
       >
         {deleting && (
           <p>

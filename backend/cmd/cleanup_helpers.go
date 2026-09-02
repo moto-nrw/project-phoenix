@@ -47,6 +47,7 @@ type cleanupContext struct {
 	Output                     io.Writer
 	Logger                     *log.Logger
 	Audit                      services.AuditCommand
+	Schools                    services.SchoolCapability
 }
 
 type authCleanupService interface {
@@ -165,12 +166,18 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	schools, err := services.NewOrganizationTenancy(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &cleanupContext{
 		DB:            db,
 		TenantRuntime: tenantRuntime,
 		Output:        os.Stdout,
 		Logger:        log.Default(),
 		Audit:         auditCommand,
+		Schools:       schools,
 	}, nil
 }
 
@@ -231,7 +238,7 @@ func newCleanupContextWithSessionCleanup() (*cleanupContext, error) {
 }
 
 func buildSessionCleanupService(ctx *cleanupContext) sessionCleanupService {
-	return services.NewSessionCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "session-cleanup-cli"))
+	return services.NewSessionCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "session-cleanup-cli"))
 }
 
 // newCleanupContextWithCleanupService initializes database and cleanup service.
@@ -279,7 +286,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 }
 
 func buildTimetableCleanupService(ctx *cleanupContext) schedule.TimetableCleanupService {
-	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
+	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
 }
 
 // newCleanupContextWithTimeTrackingCleanup initializes database + time-tracking
@@ -303,7 +310,7 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 }
 
 func buildTimeTrackingCleanupService(ctx *cleanupContext) active.TimeTrackingCleanupService {
-	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
+	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
 }
 
 // Close releases database resources.

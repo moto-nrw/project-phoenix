@@ -1140,7 +1140,7 @@ function ReportExportCard({
         <div
           role="menu"
           aria-label="Auswertung exportieren"
-          className="absolute right-0 z-40 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+          className="moto-popover-surface absolute right-0 z-40 mt-2 min-w-64 overflow-hidden rounded-xl border py-1"
         >
           <ExportMenuItems
             items={REPORT_EXPORT_OPTIONS}
@@ -1301,7 +1301,7 @@ function ExportMenuButton({
         <div
           role="menu"
           aria-label={menuAriaLabel}
-          className="absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+          className="moto-popover-surface absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border py-1"
         >
           <ExportMenuItems
             items={formats.map((format) => ({

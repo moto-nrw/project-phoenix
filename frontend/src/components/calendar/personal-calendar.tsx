@@ -630,7 +630,7 @@ function MobileAgenda({
   }
 
   return (
-    <div className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border shadow-sm">
       {groups.map(({ day, allDay, timed, count }) => (
         <section key={toISODate(day)} className="divide-y divide-gray-100">
           <div className="flex items-baseline justify-between gap-2 bg-gray-50 px-4 py-2">

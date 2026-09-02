@@ -497,7 +497,7 @@ export default function MealPlanPage() {
             title="Ungespeicherte Änderungen"
             confirmText="Verwerfen & wechseln"
             cancelText="Hierbleiben"
-            confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+            confirmVariant="danger"
           >
             <p className="text-sm text-gray-600">
               Sie haben Änderungen in dieser Woche, die noch nicht gespeichert
@@ -512,7 +512,7 @@ export default function MealPlanPage() {
             title="Ungespeicherte Änderungen"
             confirmText="Verwerfen & verlassen"
             cancelText="Hierbleiben"
-            confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+            confirmVariant="danger"
           >
             <p className="text-sm text-gray-600">
               Sie haben Änderungen, die noch nicht gespeichert sind. Beim

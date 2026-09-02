@@ -295,7 +295,7 @@ export function RolePermissionManagementModal({
           {loading ? (
             <div className="py-8 text-center text-gray-500">Laden...</div>
           ) : (
-            <div className="rounded-xl border border-gray-100 bg-white">
+            <div className="moto-content-surface max-h-96 overflow-y-auto rounded-xl border shadow-sm">
               {groupedPermissions.length === 0 ? (
                 <p className="py-8 text-center text-gray-500">
                   Keine Berechtigungen gefunden

@@ -12,7 +12,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
  */
 function StudentCardSkeleton() {
   return (
-    <div className="moto-content-surface w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="moto-content-surface w-full overflow-hidden rounded-2xl border shadow-sm">
       <div className="p-6 pb-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">

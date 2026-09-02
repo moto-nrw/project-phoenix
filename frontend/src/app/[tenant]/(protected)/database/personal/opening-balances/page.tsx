@@ -164,7 +164,7 @@ function isSpreadsheet(file: File): boolean {
 function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
   const status = STATUS_TONE[row.status];
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3">
+    <div className="moto-content-surface rounded-xl border p-3 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
           {row.isSummary ? "∑" : row.rowNumber}

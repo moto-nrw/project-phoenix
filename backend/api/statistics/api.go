@@ -102,12 +102,8 @@ func (rs *Resource) exportReport(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, renderError(err))
 		return
 	}
-	doc := buildExportDocument(report)
-	filename := "statistik-" + report.From.String() + "-" + report.To.String()
-	if section == sectionRooms {
-		doc = buildRoomExportDocument(report)
-		filename = "raumauslastung-" + report.From.String() + "-" + report.To.String()
-	}
+	doc, name := buildSectionDocument(report, section)
+	filename := name + "-" + report.From.String() + "-" + report.To.String()
 	file, err := rs.ListExport.Render(doc, format, filename)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -147,6 +143,11 @@ func parseFilters(r *http.Request) (statisticsService.Filters, error) {
 		return statisticsService.Filters{}, fmt.Errorf("invalid to date: %w", err)
 	}
 	filters := statisticsService.Filters{From: from, To: to}
+	sections, err := parseReportSections(q["section"])
+	if err != nil {
+		return statisticsService.Filters{}, err
+	}
+	filters.Sections = sections
 	for _, raw := range q["group_id"] {
 		for _, part := range strings.Split(raw, ",") {
 			part = strings.TrimSpace(part)
@@ -164,22 +165,51 @@ func parseFilters(r *http.Request) (statisticsService.Filters, error) {
 }
 
 const (
-	sectionAttendance = "attendance"
-	sectionRooms      = "rooms"
+	sectionAttendance     = "attendance"
+	sectionRooms          = "rooms"
+	sectionCourses        = "courses"
+	sectionCourseStudents = "course-students"
 )
 
-// parseSection picks the export document: the child/group table (default)
-// or the room utilization table, which has its own column grid.
+// parseSection picks the export document: the child/group table (default),
+// the room utilization table, or one of the two course tables. Each has its
+// own column grid and is therefore its own document.
 func parseSection(r *http.Request) (string, error) {
 	section := strings.TrimSpace(r.URL.Query().Get("section"))
 	switch section {
 	case "", sectionAttendance:
 		return sectionAttendance, nil
-	case sectionRooms:
-		return sectionRooms, nil
+	case sectionRooms, sectionCourses, sectionCourseStudents:
+		return section, nil
 	default:
 		return "", fmt.Errorf("unsupported export section %q", section)
 	}
+}
+
+// parseReportSections limits which sections the report computes. Repeatable
+// and comma-separated; absent means the whole report, which is what the
+// screen asks for so switching tabs costs no request.
+func parseReportSections(raw []string) ([]statisticsService.Section, error) {
+	var sections []statisticsService.Section
+	for _, value := range raw {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			switch part {
+			case sectionAttendance:
+				sections = append(sections, statisticsService.SectionAttendance)
+			case sectionRooms:
+				sections = append(sections, statisticsService.SectionRooms)
+			case sectionCourses, sectionCourseStudents:
+				sections = append(sections, statisticsService.SectionCourses)
+			default:
+				return nil, fmt.Errorf("unsupported section %q", part)
+			}
+		}
+	}
+	return sections, nil
 }
 
 func parseFormat(r *http.Request) (listexport.Format, error) {
