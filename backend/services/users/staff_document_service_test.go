@@ -18,7 +18,7 @@ import (
 )
 
 // Staff documents (#1424): per-category authority (AU → staff_documents:health,
-// Lohn → staff:financial, rest → users:update) is enforced in the service —
+// Lohn → staff:financial, rest → staff:documents, #2906) is enforced in the service —
 // uploads, downloads, deletes AND list visibility. Every upload/delete writes
 // a Stammdaten audit row; sensitive downloads write a data-access log row.
 
@@ -105,7 +105,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 
 	s := newStaffDocumentScenario(t)
 
-	directory := s.actor("users:update")
+	directory := s.actor("staff:documents")
 	health := s.actor("staff_documents:health")
 	payroll := s.actor("staff:financial")
 	admin := s.actor("admin:*")
@@ -200,7 +200,7 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 	t.Parallel()
 
 	s := newStaffDocumentScenario(t)
-	directory := s.actor("users:update")
+	directory := s.actor("staff:documents")
 
 	info := s.create(t, userModels.StaffDocumentCategoryZeugnis, directory)
 
@@ -255,7 +255,7 @@ func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
 	t.Parallel()
 
 	s := newStaffDocumentScenario(t)
-	actor := s.actor("users:update")
+	actor := s.actor("staff:documents")
 	info := s.create(t, userModels.StaffDocumentCategoryZeugnis, actor)
 
 	_, err := s.db.ExecContext(s.ctx, `UPDATE users.staff SET deleted_at = NOW() WHERE id = ?`, s.staffID)

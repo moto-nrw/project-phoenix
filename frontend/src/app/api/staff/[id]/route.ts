@@ -251,7 +251,7 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
 
       if (error.message.includes("403")) {
         throw new Error(
-          "Permission denied: You need the 'users:update' permission to update staff members.",
+          "Sie dürfen Mitarbeiterdaten nicht ändern. Bitte wenden Sie sich an Ihre OGS-Leitung.",
           { cause: error },
         );
       }

@@ -701,10 +701,12 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 		}
 		if existing != nil && existing.DeletedAt == nil {
 			// Adoption is an edit of a record that is already in the directory,
-			// so it owes users:update — the create permission this route is
-			// gated on does not cover overwriting someone's notes or writing
-			// a caregiver profile onto them.
-			if !authorize.HasPermission(permissions.UsersUpdate, input.ActorPermissions) {
+			// so it owes staff:manage — the same authority PUT /api/staff/{id}
+			// requires since #2906. The create permission this route is gated
+			// on does not cover overwriting someone's notes or writing a
+			// caregiver profile onto them, and neither does users:update,
+			// which the plain Betreuer role holds for the child-data surfaces.
+			if !authorize.HasPermission(permissions.StaffManage, input.ActorPermissions) {
 				return ErrStaffAdoptionNotPermitted
 			}
 			existing.StaffNotes = input.StaffNotes

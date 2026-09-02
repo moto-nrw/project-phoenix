@@ -2367,3 +2367,47 @@ func TestRoleAssignmentEndpointsRejectEscalation(t *testing.T) {
 		require.True(t, ok)
 	})
 }
+
+// TestListRoles_UsersCreateReadsNamesOnly pins the users:create carve-out on
+// the role list (#2906): whoever may create users assigns a role by name (the
+// staff import's "Rolle" column), so the name list is theirs to read, while
+// role details and permission sets stay behind roles:read.
+func TestListRoles_UsersCreateReadsNamesOnly(t *testing.T) {
+	t.Parallel()
+	_, router := setupProtectedRouter(t)
+
+	claims := testutil.AdminTestClaims(1)
+	usersCreateOnly := []string{"users:create"}
+
+	t.Run("list roles with users:create", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/roles", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, usersCreateOnly)
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].([]interface{})
+		require.True(t, ok, "Expected data to be an array")
+		require.NotEmpty(t, data, "Expected at least one role")
+		for _, entry := range data {
+			role, ok := entry.(map[string]interface{})
+			require.True(t, ok, "Expected role objects")
+			assert.NotEmpty(t, role["name"])
+			assert.NotContains(t, role, "permissions", "the list must not carry permission sets")
+		}
+	})
+
+	t.Run("role details stay behind roles:read", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/roles/1", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, usersCreateOnly)
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("role permissions stay behind roles:read", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/roles/1/permissions", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, usersCreateOnly)
+
+		testutil.AssertForbidden(t, rr)
+	})
+}

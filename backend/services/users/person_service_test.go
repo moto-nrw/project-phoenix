@@ -1357,7 +1357,7 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 		PersonID:         existing.Staff.PersonID,
 		StaffNotes:       "Notiz",
 		IsTeacher:        false,
-		ActorPermissions: []string{permissions.UsersCreate, permissions.UsersUpdate},
+		ActorPermissions: []string{permissions.UsersCreate, permissions.StaffManage},
 	})
 
 	// ASSERT
@@ -1464,7 +1464,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 		PersonID:         staffRecord.PersonID,
 		IsTeacher:        true,
 		Specialization:   "Betreuung",
-		ActorPermissions: []string{permissions.UsersCreate, permissions.UsersUpdate},
+		ActorPermissions: []string{permissions.UsersCreate, permissions.StaffManage},
 	})
 
 	// ASSERT — refused before anything is written.
