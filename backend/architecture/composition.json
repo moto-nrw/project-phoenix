@@ -16988,7 +16988,7 @@
       "declaration": "TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2715
+        2722
       ],
       "tables": []
     },
@@ -16998,7 +16998,7 @@
       "declaration": "TestDevicePickupQuery_StaffLookupFailureReturnsServerError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2946
+        2953
       ],
       "tables": []
     },
@@ -26882,7 +26882,7 @@
       "declaration": "TestDecide_FansOutToMultiSourceTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1155
+        1164
       ],
       "tables": []
     },
@@ -26892,7 +26892,7 @@
       "declaration": "TestDecide_MultiSourceFanOutSeedsFromPhaseStart",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1283
+        1292
       ],
       "tables": []
     },
@@ -26902,7 +26902,7 @@
       "declaration": "TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1361
+        1370
       ],
       "tables": []
     },
@@ -26912,7 +26912,7 @@
       "declaration": "TestOfferingDelete_DegradesSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        884
+        893
       ],
       "tables": [
         "enrollment.care_offerings"
@@ -26924,8 +26924,8 @@
       "declaration": "TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1197,
-        1249
+        1206,
+        1258
       ],
       "tables": [
         "activities.student_enrollments",
@@ -26938,8 +26938,8 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSources",
       "target": "database/repositories.NewFactory",
       "lines": [
-        932,
-        950
+        941,
+        959
       ],
       "tables": []
     },
@@ -26949,9 +26949,9 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1012,
-        1033,
-        1039
+        1021,
+        1042,
+        1048
       ],
       "tables": []
     },
@@ -26961,7 +26961,7 @@
       "declaration": "TestPhaseDelete_RetiresSourcedRosterRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1405
+        1414
       ],
       "tables": []
     },
@@ -26971,7 +26971,7 @@
       "declaration": "TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage",
       "target": "database/repositories.NewFactory",
       "lines": [
-        458
+        467
       ],
       "tables": [
         "activities.student_enrollments"
@@ -26983,7 +26983,7 @@
       "declaration": "TestResync_UnionAcrossOfferings_PlansSharedChildOnce",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1068
+        1077
       ],
       "tables": [
         "activities.student_enrollments"
@@ -26995,7 +26995,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2307
+        2319
       ],
       "tables": []
     },
@@ -27005,7 +27005,7 @@
       "declaration": "TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1315
+        1324
       ],
       "tables": []
     },
@@ -27015,7 +27015,7 @@
       "declaration": "createBoundedTemplateSchedule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1456
+        1466
       ],
       "tables": []
     },
@@ -27035,7 +27035,7 @@
       "declaration": "createSourcedTemplateSegment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1476
+        1486
       ],
       "tables": []
     },

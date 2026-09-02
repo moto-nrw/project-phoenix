@@ -60,7 +60,9 @@ func newOfferingChangeServiceForTestWithCareRepo(
 		Applier:                  changeRequestApplierForTest(t, env),
 		Settings:                 env.settings,
 		Logger:                   slog.Default(),
-		Today:                    func() timezone.Date { return decisionTestToday },
+		// Mirrors newDecisionServiceForTest's fixed clock: the lead-day and
+		// earliest-date assertions in this file compare against this date.
+		Today: func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	})
 }
 

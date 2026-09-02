@@ -441,10 +441,13 @@ type OfferingChangeRequestServiceConfig struct {
 	shareVisibility parentmessaging.ShareVisibilityResolver
 	Logger          *slog.Logger
 	ReviewPolicy    RequestReviewPolicy
+	// Today returns the current calendar day; tests inject a fixed date so
+	// lead-day and care-end boundaries stay deterministic (mirrors the
+	// decision service). Nil falls back to timezone.TodayDate.
+	Today func() timezone.Date
 	// EventRecorder appends to the parent-request ledger inside the ambient
 	// transaction. Nil skips recording (tests, older wiring).
 	EventRecorder usersService.ParentRequestEventRecorder
-	Today         func() timezone.Date
 }
 
 type RequestReviewPolicy interface {
@@ -456,13 +459,17 @@ type offeringChangeRequestService struct {
 	OfferingChangeRequestServiceConfig
 }
 
+func (s *offeringChangeRequestService) todayDate() timezone.Date {
+	if s.Today != nil {
+		return s.Today()
+	}
+	return timezone.TodayDate()
+}
+
 // NewOfferingChangeRequestService wires a fresh service.
 func NewOfferingChangeRequestService(cfg OfferingChangeRequestServiceConfig) OfferingChangeRequestService {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
-	}
-	if cfg.Today == nil {
-		cfg.Today = timezone.TodayDate
 	}
 	return &offeringChangeRequestService{OfferingChangeRequestServiceConfig: cfg}
 }
@@ -504,7 +511,7 @@ func (s *offeringChangeRequestService) EarliestEffectiveFrom(ctx context.Context
 		}
 		leadDays = resolved
 	}
-	return EarliestOfferingChangeDate(s.Today(), leadDays), nil
+	return EarliestOfferingChangeDate(s.todayDate(), leadDays), nil
 }
 
 // resolveLeadDays reads the configured notice period. DecisionSettingsResolver
@@ -867,7 +874,7 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 		return nil, fmt.Errorf("offering change: list requests: %w", err)
 	}
 	cutoff := time.Now().AddDate(0, 0, -offeringDecisionRecencyDays)
-	today := s.Today()
+	today := s.todayDate()
 	for _, row := range rows {
 		if row == nil || row.ReviewedAt == nil {
 			continue
@@ -924,7 +931,7 @@ func (s *offeringChangeRequestService) keepCompleteWithdrawalStatus(ctx context.
 	if err != nil {
 		return false, fmt.Errorf("offering change: load student withdrawal state: %w", err)
 	}
-	if student.CareEndedOn(s.Today()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return true, nil
 	}
 	if s.CareWithdrawalRepo == nil {
@@ -1227,7 +1234,7 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 		// effect-day pass closes their open requests, and until it runs the
 		// queue must not offer a decision on a departed child (#2487).
 		if student == nil || !writable(student) || student.IsAlumnus() ||
-			student.CareEndedOn(s.Today()) {
+			student.CareEndedOn(s.todayDate()) {
 			continue
 		}
 		visibleRows = append(visibleRows, row)
@@ -1251,7 +1258,7 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 		// date is clamped to the care period's start as well as to today, which
 		// diverges once a phase's service start moves after the request was
 		// filed.
-		reviewRow.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom, s.Today())
+		reviewRow.EffectiveFrom = appliedOfferingChangeDate(row.EffectiveFrom, s.todayDate())
 		review := reviews[row.ID]
 		if review != nil {
 			reviewRow.EffectiveFrom = review.AppliedDate
@@ -1392,7 +1399,7 @@ func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, e
 		}
 		student := students[row.StudentID]
 		if student != nil && writable(student) && !student.IsAlumnus() &&
-			!student.CareEndedOn(s.Today()) {
+			!student.CareEndedOn(s.todayDate()) {
 			count++
 		}
 	}
@@ -1465,7 +1472,6 @@ func (s *offeringChangeRequestService) pendingReviews(
 	}
 	// The snapshot has to be read on the date the approval would use, phase
 	// clamp included, or the diff describes a booking outside the care period.
-	today := s.Today()
 	dates := make(map[int64]timezone.Date, len(rows))
 	reviews := make(map[int64]*pendingReview, len(rows))
 	for _, row := range rows {
@@ -1479,11 +1485,12 @@ func (s *offeringChangeRequestService) pendingReviews(
 				phase = phasesByID[request.PhaseID]
 			}
 		}
-		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase, today)
+		today := s.todayDate()
+		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, today, phase)
 		dates[row.RequestChildID] = date
 		review := &pendingReview{AppliedDate: date}
 		if phase != nil {
-			review.EarliestDate = appliedOfferingChangeDateForPhase(today, phase, today)
+			review.EarliestDate = appliedOfferingChangeDateForPhase(today, today, phase)
 			review.LatestDate = phase.ServiceEndDate
 		}
 		reviews[row.ID] = review
@@ -1692,7 +1699,7 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	}
 	// The child left the OGS after filing this request; approving it would
 	// book offerings for days they are no longer in care (#2487).
-	if student.CareEndedOn(s.Today()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return enrollmentModels.ErrOfferingChangeNotFound
 	}
 	allowed, authErr := s.canReviewStudent(ctx, student)
@@ -1735,7 +1742,7 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	// story 14). Rejecting stays allowed, and so does moving the date forward
 	// with an explicit EffectiveFrom.
 	if input.EffectiveFrom == nil &&
-		usersService.ParentRequestIsPast(row.EffectiveFrom, s.Today()) {
+		usersService.ParentRequestIsPast(row.EffectiveFrom, s.todayDate()) {
 		return usersService.ErrParentRequestPast
 	}
 	applied, err := s.applyApproved(ctx, row, input)
@@ -1831,7 +1838,7 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: load student for preview: %w", err)
 	}
-	if student == nil || student.IsAlumnus() || student.CareEndedOn(s.Today()) {
+	if student == nil || student.IsAlumnus() || student.CareEndedOn(s.todayDate()) {
 		return nil, enrollmentModels.ErrOfferingChangeNotFound
 	}
 	allowed, authErr := s.canReviewStudent(ctx, student)
@@ -2050,7 +2057,7 @@ func (s *offeringChangeRequestService) payloadDecisionDiff(
 		return nil, err
 	}
 	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
-		ctx, row.RequestChildID, appliedOfferingChangeDate(row.EffectiveFrom, s.Today()),
+		ctx, row.RequestChildID, appliedOfferingChangeDate(row.EffectiveFrom, s.todayDate()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list current offerings: %w", err)
@@ -2176,7 +2183,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	// office agreed, and a date in the past would be rejected by the adjustment
 	// validator. A date the office confirmed itself is never moved — see
 	// confirmedEffectiveFrom.
-	effectiveFrom, err := confirmedEffectiveFrom(input.EffectiveFrom, row.EffectiveFrom, phase, s.Today())
+	effectiveFrom, err := confirmedEffectiveFrom(input.EffectiveFrom, row.EffectiveFrom, s.todayDate(), phase)
 	if err != nil {
 		return nil, err
 	}
@@ -2287,14 +2294,13 @@ func (s *offeringChangeRequestService) completeWithdrawalAt(
 // it just confirmed (#2484).
 func confirmedEffectiveFrom(
 	confirmed *timezone.Date,
-	requested timezone.Date,
+	requested, today timezone.Date,
 	phase *enrollmentModels.Phase,
-	today timezone.Date,
 ) (timezone.Date, error) {
 	if confirmed == nil {
-		return appliedOfferingChangeDateForPhase(requested, phase, today), nil
+		return appliedOfferingChangeDateForPhase(requested, today, phase), nil
 	}
-	earliest := appliedOfferingChangeDateForPhase(today, phase, today)
+	earliest := appliedOfferingChangeDateForPhase(today, today, phase)
 	if confirmed.Before(earliest) {
 		return timezone.Date(""), fmt.Errorf("%w: %s is before %s",
 			ErrOfferingChangeDateOutOfRange, confirmed, earliest)
@@ -2332,7 +2338,7 @@ func appliedOfferingChangeDate(effectiveFrom, today timezone.Date) timezone.Date
 	return effectiveFrom
 }
 
-func appliedOfferingChangeDateForPhase(effectiveFrom timezone.Date, phase *enrollmentModels.Phase, today timezone.Date) timezone.Date {
+func appliedOfferingChangeDateForPhase(effectiveFrom, today timezone.Date, phase *enrollmentModels.Phase) timezone.Date {
 	effectiveFrom = appliedOfferingChangeDate(effectiveFrom, today)
 	if phase != nil && effectiveFrom.Before(phase.ServiceStartDate) {
 		return phase.ServiceStartDate
@@ -2766,7 +2772,7 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 	if err != nil {
 		return nil, err
 	}
-	rowCopy.EffectiveFrom, err = confirmedEffectiveFrom(effectiveFrom, rowCopy.EffectiveFrom, phase, s.Today())
+	rowCopy.EffectiveFrom, err = confirmedEffectiveFrom(effectiveFrom, rowCopy.EffectiveFrom, s.todayDate(), phase)
 	if err != nil {
 		return nil, err
 	}
@@ -3392,7 +3398,7 @@ func (s *offeringChangeRequestService) MarkDone(
 	if !allowed {
 		return ErrOfferingChangeForbidden
 	}
-	if !usersService.ParentRequestIsPast(row.EffectiveFrom, s.Today()) {
+	if !usersService.ParentRequestIsPast(row.EffectiveFrom, s.todayDate()) {
 		return usersService.ErrParentRequestNotPast
 	}
 	if err := s.ChangeRepo.Decide(

@@ -2302,8 +2302,9 @@ func TestWasRunToday_RanToday(t *testing.T) {
 	t.Parallel()
 
 	var m sync.Map
-	markRunToday(&m, 1)
-	assert.True(t, wasRunToday(&m, 1))
+	tenantID := testpkg.UniqueTestTenantID(t)
+	m.Store(tenantID, time.Now())
+	assert.True(t, wasRunToday(&m, tenantID))
 }
 
 func TestWasRunToday_RanYesterday(t *testing.T) {
@@ -2328,8 +2329,10 @@ func TestWasRunToday_DifferentTenant(t *testing.T) {
 	t.Parallel()
 
 	var m sync.Map
-	markRunToday(&m, 1)
-	assert.False(t, wasRunToday(&m, 2))
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	m.Store(tenantID, time.Now())
+	assert.False(t, wasRunToday(&m, otherTenantID))
 }
 
 func TestResolveStringSetting_NoSettings(t *testing.T) {

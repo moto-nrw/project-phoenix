@@ -2,11 +2,20 @@ package observability
 
 import (
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 )
+
+var pwaGaugeTestMu sync.Mutex
+
+func lockPWAGaugeGlobals(t *testing.T) {
+	t.Helper()
+	pwaGaugeTestMu.Lock()
+	t.Cleanup(pwaGaugeTestMu.Unlock)
+}
 
 func pwaGaugeValues(t *testing.T, tenant, portal string) (standalone, eligible float64) {
 	t.Helper()
@@ -16,6 +25,7 @@ func pwaGaugeValues(t *testing.T, tenant, portal string) (standalone, eligible f
 
 func TestRefreshPWAGaugesResetsVanishedLabels(t *testing.T) {
 	t.Parallel()
+	lockPWAGaugeGlobals(t)
 	RegisterPWAUsageStatsProvider(PWAUsageStatsProviderFunc(func() ([]PWAUsageStat, error) {
 		return []PWAUsageStat{
 			{TenantID: 301, Portal: "staff", StandaloneUsers: 3, EligibleUsers: 12},
@@ -42,6 +52,7 @@ func TestRefreshPWAGaugesResetsVanishedLabels(t *testing.T) {
 
 func TestRefreshPWAGaugesKeepsValuesOnProviderError(t *testing.T) {
 	t.Parallel()
+	lockPWAGaugeGlobals(t)
 	RegisterPWAUsageStatsProvider(PWAUsageStatsProviderFunc(func() ([]PWAUsageStat, error) {
 		return []PWAUsageStat{{TenantID: 302, Portal: "staff", StandaloneUsers: 5, EligibleUsers: 9}}, nil
 	}))
