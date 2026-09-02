@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	mealParticipationVersion     = "1.15.364"
+	mealParticipationVersion     = "1.15.365"
 	mealParticipationDescription = "Add recurring and date-specific lunch participation (#2638)"
 )
 

@@ -60,7 +60,7 @@ func candidateMigrationDataObjects(project, ref string) (map[string]struct{}, er
 		if err != nil {
 			return nil, fmt.Errorf("read candidate migration %s: %w", relativeFile, err)
 		}
-		objects, err := newRawCreateTableDataObjects(relativeFile, contents)
+		objects, err := migrationCreateDataObjects(relativeFile, contents)
 		if err != nil {
 			return nil, err
 		}
@@ -77,10 +77,10 @@ func candidateMigrationDataObjects(project, ref string) (map[string]struct{}, er
 	return result, nil
 }
 
-// newRawCreateTableDataObjects inspects only SQL string literals passed to
-// NewRaw. Plain comments or unrelated string constants therefore cannot grant
-// an ownership exception.
-func newRawCreateTableDataObjects(filename string, contents []byte) (map[string]struct{}, error) {
+// migrationCreateDataObjects inspects only SQL string literals passed to NewRaw
+// or ExecContext. Plain comments or unrelated string constants therefore cannot
+// grant an ownership exception.
+func migrationCreateDataObjects(filename string, contents []byte) (map[string]struct{}, error) {
 	file, err := parser.ParseFile(token.NewFileSet(), filename, contents, 0)
 	if err != nil {
 		return nil, fmt.Errorf("parse candidate migration %s: %w", filename, err)
@@ -88,14 +88,23 @@ func newRawCreateTableDataObjects(filename string, contents []byte) (map[string]
 	result := make(map[string]struct{})
 	ast.Inspect(file, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
-		if !ok || len(call.Args) == 0 {
+		if !ok {
 			return true
 		}
 		selector, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || selector.Sel.Name != "NewRaw" {
+		if !ok {
 			return true
 		}
-		literal, ok := call.Args[0].(*ast.BasicLit)
+		sqlArgument := 0
+		if selector.Sel.Name == "ExecContext" {
+			sqlArgument = 1
+		} else if selector.Sel.Name != "NewRaw" {
+			return true
+		}
+		if len(call.Args) <= sqlArgument {
+			return true
+		}
+		literal, ok := call.Args[sqlArgument].(*ast.BasicLit)
 		if !ok || literal.Kind != token.STRING {
 			return true
 		}

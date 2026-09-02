@@ -29,6 +29,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Default active-session inactivity timeout (issue #586, Rule 12).
 		"operations.session_inactivity_timeout_minutes",
 		"operations.operational_overview_scope",
+		// Who may set a class-wide arrival day exception (#2962).
+		"operations.class_arrival_exception_editors",
 		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
@@ -412,6 +414,26 @@ func TestOperationalOverviewScopeSetting(t *testing.T) {
 	// The retired flag must not come back: two settings answering the same
 	// question is exactly what #2380 removed.
 	assert.Nil(t, config.GetDefinition("operations.admin_supervision_overview"))
+}
+
+// TestClassArrivalExceptionEditorsSetting pins who may set a class-wide
+// arrival day exception (#2962): admins only unless a school opens it up.
+func TestClassArrivalExceptionEditorsSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyClassArrivalExceptionEditors)
+	require.NotNil(t, def, "operations.class_arrival_exception_editors should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.ClassArrivalExceptionEditorsAdmins, def.Default, "new schools start with Koordination only")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "aufsicht", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Nur Koordination und Admins", Value: config.ClassArrivalExceptionEditorsAdmins},
+		{Label: "Alle Mitarbeitenden", Value: config.ClassArrivalExceptionEditorsAllStaff},
+	}, def.Options.Static)
 }
 
 func TestOrganizationSetupSettings(t *testing.T) {

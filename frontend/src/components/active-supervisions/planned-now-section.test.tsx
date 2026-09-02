@@ -176,6 +176,43 @@ describe("PlannedNowSection", () => {
     }
   });
 
+  it("shows a class arrival exception as a neutral line, not as a warning", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            rosterPreview: [
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                warnings: [
+                  {
+                    kind: "class_arrival_exception",
+                    message:
+                      "Kommt heute um 12:45 Uhr (Klasse 2a: Unterricht fällt aus)",
+                    expectedArrival: "12:45",
+                    slotStart: "12:45",
+                    expectedGroupId: null,
+                    expectedGroupName: null,
+                    currentEducationGroupId: null,
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    const line = screen.getByText(
+      "Kommt heute um 12:45 Uhr (Klasse 2a: Unterricht fällt aus)",
+    );
+    expect(line.className).not.toContain("text-moto-amber-strong");
+    expect(screen.queryByLabelText(/Planungs-Hinweis/)).not.toBeInTheDocument();
+  });
+
   it("renders roster planning warnings", () => {
     render(
       <PlannedNowSection

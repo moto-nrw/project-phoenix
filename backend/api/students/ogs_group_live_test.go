@@ -535,9 +535,10 @@ func TestOGSGroupLive_QueryBudget(t *testing.T) {
 		"query count must be independent of group size (no per-student N+1)")
 
 	// Fixed budget: identity resolution (~6), group list + room (~4), students +
-	// snapshot (~6), status days + day planning (~6), transfers + settings (~4),
-	// tenant tx overhead (~6). Raise only with a written justification.
-	const maxQueries = 40
+	// snapshot (~6), status days + day planning (~6), class day exceptions (~1),
+	// transfers + settings (~4), tenant tx overhead (~6). Raise only with a
+	// written justification.
+	const maxQueries = 41
 	assert.LessOrEqual(t, largeCount, maxQueries,
 		"aggregated OGS request exceeded its query budget")
 }
