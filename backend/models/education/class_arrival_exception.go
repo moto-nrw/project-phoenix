@@ -59,7 +59,12 @@ func (e *ClassArrivalException) Validate() error {
 // the class, so a Betreuungskraft can tell a class-wide change from a
 // per-child one.
 func (e *ClassArrivalException) Label() string {
+	// Schools name their classes either "3b" or "Klasse 3b"; without the
+	// strip the label reads "Klasse Klasse 3b".
 	class := strings.TrimSpace(e.SchoolClass)
+	if len(class) > 7 && strings.EqualFold(class[:7], "klasse ") {
+		class = strings.TrimSpace(class[7:])
+	}
 	if e.Reason != nil && strings.TrimSpace(*e.Reason) != "" {
 		return "Klasse " + class + ": " + strings.TrimSpace(*e.Reason)
 	}
