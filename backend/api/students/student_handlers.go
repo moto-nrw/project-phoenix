@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -524,6 +525,10 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		AttendanceLogEnabled:  attendanceLogEnabled,
 		FeedbackEnabled:       feedbackEnabled,
 	}
+	if err := rs.enrichStudentConsents(r.Context(), &response, student, hasFullAccess); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
 
@@ -562,6 +567,34 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
+}
+
+func (rs *Resource) enrichStudentConsents(
+	ctx context.Context,
+	response *StudentDetailResponse,
+	student *users.Student,
+	hasFullAccess bool,
+) error {
+	if !hasFullAccess {
+		return nil
+	}
+	if rs.StudentConsents == nil {
+		return errors.New("student consent service not wired")
+	}
+
+	consents, err := rs.StudentConsents.CurrentStates(ctx, student, false)
+	if err != nil {
+		return err
+	}
+	response.Consents = make([]StudentConsentResponse, 0, len(consents))
+	for _, consent := range consents {
+		response.Consents = append(response.Consents, StudentConsentResponse{
+			Key:       consent.Key,
+			State:     consent.State,
+			ChangedAt: consent.ChangedAt,
+		})
+	}
+	return nil
 }
 
 // createPersonFromStudentRequest creates a Person object from a StudentRequest
@@ -1428,6 +1461,9 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
 		return false, err
 	}
+	if err := rs.recordConsentTransition(ctx, effectiveConsent, &before, fresh, statusHistoryNow); err != nil {
+		return false, err
+	}
 
 	if err := rs.resyncSourcedTemplatesOnClassChange(ctx, classChangeRequested, previousSchoolClass, fresh.SchoolClass); err != nil {
 		return false, err
@@ -1454,6 +1490,20 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 		return false, err
 	}
 	return companionsChanged, nil
+}
+
+func (rs *Resource) recordConsentTransition(ctx context.Context, effectiveConsent *bool, before, after *users.Student, changedAt time.Time) error {
+	if effectiveConsent == nil || rs.StudentConsents == nil {
+		return nil
+	}
+	return rs.StudentConsents.RecordTransitions(
+		ctx,
+		before,
+		after,
+		auditModels.StudentConsentSourceTenantPortal,
+		jwt.ActorAccountIDFromCtx(ctx),
+		changedAt,
+	)
 }
 
 // companionConflictRenderer returns the 409 payload when the transaction failed

@@ -1474,6 +1474,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 	// clamp included, or the diff describes a booking outside the care period.
 	dates := make(map[int64]timezone.Date, len(rows))
 	reviews := make(map[int64]*pendingReview, len(rows))
+	today := s.todayDate()
 	for _, row := range rows {
 		if row == nil || row.RequestChildID <= 0 {
 			continue
@@ -1485,7 +1486,6 @@ func (s *offeringChangeRequestService) pendingReviews(
 				phase = phasesByID[request.PhaseID]
 			}
 		}
-		today := s.todayDate()
 		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, today, phase)
 		dates[row.RequestChildID] = date
 		review := &pendingReview{AppliedDate: date}

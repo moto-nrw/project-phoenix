@@ -300,6 +300,20 @@ describe("getSchoolYear", () => {
 });
 
 describe("mapStudentResponse", () => {
+  it("preserves the current consent states for the staff detail", () => {
+    const consents = [
+      {
+        key: "photo" as const,
+        state: "withdrawn" as const,
+        changed_at: "2026-08-31T15:00:00Z",
+      },
+    ];
+
+    const result = mapStudentResponse({ ...sampleBackendStudent, consents });
+
+    expect(result.consents).toEqual(consents);
+  });
+
   it("maps backend student to frontend structure", () => {
     const result = mapStudentResponse(sampleBackendStudent);
 

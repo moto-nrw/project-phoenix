@@ -74,7 +74,8 @@ var seedCoverageExemptions = map[string]string{
 	"iot.push_subscriptions":   "browser/VAPID-bound state; a server-side seed cannot create an honest browser subscription",
 	"iot.pwa_standalone_usage": "not in prod yet (migration newer than the deployed image)",
 
-	"meta.migration_metadata": "empty in prod too",
+	"meta.migration_metadata":                       "empty in prod too",
+	"meta.parent_student_consent_permission_grants": "one-time migration ledger; only upgrades with pre-existing guardian relationships can contain rows",
 
 	"platform.operator_email_change_tokens": "empty in prod too",
 	"platform.operator_invitation_tokens":   "empty in prod too",

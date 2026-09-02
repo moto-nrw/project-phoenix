@@ -16629,7 +16629,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        439
+        456
       ],
       "tables": []
     },
@@ -16684,16 +16684,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         19
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "database/repositories/staff_projection_test_helpers.go",
-      "declaration": "NewFactoryWithSchoolMembership",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        18
       ],
       "tables": []
     },
@@ -20937,7 +20927,7 @@
       "declaration": "TestInvitationTokenRepository_InvalidateByTenantID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        608
+        624
       ],
       "tables": []
     },
@@ -20947,7 +20937,7 @@
       "declaration": "TestInvitationTokenRepository_List_NoFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        418
       ],
       "tables": []
     },
@@ -20957,7 +20947,7 @@
       "declaration": "TestInvitationTokenRepository_List_WithEmailFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        426
+        442
       ],
       "tables": []
     },
@@ -20967,7 +20957,7 @@
       "declaration": "TestInvitationTokenRepository_List_WithPendingFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        456
+        472
       ],
       "tables": []
     },
@@ -20987,7 +20977,7 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        489
+        505
       ],
       "tables": []
     },
@@ -20997,7 +20987,7 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_WithError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        520
+        536
       ],
       "tables": []
     },
@@ -21007,7 +20997,7 @@
       "declaration": "TestInvitationTokenRepository_Update_NilReturnsError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        588
+        604
       ],
       "tables": []
     },
@@ -21017,7 +21007,7 @@
       "declaration": "TestInvitationTokenRepository_Update_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        555
+        571
       ],
       "tables": []
     },
@@ -27068,17 +27058,17 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3804
+        3880
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "services/enrollment/decision_service_test.go",
-      "declaration": "newDecisionServiceForTestWithCareWithdrawal",
+      "declaration": "newDecisionServiceForTestWithDependencies",
       "target": "database/repositories.NewFactory",
       "lines": [
-        115
+        132
       ],
       "tables": []
     },
@@ -27956,6 +27946,16 @@
     },
     {
       "scope": "test",
+      "file": "services/factory_student_consent_test.go",
+      "declaration": "TestNewFactoryStudentConsentUsesAuditRoutedRepository",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        17
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/factory_test.go",
       "declaration": "TestNewFactory",
       "target": "database/repositories.NewFactory",
@@ -28476,6 +28476,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         43
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/parent/parent_consent_service_test.go",
+      "declaration": "buildConsentService",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        26
       ],
       "tables": []
     },

@@ -55,6 +55,8 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/settings/values/guardians.parent_invite_mode",
 		"/parent/me/children/44/related-accounts",
 		"/api/settings/values/guardians.parent_invite_mode",
+		"/api/students/44",
+		"/parent/me/children/44/consents/photo",
 		"/parent/me/children/44/master-data/guardian_profile/preferred_contact_method",
 		"/parent/me/children/44/master-data/requests",
 	}, paths)

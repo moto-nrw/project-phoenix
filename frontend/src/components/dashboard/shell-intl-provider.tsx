@@ -11,7 +11,8 @@ import { DEFAULT_LOCALE } from "~/i18n/locales";
 //
 // Besides the shell itself it carries the namespaces of the shared settings
 // cards, which the staff profile page and the school settings page (#2208)
-// mount: without them every label there renders as its message key.
+// mount, plus the consent summary shown in student master data. Without these
+// subsets every label there renders as its message key.
 const SHELL_MESSAGES = {
   parentNav: deMessages.parentNav,
   pwaInstallHint: deMessages.pwaInstallHint,
@@ -20,6 +21,9 @@ const SHELL_MESSAGES = {
   parentNotificationSetup: deMessages.parentNotificationSetup,
   parentCalendarSubscribe: deMessages.parentCalendarSubscribe,
   staffCalendarSubscribe: deMessages.staffCalendarSubscribe,
+  parentChild: {
+    consents: deMessages.parentChild.consents,
+  },
 };
 
 export function ShellIntlProvider({

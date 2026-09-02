@@ -8,8 +8,9 @@
  * arrive as strings per the project's frontend convention.
  */
 
-import { createLogger } from "~/lib/logger";
 import type { AppLocale } from "~/i18n/locales";
+import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
+import { createLogger } from "~/lib/logger";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
@@ -33,6 +34,13 @@ export interface Child {
   readonly enrolled_until?: string; // ISO date
   readonly school_name: string;
   readonly school_slug: string;
+}
+
+export type ChildConsentState = ConsentState;
+
+export interface ChildConsent extends ConsentRecord {
+  readonly can_withdraw: boolean;
+  readonly can_grant: boolean;
 }
 
 // Per-child status values exposed on the enrollment-requests list.
@@ -524,6 +532,34 @@ async function putJson<T>(url: string, body: unknown): Promise<T> {
  */
 export async function listMyChildren(): Promise<Child[]> {
   return getJson<Child[]>("/api/parent/me/children");
+}
+
+/** Reads the four current consent and acknowledgement states for one child. */
+export async function getChildConsents(
+  studentId: string,
+): Promise<ChildConsent[]> {
+  return getJson<ChildConsent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/consents`,
+  );
+}
+
+/** Withdraws the voluntary photo consent and returns all updated states. */
+export async function withdrawChildPhotoConsent(
+  studentId: string,
+): Promise<ChildConsent[]> {
+  return deleteJson<ChildConsent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/consents/photo`,
+  );
+}
+
+/** Records a new voluntary photo consent and returns all updated states. */
+export async function grantChildPhotoConsent(
+  studentId: string,
+): Promise<ChildConsent[]> {
+  return putJson<ChildConsent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/consents/photo`,
+    {},
+  );
 }
 
 /**

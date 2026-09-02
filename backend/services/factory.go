@@ -292,7 +292,8 @@ type Factory struct {
 	// StudentPhotos is set by EnableStudentPhotos. nil until the API layer
 	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
 	// service-layer one).
-	StudentPhotos users.StudentPhotoService
+	StudentPhotos   users.StudentPhotoService
+	StudentConsents users.StudentConsentService
 }
 
 // SetSettingsObservers wires delivery-owned metrics without coupling the
@@ -525,6 +526,7 @@ func newFactory(
 		return nil, err
 	}
 	repos.RouteAuditWrites(auditCommand)
+	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
 
@@ -1847,6 +1849,7 @@ func newFactory(
 			PickupScheduleRepo:  repos.StudentPickupSchedule,
 			RFIDCardRepo:        repos.RFIDCard,
 			Resolver:            relationshipResolver,
+			Consents:            studentConsentService,
 		},
 		db,
 	)
@@ -2142,6 +2145,7 @@ func newFactory(
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
 		StudentAudit:             studentAuditService,
+		StudentConsents:          studentConsentService,
 		CareWithdrawal:           careLifecycleService,
 		Broadcaster:              realtimeHub,
 		PickupGuardianNotifier:   pillEmitter,
@@ -2632,6 +2636,7 @@ func newFactory(
 		StudentGuardianRepo:       repos.StudentGuardian,
 		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
 		GuardianChangeAuditRepo:   repos.GuardianChange,
+		StudentConsents:           studentConsentService,
 		RequestChildRepo:          repos.RequestChild,
 		RequestChildOfferingRepo:  repos.RequestChildOffering,
 		CareOfferingRepo:          repos.CareOffering,
@@ -3046,6 +3051,7 @@ func newFactory(
 		StudentDeletion:      studentDeletionService,
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
+		StudentConsents:      studentConsentService,
 		MasterDataReview:     masterDataReviewService,
 		CareRequests:         careRequestService,
 		OfferingChanges:      offeringChangeRequestService,
@@ -3173,6 +3179,10 @@ func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
 		Unlinker:    deps.Unlinker,
 		DB:          deps.DB,
 		Logger:      deps.Logger,
+		Consents:    f.StudentConsents,
 	})
+	if setter, ok := f.Parent.(parent.StudentPhotoSetter); ok {
+		setter.SetStudentPhotos(f.StudentPhotos)
+	}
 	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }
