@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -13,8 +12,6 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
-
-const maxStatusDayOverviewRows = 10_000
 
 type statusDayOverviewPeople interface {
 	GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
@@ -72,37 +69,25 @@ func (s *StudentStatusDayOverviewService) GetOverview(ctx context.Context, group
 	if len(studentIDs) == 0 {
 		return &StatusDayOverview{Entries: []StatusDayOverviewEntry{}}, nil
 	}
+	orderedStudentIDs := orderOverviewStudentIDs(studentIDs, studentsByID, persons)
 	options := statusDayOverviewOptions(studentIDs, studentsByID, from, to, today, filters)
 	total, err := s.repo.CountWithOptions(ctx, options)
 	if err != nil {
 		return nil, err
 	}
-	if total > maxStatusDayOverviewRows {
-		return nil, fmt.Errorf("status day overview exceeds %d rows; narrow the date range or group selection", maxStatusDayOverviewRows)
-	}
-	// The stable date/name order needs the person names, which live with
-	// the People Directory (#2661): list the filtered set unpaginated, order
-	// it here, then take the requested page.
-	//
-	// The whole filtered window is loaded per request to apply the stable name
-	// order before pagination. The count above caps this enrichment at 10,000
-	// rows; larger requests must be narrowed by date range or group selection.
-	unpaginated := *options
-	unpaginated.Pagination = nil
-	rows, err := s.repo.ListOverviewWithOptions(ctx, &unpaginated)
+	rows, err := s.repo.ListOverviewWithOptions(ctx, options, orderedStudentIDs)
 	if err != nil {
 		return nil, err
 	}
-	sortStatusDayOverviewRows(rows, studentsByID, persons)
-	rows = pageStatusDayOverviewRows(rows, options.Pagination)
 	return &StatusDayOverview{Entries: assembleStatusDayOverview(rows, studentsByID, persons, groupsByID, today), HasMore: filters.Page*filters.PageSize < total}, nil
 }
 
-// sortStatusDayOverviewRows applies the overview order: date, person last
-// and first name, student, newest report first, then row ID.
-func sortStatusDayOverviewRows(rows []*activeModels.StudentStatusDay, students map[int64]*userModels.Student, persons map[int64]*userModels.Person) {
-	personOf := func(row *activeModels.StudentStatusDay) *userModels.Person {
-		if student := students[row.StudentID]; student != nil {
+// orderOverviewStudentIDs applies the name portion of the overview order. The
+// repository keeps date first and uses this rank before SQL pagination.
+func orderOverviewStudentIDs(ids []int64, students map[int64]*userModels.Student, persons map[int64]*userModels.Person) []int64 {
+	ordered := slices.Clone(ids)
+	personOf := func(studentID int64) *userModels.Person {
+		if student := students[studentID]; student != nil {
 			return persons[student.PersonID]
 		}
 		return nil
@@ -113,10 +98,7 @@ func sortStatusDayOverviewRows(rows []*activeModels.StudentStatusDay, students m
 		}
 		return person.LastName, person.FirstName
 	}
-	slices.SortStableFunc(rows, func(left, right *activeModels.StudentStatusDay) int {
-		if order := left.Date.Compare(right.Date); order != 0 {
-			return order
-		}
+	slices.SortFunc(ordered, func(left, right int64) int {
 		leftLast, leftFirst := nameOf(personOf(left))
 		rightLast, rightFirst := nameOf(personOf(right))
 		if order := strings.Compare(leftLast, rightLast); order != 0 {
@@ -125,34 +107,15 @@ func sortStatusDayOverviewRows(rows []*activeModels.StudentStatusDay, students m
 		if order := strings.Compare(leftFirst, rightFirst); order != 0 {
 			return order
 		}
-		if left.StudentID != right.StudentID {
-			if left.StudentID < right.StudentID {
+		if left != right {
+			if left < right {
 				return -1
 			}
 			return 1
 		}
-		if !left.ReportedAt.Equal(right.ReportedAt) {
-			return right.ReportedAt.Compare(left.ReportedAt)
-		}
-		if left.ID < right.ID {
-			return -1
-		}
-		if left.ID > right.ID {
-			return 1
-		}
 		return 0
 	})
-}
-
-func pageStatusDayOverviewRows(rows []*activeModels.StudentStatusDay, pagination *modelBase.Pagination) []*activeModels.StudentStatusDay {
-	if pagination == nil {
-		return rows
-	}
-	offset := pagination.Offset()
-	if offset >= len(rows) {
-		return []*activeModels.StudentStatusDay{}
-	}
-	return rows[offset:min(offset+pagination.PageSize, len(rows))]
+	return ordered
 }
 
 func statusDayOverviewOptions(studentIDs []int64, students map[int64]*userModels.Student, from, to, today timezone.Date, filters StatusDayOverviewFilters) *modelBase.QueryOptions {

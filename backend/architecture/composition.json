@@ -18797,7 +18797,7 @@
       "declaration": "TestStudentStatusDayRepository_ClearByIDAndDates",
       "target": "database/repositories.NewFactory",
       "lines": [
-        87
+        121
       ],
       "tables": []
     },
@@ -18807,7 +18807,7 @@
       "declaration": "TestStudentStatusDayRepository_CountEffectiveDashboardAbsences",
       "target": "database/repositories.NewFactory",
       "lines": [
-        164
+        198
       ],
       "tables": [
         "users.students"
@@ -18819,7 +18819,7 @@
       "declaration": "TestStudentStatusDayRepository_DateBoundaryRoundtrip",
       "target": "database/repositories.NewFactory",
       "lines": [
-        325
+        359
       ],
       "tables": [
         "active.student_status_days"
@@ -18828,10 +18828,20 @@
     {
       "scope": "test",
       "file": "database/repositories/active/student_status_day_test.go",
+      "declaration": "TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        86
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/student_status_day_test.go",
       "declaration": "TestStudentStatusDayRepository_NoteOnReReport",
       "target": "database/repositories.NewFactory",
       "lines": [
-        266
+        300
       ],
       "tables": []
     },
@@ -18841,7 +18851,7 @@
       "declaration": "TestStudentStatusDayRepository_TenantScope",
       "target": "database/repositories.NewFactory",
       "lines": [
-        137
+        171
       ],
       "tables": []
     },
@@ -18861,7 +18871,7 @@
       "declaration": "TestStudentStatusDayRepository_UpsertNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        250
+        284
       ],
       "tables": []
     },

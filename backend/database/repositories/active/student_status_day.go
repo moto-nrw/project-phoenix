@@ -15,6 +15,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 const tableExprActiveStudentStatusDaysAsStatusDay = `active.student_status_days AS "student_status_day"`
@@ -35,21 +36,26 @@ func NewStudentStatusDayRepository(db *bun.DB) active.StudentStatusDayOverviewRe
 	}
 }
 
-// ListOverviewWithOptions returns the matching rows in a deterministic
-// date/student order. The overview's name order and its pagination are
-// applied by the service once it has resolved the persons, so callers that
-// need name order pass options without pagination and page the sorted
-// result themselves.
-func (r *StudentStatusDayRepository) ListOverviewWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StudentStatusDay, error) {
+// ListOverviewWithOptions returns the matching rows in the supplied person
+// order. The service owns person lookups, while PostgreSQL applies that order
+// before pagination.
+func (r *StudentStatusDayRepository) ListOverviewWithOptions(ctx context.Context, options *modelBase.QueryOptions, orderedStudentIDs []int64) ([]*active.StudentStatusDay, error) {
 	var rows []*active.StudentStatusDay
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprActiveStudentStatusDaysAsStatusDay).
-		ColumnExpr(`"student_status_day".*`).
-		OrderExpr(`"student_status_day".date ASC`).
-		OrderExpr(`"student_status_day".student_id ASC`).
-		OrderExpr(`"student_status_day".reported_at DESC`).
-		OrderExpr(`"student_status_day".id ASC`)
+		ColumnExpr(`"student_status_day".*`)
+	if len(orderedStudentIDs) > 0 {
+		query = query.OrderExpr(`"student_status_day".date ASC`).
+			OrderExpr(`array_position(?::bigint[], "student_status_day".student_id) ASC`, pgdialect.Array(orderedStudentIDs)).
+			OrderExpr(`"student_status_day".reported_at DESC`).
+			OrderExpr(`"student_status_day".id ASC`)
+	} else {
+		query = query.OrderExpr(`"student_status_day".date ASC`).
+			OrderExpr(`"student_status_day".student_id ASC`).
+			OrderExpr(`"student_status_day".reported_at DESC`).
+			OrderExpr(`"student_status_day".id ASC`)
+	}
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where(`"student_status_day".tenant_id = ?`, tenantID)
 	}

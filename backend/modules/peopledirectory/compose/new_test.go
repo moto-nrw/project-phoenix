@@ -211,6 +211,23 @@ func TestModuleReleasesAndRestoresTagsIdempotently(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestModuleRestoresTagHeldByDeletedPerson(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	card := testpkg.CreateTestRFIDCard(t, db, "DELETED")
+	holder := testpkg.CreateTestPerson(t, db, "Deleted", "Holder")
+	recipient := testpkg.CreateTestPerson(t, db, "New", "Holder")
+
+	require.NoError(t, module.LinkTag(ctx, holder.ID, card.ID))
+	require.NoError(t, module.DeletePerson(ctx, holder.ID))
+
+	restored, err := module.RestoreTag(ctx, recipient.ID, card.ID)
+	require.NoError(t, err)
+	assert.True(t, restored)
+}
+
 func TestModuleReleaseTagsRollsBackWithOuterFailureAndRetries(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

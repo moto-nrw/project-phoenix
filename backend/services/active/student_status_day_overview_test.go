@@ -9,6 +9,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStudentEnrolledOn(t *testing.T) {
@@ -52,17 +53,19 @@ func TestFilterOverviewStudentIDsExcludesPeopleTheDirectoryDoesNotReturn(t *test
 
 type cappedOverviewRepository struct {
 	activeModels.StudentStatusDayOverviewRepository
-	total      int
-	listCalled bool
+	total       int
+	listCalled  bool
+	listOptions *modelBase.QueryOptions
 }
 
 func (r *cappedOverviewRepository) CountWithOptions(context.Context, *modelBase.QueryOptions) (int, error) {
 	return r.total, nil
 }
 
-func (r *cappedOverviewRepository) ListOverviewWithOptions(context.Context, *modelBase.QueryOptions) ([]*activeModels.StudentStatusDay, error) {
+func (r *cappedOverviewRepository) ListOverviewWithOptions(_ context.Context, options *modelBase.QueryOptions, _ []int64) ([]*activeModels.StudentStatusDay, error) {
 	r.listCalled = true
-	return nil, nil
+	r.listOptions = options
+	return []*activeModels.StudentStatusDay{{ID: 1, StudentID: 1}}, nil
 }
 
 type overviewPeopleStub struct {
@@ -78,11 +81,11 @@ func (s overviewPeopleStub) GetByIDs(context.Context, []int64) (map[int64]*userM
 	return s.persons, nil
 }
 
-func TestGetOverviewRejectsUnboundedEnrichment(t *testing.T) {
+func TestGetOverviewPaginatesLargeResultSets(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 8, 20)
-	repo := &cappedOverviewRepository{total: maxStatusDayOverviewRows + 1}
+	repo := &cappedOverviewRepository{total: 10_001}
 	people := overviewPeopleStub{
 		students: []*userModels.Student{{ID: 1, PersonID: 11, Status: userModels.StudentStatusActive}},
 		persons:  map[int64]*userModels.Person{11: {ID: 11, FirstName: "Mia", LastName: "Muster"}},
@@ -93,7 +96,10 @@ func TestGetOverviewRejectsUnboundedEnrichment(t *testing.T) {
 		StatusDayOverviewFilters{Page: 1, PageSize: 100},
 	)
 
-	assert.Nil(t, overview)
-	assert.ErrorContains(t, err, "exceeds")
-	assert.False(t, repo.listCalled)
+	require.NoError(t, err)
+	require.NotNil(t, overview)
+	assert.True(t, repo.listCalled)
+	require.NotNil(t, repo.listOptions)
+	require.NotNil(t, repo.listOptions.Pagination)
+	assert.Equal(t, modelBase.Pagination{Page: 1, PageSize: 100}, *repo.listOptions.Pagination)
 }

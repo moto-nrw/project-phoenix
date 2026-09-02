@@ -383,7 +383,7 @@ func (s *Store) RestoreTag(ctx context.Context, personID int64, tagID string) (b
 		Where(`"person".tenant_id = ?`, tenantID).
 		Where(`"person".tag_id IS NULL`).
 		Where(`"person".deleted_at IS NULL`).
-		Where(`NOT EXISTS (SELECT 1 FROM users.persons AS "holder" WHERE "holder".tenant_id = ? AND "holder".tag_id = ?)`, tenantID, tagID)
+		Where(`NOT EXISTS (SELECT 1 FROM users.persons AS "holder" WHERE "holder".tenant_id = ? AND "holder".tag_id = ? AND "holder".deleted_at IS NULL)`, tenantID, tagID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
