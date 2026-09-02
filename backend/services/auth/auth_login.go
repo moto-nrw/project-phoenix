@@ -1794,6 +1794,7 @@ func refreshSingleflightKey(refreshToken string, proofHash []byte) string {
 // RefreshTokenWithAudit generates new token pair from a refresh token with audit logging.
 // Concurrent calls with the same refresh token are deduplicated via singleflight.
 func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) (string, string, error) {
+	ctx = s.withTenantRuntime(ctx)
 	// Use the caller's context so cancellation propagates to the DB transaction.
 	// If the first caller disconnects (e.g. frontend 5s timeout), the transaction
 	// rolls back and the old refresh token is preserved — callers retry safely.

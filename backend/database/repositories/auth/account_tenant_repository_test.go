@@ -5,12 +5,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) authModels.AccountTenantRepository {
+	t.Helper()
+	capability, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
+	factory := repositories.NewFactory(db)
+	factory.BindOrganizationTenancy(capability)
+	return factory.AccountTenant
+}
 
 func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	t.Parallel()
@@ -287,7 +298,7 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -303,7 +314,7 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := authRepo.NewAccountTenantRepository(db)
+	repo := newSchoolProjectedAccountTenantRepository(t, db)
 
 	t.Run("returns accounts for organization", func(t *testing.T) {
 		accounts, err := repo.ListAccountsByOrganizationID(ctx, orgID)
@@ -331,7 +342,7 @@ func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -346,7 +357,7 @@ func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := authRepo.NewAccountTenantRepository(db)
+	repo := newSchoolProjectedAccountTenantRepository(t, db)
 	accounts, err := repo.ListAllAccounts(ctx)
 	require.NoError(t, err)
 
@@ -378,7 +389,7 @@ func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testin
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -397,7 +408,7 @@ func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testin
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	})
 
-	repo := authRepo.NewAccountTenantRepository(db)
+	repo := newSchoolProjectedAccountTenantRepository(t, db)
 
 	// Baseline: account is visible while school is active.
 	accounts, err := repo.ListAllAccounts(ctx)

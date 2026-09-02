@@ -18,10 +18,20 @@ type Store interface {
 	CountNonDeletedSchools(context.Context, int64) (int, domain.OperationStats, error)
 	SoftDelete(context.Context, int64) (domain.OperationStats, error)
 	Restore(context.Context, int64) (domain.OperationStats, error)
+	CreateSchool(context.Context, domain.CreateSchool) (domain.School, domain.OperationStats, error)
+	UpdateSchool(context.Context, domain.UpdateSchool) (domain.School, domain.OperationStats, error)
+	FindSchoolByID(context.Context, int64, string) (domain.School, bool, domain.OperationStats, error)
+	FindSchoolBySlug(context.Context, string) (domain.School, bool, domain.OperationStats, error)
+	FindSchoolByOrganizationAndSlug(context.Context, int64, string) (domain.School, bool, domain.OperationStats, error)
+	FindSchoolBySubdomain(context.Context, string) (domain.School, bool, domain.OperationStats, error)
+	ListSchools(context.Context, []int64, *int64, string) ([]domain.School, domain.OperationStats, error)
+	CountSchoolsByID(context.Context, []int64) (int, domain.OperationStats, error)
+	SetSchoolDeleted(context.Context, int64, bool) (domain.OperationStats, error)
 }
 
 type Transaction interface {
 	RunAdmin(context.Context, func(context.Context) error) error
+	RunRead(context.Context, func(context.Context) error) error
 }
 
 type Observation struct {

@@ -25,5 +25,6 @@ type UnregisteredTagScan struct {
 type UnregisteredTagScanFilter struct {
 	SchoolID       *int64
 	OrganizationID *int64
+	SchoolIDs      []int64
 	UnresolvedOnly bool
 }
