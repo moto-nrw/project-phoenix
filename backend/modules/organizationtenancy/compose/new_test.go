@@ -78,6 +78,96 @@ func TestModulePersistsOrganizationLifecycleAtPublicSeam(t *testing.T) {
 	assert.False(t, persistedRestored.IsDeleted())
 }
 
+func TestModulePersistsSchoolLifecycleAtPublicSeam(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := adminContext(t)
+	suffix := time.Now().UnixNano()
+
+	organization, err := module.CreateOrganization(ctx, organizationtenancy.CreateOrganization{
+		Name: fmt.Sprintf("School Organization %d", suffix), Slug: fmt.Sprintf("school-organization-%d", suffix), Active: true,
+	})
+	require.NoError(t, err)
+
+	created, err := module.CreateSchool(ctx, organizationtenancy.CreateSchool{
+		OrganizationID: organization.ID,
+		Name:           fmt.Sprintf("School %d", suffix),
+		Slug:           fmt.Sprintf("school-%d", suffix),
+		Subdomain:      fmt.Sprintf("school-%d", suffix),
+		Active:         true,
+		Address:        "Testweg 1",
+		City:           "Köln",
+		Zip:            "50667",
+		Email:          "schule@example.test",
+	})
+	require.NoError(t, err)
+	assert.Positive(t, created.ID)
+
+	found, err := module.FindSchool(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, created.Subdomain, found.Subdomain)
+	assert.Equal(t, organization.ID, found.OrganizationID)
+
+	listed, err := module.ListSchoolsByID(ctx, []int64{created.ID})
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, created.ID, listed[0].ID)
+
+	updated, err := module.UpdateSchool(ctx, organizationtenancy.UpdateSchool{
+		ID:             created.ID,
+		OrganizationID: organization.ID,
+		Name:           "Renamed School",
+		Slug:           created.Slug,
+		Subdomain:      created.Subdomain,
+		Active:         false,
+		Hidden:         true,
+		Address:        created.Address,
+		City:           created.City,
+		Zip:            created.Zip,
+		Email:          created.Email,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Renamed School", updated.Name)
+	assert.False(t, updated.Active)
+	assert.True(t, updated.Hidden)
+
+	deleted, err := module.SoftDeleteSchool(ctx, created.ID)
+	require.NoError(t, err)
+	assert.True(t, deleted.IsDeleted())
+
+	restored, err := module.RestoreSchool(ctx, created.ID)
+	require.NoError(t, err)
+	assert.False(t, restored.IsDeleted())
+}
+
+func TestSchoolLifecycleRejectsMissingOrDeletedOrganization(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := adminContext(t)
+	suffix := time.Now().UnixNano()
+
+	_, err := module.CreateSchool(ctx, organizationtenancy.CreateSchool{
+		OrganizationID: 9_000_000_000 + suffix%100_000,
+		Name:           "Orphan", Slug: fmt.Sprintf("orphan-%d", suffix), Subdomain: fmt.Sprintf("orphan-%d", suffix), Active: true,
+	})
+	require.ErrorIs(t, err, organizationtenancy.ErrOrganizationNotFound)
+
+	organization, err := module.CreateOrganization(ctx, organizationtenancy.CreateOrganization{
+		Name: fmt.Sprintf("Deleted Parent %d", suffix), Slug: fmt.Sprintf("deleted-parent-%d", suffix), Active: true,
+	})
+	require.NoError(t, err)
+	_, err = module.SoftDeleteOrganization(ctx, organization.ID)
+	require.NoError(t, err)
+
+	_, err = module.CreateSchool(ctx, organizationtenancy.CreateSchool{
+		OrganizationID: organization.ID,
+		Name:           "Deleted Parent School", Slug: fmt.Sprintf("deleted-school-%d", suffix), Subdomain: fmt.Sprintf("deleted-school-%d", suffix), Active: true,
+	})
+	assert.ErrorIs(t, err, organizationtenancy.ErrOrganizationDeleted)
+}
+
 func TestModuleObservationsUsePublicErrors(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -125,6 +215,10 @@ func TestModuleKeepsPersistenceFailuresVisible(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
+
+	_, err = module.ListSchools(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestOrganizationTableDeniesTwoTenantRoles(t *testing.T) {
@@ -163,6 +257,52 @@ func TestOrganizationTableDeniesTwoTenantRoles(t *testing.T) {
 				return updateErr
 			})
 			require.Error(t, writeErr, "tenant role must not mutate platform.organizations")
+		})
+	}
+}
+
+func TestSchoolTablePreservesTwoTenantRolePermissions(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := adminContext(t)
+	suffix := time.Now().UnixNano()
+	organization, err := module.CreateOrganization(ctx, organizationtenancy.CreateOrganization{
+		Name: fmt.Sprintf("School RLS Organization %d", suffix), Slug: fmt.Sprintf("school-rls-organization-%d", suffix), Active: true,
+	})
+	require.NoError(t, err)
+	school, err := module.CreateSchool(ctx, organizationtenancy.CreateSchool{
+		OrganizationID: organization.ID, Name: "School RLS", Slug: fmt.Sprintf("school-rls-%d", suffix),
+		Subdomain: fmt.Sprintf("school-rls-%d", suffix), Active: true,
+	})
+	require.NoError(t, err)
+
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	for _, rawTenantID := range []int64{testpkg.Tenant(t), otherTenantID} {
+		tenantID, tenantErr := tenant.NewTenantID(rawTenantID)
+		require.NoError(t, tenantErr)
+		t.Run(fmt.Sprintf("tenant-%d", rawTenantID), func(t *testing.T) {
+			tenantCtx := testpkg.WithTestTenantRuntime(t, context.Background())
+			readErr := tenant.WithinTenant(tenantCtx, tenantID, func(txCtx context.Context) error {
+				raw, ok := tenant.TransactionFromContext(txCtx)
+				require.True(t, ok)
+				tx := raw.(bun.Tx)
+				var name string
+				return tx.NewSelect().TableExpr(`platform.schools AS "school"`).
+					ColumnExpr(`"school".name`).Where(`"school".id = ?`, school.ID).Scan(txCtx, &name)
+			})
+			require.NoError(t, readErr, "tenant roles retain global school lookup access")
+
+			writeErr := tenant.WithinTenant(tenantCtx, tenantID, func(txCtx context.Context) error {
+				raw, ok := tenant.TransactionFromContext(txCtx)
+				require.True(t, ok)
+				tx := raw.(bun.Tx)
+				_, updateErr := tx.NewUpdate().TableExpr(`platform.schools AS "school"`).
+					Set("name = ?", "forbidden").Where(`"school".id = ?`, school.ID).Exec(txCtx)
+				return updateErr
+			})
+			require.Error(t, writeErr, "tenant roles must not mutate platform.schools")
 		})
 	}
 }

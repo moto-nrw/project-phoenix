@@ -54,6 +54,52 @@ func (e *recordingEngine) FindForSchoolMutation(context.Context, int64) (organiz
 	return organizationtenancy.Organization{}, nil
 }
 
+func (e *recordingEngine) CreateSchool(context.Context, organizationtenancy.CreateSchool) (organizationtenancy.School, error) {
+	return organizationtenancy.School{}, nil
+}
+func (e *recordingEngine) UpdateSchool(context.Context, organizationtenancy.UpdateSchool) (organizationtenancy.School, error) {
+	return organizationtenancy.School{}, nil
+}
+func (e *recordingEngine) SoftDeleteSchool(context.Context, int64) (organizationtenancy.School, error) {
+	return organizationtenancy.School{}, nil
+}
+func (e *recordingEngine) RestoreSchool(context.Context, int64) (organizationtenancy.School, error) {
+	return organizationtenancy.School{}, nil
+}
+func (e *recordingEngine) FindSchoolByID(context.Context, int64, string) (organizationtenancy.School, error) {
+	return organizationtenancy.School{}, nil
+}
+func (e *recordingEngine) FindSchoolBySlug(context.Context, string) (organizationtenancy.School, error) {
+	return organizationtenancy.School{}, nil
+}
+func (e *recordingEngine) FindSchoolByOrganizationAndSlug(context.Context, int64, string) (organizationtenancy.School, error) {
+	return organizationtenancy.School{}, nil
+}
+func (e *recordingEngine) FindSchoolBySubdomain(context.Context, string) (organizationtenancy.School, error) {
+	return organizationtenancy.School{}, nil
+}
+func (e *recordingEngine) ListSchools(context.Context) ([]organizationtenancy.School, error) {
+	return nil, nil
+}
+func (e *recordingEngine) ListSchoolsByID(context.Context, []int64) ([]organizationtenancy.School, error) {
+	return nil, nil
+}
+func (e *recordingEngine) ListSchoolsByOrganization(context.Context, int64) ([]organizationtenancy.School, error) {
+	return nil, nil
+}
+func (e *recordingEngine) ListNonDeletedSchools(context.Context) ([]organizationtenancy.School, error) {
+	return nil, nil
+}
+func (e *recordingEngine) ListActiveSchools(context.Context) ([]organizationtenancy.School, error) {
+	return nil, nil
+}
+func (e *recordingEngine) ListPublicSchools(context.Context) ([]organizationtenancy.School, error) {
+	return nil, nil
+}
+func (e *recordingEngine) CountSchoolsByID(context.Context, []int64) (int, error) {
+	return 0, nil
+}
+
 func TestCommandNormalizesOrganizationAtPublicSeam(t *testing.T) {
 	t.Parallel()
 
@@ -102,6 +148,13 @@ func TestErrorCodeIsStable(t *testing.T) {
 		{name: "already deleted", err: organizationtenancy.ErrOrganizationAlreadyDeleted, want: "already_deleted"},
 		{name: "not deleted", err: organizationtenancy.ErrOrganizationNotDeleted, want: "not_deleted"},
 		{name: "has schools", err: &organizationtenancy.OrganizationHasSchoolsError{SchoolCount: 2}, want: "has_schools"},
+		{name: "school not found", err: organizationtenancy.ErrSchoolNotFound, want: "school_not_found"},
+		{name: "invalid school", err: &organizationtenancy.InvalidSchoolError{Reason: "bad input"}, want: "invalid_school"},
+		{name: "school slug conflict", err: organizationtenancy.ErrSchoolSlugConflict, want: "school_slug_conflict"},
+		{name: "school subdomain conflict", err: organizationtenancy.ErrSchoolDomainConflict, want: "school_subdomain_conflict"},
+		{name: "school already deleted", err: organizationtenancy.ErrSchoolAlreadyDeleted, want: "school_already_deleted"},
+		{name: "school not deleted", err: organizationtenancy.ErrSchoolNotDeleted, want: "school_not_deleted"},
+		{name: "school organization deleted", err: organizationtenancy.ErrOrganizationDeleted, want: "school_organization_deleted"},
 		{name: "unexpected", err: errors.New("database unavailable"), want: "internal_error"},
 	}
 

@@ -494,6 +494,33 @@ func TestMapSchoolCreateConflict_SubdomainConflict(t *testing.T) {
 	assert.Contains(t, err.Error(), "school subdomain already exists")
 }
 
+func TestMapSchoolCapabilityErrorPreservesOperatorContracts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want any
+	}{
+		{name: "subdomain conflict", err: organizationtenancy.ErrSchoolDomainConflict, want: &ConflictError{}},
+		{name: "slug conflict", err: organizationtenancy.ErrSchoolSlugConflict, want: &ConflictError{}},
+		{name: "missing school", err: organizationtenancy.ErrSchoolNotFound, want: &SchoolNotFoundError{}},
+		{name: "deleted school", err: organizationtenancy.ErrSchoolAlreadyDeleted, want: &SchoolAlreadyDeletedError{}},
+		{name: "active school restore", err: organizationtenancy.ErrSchoolNotDeleted, want: &SchoolNotDeletedError{}},
+		{name: "deleted organization", err: organizationtenancy.ErrOrganizationDeleted, want: &OrganizationDeletedError{}},
+		{name: "missing organization", err: organizationtenancy.ErrOrganizationNotFound, want: &OrganizationNotFoundError{}},
+		{name: "invalid school", err: organizationtenancy.ErrInvalidSchool, want: &InvalidDataError{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mapped := mapSchoolCapabilityError(tt.err, 17, 23)
+			require.IsType(t, tt.want, mapped)
+		})
+	}
+	require.Nil(t, mapSchoolCapabilityError(errors.New("database unavailable"), 17, 23))
+}
+
 func TestWithAdminTx_WithoutHandlerRunsCallback(t *testing.T) {
 	t.Parallel()
 

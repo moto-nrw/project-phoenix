@@ -19,22 +19,38 @@ const (
 	accountTableAlias = `auth.accounts AS "account"`
 )
 
+type manageableSchoolIDsKey struct{}
+
+// WithManageableSchoolIDs attaches the active school set resolved by the
+// Organization & Tenancy capability for an organization-scoped operation.
+func WithManageableSchoolIDs(ctx context.Context, ids []int64) context.Context {
+	return context.WithValue(ctx, manageableSchoolIDsKey{}, append([]int64(nil), ids...))
+}
+
+func manageableSchoolIDs(ctx context.Context) []int64 {
+	ids, _ := ctx.Value(manageableSchoolIDsKey{}).([]int64)
+	return ids
+}
+
+// OrganizationScope reports the organization selected by the caller context.
+func OrganizationScope(ctx context.Context) (int64, bool) {
+	id := tenant.OrgFromContext(ctx)
+	return id, tenant.ScopeFromContext(ctx) == tenant.ScopeOrg && id > 0
+}
+
 func accountMembershipScope(ctx context.Context) (string, []any) {
 	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
-		organizationID := tenant.OrgFromContext(ctx)
-		if organizationID == 0 {
+		schoolIDs := manageableSchoolIDs(ctx)
+		if tenant.OrgFromContext(ctx) == 0 || len(schoolIDs) == 0 {
 			return "FALSE", nil
 		}
 		return `EXISTS (
 			SELECT 1
 			FROM auth.account_tenants AS "account_tenant"
-			INNER JOIN platform.schools AS "school" ON "school".id = "account_tenant".tenant_id
 			WHERE "account_tenant".account_id = "account".id
 			  AND "account_tenant".status = ?
-			  AND "school".organization_id = ?
-			  AND "school".active = TRUE
-			  AND "school".deleted_at IS NULL
-		)`, []any{auth.AccountTenantStatusActive, organizationID}
+			  AND "account_tenant".tenant_id IN (?)
+		)`, []any{auth.AccountTenantStatusActive, bun.List(schoolIDs)}
 	}
 	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
 		return "", nil
@@ -562,16 +578,13 @@ func (r *AccountRepository) applyRoleFilter(ctx context.Context, query *bun.Sele
 			Where(`LOWER("role".name) = LOWER(?)`, strValue).
 			Distinct()
 		if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
-			organizationID := tenant.OrgFromContext(ctx)
-			if organizationID == 0 {
+			schoolIDs := manageableSchoolIDs(ctx)
+			if tenant.OrgFromContext(ctx) == 0 || len(schoolIDs) == 0 {
 				return query.Where("FALSE")
 			}
 			return query.
-				Join(`INNER JOIN platform.schools AS "role_school" ON "role_school".id = "account_role".tenant_id`).
 				Join(`INNER JOIN auth.account_tenants AS "role_account_tenant" ON "role_account_tenant".account_id = "account_role".account_id AND "role_account_tenant".tenant_id = "account_role".tenant_id`).
-				Where(`"role_school".organization_id = ?`, organizationID).
-				Where(`"role_school".active = TRUE`).
-				Where(`"role_school".deleted_at IS NULL`).
+				Where(`"account_role".tenant_id IN (?)`, bun.List(schoolIDs)).
 				Where(`"role_account_tenant".status = ?`, auth.AccountTenantStatusActive)
 		}
 		if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {

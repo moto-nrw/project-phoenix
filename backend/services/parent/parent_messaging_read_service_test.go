@@ -37,6 +37,9 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
+	organizationTenancy, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
+	repos.BindOrganizationTenancy(organizationTenancy)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,

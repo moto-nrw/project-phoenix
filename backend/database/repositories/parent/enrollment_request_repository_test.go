@@ -124,7 +124,7 @@ func insertTestPhase(t *testing.T, db *bun.DB, tenantID int64, name string) int6
 // tenant.WithAdminTx around it).
 func listByAccount(t *testing.T, db *bun.DB, accountID int64) []*parentModels.EnrollmentRequestSummary {
 	t.Helper()
-	repo := parentRepo.NewEnrollmentRequestRepository(db)
+	repo := newSchoolProjectionFactory(t, db).ParentEnrollmentRequest
 	var out []*parentModels.EnrollmentRequestSummary
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		got, listErr := repo.ListByAccount(ctx, accountID)
