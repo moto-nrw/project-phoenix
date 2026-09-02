@@ -310,12 +310,11 @@ export function TenantPage({
       {/* Eine Fläche von Titel bis Reiter. Die Reiter lagen vorher frei auf
           dem gemusterten Grund und sahen aus wie nachträglich dazwischen
           geschoben; sie sind jetzt die letzte Zeile des Kopfes. */}
-      {/* Auch unter sm ist der Kopf eine Karte, mit demselben Innenrand wie
-          die Inhaltskarten darunter (16 px). Flach auf dem gemusterten Grund
-          lasen sich Statuszeile, Reiter und Bedienband als drei lose Teile
-          über der ersten Karte; als Karte sind sie die erste. Den Seitennamen
-          trägt weiterhin die Kopfzeile der Shell (siehe h1). */}
-      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      {/* Auf kleinen Bildschirmen liegt der Kopf flach auf dem gemusterten
+          Grund. Die spezielle Klasse überschreibt die ungeschichtete
+          Flächenklasse auch dann zuverlässig, wenn Tailwind-Utilities in
+          einer CSS-Layer stehen. */}
+      <header className="moto-content-surface moto-tenant-page-header rounded-2xl border p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:p-0">
         {back && (
           <MobileBackButton
             href={backHref}

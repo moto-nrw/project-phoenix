@@ -8,6 +8,8 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { Skeleton } from "~/components/ui/skeleton";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
@@ -339,25 +341,6 @@ function TeachersPageContent() {
       loading={loading}
       sessionLoading={status === "loading"}
       error={error}
-      empty={
-        filteredTeachers.length === 0
-          ? {
-              title: searchTerm
-                ? "Kein Personal gefunden"
-                : "Kein Personal vorhanden",
-              description: searchTerm
-                ? "Versuchen Sie andere Suchkriterien."
-                : "Laden Sie die erste Person ein, damit sie sich anmelden kann.",
-              icon: (
-                <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.staff.icon}
-                  tone={MOTO_CONCEPTS.staff.tone}
-                  size={48}
-                />
-              ),
-            }
-          : null
-      }
       overlays={
         <>
           {canManageUsers ? (
@@ -532,7 +515,25 @@ function TeachersPageContent() {
         </div>
       </RoleGuard>
 
-      {canShowDetail ? (
+      {filteredTeachers.length === 0 ? (
+        <SectionCard>
+          <EmptyState
+            title={searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"}
+            description={
+              searchTerm
+                ? "Versuchen Sie andere Suchkriterien."
+                : "Laden Sie die erste Person ein, damit sie sich anmelden kann."
+            }
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.staff.icon}
+                tone={MOTO_CONCEPTS.staff.tone}
+                size={48}
+              />
+            }
+          />
+        </SectionCard>
+      ) : canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <StaffMasterDetail
             groupDefinitions={groupDefinitions}
