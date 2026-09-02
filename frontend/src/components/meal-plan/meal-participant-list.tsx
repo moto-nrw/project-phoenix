@@ -93,61 +93,53 @@ export function MealParticipantList() {
   return (
     <section className="space-y-4" aria-labelledby="meal-participants-title">
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div>
-          <h2
-            id="meal-participants-title"
-            className="text-lg font-semibold text-gray-900"
-          >
-            Tagesliste für die Küche
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen
-            angemeldet sind.
-          </p>
-          {cutoffTime ? (
-            <p className="mt-1 text-sm font-medium text-gray-700">
-              Änderungen für diesen Tag sind bis {cutoffTime} Uhr möglich.
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2
+              id="meal-participants-title"
+              className="text-lg font-semibold text-gray-900"
+            >
+              Tagesliste für die Küche
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen
+              angemeldet sind.
             </p>
-          ) : null}
-        </div>
+            {cutoffTime ? (
+              <p className="mt-1 text-sm font-medium text-gray-700">
+                Änderungen für diesen Tag sind bis {cutoffTime} Uhr möglich.
+              </p>
+            ) : null}
+          </div>
 
-        <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">Datum</span>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:shrink-0">
             <ISODatePicker
               id="meal-participant-date"
               value={date}
               onChange={setDate}
               ariaLabel={`Datum: ${formatDate(date)}`}
               calendarLayout="popover"
-              controlSize="md"
               hideClearButton
               required
-              className="min-w-0 flex-1 sm:w-44 sm:flex-none"
+              className="w-full sm:w-auto"
+              triggerClassName="h-8 w-full flex-none justify-center rounded-full px-3 py-0 text-xs font-medium sm:w-auto sm:justify-start"
             />
-          </div>
 
-          <div
-            role="group"
-            aria-labelledby="meal-participant-export-label"
-            className="flex flex-col items-start gap-2 sm:ms-auto sm:flex-row sm:items-center"
-          >
-            <span
-              id="meal-participant-export-label"
-              className="text-sm font-medium text-gray-700"
+            <div
+              role="group"
+              aria-label="Tagesliste herunterladen"
+              className="flex flex-wrap gap-2 sm:justify-end"
             >
-              Export
-            </span>
-            <div className="flex gap-2">
               <Button
                 type="button"
-                variant="primary"
-                size="sm"
-                className="gap-2"
+                variant="outline"
+                size="md"
+                className="gap-2 bg-white"
+                aria-label="Tagesliste als PDF herunterladen"
                 aria-busy={exporting === "pdf"}
                 onClick={() => void download("pdf")}
                 isLoading={exporting === "pdf"}
-                loadingText="PDF wird erstellt…"
+                loadingText="Wird heruntergeladen…"
                 disabled={loading || error || exporting !== null}
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
@@ -156,25 +148,26 @@ export function MealParticipantList() {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
+                size="md"
                 className="gap-2 bg-white"
+                aria-label="Tagesliste als Excel-Datei herunterladen"
                 aria-busy={exporting === "xlsx"}
                 onClick={() => void download("xlsx")}
                 isLoading={exporting === "xlsx"}
-                loadingText="Excel wird erstellt…"
+                loadingText="Wird heruntergeladen…"
                 disabled={loading || error || exporting !== null}
               >
                 <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
                 Excel
               </Button>
+              <span className="sr-only" role="status" aria-live="polite">
+                {exporting === "pdf"
+                  ? "PDF wird heruntergeladen."
+                  : exporting === "xlsx"
+                    ? "Excel wird heruntergeladen."
+                    : ""}
+              </span>
             </div>
-            <span className="sr-only" role="status" aria-live="polite">
-              {exporting === "pdf"
-                ? "PDF wird erstellt."
-                : exporting === "xlsx"
-                  ? "Excel wird erstellt."
-                  : ""}
-            </span>
           </div>
         </div>
       </div>

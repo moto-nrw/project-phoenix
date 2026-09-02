@@ -59,6 +59,7 @@ describe("MealParticipantList", () => {
       name: "Datum: 07.09.2026",
     });
     expect(datePicker).toBeInTheDocument();
+    expect(datePicker).toHaveClass("h-8", "rounded-full");
     expect(
       document.querySelector('input[type="date"]'),
     ).not.toBeInTheDocument();
@@ -87,12 +88,22 @@ describe("MealParticipantList", () => {
     render(<MealParticipantList />);
 
     await screen.findByText("Mittagessen am 07.09.2026");
-    expect(screen.getByRole("group", { name: "Export" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
     expect(
-      screen.getByRole("button", { name: "PDF wird erstellt…" }),
+      screen.getByRole("group", { name: "Tagesliste herunterladen" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Tagesliste als PDF herunterladen",
+      }),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Tagesliste als PDF herunterladen",
+      }),
     ).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("status")).toHaveTextContent("PDF wird erstellt.");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "PDF wird heruntergeladen.",
+    );
     await waitFor(() => {
       expect(mocks.downloadDailyMealParticipants).toHaveBeenCalledWith(
         "2026-09-07",
@@ -100,9 +111,15 @@ describe("MealParticipantList", () => {
       );
     });
     finishPdf();
-    await screen.findByRole("button", { name: "PDF" });
+    await screen.findByRole("button", {
+      name: "Tagesliste als PDF herunterladen",
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Excel" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Tagesliste als Excel-Datei herunterladen",
+      }),
+    );
     await waitFor(() => {
       expect(mocks.downloadDailyMealParticipants).toHaveBeenCalledWith(
         "2026-09-07",

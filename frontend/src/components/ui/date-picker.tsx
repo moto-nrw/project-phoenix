@@ -11,6 +11,7 @@ import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import type { DatePickerLabels } from "~/lib/date-picker-labels";
 import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+import { cn } from "~/lib/utils";
 import {
   clampCalendarWidth,
   computeCalendarPanelPosition,
@@ -87,6 +88,8 @@ type DatePickerProps =
       readonly onChange: (date: Date | null) => void;
       readonly placeholder?: string;
       readonly className?: string;
+      /** Optional visual treatment for compact filter toolbars. */
+      readonly triggerClassName?: string;
       /**
        * @deprecated No longer read. The panel measures the viewport and flips
        * up or down on its own; callers cannot know which side fits. Kept so the
@@ -378,23 +381,25 @@ export function DatePicker({
           aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
           disabled={isDisabled}
           onClick={toggleOpen}
-          className={`flex items-center rounded-lg border transition-all ${
+          className={cn(
+            "flex items-center rounded-lg border transition-all",
             iconOnly
               ? "h-10 w-10 shrink-0 justify-center"
               : `min-w-0 flex-1 justify-between ${
                   TRIGGER_SIZE_CLASS[
                     (isMultiple ? undefined : props.controlSize) ?? "sm"
                   ]
-                }`
-          } ${
-            !isMultiple && props.invalid ? "border-moto-red" : "border-gray-200"
-          } ${
+                }`,
+            !isMultiple && props.invalid
+              ? "border-moto-red"
+              : "border-gray-200",
             isDisabled
               ? "cursor-not-allowed bg-gray-50 text-gray-400"
               : isOpen
                 ? "border-gray-300 bg-gray-50"
-                : "bg-white hover:bg-gray-50"
-          }`}
+                : "bg-white hover:bg-gray-50",
+            !isMultiple ? props.triggerClassName : undefined,
+          )}
         >
           {!iconOnly && (
             <span className={displayValue ? "text-gray-900" : "text-gray-500"}>
@@ -695,6 +700,7 @@ export function ISODatePicker({
   readonly disabledDay?: Matcher;
   readonly placeholder?: string;
   readonly className?: string;
+  readonly triggerClassName?: string;
   readonly dropdownPlacement?: "up" | "down";
   readonly calendarLayout?: CalendarLayout;
   readonly monthYearNavigation?: boolean;
