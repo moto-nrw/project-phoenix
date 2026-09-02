@@ -30,7 +30,6 @@ import {
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 
-/** Unterzeile der Kopfkarte, wenn weder Klasse noch Gruppe bekannt sind. */
 const FEEDBACK_HISTORY_DESCRIPTION =
   "Rückmeldungen dieses Kindes im Zeitverlauf.";
 
@@ -259,7 +258,10 @@ function StudentFeedbackHistoryPageContent() {
       <TenantPage
         leading={<ConceptIconTile concept="feedback" variant="page" />}
         title={student?.name ?? "Feedbackhistorie"}
-        stats={studentMeta || FEEDBACK_HISTORY_DESCRIPTION}
+        stats={
+          studentMeta ||
+          `${totalFeedback} ${totalFeedback === 1 ? "Eintrag" : "Einträge"}`
+        }
         statsLoading={loading}
         loading={loading}
         error={errorMessage}
@@ -282,6 +284,7 @@ function StudentFeedbackHistoryPageContent() {
       >
         <SectionCard
           title="Feedback-Übersicht"
+          description={FEEDBACK_HISTORY_DESCRIPTION}
           leading={<ConceptIconTile concept="feedback" variant="section" />}
         >
           <>

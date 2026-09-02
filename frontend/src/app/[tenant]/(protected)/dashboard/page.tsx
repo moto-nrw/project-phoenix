@@ -164,7 +164,11 @@ function DashboardContent() {
       prominent
       statsLoading={isLoading}
       stats={`${formatStatusDate()} · ${dashboardData?.studentsPresent ?? 0} Kinder anwesend · ${dashboardData?.studentsSick ?? 0} krank`}
-      error={error}
+      error={
+        error
+          ? { message: error, keepContent: dashboardData !== undefined }
+          : null
+      }
     >
       {canReadPhaseExpiryWarnings ? <PhaseExpiryWarnings /> : null}
 

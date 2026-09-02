@@ -61,7 +61,6 @@ interface Student {
 type ErrorCode =
   "feature_disabled" | "not_group_supervisor" | "not_found" | "generic";
 
-/** Unterzeile der Kopfkarte, wenn weder Klasse noch Gruppe bekannt sind. */
 const ROOM_HISTORY_DESCRIPTION =
   "Wo dieses Kind an einem Tag war und wer es ein- und ausgecheckt hat.";
 
@@ -495,7 +494,7 @@ function HistoryTable({
     // ihre eigene Zellpolsterung mit und läuft randlos bis zur Kartenkante.
     <SectionCard
       title="Anwesenheitsprotokoll"
-      description={`Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
+      description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
       leading={<ConceptIconTile concept="changeHistory" variant="section" />}
       bodyClassName="mt-4 -mx-5 -mb-5"
     >
@@ -921,7 +920,10 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         leading={<ConceptIconTile concept="changeHistory" variant="page" />}
         title={displayName || "Anwesenheitsprotokoll"}
-        stats={studentMeta || ROOM_HISTORY_DESCRIPTION}
+        stats={
+          studentMeta ||
+          `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`
+        }
         statsLoading={loading}
         loading={loading}
         error={errorMessage}

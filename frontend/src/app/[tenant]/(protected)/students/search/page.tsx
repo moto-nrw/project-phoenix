@@ -112,21 +112,6 @@ import {
 } from "./tracking-filter";
 import { StudentSearchPageSkeleton } from "./page-skeleton";
 
-/**
- * Aufenthaltsorte, die NICHT als anwesend zählen. Alles andere (ein Raumname,
- * "Anwesend", Schulhof, Unterwegs) heißt: das Kind ist in der Einrichtung.
- * Spiegelt die Kacheln des Dashboards, damit beide Seiten dieselbe Zahl
- * zeigen.
- */
-const NOT_PRESENT_LOCATION_STATUSES = new Set<string>([
-  LOCATION_STATUSES.HOME,
-  LOCATION_STATUSES.UNKNOWN,
-  LOCATION_STATUSES.SICK,
-  LOCATION_STATUSES.EXCUSED,
-  LOCATION_STATUSES.CLASS_TRIP,
-  LOCATION_STATUSES.NOT_ARRIVAL,
-]);
-
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
 const EMPTY_STUDENT_ARRAY: Student[] = [];
@@ -2657,10 +2642,8 @@ function SearchPageContent() {
     if (!isToday) {
       return `${total} ${total === 1 ? "Kind" : "Kinder"}`;
     }
-    // Dieselben disjunkten Töpfe wie das Dashboard (calculateStudentsHome):
-    // Zuhause ist der Rest, nachdem krank, entschuldigt/Klassenfahrt und
-    // anwesend abgezogen sind. Krank hat Vorrang vor entschuldigt, genau wie
-    // in der Abfrage hinter den Kacheln.
+    // Zuhause ist ein eigener Aufenthaltsstatus. Unbekannte Orte und „Kommt
+    // heute nicht“ dürfen nicht als Zuhause erscheinen.
     let sick = 0;
     let atHome = 0;
     for (const student of students) {
@@ -2668,10 +2651,8 @@ function SearchPageContent() {
         sick += 1;
         continue;
       }
-      if (student.excused === true || student.class_trip === true) continue;
       const status = parseLocation(student.current_location).status;
-      if (!NOT_PRESENT_LOCATION_STATUSES.has(status)) continue;
-      atHome += 1;
+      if (status === LOCATION_STATUSES.HOME) atHome += 1;
     }
     return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atHome} zuhause · ${sick} krank`;
   }, [isToday, students]);

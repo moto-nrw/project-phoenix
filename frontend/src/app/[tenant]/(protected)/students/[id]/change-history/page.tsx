@@ -37,10 +37,6 @@ interface ChangeEntry {
 
 type ErrorCode = "forbidden" | "not_found" | "generic";
 
-/** Unterzeile der Kopfkarte, wenn weder Klasse noch Gruppe bekannt sind. */
-const CHANGE_HISTORY_DESCRIPTION =
-  "Wer hat wann welche Angaben zu diesem Kind geändert.";
-
 const ERROR_MESSAGES: Record<ErrorCode, string> = {
   forbidden:
     "Sie können den Änderungsverlauf nur für Kinder Ihrer betreuten Gruppen einsehen.",
@@ -196,7 +192,10 @@ function StudentChangeHistoryPageContent() {
       <TenantPage
         leading={<ConceptIconTile concept="changeHistory" variant="page" />}
         title={displayName || "Änderungsverlauf"}
-        stats={studentMeta || CHANGE_HISTORY_DESCRIPTION}
+        stats={
+          studentMeta ||
+          `${entryCount} ${entryCount === 1 ? "Eintrag" : "Einträge"}`
+        }
         statsLoading={loading}
         loading={loading}
         error={errorCode !== null ? ERROR_MESSAGES[errorCode] : null}

@@ -363,6 +363,21 @@ describe("DashboardPage", () => {
     });
   });
 
+  it("keeps dashboard data visible when revalidation fails", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR(mockDashboardData, { error: new Error("fetch failed") }),
+    );
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Fehler beim Laden der Dashboard-Daten"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("dashboard-stats-grid")).toBeInTheDocument();
+    });
+  });
+
   it("redirects when session error is RefreshTokenExpired", async () => {
     vi.mocked(useSession).mockReturnValue({
       data: { ...mockSession, error: "RefreshTokenExpired" },
