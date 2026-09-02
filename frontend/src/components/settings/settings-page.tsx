@@ -254,14 +254,14 @@ function SettingsSkeleton() {
       {Array.from({ length: 5 }).map((_, idx) => (
         <div
           key={idx}
-          className="moto-content-surface rounded-2xl border px-4 py-4 shadow-sm backdrop-blur sm:px-6"
+          className="moto-content-surface rounded-2xl border p-5 shadow-sm"
         >
           <div className="flex items-start gap-3">
-            <Skeleton className="mt-1 h-4 w-4 rounded" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-5 w-40 rounded" />
               <Skeleton className="h-4 w-full max-w-md rounded" />
             </div>
+            <Skeleton className="h-8 w-8 rounded-md" />
           </div>
         </div>
       ))}

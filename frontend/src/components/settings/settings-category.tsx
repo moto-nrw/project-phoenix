@@ -1,9 +1,8 @@
 "use client";
 
-import { useId } from "react";
-import { ChevronDown } from "lucide-react";
 import type { SchemaCategory } from "~/lib/settings-api";
-import { cn } from "~/lib/utils";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { SettingsField } from "./settings-field";
 import {
   categorySummary,
@@ -29,9 +28,9 @@ interface SettingsCategoryProps {
   // so password reveal hits the operator endpoint instead.
   readonly revealFn?: (key: string) => Promise<string | null>;
   /**
-   * Renders the heading as a disclosure toggle (#2830). The open state is
-   * controlled by the parent via `collapsed` + `onToggle`, so a tab can
-   * expand the category that holds a deep-linked setting or expand every
+   * Renders the category as a collapsible `SectionCard` (#2830). The open
+   * state is controlled by the parent via `collapsed` + `onToggle`, so a tab
+   * can expand the category that holds a deep-linked setting or expand every
    * category at once. Off by default: the operator page and the isolated
    * component keep the flat, always-open card.
    */
@@ -63,97 +62,53 @@ export function SettingsCategory({
   filterQuery = "",
   kicker,
 }: SettingsCategoryProps) {
-  const panelId = useId();
   const visibleItems = filterCategoryItems(category, filterQuery);
 
   if (visibleItems.length === 0) {
     return null;
   }
 
-  const label = displayCategoryLabel(category);
   const isCollapsed = collapsible && collapsed;
   const changed = changedCount(visibleItems);
-  const changedBadge =
-    changed > 0 ? (
-      <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-normal text-gray-500">
-        {changed} geändert
-      </span>
-    ) : null;
-
-  const fields = (
-    <div className="divide-y divide-gray-100">
-      {visibleItems.map((setting) => (
-        <SettingsField
-          key={setting.key}
-          setting={setting}
-          categoryItems={category.items}
-          highlighted={setting.key === highlightKey}
-          onSave={onSave}
-          onReset={onReset}
-          onSchemaRefresh={onSchemaRefresh}
-          onBookingAuthorityEnable={onBookingAuthorityEnable}
-          audience={audience}
-          revealFn={revealFn}
-        />
-      ))}
-    </div>
-  );
-
-  if (!collapsible) {
-    return (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6">
-        {kicker && (
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            {kicker}
-          </p>
-        )}
-        <h3 className="mb-1 flex flex-wrap items-center gap-2 text-base font-semibold text-gray-900">
-          <span className="capitalize">{label}</span>
-          {changedBadge}
-        </h3>
-        {fields}
-      </div>
-    );
-  }
 
   return (
-    <section className="moto-content-surface rounded-2xl border shadow-sm backdrop-blur">
-      <h3 className="text-base font-semibold text-gray-900">
-        <button
-          type="button"
-          aria-expanded={!isCollapsed}
-          aria-controls={panelId}
-          onClick={onToggle}
-          className={cn(
-            "flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-6",
-            isCollapsed ? "rounded-2xl" : "rounded-t-2xl",
-          )}
-        >
-          <ChevronDown
-            className={cn(
-              "mt-1 h-4 w-4 shrink-0 text-gray-400 transition-transform",
-              isCollapsed && "-rotate-90",
-            )}
-            aria-hidden="true"
+    <SectionCard
+      headingLevel={3}
+      kicker={kicker}
+      title={displayCategoryLabel(category)}
+      titleClassName="capitalize"
+      titleBadge={
+        changed > 0 ? (
+          <StatusBadge
+            tone="gray"
+            showDot={false}
+            label={`${changed} geändert`}
           />
-          <span className="min-w-0 flex-1">
-            <span className="flex flex-wrap items-center gap-2">
-              <span className="capitalize">{label}</span>
-              {changedBadge}
-            </span>
-            {isCollapsed && (
-              <span className="mt-0.5 block truncate text-sm font-normal text-gray-500">
-                {categorySummary(visibleItems)}
-              </span>
-            )}
-          </span>
-        </button>
-      </h3>
-      {!isCollapsed && (
-        <div id={panelId} className="px-4 pb-4 sm:px-6 sm:pb-6">
-          {fields}
-        </div>
-      )}
-    </section>
+        ) : undefined
+      }
+      // While collapsed the card names what it holds, so a person can tell
+      // from the closed header whether the setting they need lives here.
+      description={isCollapsed ? categorySummary(visibleItems) : undefined}
+      collapsible={collapsible}
+      collapsed={collapsible ? collapsed : undefined}
+      onCollapsedChange={onToggle}
+    >
+      <div className="divide-y divide-gray-100">
+        {visibleItems.map((setting) => (
+          <SettingsField
+            key={setting.key}
+            setting={setting}
+            categoryItems={category.items}
+            highlighted={setting.key === highlightKey}
+            onSave={onSave}
+            onReset={onReset}
+            onSchemaRefresh={onSchemaRefresh}
+            onBookingAuthorityEnable={onBookingAuthorityEnable}
+            audience={audience}
+            revealFn={revealFn}
+          />
+        ))}
+      </div>
+    </SectionCard>
   );
 }
