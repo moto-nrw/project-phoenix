@@ -6534,16 +6534,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/schedule/n_plus_one_batch_repo_test.go",
-      "declaration": "TestStaffShiftRepository_FindByOriginShiftIDs",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        80
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/schedule/planning_track_repo_test.go",
       "declaration": "TestPlanningTrackRepositoryFindByIDs",
       "target": "database/repositories.NewFactory",
