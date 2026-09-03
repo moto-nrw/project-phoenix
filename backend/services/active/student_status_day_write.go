@@ -228,7 +228,7 @@ func lockStudentStatusDates(ctx context.Context, db *bun.DB, studentID int64, da
 	sortedDates := append([]timezone.Date(nil), dates...)
 	slices.SortFunc(sortedDates, timezone.Date.Compare)
 	for _, date := range sortedDates {
-		if err := careplanning.LockExceptionDay(ctx, db, studentID, date); err != nil {
+		if err := careplanning.LockExceptionDay(ctx, db, studentID, date.String()); err != nil {
 			return err
 		}
 	}

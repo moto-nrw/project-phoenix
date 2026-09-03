@@ -12,6 +12,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	ctx := testpkg.TenantContext(tenantID)
+	ctx := tenant.WithTenantID(testpkg.Ctx(t), tenantID)
 	repos := repositories.NewFactory(db)
 
 	phase := &enrollmentModels.Phase{

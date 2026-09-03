@@ -5,18 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // EnrollablePhaseRepository implements parentModels.EnrollablePhaseRepository.
 type EnrollablePhaseRepository struct {
-	db        *bun.DB
+	runtime   Runtime
 	students  StudentDirectory
 	guardians GuardianDirectory
 }
@@ -45,7 +40,7 @@ func (r *EnrollablePhaseRepository) enrolledSubmitPersonIDs(students map[int64]D
 		if !found || student.TenantID != tenantID {
 			continue
 		}
-		if student.Status != string(usersModels.StudentStatusActive) && student.Status != string(usersModels.StudentStatusPending) {
+		if student.Status != careplan.StudentStatusActive && student.Status != careplan.StudentStatusPending {
 			continue
 		}
 		if _, dup := seen[student.PersonID]; dup {
@@ -58,8 +53,8 @@ func (r *EnrollablePhaseRepository) enrolledSubmitPersonIDs(students map[int64]D
 }
 
 // NewEnrollablePhaseRepository wires a fresh repository.
-func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseRepository {
-	return &EnrollablePhaseRepository{db: db}
+func NewEnrollablePhaseRepository(runtime Runtime) parentModels.EnrollablePhaseRepository {
+	return &EnrollablePhaseRepository{runtime: requireRuntime(runtime)}
 }
 
 // guardianGuard is the per-school guardian evidence the picker and the
@@ -76,7 +71,7 @@ type guardianGuard struct {
 // guardianGuards resolves the guard per tenant from the account's links at
 // the schools where it holds an ACTIVE auth.account_tenants mapping.
 func (r *EnrollablePhaseRepository) guardianGuards(ctx context.Context, accountID int64) (map[int64]*guardianGuard, error) {
-	links, err := activeGuardianLinks(ctx, r.db, r.guardians, accountID)
+	links, err := activeGuardianLinks(ctx, r.runtime, r.guardians, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +85,7 @@ func (r *EnrollablePhaseRepository) guardianGuards(ctx context.Context, accountI
 			seen[link.TenantID] = make(map[int64]struct{})
 		}
 		guard.hasFamilyLink = true
-		if !link.HasPermission(authorize.GuardianPermissionEnrollmentSubmit) {
+		if !link.HasPermission(careplan.GuardianPermissionEnrollmentSubmit) {
 			continue
 		}
 		guard.hasSubmitPermission = true
@@ -172,16 +167,16 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	}
 
 	type row struct {
-		SchoolID          int64         `bun:"school_id"`
-		PhaseID           int64         `bun:"phase_id"`
-		PhaseName         string        `bun:"phase_name"`
-		PhaseKind         string        `bun:"phase_kind"`
-		ServiceStartDate  timezone.Date `bun:"service_start_date"`
-		ServiceEndDate    timezone.Date `bun:"service_end_date"`
-		EnrollmentOpenAt  *time.Time    `bun:"enrollment_open_at"`
-		EnrollmentCloseAt *time.Time    `bun:"enrollment_close_at"`
-		AlreadyLinked     bool          `bun:"already_linked"`
-		Audience          string        `bun:"audience"`
+		SchoolID          int64        `bun:"school_id"`
+		PhaseID           int64        `bun:"phase_id"`
+		PhaseName         string       `bun:"phase_name"`
+		PhaseKind         string       `bun:"phase_kind"`
+		ServiceStartDate  calendarDate `bun:"service_start_date"`
+		ServiceEndDate    calendarDate `bun:"service_end_date"`
+		EnrollmentOpenAt  *time.Time   `bun:"enrollment_open_at"`
+		EnrollmentCloseAt *time.Time   `bun:"enrollment_close_at"`
+		AlreadyLinked     bool         `bun:"already_linked"`
+		Audience          string       `bun:"audience"`
 	}
 
 	// The caller applies the enrollment master switch through the settings
@@ -211,7 +206,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	`
 
 	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID).Scan(ctx, &rows); err != nil {
+	if err := runtimeDB(ctx, r.runtime).NewRaw(query, accountID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
 	}
 
@@ -243,8 +238,8 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			PhaseID:           rr.PhaseID,
 			PhaseName:         rr.PhaseName,
 			PhaseKind:         rr.PhaseKind,
-			ServiceStartDate:  rr.ServiceStartDate,
-			ServiceEndDate:    rr.ServiceEndDate,
+			ServiceStartDate:  careplan.Date(rr.ServiceStartDate),
+			ServiceEndDate:    careplan.Date(rr.ServiceEndDate),
 			EnrollmentOpenAt:  rr.EnrollmentOpenAt,
 			EnrollmentCloseAt: rr.EnrollmentCloseAt,
 			AlreadyLinked:     rr.AlreadyLinked,
@@ -276,7 +271,7 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 		return nil, fmt.Errorf("parent: account_id and tenant_id must be positive")
 	}
 
-	tenants, err := activeMappingTenants(ctx, r.db, accountID)
+	tenants, err := activeMappingTenants(ctx, r.runtime, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("parent: guardian submit status: %w", err)
 	}
@@ -294,7 +289,7 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 			continue
 		}
 		status.HasGuardianLink = true
-		if !linked || !link.HasPermission(authorize.GuardianPermissionEnrollmentSubmit) {
+		if !linked || !link.HasPermission(careplan.GuardianPermissionEnrollmentSubmit) {
 			continue
 		}
 		status.HasSubmitPermission = true

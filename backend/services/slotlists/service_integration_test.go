@@ -30,6 +30,7 @@ import (
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
@@ -257,7 +258,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			PickupBaselines: scheduletest.NewPickupBaselineService(
 				scheduleRepo.NewStudentPickupScheduleRepository(db),
 				newBoundRequestChildOfferingRepository(db),
-				enrollmentRepo.NewCareOfferingRepository(db),
+				carePlanTest.CareOfferingRepository(db),
 			),
 			PickupExceptions:  scheduleRepo.NewStudentPickupExceptionRepository(db),
 			CareParticipation: participation,
@@ -266,7 +267,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			newBoundRequestChildOfferingRepository(db),
-			enrollmentRepo.NewCareOfferingRepository(db),
+			carePlanTest.CareOfferingRepository(db),
 		),
 		StudentRepo:        usersRepo.NewStudentRepository(db),
 		PersonRepo:         usersRepo.NewPersonRepository(db),
@@ -282,7 +283,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			scheduletest.NewPickupBaselineService(
 				scheduleRepo.NewStudentPickupScheduleRepository(db),
 				newBoundRequestChildOfferingRepository(db),
-				enrollmentRepo.NewCareOfferingRepository(db),
+				carePlanTest.CareOfferingRepository(db),
 			),
 			db,
 			slog.Default(),

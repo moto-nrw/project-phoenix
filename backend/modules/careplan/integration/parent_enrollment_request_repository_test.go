@@ -1,4 +1,4 @@
-package parent_test
+package integration
 
 import (
 	"context"
@@ -139,7 +139,7 @@ func listByAccount(t *testing.T, db *bun.DB, accountID int64) []*parentModels.En
 // returns the affected row count.
 func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 	t.Helper()
-	repo := parentRepo.NewEnrollmentRequestRepository(db)
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db))
 	var n int
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		got, bErr := repo.BackfillGuardianAccountID(ctx, accountID, email)
@@ -148,6 +148,10 @@ func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 	})
 	require.NoError(t, err)
 	return n
+}
+
+func staticParentRuntime(db *bun.DB) parentRepo.Runtime {
+	return parentRepo.RuntimeFunc(func(context.Context) bun.IDB { return db })
 }
 
 // readGuardianAccountID returns the guardian_account_id column for one
@@ -494,7 +498,7 @@ func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(db)
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db))
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, listErr := repo.ListByAccount(ctx, 0)
 		return listErr
@@ -726,7 +730,7 @@ func TestEnrollmentRequestRepository_Backfill_RejectsZeroAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(db)
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db))
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, bErr := repo.BackfillGuardianAccountID(ctx, 0, "x@example.com")
 		return bErr

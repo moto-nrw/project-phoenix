@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/uptrace/bun"
 )
 
@@ -17,7 +19,29 @@ func bookingConsistencyAuditTestRepository(t *testing.T) any {
 	repo.(interface {
 		BindStudentDirectory(auditRepo.StudentDirectory)
 	}).BindStudentDirectory(rawStudentDirectory{db: db})
+	repo.(interface {
+		BindCarePlan(auditRepo.CareOfferingDirectory)
+	}).BindCarePlan(testCareOfferingDirectory{query: carePlanTest.NewCarePlan(t, db)})
 	return repo
+}
+
+type testCareOfferingDirectory struct{ query careplan.Query }
+
+func (d testCareOfferingDirectory) ListCareOfferings(ctx context.Context) ([]auditRepo.CareOfferingProjection, error) {
+	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]auditRepo.CareOfferingProjection, 0, len(values))
+	for _, value := range values {
+		result = append(result, auditRepo.CareOfferingProjection{
+			ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID,
+			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays,
+			IsActive: value.IsActive, IsRequired: value.IsRequired,
+			CountsAsCare: value.CountsAsCare, PickupTimes: value.PickupTimes,
+		})
+	}
+	return result, nil
 }
 
 type rawStudentDirectory struct{ db *bun.DB }

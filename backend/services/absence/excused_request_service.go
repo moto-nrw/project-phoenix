@@ -1179,7 +1179,7 @@ func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(
 		return sortedDates[i].Before(sortedDates[j])
 	})
 	for _, date := range sortedDates {
-		if err := careplanning.LockStudentAndExceptionDay(ctx, s.db, req.StudentID, date); err != nil {
+		if err := careplanning.LockStudentAndExceptionDay(ctx, s.db, req.StudentID, date.String()); err != nil {
 			return err
 		}
 	}
