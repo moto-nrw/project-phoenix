@@ -29,6 +29,11 @@ type recordingEngine struct {
 	createdGuest schoolmembership.CreateGuest
 	updatedGuest schoolmembership.UpdateGuest
 	guestFilter  schoolmembership.GuestFilter
+
+	entryLock    string
+	createdEntry schoolmembership.CreateClassListEntry
+	updatedEntry schoolmembership.UpdateClassListEntry
+	entryFilter  schoolmembership.ClassListEntryFilter
 }
 
 func (e *recordingEngine) FindStaff(_ context.Context, _ int64, lock string) (schoolmembership.Staff, error) {
@@ -141,6 +146,32 @@ func (e *recordingEngine) UpdateGuest(_ context.Context, input schoolmembership.
 }
 
 func (e *recordingEngine) DeleteGuest(context.Context, int64) error { e.calls++; return nil }
+
+func (e *recordingEngine) FindClassListEntry(_ context.Context, _ int64, lock string) (schoolmembership.ClassListEntry, error) {
+	e.calls++
+	e.entryLock = lock
+	return schoolmembership.ClassListEntry{}, nil
+}
+
+func (e *recordingEngine) ListClassListEntries(_ context.Context, filter schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, error) {
+	e.calls++
+	e.entryFilter = filter
+	return nil, nil
+}
+
+func (e *recordingEngine) CreateClassListEntry(_ context.Context, input schoolmembership.CreateClassListEntry) (schoolmembership.ClassListEntry, error) {
+	e.calls++
+	e.createdEntry = input
+	return schoolmembership.ClassListEntry{FirstName: input.FirstName}, nil
+}
+
+func (e *recordingEngine) UpdateClassListEntry(_ context.Context, input schoolmembership.UpdateClassListEntry) (schoolmembership.ClassListEntry, error) {
+	e.calls++
+	e.updatedEntry = input
+	return schoolmembership.ClassListEntry{ID: input.ID}, nil
+}
+
+func (e *recordingEngine) DeleteClassListEntry(context.Context, int64) error { e.calls++; return nil }
 
 // newModule returns a module over a fresh recording engine.
 func newModule() (*schoolmembership.Module, *recordingEngine) {

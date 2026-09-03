@@ -33,7 +33,10 @@ import {
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
 import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
 
 const logger = createLogger({ component: "MealPlanPage" });
 
@@ -131,6 +134,22 @@ export default function MealPlanPage() {
   // paste, clear, add/remove, "Vorwoche übernehmen", or save controls — so they
   // never hit a guaranteed 403. Mirror the nav's admin-OR-permission gate.
   const canEdit = isAdmin(session) || hasPermission(session, "config:update");
+  const canReadConfig =
+    isAdmin(session) || hasPermission(session, "config:read");
+  const { data: settingsSchema } = useSettingsSchema(
+    status === "authenticated" && canReadConfig,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false,
+    },
+  );
+  const mealRegistrationEnabled =
+    getSettingValue(settingsSchema, "operations.meal_registration_enabled") ===
+    true;
+  const canReadParticipants =
+    mealRegistrationEnabled &&
+    (isAdmin(session) || hasPermission(session, "users:read"));
 
   // weekOffset: number of weeks from the current week (0 = this week, can go
   // negative for past weeks or beyond +1 for planning ahead).
@@ -663,6 +682,8 @@ export default function MealPlanPage() {
             </div>
           </div>
         )}
+
+        {canReadParticipants ? <MealParticipantList /> : null}
 
         {/* Sticky save bar — only while there are unsaved changes. */}
         {canEdit && isDirty && !loading && !loadError && (

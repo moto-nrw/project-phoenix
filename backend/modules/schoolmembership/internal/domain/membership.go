@@ -13,6 +13,8 @@ var (
 	ErrTeacherStaffConflict    = errors.New("staff member already has a teacher record")
 	ErrGuestStaffConflict      = errors.New("staff member already has a guest record")
 	ErrPersonnelNumberConflict = errors.New("personnel number is already assigned")
+	ErrClassListEntryNotFound  = errors.New("class list entry not found")
+	ErrClassListEntryDuplicate = errors.New("class list entry name and class are taken")
 )
 
 type Staff struct {
@@ -114,6 +116,30 @@ type GuestFilter struct {
 	OrganizationContains string
 	ExpertiseContains    string
 	HasOrganization      *bool
+}
+
+type ClassListEntry struct {
+	ID          int64
+	TenantID    int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	FirstName   string
+	LastName    string
+	SchoolClass string
+	CreatedBy   *int64
+}
+
+type ClassListEntryFields struct {
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}
+
+type ClassListEntryFilter struct {
+	IDs         []int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
 }
 
 type OperationStats struct {

@@ -441,22 +441,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 154,
+          "line": 156,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 278,
+          "line": 250,
+          "declaration": "mealPlanParticipantFinder"
+        },
+        {
+          "file": "api/base.go",
+          "line": 353,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 344,
+          "line": 419,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 834,
+          "line": 909,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -466,7 +471,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 467,
+          "line": 542,
           "declaration": "New"
         }
       ]
@@ -476,13 +481,18 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 146,
+          "line": 148,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 341,
+          "line": 416,
           "declaration": "type API"
+        },
+        {
+          "file": "api/class_list_entries_composition.go",
+          "line": 25,
+          "declaration": "newClassListEntriesResource"
         },
         {
           "file": "api/guardians_composition.go",
@@ -546,7 +556,7 @@
         },
         {
           "file": "services/auth/mfa_service.go",
-          "line": 286,
+          "line": 287,
           "declaration": "type MFAServiceConfig"
         },
         {
@@ -586,12 +596,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 420,
+          "line": 424,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 444,
+          "line": 448,
           "declaration": "newFactory"
         },
         {
@@ -16639,7 +16649,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        467
+        542
       ],
       "tables": []
     },
@@ -16799,7 +16809,7 @@
       "declaration": "setupOperatorInvitationRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        300
+        314
       ],
       "tables": []
     },
@@ -16809,7 +16819,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        290
+        304
       ],
       "tables": []
     },
@@ -16819,7 +16829,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        291
+        305
       ],
       "tables": []
     },
@@ -16835,21 +16845,21 @@
     },
     {
       "scope": "test",
-      "file": "api/classday/class_day_api_test.go",
-      "declaration": "setupClassDayRoute",
+      "file": "api/class_list_entries_composition_test.go",
+      "declaration": "setupClassListEntriesRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        30
+        29
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "api/classlistentries/class_list_entries_api_test.go",
-      "declaration": "setupClassListEntriesRoute",
+      "file": "api/classday/class_day_api_test.go",
+      "declaration": "setupClassDayRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        32
+        30
       ],
       "tables": []
     },
@@ -20053,7 +20063,7 @@
       "declaration": "TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        716
+        715
       ],
       "tables": []
     },
@@ -20093,7 +20103,7 @@
       "declaration": "TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        667
+        666
       ],
       "tables": []
     },
@@ -20103,7 +20113,7 @@
       "declaration": "TestStudentEnrollmentRepository_Delete_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        777
+        776
       ],
       "tables": []
     },
@@ -21890,6 +21900,26 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         114
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/class_list_entry_membership_test.go",
+      "declaration": "TestClassListEntryAdapter_ClassLookupsMatchCaseInsensitivelyAndOrderByName",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        53
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/class_list_entry_membership_test.go",
+      "declaration": "TestClassListEntryAdapter_KeepsTheLegacyErrorContracts",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        23
       ],
       "tables": []
     },
@@ -25515,7 +25545,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        984
+        1015
       ],
       "tables": []
     },
@@ -25525,7 +25555,7 @@
       "declaration": "TestStudentRepository_FindByNameAndClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        831
+        862
       ],
       "tables": []
     },
@@ -25569,7 +25599,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        773
+        804
       ],
       "tables": [
         "users.students"
@@ -25601,7 +25631,7 @@
       "declaration": "TestStudentRepository_LockPhotoFeature",
       "target": "database/repositories.NewFactory",
       "lines": [
-        935
+        966
       ],
       "tables": []
     },
@@ -25611,7 +25641,7 @@
       "declaration": "TestStudentRepository_PurgeAllPhotos",
       "target": "database/repositories.NewFactory",
       "lines": [
-        880
+        911
       ],
       "tables": []
     },
@@ -26905,7 +26935,8 @@
       "declaration": "setupClassListEntryTransitionTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        37,
+        38
       ],
       "tables": []
     },
@@ -29275,7 +29306,7 @@
       "declaration": "buildMealPlanService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        46
       ],
       "tables": []
     },
@@ -31402,7 +31433,7 @@
       "declaration": "TestMasterDataReview_ListHistory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        28
+        29
       ],
       "tables": [
         "users.student_data_change_requests"
@@ -31414,7 +31445,7 @@
       "declaration": "TestMasterDataReview_ListHistoryScopedToWritableChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        115
+        119
       ],
       "tables": []
     },
@@ -32000,6 +32031,28 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         63
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "test/class_list_entry_isolation_test.go",
+      "declaration": "TestClassListEntryRepositoryCannotSmuggleAForeignTenant",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        124
+      ],
+      "tables": [
+        "users.class_list_entries"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "test/class_list_entry_isolation_test.go",
+      "declaration": "TestClassListEntryTenantIsolation",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        48
       ],
       "tables": []
     },

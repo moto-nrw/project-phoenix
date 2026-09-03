@@ -207,6 +207,50 @@ func (e engine) DeleteGuest(ctx context.Context, id int64) error {
 	return mapError(e.service.DeleteGuest(ctx, id))
 }
 
+func (e engine) FindClassListEntry(ctx context.Context, id int64, lock string) (schoolmembership.ClassListEntry, error) {
+	value, err := e.service.FindClassListEntry(ctx, id, lock)
+	return classListEntryToPublic(value), mapError(err)
+}
+
+func (e engine) ListClassListEntries(ctx context.Context, filter schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, error) {
+	values, err := e.service.ListClassListEntries(ctx, domain.ClassListEntryFilter{
+		IDs: filter.IDs, FirstName: filter.FirstName, LastName: filter.LastName, SchoolClass: filter.SchoolClass,
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]schoolmembership.ClassListEntry, 0, len(values))
+	for _, value := range values {
+		result = append(result, classListEntryToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) CreateClassListEntry(ctx context.Context, input schoolmembership.CreateClassListEntry) (schoolmembership.ClassListEntry, error) {
+	value, err := e.service.CreateClassListEntry(ctx, classListEntryFieldsToDomain(input.ClassListEntryFields), input.CreatedBy)
+	return classListEntryToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateClassListEntry(ctx context.Context, input schoolmembership.UpdateClassListEntry) (schoolmembership.ClassListEntry, error) {
+	value, err := e.service.UpdateClassListEntry(ctx, input.ID, classListEntryFieldsToDomain(input.ClassListEntryFields))
+	return classListEntryToPublic(value), mapError(err)
+}
+
+func (e engine) DeleteClassListEntry(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteClassListEntry(ctx, id))
+}
+
+func classListEntryFieldsToDomain(fields schoolmembership.ClassListEntryFields) domain.ClassListEntryFields {
+	return domain.ClassListEntryFields{FirstName: fields.FirstName, LastName: fields.LastName, SchoolClass: fields.SchoolClass}
+}
+
+func classListEntryToPublic(value domain.ClassListEntry) schoolmembership.ClassListEntry {
+	return schoolmembership.ClassListEntry{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		FirstName: value.FirstName, LastName: value.LastName, SchoolClass: value.SchoolClass, CreatedBy: value.CreatedBy,
+	}
+}
+
 func staffFieldsToDomain(fields schoolmembership.StaffFields) domain.StaffFields {
 	return domain.StaffFields{
 		PersonID: fields.PersonID, StaffNotes: fields.StaffNotes, EmploymentType: fields.EmploymentType,
@@ -274,6 +318,12 @@ func mapError(err error) error {
 		return schoolmembership.ErrGuestStaffConflict
 	case errors.Is(err, domain.ErrPersonnelNumberConflict):
 		return schoolmembership.ErrPersonnelNumberConflict
+	case errors.Is(err, domain.ErrClassListEntryNotFound):
+		return schoolmembership.ErrClassListEntryNotFound
+	case errors.Is(err, domain.ErrClassListEntryDuplicate):
+		// The cause stays in the chain on purpose: the legacy repository
+		// contract classifies the collision by the unique index name.
+		return fmt.Errorf("%w: %w", schoolmembership.ErrClassListEntryDuplicate, err)
 	default:
 		return err
 	}

@@ -35,7 +35,7 @@ func setupClassListEntryTransitionTest(t *testing.T) (*educationService.GradeTra
 		PersonRepo:          usersRepo.NewPersonRepository(db),
 		ClassTeacherRepo:    educationRepo.NewClassTeacherRepository(db),
 		StaffRepo:           repositories.NewFactory(db).Staff,
-		ClassListEntryRepo:  usersRepo.NewClassListEntryRepository(db),
+		ClassListEntryRepo:  repositories.NewFactory(db).ClassListEntry,
 		ClassListEntryAudit: auditRepo.NewClassListEntryChangeRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		DB:                  db,
 	})

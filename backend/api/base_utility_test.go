@@ -285,6 +285,20 @@ type settingsCallbackRoute struct {
 	hub    *realtime.Hub
 }
 
+type enabledMealPlanSettings struct{}
+
+func (enabledMealPlanSettings) MealPlanEnabled(context.Context) (bool, error) {
+	return true, nil
+}
+
+func (enabledMealPlanSettings) MealRegistrationEnabled(context.Context) (bool, error) {
+	return true, nil
+}
+
+func (enabledMealPlanSettings) MealRegistrationCutoff(context.Context) (string, error) {
+	return "09:00", nil
+}
+
 func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	t.Helper()
 	db, serviceFactory := testutil.SetupAPITest(t)
@@ -304,11 +318,15 @@ func setupOperatorInvitationRoute(t *testing.T) chi.Router {
 	initializeAPIResources(api, repoFactory, db, slog.Default())
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db,
-		Settings: mealplanCompose.SettingsFunc(func(context.Context) (bool, error) { return true, nil }),
+		Settings: enabledMealPlanSettings{},
 		Observe:  func(mealplanCompose.Observation) {},
+		Now:      time.Now,
+		Participants: func(context.Context, string) ([]mealplanCompose.ParticipantCandidate, error) {
+			return nil, nil
+		},
 	})
 	require.NoError(t, err)
-	api.MealPlan = newMealPlanResource(mealPlan, db)
+	api.MealPlan = newMealPlanResource(mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(feedback, db)
 	persons, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
