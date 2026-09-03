@@ -172,6 +172,9 @@ func (m *trackingMockActiveService) CountActiveVisitsByActiveGroupID(ctx context
 func (m *trackingMockActiveService) ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error) {
 	return nil, nil
 }
+func (m *trackingMockActiveService) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
 	return nil, nil
 }

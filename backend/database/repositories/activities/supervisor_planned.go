@@ -174,19 +174,29 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 		}
 	}
 
-	// Load Group relation for each supervisor
+	groupIDs := make([]int64, 0, len(supervisors))
 	for _, sup := range supervisors {
 		if sup.GroupID > 0 {
-			group := new(activities.Group)
-			groupErr := base.GetDB(ctx, r.db).NewSelect().
-				Model(group).
-				ModelTableExpr(`activities.groups AS "group"`).
-				Where(whereSupervisorIDEquals, sup.GroupID).
-				Scan(ctx)
-			if groupErr == nil {
-				sup.Group = group
-			}
+			groupIDs = append(groupIDs, sup.GroupID)
 		}
+	}
+	groupsByID := make(map[int64]*activities.Group, len(groupIDs))
+	if len(groupIDs) > 0 {
+		var groups []*activities.Group
+		groupQuery := base.GetDB(ctx, r.db).NewSelect().
+			Model(&groups).
+			ModelTableExpr(`activities.groups AS "group"`).
+			Where(`"group".id IN (?)`, bun.List(groupIDs))
+		groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
+		if err := groupQuery.Scan(ctx); err != nil {
+			return nil, &modelBase.DatabaseError{Op: "find groups by supervisor staff ID", Err: base.TranslateNotFound(err)}
+		}
+		for _, group := range groups {
+			groupsByID[group.ID] = group
+		}
+	}
+	for _, supervisor := range supervisors {
+		supervisor.Group = groupsByID[supervisor.GroupID]
 	}
 
 	return supervisors, nil

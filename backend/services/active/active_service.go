@@ -1398,6 +1398,16 @@ func (s *service) ListStudentsPresentInRoom(ctx context.Context, roomID int64) (
 	return ids, nil
 }
 
+// ListOpenVisitStudentIDsByRoom returns the current tenant's room presence in
+// one read for consumers rendering several rooms at once.
+func (s *service) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {
+	rows, err := s.VisitRepo.ListOpenVisitStudentIDsByRoom(ctx)
+	if err != nil {
+		return nil, &ActiveError{Op: "ListOpenVisitStudentIDsByRoom", Err: fmt.Errorf("list open visits by room: %w", err)}
+	}
+	return rows, nil
+}
+
 // Group Supervisor operations
 func (s *service) GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
 	supervisor, err := s.SupervisorRepo.FindByID(ctx, id)

@@ -193,6 +193,31 @@ func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) 
 	return invitations, nil
 }
 
+// FindOpenByGuardianProfileIDs retrieves every consumable or approval-pending
+// invitation for the requested profiles in one tenant-scoped read.
+func (r *GuardianInvitationRepository) FindOpenByGuardianProfileIDs(ctx context.Context, profileIDs []int64) ([]*auth.GuardianInvitation, error) {
+	if len(profileIDs) == 0 {
+		return []*auth.GuardianInvitation{}, nil
+	}
+	var invitations []*auth.GuardianInvitation
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&invitations).
+		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
+		Where(`"guardian_invitation".guardian_profile_id IN (?)`, bun.List(profileIDs)).
+		Where(`"guardian_invitation".accepted_at IS NULL`).
+		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
+		Where(`"guardian_invitation".approval_status IN (?)`, bun.List([]string{
+			auth.GuardianInvitationApprovalNotRequired,
+			auth.GuardianInvitationApprovalApproved,
+			auth.GuardianInvitationApprovalPending,
+		})).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find open invitations by guardian profiles: %w", err)
+	}
+	return invitations, nil
+}
+
 // MarkAsAccepted marks an invitation as accepted
 func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id int64) error {
 	now := time.Now()

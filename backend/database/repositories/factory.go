@@ -809,6 +809,19 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		}
 		return ids, nil
 	})
+	studentRepo.(interface {
+		BindTeacherStaffGroupIDs(func(context.Context, []int64) ([]int64, error))
+	}).BindTeacherStaffGroupIDs(func(ctx context.Context, staffIDs []int64) ([]int64, error) {
+		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{TeacherStaffIDs: staffIDs})
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(assignments))
+		for _, assignment := range assignments {
+			ids = append(ids, assignment.GroupID)
+		}
+		return ids, nil
+	})
 	groupRepo.(*education.GroupRepository).BindTeachingAssignments(func(ctx context.Context, groupIDs, teacherIDs []int64) ([]education.TeacherGroupID, error) {
 		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs, TeacherIDs: teacherIDs})
 		if err != nil {

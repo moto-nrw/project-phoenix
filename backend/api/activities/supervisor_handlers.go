@@ -44,25 +44,25 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 		return nil, err
 	}
 
+	staffIDs := make([]int64, 0, len(teachers))
+	for _, teacher := range teachers {
+		staffIDs = append(staffIDs, teacher.StaffID)
+	}
+	staffByID, err := rs.UserService.GetStaffWithPersonByIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, err
+	}
 	supervisors := make([]SupervisorResponse, 0, len(teachers))
 	for _, teacher := range teachers {
-		fullTeacher, err := rs.UserService.GetTeacherWithStaffAndPerson(ctx, teacher.ID)
-		if err != nil {
-			slog.Default().ErrorContext(ctx, "Error fetching full teacher data",
-				slog.Int64("teacher_id", teacher.ID),
-				slog.String("error", err.Error()),
-			)
-			continue
-		}
-
-		if fullTeacher.Staff != nil && fullTeacher.Staff.Person != nil {
+		staff := staffByID[teacher.StaffID]
+		if staff != nil && staff.Person != nil {
 			supervisors = append(supervisors, SupervisorResponse{
 				// Available supervisor selections are persisted back as supervisor_ids,
 				// so this identifier must remain the staff ID for safe round-tripping.
-				ID:        fullTeacher.Staff.ID,
+				ID:        staff.ID,
 				StaffID:   teacher.StaffID,
-				FirstName: fullTeacher.Staff.Person.FirstName,
-				LastName:  fullTeacher.Staff.Person.LastName,
+				FirstName: staff.Person.FirstName,
+				LastName:  staff.Person.LastName,
 				IsPrimary: false,
 			})
 		}

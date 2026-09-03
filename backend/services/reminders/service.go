@@ -181,7 +181,10 @@ type personReader interface {
 type supervisionReader interface {
 	GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
 	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*activeModel.Group, error)
-	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
+}
+
+type roomPresenceReader interface {
+	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
 }
 
 // Dependencies wires the readers the service needs. They mirror existing
@@ -195,13 +198,13 @@ type Dependencies struct {
 	Student     studentReader
 	Person      personReader
 	Supervision supervisionReader
+	Visits      roomPresenceReader
 	Logger      *slog.Logger
 
 	// The bulk readers below are used only by ComputeBatch. They are optional so
 	// every existing Dependencies literal keeps compiling; a nil one fails
-	// closed (empty room set, empty presence, nobody readable), never open.
+	// closed (empty room set or nobody readable), never open.
 	BulkSupervision bulkSupervisionReader
-	BulkVisits      bulkVisitReader
 	// BulkInstanceStaff resolves the planned staff of today's activity
 	// instances. Without it the batch falls back to room supervision alone,
 	// which never reaches the person who is supposed to START a slot.
@@ -219,12 +222,6 @@ type bulkSupervisionReader interface {
 	ListActiveSupervisedRooms(ctx context.Context) ([]activeModel.StaffRoomSupervision, error)
 }
 
-// bulkVisitReader answers "which children are present in which room" for the
-// whole tenant in one query.
-type bulkVisitReader interface {
-	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
-}
-
 type service struct {
 	Dependencies
 }
@@ -235,6 +232,9 @@ type service struct {
 func NewService(deps Dependencies) Computer {
 	if deps.Room == nil {
 		panic("reminders.NewService: Room is required")
+	}
+	if deps.Visits == nil {
+		panic("reminders.NewService: Visits is required")
 	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
@@ -474,16 +474,16 @@ func (s *service) supervisedRoomIDs(ctx context.Context, scope Scope) ([]int64, 
 // presentStudentsInRooms returns the deduplicated IDs of students currently
 // present in any of the given rooms.
 func (s *service) presentStudentsInRooms(ctx context.Context, roomIDs []int64) ([]int64, error) {
-	if s.Supervision == nil || len(roomIDs) == 0 {
+	if len(roomIDs) == 0 {
 		return nil, nil
+	}
+	byRoom, err := s.Visits.ListOpenVisitStudentIDsByRoom(ctx)
+	if err != nil {
+		return nil, err
 	}
 	studentSet := make(map[int64]struct{})
 	for _, roomID := range roomIDs {
-		present, err := s.Supervision.ListStudentsPresentInRoom(ctx, roomID)
-		if err != nil {
-			return nil, err
-		}
-		for _, id := range present {
+		for _, id := range byRoom[roomID] {
 			studentSet[id] = struct{}{}
 		}
 	}

@@ -201,6 +201,7 @@ type GradeTransitionRepository interface {
 	// Bulk operations
 	GetDistinctClasses(ctx context.Context) ([]string, error)
 	GetStudentCountByClass(ctx context.Context, className string) (int, error)
+	GetStudentCountsByClasses(ctx context.Context, classes []string) (map[string]int, error)
 	GetStudentsByClasses(ctx context.Context, classes []string) ([]*StudentClassInfo, error)
 	// UpdateStudentClasses promotes every student currently sitting in a mapped
 	// from-class. Apply does NOT use it: a class-wide update re-evaluates
