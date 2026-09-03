@@ -441,27 +441,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 154,
+          "line": 156,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 239,
+          "line": 250,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 342,
+          "line": 353,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 408,
+          "line": 419,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 898,
+          "line": 909,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -471,7 +471,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 531,
+          "line": 542,
           "declaration": "New"
         }
       ]
@@ -481,12 +481,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 146,
+          "line": 148,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 405,
+          "line": 416,
           "declaration": "type API"
         },
         {
@@ -596,27 +596,27 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 423,
+          "line": 424,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 446,
+          "line": 448,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 17,
+          "line": 28,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 25,
+          "line": 36,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 36,
+          "line": 47,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
@@ -16649,7 +16649,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        531
+        542
       ],
       "tables": []
     },
@@ -17801,6 +17801,18 @@
     },
     {
       "scope": "test",
+      "file": "api/timetable/periods_bootstrap_test.go",
+      "declaration": "newPeriodsTestServer",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        42
+      ],
+      "tables": [
+        "schedule.calendar_periods"
+      ]
+    },
+    {
+      "scope": "test",
       "file": "api/timetable/planning_track_metadata_test.go",
       "declaration": "TestInstanceMetadataResolvesPlanningTrackThroughTemplate",
       "target": "database/repositories.NewFactory",
@@ -17956,6 +17968,7 @@
         52,
         64,
         70,
+        71,
         72,
         80,
         88,
@@ -22802,86 +22815,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/schedule/dateframe_repository_test.go",
-      "declaration": "TestDateframeRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/dateframe_repository_test.go",
-      "declaration": "TestDateframeRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        152
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/dateframe_repository_test.go",
-      "declaration": "TestDateframeRepository_FindByDate",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        266
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/dateframe_repository_test.go",
-      "declaration": "TestDateframeRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        82
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/dateframe_repository_test.go",
-      "declaration": "TestDateframeRepository_FindByName",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        216
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/dateframe_repository_test.go",
-      "declaration": "TestDateframeRepository_FindOverlapping",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        352
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/dateframe_repository_test.go",
-      "declaration": "TestDateframeRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        184
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/dateframe_repository_test.go",
-      "declaration": "TestDateframeRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        114
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/schedule/instance_student_repo_test.go",
       "declaration": "TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInstance",
       "target": "database/repositories.NewFactory",
@@ -23649,6 +23582,88 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         99
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/school_calendar_test.go",
+      "declaration": "TestCalendarPeriodAdapter_CreateIfAbsentIsRaceFreePerTenant",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        128
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/school_calendar_test.go",
+      "declaration": "TestCalendarPeriodAdapter_KeepsTheLegacyContracts",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        27
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/school_calendar_test.go",
+      "declaration": "TestCalendarPeriodAdapter_OverlapFindersKeepTheDateSemantics",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        187
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/school_calendar_test.go",
+      "declaration": "TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        237
+      ],
+      "tables": [
+        "activities.groups"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/school_calendar_test.go",
+      "declaration": "TestCalendarPeriodAdapter_UsageCountsReturnDatabaseError",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        266
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/school_calendar_test.go",
+      "declaration": "TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        420
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/school_calendar_test.go",
+      "declaration": "TestClosingDayAdapter_KeepsTheLegacyContracts",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        311
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/school_calendar_test.go",
+      "declaration": "TestDateframeAdapter_KeepsTheLegacyLookups",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        373
       ],
       "tables": []
     },
@@ -30129,6 +30144,20 @@
         24
       ],
       "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/schedule/calendar_period_mutation_test.go",
+      "declaration": "TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        40
+      ],
+      "tables": [
+        "platform.organizations",
+        "platform.schools",
+        "schedule.calendar_periods"
+      ]
     },
     {
       "scope": "test",
