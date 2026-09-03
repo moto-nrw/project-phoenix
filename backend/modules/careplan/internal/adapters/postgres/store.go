@@ -273,13 +273,34 @@ func (s *Store) ReplaceAutoAddTriggers(ctx context.Context, targetID int64, trig
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	stats, err := deleteAutoAddTriggers(ctx, db, tenantID, targetID)
+	stats, err := validateAutoAddTriggerTarget(ctx, db, tenantID, targetID)
+	if err != nil {
+		return stats, err
+	}
+	deleteStats, err := deleteAutoAddTriggers(ctx, db, tenantID, targetID)
+	stats.Add(deleteStats)
 	if err != nil || len(triggerIDs) == 0 {
 		return stats, err
 	}
 	insertStats, err := insertAutoAddTriggers(ctx, db, tenantID, targetID, triggerIDs)
 	stats.Add(insertStats)
 	return stats, err
+}
+
+func validateAutoAddTriggerTarget(ctx context.Context, db bun.IDB, tenantID, targetID int64) (domain.OperationStats, error) {
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	count, err := withTenant(careOfferingSelect(db, (*careOfferingRow)(nil)).
+		Where(`"care_offering".id = ?`, targetID), "care_offering", tenantID).Count(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("care plan postgres: validate care offering auto trigger target: %w", err)
+	}
+	if count == 0 {
+		return stats, domain.ErrCareOfferingNotFound
+	}
+	stats.Rows = int64(count)
+	return stats, nil
 }
 
 func deleteAutoAddTriggers(ctx context.Context, db bun.IDB, tenantID, targetID int64) (domain.OperationStats, error) {

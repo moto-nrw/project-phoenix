@@ -46,16 +46,23 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.carePlan = capability
 	f.CareOffering = carePlanLegacy.NewCareOfferingRepository(capability)
 	f.OfferingChangeRequest = carePlanLegacy.NewOfferingChangeRepository(capability, f.students)
-	if repository, ok := f.BookingConsistency.(interface {
-		BindCarePlan(audit.CareOfferingDirectory)
-	}); ok {
-		repository.BindCarePlan(auditCarePlanDirectory{query: capability})
-	}
+	f.bindCarePlanAuditDirectory()
 	if repository, ok := f.PhaseExpiry.(*enrollmentRepo.PhaseExpiryRepository); ok {
 		repository.BindCarePlan(phaseExpiryCarePlanDirectory{query: capability})
 	}
 	if repository, ok := f.CareExitCleanup.(*usersRepo.CareExitCleanupRepository); ok {
 		repository.BindCarePlan(careExitCarePlanDirectory{capability: capability})
+	}
+}
+
+func (f *Factory) bindCarePlanAuditDirectory() {
+	if f.carePlan == nil {
+		return
+	}
+	if repository, ok := f.BookingConsistency.(interface {
+		BindCarePlan(audit.CareOfferingDirectory)
+	}); ok {
+		repository.BindCarePlan(auditCarePlanDirectory{query: f.carePlan})
 	}
 }
 

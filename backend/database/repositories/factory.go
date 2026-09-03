@@ -371,6 +371,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.TimeTrackingAuditLog = audit.NewTimeTrackingAuditLogRepository(runtime)
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime)
 	f.bindAuditStudentDirectory()
+	f.bindCarePlanAuditDirectory()
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
 	if f.students != nil {

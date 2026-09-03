@@ -28479,6 +28479,16 @@
     },
     {
       "scope": "test",
+      "file": "services/factory_care_plan_audit_test.go",
+      "declaration": "TestNewFactoryRetainsCarePlanForBookingConsistencyAudit",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        18
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/factory_student_consent_test.go",
       "declaration": "TestNewFactoryStudentConsentUsesAuditRoutedRepository",
       "target": "database/repositories.NewFactory",
