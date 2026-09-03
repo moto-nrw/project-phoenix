@@ -118,6 +118,19 @@ function MobileNavIcon({
 // This ensures the sliding indicator position is set before enabling smooth transitions
 const INITIAL_MOUNT_DELAY_MS = 100;
 
+/**
+ * Indikator-Position nur setzen, wenn sie sich ändert. Die Effekte unten
+ * hängen an `displayMainItems`, das jeder Render neu filtert; ein immer neues
+ * State-Objekt hielt darüber eine Render-Schleife am Laufen (#2938: rund
+ * 2.000 Renders pro Sekunde im Leerlauf auf jeder Seite).
+ */
+function keepIfUnchanged(left: number, width: number) {
+  return (previous: { left: number; width: number }) =>
+    previous.left === left && previous.width === width
+      ? previous
+      : { left, width };
+}
+
 interface NavItem {
   href: string;
   label: string;
@@ -797,13 +810,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         const activeElement = navRefs.current[activeIndex];
         if (activeElement) {
           const { offsetLeft, offsetWidth } = activeElement;
-          setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+          setIndicatorStyle(keepIfUnchanged(offsetLeft, offsetWidth));
           setIndicatorVisible(true);
         }
       } else if (isAnyAdditionalNavActive && moreButtonRef.current) {
         // "Mehr" button is active
         const { offsetLeft, offsetWidth } = moreButtonRef.current;
-        setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+        setIndicatorStyle(keepIfUnchanged(offsetLeft, offsetWidth));
         setIndicatorVisible(true);
       } else {
         // No active item found - hide indicator
@@ -835,7 +848,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         const activeElement = navRefs.current[activeIndex];
         if (activeElement) {
           const { offsetLeft, offsetWidth } = activeElement;
-          setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+          setIndicatorStyle(keepIfUnchanged(offsetLeft, offsetWidth));
           setIndicatorVisible(true);
         }
       }
