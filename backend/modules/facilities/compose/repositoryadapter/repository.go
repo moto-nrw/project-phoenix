@@ -126,14 +126,11 @@ func (r *Repository) FindByIDForUpdate(ctx context.Context, id int64) (*faciliti
 	if err != nil {
 		return nil, err
 	}
-	values, err := rooms.LockRoomsByID(ctx, []int64{id})
+	room, err := rooms.FindRoomForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if len(values) != 1 {
-		return nil, facilities.ErrRoomNotFound
-	}
-	return toLegacyPointer(values[0]), nil
+	return toLegacyPointer(room), nil
 }
 
 func (r *Repository) FindByName(ctx context.Context, name string) (*facilitiesModels.Room, error) {

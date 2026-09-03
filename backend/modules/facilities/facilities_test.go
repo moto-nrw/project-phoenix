@@ -22,6 +22,10 @@ func (e *recordingEngine) FindRoom(_ context.Context, id int64) (facilities.Room
 	return facilities.Room{ID: id, Name: "Igelraum"}, nil
 }
 
+func (e *recordingEngine) FindRoomForUpdate(ctx context.Context, id int64) (facilities.Room, error) {
+	return e.FindRoom(ctx, id)
+}
+
 func (e *recordingEngine) FindRoomByName(_ context.Context, name string) (facilities.Room, error) {
 	e.calls++
 	return facilities.Room{Name: name}, nil

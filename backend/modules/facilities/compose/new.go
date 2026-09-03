@@ -110,6 +110,11 @@ func (e engine) FindRoom(ctx context.Context, id int64) (facilities.Room, error)
 	return toPublic(value), mapError(err)
 }
 
+func (e engine) FindRoomForUpdate(ctx context.Context, id int64) (facilities.Room, error) {
+	value, err := e.service.FindByIDForUpdate(ctx, id)
+	return toPublic(value), mapError(err)
+}
+
 func (e engine) FindRoomByName(ctx context.Context, name string) (facilities.Room, error) {
 	value, err := e.service.FindByName(ctx, name)
 	return toPublic(value), mapError(err)

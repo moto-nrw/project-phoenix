@@ -195,6 +195,14 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rooms = visibleRooms(rooms, r.URL.Query().Get("include_system") == "true")
+	total := len(rooms)
+	page, pageSize := rs.runtime.Pagination(r)
+	offset := (page - 1) * pageSize
+	if offset >= total {
+		rooms = []facilities.Room{}
+	} else {
+		rooms = rooms[offset:min(offset+pageSize, total)]
+	}
 	views, err := rs.runtime.Occupancy(r.Context(), rooms)
 	if err != nil {
 		rs.runtime.Failure(w, r, FailureInternal, err, "internal_error")
@@ -204,8 +212,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	for _, view := range views {
 		responses = append(responses, newRoomResponse(view))
 	}
-	page, pageSize := rs.runtime.Pagination(r)
-	rs.runtime.Paginated(w, r, http.StatusOK, responses, Pagination{Page: page, PageSize: pageSize, Total: len(responses)}, "Rooms retrieved successfully")
+	rs.runtime.Paginated(w, r, http.StatusOK, responses, Pagination{Page: page, PageSize: pageSize, Total: total}, "Rooms retrieved successfully")
 }
 
 func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {

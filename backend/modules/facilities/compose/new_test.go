@@ -223,3 +223,55 @@ func TestModuleKeepsLockedRoomsUntilTenantTransactionEnds(t *testing.T) {
 	require.NoError(t, <-holderDone)
 	require.NoError(t, <-deleteDone)
 }
+
+func TestModuleKeepsUpdateLockedRoomUntilTenantTransactionEnds(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db, func(Observation) {})
+	tenantID := testpkg.Tenant(t)
+	room := testpkg.CreateTestRoom(t, db, "Igelraum")
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	holderDone := make(chan error, 1)
+	go func() {
+		holderDone <- testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			_, err := module.FindRoomForUpdate(ctx, room.ID)
+			if err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+
+	select {
+	case <-locked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("room update lock was not acquired")
+	}
+
+	updateDone := make(chan error, 1)
+	go func() {
+		updateDone <- testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+			_, err := tx.NewUpdate().
+				TableExpr("facilities.rooms").
+				Set("capacity = ?", 42).
+				Where("id = ?", room.ID).
+				Exec(ctx)
+			return err
+		})
+	}()
+
+	select {
+	case err := <-updateDone:
+		require.NoError(t, err, "room update must wait for the update lock")
+		t.Fatal("room update did not wait for the update lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	require.NoError(t, <-holderDone)
+	require.NoError(t, <-updateDone)
+}

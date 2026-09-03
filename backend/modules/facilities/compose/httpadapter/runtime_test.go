@@ -121,6 +121,32 @@ func TestListRooms(t *testing.T) {
 	})
 }
 
+func TestListRoomsPaginatesVisibleRooms(t *testing.T) {
+	t.Parallel()
+
+	tc := setupRoomsRoute(t)
+	_ = testpkg.CreateTestRoom(t, tc.db, "Pagination Room 1")
+	_ = testpkg.CreateTestRoom(t, tc.db, "Pagination Room 2")
+
+	req := testutil.NewRequest("GET", "/?building=Test%20Building&page=2&page_size=1", nil)
+	rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+
+	require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	var response struct {
+		Data       []json.RawMessage `json:"data"`
+		Pagination struct {
+			CurrentPage  int `json:"current_page"`
+			PageSize     int `json:"page_size"`
+			TotalRecords int `json:"total_records"`
+		} `json:"pagination"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Len(t, response.Data, 1)
+	assert.Equal(t, 2, response.Pagination.CurrentPage)
+	assert.Equal(t, 1, response.Pagination.PageSize)
+	assert.Equal(t, 2, response.Pagination.TotalRecords)
+}
+
 // =============================================================================
 // Get Room Tests
 // =============================================================================

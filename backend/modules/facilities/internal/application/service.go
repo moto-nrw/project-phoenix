@@ -183,6 +183,22 @@ func (s *Service) FindByID(ctx context.Context, id int64) (result domain.Room, e
 	return result, err
 }
 
+func (s *Service) FindByIDForUpdate(ctx context.Context, id int64) (result domain.Room, err error) {
+	err = s.run("find_room_for_update", func(stats *domain.OperationStats) error {
+		room, found, queryStats, findErr := s.store.FindByID(ctx, id, "UPDATE")
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return domain.ErrNotFound
+		}
+		result = room
+		return nil
+	})
+	return result, err
+}
+
 func (s *Service) FindByName(ctx context.Context, name string) (result domain.Room, err error) {
 	err = s.run("find_room_by_name", func(stats *domain.OperationStats) error {
 		room, found, queryStats, findErr := s.store.FindByName(ctx, name)

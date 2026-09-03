@@ -20,6 +20,10 @@ func (e *lifecycleEngine) FindRoom(context.Context, int64) (facilities.Room, err
 	return facilities.Room{}, nil
 }
 
+func (e *lifecycleEngine) FindRoomForUpdate(context.Context, int64) (facilities.Room, error) {
+	return facilities.Room{}, nil
+}
+
 func (e *lifecycleEngine) FindRoomByName(context.Context, string) (facilities.Room, error) {
 	return facilities.Room{}, nil
 }

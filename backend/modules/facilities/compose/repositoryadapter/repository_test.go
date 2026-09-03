@@ -16,6 +16,7 @@ type roomCapabilityStub struct {
 	created facilities.CreateRoom
 	room    facilities.Room
 	err     error
+	locked  int64
 }
 
 func (s *roomCapabilityStub) ListRooms(context.Context, facilities.RoomFilter) ([]facilities.Room, error) {
@@ -25,6 +26,11 @@ func (s *roomCapabilityStub) ListRooms(context.Context, facilities.RoomFilter) (
 func (s *roomCapabilityStub) CreateRoom(_ context.Context, input facilities.CreateRoom) (facilities.Room, error) {
 	s.created = input
 	return s.room, nil
+}
+
+func (s *roomCapabilityStub) FindRoomForUpdate(_ context.Context, id int64) (facilities.Room, error) {
+	s.locked = id
+	return s.room, s.err
 }
 
 func TestRepositoryDelegatesCreateToOwner(t *testing.T) {
@@ -56,4 +62,18 @@ func TestRepositoryListReturnsNilOnOwnerFailure(t *testing.T) {
 
 	require.Nil(t, rooms)
 	require.ErrorIs(t, err, failure)
+}
+
+func TestRepositoryDelegatesUpdateLockToOwner(t *testing.T) {
+	t.Parallel()
+	roomID := time.Now().UnixNano()
+	owner := &roomCapabilityStub{room: facilities.Room{ID: roomID, Name: "Igelraum"}}
+	repository := New()
+	repository.Bind(owner)
+
+	room, err := repository.FindByIDForUpdate(context.Background(), roomID)
+
+	require.NoError(t, err)
+	require.Equal(t, roomID, owner.locked)
+	require.Equal(t, roomID, room.ID)
 }

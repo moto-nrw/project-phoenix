@@ -46,6 +46,7 @@ type Room struct {
 
 type Query interface {
 	FindRoom(context.Context, int64) (Room, error)
+	FindRoomForUpdate(context.Context, int64) (Room, error)
 	FindRoomByName(context.Context, string) (Room, error)
 	FindToiletRoom(context.Context, int64) (Room, error)
 	ListRooms(context.Context, RoomFilter) ([]Room, error)
@@ -67,6 +68,7 @@ type Capability interface {
 
 type engine interface {
 	FindRoom(context.Context, int64) (Room, error)
+	FindRoomForUpdate(context.Context, int64) (Room, error)
 	FindRoomByName(context.Context, string) (Room, error)
 	FindToiletRoom(context.Context, int64) (Room, error)
 	ListRooms(context.Context, RoomFilter) ([]Room, error)
@@ -91,6 +93,16 @@ func (m *Module) FindRoom(ctx context.Context, id int64) (Room, error) {
 		return Room{}, ErrInvalidRoom
 	}
 	return m.engine.FindRoom(ctx, id)
+}
+
+// FindRoomForUpdate returns a room while holding an update lock until the
+// caller's transaction ends. Callers use it when a state check and a
+// subsequent mutation must be atomic.
+func (m *Module) FindRoomForUpdate(ctx context.Context, id int64) (Room, error) {
+	if id <= 0 {
+		return Room{}, ErrInvalidRoom
+	}
+	return m.engine.FindRoomForUpdate(ctx, id)
 }
 
 func (m *Module) FindRoomByName(ctx context.Context, name string) (Room, error) {
