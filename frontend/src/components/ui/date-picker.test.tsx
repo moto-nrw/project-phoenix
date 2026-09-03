@@ -587,6 +587,73 @@ describe("DatePicker", () => {
     expect(portal).toHaveClass("max-h-[calc(100dvh-1rem)]", "overflow-y-auto");
   });
 
+  it("keeps a preferred-below popover directly below its trigger", () => {
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(900);
+    render(
+      <DatePicker
+        value={null}
+        onChange={mockOnChange}
+        calendarLayout="popover-below"
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /datum auswählen/i });
+    vi.spyOn(
+      trigger.parentElement!.parentElement!,
+      "getBoundingClientRect",
+    ).mockReturnValue({
+      top: 548,
+      bottom: 580,
+      left: 1075,
+      right: 1251,
+      width: 176,
+      height: 32,
+      x: 1075,
+      y: 548,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.click(trigger);
+
+    expect(screen.getByTestId("day-picker").closest(".fixed")).toHaveStyle({
+      top: "584px",
+      maxHeight: "308px",
+    });
+  });
+
+  it("flips a preferred-below popover up before it becomes unusably short", () => {
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
+    render(
+      <DatePicker
+        value={null}
+        onChange={mockOnChange}
+        calendarLayout="popover-below"
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /datum auswählen/i });
+    vi.spyOn(
+      trigger.parentElement!.parentElement!,
+      "getBoundingClientRect",
+    ).mockReturnValue({
+      top: 700,
+      bottom: 732,
+      left: 120,
+      right: 296,
+      width: 176,
+      height: 32,
+      x: 120,
+      y: 700,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.click(trigger);
+
+    expect(screen.getByTestId("day-picker").closest(".fixed")).toHaveStyle({
+      top: "336px",
+    });
+  });
+
   it("keeps the calendar open while its short-viewport panel scrolls", () => {
     render(
       <DatePicker

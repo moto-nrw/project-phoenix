@@ -78,6 +78,18 @@ func TestFullGuardianCanManageStudentConsents(t *testing.T) {
 	}
 }
 
+func TestFullGuardianCanManageMealParticipation(t *testing.T) {
+	t.Parallel()
+
+	for _, role := range []string{GuardianRolePrimaryGuardian, GuardianRoleLegalGuardian, GuardianRoleCoGuardian} {
+		guardian := &testGuardian{}
+		ApplyStudentGuardianRole(guardian, role)
+		if !StudentGuardianHasPermission(guardian, GuardianPermissionMealParticipationManage) {
+			t.Fatalf("full guardian role %q cannot manage meal participation", role)
+		}
+	}
+}
+
 func TestGuardianRoleNormalizationAndPermissionSets(t *testing.T) {
 	t.Parallel()
 	for _, role := range []string{GuardianRolePrimaryGuardian, GuardianRoleLegalGuardian, GuardianRoleCoGuardian} {

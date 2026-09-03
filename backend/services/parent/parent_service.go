@@ -43,6 +43,37 @@ import (
 type MealPlan interface {
 	Available(context.Context) (bool, error)
 	Week(context.Context, mealplanModule.Date) ([]mealplanModule.Entry, error)
+	RegistrationAvailable(context.Context) (bool, error)
+	Participation(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error)
+	ReplaceParticipationSchedule(context.Context, mealplanModule.ReplaceParticipationSchedule) (mealplanModule.Date, error)
+	SetParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error
+	ClearParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error
+}
+
+// MealPlanEntry is the parent-portal view of one planned dish. Keeping this
+// transport-neutral view in the parent service prevents HTTP handlers from
+// depending on the meal-plan module's public API.
+type MealPlanEntry struct {
+	Date     string
+	Position int
+	Dish     string
+	Note     *string
+}
+
+type MealWeekday int
+
+type MealParticipationDay struct {
+	Date          string
+	Participating bool
+	Source        string
+	Changeable    bool
+}
+
+type MealParticipationPlan struct {
+	Weekdays      []MealWeekday
+	EffectiveFrom string
+	CutoffTime    string
+	Days          []MealParticipationDay
 }
 
 // Service is the public contract consumed by HTTP handlers.
@@ -154,7 +185,13 @@ type Service interface {
 	// (parent_portal.access) plus the operations.meal_plan_enabled toggle for
 	// the child's tenant: when the feature is off it returns
 	// ErrMealPlanDisabled so the portal can hide the section.
-	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]mealplanModule.Entry, error)
+	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]MealPlanEntry, error)
+	MealParticipation(ctx context.Context, accountID, studentID int64, from, to timezone.Date) (MealParticipationPlan, error)
+	// Meal-participation writes require the relationship-scoped
+	// parent_portal.meal_participation.manage permission.
+	ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error)
+	SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error
+	ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error
 
 	// SubmitCareExceptionWithReason requires a
 	// concrete pickup time and stores the parent's explanation with it. Arrival
@@ -361,7 +398,8 @@ type ChildFeatureFlags struct {
 	// MealPlanEnabled is true when the school maintains a meal plan
 	// (operations.meal_plan_enabled), so the portal can show the read-only
 	// Essensplan section for this child's school.
-	MealPlanEnabled bool
+	MealPlanEnabled         bool
+	MealRegistrationEnabled bool
 	// HasOpenChangeRequest is STATE, not a capability: true when the child has at
 	// least one pending change request (master data OR care schedule) awaiting an
 	// OGS decision. It rides along on the features fetch (the one call the child

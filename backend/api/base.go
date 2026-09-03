@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
@@ -29,7 +31,6 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
-	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
@@ -83,6 +84,7 @@ import (
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -193,6 +195,8 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		Observe: func(observation mealplanCompose.Observation) {
 			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
 		},
+		Now:          time.Now,
+		Participants: mealPlanParticipantFinder(repoFactory, time.Now),
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -232,10 +236,48 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, membership: membership}, nil
 }
 
+func mealPlanParticipantFinder(repoFactory *repositories.Factory, now func() time.Time) mealplanCompose.ParticipantFinder {
+	return func(ctx context.Context, date string) ([]mealplanCompose.ParticipantCandidate, error) {
+		students, err := repoFactory.Student.FindOverlappingWithGroupsOnDate(ctx, date, now())
+		if err != nil {
+			return nil, err
+		}
+		candidates := make([]mealplanCompose.ParticipantCandidate, 0, len(students))
+		for _, row := range students {
+			if row == nil || row.Student == nil || row.Person == nil {
+				continue
+			}
+			candidates = append(candidates, mealplanCompose.ParticipantCandidate{
+				StudentID: row.ID, FirstName: row.Person.FirstName, LastName: row.Person.LastName, SchoolClass: row.SchoolClass,
+			})
+		}
+		sort.SliceStable(candidates, func(left, right int) bool {
+			return mealPlanParticipantLess(candidates[left], candidates[right])
+		})
+		return candidates, nil
+	}
+}
+
+func mealPlanParticipantLess(left, right mealplanCompose.ParticipantCandidate) bool {
+	if left.SchoolClass != right.SchoolClass {
+		return left.SchoolClass < right.SchoolClass
+	}
+	if left.LastName != right.LastName {
+		return left.LastName < right.LastName
+	}
+	if left.FirstName != right.FirstName {
+		return left.FirstName < right.FirstName
+	}
+	return left.StudentID < right.StudentID
+}
+
 var mealPlanErrorRules = []apiCommon.ErrorRule{
 	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("feature_disabled"))},
 	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
 	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
+	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("meal_registration_disabled"))},
+	{Target: mealplanModule.ErrInvalidParticipation, Render: apiCommon.ErrorInvalidRequest},
+	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedRenderer(apiCommon.ErrorConflict, errors.New("meal_participation_cutoff_passed"))},
 }
 
 func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
@@ -243,12 +285,15 @@ func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, in
 	apiCommon.RenderError(w, r, renderer(err))
 }
 
-func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI.Resource {
+func newMealPlanResource(module *mealplanModule.Module, db *bun.DB, renderer services.SimpleListRenderer) *mealplanAPI.Resource {
 	return mealplanAPI.NewResource(module, mealplanAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, mealplanAPI.Middleware)) {
 			apiCommon.ProtectedTenantGroup(router, db, register)
 		},
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
+			if access == mealplanAPI.AccessParticipants {
+				return apiCommon.RequireMealParticipantsRead()
+			}
 			if access == mealplanAPI.AccessRead {
 				return apiCommon.RequireConfigRead()
 			}
@@ -261,7 +306,37 @@ func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI
 		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
 			renderMealPlanFailure(w, r, err, internalMessage)
 		},
+		ExportDailyList: func(list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
+			return renderMealParticipationExport(renderer, list, format)
+		},
 	})
+}
+
+func renderMealParticipationExport(renderer services.SimpleListRenderer, list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
+	rows := make([][]string, 0, len(list.Participants))
+	for _, participant := range list.Participants {
+		rows = append(rows, []string{participant.LastName + ", " + participant.FirstName, participant.SchoolClass})
+	}
+	date, err := list.Date.German()
+	if err != nil {
+		return mealplanAPI.ExportFile{}, err
+	}
+	file, err := renderer(services.SimpleListDocument{
+		Title:       "Mittagessen – Tagesliste",
+		Subtitle:    "Tagesliste für den " + date,
+		GeneratedAt: time.Now(),
+		Filters:     []string{"Änderungsfrist: " + list.CutoffTime + " Uhr", fmt.Sprintf("%d Kinder", len(rows))},
+		Columns: []services.SimpleListColumn{
+			{ID: "student_name", Label: "Kind"},
+			{ID: "student_class", Label: "Klasse"},
+		},
+		Rows:   rows,
+		Footer: "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
+	}, format, "mittagessen-"+string(list.Date))
+	if err != nil {
+		return mealplanAPI.ExportFile{}, err
+	}
+	return mealplanAPI.ExportFile{Data: file.Data, ContentType: file.ContentType, Filename: file.Filename}, nil
 }
 
 func newUsersResource(module peopleModule.Capability, repoFactory *repositories.Factory, db *bun.DB) *usersAPI.Resource {
@@ -369,7 +444,7 @@ type API struct {
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
 	ClassDay         *classdayAPI.Resource
-	ClassListEntries *classlistentriesAPI.Resource
+	ClassListEntries *classListHTTP.Resource
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
@@ -547,7 +622,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
-	api.MealPlan = newMealPlanResource(modules.mealPlan, db)
+	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
 	api.Users = newUsersResource(modules.persons, repoFactory, db)
 
@@ -1043,7 +1118,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
-	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
+	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Substitution, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
@@ -1461,4 +1536,10 @@ func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
 	w.Header().Set("Cache-Control", "private, max-age=3600")
 	_, _ = w.Write([]byte(content))
+}
+
+// newMealPlanExportRenderer keeps the export adapter construction in the API
+// composition layer so both production and route tests receive a real renderer.
+func newMealPlanExportRenderer() services.SimpleListRenderer {
+	return services.NewSimpleListRenderer()
 }

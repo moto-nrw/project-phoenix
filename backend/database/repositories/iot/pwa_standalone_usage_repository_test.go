@@ -61,7 +61,9 @@ func TestPWAStandaloneUsageRepository(t *testing.T) {
 
 		rows = fetchPWAUsageRows(t, db, account.ID)
 		require.Len(t, rows, 1)
-		assert.WithinDuration(t, time.Now(), rows[0].LastSeenAt, time.Minute)
+		var databaseTime time.Time
+		require.NoError(t, db.NewRaw("SELECT CURRENT_TIMESTAMP").Scan(context.Background(), &databaseTime))
+		assert.WithinDuration(t, databaseTime, rows[0].LastSeenAt, time.Minute)
 		assert.WithinDuration(t, firstSeen, rows[0].FirstSeenAt, time.Second)
 	})
 
