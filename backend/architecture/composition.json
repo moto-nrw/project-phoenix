@@ -485,6 +485,11 @@
           "declaration": "type API"
         },
         {
+          "file": "api/class_list_entries_composition.go",
+          "line": 25,
+          "declaration": "newClassListEntriesResource"
+        },
+        {
           "file": "api/guardians_composition.go",
           "line": 52,
           "declaration": "newGuardiansResource"
@@ -16835,6 +16840,16 @@
     },
     {
       "scope": "test",
+      "file": "api/class_list_entries_composition_test.go",
+      "declaration": "setupClassListEntriesRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        29
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "api/classday/class_day_api_test.go",
       "declaration": "setupClassDayRoute",
       "target": "api/testutil.SetupAPITest",
@@ -16850,16 +16865,6 @@
       "target": "api/testutil.SetupAPITest",
       "lines": [
         56
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/classlistentries/class_list_entries_api_test.go",
-      "declaration": "setupClassListEntriesRoute",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        32
       ],
       "tables": []
     },
@@ -21915,6 +21920,26 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/class_list_entry_membership_test.go",
+      "declaration": "TestClassListEntryAdapter_ClassLookupsMatchCaseInsensitivelyAndOrderByName",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        53
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/class_list_entry_membership_test.go",
+      "declaration": "TestClassListEntryAdapter_KeepsTheLegacyErrorContracts",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        23
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/education/class_teacher_repository_test.go",
       "declaration": "TestClassTeacherRepository_Create",
       "target": "database/repositories.NewFactory",
@@ -26900,7 +26925,8 @@
       "declaration": "setupClassListEntryTransitionTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        37,
+        38
       ],
       "tables": []
     },
@@ -31995,6 +32021,28 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         63
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "test/class_list_entry_isolation_test.go",
+      "declaration": "TestClassListEntryRepositoryCannotSmuggleAForeignTenant",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        124
+      ],
+      "tables": [
+        "users.class_list_entries"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "test/class_list_entry_isolation_test.go",
+      "declaration": "TestClassListEntryTenantIsolation",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        48
       ],
       "tables": []
     },

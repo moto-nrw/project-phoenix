@@ -29,7 +29,6 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
-	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
@@ -83,6 +82,7 @@ import (
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -369,7 +369,7 @@ type API struct {
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
 	ClassDay         *classdayAPI.Resource
-	ClassListEntries *classlistentriesAPI.Resource
+	ClassListEntries *classListHTTP.Resource
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
@@ -1044,7 +1044,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"),
 		classdayAPI.WithArrivalExceptions(api.Services.ClassDayArrivalExceptions))
-	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
+	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Substitution, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
