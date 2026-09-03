@@ -34,6 +34,10 @@ interface DataTableProps<T> {
   rows: T[];
   getRowKey: (row: T) => string | number;
   onRowClick?: (row: T) => void;
+  // Rows with their own buttons or menus must not also become an ARIA button:
+  // nested interactive elements have ambiguous keyboard and screen-reader
+  // semantics. Their explicit action is the keyboard path to the detail view.
+  rowHasInteractiveControls?: boolean;
   emptyState?: ReactNode;
   headerActions?: ReactNode;
   caption?: string;
@@ -129,6 +133,7 @@ function StackedRows<T>({
   rows,
   getRowKey,
   onRowClick,
+  rowHasInteractiveControls,
   rowClassName,
   isLoading,
   loadingRowCount,
@@ -141,6 +146,7 @@ function StackedRows<T>({
   rows: T[];
   getRowKey: (row: T) => string | number;
   onRowClick?: (row: T) => void;
+  rowHasInteractiveControls?: boolean;
   rowClassName?: (row: T) => string;
   isLoading?: boolean;
   loadingRowCount: number;
@@ -155,6 +161,7 @@ function StackedRows<T>({
     (c) => c !== title && c !== meta && c.stacked !== "hidden",
   );
   const clickable = Boolean(onRowClick);
+  const keyboardClickable = clickable && !rowHasInteractiveControls;
 
   if (isLoading) {
     return (
@@ -194,18 +201,18 @@ function StackedRows<T>({
               className={`p-4 ${clickable ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               onKeyDown={
-                onRowClick
+                keyboardClickable
                   ? (event) => {
                       if (event.target !== event.currentTarget) return;
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        onRowClick(row);
+                        onRowClick?.(row);
                       }
                     }
                   : undefined
               }
-              tabIndex={clickable ? 0 : undefined}
-              role={clickable ? "button" : undefined}
+              tabIndex={keyboardClickable ? 0 : undefined}
+              role={keyboardClickable ? "button" : undefined}
             >
               <div className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0">{title?.render(row)}</span>
@@ -287,6 +294,7 @@ export function DataTable<T>({
   rows,
   getRowKey,
   onRowClick,
+  rowHasInteractiveControls = false,
   emptyState,
   headerActions,
   caption,
@@ -300,6 +308,7 @@ export function DataTable<T>({
   stackedOnMobile = false,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
+  const keyboardClickable = clickable && !rowHasInteractiveControls;
 
   const [sort, setSort] = useState<{
     key: string;
@@ -386,6 +395,7 @@ export function DataTable<T>({
             rows={visibleRows}
             getRowKey={getRowKey}
             onRowClick={onRowClick}
+            rowHasInteractiveControls={rowHasInteractiveControls}
             rowClassName={rowClassName}
             isLoading={isLoading}
             loadingRowCount={loadingRowCount}
@@ -508,20 +518,20 @@ export function DataTable<T>({
                       className={rowClasses}
                       onClick={onRowClick ? () => onRowClick(row) : undefined}
                       onKeyDown={
-                        onRowClick
+                        keyboardClickable
                           ? (event) => {
                               if (event.target !== event.currentTarget) {
                                 return;
                               }
                               if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
-                                onRowClick(row);
+                                onRowClick?.(row);
                               }
                             }
                           : undefined
                       }
-                      tabIndex={clickable ? 0 : undefined}
-                      role={clickable ? "button" : undefined}
+                      tabIndex={keyboardClickable ? 0 : undefined}
+                      role={keyboardClickable ? "button" : undefined}
                     >
                       {columns.map((col) => {
                         const align = alignClass[col.align ?? "left"];

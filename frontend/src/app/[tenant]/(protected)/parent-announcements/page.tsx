@@ -867,6 +867,10 @@ function ParentAnnouncementsContent() {
         getRowKey={(row) => row.id}
         defaultSortKey="title"
         onRowClick={(row) => setDetailFor(row)}
+        // "Anzeigen" im Aktionsmenü öffnet dieselben Details per Tastatur.
+        // Deshalb darf die Zeile mit ihren eigenen Aktionen nicht zusätzlich
+        // als Schaltfläche angekündigt werden.
+        rowHasInteractiveControls
       />
     </TenantPage>
   );
