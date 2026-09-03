@@ -15,29 +15,41 @@ func TestMealParticipationMigrationBackfillsFullGuardianPermission(t *testing.T)
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
 	require.NoError(t, mealParticipationDown(ctx, db))
+	migrationApplied := false
 	defer func() {
-		require.NoError(t, mealParticipationDown(ctx, db))
+		if migrationApplied {
+			require.NoError(t, mealParticipationDown(ctx, db))
+		}
 		require.NoError(t, mealParticipationUp(ctx, db))
 	}()
 
 	fullGuardian := testpkg.CreateTestParentGuardianChain(t, db)
 	restrictedGuardian := testpkg.CreateTestParentGuardianChain(t, db)
 	for _, guardian := range []struct {
-		chain testpkg.ParentChain
-		role  string
+		chain       testpkg.ParentChain
+		role        string
+		permissions string
 	}{
-		{chain: fullGuardian, role: "primary_guardian"},
-		{chain: restrictedGuardian, role: "pickup_only"},
+		{chain: fullGuardian, role: "primary_guardian", permissions: `{"parent_portal.access": true}`},
+		{
+			chain: restrictedGuardian,
+			role:  "pickup_only",
+			permissions: `{
+				"parent_portal.access": true,
+				"parent_portal.meal_participation.manage": true
+			}`,
+		},
 	} {
 		_, err := db.NewRaw(`
 			UPDATE users.students_guardians
-			SET guardian_role = ?, permissions = '{"parent_portal.access": true}'::jsonb
+			SET guardian_role = ?, permissions = ?::jsonb
 			WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
-		`, guardian.role, guardian.chain.TenantID, guardian.chain.StudentID, guardian.chain.GuardianProfileID).Exec(ctx)
+		`, guardian.role, guardian.permissions, guardian.chain.TenantID, guardian.chain.StudentID, guardian.chain.GuardianProfileID).Exec(ctx)
 		require.NoError(t, err)
 	}
 
 	require.NoError(t, mealParticipationUp(ctx, db))
+	migrationApplied = true
 	permissionValue := func(chain testpkg.ParentChain) string {
 		t.Helper()
 		var value string
@@ -50,5 +62,10 @@ func TestMealParticipationMigrationBackfillsFullGuardianPermission(t *testing.T)
 	}
 
 	assert.Equal(t, "true", permissionValue(fullGuardian))
-	assert.Equal(t, "<missing>", permissionValue(restrictedGuardian))
+	assert.Equal(t, "true", permissionValue(restrictedGuardian))
+
+	require.NoError(t, mealParticipationDown(ctx, db))
+	migrationApplied = false
+	assert.Equal(t, "<missing>", permissionValue(fullGuardian))
+	assert.Equal(t, "true", permissionValue(restrictedGuardian))
 }

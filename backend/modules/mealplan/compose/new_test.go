@@ -433,6 +433,34 @@ func TestDailyListKeepsCutoffStateWhenSicknessIsClearedAfterCutoff(t *testing.T)
 	assert.NotContains(t, dailyParticipantIDs(list), student.ID)
 }
 
+func TestDailyListOmitsChildWhenClearedSicknessIsReopenedBeforeCutoff(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModuleAt(t, db, true, nil, time.Date(2099, 9, 7, 8, 0, 0, 0, testBerlin))
+	student := testpkg.CreateTestStudent(t, db, "Mila", "Wiedereröffnet", "2d")
+	account := testpkg.CreateTestAccount(t, db, "meal-sick-reopened-before-cutoff")
+	ctx := testpkg.Ctx(t)
+	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
+		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2099-09-07", Participating: true,
+	}))
+	reportedAt := time.Date(2000, 1, 3, 8, 0, 0, 0, testBerlin)
+	status := createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2099-09-07", reportedAt)
+	_, err := db.NewUpdate().Model(status).
+		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+		Set(`cleared_at = ?`, time.Date(2000, 1, 3, 8, 30, 0, 0, testBerlin)).
+		WherePK().Exec(context.Background())
+	require.NoError(t, err)
+	_, err = db.NewUpdate().Model(status).
+		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+		Set(`cleared_at = NULL`).
+		WherePK().Exec(context.Background())
+	require.NoError(t, err)
+
+	list, err := module.DailyList(ctx, "2099-09-07")
+	require.NoError(t, err)
+	assert.NotContains(t, dailyParticipantIDs(list), student.ID)
+}
+
 func TestParticipationUsesLatestSicknessSnapshotWhenTimestampsMatch(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

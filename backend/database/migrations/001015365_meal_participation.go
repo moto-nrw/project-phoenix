@@ -128,7 +128,7 @@ func mealParticipationUp(ctx context.Context, db *bun.DB) error {
 			ELSIF OLD.status <> 'sick' OR NEW.reported_at IS DISTINCT FROM OLD.reported_at THEN
 				effective_change := NEW.reported_at;
 			ELSIF NEW.cleared_at IS DISTINCT FROM OLD.cleared_at THEN
-				effective_change := COALESCE(NEW.cleared_at, NEW.reported_at);
+				effective_change := COALESCE(NEW.cleared_at, clock_timestamp());
 			ELSE
 				RETURN NEW;
 			END IF;
@@ -160,10 +160,45 @@ func mealParticipationUp(ctx context.Context, db *bun.DB) error {
 		FROM active.student_status_days
 		WHERE status = 'sick' AND cleared_at IS NOT NULL;
 
-		UPDATE users.students_guardians
-		SET permissions = COALESCE(permissions, '{}'::jsonb)
+		CREATE TABLE meta.meal_participation_permission_grants (
+			student_guardian_id BIGINT PRIMARY KEY
+				REFERENCES users.students_guardians(id) ON DELETE CASCADE
+		);
+
+		INSERT INTO meta.meal_participation_permission_grants (student_guardian_id)
+		SELECT id
+		FROM users.students_guardians
+		WHERE guardian_role IN ('primary_guardian', 'legal_guardian', 'co_guardian')
+			AND NOT (COALESCE(permissions, '{}'::jsonb) ? 'parent_portal.meal_participation.manage');
+
+		UPDATE users.students_guardians AS student_guardian
+		SET permissions = COALESCE(student_guardian.permissions, '{}'::jsonb)
 			|| '{"parent_portal.meal_participation.manage": true}'::jsonb
-		WHERE guardian_role IN ('primary_guardian', 'legal_guardian', 'co_guardian');
+		FROM meta.meal_participation_permission_grants AS migration_grant
+		WHERE student_guardian.id = migration_grant.student_guardian_id;
+
+		CREATE FUNCTION meta.invalidate_meal_participation_permission_grant()
+		RETURNS TRIGGER
+		LANGUAGE plpgsql
+		SECURITY DEFINER
+		SET search_path = pg_catalog, meta
+		AS $$
+		BEGIN
+			DELETE FROM meta.meal_participation_permission_grants
+			WHERE student_guardian_id = OLD.id;
+			RETURN NEW;
+		END;
+		$$;
+		CREATE TRIGGER invalidate_meal_participation_permission_grant
+			AFTER UPDATE OF permissions ON users.students_guardians
+			FOR EACH ROW
+			WHEN (
+				(OLD.permissions -> 'parent_portal.meal_participation.manage')
+				IS DISTINCT FROM
+				(NEW.permissions -> 'parent_portal.meal_participation.manage')
+			)
+			EXECUTE FUNCTION meta.invalidate_meal_participation_permission_grant();
+		REVOKE ALL ON FUNCTION meta.invalidate_meal_participation_permission_grant() FROM PUBLIC;
 
 		CREATE TRIGGER update_meal_participation_schedules_updated_at
 			BEFORE UPDATE ON schedule.meal_participation_schedules
@@ -197,9 +232,17 @@ func mealParticipationUp(ctx context.Context, db *bun.DB) error {
 func mealParticipationDown(ctx context.Context, db *bun.DB) error {
 	slog.Info("migration rollback starting", "migration", mealParticipationVersion)
 	_, err := db.NewRaw(`
-		UPDATE users.students_guardians
-		SET permissions = permissions - 'parent_portal.meal_participation.manage'
-		WHERE permissions ? 'parent_portal.meal_participation.manage';
+		DROP TRIGGER IF EXISTS invalidate_meal_participation_permission_grant
+			ON users.students_guardians;
+		DROP FUNCTION IF EXISTS meta.invalidate_meal_participation_permission_grant();
+
+		UPDATE users.students_guardians AS student_guardian
+		SET permissions = student_guardian.permissions - 'parent_portal.meal_participation.manage'
+		FROM meta.meal_participation_permission_grants AS migration_grant
+		WHERE student_guardian.id = migration_grant.student_guardian_id
+			AND student_guardian.permissions ? 'parent_portal.meal_participation.manage';
+
+		DROP TABLE meta.meal_participation_permission_grants;
 
 		DROP TRIGGER IF EXISTS record_meal_sickness_status ON active.student_status_days;
 		DROP TRIGGER IF EXISTS record_deleted_meal_sickness_status ON active.student_status_days;
