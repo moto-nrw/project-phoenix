@@ -1231,6 +1231,20 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/operator/settings");
     });
 
+    it("keeps the refresh action available in the operator overflow menu", () => {
+      render(<MobileBottomNav />);
+
+      const moreButton = screen
+        .getAllByRole("button")
+        .find((button) => !button.hasAttribute("data-testid"));
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      expect(
+        screen.getByRole("button", { name: "Aktualisieren" }),
+      ).toBeInTheDocument();
+    });
+
     it("shows active label for current operator route", () => {
       render(<MobileBottomNav />);
 

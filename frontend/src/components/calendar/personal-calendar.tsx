@@ -194,6 +194,22 @@ function isWeekendOnlyEvent(event: CalendarEvent): boolean {
   return true;
 }
 
+/**
+ * Einträge, die bei der gewählten Wochenend-Anzeige im Raster vorkommen.
+ * Die Seitenkopfkarte nutzt dieselbe Regel für Zahl und Leerzustand, damit
+ * ein nur am Wochenende liegender Zeitraum nicht als gefüllter Kalender
+ * ohne sichtbaren Inhalt erscheint.
+ */
+export function visibleCalendarEvents(
+  events: readonly CalendarEvent[],
+  showWeekend: boolean,
+  viewMode: CalendarViewMode,
+): readonly CalendarEvent[] {
+  return showWeekend || viewMode === "day"
+    ? events
+    : events.filter((event) => !isWeekendOnlyEvent(event));
+}
+
 function countWeekendEvents(
   events: readonly CalendarEvent[],
   weekendDays: readonly Date[],
@@ -461,10 +477,11 @@ export function PersonalCalendar({
   const visibleMonthDays = showWeekend
     ? monthDays
     : monthDays.filter((day) => !isWeekendDay(day));
-  const visibleSortedEvents =
-    showWeekend || viewMode === "day"
-      ? sortedEvents
-      : sortedEvents.filter((event) => !isWeekendOnlyEvent(event));
+  const visibleSortedEvents = visibleCalendarEvents(
+    sortedEvents,
+    showWeekend,
+    viewMode,
+  );
   // Mobile lacks the space for the time grid, so it renders a per-day agenda.
   // The day set mirrors the desktop view (single day / visible week / visible
   // month) so the weekend toggle and range stay consistent across breakpoints.

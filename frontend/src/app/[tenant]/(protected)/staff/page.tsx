@@ -935,6 +935,7 @@ function StaffPageContent() {
                         onClick={
                           canNavigateToStaff ? navigateToStaff : undefined
                         }
+                        disabled={!canNavigateToStaff}
                         ariaLabel={
                           canNavigateToStaff
                             ? `${staffMember.firstName} ${staffMember.lastName} - ${

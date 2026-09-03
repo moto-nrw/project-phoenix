@@ -42,7 +42,11 @@ vi.mock("vaul", async () => {
   };
 });
 
-import { PersonalCalendar, PersonalCalendarChrome } from "./personal-calendar";
+import {
+  PersonalCalendar,
+  PersonalCalendarChrome,
+  visibleCalendarEvents,
+} from "./personal-calendar";
 import type { CalendarEvent } from "~/lib/personal-calendar-api";
 
 const appointment: CalendarEvent = {
@@ -251,6 +255,29 @@ describe("PersonalCalendar", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("counts only events visible with hidden weekends", () => {
+    const weekendEvent: CalendarEvent = {
+      id: "appointment:2:2026-01-10",
+      source: "appointment",
+      appointment_id: "2",
+      title: "Wochenend-Termin",
+      start_date: "2026-01-10",
+      end_date: "2026-01-11",
+      start_time: "09:00",
+      end_time: "10:00",
+      all_day: false,
+      can_respond: false,
+      can_edit: false,
+    };
+
+    expect(
+      visibleCalendarEvents([appointment, weekendEvent], false, "week"),
+    ).toEqual([appointment]);
+    expect(
+      visibleCalendarEvents([appointment, weekendEvent], true, "week"),
+    ).toEqual([appointment, weekendEvent]);
   });
 
   it("supports week navigation and create action", () => {

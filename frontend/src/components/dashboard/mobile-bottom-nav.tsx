@@ -939,6 +939,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                 })}
               </div>
               {(mode === "teacher" ||
+                mode === "operator" ||
                 isSessionExpired ||
                 canStartStaffPreview) && (
                 <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">

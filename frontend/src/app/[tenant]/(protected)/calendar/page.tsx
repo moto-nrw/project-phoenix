@@ -12,6 +12,7 @@ import {
   CalendarOverviewList,
   PersonalCalendar,
   PersonalCalendarChrome,
+  visibleCalendarEvents,
   type CalendarViewMode,
 } from "~/components/calendar/personal-calendar";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
@@ -730,7 +731,11 @@ function StaffCalendarPageInner() {
   // Statuszeile: die Zahl der Termine im sichtbaren Zeitraum. Den Zeitraum
   // selbst führt die Bedienzeile der Zeitnavigation als `dateLabel`, er steht
   // deshalb nicht ein zweites Mal in der Kopfkarte.
-  const eventCount = data?.events.length ?? 0;
+  const eventCount = visibleCalendarEvents(
+    calendarEvents,
+    showWeekend,
+    viewMode,
+  ).length;
   const statusLine =
     isLoading || calendarError
       ? undefined

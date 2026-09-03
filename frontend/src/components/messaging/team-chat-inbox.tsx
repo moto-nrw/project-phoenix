@@ -224,7 +224,7 @@ export function TeamChatInbox({
         ),
       };
     }
-    if (filteredThreads.length === 0) {
+    if (filteredThreads.length === 0 && !loadFailed) {
       return {
         icon: emptyIcon,
         title: "Noch keine Nachrichten",

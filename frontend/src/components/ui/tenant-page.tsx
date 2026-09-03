@@ -703,8 +703,11 @@ function TenantPageTabs({
             {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im
                 Band stehen; der Sammelreiter verschwindet dort. */}
             {hidden.map((item) => renderTab(item, false, "sm:hidden"))}
+            {/* Der Sammelreiter gehört semantisch zum Reiterband. Außerhalb
+                davon würde er sich für Screenreader zwar als Reiter, aber
+                nicht als Teil dieser Seitennavigation ankündigen. */}
+            {hidden.length > 0 && moreTrigger()}
           </div>
-          {hidden.length > 0 && moreTrigger()}
         </div>
         {/* Scroll-Hinweis des mobilen Bandes: solange rechts Reiter liegen,
             blendet die Kante sie sichtbar aus — die Pille wirkt angeschnitten

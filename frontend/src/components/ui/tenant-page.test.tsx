@@ -248,9 +248,9 @@ describe("TenantPage", () => {
       expect(moreButton).toHaveAttribute("role", "tab");
       expect(moreButton).toHaveAttribute("aria-selected", "true");
 
-      expect(
-        within(tablist).queryByRole("button", { name: "Mehr" }),
-      ).toBeNull();
+      expect(within(tablist).getByRole("tab", { name: "Mehr" })).toBe(
+        moreButton,
+      );
       fireEvent.click(moreButton);
 
       expect(
