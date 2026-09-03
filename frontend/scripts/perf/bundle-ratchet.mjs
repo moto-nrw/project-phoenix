@@ -155,7 +155,9 @@ function summary(rows, failures) {
   lines.push("");
   for (const failure of failures) lines.push(`- ${failure}`);
   const moved = rows
-    .filter((r) => r.delta !== 0)
+    // Zwei kalte Läufe auf demselben Runner liegen wenige Bytes auseinander;
+    // das ist Rauschen, nicht Bericht.
+    .filter((r) => Math.abs(r.delta) >= 512)
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
     .slice(0, 10);
   if (moved.length > 0) {
