@@ -9,23 +9,20 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // ChildRepository implements parentModels.ChildRepository.
 type ChildRepository struct {
-	db        *bun.DB
+	runtime   Runtime
 	students  StudentDirectory
 	guardians GuardianDirectory
 }
 
 // NewChildRepository wires a fresh repository.
-func NewChildRepository(db *bun.DB) parentModels.ChildRepository {
-	return &ChildRepository{db: db}
+func NewChildRepository(runtime Runtime) parentModels.ChildRepository {
+	return &ChildRepository{runtime: requireRuntime(runtime)}
 }
 
 // BindStudentDirectory installs the People Directory the guardian links are
@@ -124,13 +121,13 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 // portalLinks returns the account's guardian links at the schools it holds
 // an ACTIVE mapping at, keeping only the links that grant portal access.
 func (r *ChildRepository) portalLinks(ctx context.Context, accountID int64) ([]guardianLink, error) {
-	links, err := activeGuardianLinks(ctx, r.db, r.guardians, accountID)
+	links, err := activeGuardianLinks(ctx, r.runtime, r.guardians, accountID)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]guardianLink, 0, len(links))
 	for _, link := range links {
-		if !link.HasPermission(authorize.GuardianPermissionPortalAccess) {
+		if !link.HasPermission(careplan.GuardianPermissionPortalAccess) {
 			continue
 		}
 		out = append(out, guardianLink{
@@ -159,7 +156,7 @@ func (r *ChildRepository) resolveChildren(ctx context.Context, links []guardianL
 	}
 	for _, link := range links {
 		student, found := students[link.StudentID]
-		if !found || student.TenantID != link.TenantID || student.Status == string(usersModels.StudentStatusAlumnus) {
+		if !found || student.TenantID != link.TenantID || student.Status == careplan.StudentStatusAlumnus {
 			continue
 		}
 		out = append(out, &parentModels.ChildSummary{

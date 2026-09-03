@@ -70,6 +70,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
@@ -199,6 +202,17 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	carePlan, err := carePlanCompose.New(carePlanCompose.Dependencies{
+		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		StudentLock: persons.LockStudent, StudentNotFound: peopleModule.ErrStudentNotFound,
+		Observe: func(observation carePlanCompose.Observation) {
+			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	repoFactory.BindCarePlan(carePlan)
 	mealPlanSettings := mealplanCompose.NewSettings()
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db,

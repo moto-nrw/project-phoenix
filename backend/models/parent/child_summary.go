@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // ChildSummary is the cross-tenant view of one student linked to a
@@ -33,8 +33,8 @@ type ChildSummary struct {
 	// Lifecycle status as set by the activate-students scheduler:
 	// pending → active → inactive (or alumnus).
 	Status        string         `json:"status"`
-	EnrolledFrom  *timezone.Date `json:"enrolled_from,omitempty"`
-	EnrolledUntil *timezone.Date `json:"enrolled_until,omitempty"`
+	EnrolledFrom  *careplan.Date `json:"enrolled_from,omitempty"`
+	EnrolledUntil *careplan.Date `json:"enrolled_until,omitempty"`
 
 	// School context — repeated on every child of the same school so
 	// the frontend can render grouped cards without an extra fetch.
@@ -51,7 +51,7 @@ type ChildSummary struct {
 // CareEnded reports whether the child's care at this school has ended on the
 // given day. The enrollment interval's upper bound is inclusive, so the last
 // care day itself still counts as care (#2487).
-func (c *ChildSummary) CareEnded(day timezone.Date) bool {
+func (c *ChildSummary) CareEnded(day careplan.Date) bool {
 	return c != nil && c.EnrolledUntil != nil && day.After(*c.EnrolledUntil)
 }
 
@@ -108,8 +108,8 @@ type EnrollablePhase struct {
 	PhaseID           int64         `json:"phase_id"`
 	PhaseName         string        `json:"phase_name"`
 	PhaseKind         string        `json:"phase_kind"`
-	ServiceStartDate  timezone.Date `json:"service_start_date"`
-	ServiceEndDate    timezone.Date `json:"service_end_date"`
+	ServiceStartDate  careplan.Date `json:"service_start_date"`
+	ServiceEndDate    careplan.Date `json:"service_end_date"`
 	EnrollmentOpenAt  *time.Time    `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt *time.Time    `json:"enrollment_close_at,omitempty"`
 	AlreadyLinked     bool          `json:"already_linked"`
@@ -190,8 +190,8 @@ type EnrollmentRequestSummary struct {
 
 	PhaseID          int64         `json:"phase_id"`
 	PhaseName        string        `json:"phase_name"`
-	ServiceStartDate timezone.Date `json:"service_start_date"`
-	ServiceEndDate   timezone.Date `json:"service_end_date"`
+	ServiceStartDate careplan.Date `json:"service_start_date"`
+	ServiceEndDate   careplan.Date `json:"service_end_date"`
 
 	// ShowStatusReasonToParent mirrors the owning phase flag. Internal
 	// plumbing only (json:"-"): the parent service uses it to redact

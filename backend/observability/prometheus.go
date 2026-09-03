@@ -321,6 +321,26 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_school_calendar_statement_duration_seconds", Help: "Cumulative School Calendar database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	carePlanOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_operations_total", Help: "Care Plan operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	carePlanDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_care_plan_operation_duration_seconds", Help: "Care Plan operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	carePlanQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_queries_total", Help: "Persistence queries issued by Care Plan operations."},
+		[]string{"operation"},
+	)
+	carePlanRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_rows_total", Help: "Rows returned or changed by Care Plan operations."},
+		[]string{"operation"},
+	)
+	carePlanStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_care_plan_statement_duration_seconds", Help: "Cumulative Care Plan database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	schoolMembershipOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_school_membership_operations_total", Help: "School Membership operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -585,6 +605,11 @@ func init() {
 		schoolCalendarQueries,
 		schoolCalendarRows,
 		schoolCalendarStatementDuration,
+		carePlanOperations,
+		carePlanDuration,
+		carePlanQueries,
+		carePlanRows,
+		carePlanStatementDuration,
 		schoolMembershipOperations,
 		schoolMembershipDuration,
 		schoolMembershipQueries,
@@ -838,6 +863,27 @@ func ObserveSchoolCalendarOperation(operation string, duration time.Duration, qu
 	}
 	if statementDuration > 0 {
 		schoolCalendarStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveCarePlanOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	carePlanOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	carePlanDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		carePlanQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		carePlanRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		carePlanStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 

@@ -23,6 +23,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -56,12 +58,14 @@ type Factory struct {
 	db                       *bun.DB
 	organizationTenancyBound bool
 	peopleDirectoryBound     bool
+	carePlanBound            bool
 	schoolStructureBound     bool
 	schoolMembershipBound    bool
 	schoolCalendarBound      bool
 	// schoolCalendar is the bound capability behind the calendar period,
 	// closing day and dateframe adapters (#2666).
 	schoolCalendar schoolcalendar.Capability
+	carePlan       careplan.Capability
 
 	// students is the bound People Directory; audit adapters rebuilt by
 	// ConfigureAuditRuntime after the binding read it again (#2662).
@@ -439,6 +443,9 @@ func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
 	f.bindStudentDirectories(capability, capability)
 	f.bindGuardianDirectories(capability)
 	f.bindPersonProjections(capability)
+	if f.carePlan != nil {
+		f.bindCarePlanAdapters(f.carePlan)
+	}
 }
 
 // BindSchoolStructure replaces the group-enriched legacy adapters with
@@ -530,6 +537,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		}
 		return db, tenantID
 	}
+	parentRuntime := carePlanLegacy.NewParentRuntime(db)
 	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
 	accountRepo := auth.NewAccountRepository(db)
@@ -721,29 +729,27 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
 
 		// Enrollment repositories
-		FormSchema:            enrollment.NewFormSchemaRepository(db),
-		Request:               enrollment.NewRequestRepository(db),
-		EnrollmentDeletion:    enrollment.NewDeletionRepository(db, enrollmentOfferingAdjustment.CountForDeletion),
-		RequestChild:          enrollment.NewRequestChildRepository(db),
-		RequestGuardian:       enrollment.NewRequestGuardianRepository(db),
-		LateInvite:            enrollment.NewLateInviteRepository(db),
-		CareOffering:          enrollment.NewCareOfferingRepository(db),
-		OfferingChangeImpact:  enrollment.NewOfferingChangeImpactRepository(db),
-		RequestChildOffering:  enrollment.NewRequestChildOfferingRepository(db),
-		OfferingChangeRequest: enrollment.NewOfferingChangeRequestRepository(db),
-		ChangeRequest:         enrollment.NewChangeRequestRepository(db),
-		ChangeRequestMessage:  enrollment.NewChangeRequestMessageRepository(db),
-		SubmissionRateLimit:   enrollment.NewSubmissionRateLimitRepository(db),
-		Phase:                 enrollment.NewPhaseRepository(db),
-		PhaseExpiry:           enrollment.NewPhaseExpiryRepository(db),
+		FormSchema:           enrollment.NewFormSchemaRepository(db),
+		Request:              enrollment.NewRequestRepository(db),
+		EnrollmentDeletion:   enrollment.NewDeletionRepository(db, enrollmentOfferingAdjustment.CountForDeletion),
+		RequestChild:         enrollment.NewRequestChildRepository(db),
+		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
+		LateInvite:           enrollment.NewLateInviteRepository(db),
+		OfferingChangeImpact: enrollment.NewOfferingChangeImpactRepository(db),
+		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
+		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
+		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
+		Phase:                enrollment.NewPhaseRepository(db),
+		PhaseExpiry:          enrollment.NewPhaseExpiryRepository(db),
 
 		// Display (info-point dashboards, issue #1325)
 		Display: displayRepo.NewDisplayRepository(db),
 
 		// Parent (cross-tenant guardian portal — PR 9+)
-		ParentChild:             parentRepo.NewChildRepository(db),
-		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(db),
-		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(db),
+		ParentChild:             parentRepo.NewChildRepository(parentRuntime),
+		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime),
+		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime),
 
 		// Parent Stammdaten direct-edit audit + change-request review
 		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
@@ -772,6 +778,11 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)
+	carePlan, err := NewCarePlan(db, factory.students)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: compose care plan: %v", err))
+	}
+	factory.bindCarePlanAdapters(carePlan)
 	factory.membershipDeps = newStaffMembershipDeps(personRepo, accountRepo, accountTenantRepo, permissionRepo, roleRepo)
 	factory.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return factory.GroupTeacher }
 	// Staff, teachers and guests belong to School Membership. Without an

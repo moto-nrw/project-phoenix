@@ -21,6 +21,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -159,7 +160,7 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 			guardianPermissions: child.GuardianPermissions,
 			studentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
 			schoolName:          child.SchoolName,
-			careEnded:           child.CareEnded(s.todayDate()),
+			careEnded:           child.CareEnded(careplan.Date(s.todayDate().String())),
 		}
 		return nil
 	})

@@ -13,6 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -49,7 +51,7 @@ func TestPhaseExpiryRepository_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 			}
 		}
 		childRepo := enrollmentRepo.NewRequestChildRepository(db)
-		offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+		offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
 		linkRepo := enrollmentRepo.NewRequestChildOfferingRepository(db)
 		for _, fixture := range []struct {
 			student *usersModels.Student
@@ -192,7 +194,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	offering.CountsAsCare = false
 	offering.CountsAsCareSet = true
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentRepo.NewCareOfferingRepository(db).Create(ctx, offering)
+		return carePlanTest.NewCareOfferingRepository(t, db).Create(ctx, offering)
 	}))
 
 	validFrom := phase.ServiceStartDate
@@ -209,7 +211,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	secondOffering := makeOffering(phase.ID, uniqueOfferingName("second-offering"))
 	secondOffering.AvailableDays = []string{"tue"}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentRepo.NewCareOfferingRepository(db).Create(ctx, secondOffering)
+		return carePlanTest.NewCareOfferingRepository(t, db).Create(ctx, secondOffering)
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return enrollmentRepo.NewRequestChildOfferingRepository(db).Create(ctx, &enrollmentModels.RequestChildOffering{
@@ -279,7 +281,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	offering.IsActive = false
 	secondOffering.IsActive = false
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+		offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
 		if updateErr := offeringRepo.Update(ctx, offering); updateErr != nil {
 			return updateErr
 		}
@@ -298,7 +300,7 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	assert.Empty(t, snapshots, "inactive offerings must not trigger a warning")
 	offering.IsActive = true
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentRepo.NewCareOfferingRepository(db).Update(ctx, offering)
+		return carePlanTest.NewCareOfferingRepository(t, db).Update(ctx, offering)
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -377,11 +379,29 @@ func toDirectoryStudent(student *usersModels.Student) enrollmentRepo.DirectorySt
 	return row
 }
 
+type phaseExpiryCareOfferingDirectory struct{ query careplan.Query }
+
+func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context) ([]enrollmentRepo.CareOfferingProjection, error) {
+	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]enrollmentRepo.CareOfferingProjection, 0, len(values))
+	for _, value := range values {
+		result = append(result, enrollmentRepo.CareOfferingProjection{
+			ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID,
+			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive,
+		})
+	}
+	return result, nil
+}
+
 // newPhaseExpiryRepository returns the phase-expiry repository with the
 // student port bound, as the service graph composes it.
 func newPhaseExpiryRepository(t *testing.T, db *bun.DB) enrollmentModels.PhaseExpiryRepository {
 	t.Helper()
 	repo := enrollmentRepo.NewPhaseExpiryRepository(db).(*enrollmentRepo.PhaseExpiryRepository)
 	repo.BindStudentDirectory(legacyStudentDirectory{students: usersRepo.NewStudentRepository(db)})
+	repo.BindCarePlan(phaseExpiryCareOfferingDirectory{query: carePlanTest.NewCarePlan(t, db)})
 	return repo
 }
