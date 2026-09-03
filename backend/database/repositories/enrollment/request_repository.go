@@ -26,11 +26,14 @@ const requestTableExpr = `enrollment.requests AS "request"`
 const existingStudentMatchLockClass int32 = 0x656e726c
 
 type RequestRepository struct {
+	*base.Repository[*enrollment.Request]
 	db *bun.DB
 }
 
 func NewRequestRepository(db *bun.DB) enrollment.RequestRepository {
-	return &RequestRepository{db: db}
+	repo := base.NewRepository[*enrollment.Request](db, "enrollment.requests", "Request")
+	repo.TenantScoped = true
+	return &RequestRepository{Repository: repo, db: db}
 }
 
 func (r *RequestRepository) Create(ctx context.Context, req *enrollment.Request) error {
@@ -292,21 +295,6 @@ func (r *RequestRepository) ExistsBySchemaID(ctx context.Context, schemaID int64
 		Model((*enrollment.Request)(nil)).
 		ModelTableExpr(requestTableExpr).
 		Where(`"request".schema_id = ?`, schemaID).
-		Count(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to check schema references in requests: %w", err)
-	}
-	return count > 0, nil
-}
-
-func (r *RequestRepository) ExistsBySchemaIDs(ctx context.Context, schemaIDs []int64) (bool, error) {
-	if len(schemaIDs) == 0 {
-		return false, nil
-	}
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*enrollment.Request)(nil)).
-		ModelTableExpr(requestTableExpr).
-		Where(`"request".schema_id IN (?)`, bun.List(schemaIDs)).
 		Count(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to check schema references in requests: %w", err)

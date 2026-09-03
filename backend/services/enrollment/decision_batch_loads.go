@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -22,6 +23,46 @@ func schemaIDsFromRequests(requests []*enrollmentModels.Request) []int64 {
 	return ids
 }
 
+func int64FilterArgs(ids []int64) []any {
+	values := make([]any, len(ids))
+	for i, id := range ids {
+		values[i] = id
+	}
+	return values
+}
+
+func findGuardianProfilesByEmails(
+	ctx context.Context,
+	repo users.GuardianProfileRepository,
+	emails []string,
+) (map[string]*users.GuardianProfile, error) {
+	normalized := make([]string, 0, len(emails))
+	seen := make(map[string]bool, len(emails))
+	for _, email := range emails {
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email != "" && !seen[email] {
+			seen[email] = true
+			normalized = append(normalized, email)
+		}
+	}
+	result := make(map[string]*users.GuardianProfile, len(normalized))
+	if len(normalized) == 0 {
+		return result, nil
+	}
+	profiles, err := repo.ListWithOptions(ctx, &modelBase.QueryOptions{
+		Filter: modelBase.NewFilter().TrimIn("email", normalized...),
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, profile := range profiles {
+		if profile != nil && profile.Email != nil {
+			result[strings.ToLower(strings.TrimSpace(*profile.Email))] = profile
+		}
+	}
+	return result, nil
+}
+
 func loadFormSchemasByRequests(
 	ctx context.Context,
 	repo enrollmentModels.FormSchemaRepository,
@@ -35,7 +76,9 @@ func loadFormSchemasByRequests(
 	if repo == nil {
 		return nil, fmt.Errorf("form schema repo not configured")
 	}
-	rows, err := repo.ListByIDs(ctx, ids)
+	rows, err := repo.ListWithOptions(ctx, &modelBase.QueryOptions{
+		Filter: modelBase.NewFilter().In("id", int64FilterArgs(ids)...),
+	})
 	if err != nil {
 		return nil, err
 	}

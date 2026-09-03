@@ -193,9 +193,15 @@ func (s *careOfferingService) loadCareOfferingPeriodChangeSegments(
 			groupIDs = append(groupIDs, segment.ID)
 		}
 	}
-	scheduleRows, err := s.ActivityScheduleRepo.FindByGroupIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, false, fmt.Errorf("load care offering %d timetable schedules: %w", offeringID, err)
+	var scheduleRows []*activitiesModels.Schedule
+	if len(groupIDs) > 0 {
+		var err error
+		scheduleRows, err = s.ActivityScheduleRepo.List(ctx, &modelBase.QueryOptions{
+			Filter: modelBase.NewFilter().In("activity_group_id", int64FilterArgs(groupIDs)...),
+		})
+		if err != nil {
+			return nil, false, fmt.Errorf("load care offering %d timetable schedules: %w", offeringID, err)
+		}
 	}
 	schedulesByGroup := activitySchedulesByGroup(scheduleRows)
 	for _, segment := range series {

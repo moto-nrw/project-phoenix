@@ -150,7 +150,8 @@ func (r *GroupRepository) FindTemplatesBySourceOffering(ctx context.Context, off
 }
 
 // FindTemplatesBySourceOfferings returns live templates fed by any supplied
-// care offering in one tenant-scoped query.
+// care offering in one tenant-scoped query. The generic filter cannot express
+// membership in the JSONB source_care_offering_ids array.
 func (r *GroupRepository) FindTemplatesBySourceOfferings(ctx context.Context, offeringIDs []int64) ([]*activities.Group, error) {
 	if len(offeringIDs) == 0 {
 		return []*activities.Group{}, nil

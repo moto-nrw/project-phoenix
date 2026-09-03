@@ -377,18 +377,22 @@ func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
 	if len(lineageIDs) == 0 {
 		return ErrFormSchemaNotFound
 	}
-	phaseUsesSchema, err := s.phaseRepo.ExistsByFormSchemaIDs(ctx, lineageIDs)
+	phaseReferenceCount, err := s.phaseRepo.CountWithOptions(ctx, &base.QueryOptions{
+		Filter: base.NewFilter().In("form_schema_id", int64FilterArgs(lineageIDs)...),
+	})
 	if err != nil {
 		return fmt.Errorf("check schema phase references: %w", err)
 	}
-	if phaseUsesSchema {
+	if phaseReferenceCount > 0 {
 		return ErrFormSchemaHasPhases
 	}
-	requestUsesSchema, err := s.requestRepo.ExistsBySchemaIDs(ctx, lineageIDs)
+	requestReferenceCount, err := s.requestRepo.CountWithOptions(ctx, &base.QueryOptions{
+		Filter: base.NewFilter().In("schema_id", int64FilterArgs(lineageIDs)...),
+	})
 	if err != nil {
 		return fmt.Errorf("check schema request references: %w", err)
 	}
-	if requestUsesSchema {
+	if requestReferenceCount > 0 {
 		return ErrFormSchemaHasRequests
 	}
 

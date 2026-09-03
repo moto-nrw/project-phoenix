@@ -18,11 +18,14 @@ const phaseTableExpr = `enrollment.phases AS "phase"`
 // enrollment.phases table. RLS-scoped via tenant context; the public
 // "list open" path uses an admin tx wrapper at the handler layer.
 type PhaseRepository struct {
+	*base.Repository[*enrollment.Phase]
 	db *bun.DB
 }
 
 func NewPhaseRepository(db *bun.DB) enrollment.PhaseRepository {
-	return &PhaseRepository{db: db}
+	repo := base.NewRepository[*enrollment.Phase](db, "enrollment.phases", "Phase")
+	repo.TenantScoped = true
+	return &PhaseRepository{Repository: repo, db: db}
 }
 
 func (r *PhaseRepository) Create(ctx context.Context, phase *enrollment.Phase) error {
@@ -262,21 +265,6 @@ func (r *PhaseRepository) ExistsByFormSchemaID(ctx context.Context, schemaID int
 		Model((*enrollment.Phase)(nil)).
 		ModelTableExpr(phaseTableExpr).
 		Where(`"phase".form_schema_id = ?`, schemaID).
-		Count(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to check phase references: %w", err)
-	}
-	return count > 0, nil
-}
-
-func (r *PhaseRepository) ExistsByFormSchemaIDs(ctx context.Context, schemaIDs []int64) (bool, error) {
-	if len(schemaIDs) == 0 {
-		return false, nil
-	}
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*enrollment.Phase)(nil)).
-		ModelTableExpr(phaseTableExpr).
-		Where(`"phase".form_schema_id IN (?)`, bun.List(schemaIDs)).
 		Count(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to check phase references: %w", err)

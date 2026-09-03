@@ -2603,7 +2603,7 @@ func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
 	for _, entry := range entries {
 		emails = append(emails, strings.TrimSpace(strings.ToLower(entry.Email)))
 	}
-	profilesByEmail, err := s.GuardianProfileRepo.FindByEmails(ctx, emails)
+	profilesByEmail, err := findGuardianProfilesByEmails(ctx, s.GuardianProfileRepo, emails)
 	if err != nil {
 		return out, err
 	}
@@ -3301,9 +3301,14 @@ func (s *decisionService) loadSourcedTemplateDraftInputs(
 	for _, template := range templates {
 		groupIDs = append(groupIDs, template.ID)
 	}
-	schedules, err := s.ActivityScheduleRepo.FindByGroupIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, nil, fmt.Errorf("decision: load sourced template schedules: %w", err)
+	var schedules []*activities.Schedule
+	if len(groupIDs) > 0 {
+		schedules, err = s.ActivityScheduleRepo.List(ctx, &modelBase.QueryOptions{
+			Filter: modelBase.NewFilter().In("activity_group_id", int64FilterArgs(groupIDs)...),
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("decision: load sourced template schedules: %w", err)
+		}
 	}
 	return sourcedTemplatesByOffering(templates), activitySchedulesByGroup(schedules), nil
 }
@@ -4566,7 +4571,7 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 		}
 		emails = append(emails, strings.ToLower(strings.TrimSpace(entries[i].Email)))
 	}
-	profilesByEmail, err := s.GuardianProfileRepo.FindByEmails(ctx, emails)
+	profilesByEmail, err := findGuardianProfilesByEmails(ctx, s.GuardianProfileRepo, emails)
 	if err != nil {
 		return linkedProfileIDs, fmt.Errorf("find contact profiles by email: %w", err)
 	}
