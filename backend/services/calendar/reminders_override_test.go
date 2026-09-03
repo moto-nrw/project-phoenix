@@ -23,12 +23,12 @@ func TestAppointmentWithOverrideAppliesEveryChangedField(t *testing.T) {
 	allDay := true
 	movedStart := helperClock(15, 30)
 	movedEnd := helperClock(16, 30)
-	movedDate := timezone.NewDate(2026, 3, 10)
-	movedEndDate := timezone.NewDate(2026, 3, 11)
+	movedDate := calModels.NewDate(2026, 3, 10)
+	movedEndDate := calModels.NewDate(2026, 3, 11)
 
 	effective := appointmentWithOverride(appointment, occurrence, &calModels.AppointmentOccurrenceOverride{
 		AppointmentID:  appointment.ID,
-		OccurrenceDate: occurrence,
+		OccurrenceDate: calModels.Date(occurrence),
 		Title:          &title,
 		Location:       &location,
 		AllDay:         &allDay,

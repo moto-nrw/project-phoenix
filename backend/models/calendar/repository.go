@@ -3,8 +3,6 @@ package calendar
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 type AppointmentRepository interface {
@@ -34,11 +32,11 @@ type AppointmentRepository interface {
 	// deletion tombstones. Child rows cascade with the appointment.
 	DeleteFeedTombstonesBefore(ctx context.Context, before time.Time) (int, error)
 	// ListVisible*/ListOrganized* return only live (deleted_at IS NULL) rows.
-	ListVisibleForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
+	ListVisibleForStaff(ctx context.Context, staffID int64, from, to Date) ([]*Appointment, error)
 	// ListCancellationTombstonesForStaff combines organizer and recipient
 	// visibility with lifecycle cutoffs, which generic filters cannot express.
 	ListCancellationTombstonesForStaff(ctx context.Context, staffID int64, since time.Time) ([]*Appointment, error)
-	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*Appointment, error)
+	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to Date) ([]*Appointment, error)
 	// ListCancellationTombstonesForGuardianProfiles returns guardian-visible
 	// appointments cancelled OR soft-deleted on/after `since`, regardless of their
 	// event dates — the feed re-exports them as STATUS:CANCELLED so subscribers
@@ -51,7 +49,7 @@ type AppointmentRepository interface {
 	// at least one guardian recipient. Recurrence is only bounded here (the same
 	// window predicate the calendar listings use) — which concrete occurrences
 	// fall due is decided in the service, which owns occurrence expansion.
-	ListGuardianReminderCandidates(ctx context.Context, from, to timezone.Date) ([]*Appointment, error)
+	ListGuardianReminderCandidates(ctx context.Context, from, to Date) ([]*Appointment, error)
 	// LockReminderCandidate re-reads a reminder candidate while holding its row
 	// lock. It returns nil when a lifecycle transition has made the appointment
 	// ineligible since the scheduler's coarse candidate scan.
@@ -77,8 +75,8 @@ type AppointmentRecipientRepository interface {
 	// ClaimReminderPush records the one push delivery allowed for an appointment
 	// revision, occurrence, and guardian. It returns false when a prior scheduler
 	// scan already claimed the same delivery.
-	ClaimReminderPush(ctx context.Context, appointmentID int64, revision int, occurrenceDate timezone.Date, guardianProfileID int64) (bool, error)
-	ReleaseReminderPush(ctx context.Context, appointmentID int64, revision int, occurrenceDate timezone.Date, guardianProfileID int64) error
+	ClaimReminderPush(ctx context.Context, appointmentID int64, revision int, occurrenceDate Date, guardianProfileID int64) (bool, error)
+	ReleaseReminderPush(ctx context.Context, appointmentID int64, revision int, occurrenceDate Date, guardianProfileID int64) error
 }
 
 type AppointmentRecipientStudentRepository interface {
@@ -94,11 +92,11 @@ type AppointmentTargetRepository interface {
 type AppointmentOccurrenceOverrideRepository interface {
 	Create(ctx context.Context, override *AppointmentOccurrenceOverride) error
 	Update(ctx context.Context, override *AppointmentOccurrenceOverride) error
-	FindByAppointmentIDsAndOccurrenceDates(ctx context.Context, appointmentIDs []int64, occurrenceDates []timezone.Date) ([]*AppointmentOccurrenceOverride, error)
+	FindByAppointmentIDsAndOccurrenceDates(ctx context.Context, appointmentIDs []int64, occurrenceDates []Date) ([]*AppointmentOccurrenceOverride, error)
 	// FindByAppointmentIDsAndStartDates returns moved occurrences whose effective
 	// start falls in the supplied dates. Reminder scans use it to find an
 	// occurrence moved outside its rule's normal expansion window.
-	FindByAppointmentIDsAndStartDates(ctx context.Context, appointmentIDs []int64, startDates []timezone.Date) ([]*AppointmentOccurrenceOverride, error)
+	FindByAppointmentIDsAndStartDates(ctx context.Context, appointmentIDs []int64, startDates []Date) ([]*AppointmentOccurrenceOverride, error)
 	// FindCancelledByAppointmentIDs returns every cancelled occurrence override
 	// for the given appointments — used to emit iCalendar EXDATEs so subscribed
 	// external calendars drop occurrences cancelled via "Nur diesen Termin".
@@ -108,7 +106,7 @@ type AppointmentOccurrenceOverrideRepository interface {
 	// UPDATE), so two concurrent cancellations of the same occurrence converge
 	// instead of one hitting the (tenant_id, appointment_id, occurrence_date)
 	// unique constraint and failing.
-	CancelOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error
+	CancelOccurrence(ctx context.Context, appointmentID int64, occurrenceDate Date) error
 	// DeleteByAppointmentID removes every occurrence override for an appointment.
 	// Used when a series edit replaces the recurrence rule wholesale so stale
 	// per-occurrence cancellations from the old cadence cannot suppress valid
