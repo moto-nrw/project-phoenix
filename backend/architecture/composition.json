@@ -25512,7 +25512,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1004
+        1015
       ],
       "tables": []
     },
@@ -25522,7 +25522,7 @@
       "declaration": "TestStudentRepository_FindByNameAndClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        851
+        862
       ],
       "tables": []
     },
@@ -25566,7 +25566,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        793
+        804
       ],
       "tables": [
         "users.students"
@@ -25598,7 +25598,7 @@
       "declaration": "TestStudentRepository_LockPhotoFeature",
       "target": "database/repositories.NewFactory",
       "lines": [
-        955
+        966
       ],
       "tables": []
     },
@@ -25608,7 +25608,7 @@
       "declaration": "TestStudentRepository_PurgeAllPhotos",
       "target": "database/repositories.NewFactory",
       "lines": [
-        900
+        911
       ],
       "tables": []
     },
@@ -29262,7 +29262,7 @@
       "declaration": "buildMealPlanService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        46
       ],
       "tables": []
     },

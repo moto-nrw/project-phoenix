@@ -32,14 +32,18 @@ func mealPlanSettings(enabled bool, resolveErr error) parentSettingsStub {
 	}
 }
 
-func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub) parentService.Service {
+func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub, moduleOverride ...*fakeMealPlan) parentService.Service {
 	t.Helper()
-	repos := repositories.NewFactory(db)
 	enabled := settings.boolValues[configModels.KeyMealPlanEnabled]
 	mealPlan := &fakeMealPlan{available: enabled, err: settings.boolErr, entries: []mealplanModule.Entry{
 		{Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti"},
 		{Date: mealplanModule.Date("2026-08-24"), Position: 1, Dish: "Salat"},
 	}}
+	require.LessOrEqual(t, len(moduleOverride), 1)
+	if len(moduleOverride) == 1 {
+		mealPlan = moduleOverride[0]
+	}
+	repos := repositories.NewFactory(db)
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
@@ -54,9 +58,10 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub)
 }
 
 type fakeMealPlan struct {
-	available bool
-	err       error
-	entries   []mealplanModule.Entry
+	available        bool
+	err              error
+	entries          []mealplanModule.Entry
+	lastClearCommand *mealplanModule.SetParticipationDay
 }
 
 func availableMealPlan(enabled bool) *fakeMealPlan { return &fakeMealPlan{available: enabled} }
@@ -83,7 +88,9 @@ func (f *fakeMealPlan) ReplaceParticipationSchedule(context.Context, mealplanMod
 func (f *fakeMealPlan) SetParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
 	return f.err
 }
-func (f *fakeMealPlan) ClearParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
+
+func (f *fakeMealPlan) ClearParticipationForDay(_ context.Context, command mealplanModule.SetParticipationDay) error {
+	f.lastClearCommand = &command
 	return f.err
 }
 
@@ -147,6 +154,23 @@ func TestMealParticipationWrites_CareEndedChildIsRejected(t *testing.T) {
 
 	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, timezone.NewDate(2026, 8, 25))
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+}
+
+func TestClearMealParticipationDay_PassesGuardianAccountID(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	mealPlan := availableMealPlan(true)
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil), mealPlan)
+	date := timezone.NewDate(2026, 8, 25)
+
+	err := svc.ClearMealParticipationDay(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date)
+	require.NoError(t, err)
+	require.NotNil(t, mealPlan.lastClearCommand)
+	assert.Equal(t, chain.AccountID, mealPlan.lastClearCommand.GuardianAccountID)
+	assert.Equal(t, chain.StudentID, mealPlan.lastClearCommand.StudentID)
+	assert.Equal(t, mealplanModule.Date(date.String()), mealPlan.lastClearCommand.Date)
 }
 
 // TestMealPlanWeek_PastWeekOutOfRange asserts parents cannot reach a staff draft

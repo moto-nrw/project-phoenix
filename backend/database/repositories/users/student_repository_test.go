@@ -778,6 +778,17 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	}
 	assert.True(t, historicalIDs[overlapping.ID], "a child enrolled on the list date remains eligible after becoming inactive")
 	assert.False(t, historicalIDs[future.ID], "immediate activation must not apply retroactively to a historical list")
+
+	// Immediate activation deliberately applies from today onward. A child
+	// activated before the formal service start therefore remains eligible on
+	// a future kitchen-list date, matching users.EnrolledOn and slot lists.
+	futureList, err := repo.FindOverlappingWithGroups(ctx, to, to, to.AddDays(-1))
+	require.NoError(t, err)
+	futureListIDs := make(map[int64]bool, len(futureList))
+	for _, result := range futureList {
+		futureListIDs[result.ID] = true
+	}
+	assert.True(t, futureListIDs[future.ID], "immediate activation applies to future dates from today onward")
 }
 
 // TestStudentRepository_FindOverlappingWithGroupsImmediateActivation pins the
