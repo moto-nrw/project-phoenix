@@ -21,7 +21,7 @@ func (s *service) StaffAppointmentICS(ctx context.Context, appointmentID int64) 
 	if err != nil {
 		return "", "", fmt.Errorf("%w: current staff required", ErrForbidden)
 	}
-	appointment, err := s.cfg.AppointmentRepo.FindByID(ctx, appointmentID)
+	appointment, err := s.findAppointment(ctx, appointmentID)
 	if err != nil {
 		return "", "", err
 	}
@@ -60,7 +60,7 @@ func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointme
 		tenantID := tenantID
 		tenantChildren := tenantChildren
 		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			appointment, err := s.cfg.AppointmentRepo.FindByID(txCtx, appointmentID)
+			appointment, err := s.findAppointment(txCtx, appointmentID)
 			if err != nil {
 				return err
 			}

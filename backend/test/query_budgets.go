@@ -67,6 +67,9 @@ var queryBudgets = map[string]queryBudget{
 	"services.schedule.planned_now": {max: 4},
 	// services/calendar — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
+	// modules/schoolmembership — assignment lists, 8 rows each.
+	"modules.schoolmembership.list_class_assignments": {max: 5},
+	"modules.schoolmembership.list_group_assignments": {max: 5},
 	// services/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},

@@ -341,6 +341,26 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_school_calendar_statement_duration_seconds", Help: "Cumulative School Calendar database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	appointmentsOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_operations_total", Help: "Appointments operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	appointmentsDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_appointments_operation_duration_seconds", Help: "Appointments operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	appointmentsQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_queries_total", Help: "Persistence queries issued by Appointments operations."},
+		[]string{"operation"},
+	)
+	appointmentsRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_rows_total", Help: "Rows returned or changed by Appointments operations."},
+		[]string{"operation"},
+	)
+	appointmentsStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_appointments_statement_duration_seconds", Help: "Cumulative Appointments database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	carePlanOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_care_plan_operations_total", Help: "Care Plan operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -630,6 +650,11 @@ func init() {
 		schoolCalendarQueries,
 		schoolCalendarRows,
 		schoolCalendarStatementDuration,
+		appointmentsOperations,
+		appointmentsDuration,
+		appointmentsQueries,
+		appointmentsRows,
+		appointmentsStatementDuration,
 		carePlanOperations,
 		carePlanDuration,
 		carePlanQueries,
@@ -909,6 +934,27 @@ func ObserveSchoolCalendarOperation(operation string, duration time.Duration, qu
 	}
 	if statementDuration > 0 {
 		schoolCalendarStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	appointmentsOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	appointmentsDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		appointmentsQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		appointmentsRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		appointmentsStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 
