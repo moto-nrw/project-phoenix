@@ -127,8 +127,8 @@ type StudentRepository interface {
 
 	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
-	// FindByTeacherIDsWithGroups retrieves the distinct students supervised by any requested teacher.
-	FindByTeacherIDsWithGroups(ctx context.Context, teacherIDs []int64) ([]*StudentWithGroupInfo, error)
+	// FindByTeacherStaffIDsWithGroups retrieves the distinct students supervised by teachers for any requested staff ID.
+	FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*StudentWithGroupInfo, error)
 
 	// FindAllWithGroups retrieves all students with their group names (LEFT JOIN for students without groups)
 	FindAllWithGroups(ctx context.Context) ([]*StudentWithGroupInfo, error)

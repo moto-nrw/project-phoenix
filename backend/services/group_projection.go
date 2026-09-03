@@ -17,8 +17,8 @@ type overlappingRosterGroupNames struct {
 	groups schoolstructure.Query
 }
 
-func (r overlappingRosterGroupNames) FindByTeacherIDsWithGroups(ctx context.Context, teacherIDs []int64) ([]*userModels.StudentWithGroupInfo, error) {
-	return r.StudentRepository.FindByTeacherIDsWithGroups(ctx, teacherIDs)
+func (r overlappingRosterGroupNames) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*userModels.StudentWithGroupInfo, error) {
+	return r.StudentRepository.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)
 }
 
 func (r overlappingRosterGroupNames) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*userModels.StudentWithGroupInfo, error) {

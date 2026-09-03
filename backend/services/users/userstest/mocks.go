@@ -26,47 +26,47 @@ import (
 
 // PersonServiceMock is a func-field test double for users.PersonService.
 type PersonServiceMock struct {
-	GetFn                             func(ctx context.Context, id interface{}) (*userModels.Person, error)
-	GetByIDsFn                        func(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
-	CreateFn                          func(ctx context.Context, person *userModels.Person) error
-	UpdateFn                          func(ctx context.Context, person *userModels.Person) error
-	DeleteFn                          func(ctx context.Context, id interface{}) error
-	ListFn                            func(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error)
-	FindByTagIDFn                     func(ctx context.Context, tagID string) (*userModels.Person, error)
-	FindByAccountIDFn                 func(ctx context.Context, accountID int64) (*userModels.Person, error)
-	FindByNameFn                      func(ctx context.Context, firstName, lastName string) ([]*userModels.Person, error)
-	LinkToAccountFn                   func(ctx context.Context, personID int64, accountID int64) error
-	UnlinkFromAccountFn               func(ctx context.Context, personID int64) error
-	LinkToRFIDCardFn                  func(ctx context.Context, personID int64, tagID string) error
-	LinkStudentToRFIDCardFn           func(ctx context.Context, studentID int64, tagID string) error
-	UnlinkFromRFIDCardFn              func(ctx context.Context, personID int64) error
-	GetStaffByIDFn                    func(ctx context.Context, id int64) (*userModels.Staff, error)
-	GetStaffByPersonIDFn              func(ctx context.Context, personID int64) (*userModels.Staff, error)
-	ResolveStaffIDByAccountIDFn       func(ctx context.Context, accountID int64) (int64, error)
-	GetStaffWithPersonFn              func(ctx context.Context, id int64) (*userModels.Staff, error)
-	GetStaffWithPersonByIDsFn         func(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
-	ListStaffWithPersonFn             func(ctx context.Context) ([]*userModels.Staff, error)
-	ListStaffByRolesFn                func(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error)
-	GetTeacherByStaffIDFn             func(ctx context.Context, staffID int64) (*userModels.Teacher, error)
-	GetTeachersByStaffIDsFn           func(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error)
-	GetTeachersBySpecializationFn     func(ctx context.Context, specialization string) ([]*userModels.Teacher, error)
-	GetTeacherWithStaffAndPersonFn    func(ctx context.Context, id int64) (*userModels.Teacher, error)
-	ListTeachersWithStaffAndPersonFn  func(ctx context.Context) ([]*userModels.Teacher, error)
-	GetStudentByIDFn                  func(ctx context.Context, id int64) (*userModels.Student, error)
-	GetStudentByIDForUpdateFn         func(ctx context.Context, id int64) (*userModels.Student, error)
-	GetStudentByPersonIDFn            func(ctx context.Context, personID int64) (*userModels.Student, error)
-	GetStudentsByIDsFn                func(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
-	GetStudentsByGroupIDFn            func(ctx context.Context, groupID int64) ([]*userModels.Student, error)
-	GetStudentsByGroupIDsFn           func(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
-	GetParticipationCandidatesFn      func(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
-	GetEligibleGroupStudentsFn        func(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error)
-	CountStudentsByGroupIDsFn         func(ctx context.Context, groupIDs []int64) (map[int64]int, error)
-	CreateStaffWithTeacherFn          func(ctx context.Context, input users.CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
-	UpdateStaffWithTeacherFn          func(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, users.TeacherAction, error)
-	UpdatePersonnelNumberFn           func(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
-	GetStudentsWithGroupsByTeacherFn  func(ctx context.Context, teacherID int64) ([]users.StudentWithGroup, error)
-	GetStudentsWithGroupsByTeachersFn func(ctx context.Context, teacherIDs []int64) ([]users.StudentWithGroup, error)
-	GetAllStudentsWithGroupsFn        func(ctx context.Context) ([]users.StudentWithGroup, error)
+	GetFn                                    func(ctx context.Context, id interface{}) (*userModels.Person, error)
+	GetByIDsFn                               func(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
+	CreateFn                                 func(ctx context.Context, person *userModels.Person) error
+	UpdateFn                                 func(ctx context.Context, person *userModels.Person) error
+	DeleteFn                                 func(ctx context.Context, id interface{}) error
+	ListFn                                   func(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error)
+	FindByTagIDFn                            func(ctx context.Context, tagID string) (*userModels.Person, error)
+	FindByAccountIDFn                        func(ctx context.Context, accountID int64) (*userModels.Person, error)
+	FindByNameFn                             func(ctx context.Context, firstName, lastName string) ([]*userModels.Person, error)
+	LinkToAccountFn                          func(ctx context.Context, personID int64, accountID int64) error
+	UnlinkFromAccountFn                      func(ctx context.Context, personID int64) error
+	LinkToRFIDCardFn                         func(ctx context.Context, personID int64, tagID string) error
+	LinkStudentToRFIDCardFn                  func(ctx context.Context, studentID int64, tagID string) error
+	UnlinkFromRFIDCardFn                     func(ctx context.Context, personID int64) error
+	GetStaffByIDFn                           func(ctx context.Context, id int64) (*userModels.Staff, error)
+	GetStaffByPersonIDFn                     func(ctx context.Context, personID int64) (*userModels.Staff, error)
+	ResolveStaffIDByAccountIDFn              func(ctx context.Context, accountID int64) (int64, error)
+	GetStaffWithPersonFn                     func(ctx context.Context, id int64) (*userModels.Staff, error)
+	GetStaffWithPersonByIDsFn                func(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
+	ListStaffWithPersonFn                    func(ctx context.Context) ([]*userModels.Staff, error)
+	ListStaffByRolesFn                       func(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error)
+	GetTeacherByStaffIDFn                    func(ctx context.Context, staffID int64) (*userModels.Teacher, error)
+	GetTeachersByStaffIDsFn                  func(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error)
+	GetTeachersBySpecializationFn            func(ctx context.Context, specialization string) ([]*userModels.Teacher, error)
+	GetTeacherWithStaffAndPersonFn           func(ctx context.Context, id int64) (*userModels.Teacher, error)
+	ListTeachersWithStaffAndPersonFn         func(ctx context.Context) ([]*userModels.Teacher, error)
+	GetStudentByIDFn                         func(ctx context.Context, id int64) (*userModels.Student, error)
+	GetStudentByIDForUpdateFn                func(ctx context.Context, id int64) (*userModels.Student, error)
+	GetStudentByPersonIDFn                   func(ctx context.Context, personID int64) (*userModels.Student, error)
+	GetStudentsByIDsFn                       func(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
+	GetStudentsByGroupIDFn                   func(ctx context.Context, groupID int64) ([]*userModels.Student, error)
+	GetStudentsByGroupIDsFn                  func(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+	GetParticipationCandidatesFn             func(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+	GetEligibleGroupStudentsFn               func(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error)
+	CountStudentsByGroupIDsFn                func(ctx context.Context, groupIDs []int64) (map[int64]int, error)
+	CreateStaffWithTeacherFn                 func(ctx context.Context, input users.CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
+	UpdateStaffWithTeacherFn                 func(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, users.TeacherAction, error)
+	UpdatePersonnelNumberFn                  func(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
+	GetStudentsWithGroupsByTeacherFn         func(ctx context.Context, teacherID int64) ([]users.StudentWithGroup, error)
+	GetStudentsWithGroupsByTeacherStaffIDsFn func(ctx context.Context, staffIDs []int64) ([]users.StudentWithGroup, error)
+	GetAllStudentsWithGroupsFn               func(ctx context.Context) ([]users.StudentWithGroup, error)
 
 	// Staff Stammdaten (#1423)
 	GetStaffStammdatenFn                  func(ctx context.Context, staffID int64) (*users.StaffStammdaten, error)
@@ -417,9 +417,9 @@ func (m *PersonServiceMock) GetStudentsWithGroupsByTeacher(ctx context.Context, 
 	return nil, nil
 }
 
-func (m *PersonServiceMock) GetStudentsWithGroupsByTeachers(ctx context.Context, teacherIDs []int64) ([]users.StudentWithGroup, error) {
-	if m.GetStudentsWithGroupsByTeachersFn != nil {
-		return m.GetStudentsWithGroupsByTeachersFn(ctx, teacherIDs)
+func (m *PersonServiceMock) GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]users.StudentWithGroup, error) {
+	if m.GetStudentsWithGroupsByTeacherStaffIDsFn != nil {
+		return m.GetStudentsWithGroupsByTeacherStaffIDsFn(ctx, staffIDs)
 	}
 	return nil, nil
 }
