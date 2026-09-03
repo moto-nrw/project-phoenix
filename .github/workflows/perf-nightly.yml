@@ -1,0 +1,254 @@
+name: Perf nightly
+
+# Schicht 3 der Frontend-Performance-Guardrails (#2939): Request- und
+# Render-Zähler pro Screen aus dem Playwright-Harness (frontend/scripts/perf/,
+# #2938). Nicht blockierend und kein Required Check: die absoluten Zeiten
+# beschreiben nur den Runner, die Zähler (Requests je Screen, Duplikate,
+# längste Kette, Renders je Interaktion) sind vergleichbar mit
+# docs/perf/frontend-baseline-2026.md. Ergebnis in der Job-Summary und als
+# Artefakt (perf-results/, 30 Tage), damit Trends sichtbar bleiben.
+#
+# Der Stack ist der aus „Seed & simulate smoke" (test.yml): Postgres und
+# Mailpit als Services, Backend-Binary, migrate, seed, simulate full-day.
+# Darauf laufen perf:trace (Prod-Server, next build && next start) und
+# perf:render (Dev-Server mit react-scan).
+
+on:
+  schedule:
+    # 03:30 UTC Montag bis Freitag, nach dem Tages-Push auf development.
+    - cron: "30 3 * * 1-5"
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  perf-nightly:
+    name: Perf trace and render counters
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 90
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: phoenix_perf
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          TZ: Europe/Berlin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 10
+      mailpit:
+        # Operator login enrolls MFA and reads the code back out of mailpit's
+        # REST API, so the seeder cannot authenticate without a mail sink.
+        image: axllent/mailpit:v1.30
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      # --- Backend (validateServeConfig() requires every one of these) ---
+      DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_perf?sslmode=disable
+      DB_MAX_OPEN_CONNS: "40"
+      DB_MAX_IDLE_CONNS: "40"
+      DB_CONN_MAX_LIFETIME: 30m
+      DB_CONN_MAX_IDLE_TIME: 10m
+      PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+      # Backend port. The Playwright configs override PORT=3000 for the Next
+      # server they start themselves.
+      PORT: "8080"
+      APP_ENV: development
+      LOG_LEVEL: info
+      LOG_TEXTLOGGING: "true"
+      AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
+      AUTH_JWT_EXPIRY: 15m
+      AUTH_JWT_REFRESH_EXPIRY: 168h
+      OPERATOR_EMAIL: operator@example.com
+      OPERATOR_PASSWORD: PerfNightly1234%
+      OPERATOR_DISPLAY_NAME: CI Operator
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: PerfNightly1234%
+      FRONTEND_URL: http://localhost:3000
+      PARENTS_URL: http://parents.localhost:3000
+      SCHOOL_URL: http://schule.localhost:3000
+      TENANT_DOMAIN: localhost
+      # Same token for backend and the Next proxy: measure.perf.ts scrapes
+      # /api/internal/metrics on the frontend with it.
+      METRICS_BEARER_TOKEN: ci-metrics-token
+      OGS_DEVICE_PIN: "1234"
+      EMAIL_SMTP_HOST: localhost
+      EMAIL_SMTP_PORT: 1025
+      EMAIL_FROM_ADDRESS: noreply@localhost
+      EMAIL_FROM_NAME: moto CI
+      MAILPIT_URL: http://localhost:8025
+      # The schedulers would mutate seeded rows during the measurement.
+      CLEANUP_SCHEDULER_ENABLED: "false"
+      SESSION_END_SCHEDULER_ENABLED: "false"
+      # --- Frontend (scripts/perf/env.mjs passes exactly these to next) ---
+      API_URL: http://localhost:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_TENANT_DOMAIN: localhost
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
+      NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-perf-nightly-throwaway-secret
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build backend binary
+        working-directory: backend
+        run: go build -o "${RUNNER_TEMP}/phoenix" .
+
+      - name: Run migrations
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" migrate
+
+      - name: Start backend
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" serve > "${RUNNER_TEMP}/server.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/server.pid"
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/health > /dev/null; then
+              echo "server up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not become healthy in 60s"
+          exit 1
+
+      # Writes backend/.seed-state.json, which scripts/perf/access.ts reads
+      # for the tenant slug and the admin login.
+      - name: Seed demo data
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" seed \
+            --email "${OPERATOR_EMAIL}" \
+            --password "${OPERATOR_PASSWORD}" \
+            --pin 1234 \
+            --url http://localhost:8080 \
+            --tenant-slug demo-school \
+            --staff-password 'PerfNightly1234%' \
+            --admin-email school-admin@example.com
+
+      - name: Simulate a full care day
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" simulate full-day
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Cache Next.js build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: frontend/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-${{ hashFiles('frontend/**/*.js', 'frontend/**/*.jsx', 'frontend/**/*.ts', 'frontend/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # Prod server (next build && next start), 6 screens x 3 runs, cold and
+      # warm, 4x CPU throttle. Non-blocking: a broken screen still leaves the
+      # other results for the report.
+      - name: Trace screens against the production server
+        id: trace
+        working-directory: frontend
+        continue-on-error: true
+        run: pnpm run perf:trace
+
+      # Dev server with react-scan injected: render counts per screen and
+      # per interaction. Needs Fiber debug info, so this cannot run on the
+      # production build above.
+      - name: Count renders against the dev server
+        id: render
+        working-directory: frontend
+        continue-on-error: true
+        run: pnpm run perf:render
+
+      - name: Build report
+        if: always()
+        working-directory: frontend
+        run: |
+          pnpm run perf:report > /dev/null
+          {
+            echo "## Frontend-Performance (Nightly, #2939)"
+            echo
+            echo "Runner-Zeiten sind nicht mit anderen Maschinen vergleichbar; Zähler (Requests, Duplikate, Kette, Renders) schon. Referenz: docs/perf/frontend-baseline-2026.md."
+            echo
+            echo "- perf:trace: ${{ steps.trace.outcome }}"
+            echo "- perf:render: ${{ steps.render.outcome }}"
+            echo
+            cat perf-results/report.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload perf results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: perf-results-${{ github.run_id }}
+          path: |
+            frontend/perf-results/
+            !frontend/perf-results/test-output/
+            !frontend/perf-results/react-scan/test-output/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Backend log
+        if: always()
+        run: tail -n 200 "${RUNNER_TEMP}/server.log" || true
+
+      - name: Stop backend
+        if: always()
+        run: kill "$(cat "${RUNNER_TEMP}/server.pid")" 2>/dev/null || true
