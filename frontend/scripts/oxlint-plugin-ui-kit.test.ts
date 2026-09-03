@@ -36,6 +36,22 @@ describe("ui-kit/no-hand-rolled-overlay", () => {
   });
 });
 
+describe("ui-kit/no-tiny-text", () => {
+  it("rejects a legacy token reintroduced at a different source location", () => {
+    const result = lintSource(
+      `function Probe() {
+        return <span className="text-[11px]">Probe</span>;
+      }
+      void Probe;`,
+      "src/app/[tenant]/(protected)/calendar/page.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("ui-kit(no-tiny-text)");
+  });
+});
+
 describe("ui-kit/no-hand-rolled-surface", () => {
   it("reports a hand-built card surface anywhere outside the kit", () => {
     const result = lintSource(

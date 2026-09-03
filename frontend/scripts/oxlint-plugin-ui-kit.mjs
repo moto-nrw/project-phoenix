@@ -66,31 +66,21 @@ function fileKey(context) {
   return idx === -1 ? posix : posix.slice(idx + 1);
 }
 
-/**
- * Parse compact `token[:count]` rows into a per-file match baseline.
- */
-function parseMatchBaseline(source) {
+/** Parse `token@line` rows into an immutable per-file match snapshot. */
+function parseLocationBaseline(source) {
   return new Map(
     source
       .trim()
       .split("\n")
       .map((row) => {
         const [file, encoded] = row.split("|");
-        const matches = new Map(
-          encoded.split(" ").map((entry) => {
-            const parsed = /^(.*?)(?::(\d+))?$/.exec(entry);
-            return [parsed[1], Number(parsed[2] ?? 1)];
-          }),
-        );
-        return [file, matches];
+        return [file, new Set(encoded.split(" "))];
       }),
   );
 }
 
-function consumeBaselineMatch(seenMatches, baseline, key, match) {
-  const nextCount = (seenMatches.get(match) ?? 0) + 1;
-  seenMatches.set(match, nextCount);
-  return nextCount <= (baseline.get(key)?.get(match) ?? 0);
+function isBaselineMatch(baseline, key, match, line) {
+  return baseline.get(key)?.has(`${match}@${line}`) ?? false;
 }
 
 function restrictMatchBaseline(baselineFiles, baseline) {
@@ -207,12 +197,13 @@ function makeClassStringRule({
       if (!key.startsWith("src/")) return {};
       if (EXEMPT_FILE_RE.test(key)) return {};
       if (skipUiKit && key.startsWith(UI_KIT_DIR)) return {};
-      const seenMatches = new Map();
-
       const check = (node, text) => {
         regex.lastIndex = 0;
         for (const match of text.matchAll(regex)) {
-          if (!consumeBaselineMatch(seenMatches, baseline, key, match[0])) {
+          const line =
+            node.loc.start.line +
+            (text.slice(0, match.index).match(/\n/g)?.length ?? 0);
+          if (!isBaselineMatch(baseline, key, match[0], line)) {
             context.report({ node, messageId, data: { match: match[0] } });
           }
         }
@@ -224,7 +215,7 @@ function makeClassStringRule({
         },
         TemplateLiteral(node) {
           for (const quasi of node.quasis) {
-            check(node, quasi.value.raw);
+            check(quasi, quasi.value.raw);
           }
         },
       };
@@ -448,72 +439,72 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/ui/presence-badge.tsx",
 ]);
 
-const TINY_TEXT_BASELINE = parseMatchBaseline(`
-src/app/[tenant]/(protected)/calendar/page.tsx|text-[11px]:1
-src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx|text-[11px]:2
-src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]:1
-src/app/[tenant]/(protected)/meal-plan/page.tsx|text-[11px]:1
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]:4 text-[11px]:2
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]:2
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]:1
-src/components/active-supervisions/planned-now-section.tsx|text-[11px]:1
-src/components/active-supervisions/timetable-roster.tsx|text-[11px]:1
-src/components/activities/activity-management-modal.tsx|text-[10px]:3
-src/components/auth/role-permission-management-modal.tsx|text-[10px]:1 text-[11px]:1
-src/components/calendar/personal-calendar.tsx|text-[10px]:1 text-[11px]:12
-src/components/dashboard/header/reminders-bell.tsx|text-[10px]:1 text-[11px]:1
-src/components/dashboard/sidebar.tsx|text-[10px]:1
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]:2
-src/components/enrollment/enrollment-form-editor.tsx|text-[10px]:3 text-[11px]:9
-src/components/enrollment/enrollment-form.tsx|text-[11px]:1
-src/components/enrollment/phases-editor.tsx|text-[11px]:2
-src/components/files/files-page.tsx|text-[11px]:2
-src/components/guardians/guardian-contact-actions.tsx|text-[10px]:1
-src/components/guardians/guardian-delete-modal.tsx|text-[10px]:1
-src/components/guardians/guardian-list.tsx|text-[10px]:1
-src/components/help/help-search.tsx|text-[11px]:1
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]:2
-src/components/parent/parent-enroll-picker.tsx|text-[11px]:2
-src/components/parent/parent-meal-plan-page.tsx|text-[11px]:2
-src/components/planning/closing-day-marker.tsx|text-[10px]:1
-src/components/staff/absence-request-row.tsx|text-[11px]:1
-src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]:3 text-[11px]:1
-src/components/staff/dienstplan-resource-grid.tsx|text-[10px]:1 text-[11px]:4
-src/components/staff/staff-session-table.tsx|text-[11px]:1
-src/components/students/care-schedule-manager.tsx|text-[10px]:1 text-[11px]:4
-src/components/students/planned-status-days-modal.tsx|text-[10px]:1 text-[11px]:1
-src/components/students/school-checkin-fab.tsx|text-[10px]:1
-src/components/time-tracking/edit-history-accordion.tsx|text-[10px]:3
-src/components/time-tracking/leave-requests-card.tsx|text-[10px]:1
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]:1
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]:2
-src/components/timetable/event-form/multi-select-field.tsx|text-[10px]:1 text-[11px]:2
-src/components/timetable/event-form/step-termin.tsx|text-[10px]:1 text-[11px]:5
-src/components/timetable/gap-jump-list.tsx|text-[10px]:1 text-[11px]:2
-src/components/timetable/instance-block.tsx|text-[10px]:5
-src/components/timetable/instance-detail-modal.tsx|text-[10px]:2 text-[11px]:4 text-[9px]:2
-src/components/timetable/month-planner-grid.tsx|text-[10px]:1 text-[11px]:4 text-[9px]:1
-src/components/timetable/period-switcher-dropdown.tsx|text-[10px]:6 text-[11px]:4
-src/components/timetable/staff-pool-slide-over.tsx|text-[10px]:1 text-[11px]:1
-src/components/timetable/substitution-person-card.tsx|text-[11px]:6
-src/components/timetable/substitution-slide-over.tsx|text-[10px]:5 text-[11px]:3 text-[9px]:1
-src/components/timetable/template-card.tsx|text-[10px]:1 text-[11px]:2
-src/components/timetable/timetable-add-menu.tsx|text-[10px]:1 text-[11px]:2
-src/components/timetable/vertretung-day-list.tsx|text-[11px]:5
-src/components/timetable/vertretung-week-list.tsx|text-[10px]:1
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]:4 text-[11px]:3 text-[9px]:1
-src/components/ui/avatar.tsx|text-[10px]:1
-src/components/ui/coverage-indicator.tsx|text-[11px]:2
-src/components/ui/location-badge.tsx|text-[10px]:2 text-[11px]:2
-src/components/ui/multi-checkbox-select.tsx|text-[11px]:1
-src/components/ui/notification-badge.tsx|text-[10px]:1
-src/components/ui/origin-chip.tsx|text-[11px]:1
-src/components/ui/page-header/FilterButton.tsx|text-[10px]:1
-src/components/ui/page-header/OverflowMenu.tsx|text-[10px]:1 text-[11px]:1
-src/components/ui/parent-visible-badge.tsx|text-[11px]:1
-src/components/ui/plan-block.tsx|text-[11px]:2
-src/components/ui/plan-legend.tsx|text-[11px]:1
-src/components/ui/presence-badge.tsx|text-[10px]:1 text-[11px]:2
+const TINY_TEXT_BASELINE = parseLocationBaseline(`
+src/app/[tenant]/(protected)/calendar/page.tsx|text-[11px]@1103
+src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx|text-[11px]@188 text-[11px]@225
+src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@164
+src/app/[tenant]/(protected)/meal-plan/page.tsx|text-[11px]@645
+src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1343 text-[11px]@1343 text-[10px]@1347 text-[10px]@1356 text-[11px]@1356 text-[10px]@2020
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@235 text-[11px]@276
+src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@218
+src/components/active-supervisions/planned-now-section.tsx|text-[11px]@425
+src/components/active-supervisions/timetable-roster.tsx|text-[11px]@92
+src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10px]@359 text-[10px]@396
+src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
+src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
+src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
+src/components/dashboard/sidebar.tsx|text-[10px]@1320
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@915 text-[11px]@934
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1296 text-[11px]@2973 text-[11px]@3165 text-[11px]@3170 text-[11px]@3175 text-[11px]@3329 text-[11px]@3921 text-[10px]@4138 text-[11px]@4150 text-[11px]@4185 text-[10px]@4199 text-[10px]@4243
+src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
+src/components/enrollment/phases-editor.tsx|text-[11px]@663 text-[11px]@668
+src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
+src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
+src/components/guardians/guardian-delete-modal.tsx|text-[10px]@218
+src/components/guardians/guardian-list.tsx|text-[10px]@334
+src/components/help/help-search.tsx|text-[11px]@362
+src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@676 text-[11px]@741
+src/components/parent/parent-enroll-picker.tsx|text-[11px]@205 text-[11px]@209
+src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
+src/components/planning/closing-day-marker.tsx|text-[10px]@53
+src/components/staff/absence-request-row.tsx|text-[11px]@107
+src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]@227 text-[10px]@240 text-[10px]@322 text-[11px]@1011
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@469 text-[11px]@565 text-[11px]@574 text-[11px]@581 text-[10px]@715
+src/components/staff/staff-session-table.tsx|text-[11px]@1178
+src/components/students/care-schedule-manager.tsx|text-[10px]@1121 text-[11px]@1276 text-[11px]@1365 text-[11px]@1375 text-[11px]@1405
+src/components/students/planned-status-days-modal.tsx|text-[10px]@899 text-[11px]@899
+src/components/students/school-checkin-fab.tsx|text-[10px]@198
+src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
+src/components/time-tracking/leave-requests-card.tsx|text-[10px]@475
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@375
+src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@429 text-[11px]@471
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@167 text-[11px]@247 text-[11px]@280 text-[11px]@341 text-[11px]@347 text-[11px]@395
+src/components/timetable/gap-jump-list.tsx|text-[10px]@109 text-[11px]@132 text-[11px]@147
+src/components/timetable/instance-block.tsx|text-[10px]@198 text-[10px]@204 text-[10px]@211 text-[10px]@219 text-[10px]@240
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@251 text-[9px]@367 text-[9px]@946 text-[11px]@1211 text-[11px]@1237 text-[11px]@1413 text-[10px]@1483 text-[11px]@1506
+src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
+src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@203 text-[10px]@219 text-[11px]@228 text-[10px]@270 text-[10px]@294 text-[10px]@376 text-[10px]@390 text-[10px]@402 text-[11px]@410 text-[11px]@417
+src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@379 text-[11px]@444
+src/components/timetable/substitution-person-card.tsx|text-[11px]@53 text-[11px]@331 text-[11px]@338 text-[11px]@345 text-[11px]@353 text-[11px]@365
+src/components/timetable/substitution-slide-over.tsx|text-[10px]@546 text-[9px]@551 text-[11px]@704 text-[11px]@708 text-[10px]@748 text-[10px]@752 text-[10px]@756 text-[10px]@760 text-[11px]@1196
+src/components/timetable/template-card.tsx|text-[11px]@113 text-[11px]@119 text-[10px]@162
+src/components/timetable/timetable-add-menu.tsx|text-[10px]@61 text-[11px]@81 text-[11px]@103
+src/components/timetable/vertretung-day-list.tsx|text-[11px]@343 text-[11px]@377 text-[11px]@384 text-[11px]@405 text-[11px]@411
+src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@253 text-[9px]@269 text-[10px]@325 text-[11px]@325 text-[11px]@330 text-[10px]@353 text-[10px]@389 text-[11px]@389
+src/components/ui/avatar.tsx|text-[10px]@32
+src/components/ui/coverage-indicator.tsx|text-[11px]@63 text-[11px]@165
+src/components/ui/location-badge.tsx|text-[11px]@121 text-[11px]@122 text-[10px]@352 text-[10px]@386
+src/components/ui/multi-checkbox-select.tsx|text-[11px]@246
+src/components/ui/notification-badge.tsx|text-[10px]@15
+src/components/ui/origin-chip.tsx|text-[11px]@25
+src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
+src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@344 text-[11px]@407
+src/components/ui/parent-visible-badge.tsx|text-[11px]@44
+src/components/ui/plan-block.tsx|text-[11px]@128 text-[11px]@135
+src/components/ui/plan-legend.tsx|text-[11px]@107
+src/components/ui/presence-badge.tsx|text-[11px]@78 text-[11px]@79 text-[10px]@259
 `);
 
 const noTinyText = makeClassStringRule({

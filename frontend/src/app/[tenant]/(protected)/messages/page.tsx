@@ -160,6 +160,14 @@ function MessagesInboxContent() {
       // Der Ladezustand kommt aus dem Gerüst, nicht aus einem eigenen Skelett
       // im Inhalt.
       loading={showSkeleton}
+      overlays={
+        composeOpen ? (
+          <NewMessageModal
+            onClose={() => setComposeOpen(false)}
+            onOpened={(thread) => router.push(`/messages/${thread.thread_id}`)}
+          />
+        ) : null
+      }
     >
       <>
         {loadFailed && (
@@ -209,13 +217,6 @@ function MessagesInboxContent() {
           })}
         </ul>
       </>
-
-      {composeOpen && (
-        <NewMessageModal
-          onClose={() => setComposeOpen(false)}
-          onOpened={(thread) => router.push(`/messages/${thread.thread_id}`)}
-        />
-      )}
     </TenantPage>
   );
 }
