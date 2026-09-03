@@ -193,6 +193,25 @@ describe("MealParticipantList", () => {
     });
   });
 
+  it("shows a localized action when an export fails", async () => {
+    mocks.downloadDailyMealParticipants.mockRejectedValueOnce(
+      new Error("temporary failure"),
+    );
+    render(<MealParticipantList />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Tagesliste als PDF herunterladen",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.toastError).toHaveBeenCalledWith(
+        "Die Tagesliste konnte nicht heruntergeladen werden. Bitte versuchen Sie es noch einmal.",
+      );
+    });
+  });
+
   it("retries after a temporary load error", async () => {
     mocks.getDailyMealParticipants
       .mockRejectedValueOnce(new Error("temporary failure"))

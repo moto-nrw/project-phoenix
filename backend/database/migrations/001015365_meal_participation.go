@@ -160,6 +160,11 @@ func mealParticipationUp(ctx context.Context, db *bun.DB) error {
 		FROM active.student_status_days
 		WHERE status = 'sick' AND cleared_at IS NOT NULL;
 
+		UPDATE users.students_guardians
+		SET permissions = COALESCE(permissions, '{}'::jsonb)
+			|| '{"parent_portal.meal_participation.manage": true}'::jsonb
+		WHERE guardian_role IN ('primary_guardian', 'legal_guardian', 'co_guardian');
+
 		CREATE TRIGGER update_meal_participation_schedules_updated_at
 			BEFORE UPDATE ON schedule.meal_participation_schedules
 			FOR EACH ROW EXECUTE FUNCTION update_modified_column();
@@ -192,6 +197,10 @@ func mealParticipationUp(ctx context.Context, db *bun.DB) error {
 func mealParticipationDown(ctx context.Context, db *bun.DB) error {
 	slog.Info("migration rollback starting", "migration", mealParticipationVersion)
 	_, err := db.NewRaw(`
+		UPDATE users.students_guardians
+		SET permissions = permissions - 'parent_portal.meal_participation.manage'
+		WHERE permissions ? 'parent_portal.meal_participation.manage';
+
 		DROP TRIGGER IF EXISTS record_meal_sickness_status ON active.student_status_days;
 		DROP TRIGGER IF EXISTS record_deleted_meal_sickness_status ON active.student_status_days;
 		DROP FUNCTION IF EXISTS schedule.record_meal_sickness_status();

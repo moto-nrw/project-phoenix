@@ -122,7 +122,7 @@ func TestStaffDailyListResponseContract(t *testing.T) {
 	if response.Code != 200 {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	assert.JSONEq(t, `{"status":"success","data":{"date":"2026-09-07","cutoff_time":"09:00","participants":[{"student_id":42,"first_name":"Mia","last_name":"Muster","school_class":"2a"}]},"message":"Meal participation list retrieved successfully"}`, response.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"date":"2026-09-07","cutoff_time":"09:00","participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}]},"message":"Meal participation list retrieved successfully"}`, response.Body.String())
 }
 
 func TestStaffWeekResponseContract(t *testing.T) {

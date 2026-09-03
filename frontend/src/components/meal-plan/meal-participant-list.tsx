@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Download, FileSpreadsheet, Utensils } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
@@ -11,6 +12,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import {
   downloadDailyMealParticipants,
   getDailyMealParticipants,
@@ -31,6 +33,9 @@ function nextWeekday(date: string): string {
 }
 
 export function MealParticipantList() {
+  const t = useTranslations("mealParticipantList");
+  const locale = useLocale();
+  const datePicker = useLocalizedDatePicker();
   const today = useBerlinToday();
   const toast = useToast();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -68,20 +73,20 @@ export function MealParticipantList() {
     () => [
       {
         key: "name",
-        header: "Kind",
+        header: t("child"),
         render: (row) => `${row.lastName}, ${row.firstName}`,
         sortValue: (row) => `${row.lastName} ${row.firstName}`,
         stacked: "title",
       },
       {
         key: "class",
-        header: "Klasse",
+        header: t("class"),
         render: (row) => row.schoolClass || "–",
         sortValue: (row) => row.schoolClass,
         stacked: "meta",
       },
     ],
-    [],
+    [t],
   );
 
   async function download(format: "pdf" | "xlsx") {
@@ -95,7 +100,7 @@ export function MealParticipantList() {
             ? downloadError.message
             : String(downloadError),
       });
-      toast.error("Die Tagesliste konnte nicht heruntergeladen werden.");
+      toast.error(t("downloadError"));
     } finally {
       setExporting(null);
     }
@@ -110,15 +115,12 @@ export function MealParticipantList() {
               id="meal-participants-title"
               className="text-lg font-semibold text-gray-900"
             >
-              Tagesliste für die Küche
+              {t("title")}
             </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen
-              angemeldet sind.
-            </p>
+            <p className="mt-1 text-sm text-gray-600">{t("description")}</p>
             {cutoffTime ? (
               <p className="mt-1 text-sm font-medium text-gray-700">
-                Änderungen für diesen Tag sind bis {cutoffTime} Uhr möglich.
+                {t("cutoff", { time: cutoffTime })}
               </p>
             ) : null}
           </div>
@@ -128,7 +130,10 @@ export function MealParticipantList() {
               id="meal-participant-date"
               value={date}
               onChange={setSelectedDate}
-              ariaLabel={`Datum: ${formatDate(date)}`}
+              ariaLabel={t("dateAria", {
+                date: formatDate(date, false, locale),
+              })}
+              {...datePicker}
               calendarLayout="popover-below"
               controlSize="md"
               disabledDay={isWeekendDay}
@@ -140,7 +145,7 @@ export function MealParticipantList() {
 
             <div
               role="group"
-              aria-label="Tagesliste herunterladen"
+              aria-label={t("downloadGroup")}
               className="flex flex-wrap gap-2 sm:justify-end"
             >
               <Button
@@ -148,36 +153,36 @@ export function MealParticipantList() {
                 variant="outline"
                 size="md"
                 className="gap-2 bg-white"
-                aria-label="Tagesliste als PDF herunterladen"
+                aria-label={t("downloadPdf")}
                 aria-busy={exporting === "pdf"}
                 onClick={() => void download("pdf")}
                 isLoading={exporting === "pdf"}
-                loadingText="Wird heruntergeladen…"
+                loadingText={t("downloadLoading")}
                 disabled={loading || error || exporting !== null}
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
-                PDF
+                {t("pdf")}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="md"
                 className="gap-2 bg-white"
-                aria-label="Tagesliste als Excel-Datei herunterladen"
+                aria-label={t("downloadExcel")}
                 aria-busy={exporting === "xlsx"}
                 onClick={() => void download("xlsx")}
                 isLoading={exporting === "xlsx"}
-                loadingText="Wird heruntergeladen…"
+                loadingText={t("downloadLoading")}
                 disabled={loading || error || exporting !== null}
               >
                 <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                Excel
+                {t("excel")}
               </Button>
               <span className="sr-only" role="status" aria-live="polite">
                 {exporting === "pdf"
-                  ? "PDF wird heruntergeladen."
+                  ? t("pdfDownloadStatus")
                   : exporting === "xlsx"
-                    ? "Excel wird heruntergeladen."
+                    ? t("excelDownloadStatus")
                     : ""}
               </span>
             </div>
@@ -189,11 +194,11 @@ export function MealParticipantList() {
         <div className="space-y-3">
           <Alert
             type="error"
-            title="Tagesliste nicht geladen"
-            message="Bitte versuchen Sie es erneut."
+            title={t("loadErrorTitle")}
+            message={t("loadErrorMessage")}
           />
           <Button type="button" variant="outline" onClick={() => void load()}>
-            Erneut versuchen
+            {t("retry")}
           </Button>
         </div>
       ) : (
@@ -203,12 +208,14 @@ export function MealParticipantList() {
           getRowKey={(row) => row.studentId}
           isLoading={loading}
           stackedOnMobile
-          caption={`Mittagessen am ${formatDate(date)}`}
+          caption={t("caption", {
+            date: formatDate(date, false, locale),
+          })}
           emptyState={
             <EmptyState
               icon={<Utensils className="h-6 w-6" />}
-              title="Keine Anmeldungen für diesen Tag"
-              description="Für diesen Tag steht kein Kind auf der Küchenliste."
+              title={t("emptyTitle")}
+              description={t("emptyDescription")}
             />
           }
         />

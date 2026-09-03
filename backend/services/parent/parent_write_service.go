@@ -838,7 +838,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		MasterDataContactEditEnabled: canEditMasterData && guardianManagement,
 		MasterDataRequestEnabled:     masterRequest && child.hasPermission(authorize.GuardianPermissionMasterDataRequest),
 		MealPlanEnabled:              mealPlan,
-		MealRegistrationEnabled:      mealRegistration,
+		MealRegistrationEnabled:      mealRegistration && child.hasPermission(authorize.GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  news,
 		ReasonRequired:               usersSvc.ReasonRequiredFor(reasonPolicy, false),
 	}, nil
@@ -1053,7 +1053,7 @@ func (s *service) MealParticipation(ctx context.Context, accountID, studentID in
 }
 
 func (s *service) ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error) {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMealParticipationManage)
 	if err != nil {
 		return "", err
 	}
@@ -1092,7 +1092,7 @@ func (s *service) ClearMealParticipationDay(ctx context.Context, accountID, stud
 }
 
 func (s *service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, change func(context.Context) error) error {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMealParticipationManage)
 	if err != nil {
 		return err
 	}

@@ -187,6 +187,8 @@ type Service interface {
 	// ErrMealPlanDisabled so the portal can hide the section.
 	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]MealPlanEntry, error)
 	MealParticipation(ctx context.Context, accountID, studentID int64, from, to timezone.Date) (MealParticipationPlan, error)
+	// Meal-participation writes require the relationship-scoped
+	// parent_portal.meal_participation.manage permission.
 	ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error)
 	SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error
 	ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error

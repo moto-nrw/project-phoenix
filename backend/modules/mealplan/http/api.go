@@ -70,7 +70,7 @@ type MealPlanEntryResponse struct {
 }
 
 type DailyParticipantResponse struct {
-	StudentID   int64  `json:"student_id"`
+	StudentID   string `json:"student_id"`
 	FirstName   string `json:"first_name"`
 	LastName    string `json:"last_name"`
 	SchoolClass string `json:"school_class"`
@@ -163,7 +163,7 @@ func (rs *Resource) getParticipants(w http.ResponseWriter, r *http.Request) {
 	}
 	participants := make([]DailyParticipantResponse, 0, len(list.Participants))
 	for _, participant := range list.Participants {
-		participants = append(participants, DailyParticipantResponse{StudentID: participant.StudentID, FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+		participants = append(participants, DailyParticipantResponse{StudentID: strconv.FormatInt(participant.StudentID, 10), FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
 	}
 	rs.runtime.Success(w, r, http.StatusOK, DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Participants: participants}, "Meal participation list retrieved successfully")
 }

@@ -109,7 +109,7 @@ export async function getDailyMealParticipants(
       date: string;
       cutoff_time: string;
       participants: Array<{
-        student_id: number | string;
+        student_id: string;
         first_name: string;
         last_name: string;
         school_class: string;
@@ -122,7 +122,7 @@ export async function getDailyMealParticipants(
     date: data.date,
     cutoffTime: data.cutoff_time,
     participants: data.participants.map((participant) => ({
-      studentId: participant.student_id.toString(),
+      studentId: participant.student_id,
       firstName: participant.first_name,
       lastName: participant.last_name,
       schoolClass: participant.school_class,

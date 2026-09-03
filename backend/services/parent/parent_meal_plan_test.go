@@ -156,6 +156,39 @@ func TestMealParticipationWrites_CareEndedChildIsRejected(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 }
 
+func TestMealParticipationWrites_RequireManagePermission(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
+		UPDATE users.students_guardians
+		SET permissions = '{"parent_portal.access": true}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	date := timezone.NewDate(2026, 8, 25)
+
+	_, err = svc.MealParticipation(ctx, chain.AccountID, chain.StudentID, date, date)
+	require.NoError(t, err, "portal access still permits reading meal participation")
+
+	_, err = svc.ReplaceMealParticipationSchedule(ctx, chain.AccountID, chain.StudentID, []parentService.MealWeekday{1})
+	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+
+	err = svc.SetMealParticipationDay(ctx, chain.AccountID, chain.StudentID, date, true)
+	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+
+	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, date)
+	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+
+	flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.False(t, flags.MealRegistrationEnabled)
+}
+
 func TestClearMealParticipationDay_PassesGuardianAccountID(t *testing.T) {
 	t.Parallel()
 
