@@ -23227,6 +23227,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/schedule/n_plus_one_batch_repo_test.go",
+      "declaration": "TestStaffShiftRepository_FindByOriginShiftIDs",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        80
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/schedule/planning_track_repo_test.go",
       "declaration": "TestPlanningTrackRepositoryFindByIDs",
       "target": "database/repositories.NewFactory",
@@ -30866,6 +30876,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         136
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/schedule/timetable_operations_query_budget_test.go",
+      "declaration": "TestTimetableOperationsPlannedNowQueryBudget",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        85
       ],
       "tables": []
     },

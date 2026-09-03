@@ -20,6 +20,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -115,6 +116,7 @@ func DetectStartConflicts(
 			slog.String("error", err.Error()),
 		)
 	}
+	staffConflicts := loadActiveStaffConflicts(ctx, deps, staffRows, logger)
 	for _, row := range staffRows {
 		// Absent rows are not candidates for supervision on this instance;
 		// flagging them as "supervising elsewhere" would be misleading. Start()
@@ -123,14 +125,7 @@ func DetectStartConflicts(
 		if row.IsAbsent {
 			continue
 		}
-		supervisions, err := deps.SupervisorRepo.FindActiveByStaffID(ctx, row.StaffID)
-		if err != nil {
-			logger.Warn("conflict detection: staff supervision lookup failed",
-				slog.Int64("staff_id", row.StaffID),
-				slog.String("error", err.Error()),
-			)
-			continue
-		}
+		supervisions := staffConflicts.supervisions[row.StaffID]
 		// The staff member's effective room on THIS instance: the per-row
 		// multi-room override wins over the instance's primary room.
 		effectiveRoom := instance.RoomID
@@ -142,15 +137,8 @@ func DetectStartConflicts(
 		// overlapping roles, and the frontend only needs to know "there is at
 		// least one conflict" per staff_id.
 		for _, sup := range supervisions {
-			group, err := deps.GroupRepo.FindByID(ctx, sup.GroupID)
-			if err != nil || group == nil {
-				if err != nil {
-					logger.Warn("conflict detection: supervised group lookup failed",
-						slog.Int64("staff_id", row.StaffID),
-						slog.Int64("group_id", sup.GroupID),
-						slog.String("error", err.Error()),
-					)
-				}
+			group := staffConflicts.groups[sup.GroupID]
+			if group == nil {
 				// Room not determinable → not certainly the same room → warn.
 				warnings = append(warnings, InstanceConflictWarning{
 					Kind:        ConflictKindStaff,
@@ -160,7 +148,7 @@ func DetectStartConflicts(
 				})
 				break
 			}
-			supervisionRoom, roomKnown := activeSupervisionRoom(ctx, deps, group, row.StaffID, logger)
+			supervisionRoom, roomKnown := staffConflicts.room(group, row.StaffID)
 			if roomKnown && supervisionRoom == effectiveRoom {
 				continue // same concrete room — sanctioned parallel supervision
 			}
@@ -233,7 +221,108 @@ func DetectStartConflicts(
 	return warnings
 }
 
-// activeSupervisionRoom resolves the room a staff member is actually bound to
+type activeStaffConflicts struct {
+	supervisions map[int64][]*active.GroupSupervisor
+	groups       map[int64]*active.Group
+	instances    map[int64]*scheduleModel.ActivityInstance
+	staffRows    map[int64][]*scheduleModel.InstanceStaff
+	roomsLoaded  bool
+}
+
+func loadActiveStaffConflicts(
+	ctx context.Context,
+	deps ConflictDependencies,
+	assigned []*scheduleModel.InstanceStaff,
+	logger *slog.Logger,
+) activeStaffConflicts {
+	result := newActiveStaffConflicts()
+	staffIDs := distinctPresentStaffIDs(assigned)
+	if len(staffIDs) == 0 {
+		return result
+	}
+	options := modelBase.NewQueryOptions()
+	options.Filter = modelBase.NewFilter().Equal("active_only", true).In("staff_id", int64FilterArgs(staffIDs)...)
+	supervisions, err := deps.SupervisorRepo.List(ctx, options)
+	if err != nil {
+		logger.Warn("conflict detection: staff supervision batch lookup failed", slog.String("error", err.Error()))
+		return result
+	}
+	groupIDs := indexSupervisions(result.supervisions, supervisions)
+	if len(groupIDs) == 0 {
+		return result
+	}
+	return loadActiveStaffConflictRooms(ctx, deps, result, groupIDs, logger)
+}
+
+func newActiveStaffConflicts() activeStaffConflicts {
+	return activeStaffConflicts{
+		supervisions: make(map[int64][]*active.GroupSupervisor),
+		groups:       make(map[int64]*active.Group),
+		instances:    make(map[int64]*scheduleModel.ActivityInstance),
+		staffRows:    make(map[int64][]*scheduleModel.InstanceStaff),
+	}
+}
+
+func loadActiveStaffConflictRooms(
+	ctx context.Context,
+	deps ConflictDependencies,
+	result activeStaffConflicts,
+	groupIDs []int64,
+	logger *slog.Logger,
+) activeStaffConflicts {
+	groups, err := deps.GroupRepo.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		logger.Warn("conflict detection: supervised group batch lookup failed", slog.String("error", err.Error()))
+		return result
+	}
+	result.groups = groups
+	instances, err := deps.InstanceRepo.FindByActiveGroupIDs(ctx, groupIDs)
+	if err != nil {
+		logger.Warn("conflict detection: bridged instance batch lookup failed", slog.String("error", err.Error()))
+		return result
+	}
+	result.roomsLoaded = true
+	for _, instance := range instances {
+		if instance.ActiveGroupID != nil {
+			result.instances[*instance.ActiveGroupID] = instance
+		}
+	}
+	rows, err := deps.InstanceStaffRepo.FindByInstanceIDs(ctx, activityInstanceIDs(instances))
+	if err != nil {
+		logger.Warn("conflict detection: bridged instance_staff batch lookup failed", slog.String("error", err.Error()))
+		return result
+	}
+	result.staffRows = indexInstanceStaffRows(rows)
+	return result
+}
+
+func distinctPresentStaffIDs(rows []*scheduleModel.InstanceStaff) []int64 {
+	ids := make([]int64, 0, len(rows))
+	seen := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		if row.IsAbsent || seen[row.StaffID] {
+			continue
+		}
+		seen[row.StaffID] = true
+		ids = append(ids, row.StaffID)
+	}
+	return ids
+}
+
+func indexSupervisions(byStaff map[int64][]*active.GroupSupervisor, rows []*active.GroupSupervisor) []int64 {
+	groupIDs := make([]int64, 0, len(rows))
+	seen := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		byStaff[row.StaffID] = append(byStaff[row.StaffID], row)
+		if !seen[row.GroupID] {
+			seen[row.GroupID] = true
+			groupIDs = append(groupIDs, row.GroupID)
+		}
+	}
+	return groupIDs
+}
+
+// room resolves the room a staff member is actually bound to
 // in the given RUNNING group. active.groups stores only the session's primary
 // room, so for a group bridged to a timetable instance the staff member's
 // per-row multi-room override on that instance's instance_staff rows wins —
@@ -246,33 +335,15 @@ func DetectStartConflicts(
 // determined (lookup failure, or a bridged instance whose roster does not
 // contain the staff member) — callers must then KEEP the warning, because an
 // undetermined room is "not certainly the same room".
-func activeSupervisionRoom(
-	ctx context.Context,
-	deps ConflictDependencies,
-	group *active.Group,
-	staffID int64,
-	logger *slog.Logger,
-) (roomID int64, ok bool) {
-	instance, err := deps.InstanceRepo.FindByActiveGroupID(ctx, group.ID)
-	if err != nil {
-		logger.Warn("conflict detection: bridged instance lookup failed",
-			slog.Int64("active_group_id", group.ID),
-			slog.String("error", err.Error()),
-		)
+func (c activeStaffConflicts) room(group *active.Group, staffID int64) (roomID int64, ok bool) {
+	if !c.roomsLoaded {
 		return 0, false
 	}
+	instance := c.instances[group.ID]
 	if instance == nil {
 		return group.RoomID, true
 	}
-	rows, err := deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
-	if err != nil {
-		logger.Warn("conflict detection: bridged instance_staff lookup failed",
-			slog.Int64("instance_id", instance.ID),
-			slog.String("error", err.Error()),
-		)
-		return 0, false
-	}
-	for _, row := range rows {
+	for _, row := range c.staffRows[instance.ID] {
 		if row.StaffID == staffID {
 			return effectiveStaffRoom(instance, row), true
 		}

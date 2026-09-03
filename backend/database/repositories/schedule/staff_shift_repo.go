@@ -136,6 +136,29 @@ func (r *StaffShiftRepository) FindByOriginShiftID(ctx context.Context, originSh
 	return shifts, nil
 }
 
+// FindByOriginShiftIDs returns the replacement shifts covering any supplied
+// origin, ordered by origin and start time.
+func (r *StaffShiftRepository) FindByOriginShiftIDs(ctx context.Context, originShiftIDs []int64) ([]*schedule.StaffShift, error) {
+	if len(originShiftIDs) == 0 {
+		return nil, nil
+	}
+	var shifts []*schedule.StaffShift
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&shifts).
+		ModelTableExpr(tableExprStaffShiftsAsShift).
+		Where(`"staff_shift".origin_shift_id IN (?)`, bun.List(originShiftIDs)).
+		OrderExpr(`"staff_shift".origin_shift_id ASC`).
+		OrderExpr(`"staff_shift".start_time ASC`)
+
+	query = base.WithTenantFilter(ctx, query, "staff_shift")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by origin shift ids", Err: base.TranslateNotFound(err)}
+	}
+	normalizeShiftWallClock(shifts)
+	return shifts, nil
+}
+
 // FindByStaffIDsAndDates returns only shifts that can affect the supplied
 // staff/date coverage comparisons. This avoids scanning every tenant shift in
 // the continuous span between sparse candidate dates.

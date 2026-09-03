@@ -622,25 +622,31 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, vis
 		return
 	}
 
-	instanceByGroup := make(map[int64]*scheduleModel.ActivityInstance)
+	groupIDs := make([]int64, 0, len(visits))
+	seenGroups := make(map[int64]bool, len(visits))
+	for _, visit := range visits {
+		if visit != nil && visit.ActiveGroupID > 0 && !seenGroups[visit.ActiveGroupID] {
+			seenGroups[visit.ActiveGroupID] = true
+			groupIDs = append(groupIDs, visit.ActiveGroupID)
+		}
+	}
+	instances, err := s.instanceRepo.FindByActiveGroupIDs(ctx, groupIDs)
+	if err != nil {
+		s.getLogger().Warn("attendance batch mirror: find instances by active_group_id failed", slog.String("error", err.Error()))
+		return
+	}
+	instanceByGroup := make(map[int64]*scheduleModel.ActivityInstance, len(instances))
+	for _, instance := range instances {
+		if instance.ActiveGroupID != nil {
+			instanceByGroup[*instance.ActiveGroupID] = instance
+		}
+	}
 	keys := make([]scheduleModel.InstanceStudentKey, 0, len(visits))
 	for _, visit := range visits {
 		if visit == nil || visit.ActiveGroupID <= 0 {
 			continue
 		}
-		instance, seen := instanceByGroup[visit.ActiveGroupID]
-		if !seen {
-			var err error
-			instance, err = s.instanceRepo.FindByActiveGroupID(ctx, visit.ActiveGroupID)
-			if err != nil {
-				s.getLogger().Warn("attendance batch mirror: find instance by active_group_id failed",
-					slog.Int64("active_group_id", visit.ActiveGroupID),
-					slog.String("error", err.Error()),
-				)
-				instance = nil
-			}
-			instanceByGroup[visit.ActiveGroupID] = instance
-		}
+		instance := instanceByGroup[visit.ActiveGroupID]
 		if instance == nil {
 			continue // walk-in / no bridged instance — nothing to mirror
 		}

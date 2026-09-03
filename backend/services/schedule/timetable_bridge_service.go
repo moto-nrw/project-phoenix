@@ -100,21 +100,13 @@ func (s *TimetableBridgeService) notScheduledForEndedSessions(
 		return nil, nil
 	}
 
-	// One lookup per ended session — bounded by the sessions a single tenant
-	// closes in a day, and the instance rows are already hot from the bridge.
-	instanceIDs := make([]int64, 0, len(activeGroupIDs))
+	instances, err := s.deps.Instances.FindByActiveGroupIDs(ctx, activeGroupIDs)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete bridged instances: load instances", Err: err}
+	}
+	instanceIDs := make([]int64, 0, len(instances))
 	datesByInstance := make(map[int64]timezone.Date, len(activeGroupIDs))
-	for _, activeGroupID := range activeGroupIDs {
-		instance, err := s.deps.Instances.FindByActiveGroupID(ctx, activeGroupID)
-		if err != nil {
-			return nil, &ScheduleError{
-				Op:  "complete bridged instances: load instance",
-				Err: fmt.Errorf("active group %d: %w", activeGroupID, err),
-			}
-		}
-		if instance == nil {
-			continue
-		}
+	for _, instance := range instances {
 		instanceIDs = append(instanceIDs, instance.ID)
 		datesByInstance[instance.ID] = instance.Date
 	}
