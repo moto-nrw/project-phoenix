@@ -557,13 +557,14 @@ func (s *pickupAdjustmentService) lockAndSnapshotBulkStudents(
 ) (map[int64]string, error) {
 	studentIDs := slices.Clone(input.StudentIDs)
 	sort.Slice(studentIDs, func(i, j int) bool { return studentIDs[i] < studentIDs[j] })
+	students, err := s.Students.FindByIDsForUpdate(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("pickup adjustment: lock students: %w", err)
+	}
 	for _, studentID := range studentIDs {
-		student, err := s.Students.FindByIDForUpdate(ctx, studentID)
-		if errors.Is(err, sql.ErrNoRows) {
+		student := students[studentID]
+		if student == nil {
 			return nil, fmt.Errorf("%w: student %d", scheduleService.ErrBulkStudentNotFound, studentID)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("pickup adjustment: lock student %d: %w", studentID, err)
 		}
 		if input.Authorize != nil {
 			allowed, authorizeErr := input.Authorize(ctx, student)

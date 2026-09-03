@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,7 @@ type shiftMockRepo struct {
 	findByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, start, end timezone.Date) ([]*scheduleModels.StaffShift, error)
 	findByOriginShiftIDFunc     func(ctx context.Context, originShiftID int64) ([]*scheduleModels.StaffShift, error)
 	listFunc                    func(ctx context.Context, filters map[string]any) ([]*scheduleModels.StaffShift, error)
+	listWithOptionsFunc         func(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StaffShift, error)
 	updateColumnsFunc           func(ctx context.Context, shift *scheduleModels.StaffShift, columns ...string) (int64, error)
 }
 
@@ -102,6 +104,13 @@ func (m *shiftMockRepo) FindByStaffIDsAndDates(_ context.Context, _ []int64, _ [
 func (m *shiftMockRepo) List(ctx context.Context, filters map[string]any) ([]*scheduleModels.StaffShift, error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, filters)
+	}
+	return nil, nil
+}
+
+func (m *shiftMockRepo) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StaffShift, error) {
+	if m.listWithOptionsFunc != nil {
+		return m.listWithOptionsFunc(ctx, options)
 	}
 	return nil, nil
 }

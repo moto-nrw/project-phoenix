@@ -26,6 +26,7 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
@@ -432,6 +433,7 @@ func NewFactoryWithModules(
 	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
+	appointmentCapability appointments.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -441,9 +443,10 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || appointmentCapability == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, appointments, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
+	repos.BindAppointments(appointmentCapability)
 	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
@@ -2598,11 +2601,10 @@ func newFactory(
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
-		AppointmentRepo:        repos.CalendarAppointment,
+		Appointments:           repos.Appointments(),
 		RecurrenceRepo:         repos.CalendarRecurrenceRule,
 		RecipientRepo:          repos.CalendarAppointmentRecipient,
 		RecipientStudentRepo:   repos.CalendarAppointmentRecipientChild,
-		TargetRepo:             repos.CalendarAppointmentTarget,
 		OverrideRepo:           repos.CalendarOccurrenceOverride,
 		StaffRepo:              repos.Staff,
 		StudentRepo:            repos.Student,

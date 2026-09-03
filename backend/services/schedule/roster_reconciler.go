@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -245,17 +246,23 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 	for _, row := range existingRows {
 		existing[instanceStudentPair{instanceID: row.InstanceID, studentID: row.StudentID}] = struct{}{}
 	}
+	enrollmentOptions := modelBase.NewQueryOptions()
+	enrollmentOptions.Filter = modelBase.NewFilter().In("student_id", int64FilterArgs(studentIDs)...)
+	enrollments, err := s.enrollmentRepo.List(ctx, enrollmentOptions)
+	if err != nil {
+		return 0, 0, &ScheduleError{Op: "reconcile roster: load enrollments", Err: err}
+	}
+	enrollmentsByStudent := make(map[int64][]*activities.StudentEnrollment, len(studentIDs))
+	for _, enrollment := range enrollments {
+		enrollmentsByStudent[enrollment.StudentID] = append(enrollmentsByStudent[enrollment.StudentID], enrollment)
+	}
 
 	restored := 0
 	// Instances that received at least one restored row, so the status-day pass
 	// below runs once per instance instead of once per inserted row.
 	touched := make(map[int64]timezone.Date)
 	for _, sid := range studentIDs {
-		enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, sid)
-		if err != nil {
-			return 0, 0, &ScheduleError{Op: "reconcile roster: load enrollments", Err: err}
-		}
-		for _, e := range enrollments {
+		for _, e := range enrollmentsByStudent[sid] {
 			for _, inst := range byGroup[e.ActivityGroupID] {
 				periodID := int64(0)
 				if inst.CalendarPeriodID != nil {

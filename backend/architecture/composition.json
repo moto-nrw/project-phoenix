@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        597
+        608
       ],
       "tables": []
     },
@@ -7178,6 +7178,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/teaching_assignment_adapters_test.go",
+      "declaration": "TestTeachingAssignmentAdaptersPreserveLegacyContracts",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        15
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/users/care_exit_repository_test.go",
       "declaration": "TestCareExitCleanupRepository_LocksPersonImpactRows",
       "target": "database/repositories.NewFactory",
@@ -10021,7 +10031,7 @@
       "declaration": "TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAccess",
       "target": "database/repositories.NewFactory",
       "lines": [
-        162
+        163
       ],
       "tables": [
         "users.students",
@@ -10044,7 +10054,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        472
+        497
       ],
       "tables": []
     },
@@ -10054,7 +10064,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        426
+        451
       ],
       "tables": []
     },
@@ -10064,7 +10074,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1212
+        1246
       ],
       "tables": []
     },
@@ -10074,7 +10084,7 @@
       "declaration": "TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1005
+        1030
       ],
       "tables": [
         "calendar.appointments",
@@ -10088,7 +10098,7 @@
       "declaration": "TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1098
+        1123
       ],
       "tables": []
     },
@@ -10098,7 +10108,7 @@
       "declaration": "TestCalendarServiceIntegration_EditRacingCancellationConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1168
+        1193
       ],
       "tables": []
     },
@@ -10108,7 +10118,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedRejectsInactiveAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2073
+        2147
       ],
       "tables": [
         "auth.accounts"
@@ -10120,7 +10130,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2667
+        2741
       ],
       "tables": []
     },
@@ -10130,7 +10140,7 @@
       "declaration": "TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1756
+        1840
       ],
       "tables": []
     },
@@ -10140,7 +10150,7 @@
       "declaration": "TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2730
+        2804
       ],
       "tables": []
     },
@@ -10150,7 +10160,7 @@
       "declaration": "TestCalendarServiceIntegration_RepositoryReadAndReplacePaths",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1889
+        1973
       ],
       "tables": []
     },
@@ -10160,7 +10170,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        730
+        755
       ],
       "tables": []
     },
@@ -10170,7 +10180,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        678
+        703
       ],
       "tables": [
         "auth.account_tenants"
@@ -10182,7 +10192,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedIndependent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        752
+        777
       ],
       "tables": []
     },
@@ -10192,7 +10202,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWithoutPrivateDescriptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        799
+        824
       ],
       "tables": []
     },
@@ -10202,7 +10212,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDeletionCancellations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        955
+        980
       ],
       "tables": []
     },
@@ -10212,7 +10222,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEventsOutsideLookback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        903
+        928
       ],
       "tables": [
         "schedule.activity_instances"
@@ -10224,7 +10234,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        856
+        881
       ],
       "tables": []
     },
@@ -10234,7 +10244,7 @@
       "declaration": "TestCalendarServiceIntegration_SubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        576
+        601
       ],
       "tables": [
         "auth.accounts"
@@ -10246,7 +10256,7 @@
       "declaration": "calendarTestConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        36
+        37
       ],
       "tables": []
     },
@@ -10276,8 +10286,7 @@
       "declaration": "setupClassListEntryTransitionTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37,
-        38
+        30
       ],
       "tables": []
     },
@@ -10313,7 +10322,7 @@
       "declaration": "setupGradeTransitionServiceTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        32
       ],
       "tables": []
     },
@@ -14140,6 +14149,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         136
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/schedule/timetable_operations_query_budget_test.go",
+      "declaration": "TestTimetableOperationsPlannedNowQueryBudget",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        85
       ],
       "tables": []
     },
@@ -31704,27 +31723,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 162,
+          "line": 164,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 304,
+          "line": 315,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 407,
+          "line": 418,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 473,
+          "line": 484,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 965,
+          "line": 976,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31734,7 +31753,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 597,
+          "line": 608,
           "declaration": "New"
         }
       ]
@@ -31744,12 +31763,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 153,
+          "line": 155,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 470,
+          "line": 481,
           "declaration": "type API"
         },
         {
@@ -31859,12 +31878,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 426,
+          "line": 427,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 451,
+          "line": 454,
           "declaration": "newFactory"
         },
         {

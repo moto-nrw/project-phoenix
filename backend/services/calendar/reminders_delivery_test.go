@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -24,14 +25,14 @@ import (
 // and once while dispatching, so bumping on the second call reproduces an edit
 // landing exactly between a reminder's push claim and the push itself.
 type revisingCandidateLock struct {
-	calModels.AppointmentRepository
+	appointments.Capability
 	db    *bun.DB
 	on    int
 	mu    sync.Mutex
 	calls int
 }
 
-func (r *revisingCandidateLock) LockReminderCandidate(ctx context.Context, id int64) (*calModels.Appointment, error) {
+func (r *revisingCandidateLock) FindReminderCandidateForUpdate(ctx context.Context, id int64) (*appointments.Appointment, error) {
 	r.mu.Lock()
 	r.calls++
 	revise := r.calls == r.on
@@ -44,7 +45,7 @@ func (r *revisingCandidateLock) LockReminderCandidate(ctx context.Context, id in
 			return nil, err
 		}
 	}
-	return r.AppointmentRepository.LockReminderCandidate(ctx, id)
+	return r.Capability.FindReminderCandidateForUpdate(ctx, id)
 }
 
 // A reminder push is claimed under the appointment revision the scan saw. An
@@ -64,8 +65,8 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	cfg.ParentsURL = "https://parents.test"
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	baseRepo := cfg.AppointmentRepo
-	cfg.AppointmentRepo = &revisingCandidateLock{AppointmentRepository: baseRepo, db: db, on: 2}
+	baseRepo := cfg.Appointments
+	cfg.Appointments = &revisingCandidateLock{Capability: baseRepo, db: db, on: 2}
 	service := calendarSvc.NewService(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revised")
@@ -95,7 +96,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	require.NoError(t, err)
 	assert.Equal(t, 1, queued)
 
-	revised, err := baseRepo.FindByID(context.Background(), detail.Appointment.ID)
+	revised, err := baseRepo.FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, revised)
 	require.Greater(t, revised.Revision, detail.Appointment.Revision,

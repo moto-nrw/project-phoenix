@@ -83,6 +83,9 @@ type StudentRepository struct {
 	// student service's HTTP flow, but also enrollment approval, imports, and
 	// any other direct repository writer (#1694).
 	companions *StudentCompanionRepository
+	// teacherGroupIDs resolves education.group_teacher through composition. This
+	// Postgres adapter stays independent of the sibling School Membership owner.
+	teacherGroupIDs func(context.Context, int64) ([]int64, error)
 }
 
 // NewStudentRepository creates a new StudentRepository
@@ -94,6 +97,13 @@ func NewStudentRepository(db *bun.DB) users.StudentRepository {
 		db:         db,
 		companions: newStudentCompanionRepository(db),
 	}
+}
+
+func (r *StudentRepository) BindTeacherGroupIDs(query func(context.Context, int64) ([]int64, error)) {
+	if query == nil {
+		panic("student repository: school membership is required")
+	}
+	r.teacherGroupIDs = query
 }
 
 // FindByID retrieves a student by their ID.
@@ -1440,10 +1450,19 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 
 // FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
+	if r.teacherGroupIDs == nil {
+		return nil, errors.New("student repository resolves teacher assignments through School Membership")
+	}
+	groupIDs, err := r.teacherGroupIDs(ctx, teacherID)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by teacher ID with groups", Err: err}
+	}
+	if len(groupIDs) == 0 {
+		return []*users.StudentWithGroupInfo{}, nil
+	}
 	var results []*studentWithPersonAndGroup
-	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
-		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "student".group_id`).
-		Where(`"gt".teacher_id = ? AND "student".group_id IS NOT NULL`, teacherID).
+	err = activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
+		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
 		Distinct().
 		Scan(ctx)
 

@@ -17,11 +17,14 @@ const formSchemaTableExpr = `enrollment.form_schemas AS "form_schema"`
 // FormSchemaRepository is the bun-backed implementation of
 // enrollment.FormSchemaRepository.
 type FormSchemaRepository struct {
+	*base.Repository[*enrollment.FormSchema]
 	db *bun.DB
 }
 
 func NewFormSchemaRepository(db *bun.DB) enrollment.FormSchemaRepository {
-	return &FormSchemaRepository{db: db}
+	repo := base.NewRepository[*enrollment.FormSchema](db, "enrollment.form_schemas", "FormSchema")
+	repo.TenantScoped = true
+	return &FormSchemaRepository{Repository: repo, db: db}
 }
 
 // Create inserts a new schema version.
