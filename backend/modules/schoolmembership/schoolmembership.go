@@ -1,7 +1,7 @@
 // Package schoolmembership is the public School Membership capability. It
-// owns users.staff, users.teachers and users.guests: every read or write of
-// a staff, teacher or guest row by another owner goes through Query or
-// Command instead of a foreign SQL join.
+// owns users.staff, users.teachers, users.guests and users.class_list_entries:
+// every read or write of a staff, teacher, guest or class-list-entry row by
+// another owner goes through Query or Command instead of a foreign SQL join.
 //
 // The capability stops at the membership rows themselves. Person names live
 // with the People Directory, login accounts and roles with Identity Access;
@@ -207,6 +207,13 @@ type Query interface {
 	FindGuest(context.Context, int64) (Guest, error)
 	FindGuestByStaff(context.Context, int64) (Guest, error)
 	ListGuests(context.Context, GuestFilter) ([]Guest, error)
+
+	FindClassListEntry(context.Context, int64) (ClassListEntry, error)
+	// FindClassListEntryForMutation locks the row for the caller's transaction.
+	FindClassListEntryForMutation(context.Context, int64) (ClassListEntry, error)
+	// ListClassListEntries returns the entries matching the filter, ordered
+	// by last name, first name (both case-folded) and ID.
+	ListClassListEntries(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
 }
 
 type Command interface {
@@ -234,6 +241,11 @@ type Command interface {
 	UpdateGuest(context.Context, UpdateGuest) (Guest, error)
 	// DeleteGuest removes the guest profile; guests carry no tombstone.
 	DeleteGuest(context.Context, int64) error
+
+	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
+	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
+	// DeleteClassListEntry removes the entry; entries carry no tombstone.
+	DeleteClassListEntry(context.Context, int64) error
 }
 
 type Capability interface {
@@ -266,6 +278,12 @@ type engine interface {
 	CreateGuest(context.Context, CreateGuest) (Guest, error)
 	UpdateGuest(context.Context, UpdateGuest) (Guest, error)
 	DeleteGuest(context.Context, int64) error
+
+	FindClassListEntry(ctx context.Context, id int64, lock string) (ClassListEntry, error)
+	ListClassListEntries(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
+	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
+	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
+	DeleteClassListEntry(context.Context, int64) error
 }
 
 type Module struct{ engine engine }
@@ -586,7 +604,8 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrGuestNotFound):
+	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrGuestNotFound),
+		errors.Is(err, ErrClassListEntryNotFound):
 		return "not_found"
 	case errors.Is(err, ErrInvalidMembership):
 		return "invalid"
@@ -594,6 +613,8 @@ func ErrorCode(err error) string {
 		return "membership_conflict"
 	case errors.Is(err, ErrPersonnelNumberConflict):
 		return "personnel_number_conflict"
+	case errors.Is(err, ErrClassListEntryDuplicate):
+		return "class_list_entry_conflict"
 	default:
 		return "internal_error"
 	}

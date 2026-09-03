@@ -766,8 +766,9 @@ func ObserveSchoolMembershipOperation(operation string, duration time.Duration, 
 	}
 }
 
-// ObserveSchoolMembershipHTTPResponse counts one /api/staff membership
-// response by the status class actually written and the stable outcome code.
+// ObserveSchoolMembershipHTTPResponse counts one School Membership HTTP
+// adapter response (/api/staff membership routes, /api/class-list-entries)
+// by the status class actually written and the stable outcome code.
 func ObserveSchoolMembershipHTTPResponse(status int, code string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
 	schoolMembershipHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()

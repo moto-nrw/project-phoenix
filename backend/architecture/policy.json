@@ -494,13 +494,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/classlistentries",
-      "owner": "inbound-classlistentries",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "api/common",
       "owner": "inbound-common",
       "role": "http",
@@ -1966,6 +1959,13 @@
     {
       "path": "modules/schoolmembership/http",
       "owner": "inbound-staff",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolmembership/http/classlistentries",
+      "owner": "inbound-classlistentries",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -4170,14 +4170,14 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-classlistentries.to.school-structure",
+      "id": "inbound-classlistentries.to.school-membership",
       "description": "inbound-classlistentries calls exactly one public capability.",
       "scopes": [
         "production"
       ],
       "source_owner": "inbound-classlistentries",
       "source_role": "http",
-      "target_owner": "school-structure",
+      "target_owner": "school-membership",
       "target_role": "public"
     },
     {
@@ -7320,6 +7320,23 @@
       "target_class": "http-router"
     },
     {
+      "id": "inbound-classlistentries.http.security-contract",
+      "description": "The School Membership class-list adapter binds its established permission contract.",
+      "scopes": ["production"],
+      "source_owner": "inbound-classlistentries",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-classlistentries.adapter-test.http-router",
+      "description": "School Membership class-list adapter tests exercise the real router and response renderer.",
+      "scopes": ["external_test"],
+      "source_owner": "inbound-classlistentries",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
       "id": "root-composition.to.school-membership-compose",
       "description": "The production root constructs the School Membership module once.",
       "scopes": ["production"],
@@ -7344,6 +7361,15 @@
       "source_owner": "root-composition",
       "source_role": "compose",
       "target_owner": "inbound-staff",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.school-membership-class-list-http",
+      "description": "The production root constructs the School Membership class-list HTTP adapter.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-classlistentries",
       "target_role": "http"
     },
     {

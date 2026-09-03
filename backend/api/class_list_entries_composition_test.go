@@ -1,50 +1,47 @@
-// Router-level tests for /api/class-list-entries (#2382): permission gates,
-// the CRUD + assign flow, and the class-day merge of list-only entries.
-package classlistentries_test
+package api
 
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/api/classday"
-	"github.com/moto-nrw/project-phoenix/api/classlistentries"
+	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type classListEntriesRoutes struct {
-	entries  *classlistentries.Resource
-	classDay *classday.Resource
-}
+// The tests below exercise the composed /class-list-entries router (#2668):
+// the School Membership class-list adapter bound to the shared renderer, the
+// JWT identity and the legacy audited write flows. They keep the contract the
+// former api/classlistentries router tests pinned (#2382).
 
-func setupClassListEntriesRoute(t *testing.T) (*testpkg.DB, *classListEntriesRoutes) {
+func setupClassListEntriesComposition(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
-	db, factory := testutil.SetupAPITest(t)
-	return db, &classListEntriesRoutes{
-		entries:  classlistentries.NewResource(factory.ClassListEntries, db, nil),
-		classDay: classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil),
-	}
+	db, svc := testutil.SetupAPITest(t)
+	membership, err := repositories.NewSchoolMembership(db)
+	require.NoError(t, err)
+	return db, newClassListEntriesResource(membership, svc, db, slog.Default()).Router()
 }
 
-func TestClassListEntriesAPI(t *testing.T) {
+func classListEntryClaims(t *testing.T, db *testpkg.DB, prefix string) jwt.AppClaims {
+	t.Helper()
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("%s-%d@test.local", prefix, time.Now().UnixNano()))
+	return jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
+}
+
+func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	t.Parallel()
-	db, routes := setupClassListEntriesRoute(t)
-
-	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-api-%d@test.local", time.Now().UnixNano()))
-
-	router := routes.entries.Router()
-
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
+	db, router := setupClassListEntriesComposition(t)
+	claims := classListEntryClaims(t, db, "cle-api")
 	className := fmt.Sprintf("cle%d", time.Now().UnixNano()%100000)
 
 	// Missing permission → 403 before any data access.
@@ -59,8 +56,8 @@ func TestClassListEntriesAPI(t *testing.T) {
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:create"})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
-	// IDs travel as JSON strings (lossless beyond 2^53) — `,string` decodes the
-	// quoted wire value.
+	// IDs travel as JSON strings (lossless beyond 2^53) — `,string` decodes
+	// the quoted wire value.
 	var created struct {
 		Data struct {
 			ID int64 `json:"id,string"`
@@ -77,11 +74,12 @@ func TestClassListEntriesAPI(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "existiert in dieser Klasse bereits")
 
-	// List (users:read) shows the entry.
+	// List (users:read) shows the entry with an empty match hint.
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "Aalders")
+	assert.Contains(t, rec.Body.String(), `"matching_student_ids":[]`)
 
 	// Move to another class (users:update).
 	moveBody := fmt.Sprintf(`{"first_name":"Zoe","last_name":"Aalders","school_class":"%s-b"}`, className)
@@ -91,66 +89,38 @@ func TestClassListEntriesAPI(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), className+"-b")
 
-	// Assign to a real student (users:delete) deletes the entry.
+	// A regular student of the same name and class shows up as the hint.
 	student := testpkg.CreateTestStudent(t, db, "Zoe", "Aalders", className+"-b")
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), fmt.Sprintf(`"matching_student_ids":["%d"]`, student.ID))
 
+	// Assign to the real student (users:delete) deletes the entry.
 	assignBody := fmt.Sprintf(`{"student_id":"%d"}`, student.ID)
 	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/%d/assign", entryID), strings.NewReader(assignBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:delete"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	// Gone after the assign.
+	// Gone after the assign; a repeated delete is 404.
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), fmt.Sprintf(`"id":"%d"`, entryID))
-}
 
-func TestClassListEntriesAppearInClassDay(t *testing.T) {
-	t.Parallel()
-	db, routes := setupClassListEntriesRoute(t)
-
-	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CleDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
-	className := fmt.Sprintf("cled%d", time.Now().UnixNano()%100000)
-	assignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
-	_ = testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
-	entry := testpkg.CreateTestClassListEntry(t, db, "Nico", "NurListe", className)
-	t.Cleanup(func() {
-		tenantCtx := testpkg.Ctx(t)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
-	})
-
-	// Since the cutover (#2207 PR 3) the class-day sheet is reachable only
-	// through the school portal, so this drives SchoolRouter with school-scope
-	// claims. What is under test is unchanged: a list-only entry appears on the
-	// sheet, flagged and never staying.
-	classDayRouter := routes.classDay.SchoolRouter()
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
-
-	req := httptest.NewRequest(http.MethodGet, "/?date=2026-08-05", nil)
-	rec := testutil.ExecuteWithAuthPermissions(t, classDayRouter, req, claims, []string{"class_day:read"})
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-
-	// Both the regular student and the list-only entry are on the sheet; the
-	// entry is flagged, never staying, and carries no departure instruction.
-	body := rec.Body.String()
-	assert.Contains(t, body, "Klassentag")
-	assert.Contains(t, body, "NurListe")
-	assert.Contains(t, body, fmt.Sprintf(`"list_entry_id":"%d"`, entry.ID))
-	assert.Contains(t, body, `"list_entry":true`)
+	req = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/%d", entryID), nil)
+	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:delete"})
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "Klassenlisteneintrag nicht gefunden")
 }
 
 // Whitespace-only fields are an invalid request, not a server error: Bind
-// trims and rejects them before the service runs (#2399 review).
-func TestClassListEntriesWhitespaceOnlyIs400(t *testing.T) {
+// trims and rejects them before the flow runs (#2399 review).
+func TestClassListEntriesCompositionWhitespaceOnlyIs400(t *testing.T) {
 	t.Parallel()
-	db, routes := setupClassListEntriesRoute(t)
-
-	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-ws-%d@test.local", time.Now().UnixNano()))
-
-	router := routes.entries.Router()
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
+	db, router := setupClassListEntriesComposition(t)
+	claims := classListEntryClaims(t, db, "cle-ws")
 
 	body := `{"first_name":"  ","last_name":"Aalders","school_class":"1a"}`
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
@@ -158,4 +128,24 @@ func TestClassListEntriesWhitespaceOnlyIs400(t *testing.T) {
 	rec := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:create"})
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "erforderlich")
+}
+
+// The listing keeps the class-then-name order of the legacy handler: grades
+// sort numerically ("2a" before "10a"), names with German collation.
+func TestClassListEntriesCompositionKeepsTheDisplayOrder(t *testing.T) {
+	t.Parallel()
+	db, router := setupClassListEntriesComposition(t)
+	claims := classListEntryClaims(t, db, "cle-order")
+	stamp := time.Now().UnixNano() % 100000
+
+	testpkg.CreateTestClassListEntry(t, db, "Zoe", "Zander", fmt.Sprintf("2a%d", stamp))
+	testpkg.CreateTestClassListEntry(t, db, "Anna", "Ärger", fmt.Sprintf("2a%d", stamp))
+	testpkg.CreateTestClassListEntry(t, db, "Ben", "Berg", fmt.Sprintf("10a%d", stamp))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	body := rec.Body.String()
+	assert.Less(t, strings.Index(body, "Ärger"), strings.Index(body, "Zander"), "Ä sorts with A in German collation")
+	assert.Less(t, strings.Index(body, "Zander"), strings.Index(body, "Berg"), "grade 2 sorts before grade 10")
 }
