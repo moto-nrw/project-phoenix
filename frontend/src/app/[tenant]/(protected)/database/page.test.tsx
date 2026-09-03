@@ -158,6 +158,17 @@ describe("DatabasePage", () => {
     });
   });
 
+  it("shows no more than three counts in the page header", async () => {
+    render(<DatabasePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("100 Kinder · 25 Personen · 15 Räume"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("10 Gruppen")).not.toBeInTheDocument();
+    });
+  });
+
   it("displays singular 'Eintrag' for count of 1", async () => {
     mockCounts({
       ...mockCountsResponse.data,

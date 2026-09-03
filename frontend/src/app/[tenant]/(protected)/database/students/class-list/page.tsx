@@ -262,9 +262,7 @@ export default function ClassListEntriesPage() {
   const studentCount = students?.length ?? 0;
   const statusLine = [
     `${formatCount(allRows.length)} ${allRows.length === 1 ? "Kind" : "Kinder"}`,
-    `${formatCount(studentCount)} in moto angelegt`,
     `${formatCount(entryRows.length)} ohne Betreuung`,
-    `${formatCount(classCount)} ${classCount === 1 ? "Klasse" : "Klassen"}`,
     `${formatCount(duplicateCount)} mögliche ${duplicateCount === 1 ? "Dublette" : "Dubletten"}`,
   ].join(" · ");
 
@@ -726,7 +724,7 @@ export default function ClassListEntriesPage() {
     >
       <SectionCard
         title="Kinder im Klassenverband"
-        description="Reguläre Kinder werden in der Kinder-Datenbank gepflegt. Hier kommen nur Kinder ohne OGS-Betreuung dazu."
+        description={`Reguläre Kinder werden in der Kinder-Datenbank gepflegt. Hier kommen nur Kinder ohne OGS-Betreuung dazu. ${formatCount(studentCount)} davon sind in moto angelegt und verteilen sich auf ${formatCount(classCount)} ${classCount === 1 ? "Klasse" : "Klassen"}.`}
       >
         {studentsError ? (
           <div className="mb-4">
