@@ -1003,6 +1003,7 @@ func validateFieldVisibility(f *FormField, byKey map[string]*FormField) error {
 type FormSchemaRepository interface {
 	Create(ctx context.Context, schema *FormSchema) error
 	FindByID(ctx context.Context, id int64) (*FormSchema, error)
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*FormSchema, error)
 	FindActive(ctx context.Context) (*FormSchema, error)
 	ListByTenant(ctx context.Context) ([]*FormSchema, error)
 	NextVersion(ctx context.Context) (int, error)

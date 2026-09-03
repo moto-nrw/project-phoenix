@@ -201,4 +201,5 @@ type RequestRepository interface {
 	// given schema version. The schema delete path uses this to preserve
 	// historical submissions.
 	ExistsBySchemaID(ctx context.Context, schemaID int64) (bool, error)
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 }

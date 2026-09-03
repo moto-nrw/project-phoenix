@@ -67,6 +67,10 @@ var queryBudgets = map[string]queryBudget{
 	"services.schedule.planned_now": {max: 4},
 	// services/calendar — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
+	// services/enrollment — list/read paths stay flat as rows grow (#2941).
+	"services.enrollment.list_child_offerings.reads":    {max: 5},
+	"services.enrollment.offering_source_options.reads": {max: 5},
+	"services.enrollment.rollover_review_queue.reads":   {max: 3},
 	// services/calendar — appointment target resolution, 8 explicit guardians.
 	"services.calendar.resolve_targets.reads": {max: 5, exact: true},
 	// services/calendar — reminder scan, 8 due appointments; writes scale with

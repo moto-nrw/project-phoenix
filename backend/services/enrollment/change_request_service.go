@@ -1994,18 +1994,20 @@ func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Co
 	if err != nil {
 		return fmt.Errorf("change request: list guardians for account guardrail: %w", err)
 	}
+	emails := make([]string, 0, len(editReq.AdditionalGuardians))
+	for _, guardian := range editReq.AdditionalGuardians {
+		emails = append(emails, optionalLowerEmail(guardian.Email))
+	}
+	profiles, err := findGuardianProfilesByEmails(ctx, s.GuardianProfileRepo, emails)
+	if err != nil {
+		return fmt.Errorf("change request: load co-guardian profiles for account guardrail: %w", err)
+	}
 	for i, guardian := range editReq.AdditionalGuardians {
 		email := optionalLowerEmail(guardian.Email)
 		if email == "" {
 			continue
 		}
-		profile, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
-		if err != nil {
-			if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
-				continue
-			}
-			return fmt.Errorf("change request: load co-guardian profile for account guardrail: %w", err)
-		}
+		profile := profiles[email]
 		if profile == nil || !profile.HasPortalAccount() {
 			continue
 		}
