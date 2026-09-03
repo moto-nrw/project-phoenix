@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -37,6 +38,8 @@ func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[in
 
 	var tenantID *int64
 	if id := modelBase.RepositoryTenantID(ctx); id > 0 {
+		tenantID = &id
+	} else if id := tenant.FromContext(ctx); id > 0 {
 		tenantID = &id
 	}
 	err := base.GetDB(ctx, r.db).NewRaw(`
