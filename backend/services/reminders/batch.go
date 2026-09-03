@@ -356,13 +356,11 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 	}
 
 	if caregivers && cfg.anyPickup() && !cfg.binaryPresence {
-		if s.BulkVisits != nil {
-			byRoom, err := s.BulkVisits.ListOpenVisitStudentIDsByRoom(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("load open visits by room: %w", err)
-			}
-			in.visitsByRoom = byRoom
+		byRoom, err := s.Visits.ListOpenVisitStudentIDsByRoom(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("load open visits by room: %w", err)
 		}
+		in.visitsByRoom = byRoom
 	}
 
 	if caregivers && (cfg.anyActivity() || (cfg.anyPickup() && !cfg.binaryPresence)) {

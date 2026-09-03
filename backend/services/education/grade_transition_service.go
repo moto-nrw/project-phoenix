@@ -1883,24 +1883,9 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 }
 
 func (s *GradeTransitionService) studentCountsByClass(ctx context.Context, classes []string) (map[string]int, error) {
-	if batch, ok := s.transitionRepo.(interface {
-		GetStudentCountsByClasses(context.Context, []string) (map[string]int, error)
-	}); ok {
-		counts, err := batch.GetStudentCountsByClasses(ctx, classes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to count students by class: %w", err)
-		}
-		return counts, nil
-	}
-	// Compatibility path for narrow adapters. Production uses the batch
-	// capability above; keeping this path preserves their existing errors.
-	counts := make(map[string]int, len(classes))
-	for _, className := range classes {
-		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
-		if err != nil {
-			return nil, fmt.Errorf("failed to count students in class %q: %w", className, err)
-		}
-		counts[className] = count
+	counts, err := s.transitionRepo.GetStudentCountsByClasses(ctx, classes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count students by class: %w", err)
 	}
 	return counts, nil
 }

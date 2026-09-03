@@ -793,11 +793,29 @@ func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Con
 
 	profiles := make(map[int64]*userModels.GuardianProfile)
 	if s.GuardianProfileRepo != nil {
-		profiles, _ = s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
+		loaded, loadErr := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
+		if loadErr != nil {
+			s.getLogger().Error(
+				"failed to hydrate pending guardian approvals",
+				"relation", "guardian_profiles",
+				"error", loadErr,
+			)
+		} else {
+			profiles = loaded
+		}
 	}
 	students := make(map[int64]*userModels.Student)
 	if s.StudentRepo != nil && len(studentIDs) > 0 {
-		students, _ = s.StudentRepo.FindByIDs(ctx, studentIDs)
+		loaded, loadErr := s.StudentRepo.FindByIDs(ctx, studentIDs)
+		if loadErr != nil {
+			s.getLogger().Error(
+				"failed to hydrate pending guardian approvals",
+				"relation", "students",
+				"error", loadErr,
+			)
+		} else {
+			students = loaded
+		}
 	}
 	personIDs := make([]int64, 0, len(students))
 	for _, student := range students {
@@ -805,11 +823,29 @@ func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Con
 	}
 	persons := make(map[int64]*userModels.Person)
 	if s.PersonRepo != nil && len(personIDs) > 0 {
-		persons, _ = s.PersonRepo.FindByIDs(ctx, personIDs)
+		loaded, loadErr := s.PersonRepo.FindByIDs(ctx, personIDs)
+		if loadErr != nil {
+			s.getLogger().Error(
+				"failed to hydrate pending guardian approvals",
+				"relation", "persons",
+				"error", loadErr,
+			)
+		} else {
+			persons = loaded
+		}
 	}
 	emails := make(map[int64]string)
 	if s.AccountRepo != nil && len(accountIDs) > 0 {
-		emails, _ = s.AccountRepo.FindEmailsByAccountIDs(ctx, accountIDs)
+		loaded, loadErr := s.AccountRepo.FindEmailsByAccountIDs(ctx, accountIDs)
+		if loadErr != nil {
+			s.getLogger().Error(
+				"failed to hydrate pending guardian approvals",
+				"relation", "requester_emails",
+				"error", loadErr,
+			)
+		} else {
+			emails = loaded
+		}
 	}
 
 	views := make([]*PendingApprovalView, 0, len(invitations))

@@ -1772,20 +1772,7 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 	}
 	breaksBySession, err := s.breakRepo.GetBySessionIDs(ctx, sessionIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get session breaks: %w", err)
-	}
-	// Some narrow repository adapters return a nil map for unsupported bulk
-	// reads. Preserve the single-row contract for those adapters; the database
-	// repository always returns a non-nil map and stays on the flat query path.
-	if breaksBySession == nil {
-		breaksBySession = make(map[int64][]*activeModels.WorkSessionBreak, len(sessionIDs))
-		for _, sessionID := range sessionIDs {
-			breaks, lookupErr := s.breakRepo.GetBySessionID(ctx, sessionID)
-			if lookupErr != nil {
-				return nil, fmt.Errorf("failed to get breaks for session %d: %w", sessionID, lookupErr)
-			}
-			breaksBySession[sessionID] = breaks
-		}
+		return nil, fmt.Errorf("failed to get breaks: %w", err)
 	}
 
 	// Wrap each session in SessionResponse with calculated fields and breaks
@@ -2822,18 +2809,6 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to resolve work sessions for balance lock: %w", err)
-	}
-	if sessions == nil {
-		for _, brk := range expiredBreaks {
-			session, lookupErr := s.repo.FindByID(ctx, brk.SessionID)
-			if lookupErr != nil {
-				return 0, fmt.Errorf("failed to resolve work session for balance lock: %w", lookupErr)
-			}
-			if session.ID == 0 {
-				session.ID = brk.SessionID
-			}
-			sessions = append(sessions, session)
-		}
 	}
 	sessionsByID := make(map[int64]*activeModels.WorkSession, len(sessions))
 	for _, session := range sessions {

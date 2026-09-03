@@ -648,10 +648,14 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 	if err != nil {
 		return nil, err
 	}
-	// Phone hydration has historically been best-effort: a failed lookup must
-	// not hide the guardian relationships themselves.
-	phonesByProfile, _ := s.GuardianPhoneNumberRepo.FindByGuardianIDs(ctx, profileIDs)
-	openInvitations := s.openInvitationsByProfile(ctx, profileIDs)
+	phonesByProfile, err := s.GuardianPhoneNumberRepo.FindByGuardianIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load guardian phone numbers: %w", err)
+	}
+	openInvitations, err := s.openInvitationsByProfile(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	result := make([]*GuardianWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
@@ -688,34 +692,18 @@ func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64
 	return false
 }
 
-// openInvitationsByProfile batches the best-effort status used by the guardian
-// list. The repository methods already exclude accepted, expired, and rejected
-// rows; together they cover consumable invitations and approval requests.
-func (s *GuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) map[int64][]*authModels.GuardianInvitation {
+// openInvitationsByProfile batches the open-invitation status used by the
+// guardian list. The repository excludes accepted, expired, and rejected rows.
+func (s *GuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]*authModels.GuardianInvitation, error) {
 	byProfile := make(map[int64][]*authModels.GuardianInvitation)
-	if batch, ok := s.GuardianInvitationRepo.(interface {
-		FindOpenByGuardianProfileIDs(context.Context, []int64) ([]*authModels.GuardianInvitation, error)
-	}); ok {
-		invitations, err := batch.FindOpenByGuardianProfileIDs(ctx, profileIDs)
-		if err != nil {
-			return byProfile
-		}
-		for _, invitation := range invitations {
-			byProfile[invitation.GuardianProfileID] = append(byProfile[invitation.GuardianProfileID], invitation)
-		}
-		return byProfile
+	invitations, err := s.GuardianInvitationRepo.FindOpenByGuardianProfileIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load open guardian invitations: %w", err)
 	}
-	appendRows := func(invitations []*authModels.GuardianInvitation, err error) {
-		if err != nil {
-			return
-		}
-		for _, invitation := range invitations {
-			byProfile[invitation.GuardianProfileID] = append(byProfile[invitation.GuardianProfileID], invitation)
-		}
+	for _, invitation := range invitations {
+		byProfile[invitation.GuardianProfileID] = append(byProfile[invitation.GuardianProfileID], invitation)
 	}
-	appendRows(s.GuardianInvitationRepo.FindPending(ctx))
-	appendRows(s.GuardianInvitationRepo.FindPendingApproval(ctx))
-	return byProfile
+	return byProfile, nil
 }
 
 // GetGuardianStudents retrieves all students for a guardian
@@ -1140,10 +1128,11 @@ func (s *GuardianService) ListGuardians(ctx context.Context, options *base.Query
 		profileIDs = append(profileIDs, profile.ID)
 	}
 	phonesByProfile, err := s.GuardianPhoneNumberRepo.FindByGuardianIDs(ctx, profileIDs)
-	if err == nil {
-		for _, profile := range profiles {
-			profile.PhoneNumbers = phonesByProfile[profile.ID]
-		}
+	if err != nil {
+		return nil, fmt.Errorf("failed to load guardian phone numbers: %w", err)
+	}
+	for _, profile := range profiles {
+		profile.PhoneNumbers = phonesByProfile[profile.ID]
 	}
 
 	return profiles, nil

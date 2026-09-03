@@ -1683,6 +1683,9 @@ func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *tes
 		assert.Equal(t, sessionID, id)
 		return &activeModels.WorkSession{StaffID: 100}, nil
 	}
+	sessionRepo.listFunc = func(_ context.Context, _ *base.QueryOptions) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{{Model: base.Model{ID: sessionID}, StaffID: 100}}, nil
+	}
 	breakRepo.endBreakFunc = func(_ context.Context, id int64, endedAt time.Time, durationMinutes int) error {
 		assert.Equal(t, breakID, id)
 		assert.True(t, plannedEnd.Equal(endedAt))
@@ -3664,8 +3667,16 @@ func (m *wsMockWorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, 
 	return nil, nil
 }
 
-func (m *wsMockWorkSessionBreakRepository) GetBySessionIDs(context.Context, []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
-	return nil, nil
+func (m *wsMockWorkSessionBreakRepository) GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	result := make(map[int64][]*activeModels.WorkSessionBreak, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		breaks, err := m.GetBySessionID(ctx, sessionID)
+		if err != nil {
+			return nil, err
+		}
+		result[sessionID] = breaks
+	}
+	return result, nil
 }
 
 // GetByStaffIDsAndDateRange satisfies the batched interface method (#1417); this mock

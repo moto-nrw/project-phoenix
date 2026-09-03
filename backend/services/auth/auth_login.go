@@ -1026,25 +1026,6 @@ func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int
 	if err != nil {
 		return 0, 0, fmt.Errorf("resolve account schools: %w", err)
 	}
-	// Narrow adapters predating the batch method can return a nil slice. Keep
-	// their single-row behavior; the database repository returns the batch.
-	if schools == nil {
-		var lastLookupErr error
-		for _, mapping := range tenants {
-			school, lookupErr := s.repos.School.FindByID(ctx, mapping.TenantID)
-			if lookupErr != nil {
-				lastLookupErr = lookupErr
-				continue
-			}
-			if school != nil && !school.IsDeleted() && school.Active {
-				return mapping.TenantID, school.OrganizationID, nil
-			}
-		}
-		if lastLookupErr != nil {
-			return 0, 0, fmt.Errorf("resolve school for tenant: %w", lastLookupErr)
-		}
-		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
-	}
 	organizationBySchool := make(map[int64]int64, len(schools))
 	for _, school := range schools {
 		organizationBySchool[school.ID] = school.OrganizationID

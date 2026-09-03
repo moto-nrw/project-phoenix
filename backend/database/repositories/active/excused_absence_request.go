@@ -51,30 +51,6 @@ func (r *ExcusedAbsenceRequestRepository) FindByID(ctx context.Context, id any) 
 	return row, err
 }
 
-// FindByIDs retrieves the current tenant's requests in one query. Missing IDs
-// are omitted so callers can retain the single-row lookup's not-found skip.
-func (r *ExcusedAbsenceRequestRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
-	result := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(ids))
-	if len(ids) == 0 {
-		return result, nil
-	}
-	var rows []*activeModels.ExcusedAbsenceRequest
-	query := base.GetDB(ctx, r.DB).NewSelect().
-		Model(&rows).
-		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
-		Where(`"excused_absence_request".id IN (?)`, bun.List(ids))
-	if where, value, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
-		query = query.Where(where, value)
-	}
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find excused absence requests by IDs", Err: base.TranslateNotFound(err)}
-	}
-	for _, row := range rows {
-		result[row.ID] = row
-	}
-	return result, nil
-}
-
 // NewExcusedAbsenceRequestRepository wires a fresh repository.
 func NewExcusedAbsenceRequestRepository(db *bun.DB) activeModels.ExcusedAbsenceRequestRepository {
 	repo := base.NewRepository[*activeModels.ExcusedAbsenceRequest](db, "active.excused_absence_requests", "ExcusedAbsenceRequest")

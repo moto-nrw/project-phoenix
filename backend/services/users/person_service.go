@@ -666,21 +666,13 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 	return results, nil
 }
 
-type studentsByTeachersRepository interface {
-	FindByTeacherIDsWithGroups(ctx context.Context, teacherIDs []int64) ([]*userModels.StudentWithGroupInfo, error)
-}
-
 // GetStudentsWithGroupsByTeachers retrieves the union of students supervised
 // by any of the supplied teachers in one repository call.
 func (s *personService) GetStudentsWithGroupsByTeachers(ctx context.Context, teacherIDs []int64) ([]StudentWithGroup, error) {
 	if len(teacherIDs) == 0 {
 		return []StudentWithGroup{}, nil
 	}
-	repo, ok := s.StudentRepo.(studentsByTeachersRepository)
-	if !ok {
-		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: errors.New("student repository does not support teacher batch lookup")}
-	}
-	rows, err := repo.FindByTeacherIDsWithGroups(ctx, teacherIDs)
+	rows, err := s.StudentRepo.FindByTeacherIDsWithGroups(ctx, teacherIDs)
 	if err != nil {
 		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
 	}
