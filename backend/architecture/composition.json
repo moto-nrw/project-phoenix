@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        619
+        629
       ],
       "tables": []
     },
@@ -31674,22 +31674,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 326,
+          "line": 336,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 429,
+          "line": 439,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 495,
+          "line": 505,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 987,
+          "line": 997,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31699,7 +31699,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 619,
+          "line": 629,
           "declaration": "New"
         }
       ]
@@ -31714,7 +31714,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 492,
+          "line": 502,
           "declaration": "type API"
         },
         {

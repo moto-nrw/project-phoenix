@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
@@ -704,9 +705,12 @@ func execute(ctx context.Context, query executable, operation string) (domain.Op
 	return stats, rows, nil
 }
 
+// isUniqueViolation uses pgdriver fields because this module's Postgres
+// adapter may not import the transaction-runtime models package.
 func isUniqueViolation(err error) bool {
-	var pgErr interface{ Field(byte) string }
-	return errors.As(err, &pgErr) && pgErr.Field('C') == "23505"
+	var postgresError pgdriver.Error
+	return errors.As(err, &postgresError) && postgresError.IntegrityViolation() &&
+		strings.HasPrefix(postgresError.Field('M'), "duplicate key value violates unique constraint")
 }
 
 func wrapOfferingChangeWrite(operation string, err error) error {
