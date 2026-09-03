@@ -1,7 +1,7 @@
 // Package test: calendar-date enforcement. See .claude/rules/calendar-dates.md.
 //
-// TestDateColumnTypes guarantees that every PostgreSQL DATE column maps to a
-// timezone.Date model field, never time.Time. bun converts every time.Time
+// TestDateColumnTypes guarantees that every PostgreSQL DATE column maps to an
+// approved ISO date value, never time.Time. bun converts every time.Time
 // parameter to UTC before binding, so a Berlin-midnight value stored through
 // time.Time lands one day behind between 00:00 and 02:00 Berlin time — the
 // root cause of ~20 production fixes in H1 2026.
@@ -116,11 +116,11 @@ func TestDateColumnTypes(t *testing.T) {
 				case "timezone.Date", "*timezone.Date":
 					// migrated — ok
 				case "Date", "*Date":
-					// Audit owns the same ISO calendar-date value shape without
-					// importing the legacy shared timezone package.
-					if !strings.HasPrefix(f.file, "models/audit/") {
+					// Audit and Calendar own the same ISO calendar-date value shape
+					// without importing the legacy shared timezone package.
+					if !strings.HasPrefix(f.file, "models/audit/") && !strings.HasPrefix(f.file, "models/calendar/") {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" uses Date outside models/audit — use timezone.Date"))
+							col+" uses Date outside an approved owner package — use timezone.Date"))
 					}
 				case "CalendarDate", "*CalendarDate":
 					// models/config is being detached from the legacy timezone
