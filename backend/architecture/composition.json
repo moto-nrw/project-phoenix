@@ -22705,6 +22705,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/room_deletion_test.go",
+      "declaration": "TestFactoryDeletesRoomThroughDefaultOwner",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        16
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/room_directory_test.go",
       "declaration": "TestFactoryResolvesRoomsThroughTheOwner",
       "target": "database/repositories.NewFactory",
