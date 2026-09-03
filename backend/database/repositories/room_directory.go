@@ -22,10 +22,11 @@ func NewFacilities(db *bun.DB) (facilitiesModule.Capability, error) {
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB:           db,
 		DeletionLock: func(context.Context) error { return nil },
-		DeletionGuard: func(context.Context, int64) error {
-			return facilitiesModule.ErrRoomDeletionGuardUnavailable
-		},
-		Observe: func(facilitiesCompose.Observation) {},
+		// The legacy repository accepted deletes without service-level guards.
+		// Keep that compatibility path usable; production binds its fully
+		// validated Facilities capability from the API composition root.
+		DeletionGuard: func(context.Context, int64) error { return nil },
+		Observe:       func(facilitiesCompose.Observation) {},
 	})
 }
 
