@@ -2602,10 +2602,8 @@ func newFactory(
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
 		Appointments:           repos.Appointments(),
-		RecurrenceRepo:         repos.CalendarRecurrenceRule,
 		RecipientRepo:          repos.CalendarAppointmentRecipient,
 		RecipientStudentRepo:   repos.CalendarAppointmentRecipientChild,
-		OverrideRepo:           repos.CalendarOccurrenceOverride,
 		StaffRepo:              repos.Staff,
 		StudentRepo:            repos.Student,
 		GuardianProfileRepo:    repos.GuardianProfile,

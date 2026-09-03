@@ -118,7 +118,7 @@ func TestReminderOccurrences(t *testing.T) {
 	t.Run("a weekly series yields every matching day in the window", func(t *testing.T) {
 		appointment := helperAppointment()
 		rule := &calModels.RecurrenceRule{
-			Model:         calModels.Model{ID: 1},
+			ID:            1,
 			AppointmentID: appointment.ID,
 			Frequency:     calModels.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,

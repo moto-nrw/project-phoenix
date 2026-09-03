@@ -120,7 +120,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 	for _, appointment := range appointments {
 		ids = append(ids, appointment.ID)
 	}
-	recurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(ctx, ids)
+	recurrences, err := s.cfg.Appointments.FindRecurrenceRules(ctx, ids)
 	if err != nil {
 		return 0, fmt.Errorf("calendar: load reminder recurrences: %w", err)
 	}
@@ -128,7 +128,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 	for _, recurrence := range recurrences {
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
-	movedOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndStartDates(ctx, ids, toCalendarDates(dateRange(fromDate, toDate)))
+	movedOverrides, err := s.cfg.Appointments.FindOccurrenceOverridesByStartDates(ctx, ids, toCalendarDates(dateRange(fromDate, toDate)))
 	if err != nil {
 		return 0, fmt.Errorf("calendar: load moved reminder overrides: %w", err)
 	}
@@ -182,7 +182,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 			if current == nil {
 				continue
 			}
-			currentRule, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, current.ID)
+			currentRule, err := s.cfg.Appointments.FindRecurrenceRule(ctx, current.ID)
 			if err != nil {
 				return queued, fmt.Errorf("calendar: reload reminder recurrence: %w", err)
 			}
@@ -190,7 +190,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 				(currentRule != nil && !occurrenceExists(current, currentRule, occurrence)) {
 				continue
 			}
-			currentOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{current.ID}, []calModels.Date{toCalendarDate(occurrence)})
+			currentOverrides, err := s.cfg.Appointments.FindOccurrenceOverrides(ctx, []int64{current.ID}, []calModels.Date{toCalendarDate(occurrence)})
 			if err != nil {
 				return queued, fmt.Errorf("calendar: reload reminder override: %w", err)
 			}
@@ -559,7 +559,7 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 				return err
 			}
 		}
-		rule, err := s.cfg.RecurrenceRepo.FindByAppointmentID(txCtx, current.ID)
+		rule, err := s.cfg.Appointments.FindRecurrenceRule(txCtx, current.ID)
 		if err != nil {
 			return fmt.Errorf("reload reminder recurrence: %w", err)
 		}
@@ -567,7 +567,7 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 			(rule != nil && !occurrenceExists(current, rule, delivery.occurrence)) {
 			return nil
 		}
-		overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(txCtx, []int64{current.ID}, []calModels.Date{toCalendarDate(delivery.occurrence)})
+		overrides, err := s.cfg.Appointments.FindOccurrenceOverrides(txCtx, []int64{current.ID}, []calModels.Date{toCalendarDate(delivery.occurrence)})
 		if err != nil {
 			return fmt.Errorf("reload reminder override: %w", err)
 		}

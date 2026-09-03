@@ -64,24 +64,3 @@ func TestReminderPushClaimsRequireATenant(t *testing.T) {
 	assert.EqualError(t, repo.ReleaseReminderPush(context.Background(), 42, 3, occurrence, 7),
 		"tenant id is required")
 }
-
-// The reminder scan asks for the overrides of the appointments it found. An
-// empty ask must not become an unbounded `IN ()` query.
-func TestFindByAppointmentIDsAndStartDatesShortCircuitsEmptyInput(t *testing.T) {
-	t.Parallel()
-
-	repo := &AppointmentOccurrenceOverrideRepository{}
-	ctx := testpkg.TenantContext(41)
-	dates := listOf(calModels.NewDate(2026, 4, 2))
-
-	rows, err := repo.FindByAppointmentIDsAndStartDates(ctx, nil, dates)
-	require.NoError(t, err)
-	assert.Empty(t, rows)
-
-	rows, err = repo.FindByAppointmentIDsAndStartDates(ctx, []int64{42}, nil)
-	require.NoError(t, err)
-	assert.Empty(t, rows)
-}
-
-// listOf builds a typed slice from the helper's return type without naming it.
-func listOf[T any](items ...T) []T { return items }
