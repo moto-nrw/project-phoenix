@@ -935,7 +935,7 @@
       "declaration": "TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun",
       "target": "database/repositories.NewFactory",
       "lines": [
-        244
+        247
       ],
       "tables": []
     },
@@ -14409,7 +14409,7 @@
       "declaration": "TestCareLifecycle_ArchiveHoldsEveryRegularlyEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        622
+        623
       ],
       "tables": [
         "users.students"
@@ -14431,7 +14431,7 @@
       "declaration": "TestCareLifecycle_CancelPutsThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        710
+        711
       ],
       "tables": [
         "schedule.instance_students"
@@ -14443,7 +14443,7 @@
       "declaration": "TestCareLifecycle_CancelRefusedAfterItTookEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        463
+        464
       ],
       "tables": [
         "users.students"
@@ -14455,7 +14455,7 @@
       "declaration": "TestCareLifecycle_ChangingTheDayReplansFromTheBaseline",
       "target": "database/repositories.NewFactory",
       "lines": [
-        837
+        838
       ],
       "tables": []
     },
@@ -14487,7 +14487,7 @@
       "declaration": "TestCareLifecycle_Resume",
       "target": "database/repositories.NewFactory",
       "lines": [
-        491
+        492
       ],
       "tables": [
         "users.students"
@@ -14499,7 +14499,7 @@
       "declaration": "TestCareLifecycle_ResumeDoesNotBringThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        905
+        906
       ],
       "tables": [
         "users.students"
@@ -14511,7 +14511,7 @@
       "declaration": "TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler",
       "target": "database/repositories.NewFactory",
       "lines": [
-        580
+        581
       ],
       "tables": [
         "users.students"
@@ -14533,7 +14533,7 @@
       "declaration": "TestStudentDeletion_RetentionReasonOnlyForEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        656
+        657
       ],
       "tables": [
         "users.students"
