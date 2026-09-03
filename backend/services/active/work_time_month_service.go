@@ -1227,26 +1227,50 @@ func (s *workTimeMonthService) getCompTimeDeductionInRange(
 	if to.Before(from) {
 		return 0, nil
 	}
+	ranges := clippedCompTimeRanges(absences, from, to)
+	if len(ranges) == 0 {
+		return 0, nil
+	}
+	loadFrom, loadTo := ranges[0].start, ranges[0].end
+	for _, dateRange := range ranges[1:] {
+		if dateRange.start.Before(loadFrom) {
+			loadFrom = dateRange.start
+		}
+		if dateRange.end.After(loadTo) {
+			loadTo = dateRange.end
+		}
+	}
+	resolver, actualByDate, err := s.loadCompTimeDeductionInputs(ctx, staffID, loadFrom, loadTo)
+	if err != nil {
+		return 0, err
+	}
 	total := 0
+	for _, dateRange := range ranges {
+		total += compTimeDeductionMinutes(resolver, actualByDate, dateRange.start, dateRange.end)
+	}
+	return total, nil
+}
+
+type compTimeRange struct {
+	start timezone.Date
+	end   timezone.Date
+}
+
+func clippedCompTimeRanges(absences []*activeModels.StaffAbsence, from, to timezone.Date) []compTimeRange {
+	ranges := make([]compTimeRange, 0, len(absences))
 	for _, absence := range absences {
-		start := absence.DateStart
+		start, end := absence.DateStart, absence.DateEnd
 		if start.Before(from) {
 			start = from
 		}
-		end := absence.DateEnd
 		if end.After(to) {
 			end = to
 		}
-		if end.Before(start) {
-			continue
+		if !end.Before(start) {
+			ranges = append(ranges, compTimeRange{start: start, end: end})
 		}
-		deduction, err := s.GetCompTimeDeductionMinutes(ctx, staffID, start, end, absence.HalfDay)
-		if err != nil {
-			return 0, fmt.Errorf("failed to compute comp-time commitment from %s: %w", start.String(), err)
-		}
-		total += deduction
 	}
-	return total, nil
+	return ranges
 }
 
 // getMinimumDailyClosingBalance returns the lowest end-of-day balance in the
@@ -1466,18 +1490,21 @@ func (s *workTimeMonthService) getRemainingCompTimeCommitment(
 	from timezone.Date,
 	absences []*activeModels.StaffAbsence,
 ) (int, error) {
-	total := 0
+	remaining := make([]*activeModels.StaffAbsence, 0, len(absences))
+	var through timezone.Date
 	for _, absence := range absences {
 		if from.Before(absence.DateStart) || from.After(absence.DateEnd) {
 			continue
 		}
-		deduction, err := s.GetCompTimeDeductionMinutes(ctx, staffID, from, absence.DateEnd, absence.HalfDay)
-		if err != nil {
-			return 0, fmt.Errorf("failed to compute comp-time commitment from %s: %w", from.String(), err)
+		remaining = append(remaining, absence)
+		if through.IsZero() || absence.DateEnd.After(through) {
+			through = absence.DateEnd
 		}
-		total += deduction
 	}
-	return total, nil
+	if len(remaining) == 0 {
+		return 0, nil
+	}
+	return s.getCompTimeDeductionInRange(ctx, staffID, from, through, remaining)
 }
 
 // GetCompTimeDeductionMinutes sums the missing daily target minutes a
@@ -1489,9 +1516,21 @@ func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, 
 	if start.IsZero() || end.IsZero() || end.Before(start) {
 		return 0, errors.New("start and end must form a valid range")
 	}
-	resolver, err := s.buildTargetResolver(ctx, staffID, start, end)
+	resolver, actualByDate, err := s.loadCompTimeDeductionInputs(ctx, staffID, start, end)
 	if err != nil {
 		return 0, err
+	}
+	return compTimeDeductionMinutes(resolver, actualByDate, start, end), nil
+}
+
+func (s *workTimeMonthService) loadCompTimeDeductionInputs(
+	ctx context.Context,
+	staffID int64,
+	start, end timezone.Date,
+) (*dailyTargetResolver, map[timezone.Date]int, error) {
+	resolver, err := s.buildTargetResolver(ctx, staffID, start, end)
+	if err != nil {
+		return nil, nil, err
 	}
 	actualByDate := make(map[timezone.Date]int)
 	actualEnd := end
@@ -1501,9 +1540,17 @@ func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, 
 	if !actualEnd.Before(start) {
 		actualByDate, err = s.getDailyActualMinutes(ctx, staffID, start, actualEnd)
 		if err != nil {
-			return 0, err
+			return nil, nil, err
 		}
 	}
+	return resolver, actualByDate, nil
+}
+
+func compTimeDeductionMinutes(
+	resolver *dailyTargetResolver,
+	actualByDate map[timezone.Date]int,
+	start, end timezone.Date,
+) int {
 	total := 0
 	for d := start; !d.After(end); d = d.AddDays(1) {
 		target := resolver.targetFor(d)
@@ -1513,7 +1560,7 @@ func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, 
 		deduction := max(0, target-actualByDate[d])
 		total += deduction
 	}
-	return total, nil
+	return total
 }
 
 func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staffID int64, key monthKey, through timezone.Date) (*MonthSummary, error) {

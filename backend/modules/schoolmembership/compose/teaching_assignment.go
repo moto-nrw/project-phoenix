@@ -42,7 +42,7 @@ func (e engine) DeleteClassAssignmentsByStaff(ctx context.Context, staffID int64
 
 func (e engine) ListGroupAssignments(ctx context.Context, filter schoolmembership.GroupAssignmentFilter) ([]schoolmembership.GroupAssignment, error) {
 	values, err := e.service.ListGroupAssignments(ctx, domain.GroupAssignmentFilter{
-		IDs: filter.IDs, GroupIDs: filter.GroupIDs, TeacherIDs: filter.TeacherIDs,
+		IDs: filter.IDs, GroupIDs: filter.GroupIDs, TeacherIDs: filter.TeacherIDs, TeacherStaffIDs: filter.TeacherStaffIDs,
 	})
 	if err != nil {
 		return nil, mapError(err)

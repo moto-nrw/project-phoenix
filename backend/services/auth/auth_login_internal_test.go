@@ -249,7 +249,6 @@ func TestResolveAccountTenantDefault_ReturnsErrWhenSchoolLookupReturnsNil(t *tes
 func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -261,11 +260,8 @@ func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testin
 				},
 			},
 			School: &testpkg.SchoolRepoMock{
-				FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
-					if id == 900 {
-						return &platformModels.School{DeletedAt: &now, Active: true, OrganizationID: 10}, nil
-					}
-					return &platformModels.School{Active: true, OrganizationID: 20}, nil
+				FindActiveByAccountIDFn: func(context.Context, int64) ([]platformModels.School, error) {
+					return []platformModels.School{{Model: modelBase.Model{ID: 901}, Active: true, OrganizationID: 20}}, nil
 				},
 			},
 		},
@@ -281,7 +277,6 @@ func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testin
 func TestResolveAccountTenantDefault_ReturnsErrWhenAllSchoolsDeleted(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -292,8 +287,8 @@ func TestResolveAccountTenantDefault_ReturnsErrWhenAllSchoolsDeleted(t *testing.
 				},
 			},
 			School: &testpkg.SchoolRepoMock{
-				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
-					return &platformModels.School{DeletedAt: &now, Active: true, OrganizationID: 10}, nil
+				FindActiveByAccountIDFn: func(context.Context, int64) ([]platformModels.School, error) {
+					return []platformModels.School{}, nil
 				},
 			},
 		},
@@ -571,11 +566,8 @@ func TestResolveAccountTenantDefault_SkipsInactiveSchool(t *testing.T) {
 				},
 			},
 			School: &testpkg.SchoolRepoMock{
-				FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
-					if id == 800 {
-						return &platformModels.School{Active: false, OrganizationID: 10}, nil
-					}
-					return &platformModels.School{Active: true, OrganizationID: 20}, nil
+				FindActiveByAccountIDFn: func(context.Context, int64) ([]platformModels.School, error) {
+					return []platformModels.School{{Model: modelBase.Model{ID: 801}, Active: true, OrganizationID: 20}}, nil
 				},
 			},
 		},
@@ -588,9 +580,9 @@ func TestResolveAccountTenantDefault_SkipsInactiveSchool(t *testing.T) {
 	assert.Equal(t, int64(20), orgID)
 }
 
-// TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail verifies that
-// when FindByID returns an error for every mapping, the last DB error is propagated
-// instead of returning ErrTenantNotFound.
+// TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail verifies
+// that a batch school lookup error is propagated instead of returning
+// ErrTenantNotFound.
 func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *testing.T) {
 	t.Parallel()
 
@@ -606,7 +598,7 @@ func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *test
 				},
 			},
 			School: &testpkg.SchoolRepoMock{
-				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+				FindActiveByAccountIDFn: func(context.Context, int64) ([]platformModels.School, error) {
 					return nil, dbErr
 				},
 			},
