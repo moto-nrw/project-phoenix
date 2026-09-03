@@ -10,6 +10,7 @@ import (
 type Store interface {
 	FindAppointment(context.Context, int64, bool) (domain.Appointment, bool, domain.OperationStats, error)
 	FindReminderCandidateForUpdate(context.Context, int64) (domain.Appointment, bool, domain.OperationStats, error)
+	FindReminderCandidatesForUpdate(context.Context, []int64) ([]domain.Appointment, domain.OperationStats, error)
 	ListAppointmentsVisibleToStaff(context.Context, int64, domain.Date, domain.Date) ([]domain.Appointment, domain.OperationStats, error)
 	ListStaffCancellationTombstones(context.Context, int64, time.Time) ([]domain.Appointment, domain.OperationStats, error)
 	ListAppointmentsVisibleToGuardians(context.Context, []int64, []int64, domain.Date, domain.Date) ([]domain.Appointment, domain.OperationStats, error)

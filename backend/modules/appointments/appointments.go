@@ -216,6 +216,9 @@ type Query interface {
 	// FindReminderCandidateForUpdate returns nil without an error when a row
 	// became ineligible after the candidate scan.
 	FindReminderCandidateForUpdate(context.Context, int64) (*Appointment, error)
+	// FindReminderCandidatesForUpdate is the batch form used by reminder scans.
+	// Ineligible IDs are omitted and rows are locked in ID order.
+	FindReminderCandidatesForUpdate(context.Context, []int64) ([]*Appointment, error)
 	ListAppointmentsVisibleToStaff(context.Context, int64, Date, Date) ([]*Appointment, error)
 	ListStaffCancellationTombstones(context.Context, int64, time.Time) ([]*Appointment, error)
 	ListAppointmentsVisibleToGuardians(context.Context, []int64, []int64, Date, Date) ([]*Appointment, error)
@@ -275,6 +278,14 @@ func (m *Module) FindReminderCandidateForUpdate(ctx context.Context, id int64) (
 		return nil, invalid("appointment ID is required")
 	}
 	return m.engine.FindReminderCandidateForUpdate(ctx, id)
+}
+
+func (m *Module) FindReminderCandidatesForUpdate(ctx context.Context, ids []int64) ([]*Appointment, error) {
+	ids = positiveIDs(ids)
+	if len(ids) == 0 {
+		return []*Appointment{}, nil
+	}
+	return m.engine.FindReminderCandidatesForUpdate(ctx, ids)
 }
 
 func (m *Module) ListAppointmentsVisibleToStaff(ctx context.Context, staffID int64, from, to Date) ([]*Appointment, error) {

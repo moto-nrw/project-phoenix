@@ -48,6 +48,16 @@ func (s *Service) FindReminderCandidateForUpdate(ctx context.Context, id int64) 
 	return result, found, err
 }
 
+func (s *Service) FindReminderCandidatesForUpdate(ctx context.Context, ids []int64) (result []domain.Appointment, err error) {
+	err = s.run("lock_reminder_candidates", func(stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		result, queryStats, err = s.store.FindReminderCandidatesForUpdate(ctx, ids)
+		stats.Add(queryStats)
+		return err
+	})
+	return result, err
+}
+
 func (s *Service) ListAppointmentsVisibleToStaff(ctx context.Context, staffID int64, from, to domain.Date) (result []domain.Appointment, err error) {
 	err = s.run("list_staff_appointments", func(stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
