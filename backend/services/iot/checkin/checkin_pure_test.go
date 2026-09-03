@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	checkin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 )
@@ -255,7 +256,7 @@ func TestRoomNameByID_WithRoomObject(t *testing.T) {
 	t.Parallel()
 
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{})
-	room := &facilityModels.Room{Name: "Test Room"}
+	room := &facilitiesModule.Room{Name: "Test Room"}
 	name := svc.RoomNameByIDForTest(context.Background(), room, 1)
 	assert.Equal(t, "Test Room", name)
 }

@@ -65,9 +65,6 @@ type GroupRepository interface {
 	// the current transaction.
 	FindByIDForUpdate(ctx context.Context, id int64) (*Group, error)
 
-	// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
-	GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error)
-
 	// GetOccupiedActivityGroupIDs returns a set of activity group IDs that currently have active sessions
 	GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error)
 
@@ -85,6 +82,15 @@ type GroupRepository interface {
 	// filtered to sessions supervised by that staff member; pass nil to see
 	// every session (admin / all_staff scope).
 	AggregateRoomSessions(ctx context.Context, roomID int64, start, end time.Time, supervisorStaffID *int64) ([]*RoomSessionAggregate, error)
+	ListRoomOccupancy(context.Context, []int64) ([]RoomOccupancy, error)
+}
+
+// RoomOccupancy contains only student-presence-owned facts keyed by room ID.
+type RoomOccupancy struct {
+	RoomID             int64   `bun:"room_id"`
+	ActivityGroupIDs   []int64 `bun:"activity_group_ids,array"`
+	StudentCount       int     `bun:"student_count"`
+	SupervisorStaffIDs []int64 `bun:"supervisor_staff_ids,array"`
 }
 
 // RoomSessionAggregate is one row in the per-room session timeline. It is

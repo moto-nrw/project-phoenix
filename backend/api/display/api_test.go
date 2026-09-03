@@ -26,7 +26,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	displayService "github.com/moto-nrw/project-phoenix/services/display"
-	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -64,14 +63,14 @@ func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http.Handler {
 	t.Helper()
 	repos := repositories.NewFactory(db)
+	rooms, err := repositories.NewFacilities(db)
+	require.NoError(t, err)
 	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
 	svc := displayService.NewService(displayService.Dependencies{
-		DisplayRepo: repos.Display,
-		SchoolRepo:  repos.School,
-		Facilities: facilities.NewServiceWithConfig(facilities.ServiceConfig{
-			RoomRepo: repos.Room, ActiveGroupRepo: repos.ActiveGroup,
-		}),
+		DisplayRepo:       repos.Display,
+		SchoolRepo:        repos.School,
+		Facilities:        rooms,
 		ActiveGroupRepo:   repos.ActiveGroup,
 		VisitRepo:         repos.ActiveVisit,
 		ActivityGroupRepo: repos.ActivityGroup,

@@ -46,8 +46,8 @@ type staffMembershipDeps struct {
 	memberships membershipTenantQuery
 	permissions membershipPermissionQuery
 	roles       membershipRoleQuery
-	// groupTeachers is read lazily: education owns education.group_teacher and
-	// the factory may still rebind that repository after construction.
+	// groupTeachers is read lazily because the factory may rebind School
+	// Membership after construction.
 	groupTeachers func() educationModels.GroupTeacherRepository
 }
 

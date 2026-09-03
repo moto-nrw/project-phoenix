@@ -24,7 +24,7 @@ func TestEnsureCapacityForStudentMoveDoesNotCountSameRoomTransfers(t *testing.T)
 
 	capacity := 1
 	roomRepo := &capacityRoomRepository{room: &facilityModels.Room{
-		Model:    base.Model{ID: 12},
+		ID:       12,
 		Name:     "Mensa",
 		Capacity: &capacity,
 	}}
@@ -64,7 +64,7 @@ func TestEnsureRoomCapacity(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("allows rooms without a limit", func(t *testing.T) {
-		roomRepo := &capacityRoomRepository{room: &facilityModels.Room{Model: base.Model{ID: 12}, Name: "Turnhalle"}}
+		roomRepo := &capacityRoomRepository{room: &facilityModels.Room{ID: 12, Name: "Turnhalle"}}
 		visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 			return 200, nil
 		}}
@@ -78,7 +78,7 @@ func TestEnsureRoomCapacity(t *testing.T) {
 
 	t.Run("allows filling the last available places", func(t *testing.T) {
 		capacity := 43
-		roomRepo := &capacityRoomRepository{room: &facilityModels.Room{Model: base.Model{ID: 12}, Name: "Mensa", Capacity: &capacity}}
+		roomRepo := &capacityRoomRepository{room: &facilityModels.Room{ID: 12, Name: "Mensa", Capacity: &capacity}}
 		visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 			return 40, nil
 		}}
@@ -91,7 +91,7 @@ func TestEnsureRoomCapacity(t *testing.T) {
 
 	t.Run("rejects a request that would exceed the limit", func(t *testing.T) {
 		capacity := 43
-		roomRepo := &capacityRoomRepository{room: &facilityModels.Room{Model: base.Model{ID: 12}, Name: "Mensa", Capacity: &capacity}}
+		roomRepo := &capacityRoomRepository{room: &facilityModels.Room{ID: 12, Name: "Mensa", Capacity: &capacity}}
 		visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 			return 42, nil
 		}}

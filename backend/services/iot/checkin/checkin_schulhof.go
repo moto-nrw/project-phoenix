@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	facilityModels "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
@@ -36,7 +36,7 @@ var schulhofSpace = systemSpace{
 	maxParticipants: constants.SchulhofMaxParticipants,
 	selectActivity: func(groups []*activities.Group, room *facilityModels.Room) *activities.Group {
 		for _, group := range groups {
-			if facilitiesSvc.ValidateSchulhofActivityRoom(group, room) == nil {
+			if facilitiesSvc.ValidateSchulhofActivityRoom(systemActivity(group), room) == nil {
 				return group
 			}
 		}
@@ -56,9 +56,18 @@ func (s *CheckinService) schulhofActivityGroup(ctx context.Context) (*activities
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate Schulhof room: %w", err)
 	}
-	if err := facilitiesSvc.ValidateSchulhofActivityRoom(activityGroup, room); err != nil {
+	if err := facilitiesSvc.ValidateSchulhofActivityRoom(systemActivity(activityGroup), room); err != nil {
 		return nil, fmt.Errorf("invalid Schulhof activity infrastructure: %w", err)
 	}
 
 	return activityGroup, nil
+}
+
+func systemActivity(group *activities.Group) *facilitiesSvc.SystemActivity {
+	if group == nil {
+		return nil
+	}
+	return &facilitiesSvc.SystemActivity{
+		ID: group.ID, Name: group.Name, PlannedRoomID: group.PlannedRoomID, IsSystem: group.IsSystem,
+	}
 }

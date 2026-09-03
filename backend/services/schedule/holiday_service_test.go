@@ -13,6 +13,21 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
+type holidayQueryStub struct {
+	valid bool
+	list  []CalendarHoliday
+	dates map[string]bool
+	err   error
+}
+
+func (s holidayQueryStub) ValidHolidayRegion(string) bool { return s.valid }
+func (s holidayQueryStub) ListHolidays(context.Context, string, string, string) ([]CalendarHoliday, error) {
+	return s.list, s.err
+}
+func (s holidayQueryStub) HolidayDates(context.Context, string, string, string) (map[string]bool, error) {
+	return s.dates, s.err
+}
+
 type holidayMockSettings struct {
 	region string
 	err    error
@@ -28,7 +43,9 @@ func TestHolidayServiceResolvesRegionFromSetting(t *testing.T) {
 	t.Parallel()
 
 	settings := &holidayMockSettings{region: "DE-SN"}
-	svc := NewHolidayService(settings, nil)
+	svc := NewHolidayService(settings, holidayQueryStub{valid: true, list: []CalendarHoliday{
+		{Date: "2026-11-18", Name: "Buß- und Bettag"},
+	}}, nil)
 
 	list, err := svc.HolidaysInRange(context.Background(),
 		timezone.NewDate(2026, time.November, 1), timezone.NewDate(2026, time.November, 30))
@@ -48,7 +65,10 @@ func TestHolidayServiceResolvesRegionFromSetting(t *testing.T) {
 func TestHolidayServiceDates(t *testing.T) {
 	t.Parallel()
 
-	svc := NewHolidayService(&holidayMockSettings{region: "DE-NW"}, nil)
+	svc := NewHolidayService(&holidayMockSettings{region: "DE-NW"}, holidayQueryStub{valid: true, dates: map[string]bool{
+		"2026-05-01": true,
+		"2026-05-25": true,
+	}}, nil)
 
 	set, err := svc.HolidayDates(context.Background(),
 		timezone.NewDate(2026, time.May, 1), timezone.NewDate(2026, time.May, 31))
@@ -61,16 +81,17 @@ func TestHolidayServiceDates(t *testing.T) {
 func TestHolidayServiceErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewHolidayService(&holidayMockSettings{err: errors.New("boom")}, nil).
+	query := holidayQueryStub{valid: true}
+	_, err := NewHolidayService(&holidayMockSettings{err: errors.New("boom")}, query, nil).
 		HolidayDates(context.Background(), timezone.NewDate(2026, time.January, 1), timezone.NewDate(2026, time.January, 2))
 	assert.Error(t, err)
 
-	_, err = NewHolidayService(&holidayMockSettings{region: "XX"}, nil).
+	_, err = NewHolidayService(&holidayMockSettings{region: "XX"}, holidayQueryStub{}, nil).
 		HolidayDates(context.Background(), timezone.NewDate(2026, time.January, 1), timezone.NewDate(2026, time.January, 2))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported region")
 
-	_, err = NewHolidayService(&holidayMockSettings{err: errors.New("boom")}, nil).
+	_, err = NewHolidayService(&holidayMockSettings{err: errors.New("boom")}, query, nil).
 		HolidaysInRange(context.Background(), timezone.NewDate(2026, time.January, 1), timezone.NewDate(2026, time.January, 2))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve federal state setting")

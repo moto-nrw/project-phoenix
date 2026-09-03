@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 

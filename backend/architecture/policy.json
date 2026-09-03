@@ -669,7 +669,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/rooms",
+      "path": "modules/facilities/http/rooms",
       "owner": "inbound-rooms",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -935,13 +935,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/facilities",
-      "owner": "facilities",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/feedback/internal/adapters/postgres",
       "owner": "feedback",
       "role": "postgres",
@@ -1057,20 +1050,6 @@
       "path": "internal/collation",
       "owner": "legacy-shared",
       "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "internal/holidays",
-      "owner": "school-calendar",
-      "role": "adapter",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "internal/ical",
-      "owner": "school-calendar",
-      "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1761,6 +1740,69 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/facilities",
+      "owner": "facilities",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/compose",
+      "owner": "facilities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/compose/httpadapter",
+      "owner": "facilities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/compose/legacy",
+      "owner": "facilities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/compose/repositoryadapter",
+      "owner": "facilities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/application",
+      "owner": "facilities",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/domain",
+      "owner": "facilities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/ports",
+      "owner": "facilities",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/adapters/postgres",
+      "owner": "facilities",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/messaging",
       "owner": "communication",
       "role": "application",
@@ -2001,6 +2043,48 @@
     {
       "path": "modules/schoolmembership/internal/ports",
       "owner": "school-membership",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments",
+      "owner": "appointments",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/compose",
+      "owner": "appointments",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/adapters/postgres",
+      "owner": "appointments",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/application",
+      "owner": "appointments",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/domain",
+      "owner": "appointments",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/ports",
+      "owner": "appointments",
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -4975,6 +5059,15 @@
       "target_role": "public"
     },
     {
+      "id": "process-device-scan.to.facilities",
+      "description": "Device check-in resolves and validates rooms through the public Facilities capability.",
+      "scopes": ["production"],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
       "id": "process-device-scan.to.workforce",
       "description": "process-device-scan coordinates the public workforce capability.",
       "scopes": [
@@ -5233,6 +5326,15 @@
       "source_owner": "inbound-iot-data",
       "source_role": "http",
       "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot-data.to.facilities",
+      "description": "The IoT room endpoint renders values returned by the public Facilities capability.",
+      "scopes": ["production"],
+      "source_owner": "inbound-iot-data",
+      "source_role": "http",
+      "target_owner": "facilities",
       "target_role": "public"
     },
     {
@@ -5844,6 +5946,470 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.port-domain",
+      "description": "Facilities ports express persistence operations using their own domain values.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "facilities.compose.application",
+      "description": "Facilities composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "application"
+    },
+    {
+      "id": "facilities.compose.domain",
+      "description": "Facilities composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.compose.orm-sql",
+      "description": "Facilities composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "facilities.compose.port",
+      "description": "Facilities composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "port"
+    },
+    {
+      "id": "facilities.compose.postgres",
+      "description": "Facilities composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "postgres"
+    },
+    {
+      "id": "facilities.compose.public",
+      "description": "Facilities composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.compose.tenant-runtime",
+      "description": "Facilities composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.compose.http-router",
+      "description": "Facilities HTTP composition binds the established Chi transport.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "facilities.compose.inbound-common",
+      "description": "Facilities HTTP composition binds shared tenant middleware and response rendering.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "facilities.compose.security-contract",
+      "description": "Facilities HTTP composition supplies the established room permissions.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "facilities.compose.identity-adapter",
+      "description": "Facilities HTTP composition reads authenticated permission claims.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "facilities.compose.legacy-shared-domain",
+      "description": "Facilities compatibility composition uses calendar and collation value helpers.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.compose.settings-domain",
+      "description": "Facilities compatibility composition names the established tenant settings.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.compose.rooms-http",
+      "description": "Facilities composition constructs its room HTTP adapter.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "inbound-rooms",
+      "target_role": "http"
+    },
+    {
+      "id": "facilities.compose.student-presence-application",
+      "description": "Facilities compatibility composition adapts live-presence operations.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "facilities.compose.settings-application",
+      "description": "Facilities compatibility composition resolves settings and registers side effects.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "facilities.compose.school-structure-application",
+      "description": "Room snapshot composition resolves supervision-group names.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "facilities.compose.document-application",
+      "description": "Room snapshot composition renders established export formats.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "facilities.compose.identity-application",
+      "description": "Room history composition resolves the authenticated staff member.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "facilities.compose.people-application",
+      "description": "Room snapshot composition resolves student and person records.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "facilities.compose.student-presence-domain",
+      "description": "Facilities occupancy composition maps live-presence projection facts.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.compose.activities-domain",
+      "description": "Facilities compatibility composition maps activity and category values.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.compose.people-public",
+      "description": "Facilities occupancy composition resolves supervisor people in one batch.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.compose.membership-public",
+      "description": "Facilities occupancy composition resolves supervisor membership in one batch.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.compose.activities-application",
+      "description": "Facilities compatibility composition adapts activity lifecycle operations.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "facilities.compatibility-postgres.public",
+      "description": "The retired Facilities repository shape delegates to the public owner capability.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "postgres",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.compatibility-domain.public",
+      "description": "The retired Facilities model name aliases the public owner value.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "domain",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.compatibility-application.public",
+      "description": "Facilities compatibility workflows delegate room lifecycle operations to the public owner capability.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.application.facilities-public",
+      "description": "The display aggregate reads room values through the public Facilities query.",
+      "scopes": ["production"],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.behavior-test.facilities-compose",
+      "description": "Slot-list integration tests construct the real Facilities owner for room lookups.",
+      "scopes": ["external_test"],
+      "source_owner": "class-day-view",
+      "source_role": "module-behavior-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "facilities.internal-test.orm-sql",
+      "description": "Facilities composition tests supply the concrete Bun test database.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "facilities.internal-test.tenant-runtime",
+      "description": "Facilities composition tests verify transaction and RLS behavior through the shared tenant runtime.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.integration-test.public",
+      "description": "Facilities integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.integration-test.support",
+      "description": "Facilities integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "facilities.integration-test.domain",
+      "description": "Facilities compatibility tests verify mapping of the retained room row.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.integration-test.student-presence-domain",
+      "description": "Facilities occupancy tests provide live-presence aggregate facts.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.integration-test.activities-domain",
+      "description": "Facilities occupancy tests provide activity and category values.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.integration-test.people-public",
+      "description": "Facilities occupancy tests exercise batched People Directory resolution.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.integration-test.membership-public",
+      "description": "Facilities occupancy tests exercise batched School Membership resolution.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.workflow-test.facilities",
+      "description": "Device check-in tests exercise the public room value contract.",
+      "scopes": ["internal_test"],
+      "source_owner": "process-device-scan",
+      "source_role": "workflow-decision-test",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.e2e-test.facilities-compose",
+      "description": "Tenant isolation tests bind the real Facilities compatibility adapter.",
+      "scopes": ["internal_test"],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "facilities.integration-test.http-router",
+      "description": "Facilities HTTP integration tests exercise the real router.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "facilities.integration-test.identity-adapter",
+      "description": "Facilities HTTP integration tests mint authenticated tenant requests.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "facilities.integration-test.settings-domain",
+      "description": "Facilities HTTP integration tests configure the established room-history settings.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.integration-test.compose",
+      "description": "Facilities HTTP integration tests construct the real owner provider.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "facilities.integration-test.legacy-composition",
+      "description": "Facilities HTTP integration tests supply the legacy application graph at the composition boundary.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "facilities.integration-test.document-application",
+      "description": "Facilities snapshot tests verify the established export column contract.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "root-composition.to.facilities-compose",
+      "description": "The production root constructs the Facilities module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.facilities-public",
+      "description": "The production root records stable Facilities capability outcomes.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.facilities-compose",
+      "description": "Legacy composition constructs the default Facilities capability for repository graphs.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.facilities-public",
+      "description": "Legacy composition passes the Facilities facade to the room directories.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "facilities",
       "target_role": "public"
     },
     {
@@ -7505,6 +8071,175 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.port-domain",
+      "description": "Appointments ports express persistence operations using owner domain values.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "appointments.compose.application",
+      "description": "Appointments composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "application"
+    },
+    {
+      "id": "appointments.compose.domain",
+      "description": "Appointments composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "domain"
+    },
+    {
+      "id": "appointments.compose.orm-sql",
+      "description": "Appointments composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "appointments.compose.port",
+      "description": "Appointments composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "port"
+    },
+    {
+      "id": "appointments.compose.postgres",
+      "description": "Appointments composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "postgres"
+    },
+    {
+      "id": "appointments.compose.public",
+      "description": "Appointments composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.compose.tenant-runtime",
+      "description": "Appointments composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.internal-test.orm-sql",
+      "description": "Appointments composition tests supply the concrete Bun test database.",
+      "scopes": ["internal_test"],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "appointments.internal-test.tenant-runtime",
+      "description": "Appointments composition tests verify rollback and tenant isolation through the shared tenant runtime.",
+      "scopes": ["internal_test"],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.integration-test.public",
+      "description": "Appointments integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.integration-test.support",
+      "description": "Appointments integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "root-composition.to.appointments-compose",
+      "description": "The production root constructs the Appointments module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.appointments-public",
+      "description": "The production root records stable Appointments outcomes and shares the facade.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.appointments-compose",
+      "description": "Legacy composition constructs Appointments for repository and test graphs.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.appointments-public",
+      "description": "Legacy composition shares and adapts the Appointments facade.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.application.appointments-public",
+      "description": "Calendar workflows call the Appointments facade instead of its tables.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "application",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.domain.appointments-public",
+      "description": "Legacy calendar transport types reuse Appointments values and validation.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "domain",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.behavior-test.appointments-public",
+      "description": "Calendar behavior tests decorate the Appointments capability at its public seam.",
+      "scopes": ["external_test"],
+      "source_owner": "school-calendar",
+      "source_role": "module-behavior-test",
+      "target_owner": "appointments",
       "target_role": "public"
     },
     {

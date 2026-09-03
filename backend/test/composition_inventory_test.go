@@ -725,11 +725,14 @@ func assertJSONEqual(t *testing.T, label string, want, got any) {
 
 func writeCompositionInventory(t *testing.T, path string, inventory compositionInventory) {
 	t.Helper()
-	encoded, err := json.MarshalIndent(inventory, "", "  ")
-	if err != nil {
-		t.Fatal(err)
+	replacements := map[string]any{
+		"constructor_calls":          inventory.ConstructorCalls,
+		"evidence_constructor_calls": inventory.EvidenceConstructorCalls,
+		"runtime_baseline":           inventory.RuntimeBaseline,
+		"test_roots":                 inventory.TestRoots,
+		"worker_job_ids":             inventory.WorkerJobIDs,
 	}
-	if err := os.WriteFile(path, append(encoded, '\n'), 0o644); err != nil {
+	if err := ReplaceCompositionFields(path, replacements); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 const (
@@ -27,6 +28,13 @@ type InstanceStudentRepository struct {
 	*base.Repository[*schedule.InstanceStudent]
 	db       *bun.DB
 	students StudentDirectory
+	rooms    RoomDirectory
+}
+
+// BindRoomDirectory installs the Facilities directory the roster restore
+// re-validates room references through (#2665).
+func (r *InstanceStudentRepository) BindRoomDirectory(rooms RoomDirectory) {
+	r.rooms = rooms
 }
 
 // BindStudentDirectory installs the People Directory the partial-absence
@@ -1488,6 +1496,21 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		var restored int
+		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			var restoreErr error
+			restored, restoreErr = r.restoreArchivedByTransition(txCtx, transitionID, studentIDs, from)
+			return restoreErr
+		})
+		return restored, err
+	}
+	return r.restoreArchivedByTransition(ctx, transitionID, studentIDs, from)
+}
+
+func (r *InstanceStudentRepository) restoreArchivedByTransition(
+	ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date,
+) (int, error) {
 
 	// Serialize with partial-absence create/update/delete on the same
 	// child/day before reading pe.excused_from. Without the care-day lock a
@@ -1495,6 +1518,25 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 	// pickup_exception_id, leaving an absent row with cleared provenance.
 	if err := r.lockRestoreCareExceptionDays(ctx, transitionID, studentIDs, from); err != nil {
 		return 0, err
+	}
+
+	// Re-validate the snapshot's room references through the room owner
+	// before the replay, instead of joining facilities.rooms here (#2665).
+	tenantID := tenant.FromContext(ctx)
+	var archivedRoomIDs []int64
+	if err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`schedule.grade_transition_roster_removals AS "rm"`).
+		ColumnExpr("DISTINCT rm.room_id").
+		Where("rm.transition_id = ?", transitionID).
+		Where("rm.student_id IN (?)", bun.List(studentIDs)).
+		Where("rm.tenant_id = ?", tenantID).
+		Where("rm.room_id IS NOT NULL").
+		Scan(ctx, &archivedRoomIDs); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "restore archived rows by transition", Err: base.TranslateNotFound(err)}
+	}
+	roomIDs, err := validRoomIDs(ctx, r.rooms, tenantID, archivedRoomIDs)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "restore archived rows by transition", Err: err}
 	}
 
 	const rawSQL = `
@@ -1511,7 +1553,7 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 			created_at, updated_at
 		)
 		SELECT restored.tenant_id, restored.instance_id, restored.student_id,
-		       room.id,
+		       CASE WHEN restored.room_id = ANY(?) THEN restored.room_id END,
 		       CASE
 		           WHEN restored.not_scheduled          THEN restored.status
 		           WHEN hand_set.kept                   THEN restored.status
@@ -1537,9 +1579,6 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		JOIN schedule.activity_instances AS ai
 		       ON ai.id = restored.instance_id
 		      AND ai.tenant_id = restored.tenant_id
-		LEFT JOIN facilities.rooms AS room
-		       ON room.id = restored.room_id
-		      AND room.tenant_id = restored.tenant_id
 		CROSS JOIN LATERAL (
 		       SELECT restored.manual_status_at IS NOT NULL
 		              AND restored.status <> ? AS kept
@@ -1571,7 +1610,8 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, rawSQL,
 		transitionID,
 		bun.List(studentIDs),
-		tenant.FromContext(ctx),
+		tenantID,
+		pgdialect.Array(roomIDs),
 		schedule.AttendanceStatusAbsent,
 		schedule.AttendanceStatusAbsent,
 		schedule.AttendanceStatusExpected,

@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -57,9 +56,6 @@ var (
 	_ base.Entity = (*education.Group)(nil)
 	_ base.Entity = (*education.GroupSubstitution)(nil)
 	_ base.Entity = (*education.GroupTeacher)(nil)
-
-	// facilities package
-	_ base.Entity = (*facilities.Room)(nil)
 
 	// iot package
 	_ base.Entity = (*iot.Device)(nil)
