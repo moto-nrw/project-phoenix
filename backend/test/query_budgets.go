@@ -62,6 +62,9 @@ var queryBudgets = map[string]queryBudget{
 	// api/timetable — GET /instances over a week, 8 instances on 3 days:
 	// instances + room + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
+	// services/schedule — GET /planned-now backing list, 8 eligible instances:
+	// instance list + rooms + staff batch + student batch (#2941).
+	"services.schedule.planned_now": {max: 4},
 	// services/calendar — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
 	// services/calendar — appointment target resolution, 8 explicit guardians.
@@ -69,6 +72,9 @@ var queryBudgets = map[string]queryBudget{
 	// services/calendar — reminder scan, 8 due appointments; writes scale with
 	// recipients, while every read relation remains a fixed-size batch (#2941).
 	"services.calendar.reminder_scan.reads": {max: 11, exact: true},
+	// modules/schoolmembership — assignment lists, 8 rows each.
+	"modules.schoolmembership.list_class_assignments": {max: 5},
+	"modules.schoolmembership.list_group_assignments": {max: 5},
 	// services/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},

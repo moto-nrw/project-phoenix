@@ -733,6 +733,14 @@ func (s *instanceService) syncAbsorbedVisitAttendance(ctx context.Context, insta
 	if err != nil {
 		return fmt.Errorf("load absorbed visits from group %d: %w", activeGroupID, err)
 	}
+	existingRows, err := s.deps.InstanceStudents.FindByInstanceIDs(ctx, []int64{instanceID})
+	if err != nil {
+		return fmt.Errorf("load absorbed attendance for instance %d: %w", instanceID, err)
+	}
+	existingByStudent := make(map[int64]*scheduleModel.InstanceStudent, len(existingRows))
+	for _, row := range existingRows {
+		existingByStudent[row.StudentID] = row
+	}
 
 	for _, visit := range visits {
 		if visit == nil || visit.ExitTime != nil {
@@ -748,15 +756,9 @@ func (s *instanceService) syncAbsorbedVisitAttendance(ctx context.Context, insta
 		if updated {
 			continue
 		}
-
-		attendance, err := s.deps.InstanceStudents.FindByInstanceAndStudent(ctx, instanceID, visit.StudentID)
-		if err != nil {
-			return fmt.Errorf("load absorbed student %d attendance: %w", visit.StudentID, err)
-		}
-		if attendance != nil {
+		if existingByStudent[visit.StudentID] != nil {
 			continue
 		}
-
 		if _, err := s.deps.InstanceStudents.CreateUnplannedPresentIfAbsent(
 			ctx, instanceID, visit.StudentID, visit.EntryTime,
 		); err != nil {
@@ -1162,16 +1164,21 @@ func (s *instanceService) lockReopenSnapshotStudents(ctx context.Context, snapsh
 	}
 	slices.Sort(studentIDs)
 	studentIDs = slices.Compact(studentIDs)
-	for _, studentID := range studentIDs {
-		if _, err := s.deps.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
-			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: err}
-		}
+	locked, err := s.deps.StudentRepo.FindByIDsForUpdate(ctx, studentIDs)
+	if err != nil {
+		return nil, &ScheduleError{Op: "reopen instance: lock students", Err: err}
 	}
 	for _, studentID := range studentIDs {
-		current, findErr := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
-		if findErr != nil && !modelBase.IsNoRows(findErr) {
-			return nil, findErr
+		if locked[studentID] == nil {
+			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: modelBase.ErrNotFound}
 		}
+	}
+	currentByStudent, err := s.deps.VisitRepo.GetCurrentByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, studentID := range studentIDs {
+		current := currentByStudent[studentID]
 		if current != nil {
 			return nil, fmt.Errorf("%w: student %d already has an active visit", ErrTimetableOperationConflict, studentID)
 		}
@@ -1243,8 +1250,26 @@ func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context
 		return &ScheduleError{Op: "reopen instance: load supervisors", Err: err}
 	}
 	byID := make(map[int64]*activeModel.GroupSupervisor, len(rows))
+	staffIDs := make([]int64, 0, len(rows))
+	seenStaff := make(map[int64]bool, len(rows))
 	for _, row := range rows {
 		byID[row.ID] = row
+		if !seenStaff[row.StaffID] {
+			seenStaff[row.StaffID] = true
+			staffIDs = append(staffIDs, row.StaffID)
+		}
+	}
+	activeByStaff := make(map[int64][]*activeModel.GroupSupervisor, len(staffIDs))
+	if len(staffIDs) > 0 {
+		options := modelBase.NewQueryOptions()
+		options.Filter = modelBase.NewFilter().Equal("active_only", true).In("staff_id", int64FilterArgs(staffIDs)...)
+		activeRows, listErr := s.deps.SupervisorRepo.List(ctx, options)
+		if listErr != nil {
+			return &ScheduleError{Op: "reopen instance: load staff supervisions", Err: listErr}
+		}
+		for _, row := range activeRows {
+			activeByStaff[row.StaffID] = append(activeByStaff[row.StaffID], row)
+		}
 	}
 	for _, supervisorID := range snapshot.SupervisorIDs {
 		row, ok := byID[supervisorID]
@@ -1254,11 +1279,7 @@ func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context
 		if instance.CompletedAt != nil && row.GetUpdatedAt().After(*instance.CompletedAt) {
 			return fmt.Errorf("%w: supervisor changed after completion", ErrTimetableOperationConflict)
 		}
-		activeRows, findErr := s.deps.SupervisorRepo.FindActiveByStaffID(ctx, row.StaffID)
-		if findErr != nil {
-			return &ScheduleError{Op: "reopen instance: load staff supervisions", Err: findErr}
-		}
-		for _, other := range activeRows {
+		for _, other := range activeByStaff[row.StaffID] {
 			if other.ID != row.ID {
 				return fmt.Errorf("%w: staff %d now supervises another group", ErrTimetableOperationConflict, row.StaffID)
 			}
@@ -2594,7 +2615,6 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 	if err != nil {
 		return nil, nil, err
 	}
-	snapshots := make([]deviationSnapshot, 0)
 	// occurrences counts the planned, template-backed occurrences per (group, date)
 	// BEFORE this re-plan deletes them — the ORIGINAL cardinality, not the number
 	// of deviated slots. reapplyDeviations uses it to tell a genuine
@@ -2603,6 +2623,7 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 	// disambiguate the survivor (#1840). Counted over every matching occurrence,
 	// including those with no override.
 	occurrences := make(map[groupDay]int)
+	eligible := make([]*scheduleModel.ActivityInstance, 0, len(instances))
 	for _, inst := range instances {
 		if inst.Date.Weekday() == time.Saturday || inst.Date.Weekday() == time.Sunday {
 			continue
@@ -2614,10 +2635,15 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 			continue
 		}
 		occurrences[groupDay{*inst.ActivityGroupID, inst.Date}]++
-		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
-		if err != nil {
-			return nil, nil, err
-		}
+		eligible = append(eligible, inst)
+	}
+	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, activityInstanceIDs(eligible))
+	if err != nil {
+		return nil, nil, err
+	}
+	staffByInstance := indexInstanceStaffRows(staffRows)
+	snapshots := make([]deviationSnapshot, 0)
+	for _, inst := range eligible {
 		snap := deviationSnapshot{
 			date:             inst.Date,
 			activityGroupID:  *inst.ActivityGroupID,
@@ -2626,7 +2652,7 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 			understaffedNote: inst.UnderstaffedNote,
 			requiredStaff:    inst.RequiredStaff,
 		}
-		for _, row := range rows {
+		for _, row := range staffByInstance[inst.ID] {
 			switch {
 			case row.IsSubstitute:
 				snap.substitutes = append(snap.substitutes, snapshotSubstitute{
@@ -2665,8 +2691,23 @@ func (s *instanceService) reapplyDeviations(
 	targetActivityGroupID *int64,
 	actorAccountID *int64,
 ) (int, error) {
+	matches, err := s.matchRegeneratedInstances(ctx, snapshots, occurrences, targetActivityGroupID)
+	if err != nil {
+		return 0, err
+	}
+	matched := make([]*scheduleModel.ActivityInstance, 0, len(matches))
+	for _, instance := range matches {
+		if instance != nil {
+			matched = append(matched, instance)
+		}
+	}
+	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, activityInstanceIDs(matched))
+	if err != nil {
+		return 0, err
+	}
+	staffByInstance := indexInstanceStaffRows(staffRows)
 	reapplied := 0
-	for _, snap := range snapshots {
+	for i, snap := range snapshots {
 		// sole is true only when the group had exactly ONE planned occurrence on
 		// this date BEFORE the re-plan deleted it. Counting snapshots instead
 		// (the old approach) misreads a multi-slot day on which only one slot
@@ -2676,11 +2717,7 @@ func (s *instanceService) reapplyDeviations(
 		// block. Keying on the ORIGINAL occurrence cardinality forces an exact
 		// start_time match whenever the day had more than one slot, so a deleted
 		// slot's overrides are dropped rather than misattributed (#1840).
-		sole := occurrences[groupDay{snap.activityGroupID, snap.date}] == 1
-		inst, err := s.matchRegeneratedInstance(ctx, snap, sole, targetActivityGroupID)
-		if err != nil {
-			return reapplied, err
-		}
+		inst := matches[i]
 		if inst == nil {
 			// The slot no longer regenerates (weekday/period/time changed): the
 			// snapshotted deviation is dropped. Record the loss in the
@@ -2702,10 +2739,7 @@ func (s *instanceService) reapplyDeviations(
 			}
 		}
 
-		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
-		if err != nil {
-			return reapplied, err
-		}
+		rows := staffByInstance[inst.ID]
 		byStaff := make(map[int64]*scheduleModel.InstanceStaff, len(rows))
 		for _, row := range rows {
 			byStaff[row.StaffID] = row
@@ -2809,8 +2843,8 @@ type groupDay struct {
 	date            timezone.Date
 }
 
-// matchRegeneratedInstance finds the freshly materialized planned occurrence a
-// snapshot should reapply to. When `sole` (the group had exactly ONE planned
+// matchRegeneratedInstances finds the freshly materialized planned occurrences
+// snapshots should reapply to. When `sole` (the group had exactly ONE planned
 // occurrence on this date before the re-plan — see reapplyDeviations) a lone
 // surviving occurrence is matched even if its start_time changed, so the
 // deviation follows the moved block. Otherwise — the day had several slots — it
@@ -2818,38 +2852,85 @@ type groupDay struct {
 // none matches, so overrides from a deleted slot are never merged onto a
 // surviving block (a slot whose time changed cannot be mapped safely either)
 // (#1840).
-func (s *instanceService) matchRegeneratedInstance(
+func (s *instanceService) matchRegeneratedInstances(
 	ctx context.Context,
-	snap deviationSnapshot,
-	sole bool,
+	snapshots []deviationSnapshot,
+	occurrences map[groupDay]int,
 	targetActivityGroupID *int64,
-) (*scheduleModel.ActivityInstance, error) {
-	activityGroupID := snap.activityGroupID
-	if targetActivityGroupID != nil {
-		activityGroupID = *targetActivityGroupID
+) ([]*scheduleModel.ActivityInstance, error) {
+	matches := make([]*scheduleModel.ActivityInstance, len(snapshots))
+	if len(snapshots) == 0 {
+		return matches, nil
 	}
-	candidates, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, snap.date)
+	groupIDs, dates := regeneratedMatchKeys(snapshots, targetActivityGroupID)
+	options := modelBase.NewQueryOptions()
+	options.Filter = modelBase.NewFilter().
+		In("activity_group_id", int64FilterArgs(groupIDs)...).
+		In("date", dateFilterArgs(dates)...).
+		Equal("status", scheduleModel.InstanceStatusPlanned).
+		Equal("is_spontaneous", false)
+	candidates, err := s.deps.InstanceRepo.List(ctx, options)
 	if err != nil {
 		return nil, err
 	}
-	var planned []*scheduleModel.ActivityInstance
-	for _, c := range candidates {
-		if c.Status == scheduleModel.InstanceStatusPlanned && !c.IsSpontaneous {
-			planned = append(planned, c)
+	byGroupDay := indexRegeneratedCandidates(candidates)
+	for i, snap := range snapshots {
+		groupID := snap.activityGroupID
+		if targetActivityGroupID != nil {
+			groupID = *targetActivityGroupID
+		}
+		sole := occurrences[groupDay{snap.activityGroupID, snap.date}] == 1
+		matches[i] = matchRegeneratedCandidate(byGroupDay[groupDay{groupID, snap.date}], snap.startTime, sole)
+	}
+	return matches, nil
+}
+
+func regeneratedMatchKeys(snapshots []deviationSnapshot, targetActivityGroupID *int64) ([]int64, []timezone.Date) {
+	groupIDs := make([]int64, 0, len(snapshots))
+	dates := make([]timezone.Date, 0, len(snapshots))
+	seenGroups := make(map[int64]bool)
+	seenDates := make(map[timezone.Date]bool)
+	for _, snap := range snapshots {
+		groupID := snap.activityGroupID
+		if targetActivityGroupID != nil {
+			groupID = *targetActivityGroupID
+		}
+		if !seenGroups[groupID] {
+			seenGroups[groupID] = true
+			groupIDs = append(groupIDs, groupID)
+		}
+		if !seenDates[snap.date] {
+			seenDates[snap.date] = true
+			dates = append(dates, snap.date)
 		}
 	}
-	if len(planned) == 0 {
-		return nil, nil
-	}
-	if len(planned) == 1 && sole {
-		return planned[0], nil
-	}
-	for _, c := range planned {
-		if formatTimeOfDay(c.StartTime) == snap.startTime {
-			return c, nil
+	return groupIDs, dates
+}
+
+func indexRegeneratedCandidates(candidates []*scheduleModel.ActivityInstance) map[groupDay][]*scheduleModel.ActivityInstance {
+	byGroupDay := make(map[groupDay][]*scheduleModel.ActivityInstance)
+	for _, candidate := range candidates {
+		if candidate.ActivityGroupID != nil {
+			key := groupDay{*candidate.ActivityGroupID, candidate.Date}
+			byGroupDay[key] = append(byGroupDay[key], candidate)
 		}
 	}
-	return nil, nil
+	return byGroupDay
+}
+
+func matchRegeneratedCandidate(candidates []*scheduleModel.ActivityInstance, startTime string, sole bool) *scheduleModel.ActivityInstance {
+	if len(candidates) == 0 {
+		return nil
+	}
+	if len(candidates) == 1 && sole {
+		return candidates[0]
+	}
+	for _, candidate := range candidates {
+		if formatTimeOfDay(candidate.StartTime) == startTime {
+			return candidate
+		}
+	}
+	return nil
 }
 
 // loadForTransition is the shared load + not-found branch used by all three

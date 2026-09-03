@@ -2,62 +2,7 @@ package calendar
 
 import (
 	"context"
-	"time"
 )
-
-type AppointmentRepository interface {
-	Create(ctx context.Context, appointment *Appointment) error
-	FindByID(ctx context.Context, id int64) (*Appointment, error)
-	// FindByIDForUpdate locks an appointment until the current transaction
-	// completes. It serializes reminder delivery with lifecycle changes and
-	// per-occurrence overrides that affect that delivery.
-	FindByIDForUpdate(ctx context.Context, id int64) (*Appointment, error)
-	Update(ctx context.Context, appointment *Appointment) error
-	// BumpRevision advances the revision counter without touching other fields,
-	// used when a change affecting the exported calendar lives in a child table.
-	BumpRevision(ctx context.Context, appointmentID int64) error
-	Delete(ctx context.Context, id any) error
-	// Cancel marks the appointment cancelled_at=now and bumps the revision with a
-	// conditional (cancelled_at IS NULL) update, so a concurrent content edit
-	// cannot silently reactivate it. It reports whether THIS call performed the
-	// transition (true) or found it already cancelled (false) — only the
-	// transitioning caller should send the cancellation notice. Stays visible
-	// interactively.
-	Cancel(ctx context.Context, appointmentID int64) (bool, error)
-	// SoftDelete marks the appointment deleted_at=now and bumps the revision. Used
-	// for feed-visible appointments so they vanish from interactive calendars but
-	// remain exportable as a durable STATUS:CANCELLED tombstone.
-	SoftDelete(ctx context.Context, appointmentID int64) error
-	// DeleteFeedTombstonesBefore permanently removes expired cancellation and
-	// deletion tombstones. Child rows cascade with the appointment.
-	DeleteFeedTombstonesBefore(ctx context.Context, before time.Time) (int, error)
-	// ListVisible*/ListOrganized* return only live (deleted_at IS NULL) rows.
-	ListVisibleForStaff(ctx context.Context, staffID int64, from, to Date) ([]*Appointment, error)
-	// ListCancellationTombstonesForStaff combines organizer and recipient
-	// visibility with lifecycle cutoffs, which generic filters cannot express.
-	ListCancellationTombstonesForStaff(ctx context.Context, staffID int64, since time.Time) ([]*Appointment, error)
-	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to Date) ([]*Appointment, error)
-	// ListCancellationTombstonesForGuardianProfiles returns guardian-visible
-	// appointments cancelled OR soft-deleted on/after `since`, regardless of their
-	// event dates — the feed re-exports them as STATUS:CANCELLED so subscribers
-	// purge them. Retention is bounded by the cancellation/deletion time, not by
-	// the date lookback window.
-	ListCancellationTombstonesForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, since time.Time) ([]*Appointment, error)
-	// ListGuardianReminderCandidates returns the live, un-cancelled appointments
-	// of the current tenant that could produce a guardian-facing occurrence in
-	// the window: they carry the organizer's "notify guardians" opt-in and have
-	// at least one guardian recipient. Recurrence is only bounded here (the same
-	// window predicate the calendar listings use) — which concrete occurrences
-	// fall due is decided in the service, which owns occurrence expansion.
-	ListGuardianReminderCandidates(ctx context.Context, from, to Date) ([]*Appointment, error)
-	// LockReminderCandidate re-reads a reminder candidate while holding its row
-	// lock. It returns nil when a lifecycle transition has made the appointment
-	// ineligible since the scheduler's coarse candidate scan.
-	LockReminderCandidate(ctx context.Context, id int64) (*Appointment, error)
-	// LockReminderCandidates is the batch form used by the reminder scan. Rows
-	// are locked in ID order to keep concurrent scans deterministic.
-	LockReminderCandidates(ctx context.Context, ids []int64) ([]*Appointment, error)
-}
 
 type RecurrenceRuleRepository interface {
 	Create(ctx context.Context, rule *RecurrenceRule) error
@@ -69,7 +14,6 @@ type RecurrenceRuleRepository interface {
 type AppointmentRecipientRepository interface {
 	CreateMany(ctx context.Context, recipients []*AppointmentRecipient) error
 	FindByID(ctx context.Context, id int64) (*AppointmentRecipient, error)
-	ReplaceForAppointment(ctx context.Context, appointmentID int64, recipients []*AppointmentRecipient) error
 	FindByAppointmentID(ctx context.Context, appointmentID int64) ([]*AppointmentRecipient, error)
 	// FindByAppointmentIDs returns the recipients of every listed appointment
 	// in one read, grouped by AppointmentID on the caller's side (#2940).
@@ -85,11 +29,6 @@ type AppointmentRecipientRepository interface {
 type AppointmentRecipientStudentRepository interface {
 	CreateMany(ctx context.Context, links []*AppointmentRecipientStudent) error
 	FindByRecipientIDs(ctx context.Context, recipientIDs []int64) ([]*AppointmentRecipientStudent, error)
-}
-
-type AppointmentTargetRepository interface {
-	ReplaceForAppointment(ctx context.Context, appointmentID int64, targets []*AppointmentTarget) error
-	FindByAppointmentID(ctx context.Context, appointmentID int64) ([]*AppointmentTarget, error)
 }
 
 type AppointmentOccurrenceOverrideRepository interface {

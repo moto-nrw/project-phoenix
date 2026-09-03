@@ -4,9 +4,10 @@ import (
 	"context"
 
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 )
 
-func (failingCandidateLock) LockReminderCandidates(context.Context, []int64) ([]*calModels.Appointment, error) {
+func (failingCandidateLock) FindReminderCandidatesForUpdate(context.Context, []int64) ([]*appointments.Appointment, error) {
 	return nil, errReminderStore
 }
 
@@ -18,7 +19,7 @@ func (failingRecipientLookup) FindByAppointmentIDs(context.Context, []int64) ([]
 	return nil, errReminderStore
 }
 
-func (r *revisingCandidateLock) LockReminderCandidates(ctx context.Context, ids []int64) ([]*calModels.Appointment, error) {
+func (r *revisingCandidateLock) FindReminderCandidatesForUpdate(ctx context.Context, ids []int64) ([]*appointments.Appointment, error) {
 	r.mu.Lock()
 	r.calls++
 	revise := r.calls == r.on
@@ -29,5 +30,5 @@ func (r *revisingCandidateLock) LockReminderCandidates(ctx context.Context, ids 
 			return nil, err
 		}
 	}
-	return r.AppointmentRepository.LockReminderCandidates(ctx, ids)
+	return r.Capability.FindReminderCandidatesForUpdate(ctx, ids)
 }

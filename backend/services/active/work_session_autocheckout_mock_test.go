@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,6 +69,10 @@ func (m *wsMockStaffShiftRepository) FindByOriginShiftID(_ context.Context, _ in
 // Interface-compile stubs for the generic methods surfaced for the #1843 sick
 // cascade; auto-checkout never exercises them.
 func (m *wsMockStaffShiftRepository) List(_ context.Context, _ map[string]any) ([]*scheduleModels.StaffShift, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffShiftRepository) ListWithOptions(_ context.Context, _ *modelBase.QueryOptions) ([]*scheduleModels.StaffShift, error) {
 	return nil, nil
 }
 

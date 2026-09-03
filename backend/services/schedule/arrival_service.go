@@ -1239,14 +1239,19 @@ func (s *arrivalScheduleService) lockClassArrivalStudents(
 ) ([]*users.Student, error) {
 	// A class row affects every matched child, so authorize the complete class.
 	sort.Slice(students, func(i, j int) bool { return students[i].ID < students[j].ID })
+	studentIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		studentIDs = append(studentIDs, student.ID)
+	}
+	lockedByID, err := s.studentRepo.FindByIDsForUpdate(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("lock selected students: %w", err)
+	}
 	locked := make([]*users.Student, 0, len(students))
 	for _, selected := range students {
-		fresh, err := s.studentRepo.FindByIDForUpdate(ctx, selected.ID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, selected.ID)
-			}
-			return nil, fmt.Errorf("lock selected student %d: %w", selected.ID, err)
+		fresh := lockedByID[selected.ID]
+		if fresh == nil {
+			return nil, fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, selected.ID)
 		}
 		if fresh.CareEndedOn(timezone.TodayDate()) {
 			continue

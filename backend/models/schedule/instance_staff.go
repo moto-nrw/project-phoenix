@@ -71,6 +71,10 @@ type InstanceStaffRepository interface {
 	// substitute flow (E6) and gap detection.
 	FindByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*InstanceStaff, error)
 
+	// FindByStaffIDsAndDate batches the joined date lookup for several staff
+	// members. Empty input returns an empty slice without querying.
+	FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*InstanceStaff, error)
+
 	// FindByStaffAndDateRange returns the staff member's assignments across
 	// all instances dated within [from, to] inclusive, ordered by instance
 	// date then start time. Used by the self-service assignment read (#1844)

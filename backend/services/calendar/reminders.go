@@ -102,9 +102,13 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 		return 0, nil
 	}
 
+	// The DB window is date-granular and the instant window is not: an
+	// occurrence at 08:00 on day X is only due when the [from, to) instants
+	// straddle it. Scan the full days the window touches and filter by instant
+	// below.
 	fromDate := timezone.DateFromTime(from)
 	toDate := timezone.DateFromTime(to)
-	appointments, err := s.cfg.AppointmentRepo.ListGuardianReminderCandidates(ctx, toCalendarDate(fromDate), toCalendarDate(toDate))
+	appointments, err := s.listGuardianReminderCandidates(ctx, toCalendarDate(fromDate), toCalendarDate(toDate))
 	if err != nil {
 		return 0, fmt.Errorf("calendar: list reminder candidates: %w", err)
 	}
@@ -289,7 +293,7 @@ func (s *service) loadLockedReminderCandidates(
 	for _, appointment := range appointments {
 		ids = append(ids, appointment.ID)
 	}
-	locked, err := s.cfg.AppointmentRepo.LockReminderCandidates(ctx, ids)
+	locked, err := s.findReminderCandidatesForUpdate(ctx, ids)
 	if err != nil {
 		return lockedReminderCandidates{}, fmt.Errorf("calendar: lock reminder candidates: %w", err)
 	}
@@ -781,7 +785,7 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 	var profileIDs []int64
 	var studentIDs []int64
 	err := tenant.WithTenantTx(ctx, s.cfg.DB, delivery.appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		current, err := s.cfg.AppointmentRepo.LockReminderCandidate(txCtx, delivery.appointment.ID)
+		current, err := s.findReminderCandidateForUpdate(txCtx, delivery.appointment.ID)
 		if err != nil {
 			return err
 		}

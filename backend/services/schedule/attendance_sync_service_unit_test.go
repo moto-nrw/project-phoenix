@@ -70,8 +70,25 @@ func (f *fakeInstanceRepo) Delete(context.Context, interface{}) error {
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) List(context.Context, *modelsBase.QueryOptions) ([]*scheduleModel.ActivityInstance, error) {
-	panic("unused")
+func (f *fakeInstanceRepo) List(_ context.Context, options *modelsBase.QueryOptions) ([]*scheduleModel.ActivityInstance, error) {
+	if f.findPanic != nil {
+		panic(f.findPanic)
+	}
+	if f.instance == nil || f.findErr != nil {
+		return nil, f.findErr
+	}
+	instance := *f.instance
+	if instance.ActiveGroupID == nil && options != nil && options.Filter != nil {
+		for _, condition := range options.Filter.Conditions() {
+			values, ok := condition.Value.([]interface{})
+			if condition.Field == "active_group_id" && ok && len(values) > 0 {
+				if activeGroupID, ok := values[0].(int64); ok {
+					instance.ActiveGroupID = &activeGroupID
+				}
+			}
+		}
+	}
+	return []*scheduleModel.ActivityInstance{&instance}, nil
 }
 
 func (f *fakeInstanceRepo) FindByTenantAndDate(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {

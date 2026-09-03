@@ -360,7 +360,7 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calMod
 func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appointment *calModels.Appointment, kind string) {
 	var accountIDs []int64
 	err := tenant.WithTenantTx(ctx, s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		current, err := s.cfg.AppointmentRepo.FindByID(txCtx, appointment.ID)
+		current, err := s.findAppointment(txCtx, appointment.ID)
 		if err != nil {
 			return err
 		}
