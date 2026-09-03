@@ -18,11 +18,14 @@ const phaseTableExpr = `enrollment.phases AS "phase"`
 // enrollment.phases table. RLS-scoped via tenant context; the public
 // "list open" path uses an admin tx wrapper at the handler layer.
 type PhaseRepository struct {
+	*base.Repository[*enrollment.Phase]
 	db *bun.DB
 }
 
 func NewPhaseRepository(db *bun.DB) enrollment.PhaseRepository {
-	return &PhaseRepository{db: db}
+	repo := base.NewRepository[*enrollment.Phase](db, "enrollment.phases", "Phase")
+	repo.TenantScoped = true
+	return &PhaseRepository{Repository: repo, db: db}
 }
 
 func (r *PhaseRepository) Create(ctx context.Context, phase *enrollment.Phase) error {

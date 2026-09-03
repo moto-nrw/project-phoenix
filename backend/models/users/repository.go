@@ -444,6 +444,9 @@ type StudentGuardianRepository interface {
 
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
+	// FindByGuardianProfileIDs retrieves relationships for several guardian
+	// profiles in one query.
+	FindByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*StudentGuardian, error)
 
 	// AccountHasStudentPermission reports whether the guardian account holds the
 	// named parent_portal.* permission on its relationship to the given student
