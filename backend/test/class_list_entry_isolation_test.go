@@ -6,6 +6,12 @@
 // RLS policy from migration 1.15.306, so these tests run through real
 // phoenix_tenant transactions (tenant.WithTenantTx): a repository-level test
 // with a plain context would pass even if the policy were missing.
+//
+// Since #2668 the repository is an adapter over the School Membership owner,
+// so the read side drives the factory-bound repository and the write side
+// inserts the smuggled row directly: the owner stamps the transaction's
+// tenant on every insert, so only a raw statement can still carry a foreign
+// tenant_id to the policy's WITH CHECK.
 package test
 
 import (
@@ -17,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -39,7 +45,7 @@ func TestClassListEntryTenantIsolation(t *testing.T) {
 	entryA := CreateTestClassListEntryForTenant(t, db, tenantA, "Ida", "IsolationA", "iso1a")
 	entryB := CreateTestClassListEntryForTenant(t, db, tenantB, "Ben", "IsolationB", "iso1a")
 
-	repo := repoUsers.NewClassListEntryRepository(db)
+	repo := repositories.NewFactory(db).ClassListEntry
 
 	assertSeesOnly := func(t *testing.T, ownTenant int64, own, foreign *userModels.ClassListEntry) {
 		t.Helper()
@@ -85,18 +91,58 @@ func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
 
-	repo := repoUsers.NewClassListEntryRepository(db)
 	smuggled := &userModels.ClassListEntry{
 		FirstName:   "Fritz",
 		LastName:    "Fremdschule",
 		SchoolClass: "iso2b",
 	}
-	// EnsureTenantID only fills a zero tenant_id, so the preset foreign id
-	// survives to the INSERT — exactly the write WITH CHECK must reject.
+	// The preset foreign id travels straight to the INSERT — exactly the
+	// write the policy's WITH CHECK must reject.
+	smuggled.SetTenantID(tenantB)
+
+	err := WithTenantTx(t, context.Background(), db, tenantA, func(txCtx context.Context, tx bun.Tx) error {
+		_, err := tx.NewInsert().Model(smuggled).ModelTableExpr(`users.class_list_entries AS "class_list_entry"`).Exec(txCtx)
+		return err
+	})
+	require.Error(t, err, "the database must refuse an entry stamped with a foreign tenant_id")
+}
+
+// TestClassListEntryRepositoryCannotSmuggleAForeignTenant pins the production
+// write path since #2668: the owner stamps the transaction's tenant, so an
+// entity preset with another school's tenant_id lands in the caller's own
+// school and never in the foreign one.
+func TestClassListEntryRepositoryCannotSmuggleAForeignTenant(t *testing.T) {
+	t.Parallel()
+
+	db := SetupTestDB(t)
+
+	tenantA := UniqueTestTenantID(t)
+	tenantB := UniqueTestTenantID(t)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
+
+	repo := repositories.NewFactory(db).ClassListEntry
+	smuggled := &userModels.ClassListEntry{
+		FirstName:   "Frida",
+		LastName:    "Fremdschule",
+		SchoolClass: "iso3c",
+	}
 	smuggled.SetTenantID(tenantB)
 
 	err := WithTenantTx(t, context.Background(), db, tenantA, func(txCtx context.Context, _ bun.Tx) error {
 		return repo.Create(txCtx, smuggled)
 	})
-	require.Error(t, err, "the database must refuse an entry stamped with a foreign tenant_id")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("users.class_list_entries").Where("id = ?", smuggled.ID).Exec(context.Background())
+	})
+	assert.Equal(t, tenantA, smuggled.GetTenantID(), "the owner stamps the transaction's tenant, never the preset one")
+
+	err = WithTenantTx(t, context.Background(), db, tenantB, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := repo.FindByID(txCtx, smuggled.ID)
+		require.Error(t, err, "the foreign school must not see the row")
+		assert.ErrorIs(t, err, sql.ErrNoRows)
+		return nil
+	})
+	require.NoError(t, err)
 }
