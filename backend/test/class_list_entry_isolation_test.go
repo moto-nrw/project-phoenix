@@ -106,3 +106,43 @@ func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
 	})
 	require.Error(t, err, "the database must refuse an entry stamped with a foreign tenant_id")
 }
+
+// TestClassListEntryRepositoryCannotSmuggleAForeignTenant pins the production
+// write path since #2668: the owner stamps the transaction's tenant, so an
+// entity preset with another school's tenant_id lands in the caller's own
+// school and never in the foreign one.
+func TestClassListEntryRepositoryCannotSmuggleAForeignTenant(t *testing.T) {
+	t.Parallel()
+
+	db := SetupTestDB(t)
+
+	tenantA := UniqueTestTenantID(t)
+	tenantB := UniqueTestTenantID(t)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
+
+	repo := repositories.NewFactory(db).ClassListEntry
+	smuggled := &userModels.ClassListEntry{
+		FirstName:   "Frida",
+		LastName:    "Fremdschule",
+		SchoolClass: "iso3c",
+	}
+	smuggled.SetTenantID(tenantB)
+
+	err := WithTenantTx(t, context.Background(), db, tenantA, func(txCtx context.Context, _ bun.Tx) error {
+		return repo.Create(txCtx, smuggled)
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("users.class_list_entries").Where("id = ?", smuggled.ID).Exec(context.Background())
+	})
+	assert.Equal(t, tenantA, smuggled.GetTenantID(), "the owner stamps the transaction's tenant, never the preset one")
+
+	err = WithTenantTx(t, context.Background(), db, tenantB, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := repo.FindByID(txCtx, smuggled.ID)
+		require.Error(t, err, "the foreign school must not see the row")
+		assert.ErrorIs(t, err, sql.ErrNoRows)
+		return nil
+	})
+	require.NoError(t, err)
+}
