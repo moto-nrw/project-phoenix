@@ -8,22 +8,20 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // EnrollmentRequestRepository implements
 // parentModels.EnrollmentRequestRepository.
 type EnrollmentRequestRepository struct {
-	db        *bun.DB
+	runtime   Runtime
 	guardians GuardianDirectory
 }
 
 // NewEnrollmentRequestRepository wires a fresh repository.
-func NewEnrollmentRequestRepository(db *bun.DB) parentModels.EnrollmentRequestRepository {
-	return &EnrollmentRequestRepository{db: db}
+func NewEnrollmentRequestRepository(runtime Runtime) parentModels.EnrollmentRequestRepository {
+	return &EnrollmentRequestRepository{runtime: requireRuntime(runtime)}
 }
 
 // BindGuardianDirectory installs the People Directory the account's guardian
@@ -45,16 +43,16 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 	}
 
 	type row struct {
-		RequestID                int64         `bun:"request_id"`
-		TenantID                 int64         `bun:"tenant_id"`
-		StatusToken              string        `bun:"status_token"`
-		SubmittedAt              time.Time     `bun:"submitted_at"`
-		WithdrawnAt              *time.Time    `bun:"withdrawn_at"`
-		PhaseID                  int64         `bun:"phase_id"`
-		PhaseName                string        `bun:"phase_name"`
-		ServiceStartDate         timezone.Date `bun:"service_start_date"`
-		ServiceEndDate           timezone.Date `bun:"service_end_date"`
-		ShowStatusReasonToParent bool          `bun:"show_status_reason_to_parent"`
+		RequestID                int64        `bun:"request_id"`
+		TenantID                 int64        `bun:"tenant_id"`
+		StatusToken              string       `bun:"status_token"`
+		SubmittedAt              time.Time    `bun:"submitted_at"`
+		WithdrawnAt              *time.Time   `bun:"withdrawn_at"`
+		PhaseID                  int64        `bun:"phase_id"`
+		PhaseName                string       `bun:"phase_name"`
+		ServiceStartDate         calendarDate `bun:"service_start_date"`
+		ServiceEndDate           calendarDate `bun:"service_end_date"`
+		ShowStatusReasonToParent bool         `bun:"show_status_reason_to_parent"`
 	}
 
 	// Two-pronged match:
@@ -94,7 +92,7 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 	`
 
 	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(
+	if err := runtimeDB(ctx, r.runtime).NewRaw(
 		requestQuery,
 		accountID,
 		accountID,
@@ -136,7 +134,7 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		WHERE rc.request_id IN (?)
 		ORDER BY rc.request_id, rc.sort_order, rc.id
 	`
-	if err := base.GetDB(ctx, r.db).NewRaw(childQuery, bun.List(requestIDs)).Scan(ctx, &children); err != nil {
+	if err := runtimeDB(ctx, r.runtime).NewRaw(childQuery, bun.List(requestIDs)).Scan(ctx, &children); err != nil {
 		return nil, fmt.Errorf("parent: list enrollment request children: %w", err)
 	}
 
@@ -150,7 +148,7 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 	}
 	viewable := make(map[[2]int64]struct{}, len(links))
 	for _, link := range links {
-		if link.HasPermission(authorize.GuardianPermissionEnrollmentsView) {
+		if link.HasPermission(careplan.GuardianPermissionEnrollmentsView) {
 			viewable[[2]int64{link.TenantID, link.StudentID}] = struct{}{}
 		}
 	}
@@ -188,8 +186,8 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 			WithdrawnAt:              rr.WithdrawnAt,
 			PhaseID:                  rr.PhaseID,
 			PhaseName:                rr.PhaseName,
-			ServiceStartDate:         rr.ServiceStartDate,
-			ServiceEndDate:           rr.ServiceEndDate,
+			ServiceStartDate:         careplan.Date(rr.ServiceStartDate),
+			ServiceEndDate:           careplan.Date(rr.ServiceEndDate),
 			ShowStatusReasonToParent: rr.ShowStatusReasonToParent,
 			Children:                 childrenByRequest[rr.RequestID],
 		})
@@ -211,7 +209,7 @@ func (r *EnrollmentRequestRepository) BackfillGuardianAccountID(ctx context.Cont
 		return 0, nil
 	}
 
-	res, err := base.GetDB(ctx, r.db).NewRaw(`
+	res, err := runtimeDB(ctx, r.runtime).NewRaw(`
 		UPDATE enrollment.requests
 		SET guardian_account_id = ?
 		WHERE guardian_account_id IS NULL

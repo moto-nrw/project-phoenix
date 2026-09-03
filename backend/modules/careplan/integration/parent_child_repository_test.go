@@ -1,4 +1,4 @@
-package parent_test
+package integration
 
 import (
 	"context"

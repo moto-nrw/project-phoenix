@@ -329,6 +329,22 @@ If a test's purpose genuinely requires the system clock, inject a clock where po
 
 ---
 
+## 15. Query Budgets — Every List Endpoint Has One (#2940)
+
+**RULE: A new list endpoint (or list-shaped service method) ships with a query-budget test and a register entry in `backend/test/query_budgets.go`.** N+1 loops show up at three fixtures already, so the test is cheap: create 3 rows, run the request, create more, run it again, assert the statement count did not move, then hand the statements to the register.
+
+```go
+counter := testpkg.CaptureQueries(t, db)          // bun.QueryHook, disabled at cleanup
+rr := exec(...)                                    // the request under test
+testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
+```
+
+- **One counter.** `testpkg.QueryCounter` (`backend/test/query_counter.go`) is the only bun hook tests may define: `CaptureQueries(t, db)` attaches it to a DB, `NewQueryCounter()` feeds `db.WithQueryHook` for a private clone. It buckets by operation (`Operation("SELECT")`), table (`Selects("config.setting_values")`) or predicate (`Matching`). Tests that count own their database (`SetupIsolatedTestDB`) or a `WithQueryHook` clone before they run in parallel.
+- **The register is the budget.** `queryBudgets` maps a scenario name to a statement count: `max` entries are ceilings, `exact` entries pin a dedup contract (one bulk load, one settings snapshot). Shrink-only: lower a number when a fix removes statements, never raise one. A scenario that needs more statements is an N+1 until proven otherwise; batch-load by ID set (`services/schedule/timetable_read_exception_conflicts.go` is the reference shape).
+- **Two CI halves.** `TestQueryBudgetRatchet` (source-level, runs in the no-database ratchet step) fails on register entries no test references, scenario names no entry defines, and any `_test.go` file defining its own `BeforeQuery` hook. The budget tests themselves run with the full backend suite.
+
+---
+
 ## Code Review Checklist
 
 - [ ] No repository imports/fields/getter-calls in `api/` (CI: `TestHandlerLayerRatchet`)
@@ -345,6 +361,7 @@ If a test's purpose genuinely requires the system clock, inject a clock where po
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
 - [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 - [ ] Calendar/date/week test fixtures use fixed Berlin values, or have an exact-function live-clock exception with a reviewed reason
+- [ ] New list endpoint → query-budget test via `testpkg.CaptureQueries` + register entry in `test/query_budgets.go`; no hand-rolled `BeforeQuery` hooks (CI: `TestQueryBudgetRatchet`)
 
 ## Detection commands (one-shot health check)
 

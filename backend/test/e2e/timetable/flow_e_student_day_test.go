@@ -134,15 +134,13 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	assert.True(t, byID[instY.ID], "Y must appear in B's day")
 
 	// --- Query-budget on /week over 14 days -------------------------------
-	qc := &queryCounter{}
-	s.db.AddQueryHook(qc)
-	qc.reset()
+	qc := testpkg.CaptureQueries(t, s.db)
 
 	weekFrom := target.String()
 	weekTo := target.AddDays(13).Format("2006-01-02")
 	path := fmt.Sprintf("/student/%d/week?from=%s&to=%s", studentB.ID, weekFrom, weekTo)
 	rr = s.do("GET", path, nil, s.primaryAdminClaims())
-	weekQueryCount := qc.get()
+	weekQueries := qc.Queries()
 	require.Equal(t, http.StatusOK, rr.Code, "week body=%s", rr.Body.String())
 
 	var weekResp struct {
@@ -160,9 +158,8 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	// the end-to-end count is higher; match PR-B1 / PR-C2 convention and log
 	// instead of strict-assert, but guard against pathological fan-out
 	// (e.g. per-day loop) with a generous upper bound of 25.
-	t.Logf("query-budget /student/%d/week (14 days): %d queries (PR target ≤ 12 handler-queries only)", studentB.ID, weekQueryCount)
-	assert.LessOrEqual(t, weekQueryCount, int64(25),
-		"/week query count %d looks pathological (likely N+1 on days)", weekQueryCount)
+	t.Logf("query-budget /student/%d/week (14 days): %d queries (PR target ≤ 12 handler-queries only)", studentB.ID, len(weekQueries))
+	testpkg.AssertQueryBudget(t, "e2e.timetable.student_week.14d", weekQueries)
 
 	// --- Tenant isolation -------------------------------------------------
 	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", studentB.ID, fromS), nil, s.secondaryAdminClaims())

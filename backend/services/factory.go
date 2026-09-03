@@ -469,8 +469,6 @@ func newFactory(
 	today := timezone.CalendarDateClock(now)
 	// Persons first: the school projections sort by the names this binds.
 	repos.BindPeopleDirectory(persons)
-	careStudentLock, studentNotFound := repositories.CareStudentLock(persons)
-	schedule.BindCareStudentLockForDB(db, careStudentLock, studentNotFound)
 	repos.BindSchoolMembership(membership)
 	repos.BindSchoolCalendar(calendar)
 	repos.BindOrganizationTenancy(organizations)

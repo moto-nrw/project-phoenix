@@ -7,13 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
@@ -24,21 +21,6 @@ import (
 )
 
 func init() { testutil.SeedTestJWTConfig() }
-
-type trackingSettingValuesCounter struct {
-	count atomic.Int32
-}
-
-func (c *trackingSettingValuesCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	query := strings.ToLower(event.Query)
-	if strings.HasPrefix(strings.TrimSpace(query), "select") &&
-		strings.Contains(query, "config.setting_values") {
-		c.count.Add(1)
-	}
-	return ctx
-}
-
-func (*trackingSettingValuesCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
 
 // TestTrackingIndicatorsIssuesOneSettingValuesQuery drives the REAL router
 // (ProtectedTenantGroup chain, so the request cache middleware is attached the
@@ -83,13 +65,12 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	body, err := json.Marshal(map[string]any{"student_ids": []int64{student.ID}})
 	require.NoError(t, err)
 
-	counter := &trackingSettingValuesCounter{}
-	db.AddQueryHook(counter)
+	counter := testpkg.CaptureQueries(t, db)
 
 	req := httptest.NewRequest("POST", "/tracking-indicators", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := testutil.ExecuteWithAuth(t, router, req, testutil.AdminTestClaimsForTenant(1, tenantID))
-	queries := counter.count.Load()
+	queries := counter.Selects("config.setting_values")
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -101,6 +82,6 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.Equal(t, []string{"Bibliothek"}, resp.Data.Labels,
 		"empty label keys must still be skipped by the per-key reads")
-	assert.Equal(t, int32(1), queries,
-		"toggle + three label keys must share one config.setting_values query")
+	// Toggle + three label keys must share one config.setting_values query.
+	testpkg.AssertQueryBudget(t, "api.active.tracking_indicators.setting_values", queries)
 }

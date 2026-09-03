@@ -441,27 +441,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 156,
+          "line": 159,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 250,
+          "line": 264,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 353,
+          "line": 367,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 419,
+          "line": 433,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 909,
+          "line": 923,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -471,7 +471,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 542,
+          "line": 556,
           "declaration": "New"
         }
       ]
@@ -481,12 +481,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 148,
+          "line": 151,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 416,
+          "line": 430,
           "declaration": "type API"
         },
         {
@@ -16649,7 +16649,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        542
+        556
       ],
       "tables": []
     },
@@ -17387,7 +17387,7 @@
       "declaration": "TestOGSGroupLive_KeepsOpenVisitWithoutAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        387
+        386
       ],
       "tables": [
         "users.students"
@@ -17399,7 +17399,7 @@
       "declaration": "TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        346
+        345
       ],
       "tables": [
         "users.students"
@@ -17985,14 +17985,16 @@
       "declaration": "testTimetableDataWithOfferingCallbacks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        52,
-        64,
+        51,
+        63,
+        69,
         70,
         71,
-        72,
+        79,
         80,
+        87,
         88,
-        97
+        96
       ],
       "tables": []
     },
@@ -22795,26 +22797,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/parent/enrollment_request_repository_test.go",
-      "declaration": "TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWithoutEnrollmentPermission",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        372
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/parent/enrollment_request_repository_test.go",
-      "declaration": "TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMaterializedRequest",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        412
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/platform/operator_mfa_atomic_test.go",
       "declaration": "TestOperatorRepository_IncrementMFAAttempts_AtomicUnderRace",
       "target": "database/repositories.NewFactory",
@@ -26139,7 +26121,7 @@
       "declaration": "newOverviewFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        56
       ],
       "tables": [
         "active.staff_absences",
@@ -27110,7 +27092,7 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        272
+        273
       ],
       "tables": []
     },
@@ -27120,7 +27102,7 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDelete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        288
+        289
       ],
       "tables": []
     },
@@ -27130,8 +27112,8 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap",
       "target": "database/repositories.NewFactory",
       "lines": [
-        248,
-        252
+        249,
+        253
       ],
       "tables": []
     },
@@ -27141,7 +27123,7 @@
       "declaration": "calendarPeriodValidationFixture.createLinkedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        115
+        116
       ],
       "tables": []
     },
@@ -27151,7 +27133,7 @@
       "declaration": "calendarPeriodValidationFixture.createPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        82
+        83
       ],
       "tables": []
     },
@@ -27161,7 +27143,7 @@
       "declaration": "calendarPeriodValidationFixture.selectOfferingForSubmittedChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        182
+        183
       ],
       "tables": [
         "enrollment.request_children",
@@ -27174,7 +27156,7 @@
       "declaration": "newCalendarPeriodValidationFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        35
+        36
       ],
       "tables": []
     },
@@ -28512,6 +28494,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         21
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/factory_care_plan_audit_test.go",
+      "declaration": "TestNewFactoryRetainsCarePlanForBookingConsistencyAudit",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        18
       ],
       "tables": []
     },
@@ -30534,8 +30526,8 @@
       "declaration": "TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        356,
-        446
+        345,
+        435
       ],
       "tables": []
     },
@@ -30545,8 +30537,8 @@
       "declaration": "TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead",
       "target": "database/repositories.NewFactory",
       "lines": [
-        101,
-        105
+        88,
+        92
       ],
       "tables": []
     },
@@ -30556,7 +30548,7 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport",
       "target": "database/repositories.NewFactory",
       "lines": [
-        305
+        294
       ],
       "tables": []
     },
@@ -30566,8 +30558,8 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        191,
-        221
+        180,
+        210
       ],
       "tables": [
         "users.staff"
@@ -30579,7 +30571,7 @@
       "declaration": "createOverviewShift",
       "target": "database/repositories.NewFactory",
       "lines": [
-        164
+        153
       ],
       "tables": []
     },
@@ -30589,7 +30581,7 @@
       "declaration": "createOverviewTenantFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        48
+        47
       ],
       "tables": []
     },
@@ -31031,8 +31023,8 @@
       "declaration": "TestBookingAuthorityImpactAndActivationUseTheSameEvaluation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        160,
-        170
+        159,
+        169
       ],
       "tables": []
     },
@@ -31042,7 +31034,7 @@
       "declaration": "TestBookingMutationPlansFutureNaturalEndImmediately",
       "target": "database/repositories.NewFactory",
       "lines": [
-        470
+        469
       ],
       "tables": []
     },
@@ -31052,7 +31044,7 @@
       "declaration": "TestBookingParticipationBoundaryKeepsActualPresenceVisible",
       "target": "database/repositories.NewFactory",
       "lines": [
-        261
+        260
       ],
       "tables": []
     },
@@ -31062,7 +31054,7 @@
       "declaration": "TestConcurrentBookingAuthorityActivationCreatesOneCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        556
+        555
       ],
       "tables": []
     },
@@ -31072,7 +31064,7 @@
       "declaration": "TestConfirmedWithdrawalCannotBypassBookingAuthority",
       "target": "database/repositories.NewFactory",
       "lines": [
-        492
+        491
       ],
       "tables": []
     },
@@ -31082,8 +31074,8 @@
       "declaration": "TestNaturalBookingEndSchedulerIsIdempotent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        339,
-        345
+        338,
+        344
       ],
       "tables": []
     },
@@ -31093,7 +31085,7 @@
       "declaration": "TestNaturalSchedulerPreservesConfirmedWithdrawalAudit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        366
+        365
       ],
       "tables": []
     },
@@ -31103,7 +31095,7 @@
       "declaration": "TestOverdueRebookingReplacesTheStaleCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        401
+        400
       ],
       "tables": []
     },
@@ -31113,7 +31105,7 @@
       "declaration": "assertFiniteRebookingHistory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        424
+        423
       ],
       "tables": [
         "enrollment.request_child_offerings",
@@ -31126,7 +31118,7 @@
       "declaration": "assertNonCareMutationKeepsConfirmedWithdrawal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        516
+        515
       ],
       "tables": []
     },
@@ -32106,7 +32098,7 @@
       "declaration": "setupTimetableScenarioModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        63
+        62
       ],
       "tables": []
     },

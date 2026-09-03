@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -14,6 +15,25 @@ var errBookingConsistencyTenantRequired = errors.New("booking consistency audit 
 type bookingConsistencyRepository struct {
 	runtime  Runtime
 	students StudentDirectory
+	carePlan CareOfferingDirectory
+}
+
+// CareOfferingProjection is the narrow owner data this audit needs.
+type CareOfferingProjection struct {
+	ID             int64             `json:"id"`
+	TenantID       int64             `json:"tenant_id"`
+	PhaseID        int64             `json:"phase_id"`
+	DaysOfWeekMode string            `json:"days_of_week_mode"`
+	AvailableDays  []string          `json:"available_days"`
+	IsActive       bool              `json:"is_active"`
+	IsRequired     bool              `json:"is_required"`
+	CountsAsCare   bool              `json:"counts_as_care"`
+	PickupTimes    map[string]string `json:"pickup_times"`
+}
+
+// CareOfferingDirectory supplies the current tenant's care offerings.
+type CareOfferingDirectory interface {
+	ListCareOfferings(context.Context) ([]CareOfferingProjection, error)
 }
 
 func NewBookingConsistencyRepository(runtime Runtime) auditModel.BookingConsistencyRepository {
@@ -24,6 +44,11 @@ func NewBookingConsistencyRepository(runtime Runtime) auditModel.BookingConsiste
 // alumnus exclusion through (#2662).
 func (r *bookingConsistencyRepository) BindStudentDirectory(students StudentDirectory) {
 	r.students = students
+}
+
+// BindCarePlan installs the owner projection used by the cross-domain audit.
+func (r *bookingConsistencyRepository) BindCarePlan(capability CareOfferingDirectory) {
+	r.carePlan = capability
 }
 
 // Audit checks approved booking windows for missing pickup projections and
@@ -52,11 +77,21 @@ func (r *bookingConsistencyRepository) Audit(
 	if err != nil {
 		return nil, err
 	}
+	offerings, err := r.careOfferingProjection(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	report := &auditModel.BookingConsistencyReport{}
 	err = runtimeDB(ctx, r.runtime).NewRaw(`
 WITH params AS (
 	SELECT ?::bigint AS tenant_id, ?::date AS audit_date, ?::bigint[] AS alumni_student_ids
+), care_offerings AS (
+	SELECT * FROM jsonb_to_recordset(?::jsonb) AS offering(
+		id bigint, tenant_id bigint, phase_id bigint, days_of_week_mode text,
+		available_days jsonb, is_active boolean, is_required boolean,
+		counts_as_care boolean, pickup_times jsonb
+	)
 ), audit_dates AS (
 	SELECT (params.audit_date + day_offset.day)::date AS date
 	FROM params
@@ -89,7 +124,7 @@ WITH params AS (
 	INNER JOIN enrollment.request_child_offerings AS link
 		ON link.request_child_id = approved_students.request_child_id
 	INNER JOIN params ON params.tenant_id = link.tenant_id
-	INNER JOIN enrollment.care_offerings AS care_offering
+	INNER JOIN care_offerings AS care_offering
 		ON care_offering.tenant_id = link.tenant_id
 		AND care_offering.id = link.care_offering_id
 		AND care_offering.phase_id = approved_students.phase_id
@@ -142,7 +177,7 @@ WITH params AS (
 		phase.care_offering_selection_mode,
 		EXISTS (
 			SELECT 1
-			FROM enrollment.care_offerings AS required_offering
+			FROM care_offerings AS required_offering
 			WHERE required_offering.tenant_id = phase.tenant_id
 				AND required_offering.phase_id = phase.id
 				AND required_offering.is_active = TRUE
@@ -163,7 +198,7 @@ WITH params AS (
 		) AS missing_required_offering,
 		EXISTS (
 			SELECT 1
-			FROM enrollment.care_offerings AS care_offering
+			FROM care_offerings AS care_offering
 			WHERE care_offering.tenant_id = phase.tenant_id
 				AND care_offering.phase_id = phase.id
 				AND care_offering.is_active = TRUE
@@ -214,11 +249,26 @@ SELECT
 			AND NOT missing_required_offering
 			AND NOT has_choosable_offering)::int AS approved_without_optional_offering
 FROM params
-`, tenantID, auditDate, pgdialect.Array(alumni)).Scan(ctx, report)
+`, tenantID, auditDate, pgdialect.Array(alumni), offerings).Scan(ctx, report)
 	if err != nil {
 		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
 	}
 	return report, nil
+}
+
+func (r *bookingConsistencyRepository) careOfferingProjection(ctx context.Context) (string, error) {
+	if r.carePlan == nil {
+		return "", errors.New("booking consistency audit requires the Care Plan capability")
+	}
+	offerings, err := r.carePlan.ListCareOfferings(ctx)
+	if err != nil {
+		return "", fmt.Errorf("list care offerings for booking consistency audit: %w", err)
+	}
+	encoded, err := json.Marshal(offerings)
+	if err != nil {
+		return "", fmt.Errorf("encode care offerings for booking consistency audit: %w", err)
+	}
+	return string(encoded), nil
 }
 
 // approvedAlumniStudentIDs names the graduates among the tenant's approved

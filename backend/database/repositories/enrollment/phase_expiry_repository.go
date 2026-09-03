@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -18,6 +19,22 @@ var errPhaseExpiryTenantRequired = errors.New("phase expiry report requires a te
 type PhaseExpiryRepository struct {
 	db       *bun.DB
 	students StudentDirectory
+	carePlan CareOfferingDirectory
+}
+
+// CareOfferingProjection is the narrow owner data used by phase-expiry reports.
+type CareOfferingProjection struct {
+	ID             int64    `json:"id"`
+	TenantID       int64    `json:"tenant_id"`
+	PhaseID        int64    `json:"phase_id"`
+	DaysOfWeekMode string   `json:"days_of_week_mode"`
+	AvailableDays  []string `json:"available_days"`
+	IsActive       bool     `json:"is_active"`
+}
+
+// CareOfferingDirectory supplies the current tenant's care offerings.
+type CareOfferingDirectory interface {
+	ListCareOfferings(context.Context) ([]CareOfferingProjection, error)
 }
 
 func NewPhaseExpiryRepository(db *bun.DB) enrollmentModels.PhaseExpiryRepository {
@@ -28,6 +45,10 @@ func NewPhaseExpiryRepository(db *bun.DB) enrollmentModels.PhaseExpiryRepository
 // children's lifecycle status and care windows through (#2662).
 func (r *PhaseExpiryRepository) BindStudentDirectory(students StudentDirectory) {
 	r.students = students
+}
+
+func (r *PhaseExpiryRepository) BindCarePlan(capability CareOfferingDirectory) {
+	r.carePlan = capability
 }
 
 // directoryStudentArrays projects the tenant's non-alumni students into the
@@ -73,9 +94,13 @@ func (r *PhaseExpiryRepository) ListSnapshots(
 	if err != nil {
 		return nil, err
 	}
+	offerings, err := r.careOfferingProjection(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	var rows []*enrollmentModels.PhaseExpirySnapshot
-	err = base.GetDB(ctx, r.db).NewRaw(phaseExpiryQuery, tenantID, asOf, warningThrough,
+	err = base.GetDB(ctx, r.db).NewRaw(phaseExpiryQuery, tenantID, asOf, warningThrough, offerings,
 		pgdialect.Array(ids), pgdialect.Array(statuses), pgdialect.Array(enrolledFrom), pgdialect.Array(enrolledUntil),
 	).Scan(ctx, &rows)
 	if err != nil {
@@ -84,12 +109,33 @@ func (r *PhaseExpiryRepository) ListSnapshots(
 	return rows, nil
 }
 
+func (r *PhaseExpiryRepository) careOfferingProjection(ctx context.Context) (string, error) {
+	if r.carePlan == nil {
+		return "", errors.New("phase expiry report requires the Care Plan capability")
+	}
+	offerings, err := r.carePlan.ListCareOfferings(ctx)
+	if err != nil {
+		return "", fmt.Errorf("list care offerings for phase expiry report: %w", err)
+	}
+	encoded, err := json.Marshal(offerings)
+	if err != nil {
+		return "", fmt.Errorf("encode care offerings for phase expiry report: %w", err)
+	}
+	return string(encoded), nil
+}
+
 const phaseExpiryQuery = `
 WITH report_parameters AS (
     SELECT
         ?::bigint AS tenant_id,
         ?::date AS as_of,
         ?::date AS warning_through
+),
+care_offerings AS (
+    SELECT * FROM jsonb_to_recordset(?::jsonb) AS offering(
+        id bigint, tenant_id bigint, phase_id bigint, days_of_week_mode text,
+        available_days jsonb, is_active boolean
+    )
 ),
 -- The tenant's non-alumni students as the People Directory projects them
 -- (#2662): users.students belongs to that owner, so the report receives the
@@ -126,7 +172,7 @@ effective_source_bookings AS (
     JOIN enrollment.request_child_offerings AS child_offering
       ON child_offering.tenant_id = request_child.tenant_id
      AND child_offering.request_child_id = request_child.id
-    JOIN enrollment.care_offerings AS care_offering
+    JOIN care_offerings AS care_offering
       ON care_offering.tenant_id = child_offering.tenant_id
      AND care_offering.id = child_offering.care_offering_id
      AND care_offering.phase_id = source_phase.id
@@ -314,7 +360,7 @@ SELECT
                             AND EXISTS (
                                 SELECT 1
                                 FROM enrollment.request_child_offerings AS target_child_offering
-                                JOIN enrollment.care_offerings AS target_offering
+                                JOIN care_offerings AS target_offering
                                   ON target_offering.tenant_id = target_child_offering.tenant_id
                                  AND target_offering.id = target_child_offering.care_offering_id
                                  AND target_offering.phase_id = phase.successor_phase_id

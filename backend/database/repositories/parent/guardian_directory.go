@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/uptrace/bun"
 )
 
 // DirectoryGuardianLink is the People Directory projection of one
@@ -64,9 +61,9 @@ func guardianLinksByAccount(ctx context.Context, directory GuardianDirectory, ac
 // auth.account_tenants mapping at. The membership is the only safe scope
 // for a cross-tenant parent read; a deactivated mapping hides the school's
 // rows even when guardian links linger.
-func activeMappingTenants(ctx context.Context, db *bun.DB, accountID int64) (map[int64]struct{}, error) {
+func activeMappingTenants(ctx context.Context, runtime Runtime, accountID int64) (map[int64]struct{}, error) {
 	var tenantIDs []int64
-	err := base.GetDB(ctx, db).NewRaw(`
+	err := runtimeDB(ctx, runtime).NewRaw(`
 		SELECT at.tenant_id AS tenant_id
 		FROM auth.account_tenants AS at
 		WHERE at.account_id = ?
@@ -84,8 +81,8 @@ func activeMappingTenants(ctx context.Context, db *bun.DB, accountID int64) (map
 
 // activeGuardianLinks returns the account's guardian links at the tenants
 // where it holds an ACTIVE mapping, in directory order (tenant, student).
-func activeGuardianLinks(ctx context.Context, db *bun.DB, directory GuardianDirectory, accountID int64) ([]DirectoryGuardianLink, error) {
-	tenants, err := activeMappingTenants(ctx, db, accountID)
+func activeGuardianLinks(ctx context.Context, runtime Runtime, directory GuardianDirectory, accountID int64) ([]DirectoryGuardianLink, error) {
+	tenants, err := activeMappingTenants(ctx, runtime, accountID)
 	if err != nil {
 		return nil, err
 	}
