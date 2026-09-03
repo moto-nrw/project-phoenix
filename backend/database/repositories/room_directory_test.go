@@ -16,6 +16,25 @@ func TestBindFacilitiesRequiresCapability(t *testing.T) {
 	assert.Panics(t, func() { (&repositories.Factory{}).BindFacilities(nil) })
 }
 
+func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	repos := repositories.NewSessionCleanupRepositories(db)
+	room := testpkg.CreateTestRoom(t, db, "Igelraum")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
+	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+
+	err := testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
+		groups, err := repos.Group.FindByIDs(ctx, []int64{group.ID})
+		require.NoError(t, err)
+		require.NotNil(t, groups[group.ID].Room)
+		assert.Equal(t, room.Name, groups[group.ID].Room.Name)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 // The active group, visit, education group and device reads used to join
 // facilities.rooms themselves. After the cutover (#2665) the factory binds
 // the room owner into every one of them, so a bare NewFactory graph resolves
