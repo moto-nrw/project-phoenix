@@ -166,13 +166,14 @@ func TestNamedCarePlanReadFailuresAreObservedAndNotSwallowed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	observations := make([]Observation, 0, 4)
 	module := buildModule(t, db, func(observation Observation) { observations = append(observations, observation) })
+	student := testpkg.CreateTestStudent(t, db, "Read", "Failure", "1a")
 	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
 	cancel()
 
-	_, exitErr := module.FindCareExits(ctx, []int64{1})
-	_, removalErr := module.ListCareExitRemovals(ctx, []int64{1})
-	_, sourceErr := module.ListCareExitSourceRemovals(ctx, []int64{1})
-	_, companionErr := module.ListCompanionEdges(ctx, 1)
+	_, exitErr := module.FindCareExits(ctx, []int64{student.ID})
+	_, removalErr := module.ListCareExitRemovals(ctx, []int64{student.ID})
+	_, sourceErr := module.ListCareExitSourceRemovals(ctx, []int64{student.ID})
+	_, companionErr := module.ListCompanionEdges(ctx, student.ID)
 
 	for _, err := range []error{exitErr, removalErr, sourceErr, companionErr} {
 		require.ErrorIs(t, err, context.Canceled)
