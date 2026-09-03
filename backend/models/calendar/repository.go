@@ -70,6 +70,9 @@ type AppointmentRecipientRepository interface {
 	FindByID(ctx context.Context, id int64) (*AppointmentRecipient, error)
 	ReplaceForAppointment(ctx context.Context, appointmentID int64, recipients []*AppointmentRecipient) error
 	FindByAppointmentID(ctx context.Context, appointmentID int64) ([]*AppointmentRecipient, error)
+	// FindByAppointmentIDs returns the recipients of every listed appointment
+	// in one read, grouped by AppointmentID on the caller's side (#2940).
+	FindByAppointmentIDs(ctx context.Context, appointmentIDs []int64) ([]*AppointmentRecipient, error)
 	UpdateResponse(ctx context.Context, recipientID int64, status string) error
 	// ClaimReminderPush records the one push delivery allowed for an appointment
 	// revision, occurrence, and guardian. It returns false when a prior scheduler
