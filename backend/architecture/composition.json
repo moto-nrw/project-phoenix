@@ -16841,7 +16841,7 @@
     {
       "scope": "test",
       "file": "api/class_list_entries_composition_test.go",
-      "declaration": "setupClassListEntriesComposition",
+      "declaration": "setupClassListEntriesRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
         29

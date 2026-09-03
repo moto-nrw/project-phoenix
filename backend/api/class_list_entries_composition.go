@@ -34,12 +34,18 @@ func newClassListEntriesResource(module schoolMembershipModule.Query, svc *servi
 		Success:         apiCommon.Respond,
 		Failure:         renderClassListEntryFailure,
 		ObserveResponse: observability.ObserveSchoolMembershipHTTPResponse,
+		// WriteFailure both renders and observes: the adapter cannot know
+		// which status the classifier produces. Adapter-classified failures
+		// go through Failure, which only renders, and are observed by the
+		// adapter itself.
 		WriteFailure: func(w http.ResponseWriter, r *http.Request, err error) {
 			kind, rendered := services.ClassifyClassListEntryFailure(err)
 			if kind == services.StaffFailureInternal {
 				logger.Error("class list entries: request failed", "error", err.Error())
 			}
-			renderClassListEntryFailure(w, r, classListEntryFailureKind(kind), rendered)
+			httpKind := classListEntryFailureKind(kind)
+			observability.ObserveSchoolMembershipHTTPResponse(classListHTTP.StatusOf(httpKind), string(httpKind))
+			renderClassListEntryFailure(w, r, httpKind, rendered)
 		},
 		CurrentAccountID: func(ctx context.Context) int64 { return int64(jwt.ClaimsFromCtx(ctx).ID) },
 
@@ -76,9 +82,9 @@ func classListEntryFailureKind(kind services.StaffFailureKind) classListHTTP.Fai
 }
 
 // renderClassListEntryFailure writes the shared error shape for a classified
-// failure and records the response like every other membership response.
+// failure. It does not observe: the adapter records failures it classifies
+// itself, WriteFailure records the delegated ones.
 func renderClassListEntryFailure(w http.ResponseWriter, r *http.Request, kind classListHTTP.FailureKind, err error) {
-	observability.ObserveSchoolMembershipHTTPResponse(classListHTTP.StatusOf(kind), string(kind))
 	switch kind {
 	case classListHTTP.FailureInvalidRequest:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))

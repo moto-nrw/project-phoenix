@@ -14,7 +14,7 @@ var (
 	ErrGuestStaffConflict      = errors.New("staff member already has a guest record")
 	ErrPersonnelNumberConflict = errors.New("personnel number is already assigned")
 	ErrClassListEntryNotFound  = errors.New("class list entry not found")
-	ErrClassListEntryDuplicate = errors.New("class list entry already exists in this class")
+	ErrClassListEntryDuplicate = errors.New("class list entry name and class are taken")
 )
 
 type Staff struct {

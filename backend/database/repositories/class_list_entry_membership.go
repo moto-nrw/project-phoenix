@@ -120,32 +120,15 @@ func (r classListEntryMembershipRepository) Delete(ctx context.Context, id any) 
 	return classListEntryError("delete class list entry", err)
 }
 
-// List keeps the legacy equality-filter shape for the keys real callers pass;
-// anything else is an explicit error instead of a silently ignored filter.
+// List serves the one shape real callers use, the unfiltered listing; an
+// equality filter is an explicit error instead of a silently ignored one.
 func (r classListEntryMembershipRepository) List(ctx context.Context, filters map[string]any) ([]*userModels.ClassListEntry, error) {
-	filter := schoolmembership.ClassListEntryFilter{}
 	for field, value := range filters {
-		if value == nil {
-			continue
-		}
-		switch field {
-		case "id":
-			id, err := membershipID(value)
-			if err != nil {
-				return nil, usersRepo.WrapError("list class list entries", err)
-			}
-			filter.IDs = append(filter.IDs, id)
-		case "school_class":
-			schoolClass, ok := value.(string)
-			if !ok {
-				return nil, usersRepo.WrapError("list class list entries", fmt.Errorf("unsupported school_class filter %T", value))
-			}
-			filter.SchoolClass = schoolClass
-		default:
+		if value != nil {
 			return nil, usersRepo.WrapError("list class list entries", fmt.Errorf("unsupported class list entry filter %q", field))
 		}
 	}
-	values, err := r.membership.ListClassListEntries(ctx, filter)
+	values, err := r.membership.ListClassListEntries(ctx, schoolmembership.ClassListEntryFilter{})
 	if err != nil {
 		return nil, classListEntryError("list class list entries", err)
 	}

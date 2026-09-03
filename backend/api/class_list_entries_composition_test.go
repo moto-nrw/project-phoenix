@@ -24,7 +24,7 @@ import (
 // JWT identity and the legacy audited write flows. They keep the contract the
 // former api/classlistentries router tests pinned (#2382).
 
-func setupClassListEntriesComposition(t *testing.T) (*testpkg.DB, chi.Router) {
+func setupClassListEntriesRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
 	db, svc := testutil.SetupAPITest(t)
 	membership, err := repositories.NewSchoolMembership(db)
@@ -40,7 +40,7 @@ func classListEntryClaims(t *testing.T, db *testpkg.DB, prefix string) jwt.AppCl
 
 func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	t.Parallel()
-	db, router := setupClassListEntriesComposition(t)
+	db, router := setupClassListEntriesRoute(t)
 	claims := classListEntryClaims(t, db, "cle-api")
 	className := fmt.Sprintf("cle%d", time.Now().UnixNano()%100000)
 
@@ -119,7 +119,7 @@ func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 // trims and rejects them before the flow runs (#2399 review).
 func TestClassListEntriesCompositionWhitespaceOnlyIs400(t *testing.T) {
 	t.Parallel()
-	db, router := setupClassListEntriesComposition(t)
+	db, router := setupClassListEntriesRoute(t)
 	claims := classListEntryClaims(t, db, "cle-ws")
 
 	body := `{"first_name":"  ","last_name":"Aalders","school_class":"1a"}`
@@ -134,7 +134,7 @@ func TestClassListEntriesCompositionWhitespaceOnlyIs400(t *testing.T) {
 // sort numerically ("2a" before "10a"), names with German collation.
 func TestClassListEntriesCompositionKeepsTheDisplayOrder(t *testing.T) {
 	t.Parallel()
-	db, router := setupClassListEntriesComposition(t)
+	db, router := setupClassListEntriesRoute(t)
 	claims := classListEntryClaims(t, db, "cle-order")
 	stamp := time.Now().UnixNano() % 100000
 
