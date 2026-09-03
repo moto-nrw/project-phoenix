@@ -97,7 +97,7 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Hüllen tiefer (Seitenhülle um Kennzahlen und Tabelle, `DataTable` um
    ihre Fläche) — jede Hülle dazwischen muss selbst eine Flex-Spalte sein
    (`flex flex-col`, bei `hidden lg:block` also `hidden lg:flex
-   lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
+lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
    Gitter und Anklickbares (`TileCard`) wachsen nie. Eine Seite, deren
    letzter Block nicht wächst, verpackt ihn zu tief — nicht mit `min-h-*`
    nachhelfen, die Hülle abbauen.
@@ -168,10 +168,10 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
     neben einem 40er in derselben Zeile.
 18. **Höchstens EIN Bedienband in der Kopfkarte.** Titel und Statuszeile
     sind Text; darunter steht GENAU EINE interaktive Zeile (Suche + Filter
-    + eine Aktion, oder das Planungsband). Die Kontextzeile der
-    `PlanningContextBar` ist die benannte Ausnahme für Werkzeugflächen
-    (Wochenleiste) — in `text-sm`, nie als Kleingedrucktes, und nie als
-    dritte Zeile mit weiteren Bedienelementen.
+    - eine Aktion, oder das Planungsband). Die Kontextzeile der
+      `PlanningContextBar` ist die benannte Ausnahme für Werkzeugflächen
+      (Wochenleiste) — in `text-sm`, nie als Kleingedrucktes, und nie als
+      dritte Zeile mit weiteren Bedienelementen.
 
 ## Unter `sm`: dieselbe Reihenfolge, andere Fläche
 
@@ -179,12 +179,14 @@ Auf dem Telefon gilt dasselbe Gerüst mit derselben Reihenfolge, aber ohne
 die Kosten einer Desktop-Karte in einer 390-px-Spalte. Das entscheidet
 `TenantPage` und das Kit, nie die Seite:
 
-- **Kein Kopf als Karte.** Statuszeile, Aktionen, Reiter und Suche stehen
-  flach unter der Kopfzeile der Shell (kein Rahmen, kein Schatten, kein
-  Innenrand); der Zurück-Knopf steht mit darin. Der Seitenname steht mobil nur in der Kopfzeile;
-  das `h1` bleibt für Screenreader (`sr-only`). Unterseiten mit `back` und
-  Objektseiten mit `leading` behalten ihren Titel, weil die Kopfzeile dort
-  nur den Bereich nennt.
+- **Der Kopf bleibt eine Karte.** Titel, Statuszeile, Aktionen, Reiter und
+  Suche stehen auch auf dem Telefon in der weißen Kopfkarte
+  (`moto-content-surface`, Rahmen, Schatten), nur mit engerem Innenrand
+  (`max-sm:p-4`); der Zurück-Knopf steht mit darin. Schrift direkt auf dem
+  Punktmuster ist ausgeschlossen: eine transparente oder rahmenlose Kopfzeile
+  unter `sm` war zweimal eine Zwischenfassung und wurde beide Male
+  zurückgenommen (30.08. und 03.09.2026). Der Seitenname steht mobil im
+  `h1` der Karte, weil die Shell dort keine Kopfzeile hat.
 - **Aktionen**: eine Aktion steht neben der Statuszeile. Ab zwei Aktionen
   bleiben Symbolknöpfe (`data-icon-only`: Kebab, `Button size="icon"`,
   schwebender Anlegen-Knopf) neben der Statuszeile, jeder Textknopf bekommt

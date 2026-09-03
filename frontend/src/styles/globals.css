@@ -515,19 +515,6 @@
   z-index: 60;
 }
 
-/* Die Tenant-Kopfkarte ist auf dem Telefon Teil des Seitenhintergrunds. Diese
-   Regel muss ungeschichtet bleiben, weil auch `.moto-content-surface`
-   ungeschichtet ist und deshalb Tailwind-Utilities überstimmt. */
-@media (max-width: 639px) {
-  .moto-tenant-page-header {
-    border-color: transparent;
-    background: transparent;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-}
-
 /* Rumpf einer Tenant-Seite (`TenantPage`): der Inhalt füllt die Höhe des
    Bildschirms. Die letzte Fläche aus dem Kit wächst bis zur Unterkante --
    direkt im Rumpf (Leerzustand, eine `SectionCard`) oder eine Ebene tiefer,

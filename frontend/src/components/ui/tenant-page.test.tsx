@@ -33,19 +33,25 @@ describe("TenantPage", () => {
     expect(screen.getByText("Inhalt")).toBeInTheDocument();
   });
 
-  it("rendert die Kopfzeile auf Mobilgeräten ohne Kartenrahmen", () => {
+  it("bleibt auf dem Telefon eine Karte mit engerem Innenrand", () => {
     const { container } = render(
       <TenantPage title="Kinder">
         <p>Inhalt</p>
       </TenantPage>,
     );
 
-    expect(container.querySelector("header")).toHaveClass(
-      "max-sm:rounded-none",
-      "max-sm:border-0",
+    const header = container.querySelector("header");
+    expect(header).toHaveClass(
+      "moto-content-surface",
+      "rounded-2xl",
+      "border",
+      "shadow-sm",
+      "max-sm:p-4",
+    );
+    expect(header).not.toHaveClass(
       "max-sm:bg-transparent",
+      "max-sm:border-0",
       "max-sm:p-0",
-      "max-sm:shadow-none",
     );
   });
 
