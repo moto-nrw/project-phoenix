@@ -2,15 +2,16 @@
 
 // Dialog der Klassenansicht in moto schule (#2970): die Lehrkraft trägt für
 // eine ihrer Klassen die Tagesausnahme ein, die die OGS in der Kindersuche
-// setzt (#2962). Der Baustein ist derselbe, die Datenquelle sind die
-// /school-Routen, und Rückmeldungen stehen im Dialog statt als Toast: das
-// Schul-Portal hat keine Toast-Leiste.
+// setzt (#2962). Der Baustein ist derselbe wie in der Kindersuche
+// (components/students), nur die Datenquelle sind die /school-Routen, und
+// Rückmeldungen stehen im Dialog statt als Toast: das Schul-Portal hat keine
+// Toast-Leiste.
 
 import { useCallback, useMemo, useState } from "react";
 import {
   type ClassArrivalExceptionApi,
   ClassArrivalExceptionPanel,
-} from "~/components/class-arrival/class-arrival-exception-panel";
+} from "~/components/students/class-arrival-exception-panel";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
@@ -95,6 +96,7 @@ export function ClassArrivalExceptionDialog({
             notify={notify}
             onChanged={onChanged}
             defaultDate={defaultDate}
+            readOnlyHint="Die OGS hat das Eintragen für die Schule nicht mehr freigegeben."
             originLabel={(exception) =>
               exception.origin === "school" ? null : "Eingetragen von der OGS"
             }

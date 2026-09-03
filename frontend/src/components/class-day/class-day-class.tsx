@@ -24,6 +24,7 @@ import type { ClassDayClasses } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { normalizeSchoolClass } from "~/lib/timetable-helpers";
 import { ClassArrivalExceptionDialog } from "./class-arrival-exception-dialog";
 import { countDayChanges } from "./day-changes";
 import {
@@ -121,8 +122,17 @@ export function ClassDayClass({
     },
     { revalidateOnFocus: false },
   );
+  // Das Flag allein sagt nur, dass die Schule schreiben darf. Der Knopf und
+  // der Dialog erscheinen nur für eine Klasse, die der Lehrkraft zugewiesen
+  // ist (gleicher Vergleich wie das Backend, schoolclass.Normalize): für eine
+  // fremde Klasse aus einer alten Adresse würde jeder Versuch mit 403 enden.
+  const isAssignedClass =
+    classes?.classes.some(
+      (klass) =>
+        normalizeSchoolClass(klass) === normalizeSchoolClass(schoolClass),
+    ) === true;
   const canWriteArrivalException =
-    classes?.can_write_arrival_exception === true;
+    classes?.can_write_arrival_exception === true && isAssignedClass;
 
   const {
     data: report,

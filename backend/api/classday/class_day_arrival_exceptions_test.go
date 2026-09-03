@@ -68,11 +68,8 @@ func setupArrivalExceptionFixture(t *testing.T) *arrivalExceptionFixture {
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("ae%d", time.Now().UnixNano()%100000)
-	assignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
+	_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
 	_ = testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(testpkg.Ctx(t))
-	})
 
 	return &arrivalExceptionFixture{
 		db:       db,

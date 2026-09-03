@@ -44,11 +44,8 @@ func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", fmt.Sprintf("Scope-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("sc%d", time.Now().UnixNano()%100000)
-	assignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
+	_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
 	_ = testpkg.CreateTestStudent(t, db, "Scope", "Kind", className)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(testpkg.Ctx(t))
-	})
 	router := resource.Router()
 
 	// A fixed future Monday: the service refuses past dates and weekends,

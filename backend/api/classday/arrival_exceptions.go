@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
 // Class-wide arrival day exceptions through "moto schule" (#2970): the same
@@ -184,6 +185,32 @@ func (rs *Resource) requireArrivalExceptionWrite(w http.ResponseWriter, r *http.
 	return rs.requireAssignedClass(w, r, requested)
 }
 
+// requireCurrentStaffID resolves the caller's users.staff row, which becomes
+// created_by of the entry (every school-portal account has one,
+// EnsureSchoolIdentity). An account without one is refused with 403: the
+// entry would be attributed to nobody. Any other failure of the lookup is a
+// server error, not a missing record — the caller must not be told to fix
+// their account for a database outage.
+func (rs *Resource) requireCurrentStaffID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+	switch {
+	case errors.Is(err, usercontextSvc.ErrUserNotLinkedToStaff),
+		errors.Is(err, usercontextSvc.ErrUserNotLinkedToPerson):
+		common.RenderError(w, r, common.ErrorForbidden(ErrStaffRecordRequired))
+		return 0, false
+	case err != nil:
+		rs.getLogger().Error("class day: load current staff failed",
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return 0, false
+	case staff == nil:
+		common.RenderError(w, r, common.ErrorForbidden(ErrStaffRecordRequired))
+		return 0, false
+	}
+	return staff.ID, true
+}
+
 func parseArrivalExceptionDate(w http.ResponseWriter, r *http.Request, raw string) (timezone.Date, bool) {
 	date, err := timezone.ParseDate(strings.TrimSpace(raw))
 	if err != nil {
@@ -268,12 +295,8 @@ func (rs *Resource) putArrivalException(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	// created_by is the Lehrkraft's staff row (every school-portal account
-	// has one, EnsureSchoolIdentity); without it the entry would be
-	// attributed to nobody, so the write is refused.
-	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-	if err != nil || staff == nil {
-		common.RenderError(w, r, common.ErrorForbidden(ErrStaffRecordRequired))
+	staffID, ok := rs.requireCurrentStaffID(w, r)
+	if !ok {
 		return
 	}
 	arrivalTime, _ := time.Parse("15:04", req.ArrivalTime)
@@ -283,7 +306,7 @@ func (rs *Resource) putArrivalException(w http.ResponseWriter, r *http.Request) 
 		Date:        date,
 		ArrivalTime: arrivalTime,
 		Reason:      req.Reason,
-		CreatedBy:   staff.ID,
+		CreatedBy:   staffID,
 	})
 	if err != nil {
 		common.RenderError(w, r, arrivalExceptionErrorRenderer(err))

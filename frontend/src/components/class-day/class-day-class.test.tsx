@@ -209,6 +209,46 @@ describe("ClassDayClass", () => {
     ).toBeInTheDocument();
   });
 
+  it("stays read-only for a class the teacher is not assigned to", async () => {
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(report())}
+        fetchClasses={() =>
+          Promise.resolve({
+            classes: ["3b"],
+            can_write_arrival_exception: true,
+          })
+        }
+      />,
+    );
+
+    expect(await screen.findByText("Klassentag, Klara")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Ankunft/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("matches the assigned class like the backend, ignoring case and spaces", async () => {
+    render(
+      <ClassDayClass
+        schoolClass="4A"
+        fetchClassDay={() => Promise.resolve(report())}
+        fetchClasses={() =>
+          Promise.resolve({
+            classes: [" 4a"],
+            can_write_arrival_exception: true,
+          })
+        }
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Ankunft heute ändern" }),
+    ).toBeInTheDocument();
+  });
+
   it("stays read-only without a classes fetcher", async () => {
     render(
       <ClassDayClass
