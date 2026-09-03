@@ -130,7 +130,7 @@ func buildTemplateModule(t *testing.T, mat scheduleSvc.MaterializationService, c
 	res := NewResource(Dependencies{
 		TimetableData: testTimetableData(db, clocks...),
 		CalendarPeriodService: scheduleSvc.NewCalendarPeriodServiceWithConfig(scheduleSvc.CalendarPeriodServiceConfig{
-			Repo: scheduleRepo.NewCalendarPeriodRepository(db),
+			Repo: repoFactory.CalendarPeriod,
 		}),
 		MaterializationService: mat,
 		InstanceService:        serviceFactory.Instance,
