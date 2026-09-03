@@ -29,9 +29,3 @@ func TestIsWCRoomName(t *testing.T) {
 		})
 	}
 }
-
-func TestIsSystemRoomName_AcceptsToiletteAlias(t *testing.T) {
-	t.Parallel()
-
-	assert.True(t, IsSystemRoomName(WCRoomAliasName))
-}

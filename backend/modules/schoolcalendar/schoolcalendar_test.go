@@ -87,6 +87,19 @@ func (e *recordingEngine) UpdateDateframe(context.Context, UpdateDateframe) (Dat
 }
 
 func (e *recordingEngine) DeleteDateframe(context.Context, int64) error { e.calls++; return nil }
+func (e *recordingEngine) ValidHolidayRegion(string) bool               { return true }
+func (e *recordingEngine) ListHolidays(context.Context, string, string, string) ([]Holiday, error) {
+	e.calls++
+	return nil, nil
+}
+func (e *recordingEngine) HolidayDates(context.Context, string, string, string) (map[string]bool, error) {
+	e.calls++
+	return nil, nil
+}
+func (e *recordingEngine) RenderCalendar(context.Context, string, []CalendarEvent) (string, error) {
+	e.calls++
+	return "calendar", nil
+}
 
 func validPeriod() CalendarPeriodFields {
 	return CalendarPeriodFields{
@@ -98,6 +111,25 @@ func validPeriod() CalendarPeriodFields {
 func TestNewModuleRequiresAnEngine(t *testing.T) {
 	t.Parallel()
 	assert.Panics(t, func() { NewModule(nil) })
+}
+
+func TestHolidayWindowValidationRunsBeforeTheEngine(t *testing.T) {
+	t.Parallel()
+
+	for name, dates := range map[string][2]string{
+		"missing dates": {"", ""},
+		"missing end":   {"2026-06-01", ""},
+		"invalid date":  {"01.06.2026", "2026-06-02"},
+		"reverse range": {"2026-06-02", "2026-06-01"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			engine := &recordingEngine{}
+			_, err := NewModule(engine).ListHolidays(context.Background(), "DE-NW", dates[0], dates[1])
+			require.ErrorIs(t, err, ErrInvalidHolidayRange)
+			assert.Zero(t, engine.calls)
+		})
+	}
 }
 
 func TestCalendarPeriodValidationMirrorsTheLegacyRules(t *testing.T) {

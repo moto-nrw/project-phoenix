@@ -106,11 +106,12 @@ type Config struct {
 	// RoomRepo resolves room names for timetable events in one batch per
 	// window (#2078). Optional: nil leaves Location empty instead of failing
 	// the whole calendar, mirroring StaffShiftRepo/ShiftTypeRepo below.
-	RoomRepo       facilitiesModels.RoomRepository
-	StaffShiftRepo scheduleModels.StaffShiftRepository
-	ShiftTypeRepo  scheduleModels.ShiftTypeRepository
-	UserContext    usercontext.UserContextService
-	DB             *bun.DB
+	RoomRepo         facilitiesModels.RoomRepository
+	StaffShiftRepo   scheduleModels.StaffShiftRepository
+	ShiftTypeRepo    scheduleModels.ShiftTypeRepository
+	UserContext      usercontext.UserContextService
+	DB               *bun.DB
+	CalendarRenderer CalendarRenderer
 
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
 	// calendar is unaffected).
@@ -138,6 +139,37 @@ type Config struct {
 	// Logger is nil-safe (see service.logger()); notification dispatch is
 	// fire-and-forget and reports its failures here instead of to the caller.
 	Logger *slog.Logger
+}
+
+type CalendarRecurrence struct {
+	Frequency string
+	Interval  int
+	Weekdays  []string
+	MonthDays []int
+	Until     string
+	Count     *int
+}
+
+type CalendarEvent struct {
+	UID          string
+	Summary      string
+	Description  string
+	Location     string
+	StartDate    string
+	EndDate      string
+	StartClock   time.Time
+	EndClock     time.Time
+	AllDay       bool
+	Cancelled    bool
+	Sequence     int
+	Stamp        time.Time
+	LastModified time.Time
+	Recurrence   *CalendarRecurrence
+	ExDates      []string
+}
+
+type CalendarRenderer interface {
+	RenderCalendar(context.Context, string, []CalendarEvent) (string, error)
 }
 
 type service struct {
@@ -291,7 +323,7 @@ func (s *service) ListMyStaffEvents(ctx context.Context, from, to timezone.Date)
 		return nil, fmt.Errorf("%w: current staff required", ErrForbidden)
 	}
 
-	appointments, err := s.cfg.AppointmentRepo.ListVisibleForStaff(ctx, staff.ID, from, to)
+	appointments, err := s.cfg.AppointmentRepo.ListVisibleForStaff(ctx, staff.ID, toCalendarDate(from), toCalendarDate(to))
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +366,7 @@ func (s *service) ListMyParentEvents(ctx context.Context, accountID int64, from,
 		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
 			studentIDs := distinctChildStudentIDs(tenantChildren)
-			appointments, err := s.cfg.AppointmentRepo.ListVisibleForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, from, to)
+			appointments, err := s.cfg.AppointmentRepo.ListVisibleForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, toCalendarDate(from), toCalendarDate(to))
 			if err != nil {
 				return err
 			}
@@ -383,8 +415,8 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		Title:              req.Title,
 		Description:        req.Description,
 		Location:           req.Location,
-		StartDate:          req.StartDate,
-		EndDate:            req.EndDate,
+		StartDate:          toCalendarDate(req.StartDate),
+		EndDate:            toCalendarDate(req.EndDate),
 		StartTime:          timezone.NormalizeWallClock(req.StartTime),
 		EndTime:            timezone.NormalizeWallClock(req.EndTime),
 		AllDay:             req.AllDay,
@@ -562,8 +594,8 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	appointment.Title = req.Title
 	appointment.Description = req.Description
 	appointment.Location = req.Location
-	appointment.StartDate = req.StartDate
-	appointment.EndDate = req.EndDate
+	appointment.StartDate = toCalendarDate(req.StartDate)
+	appointment.EndDate = toCalendarDate(req.EndDate)
 	appointment.StartTime = timezone.NormalizeWallClock(req.StartTime)
 	appointment.EndTime = timezone.NormalizeWallClock(req.EndTime)
 	appointment.AllDay = req.AllDay
@@ -749,7 +781,7 @@ func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	// Reuse an existing override for this date (e.g. from a prior single-occurrence
 	// edit) so cancelling stays idempotent and respects the (appointment, date)
 	// uniqueness constraint.
-	existing, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{appointment.ID}, []timezone.Date{occurrenceDate})
+	existing, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{appointment.ID}, []calModels.Date{toCalendarDate(occurrenceDate)})
 	if err != nil {
 		return err
 	}
@@ -760,7 +792,7 @@ func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	// Conflict-safe upsert: a concurrent request cancelling the same occurrence
 	// converges on cancelled=true instead of one hitting the unique constraint
 	// and returning a 500.
-	if err := s.cfg.OverrideRepo.CancelOccurrence(ctx, appointment.ID, occurrenceDate); err != nil {
+	if err := s.cfg.OverrideRepo.CancelOccurrence(ctx, appointment.ID, toCalendarDate(occurrenceDate)); err != nil {
 		return err
 	}
 	// A queued create/update notice announces the appointment's first occurrence;
@@ -782,10 +814,10 @@ func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointm
 // since the series start. Only a count-bounded rule needs expansion, and that is
 // bounded by the (small) occurrence count rather than the distance to the date.
 func occurrenceExists(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, occurrenceDate timezone.Date) bool {
-	if !matchesRule(appointment.StartDate, occurrenceDate, rule) {
+	if !matchesRule(toTimezoneDate(appointment.StartDate), occurrenceDate, rule) {
 		return false
 	}
-	if rule.EndsOn != nil && occurrenceDate.After(*rule.EndsOn) {
+	if rule.EndsOn != nil && occurrenceDate.After(toTimezoneDate(*rule.EndsOn)) {
 		return false
 	}
 	if rule.OccurrenceCount == nil {
@@ -795,7 +827,7 @@ func occurrenceExists(appointment *calModels.Appointment, rule *calModels.Recurr
 	// only remaining question is whether it falls within the first N occurrences.
 	// expandOccurrences enumerates those by period (never day-by-day), so this
 	// stays cheap even for a far-future date on an old series.
-	for _, occ := range expandOccurrences(appointment, rule, appointment.StartDate, occurrenceDate) {
+	for _, occ := range expandOccurrences(appointment, rule, toTimezoneDate(appointment.StartDate), occurrenceDate) {
 		if occ == occurrenceDate {
 			return true
 		}
@@ -1166,7 +1198,7 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
 	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, from, to)
-	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, occurrenceDates)
+	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, toCalendarDates(occurrenceDates))
 	if err != nil {
 		return nil, err
 	}
@@ -1185,10 +1217,10 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 		status, recipientID := staffRecipientStatus(recipientsByAppointment[appointment.ID], staffID)
 		recurrence := recurrenceByAppointment[appointment.ID]
 		if recurrence == nil {
-			if !dateRangesOverlap(appointment.StartDate, appointment.EndDate, from, to) {
+			if !dateRangesOverlap(toTimezoneDate(appointment.StartDate), toTimezoneDate(appointment.EndDate), from, to) {
 				continue
 			}
-			event := appointmentEvent(appointment, appointment.StartDate, status, recipientID, staffID)
+			event := appointmentEvent(appointment, toTimezoneDate(appointment.StartDate), status, recipientID, staffID)
 			events = append(events, event)
 			continue
 		}
@@ -1220,7 +1252,7 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
 	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, from, to)
-	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, occurrenceDates)
+	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, toCalendarDates(occurrenceDates))
 	if err != nil {
 		return nil, err
 	}
@@ -1242,10 +1274,10 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 		}
 		recurrence := recurrenceByAppointment[appointment.ID]
 		if recurrence == nil {
-			if !dateRangesOverlap(appointment.StartDate, appointment.EndDate, from, to) {
+			if !dateRangesOverlap(toTimezoneDate(appointment.StartDate), toTimezoneDate(appointment.EndDate), from, to) {
 				continue
 			}
-			event := appointmentEvent(appointment, appointment.StartDate, status, recipientID, 0)
+			event := appointmentEvent(appointment, toTimezoneDate(appointment.StartDate), status, recipientID, 0)
 			event.CanViewOverview = canParentViewOverview(appointment, recipientID != nil)
 			events = append(events, event)
 			continue
@@ -1965,6 +1997,7 @@ func int64Set(values []int64) map[int64]struct{} {
 
 func expandOccurrences(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, from, to timezone.Date) []timezone.Date {
 	occurrences := []timezone.Date{}
+	appointmentStart := toTimezoneDate(appointment.StartDate)
 	if rule.IntervalCount <= 0 {
 		rule.IntervalCount = 1
 	}
@@ -1986,15 +2019,15 @@ func expandOccurrences(appointment *calModels.Appointment, rule *calModels.Recur
 	// occurrence that begins before `from`), never before the series start, and
 	// stop at `to` or EndsOn — whichever is earlier.
 	scanStart := from.AddDays(-span)
-	if scanStart.Before(appointment.StartDate) {
-		scanStart = appointment.StartDate
+	if scanStart.Before(appointmentStart) {
+		scanStart = appointmentStart
 	}
 	scanEnd := to
-	if rule.EndsOn != nil && rule.EndsOn.Before(scanEnd) {
-		scanEnd = *rule.EndsOn
+	if rule.EndsOn != nil && toTimezoneDate(*rule.EndsOn).Before(scanEnd) {
+		scanEnd = toTimezoneDate(*rule.EndsOn)
 	}
 	for d := scanStart; !d.After(scanEnd); d = d.AddDays(1) {
-		if matchesRule(appointment.StartDate, d, rule) &&
+		if matchesRule(appointmentStart, d, rule) &&
 			dateRangesOverlap(d, d.AddDays(span), from, to) {
 			occurrences = append(occurrences, d)
 		}
@@ -2018,10 +2051,10 @@ func boundedRecurrenceDates(appointment *calModels.Appointment, rule *calModels.
 	if interval <= 0 {
 		interval = 1
 	}
-	start := appointment.StartDate
+	start := toTimezoneDate(appointment.StartDate)
 	out := make([]timezone.Date, 0, limit)
 	past := func(d timezone.Date) bool {
-		return rule.EndsOn != nil && d.After(*rule.EndsOn)
+		return rule.EndsOn != nil && d.After(toTimezoneDate(*rule.EndsOn))
 	}
 
 	switch rule.Frequency {
@@ -2201,15 +2234,16 @@ func hasOccurrenceInWindow(appointment *calModels.Appointment, rule *calModels.R
 	// start; stop at `to` or EndsOn, whichever is earlier.
 	duration := appointment.StartDate.DaysUntil(appointment.EndDate)
 	start := from.AddDays(-duration)
-	if start.Before(appointment.StartDate) {
-		start = appointment.StartDate
+	appointmentStart := toTimezoneDate(appointment.StartDate)
+	if start.Before(appointmentStart) {
+		start = appointmentStart
 	}
 	end := to
-	if rule.EndsOn != nil && rule.EndsOn.Before(end) {
-		end = *rule.EndsOn
+	if rule.EndsOn != nil && toTimezoneDate(*rule.EndsOn).Before(end) {
+		end = toTimezoneDate(*rule.EndsOn)
 	}
 	for d := start; !d.After(end); d = d.AddDays(1) {
-		if matchesRule(appointment.StartDate, d, rule) &&
+		if matchesRule(appointmentStart, d, rule) &&
 			dateRangesOverlap(d, d.AddDays(duration), from, to) {
 			return true
 		}
@@ -2231,17 +2265,17 @@ func hasOccurrenceInWindow(appointment *calModels.Appointment, rule *calModels.R
 // (expandOccurrences) starts there, so ICS DTSTART must too.
 func firstRecurrenceOccurrence(appointment *calModels.Appointment, rule *calModels.RecurrenceRule) (timezone.Date, bool) {
 	if rule == nil {
-		return appointment.StartDate, false
+		return toTimezoneDate(appointment.StartDate), false
 	}
 	interval := rule.IntervalCount
 	if interval <= 0 {
 		interval = 1
 	}
-	first, exists := firstMatchingOccurrence(appointment.StartDate, interval, rule)
+	first, exists := firstMatchingOccurrence(toTimezoneDate(appointment.StartDate), interval, rule)
 	if !exists {
-		return appointment.StartDate, false
+		return toTimezoneDate(appointment.StartDate), false
 	}
-	if rule.EndsOn != nil && first.After(*rule.EndsOn) {
+	if rule.EndsOn != nil && first.After(toTimezoneDate(*rule.EndsOn)) {
 		return first, false
 	}
 	return first, true
@@ -2438,7 +2472,7 @@ func recurrenceRuleFromRequest(req *RecurrenceRequest) *calModels.RecurrenceRule
 		IntervalCount:   req.IntervalCount,
 		Weekdays:        normalizeWeekdays(req.Weekdays),
 		MonthDays:       req.MonthDays,
-		EndsOn:          req.EndsOn,
+		EndsOn:          toCalendarDatePtr(req.EndsOn),
 		OccurrenceCount: req.OccurrenceCount,
 	}
 	if rule.IntervalCount == 0 {

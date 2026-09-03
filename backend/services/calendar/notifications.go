@@ -116,10 +116,10 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 		return err
 	}
 	if recurrence != nil {
-		if first, ok := firstRecurrenceOccurrence(appointment, recurrence); ok && first != appointment.StartDate {
+		if first, ok := firstRecurrenceOccurrence(appointment, recurrence); ok && first != toTimezoneDate(appointment.StartDate) {
 			adjusted := *appointment
-			adjusted.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
-			adjusted.StartDate = first
+			adjusted.EndDate = toCalendarDate(first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate)))
+			adjusted.StartDate = toCalendarDate(first)
 			whenAppointment = &adjusted
 		}
 	}

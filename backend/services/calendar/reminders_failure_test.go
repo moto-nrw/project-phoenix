@@ -25,7 +25,7 @@ type failingCandidateScan struct {
 	calModels.AppointmentRepository
 }
 
-func (failingCandidateScan) ListGuardianReminderCandidates(context.Context, timezone.Date, timezone.Date) ([]*calModels.Appointment, error) {
+func (failingCandidateScan) ListGuardianReminderCandidates(context.Context, calModels.Date, calModels.Date) ([]*calModels.Appointment, error) {
 	return nil, errReminderStore
 }
 
@@ -57,7 +57,7 @@ type failingMovedOverrides struct {
 	calModels.AppointmentOccurrenceOverrideRepository
 }
 
-func (failingMovedOverrides) FindByAppointmentIDsAndStartDates(context.Context, []int64, []timezone.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
+func (failingMovedOverrides) FindByAppointmentIDsAndStartDates(context.Context, []int64, []calModels.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
 	return nil, errReminderStore
 }
 
@@ -65,7 +65,7 @@ type failingOccurrenceOverrides struct {
 	calModels.AppointmentOccurrenceOverrideRepository
 }
 
-func (failingOccurrenceOverrides) FindByAppointmentIDsAndOccurrenceDates(context.Context, []int64, []timezone.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
+func (failingOccurrenceOverrides) FindByAppointmentIDsAndOccurrenceDates(context.Context, []int64, []calModels.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
 	return nil, errReminderStore
 }
 

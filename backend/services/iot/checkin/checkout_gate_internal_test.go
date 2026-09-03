@@ -21,8 +21,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	facilityModels "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -73,7 +73,7 @@ func (m *mockFacilitiesService) FindRoomByName(_ context.Context, _ string) (*fa
 func newSchulhofFacilities(roomID int64) *mockFacilitiesService {
 	return &mockFacilitiesService{
 		room: &facilityModels.Room{
-			Model:    base.Model{ID: roomID},
+			ID:       roomID,
 			Name:     constants.SchulhofRoomName,
 			IsSystem: true,
 		},
@@ -624,7 +624,7 @@ func TestShouldShowDailyCheckoutWithGroup_NonCanonicalSchulhofRoom(t *testing.T)
 	// adopted as the yard (FindCanonicalSchulhofRoom rejects it).
 	s.facilities = &mockFacilitiesService{
 		room: &facilityModels.Room{
-			Model:    base.Model{ID: 7},
+			ID:       7,
 			Name:     constants.SchulhofRoomName,
 			IsSystem: false,
 		},

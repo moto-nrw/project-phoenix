@@ -14,7 +14,6 @@ import (
 	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
-	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
@@ -26,8 +25,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
@@ -61,7 +63,12 @@ type Factory struct {
 	carePlanBound            bool
 	schoolStructureBound     bool
 	schoolMembershipBound    bool
-	schoolCalendarBound      bool
+	facilitiesBound          bool
+	// roomBinders hand a room owner to the raw repositories that used to
+	// join facilities.rooms; kept so BindFacilities reaches them after the
+	// projections wrapped the factory fields (#2665).
+	roomBinders         []func(facilitiesModule.Query)
+	schoolCalendarBound bool
 	// schoolCalendar is the bound capability behind the calendar period,
 	// closing day and dateframe adapters (#2666).
 	schoolCalendar schoolcalendar.Capability
@@ -539,6 +546,11 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		return db, tenantID
 	}
 	parentRuntime := carePlanLegacy.NewParentRuntime(db)
+	schoolCalendarRuntime := schoolCalendarCompose.PersistenceRuntimeFor(db)
+	calendarRuntime := calendarRepo.Runtime{
+		Database: schoolCalendarRuntime.Database,
+		TenantID: schoolCalendarRuntime.TenantID,
+	}
 	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
 	accountRepo := auth.NewAccountRepository(db)
@@ -611,7 +623,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
-		Room: facilities.NewRoomRepository(db),
+		Room: facilitiesRepositoryAdapter.New(),
 
 		// Education repositories
 		Group:                 education.NewGroupRepository(db),
@@ -765,13 +777,13 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffMessage:       users.NewStaffMessageRepository(db),
 
 		// Calendar repositories
-		CalendarAppointment:               calendarRepo.NewAppointmentRepository(db),
-		CalendarRecurrenceRule:            calendarRepo.NewRecurrenceRuleRepository(db),
-		CalendarAppointmentRecipient:      calendarRepo.NewAppointmentRecipientRepository(db),
-		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(db),
-		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(db),
-		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
-		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
+		CalendarAppointment:               calendarRepo.NewAppointmentRepository(calendarRuntime),
+		CalendarRecurrenceRule:            calendarRepo.NewRecurrenceRuleRepository(calendarRuntime),
+		CalendarAppointmentRecipient:      calendarRepo.NewAppointmentRecipientRepository(calendarRuntime),
+		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(calendarRuntime),
+		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(calendarRuntime),
+		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(calendarRuntime),
+		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(calendarRuntime),
 		ParentAnnouncement:                parentAnnouncement,
 		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
 	}
@@ -779,6 +791,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)
+	factory.bindDefaultFacilities(db)
 	carePlan, err := NewCarePlan(db, factory.students)
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose care plan: %v", err))
