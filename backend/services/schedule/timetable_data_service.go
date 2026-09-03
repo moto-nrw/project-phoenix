@@ -123,10 +123,6 @@ func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instance
 	return s.deps.InstanceStudentRepo.FindByInstanceID(ctx, instanceID)
 }
 
-func (s *TimetableDataService) GetInstanceStudentsByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStudent, error) {
-	return s.deps.InstanceStudentRepo.FindByInstanceIDs(ctx, instanceIDs)
-}
-
 // InstanceRows holds the per-instance children of a list window: staff and
 // student rows keyed by instance ID, pickup cutoffs keyed by date.
 type InstanceRows struct {
