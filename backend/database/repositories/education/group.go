@@ -22,6 +22,9 @@ type GroupRepository struct {
 	// supervisionStaff resolves the raw supervision references of a group to
 	// the staff members behind them, through School Membership (#2667).
 	supervisionStaff func(ctx context.Context, pairs GroupMembershipPairs) ([]education.StaffGroupID, error)
+	// assignments resolves education.group_teacher through composition. This
+	// Postgres adapter stays independent of the sibling School Membership owner.
+	assignments func(context.Context, []int64, []int64) ([]TeacherGroupID, error)
 }
 
 // NewGroupRepository creates a new GroupRepository
@@ -88,24 +91,38 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 
 // FindByTeacher retrieves groups by their teacher ID (via group_teacher table)
 func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([]*education.Group, error) {
-	var groups []*education.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(`education.groups AS "group"`).
-		Join("JOIN education.group_teacher gt ON gt.group_id = \"group\".id").
-		Where("gt.teacher_id = ?", teacherID)
-
-	query = base.WithTenantFilter(ctx, query, "group")
-
-	err := query.Scan(ctx)
+	if r.assignments == nil {
+		return nil, errors.New("group repository resolves teacher assignments through School Membership")
+	}
+	assignments, err := r.assignments(ctx, nil, []int64{teacherID})
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by teacher",
-			Err: base.TranslateNotFound(err),
+			Err: err,
 		}
 	}
-
+	ids := make([]int64, 0, len(assignments))
+	for _, assignment := range assignments {
+		ids = append(ids, assignment.GroupID)
+	}
+	byID, err := r.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	groups := make([]*education.Group, 0, len(ids))
+	for _, id := range ids {
+		if group := byID[id]; group != nil {
+			groups = append(groups, group)
+		}
+	}
 	return groups, nil
+}
+
+func (r *GroupRepository) BindTeachingAssignments(query func(context.Context, []int64, []int64) ([]TeacherGroupID, error)) {
+	if query == nil {
+		panic("group repository: school membership is required")
+	}
+	r.assignments = query
 }
 
 // TeacherGroupID pairs a teacher profile with one education group they are
@@ -148,20 +165,17 @@ func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs
 		return pairs, nil
 	}
 
-	assignedQuery := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`education.groups AS "group"`).
-		ColumnExpr(`"gt".teacher_id AS teacher_id, "group".id AS group_id`).
-		Join(`JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
-		Where(`"group".id IN (?)`, bun.List(groupIDs))
-
-	assignedQuery = base.WithTenantFilter(ctx, assignedQuery, "group")
-
-	if err := assignedQuery.Scan(ctx, &pairs.Assigned); err != nil {
+	if r.assignments == nil {
+		return GroupMembershipPairs{}, errors.New("group repository resolves teacher assignments through School Membership")
+	}
+	assignments, err := r.assignments(ctx, groupIDs, nil)
+	if err != nil {
 		return GroupMembershipPairs{}, &modelBase.DatabaseError{
 			Op:  "list staff IDs by education group IDs (assigned)",
-			Err: base.TranslateNotFound(err),
+			Err: err,
 		}
 	}
+	pairs.Assigned = append(pairs.Assigned, assignments...)
 
 	substitutedQuery := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`education.group_substitution AS "sub"`).

@@ -7146,6 +7146,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/teaching_assignment_adapters_test.go",
+      "declaration": "TestTeachingAssignmentAdaptersPreserveLegacyContracts",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        15
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/users/care_exit_repository_test.go",
       "declaration": "TestCareExitCleanupRepository_LocksPersonImpactRows",
       "target": "database/repositories.NewFactory",
@@ -10232,8 +10242,7 @@
       "declaration": "setupClassListEntryTransitionTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37,
-        38
+        30
       ],
       "tables": []
     },
@@ -10269,7 +10278,7 @@
       "declaration": "setupGradeTransitionServiceTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        32
       ],
       "tables": []
     },

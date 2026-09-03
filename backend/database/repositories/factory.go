@@ -492,12 +492,12 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 	}
 }
 
-// BindSchoolMembership replaces the staff, teacher, guest and class-list-entry
-// adapters — and every legacy repository that used to join users.staff itself
-// — with compositions over the observed School Membership capability (#2667,
-// #2668). The
-// factory already works without it (NewFactory composes an unobserved module),
-// so this binding is about runtime evidence, not about correctness.
+// BindSchoolMembership replaces the staff, teacher, guest, class-list-entry
+// and teaching-assignment adapters — and every legacy repository that used to
+// join membership tables itself — with compositions over the observed School
+// Membership capability (#2667, #2668, #2669). The factory already works
+// without it (NewFactory composes an unobserved module), so this binding is
+// about runtime evidence, not about correctness.
 func (f *Factory) BindSchoolMembership(capability schoolmembership.Capability) {
 	if capability == nil {
 		panic("repository factory: school membership capability is required")
@@ -516,6 +516,8 @@ func (f *Factory) SchoolMembership() schoolmembership.Capability { return f.scho
 // given capability.
 func (f *Factory) bindStaffMembershipAdapters(capability schoolmembership.Capability) {
 	f.schoolMembership = capability
+	f.GroupTeacher = newGroupTeacherRepository(capability, f.Group)
+	f.ClassTeacher = newClassTeacherRepository(capability)
 	f.Staff = staffMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Teacher = teacherMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Guest = guestMembershipRepository{membership: capability}
@@ -563,6 +565,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	roleRepo := auth.NewRoleRepository(db)
 	permissionRepo := auth.NewPermissionRepository(db)
 	personRepo := users.NewPersonRepository(db)
+	studentRepo := users.NewStudentRepository(db)
+	groupRepo := education.NewGroupRepository(db)
 	factory := &Factory{
 		db: db,
 		// Auth repositories
@@ -590,7 +594,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		// Users repositories
 		Person:              personRepo,
 		RFIDCard:            auth.NewRFIDCardRepository(db),
-		Student:             users.NewStudentRepository(db),
+		Student:             studentRepo,
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
@@ -631,9 +635,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		Room: facilitiesRepositoryAdapter.New(),
 
 		// Education repositories
-		Group:                 education.NewGroupRepository(db),
-		GroupTeacher:          education.NewGroupTeacherRepository(db),
-		ClassTeacher:          education.NewClassTeacherRepository(db),
+		Group:                 groupRepo,
 		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
 		ClassArrivalException: schedule.NewClassArrivalExceptionRepository(db),
 		GroupSubstitution:     education.NewGroupSubstitutionRepository(db),
@@ -791,6 +793,30 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
 	}
 	factory.bindAppointments(appointmentsModule)
+	studentRepo.(interface {
+		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
+	}).BindTeacherGroupIDs(func(ctx context.Context, teacherID int64) ([]int64, error) {
+		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{TeacherIDs: []int64{teacherID}})
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(assignments))
+		for _, assignment := range assignments {
+			ids = append(ids, assignment.GroupID)
+		}
+		return ids, nil
+	})
+	groupRepo.(*education.GroupRepository).BindTeachingAssignments(func(ctx context.Context, groupIDs, teacherIDs []int64) ([]education.TeacherGroupID, error) {
+		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs, TeacherIDs: teacherIDs})
+		if err != nil {
+			return nil, err
+		}
+		result := make([]education.TeacherGroupID, 0, len(assignments))
+		for _, assignment := range assignments {
+			result = append(result, education.TeacherGroupID{TeacherID: assignment.TeacherID, GroupID: assignment.GroupID})
+		}
+		return result, nil
+	})
 	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
@@ -802,7 +828,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	}
 	factory.bindCarePlanAdapters(carePlan)
 	factory.membershipDeps = newStaffMembershipDeps(personRepo, accountRepo, accountTenantRepo, permissionRepo, roleRepo)
-	factory.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return factory.GroupTeacher }
 	// Staff, teachers and guests belong to School Membership. Without an
 	// explicit binding the factory composes an unobserved module so every
 	// legacy consumer — repository tests and CLI roots included — reads the
@@ -811,6 +836,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose school membership: %v", err))
 	}
+	factory.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return factory.GroupTeacher }
 	factory.bindStaffMembershipAdapters(membership)
 	// Calendar periods, closing days and dateframes belong to School
 	// Calendar; the unobserved default keeps every legacy consumer on the
