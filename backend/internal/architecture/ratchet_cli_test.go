@@ -456,6 +456,35 @@ func createGhostRecords(db rawDB) {
 	}
 }
 
+func TestCheckAllowsOwnershipForTableCreatedByExecContextMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) ExecContext(any, string, ...any) {}
+`)
+
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_create_ghost.go"), `package migrations
+
+func createGhostRecords(ctx any, db rawDB) {
+	db.ExecContext(ctx, `+"`"+`
+		CREATE TABLE ghost.records (
+			id BIGINT PRIMARY KEY
+		);
+	`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json", "database/migrations/001_create_ghost.go")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "1 legacy violation(s) remain") {
+		t.Fatalf("new table ownership with ExecContext migration was rejected: %v\n%s", err, output)
+	}
+}
+
 func TestCheckAllowsOwnershipForViewCreatedByUntrackedCandidateMigration(t *testing.T) {
 	t.Parallel()
 

@@ -124,6 +124,7 @@ const (
 	KeySessionAbandonedThresholdMin          = "operations.session_abandoned_threshold_minutes"
 	KeySessionInactivityTimeoutMin           = "operations.session_inactivity_timeout_minutes"
 	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
+	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
 	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
 	KeyStatusFlagClearTime                   = "operations.status_flag_clear_time"
 	KeySickClearMode                         = "operations.sick_clear_mode"
@@ -227,6 +228,18 @@ const (
 	// OverviewScopeAllStaff opens every educational group and running module to
 	// administrators and every verified staff member of the tenant.
 	OverviewScopeAllStaff = "all_staff"
+)
+
+// ClassArrivalExceptionEditors option values for KeyClassArrivalExceptionEditors
+// (#2962). The setting says who may set a class-wide arrival day exception;
+// everybody sees it regardless.
+const (
+	// ClassArrivalExceptionEditorsAdmins limits the write to administrators
+	// (Koordination). It is the default.
+	ClassArrivalExceptionEditorsAdmins = "admins"
+	// ClassArrivalExceptionEditorsAllStaff lets every staff member holding
+	// users:update set one.
+	ClassArrivalExceptionEditorsAllStaff = "all_staff"
 )
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The

@@ -362,6 +362,12 @@ func (rs *Resource) Router() chi.Router {
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/class-arrival-times/{schoolClass}", rs.getClassArrivalTimes)
 
+		// Class-wide arrival day exceptions (#2962). Writes additionally run
+		// through operations.class_arrival_exception_editors in the handler.
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/class-arrival-exceptions/{schoolClass}", rs.getClassArrivalExceptions)
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/class-arrival-exceptions/{schoolClass}/{date}", rs.putClassArrivalException)
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/class-arrival-exceptions/{schoolClass}/{date}", rs.deleteClassArrivalException)
+
 		// Web-based school check-in/out. Mode-agnostic (writes attendance only).
 		// The users:checkin permission is the gate; any verified staff member may
 		// toggle any student (#2329).

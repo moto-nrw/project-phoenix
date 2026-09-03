@@ -61,6 +61,11 @@ type ArrivalScheduleService interface {
 	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
 	BulkUpsertArrivalSchedules(ctx context.Context, filter ArrivalScheduleBulkFilter, schedules []ArrivalScheduleInput, createdBy int64) (*BulkUpsertResult, error)
 	GetClassArrivalTimes(ctx context.Context, schoolClass string) (*ClassArrivalTimes, error)
+
+	// Class-wide arrival day exceptions (#2962).
+	ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to timezone.Date) ([]*schedule.ClassArrivalException, error)
+	UpsertClassArrivalException(ctx context.Context, input ClassArrivalExceptionInput, createdBy int64) (*schedule.ClassArrivalException, error)
+	DeleteClassArrivalException(ctx context.Context, schoolClass string, date timezone.Date) error
 }
 
 type StudentArrivalData struct {
@@ -84,6 +89,19 @@ type EffectiveArrivalTime struct {
 	// ChangedAt is when the overriding day exception was recorded; set only
 	// together with IsException.
 	ChangedAt *time.Time `json:"changed_at,omitempty"`
+	// ClassException names the class-wide day exception the time comes from
+	// (#2962). Nil when the time is the regular one or a per-child exception
+	// overrides the day.
+	ClassException *ClassArrivalExceptionInfo `json:"class_exception,omitempty"`
+}
+
+// ClassArrivalExceptionInfo is what readers show next to a time that a
+// class-wide day exception set (#2962).
+type ClassArrivalExceptionInfo struct {
+	SchoolClass string `json:"school_class"`
+	ArrivalTime string `json:"arrival_time"`
+	// Label is the ready-made line, e.g. "Klasse 4a: Unterricht fällt aus".
+	Label string `json:"label"`
 }
 
 type ArrivalScheduleInput struct {
@@ -143,8 +161,21 @@ type arrivalScheduleService struct {
 	personRepo   users.PersonRepository
 	baselines    ArrivalBaselineReader
 	classTimes   educationModel.ClassArrivalTimeRepository
-	db           *bun.DB
-	logger       *slog.Logger
+	// classExceptions is the write side of class-wide arrival day exceptions
+	// (#2962); the read side runs through baselines. Nil means the class
+	// exception endpoints report "not configured".
+	classExceptions schedule.ClassArrivalExceptionRepository
+	db              *bun.DB
+	logger          *slog.Logger
+}
+
+// ArrivalScheduleOption tunes optional wiring of the arrival schedule service.
+type ArrivalScheduleOption func(*arrivalScheduleService)
+
+// WithClassArrivalExceptions wires the repository the class-wide arrival day
+// exceptions are written to (#2962).
+func WithClassArrivalExceptions(repo schedule.ClassArrivalExceptionRepository) ArrivalScheduleOption {
+	return func(s *arrivalScheduleService) { s.classExceptions = repo }
 }
 
 // NewArrivalScheduleServiceWithBaselines is the wiring the HTTP server uses:
@@ -161,8 +192,9 @@ func NewArrivalScheduleServiceWithBaselines(
 	classTimes educationModel.ClassArrivalTimeRepository,
 	db *bun.DB,
 	logger *slog.Logger,
+	opts ...ArrivalScheduleOption,
 ) ArrivalScheduleService {
-	return &arrivalScheduleService{
+	svc := &arrivalScheduleService{
 		core: newEffectiveTimeCore(
 			scheduleRepo,
 			exceptionRepo,
@@ -178,6 +210,10 @@ func NewArrivalScheduleServiceWithBaselines(
 		db:           db,
 		logger:       logger,
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 // projectedWeeklySchedules flattens the projected week into the sorted row
@@ -224,7 +260,7 @@ func (s *arrivalScheduleService) projectedWeekRange(
 	rows := make([]*schedule.StudentArrivalSchedule, 0, len(studentIDs)*schedule.WeekdayFriday)
 	for _, studentID := range uniquePositiveStudentIDs(studentIDs) {
 		for date := from; !date.After(to); date = date.AddDays(1) {
-			if row := projection.ForDate(studentID, date); row != nil {
+			if row := projection.WeeklyForDate(studentID, date)[effectiveISOWeekday(date)]; row != nil {
 				rows = append(rows, row)
 			}
 		}
@@ -709,7 +745,7 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 		// A range may include the same weekday twice. The latest date wins, so
 		// a booking that has ended cannot keep an earlier care-day marker alive.
 		delete(byWeekday, weekday)
-		if row := projection.ForDate(studentID, date); row != nil {
+		if row := projection.WeeklyForDate(studentID, date)[weekday]; row != nil {
 			byWeekday[weekday] = row
 		}
 	}
@@ -772,7 +808,9 @@ func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(
 	if err != nil {
 		return nil, err
 	}
-	return arrivalEffectiveTime(result), nil
+	mapped := arrivalEffectiveTime(result)
+	attachClassException(mapped, scheduleRow)
+	return mapped, nil
 }
 
 // bulkEffectiveResults resolves the recurring rows through the projection
@@ -781,13 +819,14 @@ func (s *arrivalScheduleService) bulkEffectiveResults(
 	ctx context.Context,
 	studentIDs []int64,
 	date timezone.Date,
-) (map[int64]*effectiveTimeResult, error) {
+) (map[int64]*effectiveTimeResult, map[int64]*schedule.StudentArrivalSchedule, error) {
 	if s.baselines == nil {
-		return s.core.BulkEffectiveTimesForDate(ctx, studentIDs, date)
+		results, err := s.core.BulkEffectiveTimesForDate(ctx, studentIDs, date)
+		return results, nil, err
 	}
 	projection, err := s.baselines.Project(ctx, studentIDs, date, date)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get bulk effective arrival times", Err: err}
+		return nil, nil, &ScheduleError{Op: "get bulk effective arrival times", Err: err}
 	}
 	schedules := make(map[int64]*schedule.StudentArrivalSchedule, len(studentIDs))
 	for _, studentID := range studentIDs {
@@ -797,7 +836,7 @@ func (s *arrivalScheduleService) bulkEffectiveResults(
 	}
 	results, err := s.core.BulkEffectiveTimesForDateWithSchedules(ctx, studentIDs, date, schedules)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, studentID := range studentIDs {
 		if projection.BookingsAuthoritative && schedules[studentID] == nil {
@@ -807,7 +846,7 @@ func (s *arrivalScheduleService) bulkEffectiveResults(
 			}
 		}
 	}
-	return results, nil
+	return results, schedules, nil
 }
 
 func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(
@@ -815,13 +854,15 @@ func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(
 	studentIDs []int64,
 	date timezone.Date,
 ) (map[int64]*EffectiveArrivalTime, error) {
-	results, err := s.bulkEffectiveResults(ctx, studentIDs, date)
+	results, schedules, err := s.bulkEffectiveResults(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
 	}
 	mapped := make(map[int64]*EffectiveArrivalTime, len(results))
 	for studentID, result := range results {
-		mapped[studentID] = arrivalEffectiveTime(result)
+		effective := arrivalEffectiveTime(result)
+		attachClassException(effective, schedules[studentID])
+		mapped[studentID] = effective
 	}
 	return mapped, nil
 }

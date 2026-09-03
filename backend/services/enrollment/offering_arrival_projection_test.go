@@ -31,6 +31,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 		env.repos.StudentArrivalSchedule,
 		env.repos.Student,
 		env.repos.ClassArrivalTime,
+		env.repos.ClassArrivalException,
 		env.repos.RequestChildOffering,
 		env.repos.CareOffering,
 		bookingModeSettings(authoritative),

@@ -2359,6 +2359,10 @@
       "write_owner": "file-storage"
     },
     {
+      "name": "education.class_arrival_exceptions",
+      "write_owner": "timetable-activities"
+    },
+    {
       "name": "education.class_arrival_times",
       "write_owner": "timetable-activities"
     },

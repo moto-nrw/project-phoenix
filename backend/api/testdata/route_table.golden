@@ -50,6 +50,7 @@ DELETE /api/staff/{id}/documents/{documentId}
 DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
 DELETE /api/staff/{id}/vacation/opening
 DELETE /api/students/care-withdrawals/{completionId}
+DELETE /api/students/class-arrival-exceptions/{schoolClass}/{date}
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
@@ -363,6 +364,7 @@ GET /api/students/care-withdrawals/{completionId}/deletion-impact
 GET /api/students/change-requests
 GET /api/students/change-requests/access
 GET /api/students/change-requests/pending-count
+GET /api/students/class-arrival-exceptions/{schoolClass}
 GET /api/students/class-arrival-times/{schoolClass}
 GET /api/students/day-log
 GET /api/students/day-log/export
@@ -959,6 +961,7 @@ PUT /api/staff/{id}/stammdaten/person
 PUT /api/staff/{id}/stammdaten/qualifikationen
 PUT /api/staff/{id}/time-tracking/sessions/{sessionId}
 PUT /api/staff/{id}/vacation/quota
+PUT /api/students/class-arrival-exceptions/{schoolClass}/{date}
 PUT /api/students/{id}
 PUT /api/students/{id}/arrival-exceptions/{exceptionId}
 PUT /api/students/{id}/arrival-notes/{noteId}
