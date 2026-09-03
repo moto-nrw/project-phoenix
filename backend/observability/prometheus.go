@@ -357,6 +357,10 @@ var (
 		prometheus.CounterOpts{Name: "phoenix_appointments_rows_total", Help: "Rows returned or changed by Appointments operations."},
 		[]string{"operation"},
 	)
+	appointmentsDuplicatePreventionConflicts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_duplicate_prevention_conflicts_total", Help: "Idempotent Appointments writes resolved by a database uniqueness conflict."},
+		[]string{"operation"},
+	)
 	appointmentsStatementDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{Name: "phoenix_appointments_statement_duration_seconds", Help: "Cumulative Appointments database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
@@ -658,6 +662,7 @@ func init() {
 		appointmentsDuration,
 		appointmentsQueries,
 		appointmentsRows,
+		appointmentsDuplicatePreventionConflicts,
 		appointmentsStatementDuration,
 		carePlanOperations,
 		carePlanDuration,
@@ -942,7 +947,7 @@ func ObserveSchoolCalendarOperation(operation string, duration time.Duration, qu
 	}
 }
 
-func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
 	outcome := "success"
 	if err == nil {
 		code = "none"
@@ -957,6 +962,9 @@ func ObserveAppointmentsOperation(operation string, duration time.Duration, quer
 	}
 	if rows > 0 {
 		appointmentsRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if duplicatePreventionConflicts > 0 {
+		appointmentsDuplicatePreventionConflicts.WithLabelValues(operation).Add(float64(duplicatePreventionConflicts))
 	}
 	if statementDuration > 0 {
 		appointmentsStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())

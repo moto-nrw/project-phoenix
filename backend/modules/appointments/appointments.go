@@ -32,7 +32,21 @@ const (
 	TargetTypeParentsByClass   = "parents_by_class"
 	TargetTypeParentsByGroup   = "parents_by_group"
 	TargetTypeParentsByStudent = "parents_by_student"
+
+	RecurrenceFrequencyDaily   = "daily"
+	RecurrenceFrequencyWeekly  = "weekly"
+	RecurrenceFrequencyMonthly = "monthly"
+	RecurrenceFrequencyYearly  = "yearly"
+
+	// MaxRecurrenceOccurrenceCount keeps count-bounded expansion finite. Longer
+	// series use EndsOn instead.
+	MaxRecurrenceOccurrenceCount = 366
 )
+
+var validRecurrenceWeekdays = map[string]bool{
+	"monday": true, "tuesday": true, "wednesday": true, "thursday": true,
+	"friday": true, "saturday": true, "sunday": true,
+}
 
 var (
 	ErrAppointmentNotFound          = errors.New("appointment not found")
@@ -200,6 +214,75 @@ type AppointmentTargetFields struct {
 	TargetValue *string
 }
 
+type RecurrenceRule struct {
+	ID              int64     `json:"id"`
+	TenantID        int64     `json:"tenant_id"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	AppointmentID   int64     `json:"appointment_id"`
+	Frequency       string    `json:"frequency"`
+	IntervalCount   int       `json:"interval_count"`
+	Weekdays        []string  `json:"weekdays,omitempty"`
+	MonthDays       []int     `json:"month_days,omitempty"`
+	EndsOn          *Date     `json:"ends_on,omitempty"`
+	OccurrenceCount *int      `json:"occurrence_count,omitempty"`
+}
+
+func (r *RecurrenceRule) Validate() error {
+	if r == nil {
+		return invalid("recurrence rule cannot be nil")
+	}
+	if r.AppointmentID <= 0 {
+		return invalid("appointment_id is required")
+	}
+	switch r.Frequency {
+	case RecurrenceFrequencyDaily, RecurrenceFrequencyWeekly, RecurrenceFrequencyMonthly, RecurrenceFrequencyYearly:
+	default:
+		return invalid("invalid recurrence frequency")
+	}
+	if r.IntervalCount <= 0 {
+		return invalid("interval_count must be positive")
+	}
+	if r.EndsOn != nil && r.OccurrenceCount != nil {
+		return invalid("only one recurrence end mode is allowed")
+	}
+	if r.OccurrenceCount != nil && *r.OccurrenceCount <= 0 {
+		return invalid("occurrence_count must be positive")
+	}
+	if r.OccurrenceCount != nil && *r.OccurrenceCount > MaxRecurrenceOccurrenceCount {
+		return invalid("occurrence_count exceeds the maximum of 366")
+	}
+	weekdays, err := normalizeWeekdays(r.Weekdays)
+	if err != nil {
+		return err
+	}
+	r.Weekdays = weekdays
+	monthDays, err := normalizeMonthDays(r.MonthDays)
+	if err != nil {
+		return err
+	}
+	r.MonthDays = monthDays
+	return nil
+}
+
+type AppointmentOccurrenceOverride struct {
+	ID             int64      `json:"id"`
+	TenantID       int64      `json:"tenant_id"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	AppointmentID  int64      `json:"appointment_id"`
+	OccurrenceDate Date       `json:"occurrence_date"`
+	Cancelled      bool       `json:"cancelled"`
+	Title          *string    `json:"title,omitempty"`
+	Description    *string    `json:"description,omitempty"`
+	Location       *string    `json:"location,omitempty"`
+	StartDate      *Date      `json:"start_date,omitempty"`
+	EndDate        *Date      `json:"end_date,omitempty"`
+	StartTime      *time.Time `json:"start_time,omitempty"`
+	EndTime        *time.Time `json:"end_time,omitempty"`
+	AllDay         *bool      `json:"all_day,omitempty"`
+}
+
 type CreateAppointment struct {
 	AppointmentFields
 	Targets []AppointmentTargetFields
@@ -225,6 +308,11 @@ type Query interface {
 	ListGuardianCancellationTombstones(context.Context, []int64, []int64, time.Time) ([]*Appointment, error)
 	ListGuardianReminderCandidates(context.Context, Date, Date) ([]*Appointment, error)
 	FindAppointmentTargets(context.Context, int64) ([]*AppointmentTarget, error)
+	FindRecurrenceRule(context.Context, int64) (*RecurrenceRule, error)
+	FindRecurrenceRules(context.Context, []int64) ([]*RecurrenceRule, error)
+	FindOccurrenceOverrides(context.Context, []int64, []Date) ([]*AppointmentOccurrenceOverride, error)
+	FindOccurrenceOverridesByStartDates(context.Context, []int64, []Date) ([]*AppointmentOccurrenceOverride, error)
+	FindCancelledOccurrenceOverrides(context.Context, []int64) ([]*AppointmentOccurrenceOverride, error)
 }
 
 type Command interface {
@@ -233,11 +321,17 @@ type Command interface {
 	CreateAppointment(context.Context, CreateAppointment) (*Appointment, []*AppointmentTarget, error)
 	UpdateAppointment(context.Context, UpdateAppointment) (*Appointment, error)
 	DeleteAppointment(context.Context, int64) error
-	BumpAppointmentRevision(context.Context, int64) error
 	CancelAppointment(context.Context, int64) (bool, error)
 	SoftDeleteAppointment(context.Context, int64) error
 	DeleteFeedTombstonesBefore(context.Context, time.Time) (int, error)
 	ReplaceAppointmentTargets(context.Context, int64, []AppointmentTargetFields) ([]*AppointmentTarget, error)
+	CreateRecurrenceRule(context.Context, *RecurrenceRule) error
+	DeleteRecurrenceRule(context.Context, int64) error
+	CreateOccurrenceOverride(context.Context, *AppointmentOccurrenceOverride) error
+	DeleteOccurrenceOverrides(context.Context, int64) error
+	// CancelAppointmentOccurrence upserts the cancellation and bumps the parent
+	// revision in one UnitOfWork. It returns false when already cancelled.
+	CancelAppointmentOccurrence(context.Context, int64, Date) (bool, error)
 }
 
 type Capability interface {
@@ -330,6 +424,29 @@ func (m *Module) FindAppointmentTargets(ctx context.Context, appointmentID int64
 	return m.engine.FindAppointmentTargets(ctx, appointmentID)
 }
 
+func (m *Module) FindRecurrenceRule(ctx context.Context, appointmentID int64) (*RecurrenceRule, error) {
+	if appointmentID <= 0 {
+		return nil, invalid("appointment ID is required")
+	}
+	return m.engine.FindRecurrenceRule(ctx, appointmentID)
+}
+
+func (m *Module) FindRecurrenceRules(ctx context.Context, appointmentIDs []int64) ([]*RecurrenceRule, error) {
+	return m.engine.FindRecurrenceRules(ctx, positiveIDs(appointmentIDs))
+}
+
+func (m *Module) FindOccurrenceOverrides(ctx context.Context, appointmentIDs []int64, dates []Date) ([]*AppointmentOccurrenceOverride, error) {
+	return m.engine.FindOccurrenceOverrides(ctx, positiveIDs(appointmentIDs), dates)
+}
+
+func (m *Module) FindOccurrenceOverridesByStartDates(ctx context.Context, appointmentIDs []int64, dates []Date) ([]*AppointmentOccurrenceOverride, error) {
+	return m.engine.FindOccurrenceOverridesByStartDates(ctx, positiveIDs(appointmentIDs), dates)
+}
+
+func (m *Module) FindCancelledOccurrenceOverrides(ctx context.Context, appointmentIDs []int64) ([]*AppointmentOccurrenceOverride, error) {
+	return m.engine.FindCancelledOccurrenceOverrides(ctx, positiveIDs(appointmentIDs))
+}
+
 func (m *Module) CreateAppointment(ctx context.Context, input CreateAppointment) (*Appointment, []*AppointmentTarget, error) {
 	fields, err := validateFields(input.AppointmentFields)
 	if err != nil {
@@ -358,13 +475,6 @@ func (m *Module) DeleteAppointment(ctx context.Context, id int64) error {
 	return m.engine.DeleteAppointment(ctx, id)
 }
 
-func (m *Module) BumpAppointmentRevision(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalid("appointment ID is required")
-	}
-	return m.engine.BumpAppointmentRevision(ctx, id)
-}
-
 func (m *Module) CancelAppointment(ctx context.Context, id int64) (bool, error) {
 	if id <= 0 {
 		return false, invalid("appointment ID is required")
@@ -391,6 +501,41 @@ func (m *Module) ReplaceAppointmentTargets(ctx context.Context, appointmentID in
 		return nil, invalid("appointment ID is required")
 	}
 	return m.engine.ReplaceAppointmentTargets(ctx, appointmentID, targets)
+}
+
+func (m *Module) CreateRecurrenceRule(ctx context.Context, rule *RecurrenceRule) error {
+	if err := rule.Validate(); err != nil {
+		return err
+	}
+	return m.engine.CreateRecurrenceRule(ctx, rule)
+}
+
+func (m *Module) DeleteRecurrenceRule(ctx context.Context, appointmentID int64) error {
+	if appointmentID <= 0 {
+		return invalid("appointment ID is required")
+	}
+	return m.engine.DeleteRecurrenceRule(ctx, appointmentID)
+}
+
+func (m *Module) CreateOccurrenceOverride(ctx context.Context, override *AppointmentOccurrenceOverride) error {
+	if override == nil || override.AppointmentID <= 0 || override.OccurrenceDate.IsZero() {
+		return invalid("appointment ID and occurrence date are required")
+	}
+	return m.engine.CreateOccurrenceOverride(ctx, override)
+}
+
+func (m *Module) DeleteOccurrenceOverrides(ctx context.Context, appointmentID int64) error {
+	if appointmentID <= 0 {
+		return invalid("appointment ID is required")
+	}
+	return m.engine.DeleteOccurrenceOverrides(ctx, appointmentID)
+}
+
+func (m *Module) CancelAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate Date) (bool, error) {
+	if appointmentID <= 0 || occurrenceDate.IsZero() {
+		return false, invalid("appointment ID and occurrence date are required")
+	}
+	return m.engine.CancelAppointmentOccurrence(ctx, appointmentID, occurrenceDate)
 }
 
 func validateFields(fields AppointmentFields) (AppointmentFields, error) {
@@ -472,6 +617,37 @@ func positiveIDs(values []int64) []int64 {
 		result = append(result, value)
 	}
 	return result
+}
+
+func normalizeWeekdays(values []string) ([]string, error) {
+	seen := make(map[string]bool, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		if !validRecurrenceWeekdays[normalized] {
+			return nil, invalid("weekdays must be valid day names (monday–sunday)")
+		}
+		if !seen[normalized] {
+			seen[normalized] = true
+			result = append(result, normalized)
+		}
+	}
+	return result, nil
+}
+
+func normalizeMonthDays(values []int) ([]int, error) {
+	seen := make(map[int]bool, len(values))
+	result := make([]int, 0, len(values))
+	for _, value := range values {
+		if value < 1 || value > 31 {
+			return nil, invalid("month_days must be between 1 and 31")
+		}
+		if !seen[value] {
+			seen[value] = true
+			result = append(result, value)
+		}
+	}
+	return result, nil
 }
 
 func invalid(reason string) error { return &InvalidError{Reason: reason} }

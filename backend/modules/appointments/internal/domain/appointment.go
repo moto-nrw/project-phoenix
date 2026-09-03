@@ -66,14 +66,48 @@ type AppointmentTargetFields struct {
 	TargetValue *string
 }
 
+type RecurrenceRule struct {
+	ID              int64
+	TenantID        int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	AppointmentID   int64
+	Frequency       string
+	IntervalCount   int
+	Weekdays        []string
+	MonthDays       []int
+	EndsOn          *Date
+	OccurrenceCount *int
+}
+
+type AppointmentOccurrenceOverride struct {
+	ID             int64
+	TenantID       int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	AppointmentID  int64
+	OccurrenceDate Date
+	Cancelled      bool
+	Title          *string
+	Description    *string
+	Location       *string
+	StartDate      *Date
+	EndDate        *Date
+	StartTime      *time.Time
+	EndTime        *time.Time
+	AllDay         *bool
+}
+
 type OperationStats struct {
-	Queries           int64
-	Rows              int64
-	StatementDuration time.Duration
+	Queries                      int64
+	Rows                         int64
+	DuplicatePreventionConflicts int64
+	StatementDuration            time.Duration
 }
 
 func (s *OperationStats) Add(other OperationStats) {
 	s.Queries += other.Queries
 	s.Rows += other.Rows
+	s.DuplicatePreventionConflicts += other.DuplicatePreventionConflicts
 	s.StatementDuration += other.StatementDuration
 }

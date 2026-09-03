@@ -322,10 +322,8 @@ type Factory struct {
 	StaffMessageRead   userModels.StaffMessageReadRepository
 
 	// Calendar domain
-	CalendarRecurrenceRule            calendarModels.RecurrenceRuleRepository
 	CalendarAppointmentRecipient      calendarModels.AppointmentRecipientRepository
 	CalendarAppointmentRecipientChild calendarModels.AppointmentRecipientStudentRepository
-	CalendarOccurrenceOverride        calendarModels.AppointmentOccurrenceOverrideRepository
 	CalendarStaffFeedTombstone        calendarModels.StaffFeedTombstoneRepository
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
@@ -787,10 +785,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffMessage:       users.NewStaffMessageRepository(db),
 
 		// Calendar repositories
-		CalendarRecurrenceRule:            calendarRepo.NewRecurrenceRuleRepository(calendarRuntime),
 		CalendarAppointmentRecipient:      calendarRepo.NewAppointmentRecipientRepository(calendarRuntime),
 		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(calendarRuntime),
-		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(calendarRuntime),
 		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(calendarRuntime),
 		ParentAnnouncement:                parentAnnouncement,
 		StaffNotice:                       schedule.NewStaffNoticeRepository(db),

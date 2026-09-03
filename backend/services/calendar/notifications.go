@@ -111,7 +111,7 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 	// StartDate — use the same first-occurrence anchor as the calendar/ICS export
 	// so the mail and the calendar never disagree.
 	whenAppointment := appointment
-	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	recurrence, err := s.cfg.Appointments.FindRecurrenceRule(ctx, appointment.ID)
 	if err != nil {
 		return err
 	}

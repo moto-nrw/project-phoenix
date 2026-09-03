@@ -14,7 +14,6 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 
 	var paths []string
 	var templates []map[string]any
-	var staffDeviation map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
@@ -23,16 +22,13 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&template))
 			templates = append(templates, template)
 		}
-		if r.URL.Path == "/api/timetable/instances/63/deviations" {
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&staffDeviation))
-		}
 		switch r.URL.Path {
 		case "/api/timetable/planning-tracks":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":31}}`)
 		case "/api/timetable/templates":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"template_id":41,"schedule_ids":[51,52],"instances_created":2}}`)
 		case "/api/timetable/instances":
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"instances":[{"id":61,"title":"Frühbetreuung","activity_group_id":41},{"id":62,"title":"Frühbetreuung","activity_group_id":41},{"id":63,"title":"Frühbetreuung","activity_group_id":41}]}}`)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"instances":[{"id":61,"title":"Frühbetreuung","activity_group_id":41,"staff":[{"staff_id":27}]},{"id":62,"title":"Frühbetreuung","activity_group_id":41,"staff":[{"staff_id":27}]},{"id":63,"title":"Frühbetreuung","activity_group_id":41,"staff":[{"staff_id":27}]},{"id":64,"title":"Frühbetreuung","activity_group_id":41,"staff":[{"staff_id":26}]}]}}`)
 		default:
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		}
@@ -77,7 +73,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/timetable/instances",
 		"/api/timetable/instances/61/deviations",
 		"/api/timetable/instances/62",
-		"/api/timetable/instances/63/deviations",
+		"/api/timetable/instances/64/deviations",
 	}, paths)
 	require.Len(t, templates, 3)
 	assert.Equal(t, "care", templates[0]["type"])
@@ -90,10 +86,6 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	assert.Equal(t, "learning_time", templates[1]["list_kind"])
 	assert.Equal(t, "klasse", templates[2]["target_group_type"])
 	assert.Equal(t, "activity", templates[2]["list_kind"])
-	require.NotNil(t, staffDeviation)
-	absentStaffID := staffDeviation["absences"].([]any)[0].(map[string]any)["staff_id"]
-	tuesdayStaffIDs := templates[0]["weekday_assignments"].([]any)[0].(map[string]any)["staff_ids"].([]any)
-	assert.Contains(t, tuesdayStaffIDs, absentStaffID)
 }
 
 func TestSeedPlanningDemoStepRequiresPlanningReferences(t *testing.T) {

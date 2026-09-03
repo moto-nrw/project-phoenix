@@ -94,13 +94,13 @@ func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointme
 }
 
 func (s *service) renderAppointmentICS(ctx context.Context, appointment *calModels.Appointment) (string, string, error) {
-	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	recurrence, err := s.cfg.Appointments.FindRecurrenceRule(ctx, appointment.ID)
 	if err != nil {
 		return "", "", err
 	}
 	var cancelled []*calModels.AppointmentOccurrenceOverride
 	if recurrence != nil {
-		cancelled, err = s.cfg.OverrideRepo.FindCancelledByAppointmentIDs(ctx, []int64{appointment.ID})
+		cancelled, err = s.cfg.Appointments.FindCancelledOccurrenceOverrides(ctx, []int64{appointment.ID})
 		if err != nil {
 			return "", "", err
 		}
