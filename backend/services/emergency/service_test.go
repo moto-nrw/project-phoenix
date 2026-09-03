@@ -70,6 +70,29 @@ func (s stubSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
 	return s.enabled, s.err
 }
 
+// kreativraumRoomID is the room the mocked visit row points at.
+const kreativraumRoomID int64 = 7007
+
+// stubRoomDirectory stands in for the Facilities owner the visit repository
+// resolves room names through (#2665).
+type stubRoomDirectory struct{}
+
+func (stubRoomDirectory) ListRoomsByID(_ context.Context, ids []int64) ([]activeRepo.DirectoryRoom, error) {
+	rooms := make([]activeRepo.DirectoryRoom, 0, len(ids))
+	for _, id := range ids {
+		if id == kreativraumRoomID {
+			rooms = append(rooms, activeRepo.DirectoryRoom{ID: id, Name: "Kreativraum"})
+		}
+	}
+	return rooms, nil
+}
+
+func newVisitRepo(db *bun.DB) *activeRepo.VisitRepository {
+	repo := activeRepo.NewVisitRepository(db).(*activeRepo.VisitRepository)
+	repo.BindRoomDirectory(stubRoomDirectory{})
+	return repo
+}
+
 func newMockBunDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock, func()) {
 	t.Helper()
 	sqlDB, mock, err := sqlmock.New()
@@ -88,8 +111,8 @@ func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
 	defer cleanup()
 
 	mock.ExpectQuery(`(?s)SELECT .*active\.visits`).
-		WillReturnRows(sqlmock.NewRows([]string{"student_id", "room_name"}).
-			AddRow(int64(101), "Kreativraum"))
+		WillReturnRows(sqlmock.NewRows([]string{"student_id", "room_id"}).
+			AddRow(int64(101), kreativraumRoomID))
 	mock.ExpectQuery(`(?s)SELECT .*users\.students_guardians`).
 		WillReturnRows(sqlmock.NewRows([]string{"student_id", "first_name", "last_name", "phone_number"}).
 			AddRow(int64(101), "Lea", "Albrecht", "02551 111").
@@ -109,7 +132,7 @@ func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
 			302: {FirstName: "Max", LastName: "Schmitt"},
 		}},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           activeRepo.NewVisitRepository(db),
+		VisitRepo:           newVisitRepo(db),
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
@@ -157,7 +180,7 @@ func TestBuildSnapshotDocumentUsesBinaryLocations(t *testing.T) {
 			},
 		},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           activeRepo.NewVisitRepository(db),
+		VisitRepo:           newVisitRepo(db),
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
@@ -181,7 +204,7 @@ func TestBuildSnapshotDocumentWithNoStudents(t *testing.T) {
 		StudentRepo:         stubStudentRepo{},
 		PersonRepo:          stubPersonRepo{},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           activeRepo.NewVisitRepository(db),
+		VisitRepo:           newVisitRepo(db),
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
@@ -202,7 +225,7 @@ func TestRenderSnapshot(t *testing.T) {
 		StudentRepo:         stubStudentRepo{},
 		PersonRepo:          stubPersonRepo{},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           activeRepo.NewVisitRepository(db),
+		VisitRepo:           newVisitRepo(db),
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
@@ -303,7 +326,7 @@ func healthDeps(t *testing.T, db *bun.DB, settings settingsReader, health map[in
 			302: {FirstName: "Max", LastName: "Schmitt"},
 		}},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           activeRepo.NewVisitRepository(db),
+		VisitRepo:           newVisitRepo(db),
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 		Settings:            settings,
 	}
@@ -311,7 +334,7 @@ func healthDeps(t *testing.T, db *bun.DB, settings settingsReader, health map[in
 
 func expectEmptySnapshotQueries(mock sqlmock.Sqlmock) {
 	mock.ExpectQuery(`(?s)SELECT .*active\.visits`).
-		WillReturnRows(sqlmock.NewRows([]string{"student_id", "room_name"}))
+		WillReturnRows(sqlmock.NewRows([]string{"student_id", "room_id"}))
 	mock.ExpectQuery(`(?s)SELECT .*users\.students_guardians`).
 		WillReturnRows(sqlmock.NewRows([]string{"student_id", "first_name", "last_name", "phone_number"}))
 }

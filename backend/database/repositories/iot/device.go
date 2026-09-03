@@ -24,6 +24,14 @@ const (
 type DeviceRepository struct {
 	*base.Repository[*iot.Device]
 	db *bun.DB
+	// rooms resolves Device.RoomName through the Facilities owner (#2665).
+	rooms RoomDirectory
+}
+
+// BindRoomDirectory installs the Facilities directory the device reads
+// resolve room names through (#2665).
+func (r *DeviceRepository) BindRoomDirectory(rooms RoomDirectory) {
+	r.rooms = rooms
 }
 
 // NewDeviceRepository creates a new DeviceRepository
@@ -36,16 +44,15 @@ func NewDeviceRepository(db *bun.DB) iot.DeviceRepository {
 	}
 }
 
-// FindByID retrieves a device by its primary key, including room name via JOIN.
-// Overrides base.Repository.FindByID which doesn't include the room JOIN.
+// FindByID retrieves a device by its primary key, including the room name
+// resolved through the Facilities owner. Overrides base.Repository.FindByID,
+// which does not resolve the room name.
 func (r *DeviceRepository) FindByID(ctx context.Context, id interface{}) (*iot.Device, error) {
 	device := new(iot.Device)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
 		ColumnExpr(`"device".*`).
-		ColumnExpr(`"room".name AS room_name`).
-		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
 		Where(`"device".id = ?`, id).
 		Where(whereNotArchived)
 
@@ -57,6 +64,9 @@ func (r *DeviceRepository) FindByID(ctx context.Context, id interface{}) (*iot.D
 			Op:  "find by id",
 			Err: base.TranslateNotFound(err),
 		}
+	}
+	if err := attachRoomNames(ctx, r.rooms, []*iot.Device{device}); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
 	}
 
 	return device, nil
@@ -88,8 +98,6 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
 		ColumnExpr(`"device".*`).
-		ColumnExpr(`"room".name AS room_name`).
-		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
 		Where(whereDeviceIDEqual, deviceID).
 		Where(whereNotArchived)
 
@@ -102,6 +110,9 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 			Op:  "find by device ID",
 			Err: base.TranslateNotFound(err),
 		}
+	}
+	if err := attachRoomNames(ctx, r.rooms, []*iot.Device{device}); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by device ID", Err: err}
 	}
 
 	return device, nil
@@ -328,8 +339,6 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]interfac
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
 		ColumnExpr(`"device".*`).
-		ColumnExpr(`"room".name AS room_name`).
-		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "device".room_id AND "room".tenant_id = "device".tenant_id`).
 		Where(whereNotArchived)
 
 	query = base.WithTenantFilter(ctx, query, "device")
@@ -347,6 +356,9 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]interfac
 			Op:  "list",
 			Err: base.TranslateNotFound(err),
 		}
+	}
+	if err := attachRoomNames(ctx, r.rooms, devices); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list", Err: err}
 	}
 
 	return devices, nil

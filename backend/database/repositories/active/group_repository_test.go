@@ -711,64 +711,6 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 	})
 }
 
-func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns occupied room IDs", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "OccupiedRooms")
-		room1 := testpkg.CreateTestRoom(t, db, "OccupiedRoom1")
-		room2 := testpkg.CreateTestRoom(t, db, "OccupiedRoom2")
-		room3 := testpkg.CreateTestRoom(t, db, "EmptyRoom3")
-
-		now := time.Now()
-		// Create active group in room1
-		group1 := &active.Group{
-			StartTime:      now,
-			LastActivity:   now,
-			TimeoutMinutes: 30,
-			GroupID:        ptrtest.Ptr(activityGroup.ID),
-			RoomID:         room1.ID,
-		}
-		err := repo.Create(ctx, group1)
-		require.NoError(t, err)
-		// Create active group in room2
-		group2 := &active.Group{
-			StartTime:      now,
-			LastActivity:   now,
-			TimeoutMinutes: 30,
-			GroupID:        ptrtest.Ptr(activityGroup.ID),
-			RoomID:         room2.ID,
-		}
-		err = repo.Create(ctx, group2)
-		require.NoError(t, err)
-
-		// Check which rooms are occupied
-		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{room1.ID, room2.ID, room3.ID})
-		require.NoError(t, err)
-
-		assert.True(t, occupiedMap[room1.ID], "room1 should be occupied")
-		assert.True(t, occupiedMap[room2.ID], "room2 should be occupied")
-		assert.False(t, occupiedMap[room3.ID], "room3 should not be occupied")
-	})
-
-	t.Run("returns empty map for empty input", func(t *testing.T) {
-		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{})
-		require.NoError(t, err)
-		assert.Empty(t, occupiedMap)
-	})
-
-	t.Run("returns empty map for non-existent rooms", func(t *testing.T) {
-		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{999997, 999998, 999999})
-		require.NoError(t, err)
-		assert.Empty(t, occupiedMap)
-	})
-}
-
 func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 	t.Parallel()
 

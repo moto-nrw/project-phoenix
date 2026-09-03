@@ -157,7 +157,7 @@ func TestActiveService_GetStudentCurrentVisitWithRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visit with room loaded", func(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "visit-with-room")

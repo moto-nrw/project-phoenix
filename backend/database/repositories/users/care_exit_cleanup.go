@@ -34,9 +34,18 @@ import (
 // writing half (the confirmation) side by side, where a divergence is
 // visible.
 type CareExitCleanupRepository struct {
-	db       *bun.DB
-	periods  CalendarPeriodDirectory
+	db      *bun.DB
+	periods CalendarPeriodDirectory
+	// rooms re-validates snapshot room references through the Facilities
+	// owner on restore (#2665).
+	rooms    RoomDirectory
 	carePlan CarePlanDirectory
+}
+
+// BindRoomDirectory installs the Facilities directory the restore
+// re-validates room references through (#2665).
+func (r *CareExitCleanupRepository) BindRoomDirectory(rooms RoomDirectory) {
+	r.rooms = rooms
 }
 
 // CareOfferingProjection is the narrow owner data used by care-exit cleanup.
@@ -1103,6 +1112,19 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		var restored int
+		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			var restoreErr error
+			restored, restoreErr = r.restoreRemovals(txCtx, studentIDs)
+			return restoreErr
+		})
+		return restored, err
+	}
+	return r.restoreRemovals(ctx, studentIDs)
+}
+
+func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, studentIDs []int64) (int, error) {
 	tenantID := tenant.FromContext(ctx)
 	db := base.GetDB(ctx, r.db)
 	restored := 0
@@ -1110,7 +1132,23 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 	// Rosters. room_id / student_status_day_id / pickup_exception_id are
 	// re-validated instead of trusted: all three are ON DELETE SET NULL on the
 	// live table, so a snapshot may point at something that is gone, and a bare
-	// insert would fail the whole restore over a deleted room.
+	// insert would fail the whole restore over a deleted room. Rooms are
+	// validated through their owner (#2665), the other two in place.
+	var archivedRoomIDs []int64
+	if err := db.NewSelect().
+		TableExpr(`users.student_care_exit_removals AS "rm"`).
+		ColumnExpr("DISTINCT rm.room_id").
+		Where("rm.kind = 'roster'").
+		Where("rm.tenant_id = ?", tenantID).
+		Where("rm.student_id IN (?)", bun.List(studentIDs)).
+		Where("rm.room_id IS NOT NULL").
+		Scan(ctx, &archivedRoomIDs); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: base.TranslateNotFound(err)}
+	}
+	roomIDs, err := validRoomIDs(ctx, r.rooms, tenantID, archivedRoomIDs)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: err}
+	}
 	rosterResult, err := db.ExecContext(ctx, `
 		INSERT INTO schedule.instance_students (
 			tenant_id, instance_id, student_id, room_id, status, substatus, note,
@@ -1118,8 +1156,7 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 			pickup_exception_id
 		)
 		SELECT rm.tenant_id, rm.instance_id, rm.student_id,
-		       (SELECT ro.id FROM facilities.rooms AS ro
-		         WHERE ro.tenant_id = rm.tenant_id AND ro.id = rm.room_id),
+		       CASE WHEN rm.room_id = ANY(?) THEN rm.room_id END,
 		       rm.status, rm.substatus, rm.note,
 		       COALESCE(rm.is_unplanned, FALSE), COALESCE(rm.not_scheduled, FALSE),
 		       rm.manual_status_at,
@@ -1135,7 +1172,7 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 		  AND rm.student_id IN (?)
 		  AND ai.status NOT IN ('completed', 'cancelled')
 		ON CONFLICT DO NOTHING
-	`, tenantID, bun.List(studentIDs))
+	`, pgdialect.Array(roomIDs), tenantID, bun.List(studentIDs))
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: base.TranslateNotFound(err)}
 	}
