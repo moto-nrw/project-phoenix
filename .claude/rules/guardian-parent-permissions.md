@@ -49,6 +49,7 @@ Use action-specific permissions:
 - parent note write: `parent_portal.notes.write`
 - enrollment request visibility: `parent_portal.enrollments.view`
 - enrollment submit when tied to an existing child: `parent_portal.enrollment.submit`
+- meal participation changes: `parent_portal.meal_participation.manage`
 
 School-level feature flags still apply after guardian permission passes.
 

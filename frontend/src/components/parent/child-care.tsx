@@ -144,6 +144,7 @@ const DEFAULT_FEATURES: ChildFeatures = {
   master_data_contact_edit_enabled: false,
   master_data_request_enabled: false,
   meal_plan_enabled: false,
+  meal_registration_enabled: false,
   // State flag defaults false so a fetch failure never shows a phantom
   // "Anfrage offen" badge on the overview.
   has_open_change_request: false,

@@ -360,19 +360,20 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 // - Their supervision spans today (started before and still ongoing or ends after today)
 func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error) {
 	var staffIDs []int64
+	today := r.today()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Column("staff_id").
 		Distinct().
 		Where(`(
-			"group_supervisor"."start_date" = CURRENT_DATE
-			OR "group_supervisor"."end_date" = CURRENT_DATE
+			"group_supervisor"."start_date" = ?
+			OR "group_supervisor"."end_date" = ?
 			OR (
-				"group_supervisor"."start_date" < CURRENT_DATE
-				AND ("group_supervisor"."end_date" IS NULL OR "group_supervisor"."end_date" > CURRENT_DATE)
+				"group_supervisor"."start_date" < ?
+				AND ("group_supervisor"."end_date" IS NULL OR "group_supervisor"."end_date" > ?)
 			)
-		)`)
+		)`, today, today, today, today)
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 

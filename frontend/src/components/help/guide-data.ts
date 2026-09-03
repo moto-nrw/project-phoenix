@@ -2202,22 +2202,24 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Essensplan",
         icon: UtensilsCrossed,
         summary:
-          "Die Woche als Plan: Montag bis Freitag nebeneinander, pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan für die aktuelle und nächste Woche im Elternportal.",
+          "Pflegen Sie die Gerichte für die Woche und öffnen Sie die Tagesliste für die Küche. Eltern sehen den Plan und können ihr Kind anmelden, wenn die Anmeldung freigeschaltet ist.",
         steps: [
           "In der Seitenleiste den Bereich `Eltern` aufklappen und `Essensplan` öffnen.",
-          "Mit den Pfeilen `‹` und `›` zwischen den Kalenderwochen blättern; die laufende Woche ist mit `Diese Woche` markiert, mit `Heute` springst du dorthin zurück.",
+          "Mit den Pfeilen `‹` und `›` zwischen den Kalenderwochen blättern; die laufende Woche ist mit `Diese Woche` markiert, mit `Heute` springen Sie dorthin zurück.",
           "Pro Tag das `Gericht` eintragen; bei Bedarf einen kurzen `Hinweis` ergänzen (z. B. vegetarisch).",
           "Mehrere Gerichte pro Tag über `+ Gericht` hinzufügen (z. B. Menü 1 und Menü 2); überflüssige Zeilen mit dem `×` entfernen.",
           "Über das Tagesmenü (`⋯`) einen Tag `kopieren`, in einen anderen Tag `einfügen` oder `leeren`; mit `Vorwoche übernehmen` den kompletten Plan der Vorwoche übernehmen.",
           "Änderungen unten mit `Speichern` sichern (ungespeicherte Änderungen werden angezeigt und beim Verlassen abgefragt).",
+          "Unter `Tagesliste für die Küche` den gewünschten Tag wählen. Die Liste zeigt nur Kinder, die für diesen Tag angemeldet sind.",
+          "Die Tagesliste bei Bedarf als `PDF` oder `Excel` herunterladen. Die eingestellte Änderungsfrist steht direkt über der Liste.",
         ],
         callout: {
           title: "Voraussetzung",
-          body: "Die Funktion muss unter `Einstellungen` > `Betrieb` > `Essensplan` aktiviert sein. Ist sie aus, erscheint der Punkt weder im Team- noch im Elternportal.",
+          body: "Der Essensplan muss unter `Einstellungen` > `Betrieb` eingeschaltet sein. Schalten Sie dort zusätzlich `Anmeldung zum Mittagessen` ein und legen Sie die Änderungsfrist fest. Erst dann können Eltern feste und einzelne Tage wählen.",
           tone: "blue",
         },
         screenshot:
-          "Essensplan als Wochen-Board (Mo–Fr nebeneinander), oben Wochennavigation mit Pfeilen und „Heute“, je Tag eine Liste von Gerichten mit Hinweis.",
+          "Essensplan als Wochen-Board und darunter die Tagesliste für die Küche mit Datum, Änderungsfrist sowie PDF- und Excel-Download.",
         image: "/help/screens/essensplan.webp",
       },
     ],

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	schoolPortalArrivalExceptionsVersion     = "1.15.365"
+	schoolPortalArrivalExceptionsVersion     = "1.15.366"
 	schoolPortalArrivalExceptionsDescription = "class_day:arrival_exception_write for the lehrkraft role and the origin of a class arrival exception (#2970)"
 )
 
@@ -37,7 +37,7 @@ func init() {
 //     der Schule". created_by alone cannot tell the two apart: a Lehrkraft
 //     has a users.staff row like everybody else.
 func schoolPortalArrivalExceptionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.365: School portal writes class arrival exceptions...")
+	fmt.Println("Migration 1.15.366: School portal writes class arrival exceptions...")
 
 	if err := grantPermissionToRoles(ctx, db, permissionSpec{
 		Name:        "class_day:arrival_exception_write",
@@ -67,7 +67,7 @@ func schoolPortalArrivalExceptionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func schoolPortalArrivalExceptionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.365: Removing class_day:arrival_exception_write and class_arrival_exceptions.origin...")
+	fmt.Println("Rolling back migration 1.15.366: Removing class_day:arrival_exception_write and class_arrival_exceptions.origin...")
 
 	if _, err := db.ExecContext(ctx, `
 		ALTER TABLE education.class_arrival_exceptions

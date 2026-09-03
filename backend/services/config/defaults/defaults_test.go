@@ -146,6 +146,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_request_group_leader_review_enabled",
 		"operations.parent_news_enabled",
 		"operations.meal_plan_enabled",
+		"operations.meal_registration_enabled",
+		"operations.meal_registration_cutoff_time",
 		// Related-accounts management.
 		"guardians.parent_invite_mode",
 		"guardians.parent_can_remove",
@@ -196,6 +198,28 @@ func TestParentRequestGroupLeaderReviewSetting(t *testing.T) {
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "elternportal", def.Category)
+}
+
+func TestMealRegistrationSettings(t *testing.T) {
+	t.Parallel()
+
+	registration := config.GetDefinition(config.KeyMealRegistrationEnabled)
+	require.NotNil(t, registration)
+	assert.Equal(t, config.FieldBoolean, registration.Type)
+	assert.Equal(t, false, registration.Default)
+	require.NotNil(t, registration.DependsOn)
+	assert.Equal(t, config.KeyMealPlanEnabled, registration.DependsOn.Key)
+	assert.Equal(t, "eq", registration.DependsOn.Condition)
+	assert.Equal(t, true, registration.DependsOn.Value)
+
+	cutoff := config.GetDefinition(config.KeyMealRegistrationCutoffTime)
+	require.NotNil(t, cutoff)
+	assert.Equal(t, config.FieldTime, cutoff.Type)
+	assert.Equal(t, "09:00", cutoff.Default)
+	require.NotNil(t, cutoff.DependsOn)
+	assert.Equal(t, config.KeyMealRegistrationEnabled, cutoff.DependsOn.Key)
+	assert.Equal(t, "eq", cutoff.DependsOn.Condition)
+	assert.Equal(t, true, cutoff.DependsOn.Value)
 }
 
 func TestAbsenceApprovalEmailSetting(t *testing.T) {

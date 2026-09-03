@@ -118,18 +118,25 @@ func applyAttendanceRows(facts *todayStatusFacts, rows []*activeModels.Attendanc
 		}
 		facts.HasAttendanceToday = true
 		if row.CheckOutTime == nil {
-			facts.CheckIn = hhmm(row.CheckInTime)
+			facts.CheckIn = berlinHHMM(row.CheckInTime)
 			facts.CheckOut = ""
 			return
 		}
 		if latestCheckOut == nil || row.CheckOutTime.After(*latestCheckOut) {
 			latestCheckOut = row.CheckOutTime
-			facts.CheckIn = hhmm(row.CheckInTime)
+			facts.CheckIn = berlinHHMM(row.CheckInTime)
 		}
 	}
 	if latestCheckOut != nil {
-		facts.CheckOut = hhmm(*latestCheckOut)
+		facts.CheckOut = berlinHHMM(*latestCheckOut)
 	}
+}
+
+func berlinHHMM(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.In(timezone.Berlin).Format("15:04")
 }
 
 // hhmm gibt die Berliner Wandzeit eines Zeitpunkts als HH:MM zurueck.
