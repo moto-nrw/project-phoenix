@@ -258,6 +258,13 @@ jobs:
         working-directory: frontend
         run: pnpm run build
 
+      # Bundle-Size-Ratchet (#2939): `next experimental-analyze` kompiliert
+      # aus dem warmen Turbopack-Cache und vergleicht Client-JS je Route mit
+      # scripts/perf/bundle-baseline.json. Pflege: pnpm run perf:bundle-ratchet --update
+      - name: Bundle size ratchet
+        working-directory: frontend
+        run: pnpm run perf:bundle-ratchet
+
       - name: Build Storybook
         working-directory: frontend
         run: pnpm run build-storybook

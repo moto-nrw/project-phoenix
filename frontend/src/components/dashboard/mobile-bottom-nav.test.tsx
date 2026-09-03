@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Profiler } from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 
 // Mock dependencies before importing component
@@ -1324,6 +1325,47 @@ describe("MobileBottomNav", () => {
         expect.any(Function),
         expect.any(Object),
       );
+    });
+  });
+
+  // Render-Budget (#2939): die Nav lief bis #2978 auf jeder Seite in einer
+  // Effekt-Schleife (rund 2.000 Renders pro Sekunde im Leerlauf). Gezählt
+  // werden Profiler-Commits in 5 s Leerlauf mit Fake-Timern; die Zahl hängt
+  // nicht von der Maschine ab. Ohne den Fix aus #2978 sind es über 100.
+  describe("render budget", () => {
+    const IDLE_MS = 5_000;
+    const IDLE_STEP_MS = 100;
+    const MAX_COMMITS = 20;
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each([
+      ["/dashboard", true],
+      ["/ogs-groups", false],
+      ["/settings", true],
+    ])("commits at most 20 times in idle on %s", async (pathname, admin) => {
+      vi.useFakeTimers();
+      mockIsAdmin.mockReturnValue(admin);
+      mockUseSession.mockReturnValue(createMockSession(admin));
+      mockUsePathname.mockReturnValue(pathname);
+      let commits = 0;
+
+      render(
+        <Profiler id="nav" onRender={() => void commits++}>
+          <MobileBottomNav />
+        </Profiler>,
+      );
+      // In Schritten, weil `act` gepufferte Updates erst am Ende ausführt:
+      // ein Timer, der im Update einen neuen Timer setzt, feuert sonst nie.
+      for (let elapsed = 0; elapsed < IDLE_MS; elapsed += IDLE_STEP_MS) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(IDLE_STEP_MS);
+        });
+      }
+
+      expect(commits).toBeLessThanOrEqual(MAX_COMMITS);
     });
   });
 });

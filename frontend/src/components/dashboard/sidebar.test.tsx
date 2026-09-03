@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Profiler } from "react";
 import {
   act,
   render,
@@ -2694,6 +2695,44 @@ describe("Sidebar", () => {
       const header = screen.getByRole("button", { name: "Eltern" });
       const body = header.nextElementSibling?.firstElementChild;
       expect(body).toHaveAttribute("inert");
+    });
+  });
+
+  // Render-Budget (#2939), Gegenstück zum Test in mobile-bottom-nav.test.tsx:
+  // Profiler-Commits in 5 s Leerlauf mit Fake-Timern. Eine neue Effekt-
+  // Schleife in der Shell fällt hier auf, unabhängig vom Runner.
+  describe("render budget", () => {
+    const IDLE_MS = 5_000;
+    const IDLE_STEP_MS = 100;
+    const MAX_COMMITS = 20;
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each([
+      ["/dashboard", true],
+      ["/ogs-groups", false],
+    ])("commits at most 20 times in idle on %s", async (pathname, admin) => {
+      vi.useFakeTimers();
+      mockIsAdmin.mockReturnValue(admin);
+      mockUseSession.mockReturnValue(createMockSession(admin));
+      mockUsePathname.mockReturnValue(pathname);
+      let commits = 0;
+
+      render(
+        <Profiler id="sidebar" onRender={() => void commits++}>
+          <Sidebar />
+        </Profiler>,
+      );
+      // In Schritten, weil `act` gepufferte Updates erst am Ende ausführt.
+      for (let elapsed = 0; elapsed < IDLE_MS; elapsed += IDLE_STEP_MS) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(IDLE_STEP_MS);
+        });
+      }
+
+      expect(commits).toBeLessThanOrEqual(MAX_COMMITS);
     });
   });
 });
