@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -99,22 +100,19 @@ func (s *TimetableBridgeService) notScheduledForEndedSessions(
 	if s.deps.CareDays == nil {
 		return nil, nil
 	}
+	if len(activeGroupIDs) == 0 {
+		return nil, nil
+	}
 
-	// One lookup per ended session — bounded by the sessions a single tenant
-	// closes in a day, and the instance rows are already hot from the bridge.
-	instanceIDs := make([]int64, 0, len(activeGroupIDs))
+	instances, err := s.deps.Instances.List(ctx, &modelBase.QueryOptions{
+		Filter: modelBase.NewFilter().In("active_group_id", int64FilterArgs(activeGroupIDs)...),
+	})
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete bridged instances: load instances", Err: err}
+	}
+	instanceIDs := make([]int64, 0, len(instances))
 	datesByInstance := make(map[int64]timezone.Date, len(activeGroupIDs))
-	for _, activeGroupID := range activeGroupIDs {
-		instance, err := s.deps.Instances.FindByActiveGroupID(ctx, activeGroupID)
-		if err != nil {
-			return nil, &ScheduleError{
-				Op:  "complete bridged instances: load instance",
-				Err: fmt.Errorf("active group %d: %w", activeGroupID, err),
-			}
-		}
-		if instance == nil {
-			continue
-		}
+	for _, instance := range instances {
 		instanceIDs = append(instanceIDs, instance.ID)
 		datesByInstance[instance.ID] = instance.Date
 	}

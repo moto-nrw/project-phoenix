@@ -41,6 +41,17 @@ func (r *StaffShiftRepository) FindByID(ctx context.Context, id any) (*schedule.
 	return shift, nil
 }
 
+// ListWithOptions exposes the generic filtered list while preserving the
+// repository's wall-clock normalization invariant.
+func (r *StaffShiftRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StaffShift, error) {
+	shifts, err := r.Repository.ListWithOptions(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	normalizeShiftWallClock(shifts)
+	return shifts, nil
+}
+
 // normalizeWallClock strips the driver-arbitrary year anchor from scanned
 // TIME columns so callers can compare and format the wall-clock values.
 func normalizeShiftWallClock(shifts []*schedule.StaffShift) {

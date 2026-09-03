@@ -14130,6 +14130,16 @@
     },
     {
       "scope": "test",
+      "file": "services/schedule/timetable_operations_query_budget_test.go",
+      "declaration": "TestTimetableOperationsPlannedNowQueryBudget",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        85
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/scheduler/overdue_test.go",
       "declaration": "buildOverdue",
       "target": "database/repositories.NewFactory",
