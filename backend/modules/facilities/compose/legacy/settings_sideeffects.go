@@ -8,7 +8,22 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
-func RegisterSettingsSideEffects(registry *sideeffects.Registry, schulhof facilities.SchulhofService, wc facilities.WCService) {
+type settingHandler = sideeffects.KeyHandler
+type provisionedActivity = facilities.SystemActivity
+
+type settingsRegistry interface {
+	Register(string, settingHandler)
+}
+
+type schulhofProvisioner interface {
+	EnsureInfrastructure(context.Context, int64) (*provisionedActivity, error)
+}
+
+type wcProvisioner interface {
+	EnsureInfrastructure(context.Context) (*provisionedActivity, error)
+}
+
+func RegisterSettingsSideEffects(registry settingsRegistry, schulhof schulhofProvisioner, wc wcProvisioner) {
 	registry.Register(configModels.KeyCheckoutSchulhofEnabled, func(ctx context.Context, _ int64, value any) (func(), error) {
 		enabled, ok := value.(bool)
 		if !ok || !enabled {

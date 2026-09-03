@@ -1056,7 +1056,7 @@ func (r *InstanceStudentRepository) ApplyActivePartialAbsencesForInstance(
 		return 0, &modelBase.DatabaseError{Op: "list active partial absences for lock", Err: base.TranslateNotFound(err)}
 	}
 	for _, studentID := range studentIDs {
-		if err := careplanning.LockExceptionDay(ctx, r.db, studentID, date); err != nil {
+		if err := careplanning.LockExceptionDay(ctx, r.db, studentID, date.String()); err != nil {
 			return 0, err
 		}
 	}
@@ -1525,7 +1525,7 @@ func (r *InstanceStudentRepository) restoreArchivedByTransition(
 	tenantID := tenant.FromContext(ctx)
 	var archivedRoomIDs []int64
 	if err := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr("schedule.grade_transition_roster_removals AS rm").
+		TableExpr(`schedule.grade_transition_roster_removals AS "rm"`).
 		ColumnExpr("DISTINCT rm.room_id").
 		Where("rm.transition_id = ?", transitionID).
 		Where("rm.student_id IN (?)", bun.List(studentIDs)).
@@ -1684,7 +1684,7 @@ func (r *InstanceStudentRepository) lockRestoreCareExceptionDays(
 			}
 			return fmt.Errorf("lock student for care exception day: %w", err)
 		}
-		if err := careplanning.LockExceptionDay(ctx, r.db, day.StudentID, day.Date); err != nil {
+		if err := careplanning.LockExceptionDay(ctx, r.db, day.StudentID, day.Date.String()); err != nil {
 			return err
 		}
 	}

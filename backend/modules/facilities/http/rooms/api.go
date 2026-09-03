@@ -98,10 +98,7 @@ type Runtime struct {
 }
 
 type Resource struct {
-	rooms     facilities.Capability
-	roomPages interface {
-		ListRoomsPage(context.Context, facilities.RoomFilter, int, int) (facilities.RoomPage, error)
-	}
+	rooms   facilities.Capability
 	runtime Runtime
 }
 
@@ -115,13 +112,7 @@ func NewResource(rooms facilities.Capability, runtime Runtime) *Resource {
 		runtime.ReadUsers == "" || runtime.Create == "" || runtime.Update == "" || runtime.Delete == "" {
 		panic("rooms HTTP: all dependencies are required")
 	}
-	roomPages, ok := rooms.(interface {
-		ListRoomsPage(context.Context, facilities.RoomFilter, int, int) (facilities.RoomPage, error)
-	})
-	if !ok {
-		panic("rooms HTTP: Facilities pagination capability is required")
-	}
-	return &Resource{rooms: rooms, roomPages: roomPages, runtime: runtime}
+	return &Resource{rooms: rooms, runtime: runtime}
 }
 
 func (rs *Resource) Router() chi.Router {
@@ -201,7 +192,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	includeSystem := r.URL.Query().Get("include_system") == "true"
 	filter.ExcludeSystem = !includeSystem
 	page, pageSize := rs.runtime.Pagination(r)
-	pageResult, err := rs.roomPages.ListRoomsPage(r.Context(), filter, (page-1)*pageSize, pageSize)
+	pageResult, err := rs.rooms.ListRoomsPage(r.Context(), filter, (page-1)*pageSize, pageSize)
 	if err != nil {
 		rs.failure(w, r, err)
 		return

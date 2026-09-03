@@ -11,6 +11,7 @@ import (
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -49,7 +50,7 @@ func setupChildOfferingTest(t *testing.T) (
 		return childRepo.Create(ctx, child)
 	}))
 
-	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
 	offering := makeOffering(phase.ID, uniqueOfferingName("childoffering"))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return offeringRepo.Create(ctx, offering)
@@ -124,7 +125,7 @@ func requestIDOf(t *testing.T, db *bun.DB, tenantID, childID int64) int64 {
 // batched query has more than one id to separate.
 func addSiblingOffering(t *testing.T, db *bun.DB, tenantID, phaseID int64, prefix string) int64 {
 	t.Helper()
-	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
 	offering := makeOffering(phaseID, uniqueOfferingName(prefix))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return offeringRepo.Create(ctx, offering)
@@ -136,7 +137,7 @@ func addSiblingOffering(t *testing.T, db *bun.DB, tenantID, phaseID int64, prefi
 // are phase-scoped, and the shared fixture does not hand the phase back.
 func phaseIDOfOffering(t *testing.T, db *bun.DB, tenantID, offeringID int64) int64 {
 	t.Helper()
-	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
 	var phaseID int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		offering, err := offeringRepo.FindByID(ctx, offeringID)
@@ -267,7 +268,7 @@ func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 
 	// Second offering so the child has two picks.
-	offering2Repo := enrollmentRepo.NewCareOfferingRepository(db)
+	offering2Repo := carePlanTest.NewCareOfferingRepository(t, db)
 	o2 := makeOffering(0, uniqueOfferingName("second"))
 	// We need o2's PhaseID; fetch the first offering's phase via repo.
 	var first *enrollmentModels.CareOffering
@@ -307,7 +308,7 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDs_BatchLoad(t *testi
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 
 	// Two offering links for the one child.
-	offering2Repo := enrollmentRepo.NewCareOfferingRepository(db)
+	offering2Repo := carePlanTest.NewCareOfferingRepository(t, db)
 	var first *enrollmentModels.CareOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
@@ -341,7 +342,7 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHist
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
 	var first *enrollmentModels.CareOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error

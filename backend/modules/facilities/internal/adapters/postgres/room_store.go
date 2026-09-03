@@ -244,14 +244,16 @@ func (s *Store) ListPage(ctx context.Context, filter domain.RoomFilter, offset, 
 	if empty || countEmpty {
 		return []domain.Room{}, 0, domain.OperationStats{}, nil
 	}
-	stats := domain.OperationStats{Queries: 2}
+	stats := domain.OperationStats{}
 	started := time.Now()
 	var total int
+	stats.Queries++
 	if err := countQuery.Scan(ctx, &total); err != nil {
 		stats.StatementDuration = time.Since(started)
 		return nil, 0, stats, fmt.Errorf("facilities postgres: count rooms: %w", err)
 	}
 	query = query.Offset(offset).Limit(limit)
+	stats.Queries++
 	if err := query.Scan(ctx); err != nil {
 		stats.StatementDuration = time.Since(started)
 		return nil, 0, stats, fmt.Errorf("facilities postgres: list room page: %w", err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/stretchr/testify/assert"
@@ -11,9 +12,10 @@ import (
 )
 
 type recordingEngine struct {
-	findID  int64
-	listIDs []int64
-	calls   int
+	findID     int64
+	listIDs    []int64
+	calls      int
+	rejections []string
 }
 
 func (e *recordingEngine) FindRoom(_ context.Context, id int64) (facilities.Room, error) {
@@ -41,6 +43,11 @@ func (e *recordingEngine) ListRooms(context.Context, facilities.RoomFilter) ([]f
 	return []facilities.Room{{Name: "Igelraum"}}, nil
 }
 
+func (e *recordingEngine) ListRoomsPage(context.Context, facilities.RoomFilter, int, int) (facilities.RoomPage, error) {
+	e.calls++
+	return facilities.RoomPage{Rooms: []facilities.Room{{Name: "Igelraum"}}, Total: 1}, nil
+}
+
 func (e *recordingEngine) ListRoomsByID(_ context.Context, ids []int64) ([]facilities.Room, error) {
 	e.calls++
 	e.listIDs = ids
@@ -65,6 +72,10 @@ func (e *recordingEngine) UpdateRoom(_ context.Context, input facilities.UpdateR
 
 func (e *recordingEngine) DeleteRoom(context.Context, int64) error { return nil }
 
+func (e *recordingEngine) ObserveRejection(operation string, _ time.Duration, _ error) {
+	e.rejections = append(e.rejections, operation)
+}
+
 func TestModuleRejectsInvalidIdentifiersBeforeReachingTheEngine(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
@@ -78,6 +89,7 @@ func TestModuleRejectsInvalidIdentifiersBeforeReachingTheEngine(t *testing.T) {
 	require.ErrorIs(t, err, facilities.ErrInvalidRoom)
 
 	assert.Zero(t, engine.calls, "invalid input must never reach persistence")
+	assert.Equal(t, []string{"find_room", "list_rooms_by_id"}, engine.rejections)
 }
 
 func TestModuleAnswersEmptyListWithoutPersistence(t *testing.T) {

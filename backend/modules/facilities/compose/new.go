@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/adapters/postgres"
@@ -32,11 +33,12 @@ func New(dependencies Dependencies) (*facilities.Module, error) {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
-	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.DeletionGuard, func(observation Observation) {
+	observe := func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
-	})
-	return facilities.NewModule(engine{service: service}), nil
+	}
+	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.DeletionGuard, observe)
+	return facilities.NewModule(engine{service: service, observe: observe}), nil
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
@@ -70,7 +72,14 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 	}
 }
 
-type engine struct{ service *application.Service }
+type engine struct {
+	service *application.Service
+	observe ports.Observer
+}
+
+func (e engine) ObserveRejection(operation string, duration time.Duration, err error) {
+	e.observe(ports.Observation{Operation: operation, Duration: duration, Err: err})
+}
 
 type transaction struct{}
 

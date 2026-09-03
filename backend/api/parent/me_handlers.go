@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/localization"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -117,8 +118,8 @@ type ChildResponse struct {
 	LastName      string         `json:"last_name"`
 	SchoolClass   string         `json:"school_class,omitempty"`
 	Status        string         `json:"status"`
-	EnrolledFrom  *timezone.Date `json:"enrolled_from,omitempty"`
-	EnrolledUntil *timezone.Date `json:"enrolled_until,omitempty"`
+	EnrolledFrom  *careplan.Date `json:"enrolled_from,omitempty"`
+	EnrolledUntil *careplan.Date `json:"enrolled_until,omitempty"`
 	SchoolName    string         `json:"school_name"`
 	SchoolSlug    string         `json:"school_slug"`
 	// CareEnded says the school has ended this child's care (#2487). Derived
@@ -140,7 +141,7 @@ func toChildResponse(c *parentModels.ChildSummary) ChildResponse {
 		EnrolledUntil: c.EnrolledUntil,
 		SchoolName:    c.SchoolName,
 		SchoolSlug:    c.SchoolSlug,
-		CareEnded:     c.CareEnded(timezone.TodayDate()),
+		CareEnded:     c.CareEnded(careplan.Date(timezone.TodayDate().String())),
 	}
 }
 
@@ -183,8 +184,8 @@ type EnrollablePhaseResponse struct {
 	PhaseID           string        `json:"phase_id"`
 	PhaseName         string        `json:"phase_name"`
 	PhaseKind         string        `json:"phase_kind"`
-	ServiceStartDate  timezone.Date `json:"service_start_date"`
-	ServiceEndDate    timezone.Date `json:"service_end_date"`
+	ServiceStartDate  careplan.Date `json:"service_start_date"`
+	ServiceEndDate    careplan.Date `json:"service_end_date"`
 	EnrollmentOpenAt  *time.Time    `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt *time.Time    `json:"enrollment_close_at,omitempty"`
 	AlreadyLinked     bool          `json:"already_linked"`
@@ -252,8 +253,8 @@ type EnrollmentRequestResponse struct {
 	WithdrawnAt      *time.Time                       `json:"withdrawn_at,omitempty"`
 	PhaseID          string                           `json:"phase_id"`
 	PhaseName        string                           `json:"phase_name"`
-	ServiceStartDate timezone.Date                    `json:"service_start_date"`
-	ServiceEndDate   timezone.Date                    `json:"service_end_date"`
+	ServiceStartDate careplan.Date                    `json:"service_start_date"`
+	ServiceEndDate   careplan.Date                    `json:"service_end_date"`
 	SchoolName       string                           `json:"school_name"`
 	SchoolSlug       string                           `json:"school_slug"`
 	Children         []EnrollmentRequestChildResponse `json:"children"`

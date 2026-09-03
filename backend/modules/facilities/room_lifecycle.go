@@ -1,7 +1,6 @@
 package facilities
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -121,7 +120,7 @@ func normalizeAndValidateRoom(name *string, capacity *int, color **string) error
 		normalized = "#" + normalized
 	}
 	if !roomColorPattern.MatchString(normalized) {
-		return &InvalidRoomError{Reason: fmt.Sprintf("invalid room color %q", **color)}
+		return &InvalidRoomError{Reason: "invalid color format, must be a valid hex color"}
 	}
 	if len(normalized) == 4 {
 		normalized = string([]byte{'#', normalized[1], normalized[1], normalized[2], normalized[2], normalized[3], normalized[3]})

@@ -50,6 +50,7 @@ type Query interface {
 	FindRoomByName(context.Context, string) (Room, error)
 	FindToiletRoom(context.Context, int64) (Room, error)
 	ListRooms(context.Context, RoomFilter) ([]Room, error)
+	ListRoomsPage(context.Context, RoomFilter, int, int) (RoomPage, error)
 	ListRoomsByID(context.Context, []int64) ([]Room, error)
 	LockRoomsByID(context.Context, []int64) ([]Room, error)
 }
@@ -72,11 +73,13 @@ type engine interface {
 	FindRoomByName(context.Context, string) (Room, error)
 	FindToiletRoom(context.Context, int64) (Room, error)
 	ListRooms(context.Context, RoomFilter) ([]Room, error)
+	ListRoomsPage(context.Context, RoomFilter, int, int) (RoomPage, error)
 	ListRoomsByID(context.Context, []int64) ([]Room, error)
 	LockRoomsByID(context.Context, []int64) ([]Room, error)
 	CreateRoom(context.Context, CreateRoom) (Room, error)
 	UpdateRoom(context.Context, UpdateRoom) (Room, error)
 	DeleteRoom(context.Context, int64) error
+	ObserveRejection(string, time.Duration, error)
 }
 
 type Module struct{ engine engine }
@@ -90,7 +93,9 @@ func NewModule(engine engine) *Module {
 
 func (m *Module) FindRoom(ctx context.Context, id int64) (Room, error) {
 	if id <= 0 {
-		return Room{}, ErrInvalidRoom
+		err := ErrInvalidRoom
+		m.engine.ObserveRejection("find_room", 0, err)
+		return Room{}, err
 	}
 	return m.engine.FindRoom(ctx, id)
 }
@@ -100,7 +105,9 @@ func (m *Module) FindRoom(ctx context.Context, id int64) (Room, error) {
 // subsequent mutation must be atomic.
 func (m *Module) FindRoomForUpdate(ctx context.Context, id int64) (Room, error) {
 	if id <= 0 {
-		return Room{}, ErrInvalidRoom
+		err := ErrInvalidRoom
+		m.engine.ObserveRejection("find_room_for_update", 0, err)
+		return Room{}, err
 	}
 	return m.engine.FindRoomForUpdate(ctx, id)
 }
@@ -108,24 +115,32 @@ func (m *Module) FindRoomForUpdate(ctx context.Context, id int64) (Room, error) 
 func (m *Module) FindRoomByName(ctx context.Context, name string) (Room, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return Room{}, &InvalidRoomError{Reason: "room name is required"}
+		err := &InvalidRoomError{Reason: "room name is required"}
+		m.engine.ObserveRejection("find_room_by_name", 0, err)
+		return Room{}, err
 	}
 	return m.engine.FindRoomByName(ctx, name)
 }
 
 func (m *Module) FindToiletRoom(ctx context.Context, excludeRoomID int64) (Room, error) {
 	if excludeRoomID < 0 {
-		return Room{}, &InvalidRoomError{Reason: "excluded room ID cannot be negative"}
+		err := &InvalidRoomError{Reason: "excluded room ID cannot be negative"}
+		m.engine.ObserveRejection("find_toilet_room", 0, err)
+		return Room{}, err
 	}
 	return m.engine.FindToiletRoom(ctx, excludeRoomID)
 }
 
 func (m *Module) ListRooms(ctx context.Context, filter RoomFilter) ([]Room, error) {
 	if filter.MinimumCapacity != nil && *filter.MinimumCapacity < 0 {
-		return nil, &InvalidRoomError{Reason: "minimum capacity cannot be negative"}
+		err := &InvalidRoomError{Reason: "minimum capacity cannot be negative"}
+		m.engine.ObserveRejection("list_rooms", 0, err)
+		return nil, err
 	}
 	if filter.MaximumCapacity != nil && *filter.MaximumCapacity < 0 {
-		return nil, &InvalidRoomError{Reason: "maximum capacity cannot be negative"}
+		err := &InvalidRoomError{Reason: "maximum capacity cannot be negative"}
+		m.engine.ObserveRejection("list_rooms", 0, err)
+		return nil, err
 	}
 	return m.engine.ListRooms(ctx, filter)
 }
@@ -134,15 +149,11 @@ func (m *Module) ListRooms(ctx context.Context, filter RoomFilter) ([]Room, erro
 // count. Offset and limit are applied by the owner store.
 func (m *Module) ListRoomsPage(ctx context.Context, filter RoomFilter, offset, limit int) (RoomPage, error) {
 	if offset < 0 || limit <= 0 {
-		return RoomPage{}, &InvalidRoomError{Reason: "room page is invalid"}
+		err := &InvalidRoomError{Reason: "room page is invalid"}
+		m.engine.ObserveRejection("list_rooms_page", 0, err)
+		return RoomPage{}, err
 	}
-	pager, ok := m.engine.(interface {
-		ListRoomsPage(context.Context, RoomFilter, int, int) (RoomPage, error)
-	})
-	if !ok {
-		return RoomPage{}, errors.New("facilities: room page is unavailable")
-	}
-	return pager.ListRoomsPage(ctx, filter, offset, limit)
+	return m.engine.ListRoomsPage(ctx, filter, offset, limit)
 }
 
 // ListRoomsByID returns the rooms visible in the caller's transaction for
@@ -154,7 +165,9 @@ func (m *Module) ListRoomsByID(ctx context.Context, ids []int64) ([]Room, error)
 	}
 	for _, id := range ids {
 		if id <= 0 {
-			return nil, ErrInvalidRoom
+			err := ErrInvalidRoom
+			m.engine.ObserveRejection("list_rooms_by_id", 0, err)
+			return nil, err
 		}
 	}
 	return m.engine.ListRoomsByID(ctx, ids)
@@ -169,27 +182,37 @@ func (m *Module) LockRoomsByID(ctx context.Context, ids []int64) ([]Room, error)
 	}
 	for _, id := range ids {
 		if id <= 0 {
-			return nil, ErrInvalidRoom
+			err := ErrInvalidRoom
+			m.engine.ObserveRejection("lock_rooms_by_id", 0, err)
+			return nil, err
 		}
 	}
 	return m.engine.LockRoomsByID(ctx, ids)
 }
 
 func (m *Module) CreateRoom(ctx context.Context, input CreateRoom) (Room, error) {
+	started := time.Now()
 	if err := normalizeAndValidateCreateRoom(&input); err != nil {
+		m.engine.ObserveRejection("create_room", time.Since(started), err)
 		return Room{}, err
 	}
 	if strings.EqualFold(input.Name, SchulhofRoomName) && (input.Name != SchulhofRoomName || !input.IsSystem) {
-		return Room{}, ErrSystemRoomNameReserved
+		err := ErrSystemRoomNameReserved
+		m.engine.ObserveRejection("create_room", time.Since(started), err)
+		return Room{}, err
 	}
 	return m.engine.CreateRoom(ctx, input)
 }
 
 func (m *Module) UpdateRoom(ctx context.Context, input UpdateRoom) (Room, error) {
+	started := time.Now()
 	if input.ID <= 0 {
-		return Room{}, &InvalidRoomError{Reason: "room ID is required"}
+		err := &InvalidRoomError{Reason: "room ID is required"}
+		m.engine.ObserveRejection("update_room", time.Since(started), err)
+		return Room{}, err
 	}
 	if err := normalizeAndValidateRoom(&input.Name, input.Capacity, &input.Color); err != nil {
+		m.engine.ObserveRejection("update_room", time.Since(started), err)
 		return Room{}, err
 	}
 	return m.engine.UpdateRoom(ctx, input)
@@ -197,7 +220,9 @@ func (m *Module) UpdateRoom(ctx context.Context, input UpdateRoom) (Room, error)
 
 func (m *Module) DeleteRoom(ctx context.Context, id int64) error {
 	if id <= 0 {
-		return &InvalidRoomError{Reason: "room ID is required"}
+		err := &InvalidRoomError{Reason: "room ID is required"}
+		m.engine.ObserveRejection("delete_room", 0, err)
+		return err
 	}
 	return m.engine.DeleteRoom(ctx, id)
 }

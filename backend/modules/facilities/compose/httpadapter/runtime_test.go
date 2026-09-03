@@ -262,6 +262,19 @@ func TestCreateRoom(t *testing.T) {
 
 		testutil.AssertBadRequest(t, rr)
 	})
+
+	t.Run("bad_request_preserves_invalid_color_message", func(t *testing.T) {
+		body := map[string]interface{}{
+			"name":  "Invalid Color Room",
+			"color": "not-a-color",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+
+		testutil.AssertBadRequest(t, rr)
+		assert.Contains(t, rr.Body.String(), "invalid color format, must be a valid hex color")
+	})
 }
 
 // =============================================================================

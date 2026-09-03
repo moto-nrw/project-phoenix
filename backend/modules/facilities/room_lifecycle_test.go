@@ -3,6 +3,7 @@ package facilities_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/stretchr/testify/assert"
@@ -36,6 +37,10 @@ func (e *lifecycleEngine) ListRooms(context.Context, facilities.RoomFilter) ([]f
 	return nil, nil
 }
 
+func (e *lifecycleEngine) ListRoomsPage(context.Context, facilities.RoomFilter, int, int) (facilities.RoomPage, error) {
+	return facilities.RoomPage{}, nil
+}
+
 func (e *lifecycleEngine) ListRoomsByID(context.Context, []int64) ([]facilities.Room, error) {
 	return nil, nil
 }
@@ -61,6 +66,8 @@ func (e *lifecycleEngine) DeleteRoom(_ context.Context, id int64) error {
 	e.deleted = id
 	return nil
 }
+
+func (e *lifecycleEngine) ObserveRejection(string, time.Duration, error) {}
 
 func TestCreateRoomNormalizesAtPublicSeam(t *testing.T) {
 	t.Parallel()
@@ -179,4 +186,16 @@ func TestCreateRoomKeepsReservedColorUserMessage(t *testing.T) {
 
 	require.ErrorIs(t, err, facilities.ErrRoomColorReserved)
 	assert.Equal(t, "Diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden", err.Error())
+}
+
+func TestCreateRoomKeepsInvalidColorUserMessage(t *testing.T) {
+	t.Parallel()
+
+	color := "not-a-color"
+	module := facilities.NewModule(&lifecycleEngine{})
+
+	_, err := module.CreateRoom(context.Background(), facilities.CreateRoom{Name: "Igelraum", Color: &color})
+
+	require.ErrorIs(t, err, facilities.ErrInvalidRoom)
+	assert.Equal(t, "invalid color format, must be a valid hex color", err.Error())
 }

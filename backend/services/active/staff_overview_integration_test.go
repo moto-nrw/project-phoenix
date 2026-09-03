@@ -2,7 +2,6 @@ package active_test
 
 import (
 	"context"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,17 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// countingQueryHook counts SQL statements so a test can prove the overview's
-// query count does not grow with the number of staff members.
-type countingQueryHook struct{ n atomic.Int64 }
-
-func (h *countingQueryHook) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
-	h.n.Add(1)
-	return ctx
-}
-
-func (h *countingQueryHook) AfterQuery(context.Context, *bun.QueryEvent) {}
 
 type recordingAbsenceRepository struct {
 	activeModels.StaffAbsenceRepository
@@ -364,18 +352,17 @@ func TestTimeTrackingOverview_QueryCountIsConstant(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	small := newOverviewFixture(t, 1)
-	hook := &countingQueryHook{}
-	small.db.AddQueryHook(hook)
+	hook := testpkg.CaptureQueries(t, small.db)
 	_, err := small.svc.GetTimeTrackingOverview(small.ctx, active.OverviewFilters{})
 	require.NoError(t, err)
-	oneStaff := hook.n.Load()
+	oneStaff := hook.Total()
+	hook.Stop()
 
 	large := newOverviewFixture(t, 8)
-	hookLarge := &countingQueryHook{}
-	large.db.AddQueryHook(hookLarge)
+	hookLarge := testpkg.CaptureQueries(t, large.db)
 	_, err = large.svc.GetTimeTrackingOverview(large.ctx, active.OverviewFilters{})
 	require.NoError(t, err)
-	eightStaff := hookLarge.n.Load()
+	eightStaff := hookLarge.Total()
 
 	assert.Equal(t, oneStaff, eightStaff,
 		"query count must not grow with the number of staff members (1 staff: %d, 8 staff: %d)",

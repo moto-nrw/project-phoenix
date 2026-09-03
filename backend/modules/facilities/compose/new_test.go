@@ -275,3 +275,18 @@ func TestModuleKeepsUpdateLockedRoomUntilTenantTransactionEnds(t *testing.T) {
 	require.NoError(t, <-holderDone)
 	require.NoError(t, <-updateDone)
 }
+
+func TestModuleCountsOnlyAttemptedPageQueries(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
+	var observed Observation
+	module := buildModule(t, db, func(value Observation) { observed = value })
+	require.NoError(t, db.Close())
+
+	_, err := module.ListRoomsPage(testpkg.Ctx(t), facilities.RoomFilter{}, 0, 10)
+
+	require.Error(t, err)
+	assert.Equal(t, "list_rooms_page", observed.Operation)
+	assert.EqualValues(t, 1, observed.Stats.Queries)
+}

@@ -1,33 +1,24 @@
 package students_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// identityStageCounter buckets the SELECTs that resolve the identity chain
-// (Account → Person → Staff → Teacher → substitutions). The markers pair the
-// table with the lookup column of the identity resolution so that business
-// queries which merely JOIN the same tables (e.g. substitute names on the
-// transfers projection) do not pollute the buckets.
-type identityStageCounter struct {
-	mu      sync.Mutex
-	queries map[string][]string
-}
-
-// identityStageMatchers maps a stage to a predicate over the lowercased SQL.
+// identityStageMatchers buckets the SELECTs that resolve the identity chain
+// (Account → Person → Staff → Teacher → substitutions) by a predicate over the
+// lowercased SQL. The markers pair the table with the lookup column of the
+// identity resolution so that business queries which merely JOIN the same
+// tables (e.g. substitute names on the transfers projection) do not pollute
+// the buckets.
 // The substitution stage accepts both SQL shapes: the hand-written finder
 // emits `.substitute_staff_id = ?`, the Filter-based one
 // `"substitute_staff_id" = ?`; substitution reads filtered by group (the
@@ -48,35 +39,6 @@ var identityStageMatchers = map[string]func(string) bool{
 		return hasTable &&
 			(strings.Contains(q, "substitute_staff_id = ") || strings.Contains(q, `substitute_staff_id" = `))
 	},
-}
-
-func (c *identityStageCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	query := strings.ToLower(event.Query)
-	if !strings.HasPrefix(strings.TrimSpace(query), "select") {
-		return ctx
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for stage, matches := range identityStageMatchers {
-		if matches(query) {
-			c.queries[stage] = append(c.queries[stage], event.Query)
-		}
-	}
-	return ctx
-}
-
-func (*identityStageCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
-
-func (c *identityStageCounter) reset() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.queries = make(map[string][]string)
-}
-
-func (c *identityStageCounter) captured(stage string) []string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return append([]string(nil), c.queries[stage]...)
 }
 
 // TestOGSGroupLiveIdentityQueryBudget is the endpoint-level #2099 acceptance
@@ -109,31 +71,26 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	}
 
-	counter := &identityStageCounter{queries: make(map[string][]string)}
-	tc.db.AddQueryHook(counter)
-	counter.reset()
+	counter := testpkg.CaptureQueries(t, tc.db)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
-	for stage, queries := range map[string][]string{
-		"person":        counter.captured("person"),
-		"staff":         counter.captured("staff"),
-		"teacher":       counter.captured("teacher"),
-		"substitutions": counter.captured("substitutions"),
-	} {
-		t.Logf("identity stage %q: %d queries", stage, len(queries))
-		for _, q := range queries {
-			t.Logf("  %s", q)
-		}
+	stage := func(name string) []string {
+		queries := counter.Matching(func(q string) bool {
+			return strings.HasPrefix(strings.TrimSpace(q), "select") && identityStageMatchers[name](q)
+		})
+		t.Logf("identity stage %q: %d queries", name, len(queries))
+		return queries
 	}
 
-	assert.Len(t, counter.captured("person"), 1, "person stage must be resolved exactly once per request")
-	assert.Len(t, counter.captured("staff"), 1, "staff stage must be resolved exactly once per request")
-	assert.Len(t, counter.captured("teacher"), 1, "teacher stage must be resolved exactly once per request")
-	// Two distinct substitution projections exist (GetMyGroups relations,
+	// Each stage must be resolved exactly once per request. Two distinct
+	// substitution projections exist (GetMyGroups relations,
 	// GetSubstitutedGroupIDs id-set); each memoizes its own result, so 2 is
 	// the per-request floor.
-	assert.Len(t, counter.captured("substitutions"), 2, "substitution lookups must run once per projection")
+	testpkg.AssertQueryBudget(t, "api.students.ogs_group_live.identity.person", stage("person"))
+	testpkg.AssertQueryBudget(t, "api.students.ogs_group_live.identity.staff", stage("staff"))
+	testpkg.AssertQueryBudget(t, "api.students.ogs_group_live.identity.teacher", stage("teacher"))
+	testpkg.AssertQueryBudget(t, "api.students.ogs_group_live.identity.substitutions", stage("substitutions"))
 }

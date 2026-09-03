@@ -86,12 +86,10 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	require.NotZero(t, startResp.ActiveGroupID)
 
 	// --- Step 3: /gaps — baseline should be empty --------------------------
-	qc := &queryCounter{}
-	s.db.AddQueryHook(qc)
-	qc.reset()
+	qc := testpkg.CaptureQueries(t, s.db)
 
 	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, s.primaryAdminClaims())
-	gapsQueryCount := qc.get()
+	gapsQueryCount := qc.Total()
 	require.Equal(t, http.StatusOK, rr.Code, "gaps body=%s", rr.Body.String())
 
 	var gapsResp1 struct {
@@ -224,9 +222,9 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	}
 
 	// --- Step 8: /gaps must now surface the gap instance -------------------
-	qc.reset()
+	qc.Reset()
 	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, s.primaryAdminClaims())
-	gapsQueryCount2 := qc.get()
+	gapsQueryCount2 := qc.Total()
 	require.Equal(t, http.StatusOK, rr.Code, "gaps(with-gap) body=%s", rr.Body.String())
 
 	var gapsResp2 struct {

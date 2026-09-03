@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -23,8 +22,7 @@ import (
 // identity resolution, so relation hydration that merely reads the same table
 // by primary-key list (e.g. substitution staff names) stays out of the buckets.
 type identityQueryCounter struct {
-	mu      sync.Mutex
-	buckets map[string]int
+	*testpkg.QueryCounter
 }
 
 // identityStageMatchers maps a stage to a predicate over the lowercased SQL.
@@ -48,39 +46,18 @@ var identityStageMatchers = map[string]func(string) bool{
 	},
 }
 
-func (c *identityQueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	query := strings.ToLower(event.Query)
-	if !strings.HasPrefix(strings.TrimSpace(query), "select") {
-		return ctx
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for bucket, matches := range identityStageMatchers {
-		if matches(query) {
-			c.buckets[bucket]++
-		}
-	}
-	return ctx
+// bucket returns the SELECTs of one identity stage.
+func (c *identityQueryCounter) bucket(name string) []string {
+	return c.Matching(func(q string) bool {
+		return strings.HasPrefix(strings.TrimSpace(q), "select") && identityStageMatchers[name](q)
+	})
 }
 
-func (*identityQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
+func (c *identityQueryCounter) count(name string) int { return len(c.bucket(name)) }
 
-func (c *identityQueryCounter) count(bucket string) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.buckets[bucket]
-}
-
-func (c *identityQueryCounter) reset() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.buckets = make(map[string]int)
-}
-
-func newIdentityQueryCounter(db *bun.DB) *identityQueryCounter {
-	counter := &identityQueryCounter{buckets: make(map[string]int)}
-	db.AddQueryHook(counter)
-	return counter
+func newIdentityQueryCounter(t *testing.T, db *bun.DB) *identityQueryCounter {
+	t.Helper()
+	return &identityQueryCounter{QueryCounter: testpkg.CaptureQueries(t, db)}
 }
 
 // resolveFullChain exercises every identity-chain read the way a busy handler
@@ -120,22 +97,23 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 	_ = testpkg.CreateTestGroupSubstitution(t, db, subGroup.ID, nil, teacher.StaffID,
 		today.AddDays(-1), today.AddDays(3))
 
-	counter := newIdentityQueryCounter(db)
+	counter := newIdentityQueryCounter(t, db)
 
 	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 	resolveFullChain(t, ctx, service)
 
-	assert.Equal(t, 1, counter.count("persons"), "users.persons must be loaded exactly once per request")
-	assert.Equal(t, 1, counter.count("staff"), "users.staff must be loaded exactly once per request")
-	assert.Equal(t, 1, counter.count("teachers"), "users.teachers must be loaded exactly once per request")
-	// Two distinct repo projections read substitutions (GetMyGroups uses
+	// Each stage must be loaded exactly once per request. Two distinct repo
+	// projections read substitutions (GetMyGroups uses
 	// FindActiveBySubstituteWithRelations, GetSubstitutedGroupIDs uses
 	// FindActiveBySubstitute); each is memoized at its result level, so 2 is
 	// the per-request floor. Unifying the two projections is out of scope.
-	assert.Equal(t, 2, counter.count("substitutions"), "substitution lookups must run once per projection")
+	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.persons", counter.bucket("persons"))
+	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.staff", counter.bucket("staff"))
+	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.teachers", counter.bucket("teachers"))
+	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.substitutions", counter.bucket("substitutions"))
 
 	// A second full chain on the same context must be entirely memo-served.
-	counter.reset()
+	counter.Reset()
 	resolveFullChain(t, ctx, service)
 	for _, bucket := range []string{"persons", "staff", "teachers", "substitutions"} {
 		assert.Zero(t, counter.count(bucket), "repeat resolution of %s must be served from the request cache", bucket)
@@ -154,7 +132,7 @@ func TestIdentityWithoutCacheStillQueries(t *testing.T) {
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "IdentityNoCache", "Teacher")
 
-	counter := newIdentityQueryCounter(db)
+	counter := newIdentityQueryCounter(t, db)
 
 	ctx := contextWithClaims(t, int(account.ID))
 	resolveFullChain(t, ctx, service)
@@ -175,7 +153,7 @@ func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, db, "IdentityNonTeacher", "Staff")
 
-	counter := newIdentityQueryCounter(db)
+	counter := newIdentityQueryCounter(t, db)
 
 	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 

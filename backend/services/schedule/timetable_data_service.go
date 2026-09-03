@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -120,6 +121,79 @@ func (s *TimetableDataService) ListDeviationEvents(ctx context.Context, from, to
 
 func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStudent, error) {
 	return s.deps.InstanceStudentRepo.FindByInstanceID(ctx, instanceID)
+}
+
+// InstanceRows holds the per-instance children of a list window: staff and
+// student rows keyed by instance ID, pickup cutoffs keyed by date.
+type InstanceRows struct {
+	Staff    map[int64][]*scheduleModel.InstanceStaff
+	Students map[int64][]*scheduleModel.InstanceStudent
+	Cutoffs  map[timezone.Date]map[int64]time.Time
+}
+
+// GetInstanceRows loads the rows of every listed instance with one batched
+// read per kind plus one cutoff read per distinct date (the list range cap
+// bounds that count), instead of three reads per instance (#2940). Student
+// rows keep the created_at order of the single-instance finder so the
+// participant projection does not change with the batch read.
+func (s *TimetableDataService) GetInstanceRows(ctx context.Context, instances []*scheduleModel.ActivityInstance) (*InstanceRows, error) {
+	rows := &InstanceRows{
+		Staff:    make(map[int64][]*scheduleModel.InstanceStaff, len(instances)),
+		Students: make(map[int64][]*scheduleModel.InstanceStudent, len(instances)),
+		Cutoffs:  make(map[timezone.Date]map[int64]time.Time),
+	}
+	if len(instances) == 0 {
+		return rows, nil
+	}
+	ids := make([]int64, 0, len(instances))
+	for _, inst := range instances {
+		ids = append(ids, inst.ID)
+	}
+	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("load staff for instances: %w", err)
+	}
+	for _, row := range staffRows {
+		rows.Staff[row.InstanceID] = append(rows.Staff[row.InstanceID], row)
+	}
+	studentRows, err := s.deps.InstanceStudentRepo.FindByInstanceIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("load students for instances: %w", err)
+	}
+	for _, row := range studentRows {
+		rows.Students[row.InstanceID] = append(rows.Students[row.InstanceID], row)
+	}
+	for _, list := range rows.Students {
+		slices.SortStableFunc(list, func(a, b *scheduleModel.InstanceStudent) int {
+			return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), cmp.Compare(a.ID, b.ID))
+		})
+	}
+	for date, studentIDs := range studentIDsByDate(instances, rows.Students) {
+		cutoffs, err := s.GetPartialAbsenceCutoffsForDate(ctx, studentIDs, date)
+		if err != nil {
+			return nil, fmt.Errorf("load pickup cutoffs for %s: %w", date, err)
+		}
+		rows.Cutoffs[date] = cutoffs
+	}
+	return rows, nil
+}
+
+func studentIDsByDate(instances []*scheduleModel.ActivityInstance, students map[int64][]*scheduleModel.InstanceStudent) map[timezone.Date][]int64 {
+	seen := make(map[timezone.Date]map[int64]struct{})
+	out := make(map[timezone.Date][]int64)
+	for _, inst := range instances {
+		for _, row := range students[inst.ID] {
+			if seen[inst.Date] == nil {
+				seen[inst.Date] = make(map[int64]struct{})
+			}
+			if _, dup := seen[inst.Date][row.StudentID]; dup {
+				continue
+			}
+			seen[inst.Date][row.StudentID] = struct{}{}
+			out[inst.Date] = append(out[inst.Date], row.StudentID)
+		}
+	}
+	return out
 }
 
 // GetPartialAbsenceCutoffsForDate returns, per student, the wall-clock time
