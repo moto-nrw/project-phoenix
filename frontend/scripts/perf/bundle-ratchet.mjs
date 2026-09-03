@@ -10,8 +10,10 @@
 // (dann Baseline mit --update nachziehen, damit der Gewinn gesichert bleibt).
 // Toleranz je Route: 2 % oder 10 kB, was größer ist, damit ein Patch-Bump einer
 // Dependency keine Baseline-Pflege erzwingt. Neue Routen ohne Eintrag und
-// Einträge ohne Route sind Fehler. Zwei Läufe derselben Quelle liefern
-// byte-identische Zahlen (geprüft in #2939), deshalb ist die Prüfung hart.
+// Einträge ohne Route sind Fehler. Die Analyse kompiliert immer kalt (siehe
+// analyze(): `.next` wird geleert, der Build-Cache beiseitegelegt); zwei kalte
+// Läufe derselben Quelle liefern byte-identische Zahlen, deshalb ist die
+// Prüfung hart. Lokal ist der eigene `.next`-Build danach weg, der Cache nicht.
 //
 // Die Baseline ist mit dem CI-Env erzeugt (nur NEXT_PUBLIC_API_URL und
 // SKIP_ENV_VALIDATION). Lokal liegen die Routen rund 1 kB darüber, weil Next
@@ -20,7 +22,14 @@
 //   env -i PATH="$PATH" HOME="$HOME" NEXT_PUBLIC_API_URL=http://localhost:8080 \
 //     SKIP_ENV_VALIDATION=true pnpm run perf:bundle-ratchet --update
 import { spawnSync } from "node:child_process";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 import { readRouteBundles } from "./bundle-routes.mjs";
@@ -43,16 +52,37 @@ function tolerance(baseline) {
   return Math.max(TOLERANCE_BYTES, Math.round(baseline * TOLERANCE_RATIO));
 }
 
+const NEXT_DIR = join(process.cwd(), ".next");
+const NEXT_CACHE_DIR = join(NEXT_DIR, "cache");
+const NEXT_CACHE_PARKED = join(process.cwd(), ".next-cache-parked");
+
+/**
+ * Immer kalt kompilieren: mit dem inkrementellen Turbopack-Cache hängt die
+ * Chunk-Aufteilung vom Cache-Zustand ab (auf CI +48 kB auf einer Route
+ * zwischen zwei Läufen derselben Quelle, #2939). Zwei kalte Läufe sind
+ * byte-identisch. Der Build-Cache wird dafür beiseitegelegt und danach
+ * wiederhergestellt, damit der nächste `next build` warm bleibt.
+ */
 function analyze() {
-  const result = spawnSync(
-    "pnpm",
-    ["exec", "next", "experimental-analyze", "--output"],
-    { stdio: "inherit" },
-  );
-  if (result.status !== 0) {
-    throw new Error(
-      `next experimental-analyze ist mit Status ${result.status} beendet.`,
+  rmSync(NEXT_CACHE_PARKED, { recursive: true, force: true });
+  if (existsSync(NEXT_CACHE_DIR)) renameSync(NEXT_CACHE_DIR, NEXT_CACHE_PARKED);
+  try {
+    rmSync(NEXT_DIR, { recursive: true, force: true });
+    const result = spawnSync(
+      "pnpm",
+      ["exec", "next", "experimental-analyze", "--output"],
+      { stdio: "inherit" },
     );
+    if (result.status !== 0) {
+      throw new Error(
+        `next experimental-analyze ist mit Status ${result.status} beendet.`,
+      );
+    }
+  } finally {
+    if (existsSync(NEXT_CACHE_PARKED)) {
+      rmSync(NEXT_CACHE_DIR, { recursive: true, force: true });
+      renameSync(NEXT_CACHE_PARKED, NEXT_CACHE_DIR);
+    }
   }
 }
 
