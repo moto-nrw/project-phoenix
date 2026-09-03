@@ -210,6 +210,119 @@ type deviationPlan struct {
 	ackChanged   bool
 }
 
+type deviationReadSet struct {
+	staffExists    map[int64]bool
+	rowsByStaff    map[int64][]*scheduleModel.InstanceStaff
+	instances      map[int64]*scheduleModel.ActivityInstance
+	rowsByInstance map[int64][]*scheduleModel.InstanceStaff
+}
+
+func (s *instanceService) loadDeviationReadSet(
+	ctx context.Context,
+	instanceID int64,
+	in ApplyDeviationsInput,
+	date timezone.Date,
+) (*deviationReadSet, error) {
+	staffIDs := deviationInputStaffIDs(in)
+	staff, err := s.deps.StaffRepo.FindByIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, devErrInternal("load staff failed", err)
+	}
+	rows, err := s.deps.InstanceStaffRepo.FindByStaffIDsAndDate(ctx, staffIDs, date)
+	if err != nil {
+		return nil, devErrInternal("load staff assignments failed", err)
+	}
+	instanceIDs := deviationInputInstanceIDs(instanceID, in, rows)
+	instances, err := s.deps.InstanceRepo.FindByIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, devErrInternal("load target instances failed", err)
+	}
+	allRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, devErrInternal("load instance staff failed", err)
+	}
+	readSet := &deviationReadSet{
+		staffExists:    make(map[int64]bool, len(staff)),
+		rowsByStaff:    make(map[int64][]*scheduleModel.InstanceStaff, len(staffIDs)),
+		instances:      make(map[int64]*scheduleModel.ActivityInstance, len(instances)),
+		rowsByInstance: indexInstanceStaffRows(allRows),
+	}
+	for id := range staff {
+		readSet.staffExists[id] = true
+	}
+	for _, row := range rows {
+		readSet.rowsByStaff[row.StaffID] = append(readSet.rowsByStaff[row.StaffID], row)
+	}
+	for _, instance := range instances {
+		readSet.instances[instance.ID] = instance
+	}
+	return readSet, nil
+}
+
+func deviationInputStaffIDs(in ApplyDeviationsInput) []int64 {
+	seen := make(map[int64]bool)
+	ids := make([]int64, 0)
+	add := func(id int64) {
+		if id > 0 && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	for _, row := range in.Absences {
+		add(row.StaffID)
+	}
+	for _, row := range in.Presences {
+		add(row.StaffID)
+	}
+	for _, row := range in.Substitutions {
+		add(row.AbsentStaffID)
+		add(row.SubstituteStaffID)
+	}
+	for _, row := range in.SubstitutionRemovals {
+		add(row.StaffID)
+	}
+	return ids
+}
+
+func deviationInputInstanceIDs(instanceID int64, in ApplyDeviationsInput, rows []*scheduleModel.InstanceStaff) []int64 {
+	seen := make(map[int64]bool)
+	ids := make([]int64, 0)
+	if instanceID > 0 {
+		seen[instanceID] = true
+		ids = append(ids, instanceID)
+	}
+	addScope := func(scope *[]int64) {
+		if scope == nil {
+			return
+		}
+		for _, id := range *scope {
+			if id > 0 && !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
+			}
+		}
+	}
+	for _, row := range in.Absences {
+		addScope(row.InstanceIDs)
+	}
+	for _, row := range in.Presences {
+		addScope(row.InstanceIDs)
+	}
+	for _, row := range in.Substitutions {
+		addScope(row.InstanceIDs)
+	}
+	for _, row := range in.SubstitutionRemovals {
+		addScope(row.InstanceIDs)
+	}
+	for _, row := range rows {
+		if !seen[row.InstanceID] {
+			seen[row.InstanceID] = true
+			ids = append(ids, row.InstanceID)
+		}
+	}
+	return ids
+}
+
 // ApplyDeviations applies a whole Vertretungsplan slide-over save atomically.
 // Runs inside the caller's tenant tx (TenantTxMiddleware).
 func (s *instanceService) ApplyDeviations(ctx context.Context, instanceID int64, in ApplyDeviationsInput) (*ApplyDeviationsResult, error) {
@@ -351,22 +464,26 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 	}
 	instance = locked
 
-	if err := s.validateDeviationStaff(ctx, in, date); err != nil {
+	readSet, err := s.loadDeviationReadSet(ctx, instanceID, in, date)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateDeviationStaff(in, readSet); err != nil {
 		return nil, err
 	}
 	if err := rejectContradictoryDeviationScopes(in); err != nil {
 		return nil, err
 	}
 
-	absencePlan, err := s.planAbsences(ctx, in.Absences, date)
+	absencePlan, err := planAbsences(in.Absences, date, readSet)
 	if err != nil {
 		return nil, err
 	}
-	presencePlan, err := s.planPresences(ctx, in.Presences, date)
+	presencePlan, err := planPresences(in.Presences, date, readSet)
 	if err != nil {
 		return nil, err
 	}
-	removalPlan, err := s.planSubstitutionRemovals(ctx, in.SubstitutionRemovals, date)
+	removalPlan, err := planSubstitutionRemovals(in.SubstitutionRemovals, date, readSet)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +493,7 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 	// any other planned assignments in the presence plan so one atomic request
 	// can remove the obsolete role here and restore the person elsewhere (#2577).
 	presencePlan = withoutRemovedSubstitutePresences(presencePlan, removedSubstitutes)
-	subPlan, newSubByInstance, err := s.planSubstitutions(ctx, in.Substitutions, absenceOnlyByInstance, removedSubstitutes, date)
+	subPlan, newSubByInstance, err := planSubstitutions(in.Substitutions, absenceOnlyByInstance, removedSubstitutes, readSet)
 	if err != nil {
 		return nil, err
 	}
@@ -386,11 +503,11 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 
 	// Restoring a persisted absence must not orphan an already-assigned
 	// substitute (over-staffing). Reject before any write (#1840).
-	if err := s.rejectOverstaffingPresences(ctx, presencePlan, absentByInstance, presentByInstance, newSubByInstance, removedSubstitutes); err != nil {
+	if err := rejectOverstaffingPresences(presencePlan, absentByInstance, presentByInstance, newSubByInstance, removedSubstitutes, readSet); err != nil {
 		return nil, err
 	}
 
-	finalAck, finalAckNote, ackChanged, err := s.reconcileSelectedAck(ctx, instanceID, instance, in, absentByInstance, presentByInstance, newSubByInstance, removedSubstitutes)
+	finalAck, finalAckNote, ackChanged, err := reconcileSelectedAck(instanceID, instance, in, absentByInstance, presentByInstance, newSubByInstance, removedSubstitutes, readSet)
 	if err != nil {
 		return nil, err
 	}
@@ -487,11 +604,7 @@ func (staff deviationStaffByInstance) add(instanceID, staffID int64) {
 // validateDeviationStaff runs every 4xx precondition on the referenced staff:
 // existence (404), self-substitution (400), a substitute also being marked
 // absent (400), and a substitute already absent in the DB that day (400).
-func (s *instanceService) validateDeviationStaff(
-	ctx context.Context,
-	in ApplyDeviationsInput,
-	date timezone.Date,
-) error {
+func validateDeviationStaff(in ApplyDeviationsInput, readSet *deviationReadSet) error {
 	seen := make(map[int64]bool)
 	ensure := func(staffID int64, label string) error {
 		if staffID <= 0 {
@@ -501,14 +614,7 @@ func (s *instanceService) validateDeviationStaff(
 			return nil
 		}
 		seen[staffID] = true
-		staff, err := s.deps.StaffRepo.FindByID(ctx, staffID)
-		if err != nil {
-			if modelBase.IsNoRows(err) {
-				return devErrNotFound(fmt.Sprintf("%s wurde nicht gefunden", label))
-			}
-			return devErrInternal("load staff failed", err)
-		}
-		if staff == nil || staff.ID == 0 {
+		if !readSet.staffExists[staffID] {
 			return devErrNotFound(fmt.Sprintf("%s wurde nicht gefunden", label))
 		}
 		return nil
@@ -549,11 +655,7 @@ func (s *instanceService) validateDeviationStaff(
 		// ...nor if they are already absent on an appointment this substitution
 		// targets. A terminbezogene Abwesenheit elsewhere on the day does not make
 		// the person unavailable for a different appointment.
-		subRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, sub.SubstituteStaffID, date)
-		if err != nil {
-			return devErrInternal("load substitute assignments failed", err)
-		}
-		for _, row := range subRows {
+		for _, row := range readSet.rowsByStaff[sub.SubstituteStaffID] {
 			if row.IsAbsent && scopeContainsInstance(sub.InstanceIDs, row.InstanceID) {
 				return devErrBadRequest("die Ersatzperson ist in einem ausgewählten Termin selbst abwesend")
 			}
@@ -583,21 +685,18 @@ func rejectContradictoryDeviationScopes(in ApplyDeviationsInput) error {
 	return nil
 }
 
-func (s *instanceService) planSubstitutionRemovals(
-	ctx context.Context,
+func planSubstitutionRemovals(
 	removals []DeviationSubstitutionRemovalInput,
 	date timezone.Date,
+	readSet *deviationReadSet,
 ) ([]deviationSubstitutionRemovalOp, error) {
 	plan := make([]deviationSubstitutionRemovalOp, 0)
 	seenRows := make(map[int64]bool)
 	for _, removal := range removals {
-		if err := s.validateExplicitScopeInstances(ctx, date, removal.InstanceIDs); err != nil {
+		if err := validateExplicitScopeInstances(date, removal.InstanceIDs, readSet); err != nil {
 			return nil, err
 		}
-		rows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, removal.StaffID, date)
-		if err != nil {
-			return nil, devErrInternal("load substitute assignments failed", err)
-		}
+		rows := readSet.rowsByStaff[removal.StaffID]
 		selected := make(map[int64]bool)
 		for _, row := range rows {
 			if removal.InstanceIDs != nil && row.IsSubstitute && scopeContainsInstance(removal.InstanceIDs, row.InstanceID) {
@@ -606,7 +705,7 @@ func (s *instanceService) planSubstitutionRemovals(
 			if seenRows[row.ID] || !row.IsSubstitute || !scopeContainsInstance(removal.InstanceIDs, row.InstanceID) {
 				continue
 			}
-			instance, err := s.loadPlannableInstance(ctx, row)
+			instance, err := loadPlannableInstance(row, readSet)
 			if err != nil {
 				return nil, err
 			}
@@ -636,7 +735,7 @@ func (s *instanceService) planSubstitutionRemovals(
 	return plan, nil
 }
 
-func (s *instanceService) validateExplicitScopeInstances(ctx context.Context, date timezone.Date, instanceIDs *[]int64) error {
+func validateExplicitScopeInstances(date timezone.Date, instanceIDs *[]int64, readSet *deviationReadSet) error {
 	if instanceIDs == nil {
 		return nil
 	}
@@ -649,9 +748,9 @@ func (s *instanceService) validateExplicitScopeInstances(ctx context.Context, da
 			return devErrBadRequest("die Terminauswahl ist ungültig")
 		}
 		seen[instanceID] = true
-		instance, err := s.loadDeviationInstance(ctx, instanceID)
-		if err != nil {
-			return err
+		instance := readSet.instances[instanceID]
+		if instance == nil {
+			return devErrNotFound("der Termin wurde nicht gefunden")
 		}
 		if instance.Date != date {
 			return devErrBadRequest("alle ausgewählten Termine müssen am bearbeiteten Tag liegen")
@@ -708,14 +807,14 @@ func scopeContainsInstance(instanceIDs *[]int64, instanceID int64) bool {
 // planAbsences resolves every absence scope and stages its currently-present
 // plannable rows. Explicit scopes reject terminal appointments rather than
 // silently widening or partially applying the request.
-func (s *instanceService) planAbsences(ctx context.Context, absences []DeviationAbsenceInput, date timezone.Date) ([]deviationAbsenceOp, error) {
+func planAbsences(absences []DeviationAbsenceInput, date timezone.Date, readSet *deviationReadSet) ([]deviationAbsenceOp, error) {
 	plan := make([]deviationAbsenceOp, 0)
 	seenRows := make(map[int64]bool)
 	for _, absence := range absences {
-		if err := s.validateExplicitScopeInstances(ctx, date, absence.InstanceIDs); err != nil {
+		if err := validateExplicitScopeInstances(date, absence.InstanceIDs, readSet); err != nil {
 			return nil, err
 		}
-		rows, err := s.scopedStaffRows(ctx, absence.StaffID, date, absence.InstanceIDs)
+		rows, err := scopedStaffRows(readSet.rowsByStaff[absence.StaffID], absence.InstanceIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -723,7 +822,7 @@ func (s *instanceService) planAbsences(ctx context.Context, absences []Deviation
 			if seenRows[row.ID] || row.IsAbsent {
 				continue // idempotent: already absent, no write
 			}
-			instance, err := s.loadPlannableInstance(ctx, row)
+			instance, err := loadPlannableInstance(row, readSet)
 			if err != nil {
 				return nil, err
 			}
@@ -742,19 +841,19 @@ func (s *instanceService) planAbsences(ctx context.Context, absences []Deviation
 
 // planPresences loads every to-be-restored staff member's scoped, plannable
 // rows that are currently marked absent. A non-absent row is a no-op.
-func (s *instanceService) planPresences(ctx context.Context, presences []DeviationPresenceInput, date timezone.Date) ([]deviationPresenceOp, error) {
+func planPresences(presences []DeviationPresenceInput, date timezone.Date, readSet *deviationReadSet) ([]deviationPresenceOp, error) {
 	plan := make([]deviationPresenceOp, 0)
 	seenRows := make(map[int64]bool)
 	for _, presence := range presences {
-		if err := s.validateExplicitScopeInstances(ctx, date, presence.InstanceIDs); err != nil {
+		if err := validateExplicitScopeInstances(date, presence.InstanceIDs, readSet); err != nil {
 			return nil, err
 		}
-		rows, err := s.scopedStaffRows(ctx, presence.StaffID, date, presence.InstanceIDs)
+		rows, err := scopedStaffRows(readSet.rowsByStaff[presence.StaffID], presence.InstanceIDs)
 		if err != nil {
 			return nil, err
 		}
 		for _, row := range rows {
-			instance, err := s.loadPlannableInstance(ctx, row)
+			instance, err := loadPlannableInstance(row, readSet)
 			if err != nil {
 				return nil, err
 			}
@@ -783,12 +882,11 @@ func (s *instanceService) planPresences(ctx context.Context, presences []Deviati
 // planSubstitutions classifies every substitution against a projected view of
 // each instance (absence-only staff read as absent). Returns the write plan and,
 // per instance, how many NEW substitute rows will be added (for the ack check).
-func (s *instanceService) planSubstitutions(
-	ctx context.Context,
+func planSubstitutions(
 	subs []DeviationSubstitutionInput,
 	absenceOnlyByInstance deviationStaffByInstance,
 	removedSubstitutes deviationStaffByInstance,
-	date timezone.Date,
+	readSet *deviationReadSet,
 ) ([]deviationSubOp, map[int64]int, error) {
 	plan := make([]deviationSubOp, 0)
 	newSubByInstance := make(map[int64]int)
@@ -798,13 +896,13 @@ func (s *instanceService) planSubstitutions(
 	stagedSubs := make(map[int64]map[int64]bool)
 
 	for _, sub := range subs {
-		origRows, err := s.scopedStaffRows(ctx, sub.AbsentStaffID, date, sub.InstanceIDs)
+		origRows, err := scopedStaffRows(readSet.rowsByStaff[sub.AbsentStaffID], sub.InstanceIDs)
 		if err != nil {
 			return nil, nil, err
 		}
 		reason := trimDeviationReason(sub.Reason)
 		for _, orig := range origRows {
-			instance, err := s.loadPlannableInstance(ctx, orig)
+			instance, err := loadPlannableInstance(orig, readSet)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -814,10 +912,7 @@ func (s *instanceService) planSubstitutions(
 				}
 				continue
 			}
-			allRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
-			if err != nil {
-				return nil, nil, devErrInternal("load instance staff failed", err)
-			}
+			allRows := readSet.rowsByInstance[instance.ID]
 			allRows = withoutRemovedSubstitutes(allRows, removedSubstitutes[instance.ID])
 			projectedRows, origProjected := projectAbsent(allRows, absenceOnlyByInstance[instance.ID], orig)
 			action, _, ok := classifySubstitute(projectedRows, origProjected, sub.SubstituteStaffID)
@@ -868,16 +963,7 @@ func withoutRemovedSubstitutes(rows []*scheduleModel.InstanceStaff, removed map[
 // the absent person's assignments. Explicit scopes fail closed: an empty list,
 // duplicate/non-positive id, or an appointment that does not belong to this
 // person on this day is rejected instead of broadening to the whole day.
-func (s *instanceService) scopedStaffRows(
-	ctx context.Context,
-	staffID int64,
-	date timezone.Date,
-	instanceIDs *[]int64,
-) ([]*scheduleModel.InstanceStaff, error) {
-	rows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, date)
-	if err != nil {
-		return nil, devErrInternal("load staff assignments failed", err)
-	}
+func scopedStaffRows(rows []*scheduleModel.InstanceStaff, instanceIDs *[]int64) ([]*scheduleModel.InstanceStaff, error) {
 	if instanceIDs == nil {
 		return rows, nil
 	}
@@ -912,12 +998,12 @@ func (s *instanceService) scopedStaffRows(
 // rejectOverstaffingPresences returns a 409 when clearing a persisted absence
 // would push any touched instance above its planned headcount, which only
 // happens when a restore orphans an already-assigned substitute (#1840).
-func (s *instanceService) rejectOverstaffingPresences(
-	ctx context.Context,
+func rejectOverstaffingPresences(
 	presencePlan []deviationPresenceOp,
 	absentByInstance, presentByInstance deviationStaffByInstance,
 	newSubByInstance map[int64]int,
 	removedByInstance deviationStaffByInstance,
+	readSet *deviationReadSet,
 ) error {
 	checked := make(map[int64]bool)
 	for _, op := range presencePlan {
@@ -925,10 +1011,7 @@ func (s *instanceService) rejectOverstaffingPresences(
 			continue
 		}
 		checked[op.instance.ID] = true
-		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, op.instance.ID)
-		if err != nil {
-			return devErrInternal("load instance staff failed", err)
-		}
+		rows := readSet.rowsByInstance[op.instance.ID]
 		baseline := 0
 		for _, row := range rows {
 			if !row.IsSubstitute {
@@ -951,11 +1034,8 @@ func (s *instanceService) rejectOverstaffingPresences(
 
 // loadPlannableInstance loads the instance behind a staff row, returning nil when
 // it is terminal (completed/cancelled) so callers skip it.
-func (s *instanceService) loadPlannableInstance(ctx context.Context, row *scheduleModel.InstanceStaff) (*scheduleModel.ActivityInstance, error) {
-	instance, err := s.deps.InstanceRepo.FindByID(ctx, row.InstanceID)
-	if err != nil {
-		return nil, devErrInternal("load target instance failed", err)
-	}
+func loadPlannableInstance(row *scheduleModel.InstanceStaff, readSet *deviationReadSet) (*scheduleModel.ActivityInstance, error) {
+	instance := readSet.instances[row.InstanceID]
 	if instance == nil {
 		return nil, devErrInternalPlain(fmt.Sprintf("instance_staff %d references missing instance %d", row.ID, row.InstanceID))
 	}
@@ -969,19 +1049,16 @@ func (s *instanceService) loadPlannableInstance(ctx context.Context, row *schedu
 // the projected save. "Deliberately unstaffed" is valid whenever the block ends
 // up understaffed; the deviation writes never change the planned baseline
 // (#1840).
-func (s *instanceService) reconcileSelectedAck(
-	ctx context.Context,
+func reconcileSelectedAck(
 	instanceID int64,
 	instance *scheduleModel.ActivityInstance,
 	in ApplyDeviationsInput,
 	absentByInstance, presentByInstance deviationStaffByInstance,
 	newSubByInstance map[int64]int,
 	removedByInstance deviationStaffByInstance,
+	readSet *deviationReadSet,
 ) (finalAck bool, note *string, ackChanged bool, err error) {
-	thisRows, loadErr := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
-	if loadErr != nil {
-		return false, nil, false, devErrInternal("load instance staff failed", loadErr)
-	}
+	thisRows := readSet.rowsByInstance[instanceID]
 	projectedPresent := projectedNonAbsentCount(
 		thisRows,
 		absentByInstance[instanceID],
@@ -1139,30 +1216,130 @@ func (s *instanceService) collectDeviationWarnings(
 	plan []deviationSubOp,
 	date timezone.Date,
 ) ([]SubstituteTimeConflict, error) {
-	warnings := make([]SubstituteTimeConflict, 0)
-	// One substitute can cover several absent colleagues, duplicating conflicts
-	// two ways: a repeated SubstituteStaffID in subs, and two ops staged on one
-	// block. Skip repeated ids and drop duplicate (substitute, instance, other)
-	// triples so each real overlap surfaces once (#1840).
-	seenSub := make(map[int64]bool, len(subs))
-	seenConflict := make(map[[3]int64]bool)
+	probes := buildSubstitutionWarningProbes(subs, plan)
+	if len(probes) == 0 {
+		return nil, nil
+	}
+	return s.loadSubstitutionWarnings(ctx, probes, date)
+}
+
+func (s *instanceService) loadSubstitutionWarnings(
+	ctx context.Context,
+	probes []substitutionWarningProbe,
+	date timezone.Date,
+) ([]SubstituteTimeConflict, error) {
+	staffIDs := make([]int64, 0, len(probes))
+	for _, probe := range probes {
+		staffIDs = append(staffIDs, probe.staffID)
+	}
+	rows, err := s.deps.InstanceStaffRepo.FindByStaffIDsAndDate(ctx, staffIDs, date)
+	if err != nil {
+		return nil, err
+	}
+	rowsByStaff := make(map[int64][]*scheduleModel.InstanceStaff, len(probes))
+	for _, row := range rows {
+		rowsByStaff[row.StaffID] = append(rowsByStaff[row.StaffID], row)
+	}
+	foreignIDs := warningForeignInstanceIDs(probes, rowsByStaff)
+	foreigns, err := s.deps.InstanceRepo.FindByIDs(ctx, foreignIDs)
+	if err != nil {
+		return nil, err
+	}
+	foreignByID := make(map[int64]*scheduleModel.ActivityInstance, len(foreigns))
+	for _, instance := range foreigns {
+		foreignByID[instance.ID] = instance
+	}
+	for _, id := range foreignIDs {
+		if foreignByID[id] == nil {
+			return nil, fmt.Errorf("load substitute conflict instance %d: %w", id, modelBase.ErrNotFound)
+		}
+	}
+	return mergeSubstitutionWarnings(probes, rowsByStaff, foreignByID), nil
+}
+
+// buildSubstituteTimeConflicts is the single-person adapter used by the staff
+// move flow. Deviation saves call loadSubstitutionWarnings once for all people.
+func (s *instanceService) buildSubstituteTimeConflicts(
+	ctx context.Context,
+	plan []SubstituteWriteOp,
+	staffID int64,
+	date timezone.Date,
+) ([]SubstituteTimeConflict, error) {
+	if len(plan) == 0 {
+		return nil, nil
+	}
+	probe := substitutionWarningProbe{staffID: staffID, targetIDs: make(map[int64]bool)}
+	for _, op := range plan {
+		probe.targetIDs[op.Instance.ID] = true
+		if op.Action != SubstituteActionAlreadySubstitute {
+			probe.targets = append(probe.targets, toConflictInstance(op.Instance))
+		}
+	}
+	return s.loadSubstitutionWarnings(ctx, []substitutionWarningProbe{probe}, date)
+}
+
+type substitutionWarningProbe struct {
+	staffID   int64
+	targets   []SubstituteConflictInstance
+	targetIDs map[int64]bool
+}
+
+func buildSubstitutionWarningProbes(subs []DeviationSubstitutionInput, plan []deviationSubOp) []substitutionWarningProbe {
+	opsByStaff := make(map[int64][]deviationSubOp)
+	for _, op := range plan {
+		opsByStaff[op.subID] = append(opsByStaff[op.subID], op)
+	}
+	seen := make(map[int64]bool, len(subs))
+	probes := make([]substitutionWarningProbe, 0, len(subs))
 	for _, sub := range subs {
-		if seenSub[sub.SubstituteStaffID] {
+		if seen[sub.SubstituteStaffID] || len(opsByStaff[sub.SubstituteStaffID]) == 0 {
 			continue
 		}
-		seenSub[sub.SubstituteStaffID] = true
-		ops := make([]SubstituteWriteOp, 0, len(plan))
-		for _, p := range plan {
-			if p.subID == sub.SubstituteStaffID {
-				ops = append(ops, p.write)
+		seen[sub.SubstituteStaffID] = true
+		probe := substitutionWarningProbe{staffID: sub.SubstituteStaffID, targetIDs: make(map[int64]bool)}
+		for _, op := range opsByStaff[sub.SubstituteStaffID] {
+			probe.targetIDs[op.write.Instance.ID] = true
+			if op.write.Action != SubstituteActionAlreadySubstitute {
+				probe.targets = append(probe.targets, toConflictInstance(op.write.Instance))
 			}
 		}
-		w, err := s.buildSubstituteTimeConflicts(ctx, ops, sub.SubstituteStaffID, date)
-		if err != nil {
-			return nil, err
+		probes = append(probes, probe)
+	}
+	return probes
+}
+
+func warningForeignInstanceIDs(probes []substitutionWarningProbe, rowsByStaff map[int64][]*scheduleModel.InstanceStaff) []int64 {
+	seen := make(map[int64]bool)
+	ids := make([]int64, 0)
+	for _, probe := range probes {
+		for _, row := range rowsByStaff[probe.staffID] {
+			if row.IsAbsent || probe.targetIDs[row.InstanceID] || seen[row.InstanceID] {
+				continue
+			}
+			seen[row.InstanceID] = true
+			ids = append(ids, row.InstanceID)
 		}
-		for _, conflict := range w {
-			key := [3]int64{sub.SubstituteStaffID, conflict.InstanceID, conflict.OtherID}
+	}
+	return ids
+}
+
+func mergeSubstitutionWarnings(
+	probes []substitutionWarningProbe,
+	rowsByStaff map[int64][]*scheduleModel.InstanceStaff,
+	foreignByID map[int64]*scheduleModel.ActivityInstance,
+) []SubstituteTimeConflict {
+	warnings := make([]SubstituteTimeConflict, 0)
+	seenConflict := make(map[[3]int64]bool)
+	for _, probe := range probes {
+		foreigns := make([]SubstituteConflictInstance, 0)
+		for _, row := range rowsByStaff[probe.staffID] {
+			if row.IsAbsent || probe.targetIDs[row.InstanceID] || foreignByID[row.InstanceID] == nil {
+				continue
+			}
+			foreigns = append(foreigns, toConflictInstance(foreignByID[row.InstanceID]))
+		}
+		for _, conflict := range DetectSubstituteTimeConflicts(probe.targets, foreigns) {
+			key := [3]int64{probe.staffID, conflict.InstanceID, conflict.OtherID}
 			if seenConflict[key] {
 				continue
 			}
@@ -1170,64 +1347,7 @@ func (s *instanceService) collectDeviationWarnings(
 			warnings = append(warnings, conflict)
 		}
 	}
-	return warnings, nil
-}
-
-// buildSubstituteTimeConflicts loads the substitute's OTHER (non-target)
-// same-day non-absent assignments and returns overlap warnings. No writes.
-func (s *instanceService) buildSubstituteTimeConflicts(
-	ctx context.Context,
-	plan []SubstituteWriteOp,
-	subID int64,
-	date timezone.Date,
-) ([]SubstituteTimeConflict, error) {
-	if len(plan) == 0 {
-		return nil, nil
-	}
-	subRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, subID, date)
-	if err != nil {
-		return nil, err
-	}
-	targetSet := make(map[int64]bool, len(plan))
-	for _, op := range plan {
-		targetSet[op.Instance.ID] = true
-	}
-
-	foreignIDs := make([]int64, 0, len(subRows))
-	for _, row := range subRows {
-		if row.IsAbsent {
-			continue
-		}
-		if targetSet[row.InstanceID] {
-			continue
-		}
-		foreignIDs = append(foreignIDs, row.InstanceID)
-	}
-	if len(foreignIDs) == 0 {
-		return nil, nil
-	}
-	foreigns := make([]SubstituteConflictInstance, 0, len(foreignIDs))
-	for _, fid := range foreignIDs {
-		inst, err := s.deps.InstanceRepo.FindByID(ctx, fid)
-		if err != nil {
-			return nil, err
-		}
-		if inst == nil {
-			continue
-		}
-		foreigns = append(foreigns, toConflictInstance(inst))
-	}
-	targets := make([]SubstituteConflictInstance, 0, len(plan))
-	for _, op := range plan {
-		if op.Action == SubstituteActionAlreadySubstitute {
-			// Already substituted earlier — nothing written; skip as a target.
-			continue
-		}
-		// already_on_instance is intentionally kept: the co-supervisor's existing
-		// overlaps remain relevant information for the admin.
-		targets = append(targets, toConflictInstance(op.Instance))
-	}
-	return DetectSubstituteTimeConflicts(targets, foreigns), nil
+	return warnings
 }
 
 // AcknowledgeUnderstaffed applies the standalone "deliberately unstaffed"

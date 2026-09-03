@@ -132,6 +132,31 @@ func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffI
 	return rows, nil
 }
 
+// FindByStaffIDsAndDate is the batch form of FindByStaffAndDate. A generic
+// filter cannot express the date predicate because it belongs to the joined
+// activity_instances table.
+func (r *InstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*schedule.InstanceStaff, error) {
+	rows := make([]*schedule.InstanceStaff, 0)
+	if len(staffIDs) == 0 {
+		return rows, nil
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStaff).
+		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_staff".instance_id`).
+		Where(`"instance_staff".staff_id IN (?)`, bun.List(staffIDs)).
+		Where(`"activity_instance".date = ?`, date).
+		OrderExpr(`"activity_instance".start_time ASC, "instance_staff".id ASC`)
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by staff ids and date",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+	return rows, nil
+}
+
 // FindByStaffAndDateRange returns the staff member's assignments across all
 // instances dated within [from, to] inclusive, ordered by instance date then
 // start time. Custom method (backend-conventions Rule 2): the date predicate
