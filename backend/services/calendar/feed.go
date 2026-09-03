@@ -257,7 +257,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 
 		from := timezone.TodayDate().AddDays(-feedPastDays)
 		to := timezone.TodayDate().AddDays(feedFutureDays)
-		appointments, err := s.cfg.AppointmentRepo.ListVisibleForStaff(txCtx, staff.ID, toCalendarDate(from), toCalendarDate(to))
+		appointments, err := s.listAppointmentsVisibleToStaff(txCtx, staff.ID, toCalendarDate(from), toCalendarDate(to))
 		if err != nil {
 			return err
 		}
@@ -294,7 +294,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 		}
 
 		tombstoneCutoff := timezone.TodayDate().AddDays(-feedTombstoneDays).BerlinMidnight()
-		tombstones, err := s.cfg.AppointmentRepo.ListCancellationTombstonesForStaff(txCtx, staff.ID, tombstoneCutoff)
+		tombstones, err := s.listStaffCancellationTombstones(txCtx, staff.ID, tombstoneCutoff)
 		if err != nil {
 			return err
 		}
@@ -475,7 +475,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
 			studentIDs := distinctChildStudentIDs(tenantChildren)
-			appointments, err := s.cfg.AppointmentRepo.ListVisibleForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, toCalendarDate(from), toCalendarDate(to))
+			appointments, err := s.listAppointmentsVisibleToGuardians(txCtx, guardianProfileIDs, studentIDs, toCalendarDate(from), toCalendarDate(to))
 			if err != nil {
 				return err
 			}
@@ -528,7 +528,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			// already emitted above (a recently-cancelled appointment still inside
 			// the date window) to avoid a duplicate UID in the feed.
 			tombstoneCutoff := timezone.TodayDate().AddDays(-feedTombstoneDays).BerlinMidnight()
-			tombstones, err := s.cfg.AppointmentRepo.ListCancellationTombstonesForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, tombstoneCutoff)
+			tombstones, err := s.listGuardianCancellationTombstones(txCtx, guardianProfileIDs, studentIDs, tombstoneCutoff)
 			if err != nil {
 				return err
 			}

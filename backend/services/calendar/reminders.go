@@ -108,7 +108,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 	fromDate := timezone.DateFromTime(from)
 	toDate := timezone.DateFromTime(to)
 
-	appointments, err := s.cfg.AppointmentRepo.ListGuardianReminderCandidates(ctx, toCalendarDate(fromDate), toCalendarDate(toDate))
+	appointments, err := s.listGuardianReminderCandidates(ctx, toCalendarDate(fromDate), toCalendarDate(toDate))
 	if err != nil {
 		return 0, fmt.Errorf("calendar: list reminder candidates: %w", err)
 	}
@@ -175,7 +175,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 			// committed. Re-read it under a row lock before creating an outbox row.
 			// Lifecycle writes take the same lock; whichever transaction wins, the
 			// loser sees the committed state and cannot leave a stale reminder.
-			current, err := s.cfg.AppointmentRepo.LockReminderCandidate(ctx, appointment.ID)
+			current, err := s.findReminderCandidateForUpdate(ctx, appointment.ID)
 			if err != nil {
 				return queued, fmt.Errorf("calendar: lock reminder candidate: %w", err)
 			}
@@ -540,7 +540,7 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 	var profileIDs []int64
 	var studentIDs []int64
 	err := tenant.WithTenantTx(ctx, s.cfg.DB, delivery.appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		current, err := s.cfg.AppointmentRepo.LockReminderCandidate(txCtx, delivery.appointment.ID)
+		current, err := s.findReminderCandidateForUpdate(txCtx, delivery.appointment.ID)
 		if err != nil {
 			return err
 		}
