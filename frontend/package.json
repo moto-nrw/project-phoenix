@@ -111,9 +111,13 @@
   "knip": {
     "includeEntryExports": true,
     "playwright": {
+      "config": [],
       "entry": [
         "**/*.@(spec|test).?(c|m)[jt]s?(x)",
-        "scripts/perf/*.perf.ts"
+        "scripts/perf/*.perf.ts",
+        "playwright.config.ts",
+        "playwright.guides.config.ts",
+        "e2e/**/*.ts"
       ]
     },
     "project": [

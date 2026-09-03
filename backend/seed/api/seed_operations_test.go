@@ -35,6 +35,8 @@ func TestSeedOperationsDemoStepCreatesOperationalPlanningData(t *testing.T) {
 	require.NoError(t, (seedOperationsDemoStep{}).Run(t.Context(), rt))
 
 	assert.Equal(t, []string{
+		"/api/settings/values/operations.meal_plan_enabled",
+		"/api/settings/values/operations.meal_registration_enabled",
 		"/api/timetable/closing-days",
 		"/api/meal-plan/" + todaySeedDate().String(),
 		"/api/shift-types/defaults",

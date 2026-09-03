@@ -333,11 +333,13 @@ func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwo
 	return err
 }
 
-// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
-// mfa_locked_until = now() + lockoutDuration when the post-increment
-// count is >= threshold. Returns the post-update counter and lock
-// timestamp so the service can detect the lockout transition (exact
-// threshold equality means *this* call crossed the line).
+// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets the
+// lock deadline from the application clock when the post-increment count is
+// >= threshold. The service evaluates that deadline against the same clock,
+// so database clock skew cannot immediately expire a fresh lock. Returns the
+// post-update counter and lock timestamp so the service can detect the
+// lockout transition (exact threshold equality means *this* call crossed the
+// line).
 //
 // The whole "read-mutate-write" pattern in the model layer was racy:
 // two concurrent failed verifies both read mfa_attempts=N, both wrote
@@ -350,13 +352,14 @@ func (r *AccountRepository) IncrementMFAAttempts(ctx context.Context, id int64, 
 		MFALockedUntil *time.Time `bun:"mfa_locked_until"`
 	}
 	row := new(incrementRow)
+	lockedUntil := time.Now().Add(lockoutDuration)
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.Account)(nil)).
 		ModelTableExpr(accountTable).
 		Set("mfa_attempts = mfa_attempts + 1").
 		Set(
-			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN now() + (? * interval '1 second') ELSE mfa_locked_until END",
-			threshold, int64(lockoutDuration.Seconds()),
+			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN ? ELSE mfa_locked_until END",
+			threshold, lockedUntil,
 		).
 		Where(whereID, id).
 		Returning("mfa_attempts, mfa_locked_until").
@@ -393,11 +396,11 @@ func (r *AccountRepository) ResetMFAAttempts(ctx context.Context, id int64) erro
 	return nil
 }
 
-// IncrementPINAttempts atomically bumps pin_attempts by one and sets
-// pin_locked_until = now() + lockoutDuration when the post-increment count
-// is >= threshold. Returns the post-update counter and lock timestamp so the
-// caller can detect the lockout transition (exact threshold equality means
-// *this* call crossed the line).
+// IncrementPINAttempts atomically bumps pin_attempts by one and sets the lock
+// deadline from the application clock when the post-increment count is >=
+// threshold. Returns the post-update counter and lock timestamp so the caller
+// can detect the lockout transition (exact threshold equality means *this*
+// call crossed the line).
 //
 // This replaces the old model-level Account.IncrementPINAttempts() +
 // accountRepo.Update() read-modify-write, which was racy: two concurrent
@@ -410,13 +413,14 @@ func (r *AccountRepository) IncrementPINAttempts(ctx context.Context, id int64, 
 		PINLockedUntil *time.Time `bun:"pin_locked_until"`
 	}
 	row := new(incrementRow)
+	lockedUntil := time.Now().Add(lockoutDuration)
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.Account)(nil)).
 		ModelTableExpr(accountTable).
 		Set("pin_attempts = pin_attempts + 1").
 		Set(
-			"pin_locked_until = CASE WHEN pin_attempts + 1 >= ? THEN now() + (? * interval '1 second') ELSE pin_locked_until END",
-			threshold, int64(lockoutDuration.Seconds()),
+			"pin_locked_until = CASE WHEN pin_attempts + 1 >= ? THEN ? ELSE pin_locked_until END",
+			threshold, lockedUntil,
 		).
 		Where(whereID, id).
 		Returning("pin_attempts, pin_locked_until").
