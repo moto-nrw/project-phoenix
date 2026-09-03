@@ -43,6 +43,14 @@ type Student struct {
 	PhotoPath     *string    `json:"photo_path,omitempty"`
 }
 
+// StudentName is the display identity of one student. Keeping this projection
+// in People Directory lets other owners resolve child names in one query.
+type StudentName struct {
+	StudentID int64  `json:"student_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+}
+
 func (s Student) IsAlumnus() bool { return s.Status == StudentStatusAlumnus }
 
 // StudentQuery reads the student directory. Reads are scoped to the tenant
@@ -51,6 +59,7 @@ type StudentQuery interface {
 	// ListStudentsByID returns the rows for ids, alumni included, so callers
 	// that need the lifecycle status of a graduate can still see it.
 	ListStudentsByID(context.Context, []int64) ([]Student, error)
+	ListStudentNamesByID(context.Context, []int64) ([]StudentName, error)
 	// ListStudentsAcrossTenantsByID resolves visiting students (holiday care
 	// at a partner school) in a separate admin transaction. Callers must
 	// already hold a reference to the student (an open visit).
@@ -100,6 +109,7 @@ type StudentStatusFlagCapability interface {
 
 type studentEngine interface {
 	ListStudentsByIDs(context.Context, []int64) ([]Student, error)
+	ListStudentNamesByIDs(context.Context, []int64) ([]StudentName, error)
 	ListStudentsAcrossTenantsByIDs(context.Context, []int64) ([]Student, error)
 	ListStudentsByClasses(context.Context, []string) ([]Student, error)
 	ListEnrolledStudents(context.Context) ([]Student, error)
@@ -118,6 +128,14 @@ func (m *Module) ListStudentsByID(ctx context.Context, ids []int64) ([]Student, 
 		return []Student{}, nil
 	}
 	return m.engine.ListStudentsByIDs(ctx, ids)
+}
+
+func (m *Module) ListStudentNamesByID(ctx context.Context, ids []int64) ([]StudentName, error) {
+	ids = uniquePositive(ids)
+	if len(ids) == 0 {
+		return []StudentName{}, nil
+	}
+	return m.engine.ListStudentNamesByIDs(ctx, ids)
 }
 
 func (m *Module) ListStudentsAcrossTenantsByID(ctx context.Context, ids []int64) ([]Student, error) {

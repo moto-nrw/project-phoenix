@@ -52,6 +52,29 @@ func (s *StudentStore) ListByIDs(ctx context.Context, ids []int64) ([]domain.Stu
 	return scanStudents(ctx, &rows, query.OrderExpr(`"student".id ASC`), "list students by id")
 }
 
+func (s *StudentStore) ListNamesByIDs(ctx context.Context, ids []int64) ([]domain.StudentName, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []domain.StudentName{}
+	query := withStudentTenant(db.NewSelect().TableExpr(`users.students AS "student"`).
+		ColumnExpr(`"student".id AS student_id, "person".first_name, "person".last_name`).
+		Join(`JOIN users.persons AS "person" ON "person".tenant_id = "student".tenant_id AND "person".id = "student".person_id`).
+		Where(`"student".id IN (?)`, bun.List(ids)).
+		Where(`"person".deleted_at IS NULL`), tenantID).
+		OrderExpr(`"student".id ASC`)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("people directory postgres: list student names by id: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	return rows, stats, nil
+}
+
 func (s *StudentStore) ListByClasses(ctx context.Context, classes []string) ([]domain.Student, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

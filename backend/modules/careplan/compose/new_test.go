@@ -21,6 +21,12 @@ type observationLog struct {
 	seen []Observation
 }
 
+type emptyPeopleDirectory struct{}
+
+func (emptyPeopleDirectory) ListStudentNamesByID(context.Context, []int64) ([]StudentName, error) {
+	return nil, nil
+}
+
 func (l *observationLog) record(observation Observation) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -35,6 +41,7 @@ func buildModule(t *testing.T, db *bun.DB, observe ...func(Observation)) *carepl
 	}
 	module, err := New(Dependencies{
 		DB: db, Observe: observer, AmbientDB: func(context.Context) bun.IDB { return db },
+		People:      emptyPeopleDirectory{},
 		StudentLock: func(context.Context, int64) error { return nil }, StudentNotFound: errors.New("student not found"),
 	})
 	require.NoError(t, err)

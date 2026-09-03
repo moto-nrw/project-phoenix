@@ -379,6 +379,9 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
+	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
+		repository.BindCarePlan(f.carePlan)
+	}
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
 	if f.students != nil {
 		f.bindGuardianDirectories(f.students)
@@ -598,7 +601,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
-		StudentCompanion:    users.NewStudentCompanionRepository(db),
+		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      active.NewPrivacyConsentRepository(db),
@@ -618,7 +621,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 
 		// Staff documents (#1424) — StaffDocument is bound by
 		// bindStaffMembershipDecorators, it needs the membership owner.
-		StudentDocument: users.NewStudentDocumentRepository(db),
+		StudentDocument: nil, // bound to Care Plan below
 
 		// School file storage (#2596)
 		FileFolder:             filestore.NewFolderRepository(db),

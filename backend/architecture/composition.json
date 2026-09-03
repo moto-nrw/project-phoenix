@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        608
+        629
       ],
       "tables": []
     },
@@ -13557,7 +13557,7 @@
       "declaration": "TestAutoExcusal_DeletingTheExceptionRestoresBlocks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        213
       ],
       "tables": []
     },
@@ -13567,7 +13567,7 @@
       "declaration": "TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        474
+        471
       ],
       "tables": []
     },
@@ -13577,7 +13577,7 @@
       "declaration": "autoExcusalHarness.exception",
       "target": "database/repositories.NewFactory",
       "lines": [
-        360
+        357
       ],
       "tables": []
     },
@@ -13587,7 +13587,7 @@
       "declaration": "setupAutoExcusalHarness",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        50
       ],
       "tables": []
     },
@@ -14765,7 +14765,7 @@
       "declaration": "TestMasterDataCorrect_ApprovedToRejectedRestoresTheOldValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        848
+        849
       ],
       "tables": [
         "users.student_data_change_requests"
@@ -14777,7 +14777,7 @@
       "declaration": "TestMasterDataCorrect_RefusesAnUndecidedRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        907
+        908
       ],
       "tables": []
     },
@@ -14787,7 +14787,7 @@
       "declaration": "TestMasterDataCorrect_RefusesWhenTheValueMovedOnAfterTheDecision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        879
+        880
       ],
       "tables": [
         "users.persons"
@@ -14799,7 +14799,7 @@
       "declaration": "TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        526
+        527
       ],
       "tables": []
     },
@@ -14849,7 +14849,7 @@
       "declaration": "TestMasterDataReview_ApproveEmitsDecisionPill",
       "target": "database/repositories.NewFactory",
       "lines": [
-        662
+        663
       ],
       "tables": []
     },
@@ -14859,7 +14859,7 @@
       "declaration": "TestMasterDataReview_ApproveInvalidRowsRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        595
+        596
       ],
       "tables": []
     },
@@ -14869,7 +14869,7 @@
       "declaration": "TestMasterDataReview_CompanionEventOnlyOnEffectiveChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        734
+        735
       ],
       "tables": []
     },
@@ -14899,7 +14899,7 @@
       "declaration": "TestMasterDataReview_DecideNonPendingRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        570
+        571
       ],
       "tables": []
     },
@@ -14939,7 +14939,7 @@
       "declaration": "TestMasterDataReview_RejectEmitsPillWithReason",
       "target": "database/repositories.NewFactory",
       "lines": [
-        694
+        695
       ],
       "tables": []
     },
@@ -14949,7 +14949,7 @@
       "declaration": "TestMasterDataReview_RejectLeavesRecordUnchanged",
       "target": "database/repositories.NewFactory",
       "lines": [
-        548
+        549
       ],
       "tables": []
     },
@@ -31728,22 +31728,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 315,
+          "line": 336,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 418,
+          "line": 439,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 484,
+          "line": 505,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 976,
+          "line": 997,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31753,7 +31753,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 608,
+          "line": 629,
           "declaration": "New"
         }
       ]
@@ -31768,7 +31768,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 481,
+          "line": 502,
           "declaration": "type API"
         },
         {

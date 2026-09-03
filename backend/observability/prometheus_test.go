@@ -134,6 +134,16 @@ func TestRecordUnitOfWorkEvidence(t *testing.T) {
 	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
 }
 
+func TestObserveCarePlanOperationRecordsDuplicateConflicts(t *testing.T) {
+	t.Parallel()
+	const operation = "record_care_exit_removals_test"
+	before := testutil.ToFloat64(carePlanDuplicateConflicts.WithLabelValues(operation))
+
+	ObserveCarePlanOperation(operation, time.Millisecond, 1, 0, 2, time.Millisecond, "none", nil)
+
+	assert.Equal(t, before+2, testutil.ToFloat64(carePlanDuplicateConflicts.WithLabelValues(operation)))
+}
+
 func TestObserveAppointmentsOperationRecordsDuplicatePreventionConflicts(t *testing.T) {
 	t.Parallel()
 	const operation = "cancel_appointment_occurrence"
