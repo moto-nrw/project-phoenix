@@ -134,6 +134,17 @@ func TestRecordUnitOfWorkEvidence(t *testing.T) {
 	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
 }
 
+func TestObserveAppointmentsOperationRecordsDuplicatePreventionConflicts(t *testing.T) {
+	t.Parallel()
+	const operation = "cancel_appointment_occurrence"
+	before := testutil.ToFloat64(appointmentsDuplicatePreventionConflicts.WithLabelValues(operation))
+
+	ObserveAppointmentsOperation(operation, time.Millisecond, 1, 0, 1, time.Millisecond, "none", nil)
+
+	after := testutil.ToFloat64(appointmentsDuplicatePreventionConflicts.WithLabelValues(operation))
+	assert.Equal(t, before+1, after)
+}
+
 func TestFeedbackHTTPResponseUsesActualStatusClassAndStableCode(t *testing.T) {
 	t.Parallel()
 	badRequestBefore := testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("iot", "4xx", "invalid_parameters"))

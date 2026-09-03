@@ -91,10 +91,8 @@ type FullService interface {
 
 type Config struct {
 	Appointments         appointments.Capability
-	RecurrenceRepo       calModels.RecurrenceRuleRepository
 	RecipientRepo        calModels.AppointmentRecipientRepository
 	RecipientStudentRepo calModels.AppointmentRecipientStudentRepository
-	OverrideRepo         calModels.AppointmentOccurrenceOverrideRepository
 	StaffRepo            userModels.StaffRepository
 	StudentRepo          userModels.StudentRepository
 	GuardianProfileRepo  userModels.GuardianProfileRepository
@@ -483,7 +481,7 @@ func (s *service) createStaffAppointment(ctx context.Context, req CreateAppointm
 
 	if recurrence != nil {
 		recurrence.AppointmentID = appointment.ID
-		if err := s.cfg.RecurrenceRepo.Create(ctx, recurrence); err != nil {
+		if err := s.cfg.Appointments.CreateRecurrenceRule(ctx, recurrence); err != nil {
 			return nil, err
 		}
 	}
@@ -666,7 +664,7 @@ func (s *service) findReminderCandidatesForUpdate(ctx context.Context, appointme
 // for an appointment. Used by the lifecycle operations so callers (and the
 // notification layer in Phase B) get the same shape as CreateStaffAppointment.
 func (s *service) appointmentDetail(ctx context.Context, appointment *calModels.Appointment) (*AppointmentDetail, error) {
-	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	recurrence, err := s.cfg.Appointments.FindRecurrenceRule(ctx, appointment.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -775,11 +773,11 @@ func (s *service) updateStaffAppointment(ctx context.Context, appointmentID int6
 	appointment = calendarAppointment(updated)
 	// Replace the recurrence rule wholesale: the DB enforces one rule per
 	// appointment, so drop the old row and recreate if the edit still recurs.
-	if err := s.cfg.RecurrenceRepo.DeleteByAppointmentID(ctx, appointment.ID); err != nil {
+	if err := s.cfg.Appointments.DeleteRecurrenceRule(ctx, appointment.ID); err != nil {
 		return nil, err
 	}
 	if recurrence != nil {
-		if err := s.cfg.RecurrenceRepo.Create(ctx, recurrence); err != nil {
+		if err := s.cfg.Appointments.CreateRecurrenceRule(ctx, recurrence); err != nil {
 			return nil, err
 		}
 	}
@@ -787,7 +785,7 @@ func (s *service) updateStaffAppointment(ctx context.Context, appointmentID int6
 	// cancellations ("Nur diesen Termin") from the old cadence no longer apply.
 	// Drop them; otherwise a date reused by the new recurrence would be silently
 	// suppressed (and stale EXDATEs would leak into the subscription feed/ICS).
-	if err := s.cfg.OverrideRepo.DeleteByAppointmentID(ctx, appointment.ID); err != nil {
+	if err := s.cfg.Appointments.DeleteOccurrenceOverrides(ctx, appointment.ID); err != nil {
 		return nil, err
 	}
 
@@ -932,7 +930,7 @@ func (s *service) cancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	// actually generates. Without this guard, cancelling a non-recurring
 	// appointment (or a date not in the series) would persist a useless override
 	// while the appointment stayed fully visible.
-	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	recurrence, err := s.cfg.Appointments.FindRecurrenceRule(ctx, appointment.ID)
 	if err != nil {
 		return err
 	}
@@ -945,7 +943,7 @@ func (s *service) cancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	// Reuse an existing override for this date (e.g. from a prior single-occurrence
 	// edit) so cancelling stays idempotent and respects the (appointment, date)
 	// uniqueness constraint.
-	existing, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{appointment.ID}, []calModels.Date{toCalendarDate(occurrenceDate)})
+	existing, err := s.cfg.Appointments.FindOccurrenceOverrides(ctx, []int64{appointment.ID}, []calModels.Date{toCalendarDate(occurrenceDate)})
 	if err != nil {
 		return err
 	}
@@ -956,7 +954,7 @@ func (s *service) cancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	// Conflict-safe upsert: a concurrent request cancelling the same occurrence
 	// converges on cancelled=true instead of one hitting the unique constraint
 	// and returning a 500.
-	if err := s.cfg.OverrideRepo.CancelOccurrence(ctx, appointment.ID, toCalendarDate(occurrenceDate)); err != nil {
+	if _, err := s.cfg.Appointments.CancelAppointmentOccurrence(ctx, appointment.ID, toCalendarDate(occurrenceDate)); err != nil {
 		return err
 	}
 	// A queued create/update notice announces the appointment's first occurrence;
@@ -966,9 +964,7 @@ func (s *service) cancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	if err := s.cancelPendingNotifications(ctx, appointment.ID, "occurrence cancelled"); err != nil {
 		return err
 	}
-	// Bump the parent revision so the feed re-exports with a higher SEQUENCE and
-	// subscribers honour the new EXDATE.
-	return s.cfg.Appointments.BumpAppointmentRevision(ctx, appointment.ID)
+	return nil
 }
 
 // occurrenceExists reports whether occurrenceDate is one of the dates the
@@ -1353,7 +1349,7 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 	for _, appointment := range appointments {
 		ids = append(ids, appointment.ID)
 	}
-	recurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(ctx, ids)
+	recurrences, err := s.cfg.Appointments.FindRecurrenceRules(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -1362,7 +1358,7 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
 	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, from, to)
-	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, toCalendarDates(occurrenceDates))
+	overrides, err := s.cfg.Appointments.FindOccurrenceOverrides(ctx, ids, toCalendarDates(occurrenceDates))
 	if err != nil {
 		return nil, err
 	}
@@ -1407,7 +1403,7 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 	for _, appointment := range appointments {
 		ids = append(ids, appointment.ID)
 	}
-	recurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(ctx, ids)
+	recurrences, err := s.cfg.Appointments.FindRecurrenceRules(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -1416,7 +1412,7 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
 	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, from, to)
-	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, toCalendarDates(occurrenceDates))
+	overrides, err := s.cfg.Appointments.FindOccurrenceOverrides(ctx, ids, toCalendarDates(occurrenceDates))
 	if err != nil {
 		return nil, err
 	}

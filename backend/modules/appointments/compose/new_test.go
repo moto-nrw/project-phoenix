@@ -84,6 +84,43 @@ func TestModuleRunsAppointmentLifecycleAndIsolatesBothTables(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, targets, foundTargets)
 
+	endsOn := appointments.NewDate(2030, time.February, 4)
+	rule := &appointments.RecurrenceRule{
+		AppointmentID: created.ID, Frequency: appointments.RecurrenceFrequencyWeekly,
+		IntervalCount: 1, Weekdays: []string{"Monday", "monday"}, EndsOn: &endsOn,
+	}
+	require.NoError(t, module.CreateRecurrenceRule(ctx, rule))
+	assert.Positive(t, rule.ID)
+	assert.Equal(t, testpkg.Tenant(t), rule.TenantID)
+	assert.Equal(t, []string{"monday"}, rule.Weekdays)
+	foundRule, err := module.FindRecurrenceRule(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, rule, foundRule)
+	rules, err := module.FindRecurrenceRules(ctx, []int64{created.ID})
+	require.NoError(t, err)
+	assert.Equal(t, []*appointments.RecurrenceRule{rule}, rules)
+
+	movedDate := appointments.NewDate(2030, time.January, 8)
+	startDate := appointments.NewDate(2030, time.January, 9)
+	startClock := time.Date(1, time.January, 1, 8, 30, 0, 0, time.FixedZone("source", 3600))
+	override := &appointments.AppointmentOccurrenceOverride{
+		AppointmentID: created.ID, OccurrenceDate: movedDate, StartDate: &startDate, StartTime: &startClock,
+	}
+	require.NoError(t, module.CreateOccurrenceOverride(ctx, override))
+	assert.Positive(t, override.ID)
+	assert.Equal(t, testpkg.Tenant(t), override.TenantID)
+	require.NotNil(t, override.StartTime)
+	assert.Equal(t, 8, override.StartTime.Hour(), "wall-clock hour must not shift through Postgres")
+	foundOverrides, err := module.FindOccurrenceOverrides(ctx, []int64{created.ID}, []appointments.Date{movedDate})
+	require.NoError(t, err)
+	assert.Equal(t, []*appointments.AppointmentOccurrenceOverride{override}, foundOverrides)
+	movedOverrides, err := module.FindOccurrenceOverridesByStartDates(ctx, []int64{created.ID}, []appointments.Date{startDate})
+	require.NoError(t, err)
+	assert.Equal(t, foundOverrides, movedOverrides)
+	cancelledOverrides, err := module.FindCancelledOccurrenceOverrides(ctx, []int64{created.ID})
+	require.NoError(t, err)
+	assert.Empty(t, cancelledOverrides)
+
 	visible, err := module.ListAppointmentsVisibleToStaff(ctx, staff.ID, created.StartDate, created.EndDate)
 	require.NoError(t, err)
 	require.Len(t, visible, 1)
@@ -96,6 +133,18 @@ func TestModuleRunsAppointmentLifecycleAndIsolatesBothTables(t *testing.T) {
 	foreignTargets, err := module.FindAppointmentTargets(otherCtx, created.ID)
 	require.NoError(t, err)
 	assert.Empty(t, foreignTargets)
+	foreignRule, err := module.FindRecurrenceRule(otherCtx, created.ID)
+	require.NoError(t, err)
+	assert.Nil(t, foreignRule)
+	require.NoError(t, module.DeleteRecurrenceRule(otherCtx, created.ID))
+	survivingRule, err := module.FindRecurrenceRule(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, rule, survivingRule, "another tenant cannot delete the recurrence rule")
+	foreignOverrides, err := module.FindOccurrenceOverrides(otherCtx, []int64{created.ID}, []appointments.Date{movedDate})
+	require.NoError(t, err)
+	assert.Empty(t, foreignOverrides)
+	_, err = module.CancelAppointmentOccurrence(otherCtx, created.ID, appointments.NewDate(2030, time.January, 14))
+	require.Error(t, err, "another tenant cannot write an override for this appointment")
 	_, err = module.UpdateAppointment(otherCtx, appointments.UpdateAppointment{
 		ID:                created.ID,
 		AppointmentFields: appointmentFields(otherStaff.ID, "Fremder Titel"),
@@ -110,7 +159,25 @@ func TestModuleRunsAppointmentLifecycleAndIsolatesBothTables(t *testing.T) {
 	assert.True(t, updated.NotifyGuardians)
 	assert.Equal(t, created.Revision+1, updated.Revision)
 
-	transitioned, err := module.CancelAppointment(ctx, created.ID)
+	cancelDate := appointments.NewDate(2030, time.January, 14)
+	transitioned, err := module.CancelAppointmentOccurrence(ctx, created.ID, cancelDate)
+	require.NoError(t, err)
+	assert.True(t, transitioned)
+	afterOccurrenceCancel, err := module.FindAppointment(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, updated.Revision+1, afterOccurrenceCancel.Revision)
+	transitioned, err = module.CancelAppointmentOccurrence(ctx, created.ID, cancelDate)
+	require.NoError(t, err)
+	assert.False(t, transitioned, "cancelling one occurrence twice is idempotent")
+	afterIdempotentRetry, err := module.FindAppointment(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, afterOccurrenceCancel.Revision, afterIdempotentRetry.Revision)
+	cancelledOverrides, err = module.FindCancelledOccurrenceOverrides(ctx, []int64{created.ID})
+	require.NoError(t, err)
+	require.Len(t, cancelledOverrides, 1)
+	assert.Equal(t, cancelDate, cancelledOverrides[0].OccurrenceDate)
+
+	transitioned, err = module.CancelAppointment(ctx, created.ID)
 	require.NoError(t, err)
 	assert.True(t, transitioned)
 	transitioned, err = module.CancelAppointment(ctx, created.ID)
@@ -135,6 +202,19 @@ func TestModuleRunsAppointmentLifecycleAndIsolatesBothTables(t *testing.T) {
 	assert.Equal(t, "create_appointment", log.seen[0].Operation)
 	assert.EqualValues(t, 2, log.seen[0].Stats.Queries)
 	assert.EqualValues(t, 2, log.seen[0].Stats.Rows)
+	var successfulOccurrenceCancellations []Observation
+	for _, observation := range log.seen {
+		if observation.Operation == "cancel_appointment_occurrence" && observation.Err == nil {
+			successfulOccurrenceCancellations = append(successfulOccurrenceCancellations, observation)
+		}
+	}
+	require.Len(t, successfulOccurrenceCancellations, 2)
+	assert.EqualValues(t, 2, successfulOccurrenceCancellations[0].Stats.Queries)
+	assert.EqualValues(t, 2, successfulOccurrenceCancellations[0].Stats.Rows)
+	assert.Zero(t, successfulOccurrenceCancellations[0].Stats.DuplicatePreventionConflicts)
+	assert.EqualValues(t, 1, successfulOccurrenceCancellations[1].Stats.Queries)
+	assert.Zero(t, successfulOccurrenceCancellations[1].Stats.Rows, "the duplicate-prevention conflict is an observable no-op")
+	assert.EqualValues(t, 1, successfulOccurrenceCancellations[1].Stats.DuplicatePreventionConflicts)
 }
 
 func TestCompoundWritesRollbackAndRetryWithoutDuplicates(t *testing.T) {
@@ -180,6 +260,50 @@ func TestCompoundWritesRollbackAndRetryWithoutDuplicates(t *testing.T) {
 	assert.Empty(t, afterRetry)
 }
 
+func TestOccurrenceCancellationRollsBackWhenRevisionBumpFails(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Rita", "Revision")
+	created, _, err := module.CreateAppointment(ctx, appointments.CreateAppointment{
+		AppointmentFields: appointmentFields(staff.ID, "Atomare Absage"),
+	})
+	require.NoError(t, err)
+	date := appointments.NewDate(2030, time.January, 14)
+
+	_, err = db.ExecContext(context.Background(), `
+		CREATE FUNCTION fail_appointment_revision_bump() RETURNS trigger AS $$
+		BEGIN
+			RAISE EXCEPTION 'injected revision failure';
+		END;
+		$$ LANGUAGE plpgsql;
+		CREATE TRIGGER fail_appointment_revision_bump
+		BEFORE UPDATE OF revision ON calendar.appointments
+		FOR EACH ROW EXECUTE FUNCTION fail_appointment_revision_bump();
+	`)
+	require.NoError(t, err)
+
+	transitioned, err := module.CancelAppointmentOccurrence(ctx, created.ID, date)
+	require.Error(t, err)
+	assert.False(t, transitioned, "a rolled-back transition must not escape the command")
+	overrides, findErr := module.FindOccurrenceOverrides(ctx, []int64{created.ID}, []appointments.Date{date})
+	require.NoError(t, findErr)
+	assert.Empty(t, overrides, "the override insert must roll back with the failed revision bump")
+	afterFailure, findErr := module.FindAppointment(ctx, created.ID)
+	require.NoError(t, findErr)
+	assert.Equal(t, created.Revision, afterFailure.Revision)
+
+	_, err = db.ExecContext(context.Background(), `DROP TRIGGER fail_appointment_revision_bump ON calendar.appointments`)
+	require.NoError(t, err)
+	transitioned, err = module.CancelAppointmentOccurrence(ctx, created.ID, date)
+	require.NoError(t, err)
+	assert.True(t, transitioned)
+	overrides, err = module.FindOccurrenceOverrides(ctx, []int64{created.ID}, []appointments.Date{date})
+	require.NoError(t, err)
+	require.Len(t, overrides, 1, "retry creates exactly one override")
+}
+
 func TestReadFailuresAreNotTurnedIntoNotFound(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -189,6 +313,14 @@ func TestReadFailuresAreNotTurnedIntoNotFound(t *testing.T) {
 		AppointmentFields: appointmentFields(staff.ID, "Lesefehler"),
 	})
 	require.NoError(t, err)
+	rule := &appointments.RecurrenceRule{
+		AppointmentID: created.ID, Frequency: appointments.RecurrenceFrequencyDaily, IntervalCount: 1,
+	}
+	require.NoError(t, module.CreateRecurrenceRule(testpkg.Ctx(t), rule))
+	override := &appointments.AppointmentOccurrenceOverride{
+		AppointmentID: created.ID, OccurrenceDate: created.StartDate, Cancelled: true,
+	}
+	require.NoError(t, module.CreateOccurrenceOverride(testpkg.Ctx(t), override))
 	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
 	cancel()
 
@@ -196,6 +328,10 @@ func TestReadFailuresAreNotTurnedIntoNotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.NotErrorIs(t, err, appointments.ErrAppointmentNotFound)
+	_, err = module.FindRecurrenceRule(ctx, created.ID)
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = module.FindOccurrenceOverrides(ctx, []int64{created.ID}, []appointments.Date{created.StartDate})
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestQueriesRejectMissingTenantContext(t *testing.T) {
@@ -207,6 +343,19 @@ func TestQueriesRejectMissingTenantContext(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tenant is required")
 	assert.NotErrorIs(t, err, appointments.ErrAppointmentNotFound)
+}
+
+func TestEmptyRecurrenceAndOverrideQueriesDoNotTouchTheDatabase(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+
+	rules, err := module.FindRecurrenceRules(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, rules)
+	overrides, err := module.FindOccurrenceOverridesByStartDates(context.Background(), nil, nil)
+	require.NoError(t, err)
+	assert.Empty(t, overrides)
 }
 
 func TestNewRejectsMissingDependencies(t *testing.T) {
