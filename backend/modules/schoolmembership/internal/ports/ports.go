@@ -7,8 +7,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
-// Store is the persistence port over users.staff, users.teachers and
-// users.guests. Reads honour the tenant in context when one is present.
+// Store is the persistence port over users.staff, users.teachers,
+// users.guests and users.class_list_entries. Reads honour the tenant in
+// context when one is present.
 type Store interface {
 	FindStaff(ctx context.Context, id int64, lock string, includeDeleted bool) (domain.Staff, bool, domain.OperationStats, error)
 	FindStaffByPerson(context.Context, int64) (domain.Staff, bool, domain.OperationStats, error)
@@ -34,6 +35,12 @@ type Store interface {
 	CreateGuest(context.Context, domain.GuestFields) (domain.Guest, domain.OperationStats, error)
 	UpdateGuest(context.Context, int64, domain.GuestFields) (domain.Guest, domain.OperationStats, error)
 	DeleteGuest(context.Context, int64) (domain.OperationStats, error)
+
+	FindClassListEntry(ctx context.Context, id int64, lock string) (domain.ClassListEntry, bool, domain.OperationStats, error)
+	ListClassListEntries(context.Context, domain.ClassListEntryFilter) ([]domain.ClassListEntry, domain.OperationStats, error)
+	CreateClassListEntry(ctx context.Context, fields domain.ClassListEntryFields, createdBy *int64) (domain.ClassListEntry, domain.OperationStats, error)
+	UpdateClassListEntry(context.Context, int64, domain.ClassListEntryFields) (domain.ClassListEntry, domain.OperationStats, error)
+	DeleteClassListEntry(context.Context, int64) (domain.OperationStats, error)
 }
 
 type Transaction interface {
