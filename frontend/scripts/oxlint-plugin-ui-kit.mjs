@@ -200,9 +200,16 @@ function makeClassStringRule({
       const check = (node, text) => {
         regex.lastIndex = 0;
         for (const match of text.matchAll(regex)) {
+          // Nur die Tiny-Text-Regel hat eine Standort-Baseline. Die übrigen
+          // Hard-zero-Regeln brauchen keine Quellposition und bleiben damit
+          // auch mit den absichtlich schlanken AST-Knoten ihrer Unit-Tests
+          // prüfbar.
+          const baselineMatches = baseline.get(key);
           const line =
-            node.loc.start.line +
-            (text.slice(0, match.index).match(/\n/g)?.length ?? 0);
+            baselineMatches && node.loc
+              ? node.loc.start.line +
+                (text.slice(0, match.index).match(/\n/g)?.length ?? 0)
+              : undefined;
           if (!isBaselineMatch(baseline, key, match[0], line)) {
             context.report({ node, messageId, data: { match: match[0] } });
           }
