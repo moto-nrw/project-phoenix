@@ -2618,6 +2618,18 @@
       "write_owner": "meal-plan"
     },
     {
+      "name": "schedule.meal_participation_overrides",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_participation_schedules",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_sickness_status_history",
+      "write_owner": "meal-plan"
+    },
+    {
       "name": "schedule.planning_tracks",
       "write_owner": "timetable-activities"
     },

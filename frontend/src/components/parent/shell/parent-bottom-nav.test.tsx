@@ -151,7 +151,7 @@ describe("ParentBottomNav", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
     expect(screen.getByText("Elternbriefe")).toBeVisible();
-    expect(screen.getByText("Essensplan")).toBeVisible();
+    expect(screen.getByText("Mittagessen")).toBeVisible();
     expect(screen.getByText("Einstellungen")).toBeVisible();
     expect(screen.getByText("Neue Anmeldung")).toBeVisible();
     expect(screen.getByText("Abmelden")).toBeVisible();

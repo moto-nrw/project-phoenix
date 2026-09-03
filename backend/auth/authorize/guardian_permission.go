@@ -47,6 +47,10 @@ const (
 	// voluntary consent for this child. Consent visibility remains covered by
 	// parent_portal.access; changing it is a separate, relationship-scoped act.
 	GuardianPermissionConsentManage = "parent_portal.consent.manage"
+	// GuardianPermissionMealParticipationManage allows a full guardian to
+	// change this child's recurring lunch schedule and day-specific overrides.
+	// Reading the meal plan and participation remains covered by portal access.
+	GuardianPermissionMealParticipationManage = "parent_portal.meal_participation.manage"
 )
 
 const (
@@ -72,6 +76,7 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionGuardianEdit,
 	GuardianPermissionPickupManage,
 	GuardianPermissionConsentManage,
+	GuardianPermissionMealParticipationManage,
 }
 
 // Guardian permission checks and grants are authorization concerns, not data

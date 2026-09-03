@@ -314,7 +314,11 @@ func (f *Factory) SetSettingsObservers(
 	}
 }
 
-type MealPlanSettingsBinder func(func(context.Context) (bool, error))
+type MealPlanSettingsBinder func(
+	func(context.Context) (bool, error),
+	func(context.Context) (bool, error),
+	func(context.Context) (string, error),
+)
 
 type FeedbackSettingsBinder func(
 	func(context.Context) (bool, error),
@@ -665,9 +669,17 @@ func newFactory(
 		logger,
 	)
 	if mealPlan != nil {
-		bindMealPlanSettings(func(ctx context.Context) (bool, error) {
-			return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
-		})
+		bindMealPlanSettings(
+			func(ctx context.Context) (bool, error) {
+				return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
+			},
+			func(ctx context.Context) (bool, error) {
+				return settingsService.ResolveBool(ctx, configModels.KeyMealRegistrationEnabled)
+			},
+			func(ctx context.Context) (string, error) {
+				return settingsService.ResolveString(ctx, configModels.KeyMealRegistrationCutoffTime)
+			},
+		)
 	}
 	if bindFeedbackSettings != nil {
 		bindFeedbackSettings(
