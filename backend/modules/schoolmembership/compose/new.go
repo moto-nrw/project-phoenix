@@ -46,7 +46,8 @@ func New(dependencies Dependencies) (*schoolmembership.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	return schoolmembership.NewModule(engine{service: service}), nil
+	moduleEngine := engine{service: service}
+	return schoolmembership.NewModule(moduleEngine, moduleEngine), nil
 }
 
 type transaction struct{}
@@ -324,6 +325,14 @@ func mapError(err error) error {
 		// The cause stays in the chain on purpose: the legacy repository
 		// contract classifies the collision by the unique index name.
 		return fmt.Errorf("%w: %w", schoolmembership.ErrClassListEntryDuplicate, err)
+	case errors.Is(err, domain.ErrClassAssignmentNotFound):
+		return schoolmembership.ErrClassAssignmentNotFound
+	case errors.Is(err, domain.ErrGroupAssignmentNotFound):
+		return schoolmembership.ErrGroupAssignmentNotFound
+	case errors.Is(err, domain.ErrClassAssignmentConflict):
+		return fmt.Errorf("%w: %w", schoolmembership.ErrClassAssignmentConflict, err)
+	case errors.Is(err, domain.ErrGroupAssignmentConflict):
+		return fmt.Errorf("%w: %w", schoolmembership.ErrGroupAssignmentConflict, err)
 	default:
 		return err
 	}
