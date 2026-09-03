@@ -130,8 +130,19 @@ func (e engine) ListRooms(ctx context.Context, filter facilities.RoomFilter) ([]
 		Name: filter.Name, NameContains: filter.NameContains, Building: filter.Building,
 		BuildingContains: filter.BuildingContains, Floor: filter.Floor, Category: filter.Category,
 		MinimumCapacity: filter.MinimumCapacity, MaximumCapacity: filter.MaximumCapacity, Search: filter.Search,
+		ExcludeSystem: filter.ExcludeSystem,
 	})
 	return toPublicList(values), mapError(err)
+}
+
+func (e engine) ListRoomsPage(ctx context.Context, filter facilities.RoomFilter, offset, limit int) (facilities.RoomPage, error) {
+	values, total, err := e.service.ListPage(ctx, domain.RoomFilter{
+		Name: filter.Name, NameContains: filter.NameContains, Building: filter.Building,
+		BuildingContains: filter.BuildingContains, Floor: filter.Floor, Category: filter.Category,
+		MinimumCapacity: filter.MinimumCapacity, MaximumCapacity: filter.MaximumCapacity, Search: filter.Search,
+		ExcludeSystem: filter.ExcludeSystem,
+	}, offset, limit)
+	return facilities.RoomPage{Rooms: toPublicList(values), Total: total}, mapError(err)
 }
 
 func (e engine) ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {

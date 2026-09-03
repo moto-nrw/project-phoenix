@@ -15,6 +15,7 @@ type Store interface {
 	FindByName(context.Context, string) (domain.Room, bool, domain.OperationStats, error)
 	FindToilet(context.Context, int64) (domain.Room, bool, domain.OperationStats, error)
 	List(context.Context, domain.RoomFilter) ([]domain.Room, domain.OperationStats, error)
+	ListPage(context.Context, domain.RoomFilter, int, int) ([]domain.Room, int, domain.OperationStats, error)
 	ListByIDs(context.Context, []int64) ([]domain.Room, domain.OperationStats, error)
 	LockByIDs(context.Context, []int64) ([]domain.Room, domain.OperationStats, error)
 }

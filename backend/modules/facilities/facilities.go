@@ -130,6 +130,21 @@ func (m *Module) ListRooms(ctx context.Context, filter RoomFilter) ([]Room, erro
 	return m.engine.ListRooms(ctx, filter)
 }
 
+// ListRoomsPage returns one bounded room-list result and its total record
+// count. Offset and limit are applied by the owner store.
+func (m *Module) ListRoomsPage(ctx context.Context, filter RoomFilter, offset, limit int) (RoomPage, error) {
+	if offset < 0 || limit <= 0 {
+		return RoomPage{}, &InvalidRoomError{Reason: "room page is invalid"}
+	}
+	pager, ok := m.engine.(interface {
+		ListRoomsPage(context.Context, RoomFilter, int, int) (RoomPage, error)
+	})
+	if !ok {
+		return RoomPage{}, errors.New("facilities: room page is unavailable")
+	}
+	return pager.ListRoomsPage(ctx, filter, offset, limit)
+}
+
 // ListRoomsByID returns the rooms visible in the caller's transaction for
 // the given IDs, sorted by name. Missing IDs are simply absent: consumers
 // rendering a room name treat absence like the former LEFT JOIN.

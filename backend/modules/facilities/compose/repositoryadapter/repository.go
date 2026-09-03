@@ -186,12 +186,12 @@ func applyRoomFilter(filter *facilities.RoomFilter, field string, raw any) error
 			return fmt.Errorf("room filter %s must be a string", field)
 		}
 		setStringFilter(filter, field, &value)
-	case "min_capacity", "max_capacity":
+	case "floor", "min_capacity", "max_capacity":
 		value, ok := raw.(int)
 		if !ok {
 			return fmt.Errorf("room filter %s must be an integer", field)
 		}
-		setCapacityFilter(filter, field, &value)
+		setIntegerFilter(filter, field, &value)
 	default:
 		return fmt.Errorf("unsupported room filter %q", field)
 	}
@@ -213,10 +213,13 @@ func setStringFilter(filter *facilities.RoomFilter, field string, value *string)
 	}
 }
 
-func setCapacityFilter(filter *facilities.RoomFilter, field string, value *int) {
-	if field == "min_capacity" {
+func setIntegerFilter(filter *facilities.RoomFilter, field string, value *int) {
+	switch field {
+	case "floor":
+		filter.Floor = value
+	case "min_capacity":
 		filter.MinimumCapacity = value
-	} else {
+	case "max_capacity":
 		filter.MaximumCapacity = value
 	}
 }

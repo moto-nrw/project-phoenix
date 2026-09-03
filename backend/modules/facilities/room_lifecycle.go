@@ -86,6 +86,13 @@ type RoomFilter struct {
 	MinimumCapacity  *int
 	MaximumCapacity  *int
 	Search           *string
+	ExcludeSystem    bool
+}
+
+// RoomPage is one bounded room-list result plus the count before pagination.
+type RoomPage struct {
+	Rooms []Room
+	Total int
 }
 
 type InvalidRoomError struct{ Reason string }

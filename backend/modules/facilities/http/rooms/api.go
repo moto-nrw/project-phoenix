@@ -98,7 +98,10 @@ type Runtime struct {
 }
 
 type Resource struct {
-	rooms   facilities.Capability
+	rooms     facilities.Capability
+	roomPages interface {
+		ListRoomsPage(context.Context, facilities.RoomFilter, int, int) (facilities.RoomPage, error)
+	}
 	runtime Runtime
 }
 
@@ -112,7 +115,13 @@ func NewResource(rooms facilities.Capability, runtime Runtime) *Resource {
 		runtime.ReadUsers == "" || runtime.Create == "" || runtime.Update == "" || runtime.Delete == "" {
 		panic("rooms HTTP: all dependencies are required")
 	}
-	return &Resource{rooms: rooms, runtime: runtime}
+	roomPages, ok := rooms.(interface {
+		ListRoomsPage(context.Context, facilities.RoomFilter, int, int) (facilities.RoomPage, error)
+	})
+	if !ok {
+		panic("rooms HTTP: Facilities pagination capability is required")
+	}
+	return &Resource{rooms: rooms, roomPages: roomPages, runtime: runtime}
 }
 
 func (rs *Resource) Router() chi.Router {
@@ -189,21 +198,15 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	if value := r.URL.Query().Get("category"); value != "" {
 		filter.Category = &value
 	}
-	rooms, err := rs.rooms.ListRooms(r.Context(), filter)
+	includeSystem := r.URL.Query().Get("include_system") == "true"
+	filter.ExcludeSystem = !includeSystem
+	page, pageSize := rs.runtime.Pagination(r)
+	pageResult, err := rs.roomPages.ListRoomsPage(r.Context(), filter, (page-1)*pageSize, pageSize)
 	if err != nil {
 		rs.failure(w, r, err)
 		return
 	}
-	rooms = visibleRooms(rooms, r.URL.Query().Get("include_system") == "true")
-	total := len(rooms)
-	page, pageSize := rs.runtime.Pagination(r)
-	offset := (page - 1) * pageSize
-	if offset >= total {
-		rooms = []facilities.Room{}
-	} else {
-		rooms = rooms[offset:min(offset+pageSize, total)]
-	}
-	views, err := rs.runtime.Occupancy(r.Context(), rooms)
+	views, err := rs.runtime.Occupancy(r.Context(), pageResult.Rooms)
 	if err != nil {
 		rs.runtime.Failure(w, r, FailureInternal, err, "internal_error")
 		return
@@ -212,7 +215,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	for _, view := range views {
 		responses = append(responses, newRoomResponse(view))
 	}
-	rs.runtime.Paginated(w, r, http.StatusOK, responses, Pagination{Page: page, PageSize: pageSize, Total: total}, "Rooms retrieved successfully")
+	rs.runtime.Paginated(w, r, http.StatusOK, responses, Pagination{Page: page, PageSize: pageSize, Total: pageResult.Total}, "Rooms retrieved successfully")
 }
 
 func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {

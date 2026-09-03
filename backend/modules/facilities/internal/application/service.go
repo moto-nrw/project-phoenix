@@ -32,13 +32,13 @@ func (s *Service) Create(ctx context.Context, input domain.CreateRoom) (result d
 		if err := s.lockRoomName(txCtx, input.Name); err != nil {
 			return err
 		}
-		_, found, queryStats, findErr := s.store.FindByName(txCtx, input.Name)
+		existing, found, queryStats, findErr := s.store.FindByName(txCtx, input.Name)
 		stats.Add(queryStats)
 		if findErr != nil {
 			return findErr
 		}
 		if found {
-			return domain.ErrDuplicate
+			return duplicateRoomError(input.Name, existing.Name)
 		}
 		result, queryStats, err = s.store.Create(txCtx, input)
 		stats.Add(queryStats)
@@ -109,9 +109,16 @@ func (s *Service) ensureUpdateNameAvailable(
 		return err
 	}
 	if found && duplicate.ID != input.ID {
-		return domain.ErrDuplicate
+		return duplicateRoomError(input.Name, duplicate.Name)
 	}
 	return nil
+}
+
+func duplicateRoomError(name, duplicate string) error {
+	if isWCRoomName(name) && isWCRoomName(duplicate) {
+		return domain.ErrDuplicateToilet
+	}
+	return domain.ErrDuplicate
 }
 
 func (s *Service) Delete(ctx context.Context, id int64) (err error) {
@@ -239,6 +246,16 @@ func (s *Service) List(ctx context.Context, filter domain.RoomFilter) (result []
 		return listErr
 	})
 	return result, err
+}
+
+func (s *Service) ListPage(ctx context.Context, filter domain.RoomFilter, offset, limit int) (result []domain.Room, total int, err error) {
+	err = s.run("list_rooms_page", func(stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		result, total, queryStats, err = s.store.ListPage(ctx, filter, offset, limit)
+		stats.Add(queryStats)
+		return err
+	})
+	return result, total, err
 }
 
 func (s *Service) ListByIDs(ctx context.Context, ids []int64) (result []domain.Room, err error) {

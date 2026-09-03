@@ -68,6 +68,7 @@ type RoomFilter struct {
 	MinimumCapacity  *int
 	MaximumCapacity  *int
 	Search           *string
+	ExcludeSystem    bool
 }
 
 type OperationStats struct {

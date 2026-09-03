@@ -227,6 +227,44 @@ func (s *Store) List(ctx context.Context, filter domain.RoomFilter) ([]domain.Ro
 	return result, stats, nil
 }
 
+func (s *Store) ListPage(ctx context.Context, filter domain.RoomFilter, offset, limit int) ([]domain.Room, int, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, 0, domain.OperationStats{}, err
+	}
+	rows := []roomRow{}
+	query := roomSelect(db, &rows).OrderExpr(`"room".name ASC, "room".id ASC`)
+	countQuery := db.NewSelect().TableExpr(`facilities.rooms AS "room"`).ColumnExpr("COUNT(*)")
+	if tenantID != 0 {
+		query = query.Where(`"room".tenant_id = ?`, tenantID)
+		countQuery = countQuery.Where(`"room".tenant_id = ?`, tenantID)
+	}
+	query, empty := applyRoomListFilter(query, filter)
+	countQuery, countEmpty := applyRoomListFilter(countQuery, filter)
+	if empty || countEmpty {
+		return []domain.Room{}, 0, domain.OperationStats{}, nil
+	}
+	stats := domain.OperationStats{Queries: 2}
+	started := time.Now()
+	var total int
+	if err := countQuery.Scan(ctx, &total); err != nil {
+		stats.StatementDuration = time.Since(started)
+		return nil, 0, stats, fmt.Errorf("facilities postgres: count rooms: %w", err)
+	}
+	query = query.Offset(offset).Limit(limit)
+	if err := query.Scan(ctx); err != nil {
+		stats.StatementDuration = time.Since(started)
+		return nil, 0, stats, fmt.Errorf("facilities postgres: list room page: %w", err)
+	}
+	stats.StatementDuration = time.Since(started)
+	result := make([]domain.Room, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toDomain(row))
+	}
+	stats.Rows = int64(len(result))
+	return result, total, stats, nil
+}
+
 func applyRoomListFilter(query *bun.SelectQuery, filter domain.RoomFilter) (*bun.SelectQuery, bool) {
 	if filter.Name != nil {
 		query = query.Where(`LOWER("room".name) = LOWER(?)`, *filter.Name)
@@ -258,6 +296,9 @@ func applyRoomListFilter(query *bun.SelectQuery, filter domain.RoomFilter) (*bun
 		}
 		pattern := "%" + *filter.Search + "%"
 		query = query.Where(`("room".name ILIKE ? OR "room".building ILIKE ? OR "room".category ILIKE ?)`, pattern, pattern, pattern)
+	}
+	if filter.ExcludeSystem {
+		query = query.Where(`"room".name NOT IN (?, ?) AND (NOT "room".is_system OR "room".name = ?)`, domain.WCRoomName, domain.WCRoomAliasName, domain.SchulhofRoomName)
 	}
 	return query, false
 }
