@@ -69,7 +69,7 @@ pre-push:
 
     golangci-lint:
       glob: "backend/**/*.go"
-      run: cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --timeout 15m
+      run: cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --timeout 5m
 
     go-toolchain-pins:
       glob: "{backend/go.mod,backend/tools/go.mod,backend/Dockerfile,backend/Dockerfile.dev,devbox.json,devbox.lock,lefthook.yml,scripts/backend-architecture/go.mod,scripts/run-go-toolchain.sh,.github/workflows/*.yml}"

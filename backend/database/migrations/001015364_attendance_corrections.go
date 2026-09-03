@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	attendanceCorrectionsVersion     = "1.15.360"
+	attendanceCorrectionsVersion     = "1.15.364"
 	attendanceCorrectionsDescription = "Audit trail for corrections to instance attendance (status, substatus, note) (#2898)"
 )
 
