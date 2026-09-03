@@ -1109,6 +1109,9 @@ func (m *mockActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, 
 func (m *mockActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
 	return nil, nil
 }
+func (m *mockActiveService) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
+	return nil, nil
+}
 func (m *mockActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
 	return nil, nil
 }

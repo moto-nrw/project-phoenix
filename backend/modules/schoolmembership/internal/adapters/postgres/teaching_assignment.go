@@ -160,6 +160,14 @@ func (s *Store) ListGroupAssignments(ctx context.Context, filter domain.GroupAss
 		}
 		query = query.Where(`"group_assignment".teacher_id IN (?)`, bun.List(filter.TeacherIDs))
 	}
+	if filter.TeacherStaffIDs != nil {
+		if len(filter.TeacherStaffIDs) == 0 {
+			return []domain.GroupAssignment{}, domain.OperationStats{}, nil
+		}
+		query = query.
+			Join(`INNER JOIN users.teachers AS "teacher" ON "teacher".id = "group_assignment".teacher_id`).
+			Where(`"teacher".staff_id IN (?)`, bun.List(filter.TeacherStaffIDs))
+	}
 	query = query.OrderExpr(`"group_assignment".id ASC`)
 	stats, err := scanAll(ctx, query, "list group assignments")
 	if err != nil {

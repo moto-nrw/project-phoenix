@@ -444,6 +444,8 @@ type GuardianInvitationRepository interface {
 	// FindPendingApproval retrieves parent-initiated invitations awaiting
 	// staff approval (approval_status = 'pending'), newest first.
 	FindPendingApproval(ctx context.Context) ([]*GuardianInvitation, error)
+	// FindOpenByGuardianProfileIDs retrieves every open invitation for the requested profiles.
+	FindOpenByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*GuardianInvitation, error)
 
 	// MarkAsAccepted marks an invitation as accepted
 	MarkAsAccepted(ctx context.Context, id int64) error

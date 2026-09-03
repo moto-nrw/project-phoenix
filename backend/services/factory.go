@@ -2835,13 +2835,13 @@ func newFactory(
 		Student:     repos.Student,
 		Person:      repos.Person,
 		Supervision: activeService,
+		Visits:      repos.ActiveVisit,
 		Logger:      logger.With("service", "reminders"),
 
 		// Bulk readers for ComputeBatch. They answer the three genuinely
 		// per-person facts for the whole tenant in one query each, which is what
 		// keeps the per-minute cost flat in the number of staff.
 		BulkSupervision:   repos.GroupSupervisor,
-		BulkVisits:        repos.ActiveVisit,
 		BulkInstanceStaff: repos.InstanceStaff,
 	})
 

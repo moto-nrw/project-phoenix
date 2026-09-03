@@ -73,6 +73,10 @@ func loadRoomSnapshotLocations(ctx context.Context, dependencies Dependencies, r
 		return nil, err
 	}
 	selected := selectedRoomIDSet(request.RoomIDs)
+	studentsByRoom, err := dependencies.Active.ListOpenVisitStudentIDsByRoom(ctx)
+	if err != nil {
+		return nil, err
+	}
 	locations := make([]roomSnapshotLocation, 0, len(rooms)+1)
 	for _, room := range rooms {
 		if selected != nil {
@@ -80,10 +84,7 @@ func loadRoomSnapshotLocations(ctx context.Context, dependencies Dependencies, r
 				continue
 			}
 		}
-		studentIDs, err := dependencies.Active.ListStudentsPresentInRoom(ctx, room.ID)
-		if err != nil {
-			return nil, err
-		}
+		studentIDs := studentsByRoom[room.ID]
 		locations = append(locations, roomSnapshotLocation{
 			Name: room.Name, Status: occupiedLabel(room.IsOccupied), Building: room.Building,
 			Floor: formatSnapshotFloor(room.Floor), Activity: dereference(room.GroupName),

@@ -84,8 +84,10 @@ type StudentRepository struct {
 	// any other direct repository writer (#1694).
 	companions *StudentCompanionRepository
 	// teacherGroupIDs resolves education.group_teacher through composition. This
-	// Postgres adapter stays independent of the sibling School Membership owner.
-	teacherGroupIDs func(context.Context, int64) ([]int64, error)
+	// Postgres adapter stays independent of the School Membership owner and can
+	// resolve several teachers without one owner call per teacher.
+	teacherGroupIDs      func(context.Context, int64) ([]int64, error)
+	teacherStaffGroupIDs func(context.Context, []int64) ([]int64, error)
 }
 
 // NewStudentRepository creates a new StudentRepository
@@ -104,6 +106,13 @@ func (r *StudentRepository) BindTeacherGroupIDs(query func(context.Context, int6
 		panic("student repository: school membership is required")
 	}
 	r.teacherGroupIDs = query
+}
+
+func (r *StudentRepository) BindTeacherStaffGroupIDs(query func(context.Context, []int64) ([]int64, error)) {
+	if query == nil {
+		panic("student repository: school membership is required")
+	}
+	r.teacherStaffGroupIDs = query
 }
 
 // FindByID retrieves a student by their ID.
@@ -1473,6 +1482,36 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 		}
 	}
 
+	infos := mapStudentGroupResults(results)
+	if err := r.hydrateBusDaysForGroupInfo(ctx, infos); err != nil {
+		return nil, err
+	}
+	return infos, nil
+}
+
+// FindByTeacherStaffIDsWithGroups retrieves the union of students supervised by
+// teachers belonging to any requested staff ID. A shared child appears once.
+func (r *StudentRepository) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*users.StudentWithGroupInfo, error) {
+	if len(staffIDs) == 0 {
+		return []*users.StudentWithGroupInfo{}, nil
+	}
+	if r.teacherStaffGroupIDs == nil {
+		return nil, errors.New("student repository resolves teacher assignments through School Membership")
+	}
+	groupIDs, err := r.teacherStaffGroupIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by teacher IDs with groups", Err: err}
+	}
+	if len(groupIDs) == 0 {
+		return []*users.StudentWithGroupInfo{}, nil
+	}
+	var results []*studentWithPersonAndGroup
+	if err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
+		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
+		Distinct().
+		Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by teacher IDs with groups", Err: base.TranslateNotFound(err)}
+	}
 	infos := mapStudentGroupResults(results)
 	if err := r.hydrateBusDaysForGroupInfo(ctx, infos); err != nil {
 		return nil, err

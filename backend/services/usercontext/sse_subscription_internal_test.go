@@ -153,6 +153,9 @@ func (m *mockActiveSvcForSSE) CountActiveVisitsByActiveGroupID(_ context.Context
 func (m *mockActiveSvcForSSE) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
 	return nil, nil
 }
+func (m *mockActiveSvcForSSE) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
+	return nil, nil
+}
 func (m *mockActiveSvcForSSE) ListStudentsInTransit(_ context.Context) ([]int64, error) {
 	return nil, nil
 }

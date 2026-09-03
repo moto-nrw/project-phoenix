@@ -2,12 +2,12 @@ package absence
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -110,13 +110,24 @@ func (s *excusedAbsenceRequestService) conflictGroupDates(
 	ctx context.Context, requestIDs []int64,
 ) ([]timezone.Date, error) {
 	var dates []timezone.Date
+	ids := make([]interface{}, len(requestIDs))
+	for i, requestID := range requestIDs {
+		ids[i] = requestID
+	}
+	rows, err := s.requestRepo.ListWithOptions(ctx, &modelBase.QueryOptions{
+		Filter: modelBase.NewFilter().In("id", ids...),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("active: load conflict group dates: %w", err)
+	}
+	requests := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(rows))
+	for _, request := range rows {
+		requests[request.ID] = request
+	}
 	for _, requestID := range requestIDs {
-		req, err := s.requestRepo.FindByID(ctx, requestID)
-		if err != nil {
-			if errors.Is(err, activeModels.ErrExcusedRequestNotFound) {
-				continue
-			}
-			return nil, fmt.Errorf("active: load conflict group dates: %w", err)
+		req, ok := requests[requestID]
+		if !ok {
+			continue
 		}
 		dates = append(dates, req.Dates...)
 	}

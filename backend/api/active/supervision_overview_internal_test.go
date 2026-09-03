@@ -185,6 +185,9 @@ func (s *stubActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, 
 func (s *stubActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
 	return nil, nil
 }
+func (s *stubActiveService) ListOpenVisitStudentIDsByRoom(_ context.Context) (map[int64][]int64, error) {
+	return nil, nil
+}
 func (s *stubActiveService) GetGroupSupervisor(_ context.Context, _ int64) (*activeModel.GroupSupervisor, error) {
 	return nil, nil
 }

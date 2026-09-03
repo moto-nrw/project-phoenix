@@ -367,6 +367,10 @@ func (r *failingCountRepo) GetStudentCountByClass(_ context.Context, _ string) (
 	return 0, errCountUnavailable
 }
 
+func (r *failingCountRepo) GetStudentCountsByClasses(_ context.Context, _ []string) (map[string]int, error) {
+	return nil, errCountUnavailable
+}
+
 // TestGradeTransitionService_SuggestMappings_CountErrorPropagates covers the
 // #405 review fix: a failed GetStudentCountByClass must fail the whole
 // suggestion instead of silently dropping the class — an admin could otherwise
