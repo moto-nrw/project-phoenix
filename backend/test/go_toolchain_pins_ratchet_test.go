@@ -58,7 +58,6 @@ func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
 		"lefthook.yml": {
 			`DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d . 2>&1)`,
 			"run: cd backend && ../scripts/run-go-toolchain.sh go vet ./...",
-			"run: cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --timeout 5m",
 			"run: cd backend && ../scripts/run-go-toolchain.sh go test ./test -run '^TestGoToolchainPinsRatchet$' -count=1",
 			"run: scripts/run-go-toolchain.sh scripts/backend-architecture.sh check",
 			"run: scripts/run-go-toolchain.sh scripts/check-deadcode.sh",
@@ -69,6 +68,17 @@ func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
 			`"${project_root}/scripts/run-go-toolchain.sh" go tool goimports -w "${file_path}"`,
 		},
 	}
+	// Commands whose last argument is a machine-speed knob rather than part of
+	// the toolchain contract. What stays pinned is that the hook runs through
+	// run-go-toolchain.sh; the concrete value may differ per machine (golangci-lint
+	// needs well over 5 minutes on a slow checkout, and pinning the duration made
+	// every adjustment break this test).
+	prefixChecks := map[string][]string{
+		"lefthook.yml": {
+			"run: cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --timeout",
+		},
+	}
+
 	for path, requiredCommands := range checks {
 		content := string(readToolchainFile(t, filepath.Join(repoRoot, path)))
 		for _, command := range requiredCommands {
@@ -77,10 +87,25 @@ func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
 			}
 		}
 	}
+
+	for path, requiredPrefixes := range prefixChecks {
+		content := string(readToolchainFile(t, filepath.Join(repoRoot, path)))
+		for _, prefix := range requiredPrefixes {
+			if !activeLinePrefixPattern(prefix).MatchString(content) {
+				t.Errorf("%s does not invoke pinned command %q with a trailing value", path, prefix)
+			}
+		}
+	}
 }
 
 func activeLinePattern(line string) *regexp.Regexp {
 	return regexp.MustCompile(`(?m)^[\t ]*` + regexp.QuoteMeta(line) + `[\t ]*$`)
+}
+
+// activeLinePrefixPattern matches a pinned command that ends in exactly one
+// further argument, whose value is not pinned.
+func activeLinePrefixPattern(prefix string) *regexp.Regexp {
+	return regexp.MustCompile(`(?m)^[\t ]*` + regexp.QuoteMeta(prefix) + `[\t ]+\S+[\t ]*$`)
 }
 
 func assertRunnerResolvesExactBinary(t *testing.T, path string) {
