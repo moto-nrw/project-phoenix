@@ -363,6 +363,20 @@ describe("DashboardPage", () => {
     });
   });
 
+  it("does not show dashboard counts when the initial fetch fails", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR(undefined, { error: new Error("fetch failed") }),
+    );
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/0 Kinder anwesend.*0 krank/),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it("keeps dashboard data visible when revalidation fails", async () => {
     vi.mocked(useSWRAuth).mockReturnValue(
       mockSWR(mockDashboardData, { error: new Error("fetch failed") }),

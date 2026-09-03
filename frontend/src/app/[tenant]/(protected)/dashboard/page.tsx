@@ -163,7 +163,11 @@ function DashboardContent() {
       title={`${greeting}, ${firstName}`}
       prominent
       statsLoading={isLoading}
-      stats={`${formatStatusDate()} · ${dashboardData?.studentsPresent ?? 0} Kinder anwesend · ${dashboardData?.studentsSick ?? 0} krank`}
+      stats={
+        dashboardData
+          ? `${formatStatusDate()} · ${dashboardData.studentsPresent} Kinder anwesend · ${dashboardData.studentsSick} krank`
+          : undefined
+      }
       error={
         error
           ? { message: error, keepContent: dashboardData !== undefined }

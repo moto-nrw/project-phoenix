@@ -196,6 +196,10 @@ describe("StaffCalendarPage", () => {
     expect(
       screen.getByRole("heading", { name: "Kalender abonnieren" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("calendar failed")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Einträge in dieser Woche."),
+    ).not.toBeInTheDocument();
   });
 
   it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {

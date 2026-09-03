@@ -776,7 +776,7 @@ function StaffCalendarPageInner() {
     // Der Abo-Bereich (#2621) bleibt auch in einer leeren Woche erreichbar,
     // deshalb ersetzt der Leerzustand hier nur das Raster, nicht den Inhalt.
     <>
-      {calendarEmpty ? (
+      {calendarErrorState ? null : calendarEmpty ? (
         <SectionCard>
           <EmptyState
             title={calendarEmpty.title}
