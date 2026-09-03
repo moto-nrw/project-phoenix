@@ -220,10 +220,6 @@ type ActivityInstanceRepository interface {
 	// given active.group, or nil if none.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*ActivityInstance, error)
 
-	// FindByActiveGroupIDs returns every instance bridged to one of the given
-	// active groups in one query. Empty input returns an empty slice.
-	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*ActivityInstance, error)
-
 	// FindPlannedTemplateBackedFrom returns every planned instance dated on or
 	// after `from` that the MATERIALIZER produced (activity_group_id and
 	// calendar_period_id both set, is_spontaneous false), tenant-scoped and

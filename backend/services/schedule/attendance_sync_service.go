@@ -32,6 +32,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -630,7 +631,12 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, vis
 			groupIDs = append(groupIDs, visit.ActiveGroupID)
 		}
 	}
-	instances, err := s.instanceRepo.FindByActiveGroupIDs(ctx, groupIDs)
+	if len(groupIDs) == 0 {
+		return
+	}
+	instances, err := s.instanceRepo.List(ctx, &modelBase.QueryOptions{
+		Filter: modelBase.NewFilter().In("active_group_id", int64FilterArgs(groupIDs)...),
+	})
 	if err != nil {
 		s.getLogger().Warn("attendance batch mirror: find instances by active_group_id failed", slog.String("error", err.Error()))
 		return

@@ -276,7 +276,13 @@ func loadActiveStaffConflictRooms(
 		return result
 	}
 	result.groups = groups
-	instances, err := deps.InstanceRepo.FindByActiveGroupIDs(ctx, groupIDs)
+	if len(groupIDs) == 0 {
+		result.roomsLoaded = true
+		return result
+	}
+	instances, err := deps.InstanceRepo.List(ctx, &modelBase.QueryOptions{
+		Filter: modelBase.NewFilter().In("active_group_id", int64FilterArgs(groupIDs)...),
+	})
 	if err != nil {
 		logger.Warn("conflict detection: bridged instance batch lookup failed", slog.String("error", err.Error()))
 		return result

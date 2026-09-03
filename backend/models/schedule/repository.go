@@ -47,6 +47,7 @@ type StaffShiftRepository interface {
 	// #1843 sick cascade filters by sick_absence_id and stamps/clears that
 	// single column without whole-model writes.
 	List(ctx context.Context, filters map[string]any) ([]*StaffShift, error)
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*StaffShift, error)
 	UpdateColumns(ctx context.Context, shift *StaffShift, columns ...string) (int64, error)
 
 	// FindByDateRange returns all shifts with start <= date <= end for the
@@ -68,10 +69,6 @@ type StaffShiftRepository interface {
 	// origin (its cover set). Used when re-planning or reactivating a cancelled
 	// shift so its replacements can be resolved atomically (#1841).
 	FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*StaffShift, error)
-
-	// FindByOriginShiftIDs returns replacement shifts for several origins in
-	// one query. Results retain OriginShiftID so callers can group them.
-	FindByOriginShiftIDs(ctx context.Context, originShiftIDs []int64) ([]*StaffShift, error)
 
 	// FindByStaffIDsAndDates returns only the shifts relevant to a batched
 	// hypothetical coverage probe.

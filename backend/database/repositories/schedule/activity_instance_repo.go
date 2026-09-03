@@ -381,27 +381,6 @@ func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, ac
 	return &instance, nil
 }
 
-// FindByActiveGroupIDs is the batch form of FindByActiveGroupID. The result is
-// tenant-scoped and empty input does not issue a query.
-func (r *ActivityInstanceRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*schedule.ActivityInstance, error) {
-	instances := make([]*schedule.ActivityInstance, 0, len(activeGroupIDs))
-	if len(activeGroupIDs) == 0 {
-		return instances, nil
-	}
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&instances).
-		ModelTableExpr(modelTblActivityInstance).
-		Where(`"activity_instance".active_group_id IN (?)`, bun.List(activeGroupIDs))
-	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by active group ids",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return instances, nil
-}
-
 // CompleteActiveByActiveGroupIDs marks every still-active instance bridged to
 // one of the given active.groups as completed and returns the number of rows
 // changed. Custom method (backend-conventions Rule 2): lifecycle bulk update

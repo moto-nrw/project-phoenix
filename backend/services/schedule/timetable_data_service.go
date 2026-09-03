@@ -253,11 +253,15 @@ func (s *TimetableDataService) GetActivityInstance(ctx context.Context, id int64
 	return s.deps.ActivityInstanceRepo.FindByID(ctx, id)
 }
 
-func (s *TimetableDataService) GetActivityInstances(ctx context.Context, ids []int64) ([]*scheduleModel.ActivityInstance, error) {
+func (s *TimetableDataService) GetActivityInstancesByID(ctx context.Context, ids []int64) (map[int64]*scheduleModel.ActivityInstance, error) {
 	if s.deps.ActivityInstanceRepo == nil {
-		return nil, nil
+		return nil, &ScheduleError{Op: "get activity instances", Err: errors.New("repository is not configured")}
 	}
-	return s.deps.ActivityInstanceRepo.FindByIDs(ctx, ids)
+	instances, err := s.deps.ActivityInstanceRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get activity instances", Err: err}
+	}
+	return indexActivityInstances(instances), nil
 }
 
 // LockInstanceAttendance takes FOR UPDATE on every instance_students row so a

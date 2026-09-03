@@ -200,11 +200,10 @@ func (s *shiftPlanSyncService) markBlocksForSickDay(ctx context.Context, in acti
 	if err != nil {
 		return fmt.Errorf("sick cascade: load assignments %s: %w", day.String(), err)
 	}
-	instances, err := s.timetableData.GetActivityInstances(ctx, instanceStaffInstanceIDs(rows))
+	instancesByID, err := s.timetableData.GetActivityInstancesByID(ctx, instanceStaffInstanceIDs(rows))
 	if err != nil {
 		return fmt.Errorf("sick cascade: load instances for %s: %w", day.String(), err)
 	}
-	instancesByID := indexActivityInstances(instances)
 	if missingID := missingActivityInstanceID(rows, instancesByID); missingID > 0 {
 		return fmt.Errorf("sick cascade: load instance %d: %w", missingID, modelBase.ErrNotFound)
 	}
@@ -293,7 +292,13 @@ func (s *shiftPlanSyncService) lockSickReversalStaffWrites(ctx context.Context, 
 		return fmt.Errorf("sick clear: discover stamped shifts: %w", err)
 	}
 	staffIDs := []int64{in.SubjectStaffID}
-	covers, err := s.shiftRepo.FindByOriginShiftIDs(ctx, staffShiftIDs(shifts))
+	originShiftIDs := staffShiftIDs(shifts)
+	var covers []*scheduleModel.StaffShift
+	if len(originShiftIDs) > 0 {
+		covers, err = s.shiftRepo.ListWithOptions(ctx, &modelBase.QueryOptions{
+			Filter: modelBase.NewFilter().In("origin_shift_id", int64FilterArgs(originShiftIDs)...),
+		})
+	}
 	if err != nil {
 		return fmt.Errorf("sick clear: discover stamped shift covers: %w", err)
 	}
@@ -453,11 +458,10 @@ func (s *shiftPlanSyncService) classifyStampedBlockRows(ctx context.Context, row
 	today := s.todayDate()
 	byDay := make(map[timezone.Date][]stampedSickBlockRow)
 	var releaseOnly []*scheduleModel.InstanceStaff
-	instances, err := s.timetableData.GetActivityInstances(ctx, instanceStaffInstanceIDs(rows))
+	instancesByID, err := s.timetableData.GetActivityInstancesByID(ctx, instanceStaffInstanceIDs(rows))
 	if err != nil {
 		return nil, nil, fmt.Errorf("sick clear: load stamped instances: %w", err)
 	}
-	instancesByID := indexActivityInstances(instances)
 	if missingID := missingActivityInstanceID(rows, instancesByID); missingID > 0 {
 		return nil, nil, fmt.Errorf("sick clear: load instance %d: %w", missingID, modelBase.ErrNotFound)
 	}

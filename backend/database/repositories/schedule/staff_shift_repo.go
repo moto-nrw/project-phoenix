@@ -41,6 +41,17 @@ func (r *StaffShiftRepository) FindByID(ctx context.Context, id any) (*schedule.
 	return shift, nil
 }
 
+// ListWithOptions exposes the generic filtered list while preserving the
+// repository's wall-clock normalization invariant.
+func (r *StaffShiftRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StaffShift, error) {
+	shifts, err := r.Repository.ListWithOptions(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	normalizeShiftWallClock(shifts)
+	return shifts, nil
+}
+
 // normalizeWallClock strips the driver-arbitrary year anchor from scanned
 // TIME columns so callers can compare and format the wall-clock values.
 func normalizeShiftWallClock(shifts []*schedule.StaffShift) {
@@ -131,29 +142,6 @@ func (r *StaffShiftRepository) FindByOriginShiftID(ctx context.Context, originSh
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff shifts by origin shift id", Err: base.TranslateNotFound(err)}
-	}
-	normalizeShiftWallClock(shifts)
-	return shifts, nil
-}
-
-// FindByOriginShiftIDs returns the replacement shifts covering any supplied
-// origin, ordered by origin and start time.
-func (r *StaffShiftRepository) FindByOriginShiftIDs(ctx context.Context, originShiftIDs []int64) ([]*schedule.StaffShift, error) {
-	if len(originShiftIDs) == 0 {
-		return nil, nil
-	}
-	var shifts []*schedule.StaffShift
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&shifts).
-		ModelTableExpr(tableExprStaffShiftsAsShift).
-		Where(`"staff_shift".origin_shift_id IN (?)`, bun.List(originShiftIDs)).
-		OrderExpr(`"staff_shift".origin_shift_id ASC`).
-		OrderExpr(`"staff_shift".start_time ASC`)
-
-	query = base.WithTenantFilter(ctx, query, "staff_shift")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff shifts by origin shift ids", Err: base.TranslateNotFound(err)}
 	}
 	normalizeShiftWallClock(shifts)
 	return shifts, nil

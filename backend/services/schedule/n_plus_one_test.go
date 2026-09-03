@@ -15,22 +15,6 @@ func (r *autoStartStaffRepo) FindByStaffIDsAndDate(context.Context, []int64, tim
 	return nil, nil
 }
 
-func (r *autoStartInstanceRepo) FindByActiveGroupIDs(context.Context, []int64) ([]*scheduleModel.ActivityInstance, error) {
-	return nil, nil
-}
-
-func (m *shiftMockRepo) FindByOriginShiftIDs(ctx context.Context, originShiftIDs []int64) ([]*scheduleModel.StaffShift, error) {
-	rows := make([]*scheduleModel.StaffShift, 0)
-	for _, originShiftID := range originShiftIDs {
-		found, err := m.FindByOriginShiftID(ctx, originShiftID)
-		if err != nil {
-			return nil, err
-		}
-		rows = append(rows, found...)
-	}
-	return rows, nil
-}
-
 func (r *seriesMockScheduleRepo) List(context.Context, *modelBase.QueryOptions) ([]*activitiesModel.Schedule, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -46,16 +30,14 @@ func (r *templateEndUnitScheduleRepo) List(context.Context, *modelBase.QueryOpti
 	return r.schedules, r.findErr
 }
 
-func (r *bridgeInstanceRepoStub) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*scheduleModel.ActivityInstance, error) {
+func (r *bridgeInstanceRepoStub) List(ctx context.Context, _ *modelBase.QueryOptions) ([]*scheduleModel.ActivityInstance, error) {
 	rows := make([]*scheduleModel.ActivityInstance, 0)
-	for _, activeGroupID := range activeGroupIDs {
+	for activeGroupID := range r.byActiveGroup {
 		instance, err := r.FindByActiveGroupID(ctx, activeGroupID)
 		if err != nil {
 			return nil, err
 		}
-		if instance != nil {
-			rows = append(rows, instance)
-		}
+		rows = append(rows, instance)
 	}
 	return rows, nil
 }
