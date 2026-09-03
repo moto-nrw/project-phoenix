@@ -41,7 +41,14 @@ func TestFacadeRejectsInvalidInputBeforePersistence(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrInvalidOfferingChange)
 	require.ErrorIs(t, module.UpdateOfferingChangeEffectiveFrom(context.Background(), 1, "03.09.2026"), ErrInvalidOfferingChange)
+	require.ErrorIs(t, module.ReplaceCompanionEdges(context.Background(), 1, []CompanionEdge{{StudentLowID: 1, StudentHighID: 1, Weekday: 1}}), ErrInvalidCompanion)
+	_, err = module.CreateCareDocument(context.Background(), CareDocument{StudentID: 1})
+	require.ErrorIs(t, err, ErrInvalidCareDocument)
+	err = module.RecordCareExitSourceRemovals(context.Background(), []CareExitSourceRemoval{{StudentID: 1, SourceRowID: 2, Snapshot: json.RawMessage(`bad`)}})
+	require.ErrorIs(t, err, ErrInvalidCareExit)
 	assert.Equal(t, "invalid", ErrorCode(err))
+	require.ErrorIs(t, module.RecordCareExitSourceRemovals(context.Background(), []CareExitSourceRemoval{{StudentID: 1, SourceRowID: 2, Kind: "unknown", Snapshot: json.RawMessage(`{}`)}}), ErrInvalidCareExit)
+	require.ErrorIs(t, module.RecordCareExitRemovals(context.Background(), []CareExitRemoval{{StudentID: 1, Kind: CareExitRemovalRoster}}), ErrInvalidCareExit)
 }
 
 func TestFacadeNormalizesClosedFiltersAndTriggerIDs(t *testing.T) {

@@ -74,6 +74,13 @@ const (
 )
 
 // StudentRepository implements users.StudentRepository interface
+type studentCompanionAccess interface {
+	ListForStudent(context.Context, int64) ([]*users.StudentCompanion, error)
+	CompanionDaysCoveredExcluding(context.Context, []int64, int64) (map[int64]map[string]bool, error)
+	CompanionWeekdays(context.Context, int64) ([]int, error)
+	DeleteEdges(context.Context, []int64) error
+}
+
 type StudentRepository struct {
 	*base.Repository[*users.Student]
 	db *bun.DB
@@ -82,7 +89,7 @@ type StudentRepository struct {
 	// must happen in the one write path EVERY caller passes through — the
 	// student service's HTTP flow, but also enrollment approval, imports, and
 	// any other direct repository writer (#1694).
-	companions *StudentCompanionRepository
+	companions studentCompanionAccess
 }
 
 // NewStudentRepository creates a new StudentRepository
@@ -92,8 +99,16 @@ func NewStudentRepository(db *bun.DB) users.StudentRepository {
 	return &StudentRepository{
 		Repository: repo,
 		db:         db,
-		companions: newStudentCompanionRepository(db),
 	}
+}
+
+// BindCompanionRepository installs the Care Plan compatibility adapter used by
+// departure-plan reconciliation.
+func (r *StudentRepository) BindCompanionRepository(repository studentCompanionAccess) {
+	if repository == nil {
+		panic("student repository: companion capability is required")
+	}
+	r.companions = repository
 }
 
 // FindByID retrieves a student by their ID.
@@ -641,6 +656,9 @@ func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student 
 		// Every weekday still allows "Anderes Kind" — no edge can lose its
 		// basis, so skip the edge query on this common widening path.
 		return nil, nil
+	}
+	if r.companions == nil {
+		return nil, errors.New("student repository: companion capability is not bound")
 	}
 
 	edges, err := r.companions.ListForStudent(ctx, student.ID)
@@ -1757,13 +1775,12 @@ func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student 
 		return nil
 	}
 
-	var weekdays []int
-	if err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT DISTINCT weekday
-		FROM users.student_companions
-		WHERE student_low_id = ? OR student_high_id = ?
-	`, student.ID, student.ID).Scan(ctx, &weekdays); err != nil {
-		return &modelBase.DatabaseError{Op: "check student companion links", Err: base.TranslateNotFound(err)}
+	if r.companions == nil {
+		return errors.New("student repository: companion capability is not bound")
+	}
+	weekdays, err := r.companions.CompanionWeekdays(ctx, student.ID)
+	if err != nil {
+		return err
 	}
 
 	for _, weekday := range weekdays {

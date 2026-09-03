@@ -21,6 +21,7 @@ func NewCarePlan(tb TB, db *bun.DB) careplan.Capability {
 	students := newStudentDirectory(tb, db)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		People:      students,
 		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
 	if err != nil {
@@ -44,6 +45,7 @@ func CareOfferingRepository(db *bun.DB) enrollmentModels.CareOfferingRepository 
 	}
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		People:      students,
 		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -20,6 +21,14 @@ type StudentDeletionRepository struct {
 	// countConsents is served by the privacy-consent owner (student-presence,
 	// #2662); the preview must not join users.privacy_consents itself.
 	countConsents func(context.Context, int64) (int, error)
+	carePlan      careplan.Query
+}
+
+func (r *StudentDeletionRepository) BindCarePlan(capability careplan.Query) {
+	if capability == nil {
+		panic("student deletion repository: care plan capability is required")
+	}
+	r.carePlan = capability
 }
 
 func NewStudentDeletionRepository(
@@ -60,7 +69,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				(SELECT COUNT(*) FROM users.students_guardians WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM users.persons_guardians WHERE tenant_id = ? AND person_id = (SELECT person_id FROM users.students WHERE tenant_id = ? AND id = ?))
 			)::int AS guardian_links,
-			(SELECT COUNT(*) FROM users.student_companions WHERE tenant_id = ? AND (student_low_id = ? OR student_high_id = ?))::int AS companion_links,
+			0::int AS companion_links,
 			(
 				(SELECT COUNT(*) FROM users.parent_message_threads WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM users.parent_messages WHERE tenant_id = ? AND student_id = ?) +
@@ -88,13 +97,19 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
-		tenantID, studentID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
+	}
+	if r.carePlan == nil {
+		return nil, fmt.Errorf("preview student deletion: care plan capability is required")
+	}
+	counts.CompanionLinks, err = r.carePlan.CountCompanionLinks(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count companion links: %w", err)
 	}
 	if r.countAuditReferences == nil || r.countConsents == nil {
 		return nil, fmt.Errorf("preview student deletion: audit and consent count capabilities are required")

@@ -228,9 +228,10 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	carePlan, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		People:      persons,
 		StudentLock: persons.LockStudent, StudentNotFound: peopleModule.ErrStudentNotFound,
 		Observe: func(observation carePlanCompose.Observation) {
-			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
 	})
 	if err != nil {

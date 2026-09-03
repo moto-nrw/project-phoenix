@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        597
+        598
       ],
       "tables": []
     },
@@ -14702,7 +14702,7 @@
       "declaration": "TestMasterDataCorrect_ApprovedToRejectedRestoresTheOldValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        848
+        849
       ],
       "tables": [
         "users.student_data_change_requests"
@@ -14714,7 +14714,7 @@
       "declaration": "TestMasterDataCorrect_RefusesAnUndecidedRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        907
+        908
       ],
       "tables": []
     },
@@ -14724,7 +14724,7 @@
       "declaration": "TestMasterDataCorrect_RefusesWhenTheValueMovedOnAfterTheDecision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        879
+        880
       ],
       "tables": [
         "users.persons"
@@ -14736,7 +14736,7 @@
       "declaration": "TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        526
+        527
       ],
       "tables": []
     },
@@ -14786,7 +14786,7 @@
       "declaration": "TestMasterDataReview_ApproveEmitsDecisionPill",
       "target": "database/repositories.NewFactory",
       "lines": [
-        662
+        663
       ],
       "tables": []
     },
@@ -14796,7 +14796,7 @@
       "declaration": "TestMasterDataReview_ApproveInvalidRowsRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        595
+        596
       ],
       "tables": []
     },
@@ -14806,7 +14806,7 @@
       "declaration": "TestMasterDataReview_CompanionEventOnlyOnEffectiveChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        734
+        735
       ],
       "tables": []
     },
@@ -14836,7 +14836,7 @@
       "declaration": "TestMasterDataReview_DecideNonPendingRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        570
+        571
       ],
       "tables": []
     },
@@ -14876,7 +14876,7 @@
       "declaration": "TestMasterDataReview_RejectEmitsPillWithReason",
       "target": "database/repositories.NewFactory",
       "lines": [
-        694
+        695
       ],
       "tables": []
     },
@@ -14886,7 +14886,7 @@
       "declaration": "TestMasterDataReview_RejectLeavesRecordUnchanged",
       "target": "database/repositories.NewFactory",
       "lines": [
-        548
+        549
       ],
       "tables": []
     },
@@ -31665,22 +31665,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 304,
+          "line": 305,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 407,
+          "line": 408,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 473,
+          "line": 474,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 965,
+          "line": 966,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31690,7 +31690,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 597,
+          "line": 598,
           "declaration": "New"
         }
       ]
@@ -31705,7 +31705,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 470,
+          "line": 471,
           "declaration": "type API"
         },
         {

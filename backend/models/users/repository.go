@@ -534,8 +534,6 @@ type StudentGuardianRepository interface {
 // consider both endpoint columns — that is why there is no generic
 // List(filters) usage here: a filter map cannot express the OR.
 type StudentCompanionRepository interface {
-	base.CRUDRepository[*StudentCompanion]
-
 	// ListForStudent returns every edge touching the student, all weekdays.
 	ListForStudent(ctx context.Context, studentID int64) ([]*StudentCompanion, error)
 
@@ -560,6 +558,7 @@ type StudentCompanionRepository interface {
 	// which they keep at least one edge to a child other than excludeID. The
 	// "mit wem" cover is per weekday, so removal checks need this per-day view.
 	CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
+	CompanionWeekdays(ctx context.Context, studentID int64) ([]int, error)
 }
 
 // StudentRetentionSetting is the projection used by the GDPR visit-cleanup

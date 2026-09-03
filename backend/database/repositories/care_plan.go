@@ -15,13 +15,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func NewCarePlan(db *bun.DB, students peopledirectory.StudentCommand) (careplan.Capability, error) {
+func NewCarePlan(db *bun.DB, students peopledirectory.Capability) (careplan.Capability, error) {
 	if students == nil {
-		return nil, errors.New("compose Care Plan: People Directory student command is required")
+		return nil, errors.New("compose Care Plan: People Directory capability is required")
 	}
 	studentLock, studentNotFound := CareStudentLock(students)
 	return carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		People:      students,
 		StudentLock: studentLock, StudentNotFound: studentNotFound,
 	})
 }
@@ -46,12 +47,24 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.carePlan = capability
 	f.CareOffering = carePlanLegacy.NewCareOfferingRepository(capability)
 	f.OfferingChangeRequest = carePlanLegacy.NewOfferingChangeRepository(capability, f.students)
+	companion := carePlanLegacy.NewCompanionRepository(capability)
+	f.StudentCompanion = companion
+	f.StudentDocument = carePlanLegacy.NewCareDocumentRepository(capability)
+	if repository, ok := f.Student.(*usersRepo.StudentRepository); ok {
+		repository.BindCompanionRepository(companion)
+	}
 	f.bindCarePlanAuditDirectory()
 	if repository, ok := f.PhaseExpiry.(*enrollmentRepo.PhaseExpiryRepository); ok {
 		repository.BindCarePlan(phaseExpiryCarePlanDirectory{query: capability})
 	}
 	if repository, ok := f.CareExitCleanup.(*usersRepo.CareExitCleanupRepository); ok {
 		repository.BindCarePlan(careExitCarePlanDirectory{capability: capability})
+	}
+	if repository, ok := f.CareExit.(*usersRepo.CareExitRepository); ok {
+		repository.BindCarePlan(capability)
+	}
+	if repository, ok := f.StudentDeletion.(*usersRepo.StudentDeletionRepository); ok {
+		repository.BindCarePlan(capability)
 	}
 }
 
@@ -144,4 +157,24 @@ func (d careExitCarePlanDirectory) ListPendingOfferingChanges(ctx context.Contex
 
 func (d careExitCarePlanDirectory) ClosePendingOfferingChanges(ctx context.Context, studentIDs []int64, reason string, reviewedBy *int64, at time.Time) (int64, error) {
 	return d.capability.ClosePendingOfferingChanges(ctx, studentIDs, reason, reviewedBy, at)
+}
+
+func (d careExitCarePlanDirectory) ListCareExitRemovals(ctx context.Context, studentIDs []int64) ([]careplan.CareExitRemoval, error) {
+	return d.capability.ListCareExitRemovals(ctx, studentIDs)
+}
+
+func (d careExitCarePlanDirectory) ListCareExitSourceRemovals(ctx context.Context, studentIDs []int64) ([]careplan.CareExitSourceRemoval, error) {
+	return d.capability.ListCareExitSourceRemovals(ctx, studentIDs)
+}
+
+func (d careExitCarePlanDirectory) RecordCareExitRemovals(ctx context.Context, values []careplan.CareExitRemoval) error {
+	return d.capability.RecordCareExitRemovals(ctx, values)
+}
+
+func (d careExitCarePlanDirectory) RecordCareExitSourceRemovals(ctx context.Context, values []careplan.CareExitSourceRemoval) error {
+	return d.capability.RecordCareExitSourceRemovals(ctx, values)
+}
+
+func (d careExitCarePlanDirectory) DiscardCareExitRemovals(ctx context.Context, studentIDs []int64) error {
+	return d.capability.DiscardCareExitRemovals(ctx, studentIDs)
 }

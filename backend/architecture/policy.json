@@ -8236,6 +8236,15 @@
       "target_role": "public"
     },
     {
+      "id": "care-plan.compose.people-public",
+      "description": "Care Plan composition enriches companion projections through People Directory.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
       "id": "care-plan.compose.tenant-runtime",
       "description": "Care Plan composition resolves transactions and advisory locks through the tenant runtime.",
       "scopes": ["production"],
@@ -8361,6 +8370,24 @@
       "target_role": "postgres"
     },
     {
+      "id": "care-plan.adapter.people-domain",
+      "description": "The compatibility adapter preserves legacy student companion and document contracts.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.postgres.care-plan-public",
+      "description": "Legacy People Directory repositories delegate Care Plan-owned care exits, companions, documents, and removal ledgers through the public facade.",
+      "scopes": ["production"],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
       "id": "care-plan.adapter.enrollment-domain",
       "description": "The compatibility adapter preserves legacy enrollment contracts.",
       "scopes": ["production"],
@@ -8395,6 +8422,15 @@
       "source_role": "postgres",
       "target_owner": "care-plan",
       "target_role": "public"
+    },
+    {
+      "id": "care-plan.postgres.transaction-domain",
+      "description": "Care Plan Postgres adapters use the shared structured PostgreSQL error classifiers.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
     },
     {
       "id": "care-plan.domain.public",
@@ -8601,6 +8637,15 @@
       "source_role": "workflow-integration-test",
       "target_owner": "people-directory",
       "target_role": "domain"
+    },
+    {
+      "id": "care-plan.integration-test.people-public",
+      "description": "Care Plan composition tests supply the required People Directory projection dependency.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
     }
 
   ]
