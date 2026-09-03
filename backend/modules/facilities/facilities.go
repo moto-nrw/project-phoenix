@@ -10,22 +10,23 @@ import (
 	"time"
 )
 
+type roomNotFoundError struct{}
+
+func (roomNotFoundError) Error() string       { return "room not found" }
+func (roomNotFoundError) RepositoryNotFound() {}
+
 var (
-	ErrRoomNotFound                 = errors.New("room not found")
-	ErrInvalidRoom                  = errors.New("invalid room")
-	ErrDuplicateRoom                = errors.New("Ein Raum mit diesem Namen existiert bereits")                                               //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrDuplicateToiletRoom          = errors.New("Es existiert bereits ein Toilettenraum (WC oder Toilette)")                                 //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrRoomColorReserved            = errors.New("Diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden")     //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrRoomColorAlreadyInUse        = errors.New("Diese Farbe ist bereits einem anderen Raum zugeordnet")                                     //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrRoomInUse                    = errors.New("Raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet")     //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrRoomRequiredByOffering       = errors.New("Raum kann nicht gelöscht werden: Raum wird für ein verknüpftes Betreuungsangebot benötigt") //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrRoomDeletionGuardUnavailable = errors.New("room deletion guard is unavailable")
-	ErrSystemRoomProtected          = errors.New("Systemraum kann nicht gelöscht oder umbenannt werden")      //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrSystemRoomNameReserved       = errors.New("Der Raumname „Schulhof“ ist für den Systemraum reserviert") //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrNameRequired                 = errors.New("room name is required")
-	ErrCapacityNotPositive          = errors.New("capacity must be greater than zero")
-	ErrInvalidColorFormat           = errors.New("invalid color format, must be a valid hex color")
-	ErrReservedColor                = errors.New("color is reserved for status badges")
+	ErrRoomNotFound                 error = roomNotFoundError{}
+	ErrInvalidRoom                        = errors.New("invalid room")
+	ErrDuplicateRoom                      = errors.New("Ein Raum mit diesem Namen existiert bereits")                                               //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrDuplicateToiletRoom                = errors.New("Es existiert bereits ein Toilettenraum (WC oder Toilette)")                                 //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrRoomColorReserved                  = errors.New("Diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden")     //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrRoomColorAlreadyInUse              = errors.New("Diese Farbe ist bereits einem anderen Raum zugeordnet")                                     //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrRoomInUse                          = errors.New("Raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet")     //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrRoomRequiredByOffering             = errors.New("Raum kann nicht gelöscht werden: Raum wird für ein verknüpftes Betreuungsangebot benötigt") //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrRoomDeletionGuardUnavailable       = errors.New("room deletion guard is unavailable")
+	ErrSystemRoomProtected                = errors.New("Systemraum kann nicht gelöscht oder umbenannt werden")      //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrSystemRoomNameReserved             = errors.New("Der Raumname „Schulhof“ ist für den Systemraum reserviert") //nolint:staticcheck // ST1005: stable user-facing contract
 )
 
 // Room is the facilities view of one physical room.
@@ -43,50 +44,6 @@ type Room struct {
 	IsSystem  bool      `json:"is_system"`
 }
 
-func (r *Room) GetID() interface{}      { return r.ID }
-func (r *Room) GetCreatedAt() time.Time { return r.CreatedAt }
-func (r *Room) GetUpdatedAt() time.Time { return r.UpdatedAt }
-func (r *Room) SetTenantID(id int64)    { r.TenantID = id }
-func (r *Room) GetTenantID() int64      { return r.TenantID }
-
-func (r *Room) IsAvailable(required int) bool {
-	return r.Capacity == nil || *r.Capacity <= 0 || *r.Capacity >= required
-}
-
-func (r *Room) GetFullName() string {
-	if r.Building != "" {
-		return r.Building + " - " + r.Name
-	}
-	return r.Name
-}
-
-// Validate preserves the former model contract for callers being migrated.
-// Command repeats this validation at the owner boundary before persistence.
-func (r *Room) Validate() error {
-	err := normalizeAndValidateRoom(&r.Name, r.Capacity, &r.Color)
-	var invalid *InvalidRoomError
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, ErrRoomColorReserved):
-		return ErrReservedColor
-	case errors.As(err, &invalid) && invalid.Reason == "room name is required":
-		return ErrNameRequired
-	case errors.As(err, &invalid) && invalid.Reason == "capacity must be greater than zero":
-		return ErrCapacityNotPositive
-	case errors.As(err, &invalid) && strings.HasPrefix(invalid.Reason, "invalid room color"):
-		return ErrInvalidColorFormat
-	default:
-		return err
-	}
-}
-
-func IsValidationError(err error) bool {
-	return errors.Is(err, ErrNameRequired) || errors.Is(err, ErrCapacityNotPositive) ||
-		errors.Is(err, ErrInvalidColorFormat) || errors.Is(err, ErrReservedColor)
-}
-
-// Query is the read seam every foreign reader of facilities.rooms uses.
 type Query interface {
 	FindRoom(context.Context, int64) (Room, error)
 	FindRoomByName(context.Context, string) (Room, error)

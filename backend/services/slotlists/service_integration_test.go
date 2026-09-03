@@ -221,6 +221,7 @@ func newTestRoomRepository(db *bun.DB) interface {
 } {
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB:            db,
+		DeletionLock:  func(context.Context) error { return nil },
 		DeletionGuard: func(context.Context, int64) error { return nil },
 		Observe:       func(facilitiesCompose.Observation) {},
 	})

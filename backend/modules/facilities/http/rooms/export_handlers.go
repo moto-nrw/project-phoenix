@@ -2,6 +2,7 @@ package rooms
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -13,6 +14,13 @@ type roomSnapshotExportRequest struct {
 	RoomIDs        *[]int64 `json:"room_ids"`
 	IncludeTransit bool     `json:"include_transit"`
 }
+
+// InvalidExportError marks renderer validation failures that preserve the
+// established 400 response without misclassifying data-loading failures.
+type InvalidExportError struct{ Err error }
+
+func (e *InvalidExportError) Error() string { return e.Err.Error() }
+func (e *InvalidExportError) Unwrap() error { return e.Err }
 
 func (rs *Resource) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 	var request roomSnapshotExportRequest
@@ -33,7 +41,8 @@ func (rs *Resource) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 		Format: request.Format, Title: request.Title, RoomIDs: request.RoomIDs, IncludeTransit: request.IncludeTransit,
 	})
 	if err != nil {
-		rs.runtime.Failure(w, r, FailureInternal, err, "internal_error")
+		kind, code := classifyExportFailure(err)
+		rs.runtime.Failure(w, r, kind, err, code)
 		return
 	}
 	w.Header().Set("Content-Type", file.ContentType)
@@ -41,4 +50,12 @@ func (rs *Resource) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
+}
+
+func classifyExportFailure(err error) (FailureKind, string) {
+	var invalid *InvalidExportError
+	if errors.As(err, &invalid) {
+		return FailureInvalid, "invalid_request"
+	}
+	return FailureInternal, "internal_error"
 }

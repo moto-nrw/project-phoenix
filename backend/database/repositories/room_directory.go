@@ -20,7 +20,8 @@ import (
 // module themselves (api/base.go) so runtime evidence is kept.
 func NewFacilities(db *bun.DB) (facilitiesModule.Capability, error) {
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB: db,
+		DB:           db,
+		DeletionLock: func(context.Context) error { return nil },
 		DeletionGuard: func(context.Context, int64) error {
 			return facilitiesModule.ErrRoomDeletionGuardUnavailable
 		},
@@ -38,6 +39,13 @@ func (f *Factory) bindDefaultFacilities(db *bun.DB) {
 		panic(fmt.Sprintf("repository factory: compose facilities: %v", err))
 	}
 	f.roomBinders = f.roomBinders[:0]
+	f.registerFacilitiesRoomBinder()
+	f.registerActiveRoomBinders()
+	f.registerRemainingRoomBinders()
+	f.bindRoomDirectories(rooms)
+}
+
+func (f *Factory) registerFacilitiesRoomBinder() {
 	if repo, ok := f.Room.(*facilitiesRepositoryAdapter.Repository); ok {
 		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
 			capability, ok := rooms.(facilitiesModule.Capability)
@@ -47,6 +55,9 @@ func (f *Factory) bindDefaultFacilities(db *bun.DB) {
 			repo.Bind(capability)
 		})
 	}
+}
+
+func (f *Factory) registerActiveRoomBinders() {
 	if repo, ok := f.ActiveGroup.(*activeRepo.GroupRepository); ok {
 		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
 			repo.BindRoomDirectory(activeRoomDirectory{rooms})
@@ -57,6 +68,9 @@ func (f *Factory) bindDefaultFacilities(db *bun.DB) {
 			repo.BindRoomDirectory(activeRoomDirectory{rooms})
 		})
 	}
+}
+
+func (f *Factory) registerRemainingRoomBinders() {
 	if repo, ok := f.Group.(*educationRepo.GroupRepository); ok {
 		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
 			repo.BindRoomDirectory(educationRoomDirectory{rooms})
@@ -77,7 +91,6 @@ func (f *Factory) bindDefaultFacilities(db *bun.DB) {
 			repo.BindRoomDirectory(usersRoomDirectory{rooms})
 		})
 	}
-	f.bindRoomDirectories(rooms)
 }
 
 // BindFacilities replaces the default room owner with the observed

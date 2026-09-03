@@ -845,43 +845,6 @@ func assignActivityGroupsToGroups(groups []*active.Group, activityGroups []*acti
 	}
 }
 
-// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
-// This is optimized for checking room occupancy without fetching full group records
-func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error) {
-	if len(roomIDs) == 0 {
-		return make(map[int64]bool), nil
-	}
-
-	// Only fetch the room_id column for active groups in the specified rooms
-	var occupiedRoomIDs []int64
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(tableExprActiveGroupsAG).
-		ColumnExpr("DISTINCT ag.room_id").
-		Where("ag.room_id IN (?)", bun.List(roomIDs)).
-		Where(whereEndTimeIsNull)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("ag.tenant_id = ?", tenantID)
-	}
-
-	err := query.Scan(ctx, &occupiedRoomIDs)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get occupied room IDs",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	// Convert to set for O(1) lookup
-	result := make(map[int64]bool, len(occupiedRoomIDs))
-	for _, id := range occupiedRoomIDs {
-		result[id] = true
-	}
-
-	return result, nil
-}
-
 // EndSessionsByIDs ends multiple group sessions in a single query.
 // Returns the number of sessions ended.
 func (r *GroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (int64, error) {

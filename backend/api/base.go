@@ -189,6 +189,9 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB: db,
+		DeletionLock: func(ctx context.Context) error {
+			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+		},
 		DeletionGuard: func(ctx context.Context, roomID int64) error {
 			if legacyFacilities == nil {
 				return facilitiesModule.ErrRoomDeletionGuardUnavailable

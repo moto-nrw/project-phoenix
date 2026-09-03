@@ -57,7 +57,10 @@ func (r *Repository) FindByID(ctx context.Context, rawID any) (*facilitiesModels
 		return nil, err
 	}
 	room, err := rooms.FindRoom(ctx, id)
-	return toLegacyPointer(room), err
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointer(room), nil
 }
 
 func (r *Repository) Update(ctx context.Context, room *facilitiesModels.Room) error {
@@ -100,7 +103,10 @@ func (r *Repository) List(ctx context.Context, filters map[string]any) ([]*facil
 		return nil, err
 	}
 	values, err := rooms.ListRooms(ctx, filter)
-	return toLegacyPointers(values), err
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointers(values), nil
 }
 
 func (r *Repository) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModels.Room, error) {
@@ -109,7 +115,10 @@ func (r *Repository) FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesM
 		return nil, err
 	}
 	values, err := rooms.ListRoomsByID(ctx, ids)
-	return toLegacyPointers(values), err
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointers(values), nil
 }
 
 func (r *Repository) FindByIDForUpdate(ctx context.Context, id int64) (*facilitiesModels.Room, error) {
@@ -133,7 +142,10 @@ func (r *Repository) FindByName(ctx context.Context, name string) (*facilitiesMo
 		return nil, err
 	}
 	room, err := rooms.FindRoomByName(ctx, name)
-	return toLegacyPointer(room), err
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointer(room), nil
 }
 
 func (r *Repository) FindByCategory(ctx context.Context, category string) ([]*facilitiesModels.Room, error) {
@@ -142,7 +154,10 @@ func (r *Repository) FindByCategory(ctx context.Context, category string) ([]*fa
 		return nil, err
 	}
 	values, err := rooms.ListRooms(ctx, facilities.RoomFilter{Category: &category})
-	return toLegacyPointers(values), err
+	if err != nil {
+		return nil, err
+	}
+	return toLegacyPointers(values), nil
 }
 
 func roomID(value any) (int64, error) {

@@ -25,6 +25,7 @@ type Transaction interface {
 }
 
 type DeletionGuard func(context.Context, int64) error
+type DeletionLock func(context.Context) error
 
 type Observation struct {
 	Operation string

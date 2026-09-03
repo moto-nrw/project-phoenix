@@ -13,17 +13,18 @@ import (
 // facilities.rooms is tenant-scoped, so the caller's RLS context decides
 // visibility and the service never opens an admin transaction of its own.
 type Service struct {
-	store   ports.Store
-	tx      ports.Transaction
-	guard   ports.DeletionGuard
-	observe ports.Observer
+	store        ports.Store
+	tx           ports.Transaction
+	lockDeletion ports.DeletionLock
+	guard        ports.DeletionGuard
+	observe      ports.Observer
 }
 
-func New(store ports.Store, tx ports.Transaction, guard ports.DeletionGuard, observe ports.Observer) *Service {
-	if store == nil || tx == nil || guard == nil || observe == nil {
+func New(store ports.Store, tx ports.Transaction, lockDeletion ports.DeletionLock, guard ports.DeletionGuard, observe ports.Observer) *Service {
+	if store == nil || tx == nil || lockDeletion == nil || guard == nil || observe == nil {
 		panic("facilities application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, guard: guard, observe: observe}
+	return &Service{store: store, tx: tx, lockDeletion: lockDeletion, guard: guard, observe: observe}
 }
 
 func (s *Service) Create(ctx context.Context, input domain.CreateRoom) (result domain.Room, err error) {
@@ -63,27 +64,11 @@ func (s *Service) Update(ctx context.Context, input domain.UpdateRoom) (result d
 		if !found {
 			return domain.ErrNotFound
 		}
-		if isSystemRoomName(existing.Name) && input.Name != existing.Name {
-			return domain.ErrSystemProtected
+		if err := validateRoomUpdate(existing, &input); err != nil {
+			return err
 		}
-		if existing.Name != input.Name && strings.EqualFold(input.Name, domain.SchulhofRoomName) {
-			return domain.ErrSystemNameReserved
-		}
-		if isWCRoomName(existing.Name) {
-			if input.Color != nil && !equalStringPointer(input.Color, existing.Color) {
-				return domain.ErrSystemProtected
-			}
-			input.Color = existing.Color
-		}
-		if existing.Name != input.Name {
-			duplicate, duplicateFound, duplicateStats, duplicateErr := s.store.FindByName(txCtx, input.Name)
-			stats.Add(duplicateStats)
-			if duplicateErr != nil {
-				return duplicateErr
-			}
-			if duplicateFound && duplicate.ID != input.ID {
-				return domain.ErrDuplicate
-			}
+		if err := s.ensureUpdateNameAvailable(txCtx, existing, input, stats); err != nil {
+			return err
 		}
 		result, queryStats, err = s.store.Update(txCtx, input)
 		stats.Add(queryStats)
@@ -92,8 +77,51 @@ func (s *Service) Update(ctx context.Context, input domain.UpdateRoom) (result d
 	return result, err
 }
 
+func validateRoomUpdate(existing domain.Room, input *domain.UpdateRoom) error {
+	if isSystemRoomName(existing.Name) && input.Name != existing.Name {
+		return domain.ErrSystemProtected
+	}
+	if existing.Name != input.Name && strings.EqualFold(input.Name, domain.SchulhofRoomName) {
+		return domain.ErrSystemNameReserved
+	}
+	if !isWCRoomName(existing.Name) {
+		return nil
+	}
+	if input.Color != nil && !equalStringPointer(input.Color, existing.Color) {
+		return domain.ErrSystemProtected
+	}
+	input.Color = existing.Color
+	return nil
+}
+
+func (s *Service) ensureUpdateNameAvailable(
+	ctx context.Context,
+	existing domain.Room,
+	input domain.UpdateRoom,
+	stats *domain.OperationStats,
+) error {
+	if existing.Name == input.Name {
+		return nil
+	}
+	duplicate, found, queryStats, err := s.store.FindByName(ctx, input.Name)
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	if found && duplicate.ID != input.ID {
+		return domain.ErrDuplicate
+	}
+	return nil
+}
+
 func (s *Service) Delete(ctx context.Context, id int64) (err error) {
 	return s.runWrite(ctx, "delete_room", func(txCtx context.Context, stats *domain.OperationStats) error {
+		// Timetable writers take the recurrence lock before room FK locks. Keep
+		// deletion in the same order so concurrent template creation cannot
+		// deadlock with a room delete.
+		if err := s.lockDeletion(txCtx); err != nil {
+			return err
+		}
 		existing, found, queryStats, findErr := s.store.FindByID(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if findErr != nil {

@@ -446,22 +446,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 284,
+          "line": 287,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 387,
+          "line": 390,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 453,
+          "line": 456,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 945,
+          "line": 948,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -471,7 +471,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 577,
+          "line": 580,
           "declaration": "New"
         }
       ]
@@ -486,7 +486,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 450,
+          "line": 453,
           "declaration": "type API"
         },
         {
@@ -16649,7 +16649,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        577
+        580
       ],
       "tables": []
     },
@@ -18297,7 +18297,7 @@
       "declaration": "TestActiveGroupRepository_AggregateRoomSessions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1046
+        988
       ],
       "tables": []
     },
@@ -18307,7 +18307,7 @@
       "declaration": "TestActiveGroupRepository_AggregateRoomSessions_ReturnsDatabaseError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1136
+        1078
       ],
       "tables": []
     },
@@ -18317,7 +18317,7 @@
       "declaration": "TestActiveGroupRepository_CheckRoomConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        858
+        800
       ],
       "tables": []
     },
@@ -18449,7 +18449,7 @@
       "declaration": "TestActiveGroupRepository_FindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        925
+        867
       ],
       "tables": []
     },
@@ -18469,7 +18469,7 @@
       "declaration": "TestActiveGroupRepository_FindWithSupervisors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        977
+        919
       ],
       "tables": [
         "active.group_supervisors"
@@ -18479,16 +18479,6 @@
       "scope": "test",
       "file": "database/repositories/active/group_repository_test.go",
       "declaration": "TestActiveGroupRepository_GetOccupiedActivityGroupIDs",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        777
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/group_repository_test.go",
-      "declaration": "TestActiveGroupRepository_GetOccupiedRoomIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
         719

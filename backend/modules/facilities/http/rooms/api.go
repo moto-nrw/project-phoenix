@@ -6,6 +6,7 @@ package rooms
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -400,41 +401,10 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.Failure(w, r, FailureForbidden, errors.New("not_group_supervisor"), "forbidden")
 		return
 	}
-	if capDays < 1 {
-		capDays = 1
-	}
-	if capDays > 365 {
-		capDays = 365
-	}
-	startOfToday, endOfToday := rs.runtime.TodayBounds()
-	startTime := startOfToday.AddDate(0, 0, -(capDays - 1))
-	endTime := endOfToday
-	if value := r.URL.Query().Get("start"); value != "" {
-		startTime, err = time.Parse(time.RFC3339, value)
-		if err != nil {
-			rs.runtime.Failure(w, r, FailureInvalid, errors.New("invalid start parameter, expected RFC3339"), "invalid_request")
-			return
-		}
-	}
-	if value := r.URL.Query().Get("end"); value != "" {
-		endTime, err = time.Parse(time.RFC3339, value)
-		if err != nil {
-			rs.runtime.Failure(w, r, FailureInvalid, errors.New("invalid end parameter, expected RFC3339"), "invalid_request")
-			return
-		}
-	}
-	if startTime.After(endTime) {
-		rs.runtime.Failure(w, r, FailureInvalid, errors.New("start must be before end"), "invalid_request")
+	startTime, endTime, err := rs.historyWindow(r, id, capDays)
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInvalid, err, "invalid_request")
 		return
-	}
-	maxDuration := time.Duration(capDays) * 24 * time.Hour
-	if endTime.Sub(startTime) > maxDuration {
-		requestedStart := startTime
-		startTime = endTime.Add(-maxDuration)
-		rs.runtime.Log.Info("room history window clamped to retention cap",
-			"room_id", id, "requested_start", requestedStart.Format(time.RFC3339),
-			"clamped_start", startTime.Format(time.RFC3339), "end", endTime.Format(time.RFC3339),
-			"cap_days", capDays)
 	}
 	history, err := rs.runtime.History(ctx, id, startTime, endTime)
 	if err != nil {
@@ -442,6 +412,47 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rs.runtime.Success(w, r, http.StatusOK, history, "Room history retrieved successfully")
+}
+
+func (rs *Resource) historyWindow(r *http.Request, roomID int64, capDays int) (time.Time, time.Time, error) {
+	capDays = max(1, min(capDays, 365))
+	startOfToday, endTime := rs.runtime.TodayBounds()
+	startTime := startOfToday.AddDate(0, 0, -(capDays - 1))
+	var err error
+	startTime, err = historyQueryTime(r, "start", startTime)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	endTime, err = historyQueryTime(r, "end", endTime)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	if startTime.After(endTime) {
+		return time.Time{}, time.Time{}, errors.New("start must be before end")
+	}
+	maxDuration := time.Duration(capDays) * 24 * time.Hour
+	if endTime.Sub(startTime) <= maxDuration {
+		return startTime, endTime, nil
+	}
+	requestedStart := startTime
+	startTime = endTime.Add(-maxDuration)
+	rs.runtime.Log.Info("room history window clamped to retention cap",
+		"room_id", roomID, "requested_start", requestedStart.Format(time.RFC3339),
+		"clamped_start", startTime.Format(time.RFC3339), "end", endTime.Format(time.RFC3339),
+		"cap_days", capDays)
+	return startTime, endTime, nil
+}
+
+func historyQueryTime(r *http.Request, name string, fallback time.Time) (time.Time, error) {
+	value := r.URL.Query().Get(name)
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid %s parameter, expected RFC3339", name)
+	}
+	return parsed, nil
 }
 
 func (rs *Resource) failure(w http.ResponseWriter, r *http.Request, err error) {
@@ -460,19 +471,4 @@ func (rs *Resource) failure(w http.ResponseWriter, r *http.Request, err error) {
 		kind = FailureConflict
 	}
 	rs.runtime.Failure(w, r, kind, err, code)
-}
-
-func StatusOf(kind FailureKind) int {
-	switch kind {
-	case FailureInvalid:
-		return http.StatusBadRequest
-	case FailureForbidden:
-		return http.StatusForbidden
-	case FailureNotFound:
-		return http.StatusNotFound
-	case FailureConflict:
-		return http.StatusConflict
-	default:
-		return http.StatusInternalServerError
-	}
 }

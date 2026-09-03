@@ -31,7 +31,10 @@ func NewServiceWithConfig(config ServiceConfig) Service {
 
 func (s *service) GetRoom(ctx context.Context, id int64) (*facilitiesModule.Room, error) {
 	room, err := s.config.Rooms.FindRoom(ctx, id)
-	return roomPointer(room), wrap("get room", err)
+	if err != nil {
+		return nil, wrap("get room", err)
+	}
+	return roomPointer(room), nil
 }
 
 func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithOccupancy, error) {
@@ -102,22 +105,34 @@ func (s *service) ProjectRoomOccupancy(ctx context.Context, rooms []facilitiesMo
 
 func (s *service) FindRoomByName(ctx context.Context, name string) (*facilitiesModule.Room, error) {
 	room, err := s.config.Rooms.FindRoomByName(ctx, name)
-	return roomPointer(room), wrap("find room by name", err)
+	if err != nil {
+		return nil, wrap("find room by name", err)
+	}
+	return roomPointer(room), nil
 }
 
 func (s *service) FindToiletRoom(ctx context.Context, exclude int64) (*facilitiesModule.Room, error) {
 	room, err := s.config.Rooms.FindToiletRoom(ctx, exclude)
-	return roomPointer(room), wrap("find toilet room", err)
+	if err != nil {
+		return nil, wrap("find toilet room", err)
+	}
+	return roomPointer(room), nil
 }
 
 func (s *service) FindRoomsByCategory(ctx context.Context, category string) ([]*facilitiesModule.Room, error) {
 	rooms, err := s.config.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{Category: &category})
-	return roomPointers(rooms), wrap("find rooms by category", err)
+	if err != nil {
+		return nil, wrap("find rooms by category", err)
+	}
+	return roomPointers(rooms), nil
 }
 
 func (s *service) GetAvailableRooms(ctx context.Context, capacity int) ([]*facilitiesModule.Room, error) {
 	rooms, err := s.config.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{MinimumCapacity: &capacity})
-	return roomPointers(rooms), wrap("get available rooms", err)
+	if err != nil {
+		return nil, wrap("get available rooms", err)
+	}
+	return roomPointers(rooms), nil
 }
 
 func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity int) ([]RoomWithOccupancy, error) {

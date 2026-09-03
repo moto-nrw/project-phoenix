@@ -18,6 +18,7 @@ type Observation = ports.Observation
 
 type Dependencies struct {
 	DB            *bun.DB
+	DeletionLock  func(context.Context) error
 	DeletionGuard func(context.Context, int64) error
 	Observe       func(Observation)
 }
@@ -27,10 +28,19 @@ type Dependencies struct {
 // Shared connections require a caller tenant and apply an explicit predicate;
 // an ambient transaction without one relies on its RLS scope (device auth).
 func New(dependencies Dependencies) (*facilities.Module, error) {
-	if dependencies.DB == nil || dependencies.DeletionGuard == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.DeletionGuard == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
+	store := postgres.New(databaseRuntime(dependencies.DB))
+	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.DeletionGuard, func(observation Observation) {
+		observation.Err = mapError(observation.Err)
+		dependencies.Observe(observation)
+	})
+	return facilities.NewModule(engine{service: service}), nil
+}
+
+func databaseRuntime(db *bun.DB) postgres.Database {
+	return func(ctx context.Context) (bun.IDB, int64, error) {
 		tenantID, tenantErr := tenant.TenantFromContext(ctx)
 		id := int64(0)
 		if tenantErr == nil {
@@ -41,7 +51,7 @@ func New(dependencies Dependencies) (*facilities.Module, error) {
 			if tenantErr != nil {
 				return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", tenantErr)
 			}
-			return dependencies.DB, id, nil
+			return db, id, nil
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
@@ -53,16 +63,11 @@ func New(dependencies Dependencies) (*facilities.Module, error) {
 			if tenantErr != nil {
 				return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", tenantErr)
 			}
-			return dependencies.DB, id, nil
+			return db, id, nil
 		default:
 			return nil, 0, fmt.Errorf("facilities postgres: unsupported transaction %T", transaction)
 		}
-	})
-	service := application.New(store, transaction{}, dependencies.DeletionGuard, func(observation Observation) {
-		observation.Err = mapError(observation.Err)
-		dependencies.Observe(observation)
-	})
-	return facilities.NewModule(engine{service: service}), nil
+	}
 }
 
 type engine struct{ service *application.Service }

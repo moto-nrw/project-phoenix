@@ -1188,9 +1188,6 @@ func newFactory(
 			if len(activeGroups) > 0 {
 				return facilitiesModule.ErrRoomInUse
 			}
-			if err := schedule.LockTenantRecurrenceWrites(ctx, db); err != nil {
-				return err
-			}
 			if err := careOfferingResourceValidator.ValidateRoomDeletion(ctx, roomID); err != nil {
 				if errors.Is(err, enrollment.ErrCareOfferingInvalid) {
 					return facilitiesModule.ErrRoomRequiredByOffering

@@ -208,6 +208,26 @@ func (s *Store) List(ctx context.Context, filter domain.RoomFilter) ([]domain.Ro
 	if tenantID != 0 {
 		query = query.Where(`"room".tenant_id = ?`, tenantID)
 	}
+	query, empty := applyRoomListFilter(query, filter)
+	if empty {
+		return []domain.Room{}, domain.OperationStats{}, nil
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("facilities postgres: list rooms: %w", err)
+	}
+	result := make([]domain.Room, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toDomain(row))
+	}
+	stats.Rows = int64(len(result))
+	return result, stats, nil
+}
+
+func applyRoomListFilter(query *bun.SelectQuery, filter domain.RoomFilter) (*bun.SelectQuery, bool) {
 	if filter.Name != nil {
 		query = query.Where(`LOWER("room".name) = LOWER(?)`, *filter.Name)
 	}
@@ -234,24 +254,12 @@ func (s *Store) List(ctx context.Context, filter domain.RoomFilter) ([]domain.Ro
 	}
 	if filter.Search != nil {
 		if *filter.Search == "" {
-			return []domain.Room{}, domain.OperationStats{}, nil
+			return query, true
 		}
 		pattern := "%" + *filter.Search + "%"
 		query = query.Where(`("room".name ILIKE ? OR "room".building ILIKE ? OR "room".category ILIKE ?)`, pattern, pattern, pattern)
 	}
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	err = query.Scan(ctx)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return nil, stats, fmt.Errorf("facilities postgres: list rooms: %w", err)
-	}
-	result := make([]domain.Room, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, toDomain(row))
-	}
-	stats.Rows = int64(len(result))
-	return result, stats, nil
+	return query, false
 }
 
 func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]domain.Room, domain.OperationStats, error) {
@@ -309,7 +317,7 @@ func toDomain(row roomRow) domain.Room {
 
 func classifyWriteError(err error) error {
 	var postgresError pgdriver.Error
-	if !errors.As(err, &postgresError) || postgresError.Field('C') != "23505" {
+	if !errors.As(err, &postgresError) || !postgresError.IntegrityViolation() {
 		return err
 	}
 	switch postgresError.Field('n') {

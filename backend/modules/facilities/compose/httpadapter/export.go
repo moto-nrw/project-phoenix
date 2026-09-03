@@ -62,7 +62,7 @@ func exportRoomSnapshot(ctx context.Context, dependencies Dependencies, request 
 	}
 	file, err := dependencies.ListExport.Render(document, listexport.Format(request.Format), document.Title)
 	if err != nil {
-		return roomsHTTP.ExportFile{}, err
+		return roomsHTTP.ExportFile{}, &roomsHTTP.InvalidExportError{Err: err}
 	}
 	return roomsHTTP.ExportFile{Data: file.Data, ContentType: file.ContentType, Filename: file.Filename}, nil
 }
@@ -111,8 +111,7 @@ func loadRoomSnapshotStudents(ctx context.Context, dependencies Dependencies, st
 	if err != nil {
 		return nil, err
 	}
-	personIDs := make([]int64, 0, len(students))
-	groupIDs := make([]int64, 0, len(students))
+	personIDs, groupIDs := make([]int64, 0, len(students)), make([]int64, 0, len(students))
 	for _, student := range students {
 		personIDs = appendUniqueInt64(personIDs, student.PersonID)
 		if student.GroupID != nil {

@@ -65,9 +65,6 @@ type GroupRepository interface {
 	// the current transaction.
 	FindByIDForUpdate(ctx context.Context, id int64) (*Group, error)
 
-	// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
-	GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error)
-
 	// GetOccupiedActivityGroupIDs returns a set of activity group IDs that currently have active sessions
 	GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error)
 

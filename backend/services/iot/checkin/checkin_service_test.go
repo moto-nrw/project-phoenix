@@ -289,7 +289,7 @@ func TestRoomNameByID_FallbackToLookup(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, "LookupRoom")
 
 	// Pass nil room to force lookup by ID
-	name := tc.svc.RoomNameByIDForTest(context.Background(), nil, room.ID)
+	name := tc.svc.RoomNameByIDForTest(testpkg.Ctx(t), nil, room.ID)
 	assert.Contains(t, name, "LookupRoom")
 }
 
@@ -309,7 +309,7 @@ func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, "ResponseRoom")
 
 	roomID := room.ID
-	name := tc.svc.RoomNameForResponseForTest(context.Background(), nil, &roomID)
+	name := tc.svc.RoomNameForResponseForTest(testpkg.Ctx(t), nil, &roomID)
 	assert.Contains(t, name, "ResponseRoom")
 }
 
@@ -322,7 +322,7 @@ func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
 	// Visit without ActiveGroup.Room loaded
 	visit := &active.Visit{ActiveGroup: &active.Group{}}
 	roomID := room.ID
-	name := tc.svc.RoomNameForResponseForTest(context.Background(), visit, &roomID)
+	name := tc.svc.RoomNameForResponseForTest(testpkg.Ctx(t), visit, &roomID)
 	assert.Contains(t, name, "FallbackRoom")
 }
 

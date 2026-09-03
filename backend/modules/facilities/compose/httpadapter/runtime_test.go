@@ -50,7 +50,8 @@ func setupRoomsRoute(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB: db,
+		DB:           db,
+		DeletionLock: func(context.Context) error { return nil },
 		DeletionGuard: func(ctx context.Context, roomID int64) error {
 			err := svc.Facilities.ValidateRoomDeletion(ctx, roomID)
 			var coded interface{ Code() string }

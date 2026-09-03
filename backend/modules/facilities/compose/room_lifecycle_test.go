@@ -193,7 +193,8 @@ func TestDeleteRoomRunsGuardInsideWriteTransaction(t *testing.T) {
 	ctx := testpkg.WithTestTenantRuntime(t, testpkg.Ctx(t))
 	guardCalled := false
 	module, err := New(Dependencies{
-		DB: db,
+		DB:           db,
+		DeletionLock: func(context.Context) error { return nil },
 		DeletionGuard: func(guardCtx context.Context, _ int64) error {
 			guardCalled = true
 			_, inTransaction := tenant.TransactionFromContext(guardCtx)

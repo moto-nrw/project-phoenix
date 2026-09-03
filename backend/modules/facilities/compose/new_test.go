@@ -37,7 +37,10 @@ func (l *observationLog) operations() []string {
 
 func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) *facilities.Module {
 	t.Helper()
-	module, err := New(Dependencies{DB: db, DeletionGuard: func(context.Context, int64) error { return nil }, Observe: observe})
+	module, err := New(Dependencies{
+		DB: db, DeletionLock: func(context.Context) error { return nil },
+		DeletionGuard: func(context.Context, int64) error { return nil }, Observe: observe,
+	})
 	require.NoError(t, err)
 	return module
 }
