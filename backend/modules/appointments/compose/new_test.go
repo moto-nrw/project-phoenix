@@ -353,7 +353,7 @@ func TestEmptyRecurrenceAndOverrideQueriesDoNotTouchTheDatabase(t *testing.T) {
 	rules, err := module.FindRecurrenceRules(context.Background(), nil)
 	require.NoError(t, err)
 	assert.Empty(t, rules)
-	overrides, err := module.FindOccurrenceOverridesByStartDates(context.Background(), []int64{1}, nil)
+	overrides, err := module.FindOccurrenceOverridesByStartDates(context.Background(), nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, overrides)
 }
