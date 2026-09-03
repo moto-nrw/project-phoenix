@@ -44,7 +44,8 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 	}
 	service := application.New(postgres.New(database), transaction{}, observe)
 	students := application.NewStudents(postgres.NewStudentStore(database), transaction{}, observe)
-	return peopledirectory.NewModule(engine{service: service, students: students}), nil
+	guardians := application.NewGuardians(postgres.NewGuardianStore(database), transaction{}, observe)
+	return peopledirectory.NewModule(engine{service: service, students: students, guardians: guardians, observe: observe}), nil
 }
 
 type transaction struct{}
@@ -78,8 +79,10 @@ func (transaction) RunAdminRead(ctx context.Context, callback func(context.Conte
 }
 
 type engine struct {
-	service  *application.Service
-	students *application.StudentService
+	service   *application.Service
+	students  *application.StudentService
+	guardians *application.GuardianService
+	observe   func(Observation)
 }
 
 func (e engine) Create(ctx context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {

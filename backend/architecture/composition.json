@@ -490,6 +490,16 @@
           "declaration": "type API"
         },
         {
+          "file": "api/class_list_entries_composition.go",
+          "line": 25,
+          "declaration": "newClassListEntriesResource"
+        },
+        {
+          "file": "api/guardians_composition.go",
+          "line": 52,
+          "declaration": "newGuardiansResource"
+        },
+        {
           "file": "api/staff_composition.go",
           "line": 109,
           "declaration": "newStaffComposition"
@@ -506,7 +516,12 @@
       "locations": [
         {
           "file": "cmd/seed_parents.go",
-          "line": 177,
+          "line": 162,
+          "declaration": "promotableGuardians"
+        },
+        {
+          "file": "cmd/seed_parents.go",
+          "line": 205,
           "declaration": "promoteGuardian"
         }
       ]
@@ -516,7 +531,7 @@
       "locations": [
         {
           "file": "cmd/seed_parents.go",
-          "line": 116,
+          "line": 117,
           "declaration": "seedParentAccounts"
         }
       ]
@@ -581,12 +596,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 422,
+          "line": 423,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 445,
+          "line": 446,
           "declaration": "newFactory"
         },
         {
@@ -16664,13 +16679,9 @@
       "declaration": "seedParentAccounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        116
+        117
       ],
-      "tables": [
-        "users.guardian_profiles",
-        "users.students",
-        "users.students_guardians"
-      ]
+      "tables": []
     },
     {
       "scope": "production",
@@ -16834,21 +16845,21 @@
     },
     {
       "scope": "test",
-      "file": "api/classday/class_day_api_test.go",
-      "declaration": "setupClassDayRoute",
+      "file": "api/class_list_entries_composition_test.go",
+      "declaration": "setupClassListEntriesRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        30
+        29
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "api/classlistentries/class_list_entries_api_test.go",
-      "declaration": "setupClassListEntriesRoute",
+      "file": "api/classday/class_day_api_test.go",
+      "declaration": "setupClassDayRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        32
+        30
       ],
       "tables": []
     },
@@ -16955,39 +16966,16 @@
     },
     {
       "scope": "test",
-      "file": "api/guardians/guardians_test.go",
-      "declaration": "setupGuardiansRoute",
+      "file": "api/guardians_composition_test.go",
+      "declaration": "setupGuardiansCompositionRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        50
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/guardians/related_accounts_handlers_test.go",
-      "declaration": "TestInviteGuardianToStudent_RestrictedContactRoundTrip",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        44
+        94
       ],
       "tables": [
-        "auth.guardian_invitations",
+        "audit.data_access_log",
         "users.guardian_profiles",
-        "users.students",
-        "users.students_guardians"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "api/guardians/related_accounts_handlers_test.go",
-      "declaration": "TestInviteGuardianToStudent_SocialWorkerLinkRefused",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        100
-      ],
-      "tables": [
-        "users.guardian_profiles",
+        "users.persons",
         "users.students",
         "users.students_guardians"
       ]
@@ -21912,6 +21900,26 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         114
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/class_list_entry_membership_test.go",
+      "declaration": "TestClassListEntryAdapter_ClassLookupsMatchCaseInsensitivelyAndOrderByName",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        53
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/class_list_entry_membership_test.go",
+      "declaration": "TestClassListEntryAdapter_KeepsTheLegacyErrorContracts",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        23
       ],
       "tables": []
     },
@@ -26902,7 +26910,8 @@
       "declaration": "setupClassListEntryTransitionTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        37,
+        38
       ],
       "tables": []
     },
@@ -28497,7 +28506,7 @@
       "declaration": "TestNewFactory_DefaultEmailFrom_WhenNotConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        247
+        258
       ],
       "tables": []
     },
@@ -28507,7 +28516,17 @@
       "declaration": "TestNewFactory_EmailFrom_WhenConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        262
+        273
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/factory_test.go",
+      "declaration": "TestNewFactory_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        84
       ],
       "tables": []
     },
@@ -28517,7 +28536,7 @@
       "declaration": "TestNewFactory_FrontendURL_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        208
+        219
       ],
       "tables": []
     },
@@ -28527,7 +28546,7 @@
       "declaration": "TestNewFactory_FrontendURL_TrailingSlashRemoved",
       "target": "database/repositories.NewFactory",
       "lines": [
-        192
+        203
       ],
       "tables": []
     },
@@ -28537,7 +28556,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        114
+        125
       ],
       "tables": []
     },
@@ -28547,7 +28566,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        130
+        141
       ],
       "tables": []
     },
@@ -28557,7 +28576,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        100
+        111
       ],
       "tables": []
     },
@@ -28567,7 +28586,7 @@
       "declaration": "TestNewFactory_NegativeInvitationExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        280
+        291
       ],
       "tables": []
     },
@@ -28577,7 +28596,7 @@
       "declaration": "TestNewFactory_NegativePasswordResetExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        296
+        307
       ],
       "tables": []
     },
@@ -28587,7 +28606,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        160
+        171
       ],
       "tables": []
     },
@@ -28597,7 +28616,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        176
+        187
       ],
       "tables": []
     },
@@ -28607,7 +28626,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        146
+        157
       ],
       "tables": []
     },
@@ -28617,7 +28636,7 @@
       "declaration": "TestNewFactory_PortalURLs_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        222
+        233
       ],
       "tables": []
     },
@@ -28627,7 +28646,7 @@
       "declaration": "TestNewFactory_RejectsPartialVAPIDConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        84
+        95
       ],
       "tables": []
     },
@@ -31987,6 +32006,28 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         63
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "test/class_list_entry_isolation_test.go",
+      "declaration": "TestClassListEntryRepositoryCannotSmuggleAForeignTenant",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        124
+      ],
+      "tables": [
+        "users.class_list_entries"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "test/class_list_entry_isolation_test.go",
+      "declaration": "TestClassListEntryTenantIsolation",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        48
       ],
       "tables": []
     },

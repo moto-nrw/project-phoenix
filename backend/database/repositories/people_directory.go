@@ -32,6 +32,7 @@ func (f *Factory) bindDefaultPeopleDirectory(db *bun.DB) {
 	}
 	f.students = students
 	f.bindStudentDirectories(students, students)
+	f.bindGuardianDirectories(students)
 }
 
 // countPrivacyConsents serves the student-deletion preview through the

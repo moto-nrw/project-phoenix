@@ -31,14 +31,13 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
-	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
-	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
+
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
@@ -85,6 +84,7 @@ import (
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -423,7 +423,7 @@ type API struct {
 	Students         *studentsAPI.Resource
 	Statistics       *statisticsAPI.Resource
 	Groups           *groupsAPI.Resource
-	Guardians        *guardiansAPI.Resource
+	Guardians        *usersAPI.GuardianResource
 	Import           *importAPI.Resource
 	Activities       *activitiesAPI.Resource
 	Staff            *staffHTTP.Resource
@@ -444,7 +444,7 @@ type API struct {
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
 	ClassDay         *classdayAPI.Resource
-	ClassListEntries *classlistentriesAPI.Resource
+	ClassListEntries *classListHTTP.Resource
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
@@ -927,7 +927,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:                api.Services.Users,
-		GuardianService:              api.Services.Guardian,
+		PeopleDirectory:              api.Services.PeopleDirectory,
 		StudentService:               api.Services.Students,
 		ClassListEntryService:        api.Services.ClassListEntries,
 		StudentDeletionService:       api.Services.StudentDeletion,
@@ -986,8 +986,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffNotices = timeTrackingAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db, viper.GetString("app_env"))
-	api.Guardians.ListExportService = api.Services.ListExport
+	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services, db, viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
@@ -1119,7 +1118,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
-	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
+	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Substitution, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)

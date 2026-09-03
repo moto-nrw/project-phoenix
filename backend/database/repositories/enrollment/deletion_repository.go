@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -16,6 +17,7 @@ import (
 type DeletionRepository struct {
 	db                    *bun.DB
 	countAuditAdjustments func(context.Context, int64, *int64) (int, error)
+	guardians             GuardianDirectory
 }
 
 func NewDeletionRepository(
@@ -25,22 +27,135 @@ func NewDeletionRepository(
 	return &DeletionRepository{db: db, countAuditAdjustments: countAuditAdjustments}
 }
 
+// BindGuardianDirectory installs the People Directory the preserved guardian
+// profiles and parent accounts of a request are resolved through (#2663).
+func (r *DeletionRepository) BindGuardianDirectory(guardians GuardianDirectory) {
+	r.guardians = guardians
+}
+
 type requestDeletionCountsRow struct {
-	Requests                  int `bun:"requests"`
-	RequestChildren           int `bun:"request_children"`
-	RequestChildOfferings     int `bun:"request_child_offerings"`
-	RequestGuardians          int `bun:"request_guardians"`
-	ChangeRequests            int `bun:"change_requests"`
-	ChangeRequestMessages     int `bun:"change_request_messages"`
-	LateInvites               int `bun:"late_invites"`
-	OfferingAdjustments       int `bun:"offering_adjustments"`
-	EmailOutbox               int `bun:"email_outbox"`
-	RolloverLinksCleared      int `bun:"rollover_links_cleared"`
-	StudentSourceLinksCleared int `bun:"student_source_links_cleared"`
-	PreservedProfiles         int `bun:"preserved_profiles"`
-	PreservedAccounts         int `bun:"preserved_accounts"`
-	UnlinkedProfiles          int `bun:"unlinked_profiles"`
-	AccountsWithoutStudents   int `bun:"accounts_without_students"`
+	Requests                  int    `bun:"requests"`
+	GuardianAccountID         *int64 `bun:"guardian_account_id"`
+	RequestChildren           int    `bun:"request_children"`
+	RequestChildOfferings     int    `bun:"request_child_offerings"`
+	RequestGuardians          int    `bun:"request_guardians"`
+	ChangeRequests            int    `bun:"change_requests"`
+	ChangeRequestMessages     int    `bun:"change_request_messages"`
+	LateInvites               int    `bun:"late_invites"`
+	OfferingAdjustments       int    `bun:"offering_adjustments"`
+	EmailOutbox               int    `bun:"email_outbox"`
+	RolloverLinksCleared      int    `bun:"rollover_links_cleared"`
+	StudentSourceLinksCleared int    `bun:"student_source_links_cleared"`
+}
+
+// guardianPreservation is what a request deletion leaves behind on the
+// guardian side: the profiles and parent accounts that survive, and how
+// many of them no child links to any more.
+type guardianPreservation struct {
+	profiles                int
+	accounts                int
+	unlinkedProfiles        int
+	accountsWithoutStudents int
+}
+
+// previewGuardianPreservation resolves the guardian side of the preview
+// through the People Directory (#2663): the candidate profiles are the
+// request's co-guardian rows plus the profiles of the request's account,
+// the candidate accounts are the request's account plus the accounts of
+// those profiles. Everything is scoped to the tenant in context.
+func (r *DeletionRepository) previewGuardianPreservation(ctx context.Context, requestID, tenantID int64, guardianAccountID *int64) (guardianPreservation, error) {
+	if r.guardians == nil {
+		return guardianPreservation{}, errGuardianDirectoryRequired
+	}
+	var requestProfileIDs []int64
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT guardian_profile_id
+		FROM enrollment.request_guardians
+		WHERE request_id = ? AND tenant_id = ? AND guardian_profile_id IS NOT NULL
+	`, requestID, tenantID).Scan(ctx, &requestProfileIDs)
+	if err != nil {
+		return guardianPreservation{}, fmt.Errorf("list request guardian profiles: %w", err)
+	}
+	profileIDs := make(map[int64]struct{}, len(requestProfileIDs))
+	for _, id := range requestProfileIDs {
+		profileIDs[id] = struct{}{}
+	}
+	accountIDs := make(map[int64]struct{})
+	if guardianAccountID != nil {
+		accountIDs[*guardianAccountID] = struct{}{}
+		accountProfiles, err := r.guardians.ListGuardiansByAccount(ctx, []int64{*guardianAccountID})
+		if err != nil {
+			return guardianPreservation{}, err
+		}
+		for _, profile := range accountProfiles {
+			profileIDs[profile.ID] = struct{}{}
+		}
+	}
+	candidateProfiles := sortedIDs(profileIDs)
+	profiles, err := r.guardians.ListGuardiansByID(ctx, candidateProfiles)
+	if err != nil {
+		return guardianPreservation{}, err
+	}
+	for _, profile := range profiles {
+		if profile.AccountID != nil {
+			accountIDs[*profile.AccountID] = struct{}{}
+		}
+	}
+	candidateAccounts := sortedIDs(accountIDs)
+
+	linkCounts, err := r.guardians.CountGuardianLinks(ctx, candidateProfiles)
+	if err != nil {
+		return guardianPreservation{}, err
+	}
+	result := guardianPreservation{profiles: len(candidateProfiles), accounts: len(candidateAccounts)}
+	for _, id := range candidateProfiles {
+		if linkCounts[id] == 0 {
+			result.unlinkedProfiles++
+		}
+	}
+	result.accountsWithoutStudents, err = r.countAccountsWithoutStudents(ctx, candidateAccounts)
+	return result, err
+}
+
+// countAccountsWithoutStudents counts the accounts none of whose profiles
+// still holds a child link. The profiles of an account may reach beyond the
+// candidate profiles, so they are resolved from the account side.
+func (r *DeletionRepository) countAccountsWithoutStudents(ctx context.Context, accountIDs []int64) (int, error) {
+	accountProfiles, err := r.guardians.ListGuardiansByAccount(ctx, accountIDs)
+	if err != nil {
+		return 0, err
+	}
+	profileIDs := make([]int64, 0, len(accountProfiles))
+	for _, profile := range accountProfiles {
+		profileIDs = append(profileIDs, profile.ID)
+	}
+	linkCounts, err := r.guardians.CountGuardianLinks(ctx, profileIDs)
+	if err != nil {
+		return 0, err
+	}
+	linkedAccounts := make(map[int64]struct{})
+	for _, profile := range accountProfiles {
+		if profile.AccountID != nil && linkCounts[profile.ID] > 0 {
+			linkedAccounts[*profile.AccountID] = struct{}{}
+		}
+	}
+	count := 0
+	for _, id := range accountIDs {
+		if _, linked := linkedAccounts[id]; !linked {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// sortedIDs returns the set's members in ascending order.
+func sortedIDs(set map[int64]struct{}) []int64 {
+	result := make([]int64, 0, len(set))
+	for id := range set {
+		result = append(result, id)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	return result
 }
 
 func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64) (*enrollmentModels.DeletionImpact, error) {
@@ -62,27 +177,10 @@ func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64
 			SELECT id
 			FROM enrollment.change_requests
 			WHERE request_id = ? AND tenant_id = ?
-		), candidate_profiles AS (
-			SELECT guardian_profile_id AS id
-			FROM enrollment.request_guardians
-			WHERE request_id = ? AND tenant_id = ? AND guardian_profile_id IS NOT NULL
-			UNION
-			SELECT gp.id
-			FROM users.guardian_profiles gp
-			JOIN target_request tr ON tr.guardian_account_id = gp.account_id
-			WHERE gp.tenant_id = ?
-		), candidate_accounts AS (
-			SELECT guardian_account_id AS id
-			FROM target_request
-			WHERE guardian_account_id IS NOT NULL
-			UNION
-			SELECT gp.account_id
-			FROM users.guardian_profiles gp
-			JOIN candidate_profiles cp ON cp.id = gp.id
-			WHERE gp.account_id IS NOT NULL AND gp.tenant_id = ?
 		)
 		SELECT
 			(SELECT COUNT(*) FROM target_request)::int AS requests,
+			(SELECT guardian_account_id FROM target_request LIMIT 1) AS guardian_account_id,
 			(SELECT COUNT(*) FROM target_children)::int AS request_children,
 			(SELECT COUNT(*) FROM enrollment.request_child_offerings o JOIN target_children c ON c.id = o.request_child_id WHERE o.tenant_id = ?)::int AS request_child_offerings,
 			(SELECT COUNT(*) FROM enrollment.request_guardians g WHERE g.request_id = ? AND g.tenant_id = ?)::int AS request_guardians,
@@ -91,25 +189,16 @@ func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64
 			(SELECT COUNT(*) FROM enrollment.late_invites l WHERE l.used_request_id = ? AND l.tenant_id = ?)::int AS late_invites,
 			0::int AS email_outbox,
 			(SELECT COUNT(*) FROM enrollment.request_children c WHERE c.rollover_source_child_id IN (SELECT id FROM target_children) AND c.tenant_id = ?)::int AS rollover_links_cleared,
-			(SELECT COUNT(*) FROM activities.student_enrollments se WHERE se.enrollment_request_child_id IN (SELECT id FROM target_children) AND se.tenant_id = ?)::int AS student_source_links_cleared,
-			(SELECT COUNT(*) FROM candidate_profiles)::int AS preserved_profiles,
-			(SELECT COUNT(*) FROM candidate_accounts)::int AS preserved_accounts,
-			(SELECT COUNT(*) FROM candidate_profiles cp WHERE NOT EXISTS (SELECT 1 FROM users.students_guardians sg WHERE sg.guardian_profile_id = cp.id AND sg.tenant_id = ?))::int AS unlinked_profiles,
-			(SELECT COUNT(*) FROM candidate_accounts ca WHERE NOT EXISTS (
-				SELECT 1 FROM users.guardian_profiles gp
-				JOIN users.students_guardians sg ON sg.guardian_profile_id = gp.id AND sg.tenant_id = gp.tenant_id
-				WHERE gp.account_id = ca.id AND gp.tenant_id = ?
-			))::int AS accounts_without_students
+			(SELECT COUNT(*) FROM activities.student_enrollments se WHERE se.enrollment_request_child_id IN (SELECT id FROM target_children) AND se.tenant_id = ?)::int AS student_source_links_cleared
 	`,
 		requestID, tenantID,
 		requestID, tenantID,
 		requestID, tenantID,
-		requestID, tenantID, tenantID, tenantID,
 		tenantID,
 		requestID, tenantID,
 		tenantID,
 		requestID, tenantID,
-		tenantID, tenantID, tenantID, tenantID,
+		tenantID, tenantID,
 	).Scan(ctx, row)
 	if err != nil {
 		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
@@ -121,14 +210,18 @@ func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64
 	if err != nil {
 		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
 	}
+	preserved, err := r.previewGuardianPreservation(ctx, requestID, tenantID, row.GuardianAccountID)
+	if err != nil {
+		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
+	}
 	impact := &enrollmentModels.DeletionImpact{
 		RequestID:                     requestID,
 		DeletesRequest:                true,
 		Counts:                        deletionCountsFromRow(row),
-		PreservedGuardianProfiles:     row.PreservedProfiles,
-		PreservedParentAccounts:       row.PreservedAccounts,
-		UnlinkedGuardianProfiles:      row.UnlinkedProfiles,
-		ParentAccountsWithoutStudents: row.AccountsWithoutStudents,
+		PreservedGuardianProfiles:     preserved.profiles,
+		PreservedParentAccounts:       preserved.accounts,
+		UnlinkedGuardianProfiles:      preserved.unlinkedProfiles,
+		ParentAccountsWithoutStudents: preserved.accountsWithoutStudents,
 	}
 	if row.Requests == 0 {
 		return impact, nil

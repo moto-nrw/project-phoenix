@@ -364,6 +364,9 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.bindAuditStudentDirectory()
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
+	if f.students != nil {
+		f.bindGuardianDirectories(f.students)
+	}
 }
 
 // BindOrganizationTenancy replaces school-owning and school-enriched legacy
@@ -429,6 +432,7 @@ func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
 	// Students first: the observed directory replaces the default binding on
 	// the raw repositories before the person projections wrap them.
 	f.bindStudentDirectories(capability, capability)
+	f.bindGuardianDirectories(capability)
 	f.bindPersonProjections(capability)
 }
 
@@ -467,9 +471,10 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 	}
 }
 
-// BindSchoolMembership replaces the staff, teacher and guest adapters — and
-// every legacy repository that used to join users.staff itself — with
-// compositions over the observed School Membership capability (#2667). The
+// BindSchoolMembership replaces the staff, teacher, guest and class-list-entry
+// adapters — and every legacy repository that used to join users.staff itself
+// — with compositions over the observed School Membership capability (#2667,
+// #2668). The
 // factory already works without it (NewFactory composes an unobserved module),
 // so this binding is about runtime evidence, not about correctness.
 func (f *Factory) BindSchoolMembership(capability schoolmembership.Capability) {
@@ -493,6 +498,7 @@ func (f *Factory) bindStaffMembershipAdapters(capability schoolmembership.Capabi
 	f.Staff = staffMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Teacher = teacherMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Guest = guestMembershipRepository{membership: capability}
+	f.ClassListEntry = classListEntryMembershipRepository{membership: capability}
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -554,7 +560,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		Person:              personRepo,
 		RFIDCard:            auth.NewRFIDCardRepository(db),
 		Student:             users.NewStudentRepository(db),
-		ClassListEntry:      users.NewClassListEntryRepository(db),
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),

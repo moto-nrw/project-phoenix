@@ -277,6 +277,10 @@ var (
 		prometheus.CounterOpts{Name: "phoenix_people_directory_http_responses_total", Help: "People Directory HTTP responses by actual status class and stable code."},
 		[]string{"status_class", "code"},
 	)
+	guardianDirectoryHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_guardian_directory_http_responses_total", Help: "Guardian directory (/api/guardians) HTTP responses by actual status class and stable code."},
+		[]string{"status_class", "code"},
+	)
 	schoolStructureOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_school_structure_operations_total", Help: "School Structure operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -550,6 +554,7 @@ func init() {
 		peopleDirectoryRowsChanged,
 		peopleDirectoryStatementDuration,
 		peopleDirectoryHTTPResponses,
+		guardianDirectoryHTTPResponses,
 		schoolStructureOperations,
 		schoolStructureDuration,
 		schoolStructureQueries,
@@ -730,6 +735,13 @@ func ObservePeopleDirectoryHTTPResponse(status int, code string) {
 	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
 }
 
+// ObserveGuardianDirectoryHTTPResponse counts one /api/guardians response by
+// the status class actually written and the stable outcome code (#2663).
+func ObserveGuardianDirectoryHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	guardianDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
 // ObserveSchoolMembershipOperation records the runtime evidence of one School
 // Membership capability call: outcome and stable code, duration, query
 // count, rows, and cumulative statement duration.
@@ -754,8 +766,9 @@ func ObserveSchoolMembershipOperation(operation string, duration time.Duration, 
 	}
 }
 
-// ObserveSchoolMembershipHTTPResponse counts one /api/staff membership
-// response by the status class actually written and the stable outcome code.
+// ObserveSchoolMembershipHTTPResponse counts one School Membership HTTP
+// adapter response (/api/staff membership routes, /api/class-list-entries)
+// by the status class actually written and the stable outcome code.
 func ObserveSchoolMembershipHTTPResponse(status int, code string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
 	schoolMembershipHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()

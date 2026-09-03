@@ -26,7 +26,12 @@
     "typecheck": "tsc --noEmit",
     "validate:build-env": "node scripts/validate-build-env.mjs",
     "knip": "knip",
-    "knip:production": "knip --production --include files"
+    "knip:production": "knip --production --include files",
+    "perf:trace": "playwright test -c playwright.perf.config.ts",
+    "perf:render": "playwright test -c playwright.perf-dev.config.ts",
+    "perf:report": "node scripts/perf/report.mjs",
+    "perf:bundle": "node scripts/perf/analyze.mjs",
+    "perf:bundle-report": "node scripts/perf/bundle-report.mjs"
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.6.0",
@@ -85,6 +90,7 @@
     "postcss": "^8.5.26",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "react-scan": "0.5.7",
     "storybook": "^10.5.7",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
@@ -103,6 +109,16 @@
   },
   "knip": {
     "includeEntryExports": true,
+    "playwright": {
+      "config": [],
+      "entry": [
+        "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "scripts/perf/*.perf.ts",
+        "playwright.config.ts",
+        "playwright.guides.config.ts",
+        "e2e/**/*.ts"
+      ]
+    },
     "project": [
       "src/**/*.{js,jsx,ts,tsx}!",
       "src/**/*.css!",
@@ -115,15 +131,8 @@
     ],
     "ignoreDependencies": [
       "sharp",
-      "lint-staged"
-    ],
-    "playwright": {
-      "config": [],
-      "entry": [
-        "playwright.config.ts",
-        "playwright.guides.config.ts",
-        "e2e/**/*.ts"
-      ]
-    }
+      "lint-staged",
+      "react-scan"
+    ]
   }
 }

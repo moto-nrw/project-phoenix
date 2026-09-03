@@ -111,6 +111,19 @@ func IsLockNotAvailable(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Field('C') == "55P03"
 }
 
+// IsConstraintViolation reports whether err carries PostgreSQL error code
+// 23503 (foreign_key_violation) or 23502 (not_null_violation): a delete or
+// write refused because another row still references it or a required
+// column was left empty.
+func IsConstraintViolation(err error) bool {
+	var pgErr postgresError
+	if errors.As(err, &pgErr) {
+		code := pgErr.Field('C')
+		return code == "23503" || code == "23502"
+	}
+	return hasTextualSQLState(err, "23503") || hasTextualSQLState(err, "23502")
+}
+
 // IsNoRows reports whether err wraps the persistence-neutral repository
 // not-found sentinel.
 func IsNoRows(err error) bool {

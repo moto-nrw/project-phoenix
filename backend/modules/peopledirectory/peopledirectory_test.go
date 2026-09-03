@@ -17,6 +17,8 @@ type recordingEngine struct {
 	tag      string
 	calls    int
 	student  studentCall
+	guardian guardianCall
+	observed []string
 }
 
 func (e *recordingEngine) Create(_ context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {
