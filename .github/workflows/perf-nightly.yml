@@ -18,6 +18,18 @@ on:
     # 03:30 UTC Montag bis Freitag, nach dem Tages-Push auf development.
     - cron: "30 3 * * 1-5"
   workflow_dispatch:
+  # Änderungen am Harness oder an diesem Workflow laufen einmal auf dem PR,
+  # damit sie nicht erst nachts kaputtgehen. Kein Required Check.
+  pull_request:
+    paths:
+      - ".github/workflows/perf-nightly.yml"
+      - "frontend/scripts/perf/**"
+      - "frontend/playwright.perf.config.ts"
+      - "frontend/playwright.perf-dev.config.ts"
+
+concurrency:
+  group: perf-nightly-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 permissions: {}
 
