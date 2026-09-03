@@ -96,6 +96,7 @@ async function interact(
 ): Promise<InteractionResult | null> {
   if (!target.interaction) return null;
   const before = await readVitals(page);
+  recorder.start();
   const mark = recorder.mark();
   const started = performance.now();
   await target.interaction.run(page);

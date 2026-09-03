@@ -116,6 +116,7 @@ for (const target of PERF_TARGETS) {
       page.evaluate(() => (window as ScanWindow).__perfRenders!.dump());
     try {
       await login(page, access);
+      await page.evaluate(() => (window as ScanWindow).__perfRenders!.reset());
       recorder.start();
       const mountStart = performance.now();
       await gotoTolerant(page, `${base}${target.path}`);

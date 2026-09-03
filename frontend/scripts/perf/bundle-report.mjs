@@ -2,11 +2,18 @@
 // #2938). Liest den JSON-Kopf jeder `.next/diagnostics/analyze/data/**/analyze.data`
 // (4-Byte-Big-Endian-Länge + JSON, danach Binär-Indizes, die hier nicht gebraucht
 // werden) und summiert die Client-Chunks (`/static/chunks/`) je Route und je Paket.
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join, relative } from "node:path";
 
 const DATA_DIR = join(process.cwd(), ".next", "diagnostics", "analyze", "data");
-const OUT_FILE = join(process.cwd(), "perf-results", "bundle.md");
+const OUT_DIR = join(process.cwd(), "perf-results");
+const OUT_FILE = join(OUT_DIR, "bundle.md");
 const TOP_ROUTES = 15;
 const TOP_PACKAGES = 8;
 
@@ -157,5 +164,6 @@ for (const [filename, entry] of [...sharedFiles.entries()]
   );
 }
 const report = lines.join("\n");
+mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(OUT_FILE, report);
 process.stdout.write(`${report}\n`);
