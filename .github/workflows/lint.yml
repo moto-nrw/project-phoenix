@@ -259,11 +259,22 @@ jobs:
         run: pnpm run build
 
       # Bundle-Size-Ratchet (#2939): `next experimental-analyze` kompiliert
-      # aus dem warmen Turbopack-Cache und vergleicht Client-JS je Route mit
-      # scripts/perf/bundle-baseline.json. Pflege: pnpm run perf:bundle-ratchet --update
+      # kalt (Chunk-Aufteilung hängt sonst vom Cache-Zustand ab) und vergleicht
+      # Client-JS je Route mit scripts/perf/bundle-baseline.json. Die Baseline
+      # sind Runner-Zahlen: zum Nachziehen das Artefakt `bundle-measured`
+      # laden und als bundle-baseline.json einchecken.
       - name: Bundle size ratchet
         working-directory: frontend
         run: pnpm run perf:bundle-ratchet
+
+      - name: Upload measured bundle sizes
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bundle-measured
+          path: frontend/perf-results/bundle-measured.json
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Build Storybook
         working-directory: frontend

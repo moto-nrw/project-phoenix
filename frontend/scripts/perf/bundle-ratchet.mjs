@@ -15,30 +15,33 @@
 // Läufe derselben Quelle liefern byte-identische Zahlen, deshalb ist die
 // Prüfung hart. Lokal ist der eigene `.next`-Build danach weg, der Cache nicht.
 //
-// Die Baseline ist mit dem CI-Env erzeugt (nur NEXT_PUBLIC_API_URL und
-// SKIP_ENV_VALIDATION). Lokal liegen die Routen rund 1 kB darüber, weil Next
-// die NEXT_PUBLIC_*-Werte aus .env.local (PostHog, Sentry) in die Chunks
-// schreibt; das bleibt innerhalb der Toleranz. Für ein sauberes --update:
-//   env -i PATH="$PATH" HOME="$HOME" NEXT_PUBLIC_API_URL=http://localhost:8080 \
-//     SKIP_ENV_VALIDATION=true pnpm run perf:bundle-ratchet --update
+// Die Baseline sind CI-Zahlen. Die Chunk-Aufteilung ist plattformabhängig
+// (macOS gegen Linux-Runner: eine Route 48 kB auseinander, der Rest 1 bis
+// 2 kB durch eingebettete NEXT_PUBLIC_*-Werte), auf dem Runner selbst aber
+// stabil. Jeder Lauf schreibt die Messung nach perf-results/bundle-measured.json
+// (im Job frontend-build als Artefakt `bundle-measured`). Baseline-Pflege:
+// Artefakt laden und als scripts/perf/bundle-baseline.json einchecken.
+// `--update` lokal ergibt macOS-Zahlen und ist nur zum Ausprobieren gedacht.
 import { spawnSync } from "node:child_process";
 import {
   appendFileSync,
   existsSync,
+  mkdirSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { readRouteBundles } from "./bundle-routes.mjs";
 
 const BASELINE_FILE = join(process.cwd(), "scripts/perf/bundle-baseline.json");
 const TOLERANCE_RATIO = 0.02;
 const TOLERANCE_BYTES = 10 * 1024;
+const MEASURED_FILE = join(process.cwd(), "perf-results/bundle-measured.json");
 const UPDATE_HINT =
-  "Baseline nachziehen: `cd frontend && pnpm run perf:bundle-ratchet --update` und scripts/perf/bundle-baseline.json mit einchecken.";
+  "Baseline nachziehen: Artefakt `bundle-measured` aus dem Job frontend-build laden und als scripts/perf/bundle-baseline.json einchecken (CI-Zahlen, nicht lokale).";
 
 const args = new Set(process.argv.slice(2));
 const update = args.has("--update");
@@ -95,15 +98,17 @@ function readBaseline() {
   return parsed.routes;
 }
 
-function writeBaseline(measured) {
+/** Gleiche Form wie die Baseline, damit die Messdatei direkt übernommen werden kann. */
+function writeMeasured(file, measured) {
   const routes = Object.fromEntries(
     [...measured.entries()].sort(([a], [b]) => a.localeCompare(b)),
   );
   const content = {
-    _doc: "Client-JS je Route, komprimierte Bytes laut `next experimental-analyze`. Pflege: pnpm run perf:bundle-ratchet --update (frontend/scripts/perf/bundle-ratchet.mjs, #2939).",
+    _doc: "Client-JS je Route, komprimierte Bytes laut `next experimental-analyze` auf dem CI-Runner. Pflege: Artefakt `bundle-measured` aus dem Job frontend-build hierher kopieren (frontend/scripts/perf/bundle-ratchet.mjs, #2939).",
     routes,
   };
-  writeFileSync(BASELINE_FILE, `${JSON.stringify(content, null, 2)}\n`);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(content, null, 2)}\n`);
 }
 
 function compare(baseline, measured) {
@@ -172,8 +177,9 @@ if (measured.size === 0) {
   throw new Error("Keine Routen in .next/diagnostics/analyze/data gefunden.");
 }
 
+writeMeasured(MEASURED_FILE, measured);
 if (update) {
-  writeBaseline(measured);
+  writeMeasured(BASELINE_FILE, measured);
   process.stdout.write(
     `Baseline geschrieben: ${measured.size} Routen -> ${BASELINE_FILE}\n`,
   );
