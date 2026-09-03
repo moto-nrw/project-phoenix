@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,6 +127,32 @@ func TestModuleFallsBackToTheSharedConnectionWithoutTransaction(t *testing.T) {
 	found, err := module.FindRoom(testpkg.Ctx(t), room.ID)
 	require.NoError(t, err)
 	assert.Equal(t, room.Name, found.Name)
+}
+
+func TestModuleRejectsSharedConnectionWithoutTenant(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db, func(Observation) {})
+	room := testpkg.CreateTestRoom(t, db, "Igelraum")
+
+	_, err := module.FindRoom(context.Background(), room.ID)
+	require.ErrorContains(t, err, "tenant is required")
+}
+
+func TestModuleUsesAmbientTransactionRLSWithoutTenantContext(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db, func(Observation) {})
+	tenantID := testpkg.Tenant(t)
+	room := testpkg.CreateTestRoom(t, db, "Igelraum")
+
+	err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(_ context.Context, tx bun.Tx) error {
+		found, err := module.FindRoom(tenant.WithTransactionForTest(context.Background(), tx), room.ID)
+		require.NoError(t, err)
+		assert.Equal(t, room.ID, found.ID)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestModuleFiltersSharedConnectionByTenant(t *testing.T) {

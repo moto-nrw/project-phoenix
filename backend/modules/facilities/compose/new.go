@@ -22,29 +22,37 @@ type Dependencies struct {
 }
 
 // New composes the Facilities module. Reads run on the caller's ambient
-// tenant transaction when one exists (tenant middleware, scheduler loops)
-// and otherwise on the shared connection with an explicit tenant predicate.
+// tenant transaction when one exists (tenant middleware, scheduler loops).
+// Shared connections require a caller tenant and apply an explicit predicate;
+// an ambient transaction without one relies on its RLS scope (device auth).
 func New(dependencies Dependencies) (*facilities.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", err)
+		tenantID, tenantErr := tenant.TenantFromContext(ctx)
+		id := int64(0)
+		if tenantErr == nil {
+			id = tenantID.Int64()
 		}
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return dependencies.DB, tenantID.Int64(), nil
+		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
+		if !hasTransaction {
+			if tenantErr != nil {
+				return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", tenantErr)
+			}
+			return dependencies.DB, id, nil
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
-			return tx, tenantID.Int64(), nil
+			return tx, id, nil
 		case *bun.Tx:
 			if tx != nil {
-				return tx, tenantID.Int64(), nil
+				return tx, id, nil
 			}
-			return dependencies.DB, tenantID.Int64(), nil
+			if tenantErr != nil {
+				return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", tenantErr)
+			}
+			return dependencies.DB, id, nil
 		default:
 			return nil, 0, fmt.Errorf("facilities postgres: unsupported transaction %T", transaction)
 		}

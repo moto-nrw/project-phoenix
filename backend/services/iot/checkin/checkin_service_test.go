@@ -261,7 +261,7 @@ func TestLoadCurrentVisitWithRoom_WithVisit(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "load-visit-room")
 	room := testpkg.CreateTestRoom(t, tc.db, "LoadVisitRoom")

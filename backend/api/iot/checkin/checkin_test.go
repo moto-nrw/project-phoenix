@@ -2321,7 +2321,7 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 		"REGRESSION: WC group must NOT have DeviceID — it would hijack GetDeviceCurrentSession")
 
 	// Verify GetDeviceCurrentSession still returns the REAL session, not WC
-	realSession, err := ctx.resource.ActiveService.GetDeviceCurrentSession(context.Background(), device.ID)
+	realSession, err := ctx.resource.ActiveService.GetDeviceCurrentSession(testpkg.Ctx(t), device.ID)
 	require.NoError(t, err, "GetDeviceCurrentSession should find the real session")
 	assert.Equal(t, sessionGroup.ID, realSession.ID,
 		"GetDeviceCurrentSession must return the room session (group %d), not the WC group (group %d)",

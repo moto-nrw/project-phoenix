@@ -45,10 +45,11 @@ func (s *Store) FindByID(ctx context.Context, id int64) (domain.Room, bool, doma
 	row := roomRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = roomSelect(db, &row).
-		Where(`"room".id = ?`, id).
-		Where(`"room".tenant_id = ?`, tenantID).
-		Scan(ctx)
+	query := roomSelect(db, &row).Where(`"room".id = ?`, id)
+	if tenantID != 0 {
+		query = query.Where(`"room".tenant_id = ?`, tenantID)
+	}
+	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Room{}, false, stats, nil
@@ -81,8 +82,10 @@ func (s *Store) listByIDs(ctx context.Context, ids []int64, lock string) ([]doma
 	started := time.Now()
 	query := roomSelect(db, &rows).
 		Where(`"room".id IN (?)`, bun.List(ids)).
-		Where(`"room".tenant_id = ?`, tenantID).
 		OrderExpr(`"room".name ASC, "room".id ASC`)
+	if tenantID != 0 {
+		query = query.Where(`"room".tenant_id = ?`, tenantID)
+	}
 	if lock != "" {
 		query = query.For(lock)
 	}
