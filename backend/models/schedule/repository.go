@@ -47,6 +47,7 @@ type StaffShiftRepository interface {
 	// #1843 sick cascade filters by sick_absence_id and stamps/clears that
 	// single column without whole-model writes.
 	List(ctx context.Context, filters map[string]any) ([]*StaffShift, error)
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*StaffShift, error)
 	UpdateColumns(ctx context.Context, shift *StaffShift, columns ...string) (int64, error)
 
 	// FindByDateRange returns all shifts with start <= date <= end for the
