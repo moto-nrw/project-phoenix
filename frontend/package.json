@@ -109,6 +109,12 @@
   },
   "knip": {
     "includeEntryExports": true,
+    "playwright": {
+      "entry": [
+        "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "scripts/perf/*.perf.ts"
+      ]
+    },
     "project": [
       "src/**/*.{js,jsx,ts,tsx}!",
       "src/**/*.css!",
