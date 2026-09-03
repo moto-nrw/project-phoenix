@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -275,4 +276,70 @@ func TestModuleKeepsTeachingAssignmentReadFailuresVisible(t *testing.T) {
 	_, groupErr := module.ListGroupAssignments(cancelled, schoolmembership.GroupAssignmentFilter{})
 	require.ErrorIs(t, groupErr, context.Canceled)
 	assert.Equal(t, "internal_error", schoolmembership.ErrorCode(groupErr))
+}
+
+func assertFlatTeachingAssignmentListBudget(t *testing.T, add func(int), list func() int) {
+	t.Helper()
+	add(3)
+	smallCount := list()
+	add(5)
+	largeCount := list()
+	assert.Equal(t, smallCount, largeCount, "query count must not grow with assignments")
+}
+
+// TestClassAssignmentListQueryBudget guards the list against per-row lookups.
+func TestClassAssignmentListQueryBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	counter := testpkg.CaptureQueries(t, db)
+	count := 0
+
+	add := func(n int) {
+		for range n {
+			staff := testpkg.CreateTestStaff(t, db, "Class budget", fmt.Sprintf("%d", count))
+			_, err := module.CreateClassAssignment(ctx, schoolmembership.CreateClassAssignment{StaffID: staff.ID, SchoolClass: fmt.Sprintf("%da", count+1)})
+			require.NoError(t, err)
+			count++
+		}
+	}
+	list := func() int {
+		counter.Reset()
+		assignments, err := module.ListClassAssignments(ctx, schoolmembership.ClassAssignmentFilter{})
+		require.NoError(t, err)
+		require.Len(t, assignments, count)
+		return counter.Total()
+	}
+	assertFlatTeachingAssignmentListBudget(t, add, list)
+	testpkg.AssertQueryBudget(t, "modules.schoolmembership.list_class_assignments", counter.Queries())
+}
+
+// TestGroupAssignmentListQueryBudget guards the list against per-row lookups.
+func TestGroupAssignmentListQueryBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	counter := testpkg.CaptureQueries(t, db)
+	count := 0
+
+	add := func(n int) {
+		for range n {
+			teacher := testpkg.CreateTestTeacher(t, db, "Group budget", fmt.Sprintf("%d", count))
+			group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Group budget %d", count))
+			_, err := module.CreateGroupAssignment(ctx, schoolmembership.CreateGroupAssignment{GroupID: group.ID, TeacherID: teacher.ID})
+			require.NoError(t, err)
+			count++
+		}
+	}
+	list := func() int {
+		counter.Reset()
+		assignments, err := module.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{})
+		require.NoError(t, err)
+		require.Len(t, assignments, count)
+		return counter.Total()
+	}
+	assertFlatTeachingAssignmentListBudget(t, add, list)
+	testpkg.AssertQueryBudget(t, "modules.schoolmembership.list_group_assignments", counter.Queries())
 }
