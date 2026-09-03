@@ -57,3 +57,7 @@ yarn-error.log*
 public/help/pdfs/
 # generated jscpd clone report (issue #1629 measurement artifact)
 jscpd-report/
+
+# Perf-Baseline-Artefakte (#2938): Traces, Rohmessungen, Session-State.
+# Die Zahlen leben in docs/perf/frontend-baseline-2026.md.
+/perf-results/
