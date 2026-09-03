@@ -2048,6 +2048,48 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/appointments",
+      "owner": "appointments",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/compose",
+      "owner": "appointments",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/adapters/postgres",
+      "owner": "appointments",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/application",
+      "owner": "appointments",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/domain",
+      "owner": "appointments",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/ports",
+      "owner": "appointments",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schoolcalendar",
       "owner": "school-calendar",
       "role": "public",
@@ -8029,6 +8071,175 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.port-domain",
+      "description": "Appointments ports express persistence operations using owner domain values.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "appointments.compose.application",
+      "description": "Appointments composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "application"
+    },
+    {
+      "id": "appointments.compose.domain",
+      "description": "Appointments composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "domain"
+    },
+    {
+      "id": "appointments.compose.orm-sql",
+      "description": "Appointments composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "appointments.compose.port",
+      "description": "Appointments composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "port"
+    },
+    {
+      "id": "appointments.compose.postgres",
+      "description": "Appointments composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "postgres"
+    },
+    {
+      "id": "appointments.compose.public",
+      "description": "Appointments composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.compose.tenant-runtime",
+      "description": "Appointments composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": ["production"],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.internal-test.orm-sql",
+      "description": "Appointments composition tests supply the concrete Bun test database.",
+      "scopes": ["internal_test"],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "appointments.internal-test.tenant-runtime",
+      "description": "Appointments composition tests verify rollback and tenant isolation through the shared tenant runtime.",
+      "scopes": ["internal_test"],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.integration-test.public",
+      "description": "Appointments integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.integration-test.support",
+      "description": "Appointments integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "root-composition.to.appointments-compose",
+      "description": "The production root constructs the Appointments module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.appointments-public",
+      "description": "The production root records stable Appointments outcomes and shares the facade.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.appointments-compose",
+      "description": "Legacy composition constructs Appointments for repository and test graphs.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.appointments-public",
+      "description": "Legacy composition shares and adapts the Appointments facade.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.application.appointments-public",
+      "description": "Calendar workflows call the Appointments facade instead of its tables.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "application",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.domain.appointments-public",
+      "description": "Legacy calendar transport types reuse Appointments values and validation.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "domain",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.behavior-test.appointments-public",
+      "description": "Calendar behavior tests decorate the Appointments capability at its public seam.",
+      "scopes": ["external_test"],
+      "source_owner": "school-calendar",
+      "source_role": "module-behavior-test",
+      "target_owner": "appointments",
       "target_role": "public"
     },
     {
