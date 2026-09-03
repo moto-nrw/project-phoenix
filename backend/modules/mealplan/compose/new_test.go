@@ -364,6 +364,9 @@ func TestDailyListIncludesChildWhenSicknessIsDeletedBeforeCutoff(t *testing.T) {
 	berlin, err := time.LoadLocation("Europe/Berlin")
 	require.NoError(t, err)
 	testDay := databaseNow.In(berlin).AddDate(0, 0, 1)
+	for testDay.Weekday() == time.Saturday || testDay.Weekday() == time.Sunday {
+		testDay = testDay.AddDate(0, 0, 1)
+	}
 	date := testDay.Format("2006-01-02")
 	moduleNow := time.Date(testDay.Year(), testDay.Month(), testDay.Day(), 8, 0, 0, 0, berlin)
 	module := buildModuleAt(t, db, true, nil, moduleNow)
