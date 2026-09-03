@@ -126,8 +126,8 @@ func TestAppointmentWhenText(t *testing.T) {
 		return timezone.NormalizeWallClock(time.Date(2026, 1, 1, h, m, 0, 0, time.UTC))
 	}
 	timed := &calModels.Appointment{
-		StartDate: timezone.NewDate(2026, 4, 2),
-		EndDate:   timezone.NewDate(2026, 4, 2),
+		StartDate: calModels.NewDate(2026, 4, 2),
+		EndDate:   calModels.NewDate(2026, 4, 2),
 		StartTime: clock(18, 0),
 		EndTime:   clock(19, 30),
 	}
@@ -136,22 +136,22 @@ func TestAppointmentWhenText(t *testing.T) {
 	// A multi-day timed appointment shows both dates so the times aren't read as
 	// a single-day range.
 	multiDay := &calModels.Appointment{
-		StartDate: timezone.NewDate(2026, 6, 3),
-		EndDate:   timezone.NewDate(2026, 6, 4),
+		StartDate: calModels.NewDate(2026, 6, 3),
+		EndDate:   calModels.NewDate(2026, 6, 4),
 		StartTime: clock(18, 0),
 		EndTime:   clock(9, 0),
 	}
 	assert.Equal(t, "03.06.2026, 18:00 Uhr – 04.06.2026, 09:00 Uhr", appointmentWhenText(multiDay))
 
 	assert.Equal(t, "02.04.2026 (ganztägig)", appointmentWhenText(&calModels.Appointment{
-		StartDate: timezone.NewDate(2026, 4, 2),
-		EndDate:   timezone.NewDate(2026, 4, 2),
+		StartDate: calModels.NewDate(2026, 4, 2),
+		EndDate:   calModels.NewDate(2026, 4, 2),
 		AllDay:    true,
 	}))
 
 	assert.Equal(t, "02.04.2026 – 04.04.2026 (ganztägig)", appointmentWhenText(&calModels.Appointment{
-		StartDate: timezone.NewDate(2026, 4, 2),
-		EndDate:   timezone.NewDate(2026, 4, 4),
+		StartDate: calModels.NewDate(2026, 4, 2),
+		EndDate:   calModels.NewDate(2026, 4, 4),
 		AllDay:    true,
 	}))
 }
