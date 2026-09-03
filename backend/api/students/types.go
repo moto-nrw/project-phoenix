@@ -9,11 +9,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	iotDataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // validateDepartureCompanionNote bounds the free-text "mit wem" companion note
@@ -303,7 +303,7 @@ type StudentRequest struct {
 	// Guardians created together with the student in one atomic transaction
 	// (guardian_profiles system). Optional and independent of the legacy
 	// scalar guardian_* fields above.
-	Guardians []guardiansAPI.GuardianWithRelationshipInput `json:"guardians,omitempty"`
+	Guardians []peopleModule.NewStudentGuardian `json:"guardians,omitempty"`
 
 	// Weekly recurring arrival/pickup schedules persisted together with the
 	// student in the same atomic transaction. Reuse the bulk-update item DTOs
@@ -439,7 +439,7 @@ type PrivacyConsentRequest struct {
 // rules are enforced at the model layer on insert (which rolls back the whole
 // transaction on failure); the relationship type has no default and is required
 // to link.
-func validateGuardianRelationships(guardians []guardiansAPI.GuardianWithRelationshipInput) error {
+func validateGuardianRelationships(guardians []peopleModule.NewStudentGuardian) error {
 	for i := range guardians {
 		if strings.TrimSpace(guardians[i].RelationshipType) == "" {
 			return errors.New("guardian relationship_type is required")

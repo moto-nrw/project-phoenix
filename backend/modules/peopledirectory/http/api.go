@@ -28,6 +28,8 @@ const (
 	FailureNotFound       FailureKind = "not_found"
 	FailureConflict       FailureKind = "conflict"
 	FailureInternal       FailureKind = "internal"
+	FailureUnauthorized   FailureKind = "unauthorized"
+	FailureForbidden      FailureKind = "forbidden"
 )
 
 type Pagination struct {
@@ -345,6 +347,10 @@ func statusOf(kind FailureKind) int {
 		return http.StatusNotFound
 	case FailureConflict:
 		return http.StatusConflict
+	case FailureUnauthorized:
+		return http.StatusUnauthorized
+	case FailureForbidden:
+		return http.StatusForbidden
 	default:
 		return http.StatusInternalServerError
 	}

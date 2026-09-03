@@ -1,7 +1,8 @@
 // Package peopledirectory is the public People Directory capability. It owns
-// users.persons and users.students: every read or write of a person or
-// student row by another owner goes through Query or Command instead of a
-// foreign SQL join.
+// users.persons, users.students, users.guardian_profiles,
+// users.guardian_phone_numbers and users.students_guardians: every read or
+// write of a person, student or guardian row by another owner goes through
+// Query or Command instead of a foreign SQL join.
 package peopledirectory
 
 import (
@@ -86,6 +87,7 @@ type ReleasedTag struct {
 
 type Query interface {
 	StudentQuery
+	GuardianQuery
 	// FindPerson returns one non-deleted person of the current tenant.
 	FindPerson(context.Context, int64) (Person, error)
 	// FindPersonForMutation locks the row for the caller's transaction.
@@ -111,6 +113,7 @@ type Query interface {
 
 type Command interface {
 	StudentCommand
+	GuardianCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
 	// DeletePerson soft-deletes the person (deleted_at), keeping the row.
@@ -135,6 +138,7 @@ type Capability interface {
 
 type engine interface {
 	studentEngine
+	guardianEngine
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)
 	Delete(context.Context, int64) error
@@ -155,7 +159,10 @@ type engine interface {
 	RestoreTag(context.Context, int64, string) (bool, error)
 }
 
-type Module struct{ engine engine }
+type Module struct {
+	engine    engine
+	guardians guardianProviderSlot
+}
 
 func NewModule(engine engine) *Module {
 	if engine == nil {
@@ -411,10 +418,17 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrPersonNotFound), errors.Is(err, ErrStudentNotFound):
+	case errors.Is(err, ErrPersonNotFound), errors.Is(err, ErrStudentNotFound),
+		errors.Is(err, ErrGuardianNotFound), errors.Is(err, ErrGuardianPhoneNotFound), errors.Is(err, ErrGuardianLinkNotFound):
 		return "not_found"
-	case errors.Is(err, ErrInvalidPerson), errors.Is(err, ErrInvalidStudent):
+	case errors.Is(err, ErrInvalidPerson), errors.Is(err, ErrInvalidStudent), errors.Is(err, ErrInvalidGuardian), errors.Is(err, ErrGuardianPaymentInvalid):
 		return "invalid"
+	case errors.Is(err, ErrGuardianStillLinked), errors.Is(err, ErrGuardianDeletePreviewChanged), errors.Is(err, ErrGuardianLinkConflict):
+		return "guardian_linked"
+	case errors.Is(err, ErrGuardianForceDeleteRequiresAdmin), errors.Is(err, ErrPayerRemovalRequiresFinancial):
+		return "forbidden"
+	case errors.Is(err, ErrGuardianProviderUnbound):
+		return "unbound"
 	case errors.Is(err, ErrTagConflict):
 		return "tag_conflict"
 	case errors.Is(err, ErrAccountConflict):

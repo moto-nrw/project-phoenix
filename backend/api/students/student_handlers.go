@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -23,6 +22,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -796,14 +796,14 @@ func (rs *Resource) resolveScheduleStaffID(r *http.Request, req *StudentRequest)
 
 // persistNewStudent writes the person, student, guardians, and weekly schedules
 // atomically. Runs inside the caller's tenant transaction.
-func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person, student *users.Student, guardians []userService.NewStudentGuardian, req *StudentRequest, staffID int64) error {
+func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person, student *users.Student, guardians []peopleModule.NewStudentGuardian, req *StudentRequest, staffID int64) error {
 	// Validate guardians BEFORE writing the student. This route runs inside
 	// TenantTxMiddleware, which only rolls back on 5xx; a guardian
 	// ValidationError renders 400, so the middleware would otherwise commit
 	// an already-created student. Validating first means a 400 commits an
 	// empty transaction — no orphaned student/person rows.
 	if len(guardians) > 0 {
-		if err := rs.GuardianService.ValidateNewGuardians(ctx, guardians); err != nil {
+		if err := rs.PeopleDirectory.ValidateNewGuardians(ctx, guardians); err != nil {
 			return err
 		}
 	}
@@ -824,7 +824,7 @@ func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person,
 	// transaction so the student and its guardians are persisted
 	// atomically — a guardian failure rolls back the whole student.
 	if len(guardians) > 0 {
-		if err := rs.GuardianService.AddGuardiansToStudent(ctx, student.ID, guardians); err != nil {
+		if err := rs.PeopleDirectory.AddGuardiansToStudent(ctx, student.ID, guardians); err != nil {
 			return err
 		}
 	}
@@ -897,7 +897,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Create person and student in tenant transaction
 	student := createStudentFromRequest(req, 0) // personID set after create
-	guardians := guardiansAPI.ToNewStudentGuardians(req.Guardians)
+	guardians := req.Guardians
 
 	staffID, err := rs.resolveScheduleStaffID(r, req)
 	if err != nil {
@@ -911,9 +911,8 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		// Bad guardian input (e.g. invalid email) is a client error: the
 		// transaction has already rolled back, so no partial data survives.
-		var validationErr *userService.ValidationError
-		if errors.As(err, &validationErr) {
-			renderError(w, r, common.ErrorInvalidRequest(validationErr))
+		if errors.Is(err, peopleModule.ErrInvalidGuardian) {
+			renderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServer(err))

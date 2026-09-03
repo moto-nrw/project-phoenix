@@ -17,12 +17,19 @@ import (
 // EnrollmentRequestRepository implements
 // parentModels.EnrollmentRequestRepository.
 type EnrollmentRequestRepository struct {
-	db *bun.DB
+	db        *bun.DB
+	guardians GuardianDirectory
 }
 
 // NewEnrollmentRequestRepository wires a fresh repository.
 func NewEnrollmentRequestRepository(db *bun.DB) parentModels.EnrollmentRequestRepository {
 	return &EnrollmentRequestRepository{db: db}
+}
+
+// BindGuardianDirectory installs the People Directory the account's guardian
+// links are read from (#2663).
+func (r *EnrollmentRequestRepository) BindGuardianDirectory(guardians GuardianDirectory) {
+	r.guardians = guardians
 }
 
 // ListByAccount returns every enrollment.requests row owned by the
@@ -83,23 +90,6 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		      AND LOWER(TRIM(req.guardian_email)) = LOWER(TRIM(acc.email))
 		    )
 		  )
-		  AND NOT EXISTS (
-		    SELECT 1
-		    FROM enrollment.request_children AS rc_created
-		    WHERE rc_created.request_id = req.id
-		      AND rc_created.created_student_id IS NOT NULL
-		      AND NOT EXISTS (
-		        SELECT 1
-		        FROM users.students_guardians AS sg
-		        JOIN users.guardian_profiles AS gp
-		          ON gp.id = sg.guardian_profile_id
-		         AND gp.tenant_id = sg.tenant_id
-		        WHERE sg.student_id = rc_created.created_student_id
-		          AND sg.tenant_id = req.tenant_id
-		          AND gp.account_id = ?
-		          AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-		      )
-		  )
 		ORDER BY req.submitted_at DESC, req.id DESC
 	`
 
@@ -108,8 +98,6 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		requestQuery,
 		accountID,
 		accountID,
-		accountID,
-		authorize.GuardianPermissionEnrollmentsView,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: list enrollment requests: %w", err)
 	}
@@ -123,13 +111,14 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 	}
 
 	type childRow struct {
-		RequestID    int64   `bun:"request_id"`
-		ChildID      int64   `bun:"child_id"`
-		FirstName    string  `bun:"first_name"`
-		LastName     string  `bun:"last_name"`
-		Status       string  `bun:"status"`
-		StatusReason *string `bun:"status_reason"`
-		SortOrder    int     `bun:"sort_order"`
+		RequestID        int64   `bun:"request_id"`
+		ChildID          int64   `bun:"child_id"`
+		FirstName        string  `bun:"first_name"`
+		LastName         string  `bun:"last_name"`
+		Status           string  `bun:"status"`
+		StatusReason     *string `bun:"status_reason"`
+		SortOrder        int     `bun:"sort_order"`
+		CreatedStudentID *int64  `bun:"created_student_id"`
 	}
 
 	var children []childRow
@@ -141,7 +130,8 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 			rc.last_name     AS last_name,
 			rc.status        AS status,
 			rc.status_reason AS status_reason,
-			rc.sort_order    AS sort_order
+			rc.sort_order    AS sort_order,
+			rc.created_student_id AS created_student_id
 		FROM enrollment.request_children AS rc
 		WHERE rc.request_id IN (?)
 		ORDER BY rc.request_id, rc.sort_order, rc.id
@@ -150,8 +140,32 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		return nil, fmt.Errorf("parent: list enrollment request children: %w", err)
 	}
 
+	// A request whose approved child became a student is only listed while
+	// the account still holds parent_portal.enrollments.view on EVERY such
+	// child at the request's school. The links belong to the People
+	// Directory (#2663) and are read inside the same admin transaction.
+	links, err := guardianLinksByAccount(ctx, r.guardians, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("parent: list enrollment requests: %w", err)
+	}
+	viewable := make(map[[2]int64]struct{}, len(links))
+	for _, link := range links {
+		if link.HasPermission(authorize.GuardianPermissionEnrollmentsView) {
+			viewable[[2]int64{link.TenantID, link.StudentID}] = struct{}{}
+		}
+	}
+	tenantByRequest := make(map[int64]int64, len(rows))
+	for _, rr := range rows {
+		tenantByRequest[rr.RequestID] = rr.TenantID
+	}
+	hidden := make(map[int64]struct{})
 	childrenByRequest := make(map[int64][]parentModels.EnrollmentRequestChildSummary, len(rows))
 	for _, c := range children {
+		if c.CreatedStudentID != nil {
+			if _, ok := viewable[[2]int64{tenantByRequest[c.RequestID], *c.CreatedStudentID}]; !ok {
+				hidden[c.RequestID] = struct{}{}
+			}
+		}
 		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], parentModels.EnrollmentRequestChildSummary{
 			ChildID:      c.ChildID,
 			FirstName:    c.FirstName,
@@ -163,6 +177,9 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 
 	out := make([]*parentModels.EnrollmentRequestSummary, 0, len(rows))
 	for _, rr := range rows {
+		if _, skip := hidden[rr.RequestID]; skip {
+			continue
+		}
 		out = append(out, &parentModels.EnrollmentRequestSummary{
 			RequestID:                rr.RequestID,
 			TenantID:                 rr.TenantID,
