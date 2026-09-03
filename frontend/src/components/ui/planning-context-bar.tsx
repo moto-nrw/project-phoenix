@@ -78,6 +78,13 @@ interface PlanningContextBarProps {
   /** Für Flächen, die nie eine Kontextzeile haben (Statistik, Zeiterfassung):
    *  lässt die reservierte zweite Zeile ganz weg. */
   readonly withoutContextRow?: boolean;
+  /** Lässt die Kontextzeile auch unter `sm` umbrechen statt waagerecht zu
+   *  scrollen. Für Flächen, deren Kontext aus wenigen Text-Chips besteht
+   *  (Betreuungsplan: Zeitraum, Bedarf, Lücken): eine scrollende Zeile
+   *  schneidet dort auf dem Telefon den Text ab, und die Scrollbar, die das
+   *  anzeigen soll, zeichnet kein Handy. Die Wochenleiste der Vertretung
+   *  bleibt bei der scrollenden Zeile, weil sie zum gewählten Tag scrollt. */
+  readonly contextRowWrap?: boolean;
   /** Setzt den `navigationSlot` ZWISCHEN die Pfeile, statt daneben. Für
    *  Flächen, deren Zeitraum frei wählbar ist (Statistik): der Chip, den man
    *  anklickt, und die Pfeile, die ihn verschieben, sind dann sichtbar EIN
@@ -100,6 +107,7 @@ export function PlanningContextBar({
   actions,
   children,
   withoutContextRow = false,
+  contextRowWrap = false,
   navigationInGroup = false,
   className,
 }: PlanningContextBarProps) {
@@ -239,7 +247,11 @@ export function PlanningContextBar({
             // `text-sm`, nicht `text-xs`: die Kontextzeile trägt Bedienelemente
             // (Wochenleiste, Zeitraum-Menü) und Zustände — kein Kleingedrucktes
             // (Typo-Boden, TENANT-PAGE-SPEC).
-            className={`planning-context-scrollbar flex scrollbar-thin items-center gap-x-3 gap-y-1 overflow-x-auto pb-1 text-sm text-gray-600 sm:flex-wrap sm:overflow-x-visible sm:pb-0 [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`}
+            className={
+              contextRowWrap
+                ? `flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600 ${CONTEXT_ROW_MIN_H}`
+                : `planning-context-scrollbar flex scrollbar-thin items-center gap-x-3 gap-y-1 overflow-x-auto pb-1 text-sm text-gray-600 sm:flex-wrap sm:overflow-x-visible sm:pb-0 [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`
+            }
           >
             {children}
           </div>

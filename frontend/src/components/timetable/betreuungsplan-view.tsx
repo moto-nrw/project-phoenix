@@ -1646,6 +1646,7 @@ function TimetablesContent() {
       }
       searchSlot={
         <PlanningContextBar
+          contextRowWrap
           dateLabel={periodLabel}
           onPrevious={view === "series" ? undefined : handlePrev}
           onNext={view === "series" ? undefined : handleNext}

@@ -143,6 +143,22 @@ describe("PlanningContextBar", () => {
     );
   });
 
+  it("bricht die Kontextzeile mit `contextRowWrap` um, statt zu scrollen", () => {
+    // Betreuungsplan: drei Text-Chips. Eine scrollende Zeile schneidet sie
+    // auf dem Telefon ab, ohne dass eine Scrollbar das anzeigt.
+    const { container } = render(
+      <PlanningContextBar contextRowWrap>
+        <span>Bedarf: keine Anmeldung verknüpft</span>
+        <span>Keine Lücken</span>
+      </PlanningContextBar>,
+    );
+
+    expect(container.querySelector(".overflow-x-auto")).toBeNull();
+    const contextRow = screen.getByText("Keine Lücken").parentElement;
+    expect(contextRow).toHaveClass("flex-wrap");
+    expect(contextRow).not.toHaveClass("[&>*]:shrink-0");
+  });
+
   it("nimmt den SegmentedControl-Umschalter der Planungsflächen auf", () => {
     // Die Ansicht ist eine Wertauswahl, kein Inhaltsreiter: alle drei
     // Planungsflächen nutzen dafür dasselbe Bauteil (ui/Tabs als
