@@ -243,7 +243,7 @@ export function CalendarPeriodsEditor({
         title="Angelegte Zeiträume"
         description="Halbjahre, Schuljahre, Ferien und Sonderzeiträume. Anmeldephasen und Betreuungsplan verweisen auf diese Zeiträume."
       >
-        {!loading && periods.length === 0 ? (
+        {!loading && !error && periods.length === 0 ? (
           <EmptyState
             icon={
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">

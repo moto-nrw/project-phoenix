@@ -119,7 +119,7 @@ function NormalFooter({
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
                 <SpinnerIcon />
-                Speichern...
+                Speichern…
               </span>
             ) : (
               "Speichern"
@@ -298,7 +298,7 @@ export function ActivityManagementModal({
         footer={footer}
       >
         {loading ? (
-          <ModalLoadingMessage message="Kategorien werden geladen..." />
+          <ModalLoadingMessage message="Kategorien werden geladen…" />
         ) : (
           <form
             id="activity-management-form"
@@ -338,7 +338,7 @@ export function ActivityManagementModal({
                   name="name"
                   value={form.name}
                   onChange={handleInputChange}
-                  placeholder="z.B. Hausaufgaben, Malen, Basteln..."
+                  placeholder="z. B. Hausaufgaben, Malen, Basteln…"
                   className="focus:ring-moto-blue block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
                   required
                   disabled={readOnly}
@@ -372,13 +372,13 @@ export function ActivityManagementModal({
                     setError(null);
                   }}
                   options={[
-                    { value: "", label: "Kategorie wählen..." },
+                    { value: "", label: "Kategorie wählen…" },
                     ...categories.map((category) => ({
                       value: category.id,
                       label: category.name,
                     })),
                   ]}
-                  placeholder="Kategorie wählen..."
+                  placeholder="Kategorie wählen…"
                   required
                   disabled={readOnly}
                 />

@@ -251,7 +251,7 @@ function ProfileContent() {
                 variant="primary"
                 size="md"
                 isLoading={isSaving}
-                loadingText="Speichern..."
+                loadingText="Speichern…"
                 onClick={() => void handleSaveProfile()}
               >
                 Speichern

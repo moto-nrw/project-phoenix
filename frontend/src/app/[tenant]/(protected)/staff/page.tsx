@@ -611,13 +611,14 @@ function StaffPageContent() {
       const byLocation = new Map<string, number>();
       let clockedIn = 0;
       for (const member of filteredStaff) {
-        const location = member.currentLocation ?? "Abwesend";
-        if (location === "Abwesend" || absenceLocations.has(location)) {
-          byLocation.set(location, (byLocation.get(location) ?? 0) + 1);
-        } else if (location === "Homeoffice") {
-          byLocation.set(location, (byLocation.get(location) ?? 0) + 1);
-        } else if (location !== "Zuhause") {
+        // Die Kopfkarte zählt die Bezeichnungen der Karten. Dadurch ist etwa
+        // „Zuhause“ wie auf der Karte „Anwesend“ und verschwindet nicht aus
+        // der Zusammenfassung.
+        const location = getStaffLocationStatus(member).label;
+        if (location === "Anwesend") {
           clockedIn += 1;
+        } else {
+          byLocation.set(location, (byLocation.get(location) ?? 0) + 1);
         }
       }
       const parts = [

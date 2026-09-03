@@ -111,6 +111,7 @@ function MessagesInboxContent() {
   // Hinweis steht darüber.
   const hasThreads = filteredThreads.length > 0;
   const loadFailed = Boolean(error);
+  const filtersActive = searchTerm.trim().length > 0 || onlyUnread;
   // Fehler- und Leerzustand ersetzen den Inhalt des Gerüsts. Solange das
   // Verfassen-Fenster offen ist, muss der Inhalt gerendert werden, denn dort
   // hängt das Fenster.
@@ -149,11 +150,15 @@ function MessagesInboxContent() {
         bodyReplaced && !loadFailed
           ? {
               icon: <MotoConceptIcon concept="parentConversations" size={48} />,
-              title: "Noch keine Nachrichten",
-              description: messagingEnabled
-                ? "Hier erscheinen Unterhaltungen mit den Eltern. Über „Neue Nachricht“ können Sie selbst eine beginnen."
-                : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule ausgeschaltet.",
-              action: composeButton,
+              title: filtersActive
+                ? "Keine passenden Nachrichten"
+                : "Noch keine Nachrichten",
+              description: filtersActive
+                ? "Ändern Sie die Suche oder den Filter."
+                : messagingEnabled
+                  ? "Hier erscheinen Unterhaltungen mit den Eltern. Über „Neue Nachricht“ können Sie selbst eine beginnen."
+                  : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule ausgeschaltet.",
+              action: filtersActive ? undefined : composeButton,
             }
           : null
       }

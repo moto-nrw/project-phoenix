@@ -237,6 +237,19 @@ describe("CalendarPeriodsEditor", () => {
     expect(mobileRange).not.toHaveClass("truncate");
   });
 
+  it("does not show the create empty state after a failed period load", async () => {
+    mockListPeriods.mockRejectedValue(new Error("Zeiträume nicht erreichbar"));
+
+    render(<CalendarPeriodsHost />);
+
+    expect(
+      await screen.findByText("Zeiträume nicht erreichbar"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Kalenderzeiträume"),
+    ).not.toBeInTheDocument();
+  });
+
   it("lets the period name wrap and keeps the action column narrow", async () => {
     mockListPeriods.mockResolvedValue([
       makePeriod({ name: "Sommerferienbetreuung" }),
