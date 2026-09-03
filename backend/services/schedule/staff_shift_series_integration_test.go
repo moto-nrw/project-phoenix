@@ -778,7 +778,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 		return err
 	})
 
-	queryCounter := &overviewQueryCounter{}
+	queryCounter := testpkg.NewQueryCounter()
 	countedDB := env.db.WithQueryHook(queryCounter)
 	repos := repositories.NewFactory(countedDB)
 	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
@@ -795,8 +795,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	// batched reads — below the 7 of a fully populated active week, because
 	// the assignment-dependent reads early-return. The point pinned here:
 	// series_id/detached ride the existing shift rows and add ZERO reads.
-	assert.Equal(t, int64(5), queryCounter.count.Load(),
-		"series-backed shifts must not add any overview read")
+	testpkg.AssertQueryBudget(t, "services.schedule.staff_overview.shift_only_week", queryCounter.Queries())
 
 	require.NotEmpty(t, overview.Shifts)
 	for _, shift := range overview.Shifts {

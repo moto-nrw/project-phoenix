@@ -6,18 +6,14 @@
 package auth_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -25,21 +21,6 @@ import (
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-type settingValuesQueryCounter struct {
-	count atomic.Int32
-}
-
-func (c *settingValuesQueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	query := strings.ToLower(event.Query)
-	if strings.HasPrefix(strings.TrimSpace(query), "select") &&
-		strings.Contains(query, "config.setting_values") {
-		c.count.Add(1)
-	}
-	return ctx
-}
-
-func (*settingValuesQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
 
 func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 	t.Parallel()
@@ -57,13 +38,12 @@ func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 	router.Use(apiCommon.RequestSettingsCacheMiddleware)
 	router.Mount("/auth", resource.Router())
 
-	counter := &settingValuesQueryCounter{}
-	db.AddQueryHook(counter)
+	counter := testpkg.CaptureQueries(t, db)
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
-	queries := counter.count.Load()
+	queries := counter.Selects("config.setting_values")
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -71,6 +51,6 @@ func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.Equal(t, 4, resp.Data.GradeLevelMax,
 		"grade cap must still resolve correctly through the batch + cache path")
-	assert.Equal(t, int32(1), queries,
-		"tenant resolve must load config.setting_values exactly once per request")
+	// Tenant resolve must load config.setting_values exactly once per request.
+	testpkg.AssertQueryBudget(t, "api.auth.tenant_resolve.setting_values", queries)
 }

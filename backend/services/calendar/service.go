@@ -1138,6 +1138,20 @@ func validateWindow(from, to timezone.Date) error {
 	return nil
 }
 
+// recipientsByAppointment loads the recipients of every listed appointment in
+// one read; the list views used to issue one read per appointment (#2940).
+func (s *service) recipientsByAppointment(ctx context.Context, appointmentIDs []int64) (map[int64][]*calModels.AppointmentRecipient, error) {
+	recipients, err := s.cfg.RecipientRepo.FindByAppointmentIDs(ctx, appointmentIDs)
+	if err != nil {
+		return nil, err
+	}
+	byAppointment := make(map[int64][]*calModels.AppointmentRecipient, len(appointmentIDs))
+	for _, recipient := range recipients {
+		byAppointment[recipient.AppointmentID] = append(byAppointment[recipient.AppointmentID], recipient)
+	}
+	return byAppointment, nil
+}
+
 func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*calModels.Appointment, staffID int64, from, to timezone.Date) ([]Event, error) {
 	ids := make([]int64, 0, len(appointments))
 	for _, appointment := range appointments {
@@ -1161,13 +1175,14 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 		overrideByAppointmentDate[fmt.Sprintf("%d:%s", override.AppointmentID, override.OccurrenceDate.String())] = override
 	}
 
+	recipientsByAppointment, err := s.recipientsByAppointment(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
 	events := make([]Event, 0, len(appointments))
 	for _, appointment := range appointments {
-		recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
-		if err != nil {
-			return nil, err
-		}
-		status, recipientID := staffRecipientStatus(recipients, staffID)
+		status, recipientID := staffRecipientStatus(recipientsByAppointment[appointment.ID], staffID)
 		recurrence := recurrenceByAppointment[appointment.ID]
 		if recurrence == nil {
 			if !dateRangesOverlap(appointment.StartDate, appointment.EndDate, from, to) {
@@ -1214,13 +1229,14 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 		overrideByAppointmentDate[fmt.Sprintf("%d:%s", override.AppointmentID, override.OccurrenceDate.String())] = override
 	}
 
+	recipientsByAppointment, err := s.recipientsByAppointment(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
 	events := make([]Event, 0, len(appointments))
 	for _, appointment := range appointments {
-		recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
-		if err != nil {
-			return nil, err
-		}
-		status, recipientID, err := s.guardianRecipientStatusForStudents(ctx, recipients, guardianProfileIDs, studentIDs)
+		status, recipientID, err := s.guardianRecipientStatusForStudents(ctx, recipientsByAppointment[appointment.ID], guardianProfileIDs, studentIDs)
 		if err != nil {
 			return nil, err
 		}
