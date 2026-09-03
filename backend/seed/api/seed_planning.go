@@ -74,7 +74,7 @@ func seedPlanningException(rt *Runtime) error {
 	if _, err := rt.Client.Delete(fmt.Sprintf("/api/timetable/instances/%d", recurringIDs[1])); err != nil {
 		return fmt.Errorf("delete one recurring planning instance: %w", err)
 	}
-	return seedPlanningStaffDeviation(rt, recurringIDs[2], staffIDs[0], staffIDs[3])
+	return seedPlanningStaffDeviation(rt, recurringIDs[2], staffIDs[1], staffIDs[3])
 }
 
 func recurringPlanningInstanceIDs(rt *Runtime) ([]int64, error) {

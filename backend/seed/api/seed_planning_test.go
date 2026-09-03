@@ -14,6 +14,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 
 	var paths []string
 	var templates []map[string]any
+	var staffDeviation map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
@@ -21,6 +22,9 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 			var template map[string]any
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&template))
 			templates = append(templates, template)
+		}
+		if r.URL.Path == "/api/timetable/instances/63/deviations" {
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&staffDeviation))
 		}
 		switch r.URL.Path {
 		case "/api/timetable/planning-tracks":
@@ -86,6 +90,10 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	assert.Equal(t, "learning_time", templates[1]["list_kind"])
 	assert.Equal(t, "klasse", templates[2]["target_group_type"])
 	assert.Equal(t, "activity", templates[2]["list_kind"])
+	require.NotNil(t, staffDeviation)
+	absentStaffID := staffDeviation["absences"].([]any)[0].(map[string]any)["staff_id"]
+	tuesdayStaffIDs := templates[0]["weekday_assignments"].([]any)[0].(map[string]any)["staff_ids"].([]any)
+	assert.Contains(t, tuesdayStaffIDs, absentStaffID)
 }
 
 func TestSeedPlanningDemoStepRequiresPlanningReferences(t *testing.T) {
