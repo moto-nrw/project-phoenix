@@ -14,7 +14,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -28,14 +27,15 @@ func setupClassListEntryTransitionTest(t *testing.T) (*educationService.GradeTra
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo:      newGradeTransitionRepository(t, db),
 		StudentRepo:         usersRepo.NewStudentRepository(db),
 		PersonRepo:          usersRepo.NewPersonRepository(db),
-		ClassTeacherRepo:    educationRepo.NewClassTeacherRepository(db),
-		StaffRepo:           repositories.NewFactory(db).Staff,
-		ClassListEntryRepo:  repositories.NewFactory(db).ClassListEntry,
+		ClassTeacherRepo:    repos.ClassTeacher,
+		StaffRepo:           repos.Staff,
+		ClassListEntryRepo:  repos.ClassListEntry,
 		ClassListEntryAudit: auditRepo.NewClassListEntryChangeRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		DB:                  db,
 	})

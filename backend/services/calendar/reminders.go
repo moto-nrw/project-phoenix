@@ -108,7 +108,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 	fromDate := timezone.DateFromTime(from)
 	toDate := timezone.DateFromTime(to)
 
-	appointments, err := s.cfg.AppointmentRepo.ListGuardianReminderCandidates(ctx, fromDate, toDate)
+	appointments, err := s.listGuardianReminderCandidates(ctx, toCalendarDate(fromDate), toCalendarDate(toDate))
 	if err != nil {
 		return 0, fmt.Errorf("calendar: list reminder candidates: %w", err)
 	}
@@ -128,7 +128,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 	for _, recurrence := range recurrences {
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
-	movedOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndStartDates(ctx, ids, dateRange(fromDate, toDate))
+	movedOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndStartDates(ctx, ids, toCalendarDates(dateRange(fromDate, toDate)))
 	if err != nil {
 		return 0, fmt.Errorf("calendar: load moved reminder overrides: %w", err)
 	}
@@ -162,7 +162,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 	for _, appointment := range appointments {
 		occurrences := reminderOccurrences(appointment, recurrenceByAppointment[appointment.ID], fromDate, toDate)
 		for _, override := range movedByAppointment[appointment.ID] {
-			occurrences = append(occurrences, override.OccurrenceDate)
+			occurrences = append(occurrences, toTimezoneDate(override.OccurrenceDate))
 		}
 		seenOccurrences := make(map[timezone.Date]struct{}, len(occurrences))
 		for _, occurrence := range occurrences {
@@ -175,7 +175,7 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 			// committed. Re-read it under a row lock before creating an outbox row.
 			// Lifecycle writes take the same lock; whichever transaction wins, the
 			// loser sees the committed state and cannot leave a stale reminder.
-			current, err := s.cfg.AppointmentRepo.LockReminderCandidate(ctx, appointment.ID)
+			current, err := s.findReminderCandidateForUpdate(ctx, appointment.ID)
 			if err != nil {
 				return queued, fmt.Errorf("calendar: lock reminder candidate: %w", err)
 			}
@@ -186,11 +186,11 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 			if err != nil {
 				return queued, fmt.Errorf("calendar: reload reminder recurrence: %w", err)
 			}
-			if (currentRule == nil && current.StartDate != occurrence) ||
+			if (currentRule == nil && current.StartDate != toCalendarDate(occurrence)) ||
 				(currentRule != nil && !occurrenceExists(current, currentRule, occurrence)) {
 				continue
 			}
-			currentOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{current.ID}, []timezone.Date{occurrence})
+			currentOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{current.ID}, []calModels.Date{toCalendarDate(occurrence)})
 			if err != nil {
 				return queued, fmt.Errorf("calendar: reload reminder override: %w", err)
 			}
@@ -228,10 +228,10 @@ func (s *service) reminderPushConfigured() bool {
 // window — the single date of a one-off, or the expanded recurrence.
 func reminderOccurrences(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, from, to timezone.Date) []timezone.Date {
 	if rule == nil {
-		if !dateRangesOverlap(appointment.StartDate, appointment.EndDate, from, to) {
+		if !dateRangesOverlap(toTimezoneDate(appointment.StartDate), toTimezoneDate(appointment.EndDate), from, to) {
 			return nil
 		}
-		return []timezone.Date{appointment.StartDate}
+		return []timezone.Date{toTimezoneDate(appointment.StartDate)}
 	}
 	return expandOccurrences(appointment, rule, from, to)
 }
@@ -252,8 +252,8 @@ func dateRange(from, to timezone.Date) []timezone.Date {
 func appointmentWithOverride(appointment *calModels.Appointment, occurrence timezone.Date, override *calModels.AppointmentOccurrenceOverride) *calModels.Appointment {
 	effective := *appointment
 	span := appointment.StartDate.DaysUntil(appointment.EndDate)
-	effective.StartDate = occurrence
-	effective.EndDate = occurrence.AddDays(span)
+	effective.StartDate = toCalendarDate(occurrence)
+	effective.EndDate = toCalendarDate(occurrence.AddDays(span))
 
 	if override == nil {
 		return &effective
@@ -540,7 +540,7 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 	var profileIDs []int64
 	var studentIDs []int64
 	err := tenant.WithTenantTx(ctx, s.cfg.DB, delivery.appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		current, err := s.cfg.AppointmentRepo.LockReminderCandidate(txCtx, delivery.appointment.ID)
+		current, err := s.findReminderCandidateForUpdate(txCtx, delivery.appointment.ID)
 		if err != nil {
 			return err
 		}
@@ -563,11 +563,11 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 		if err != nil {
 			return fmt.Errorf("reload reminder recurrence: %w", err)
 		}
-		if (rule == nil && current.StartDate != delivery.occurrence) ||
+		if (rule == nil && current.StartDate != toCalendarDate(delivery.occurrence)) ||
 			(rule != nil && !occurrenceExists(current, rule, delivery.occurrence)) {
 			return nil
 		}
-		overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(txCtx, []int64{current.ID}, []timezone.Date{delivery.occurrence})
+		overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(txCtx, []int64{current.ID}, []calModels.Date{toCalendarDate(delivery.occurrence)})
 		if err != nil {
 			return fmt.Errorf("reload reminder override: %w", err)
 		}
@@ -613,7 +613,7 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 			// The claim released above has to be replaced before the push goes out,
 			// or a re-scan of this window could send the reminder a second time.
 			if revised {
-				claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(txCtx, current.ID, current.Revision, delivery.occurrence, profileID)
+				claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(txCtx, current.ID, current.Revision, toCalendarDate(delivery.occurrence), profileID)
 				if err != nil {
 					return fmt.Errorf("claim revised reminder push delivery: %w", err)
 				}
@@ -654,14 +654,14 @@ func withoutReminderProfiles(claimed, reachable []int64) []int64 {
 // outbox row. The push is dispatched by an after-commit hook, so a durable
 // claim can never outlive a rolled-back reminder.
 func (s *service) claimReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) (bool, error) {
-	return s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, appointment.Revision, occurrence, profileID)
+	return s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, appointment.Revision, toCalendarDate(occurrence), profileID)
 }
 
 func (s *service) releaseReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) error {
 	cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 	cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 	return tenant.WithTenantTx(cleanupCtx, s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return s.cfg.RecipientRepo.ReleaseReminderPush(txCtx, appointment.ID, appointment.Revision, occurrence, profileID)
+		return s.cfg.RecipientRepo.ReleaseReminderPush(txCtx, appointment.ID, appointment.Revision, toCalendarDate(occurrence), profileID)
 	})
 }
 
@@ -671,7 +671,7 @@ func (s *service) releaseReminderPush(ctx context.Context, appointment *calModel
 // with whatever replaces it.
 func (s *service) releaseReminderPushProfiles(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileIDs []int64) error {
 	for _, profileID := range profileIDs {
-		if err := s.cfg.RecipientRepo.ReleaseReminderPush(ctx, appointment.ID, appointment.Revision, occurrence, profileID); err != nil {
+		if err := s.cfg.RecipientRepo.ReleaseReminderPush(ctx, appointment.ID, appointment.Revision, toCalendarDate(occurrence), profileID); err != nil {
 			return fmt.Errorf("calendar: release superseded reminder push delivery: %w", err)
 		}
 	}

@@ -654,11 +654,12 @@ func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testi
 	require.NoError(t, err)
 
 	movedDate := timezone.NewDate(2026, 2, 4)
+	movedModelDate := calModels.Date(movedDate)
 	require.NoError(t, repos.CalendarOccurrenceOverride.Create(ctx, &calModels.AppointmentOccurrenceOverride{
 		AppointmentID:  detail.Appointment.ID,
-		OccurrenceDate: seriesStart,
-		StartDate:      &movedDate,
-		EndDate:        &movedDate,
+		OccurrenceDate: calModels.Date(seriesStart),
+		StartDate:      &movedModelDate,
+		EndDate:        &movedModelDate,
 	}))
 
 	startsAt := berlinInstant(t, movedDate, 14, 0)

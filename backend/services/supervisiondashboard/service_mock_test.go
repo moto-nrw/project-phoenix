@@ -267,7 +267,7 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 	active := &mockActiveService{
 		listActiveGroupsFn: func() ([]*activeModels.Group, error) {
 			return []*activeModels.Group{
-				{Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activityModels.Group{Name: "Malen"}, Room: &facilitiesModels.Room{Model: base.Model{ID: 21}, Name: "Zebra", Color: &color}},
+				{Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activityModels.Group{Name: "Malen"}, Room: &facilitiesModels.Room{ID: 21, Name: "Zebra", Color: &color}},
 				{Model: base.Model{ID: 12}, RoomID: 22},
 				{Model: base.Model{ID: 13}, RoomID: 22},
 				{Model: base.Model{ID: 14}, RoomID: 23, EndTime: &endedAt},
@@ -275,14 +275,14 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 		},
 		getRoomsByIDsFn: func(ids []int64) ([]*facilitiesModels.Room, error) {
 			assert.Equal(t, []int64{22}, ids)
-			return []*facilitiesModels.Room{{Model: base.Model{ID: 22}, Name: "Adler"}}, nil
+			return []*facilitiesModels.Room{{ID: 22, Name: "Adler"}}, nil
 		},
 		getActiveGroupsByIDsFn: func(ids []int64) (map[int64]*activeModels.Group, error) {
 			assert.Equal(t, []int64{11, 12, 13}, ids)
 			return map[int64]*activeModels.Group{
-				11: {Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activityModels.Group{Name: "Malen"}, Room: &facilitiesModels.Room{Model: base.Model{ID: 21}, Name: "Zebra", Color: &color}},
-				12: {Model: base.Model{ID: 12}, RoomID: 22, Room: &facilitiesModels.Room{Model: base.Model{ID: 22}, Name: "Adler"}},
-				13: {Model: base.Model{ID: 13}, RoomID: 22, Room: &facilitiesModels.Room{Model: base.Model{ID: 22}, Name: "Adler"}},
+				11: {Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activityModels.Group{Name: "Malen"}, Room: &facilitiesModels.Room{ID: 21, Name: "Zebra", Color: &color}},
+				12: {Model: base.Model{ID: 12}, RoomID: 22, Room: &facilitiesModels.Room{ID: 22, Name: "Adler"}},
+				13: {Model: base.Model{ID: 13}, RoomID: 22, Room: &facilitiesModels.Room{ID: 22, Name: "Adler"}},
 			}, nil
 		},
 		getStaffSupervisionsFn: func(staffID int64) ([]*activeModels.GroupSupervisor, error) {
@@ -371,7 +371,7 @@ func TestLoadStaticSectionsBranches(t *testing.T) {
 
 	active := &mockActiveService{getUnclaimedActiveGroupsFn: func() ([]*activeModels.Group, error) {
 		return []*activeModels.Group{
-			{Model: base.Model{ID: 11}, Room: &facilitiesModels.Room{Model: base.Model{ID: 21}, Name: "Adler"}},
+			{Model: base.Model{ID: 11}, Room: &facilitiesModels.Room{ID: 21, Name: "Adler"}},
 			{Model: base.Model{ID: 12}},
 		}, nil
 	}}
@@ -384,7 +384,7 @@ func TestLoadStaticSectionsBranches(t *testing.T) {
 	education := &mockEducationService{getGroupsWithRoomsByIDsFn: func(ids []int64) (map[int64]*educationModels.Group, error) {
 		assert.Equal(t, []int64{41}, ids)
 		return map[int64]*educationModels.Group{
-			41: {Model: base.Model{ID: 41}, Room: &facilitiesModels.Room{Model: base.Model{ID: 31}, Name: "Igel"}},
+			41: {Model: base.Model{ID: 41}, Room: &facilitiesModels.Room{ID: 31, Name: "Igel"}},
 			42: nil,
 		}, nil
 	}}

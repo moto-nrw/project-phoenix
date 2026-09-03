@@ -26,11 +26,14 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -427,8 +430,10 @@ func NewFactoryWithModules(
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
+	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
+	appointmentCapability appointments.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -438,10 +443,11 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || membership == nil || calendar == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, school membership, school calendar, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || appointmentCapability == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, appointments, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, membership, calendar, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	repos.BindAppointments(appointmentCapability)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -452,6 +458,7 @@ func newFactory(
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
+	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
 	mealPlan parent.MealPlan,
@@ -472,6 +479,7 @@ func newFactory(
 	repos.BindSchoolCalendar(calendar)
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
+	repos.BindFacilities(rooms)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
 	settingsRuntime := newSettingsRuntime(db, nil).WithSchoolMembership(membership)
 	repos.SetConfigRuntime(settingsRuntime)
@@ -830,7 +838,7 @@ func newFactory(
 
 	// Public holidays per Bundesland (#1418 3a): computed from the
 	// operations.federal_state setting, zero the Soll of their day.
-	holidayService := schedule.NewHolidayService(settingsService, logger.With("service", "holidays"))
+	holidayService := schedule.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: repos.SchoolCalendar()}, logger.With("service", "holidays"))
 	// Tenant closing days (#1418 3b) share the Soll=0 semantics of public
 	// holidays. The Soll consumers get the UNION of both via the composite
 	// reader; Factory.Holidays stays the plain holiday service so the
@@ -1170,27 +1178,39 @@ func newFactory(
 
 	// Initialize facilities service
 	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
-		RoomRepo:        repos.Room,
-		ActiveGroupRepo: repos.ActiveGroup,
-		PersonQuery:     newFacilitiesPersonQuery(persons),
-		LockTemplateRecurrence: func(ctx context.Context) error {
-			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		Rooms:     rooms,
+		Occupancy: facilitiesLegacy.OccupancyProjection(repos.ActiveGroup, repos.ActivityGroup, membership, persons),
+		History:   facilitiesLegacy.HistoryProjection(repos.ActiveGroup),
+		ValidateDeletion: func(ctx context.Context, roomID int64) error {
+			activeGroups, err := repos.ActiveGroup.FindActiveByRoomID(ctx, roomID)
+			if err != nil {
+				return err
+			}
+			if len(activeGroups) > 0 {
+				return facilitiesModule.ErrRoomInUse
+			}
+			if err := careOfferingResourceValidator.ValidateRoomDeletion(ctx, roomID); err != nil {
+				if errors.Is(err, enrollment.ErrCareOfferingInvalid) {
+					return facilitiesModule.ErrRoomRequiredByOffering
+				}
+				return err
+			}
+			return nil
 		},
-		ValidateCareOfferingRoomDeletion: careOfferingResourceValidator.ValidateRoomDeletion,
 	})
 
 	// Initialize Schulhof service (depends on facilities, activities, and active services)
 	schulhofService := facilities.NewSchulhofService(
 		facilitiesService,
-		activitiesService,
-		activeService,
+		facilitiesLegacy.ActivityCatalog(activitiesService),
+		facilitiesLegacy.OpenGroupCatalog(activeService),
 		facilitiesLogger,
 	)
 
 	// Initialize WC service (depends on facilities and activities services)
 	wcService := facilities.NewWCService(
 		facilitiesService,
-		activitiesService,
+		facilitiesLegacy.ActivityCatalog(activitiesService),
 		facilitiesLogger,
 	)
 
@@ -1321,7 +1341,7 @@ func newFactory(
 	displayService := display.NewService(display.Dependencies{
 		DisplayRepo:       repos.Display,
 		SchoolRepo:        repos.School,
-		Facilities:        facilitiesService,
+		Facilities:        rooms,
 		ActiveGroupRepo:   repos.ActiveGroup,
 		VisitRepo:         repos.ActiveVisit,
 		ActivityGroupRepo: repos.ActivityGroup,
@@ -2581,11 +2601,10 @@ func newFactory(
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
-		AppointmentRepo:        repos.CalendarAppointment,
+		Appointments:           repos.Appointments(),
 		RecurrenceRepo:         repos.CalendarRecurrenceRule,
 		RecipientRepo:          repos.CalendarAppointmentRecipient,
 		RecipientStudentRepo:   repos.CalendarAppointmentRecipientChild,
-		TargetRepo:             repos.CalendarAppointmentTarget,
 		OverrideRepo:           repos.CalendarOccurrenceOverride,
 		StaffRepo:              repos.Staff,
 		StudentRepo:            repos.Student,
@@ -2600,6 +2619,7 @@ func newFactory(
 		ShiftTypeRepo:          repos.ShiftType,
 		UserContext:            userContextService,
 		DB:                     db,
+		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: repos.SchoolCalendar()},
 		Outbox:                 emailOutboxService,
 		PushOutbox:             durablePushAdapter{module: deliveryRuntime.Module},
 		SchoolRepo:             repos.School,
@@ -3134,7 +3154,7 @@ func newFactory(
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
-	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
+	facilitiesLegacy.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
 	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
 	tenantSettings := config.NewTenantOperations(
 		settingsService,

@@ -147,8 +147,8 @@ func TestAutoStart_RunForTenant_StartsSchulhofLikeAnyRoom(t *testing.T) {
 		InstanceStaffRepo: &autoStartStaffRepo{counts: map[int64]int{311: 1, 312: 1}},
 		InstanceService:   starter,
 		RoomRepo: &autoStartRoomRepo{rooms: map[int64]*facilitiesModel.Room{
-			401: {Model: base.Model{ID: 401}, Name: constants.SchulhofRoomName},
-			402: {Model: base.Model{ID: 402}, Name: "Lernraum"},
+			401: {ID: 401, Name: constants.SchulhofRoomName},
+			402: {ID: 402, Name: "Lernraum"},
 		}},
 		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) []InstanceConflictWarning {
 			conflictChecks = append(conflictChecks, inst.ID)
@@ -200,7 +200,7 @@ func (r *autoStartRoomRepo) FindByIDs(_ context.Context, ids []int64) ([]*facili
 			rooms = append(rooms, room)
 			continue
 		}
-		rooms = append(rooms, &facilitiesModel.Room{Model: base.Model{ID: id}, Name: "Lernraum"})
+		rooms = append(rooms, &facilitiesModel.Room{ID: id, Name: "Lernraum"})
 	}
 	return rooms, nil
 }

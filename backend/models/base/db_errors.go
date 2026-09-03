@@ -127,5 +127,9 @@ func IsConstraintViolation(err error) bool {
 // IsNoRows reports whether err wraps the persistence-neutral repository
 // not-found sentinel.
 func IsNoRows(err error) bool {
-	return errors.Is(err, ErrNotFound)
+	if errors.Is(err, ErrNotFound) {
+		return true
+	}
+	var marker interface{ RepositoryNotFound() }
+	return errors.As(err, &marker)
 }

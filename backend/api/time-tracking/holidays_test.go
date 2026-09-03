@@ -10,16 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 type mockHolidayService struct {
-	list []holidays.Holiday
+	list []scheduleSvc.Holiday
 	err  error
 }
 
-func (m *mockHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]holidays.Holiday, error) {
+func (m *mockHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]scheduleSvc.Holiday, error) {
 	return m.list, m.err
 }
 
@@ -30,7 +30,7 @@ func (m *mockHolidayService) HolidayDates(_ context.Context, _, _ timezone.Date)
 func TestGetHolidays(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{HolidayService: &mockHolidayService{list: []holidays.Holiday{
+	rs := &Resource{HolidayService: &mockHolidayService{list: []scheduleSvc.Holiday{
 		{Date: timezone.NewDate(2026, 5, 1), Name: "Tag der Arbeit"},
 	}}}
 

@@ -5,17 +5,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 )
 
 const (
-	DeliveryModeRSVPRequired  = "rsvp_required"
-	DeliveryModeInformational = "informational"
+	DeliveryModeRSVPRequired  = appointments.DeliveryModeRSVPRequired
+	DeliveryModeInformational = appointments.DeliveryModeInformational
 
-	OverviewVisibilityOrganizer = "organizer"
-	OverviewVisibilityStaff     = "staff"
-	OverviewVisibilityAll       = "all"
+	OverviewVisibilityOrganizer = appointments.OverviewVisibilityOrganizer
+	OverviewVisibilityStaff     = appointments.OverviewVisibilityStaff
+	OverviewVisibilityAll       = appointments.OverviewVisibilityAll
 
 	RecipientTypeStaff           = "staff"
 	RecipientTypeGuardianProfile = "guardian_profile"
@@ -29,13 +28,13 @@ const (
 	EventSourceTimetable   = "timetable"
 	EventSourceShift       = "shift"
 
-	TargetTypeStaff            = "staff"
-	TargetTypeGuardianProfile  = "guardian_profile"
-	TargetTypeAllStaff         = "all_staff"
-	TargetTypeAllSchoolParents = "all_school_parents"
-	TargetTypeParentsByClass   = "parents_by_class"
-	TargetTypeParentsByGroup   = "parents_by_group"
-	TargetTypeParentsByStudent = "parents_by_student"
+	TargetTypeStaff            = appointments.TargetTypeStaff
+	TargetTypeGuardianProfile  = appointments.TargetTypeGuardianProfile
+	TargetTypeAllStaff         = appointments.TargetTypeAllStaff
+	TargetTypeAllSchoolParents = appointments.TargetTypeAllSchoolParents
+	TargetTypeParentsByClass   = appointments.TargetTypeParentsByClass
+	TargetTypeParentsByGroup   = appointments.TargetTypeParentsByGroup
+	TargetTypeParentsByStudent = appointments.TargetTypeParentsByStudent
 
 	RecurrenceFrequencyDaily   = "daily"
 	RecurrenceFrequencyWeekly  = "weekly"
@@ -63,22 +62,25 @@ var validRecurrenceWeekdays = map[string]bool{
 	"sunday":    true,
 }
 
+// Appointment is the legacy transport shape. Persistence and lifecycle rules
+// are owned by modules/appointments; this type remains while the calendar HTTP
+// surface is migrated without changing its JSON contract.
 type Appointment struct {
-	base.Model `bun:"schema:calendar,table:appointments"`
-	base.TenantModel
+	Model `bun:"schema:calendar,table:appointments"`
+	TenantModel
 
-	OrganizerStaffID   int64         `bun:"organizer_staff_id,notnull" json:"organizer_staff_id"`
-	Title              string        `bun:"title,notnull" json:"title"`
-	Description        *string       `bun:"description" json:"description,omitempty"`
-	Location           *string       `bun:"location" json:"location,omitempty"`
-	StartDate          timezone.Date `bun:"start_date,notnull" json:"start_date"`
-	EndDate            timezone.Date `bun:"end_date,notnull" json:"end_date"`
-	StartTime          time.Time     `bun:"start_time,notnull" json:"start_time"`
-	EndTime            time.Time     `bun:"end_time,notnull" json:"end_time"`
-	AllDay             bool          `bun:"all_day,notnull,default:false" json:"all_day"`
-	DeliveryMode       string        `bun:"delivery_mode,notnull" json:"delivery_mode"`
-	OverviewVisibility string        `bun:"overview_visibility,notnull,default:'organizer'" json:"overview_visibility"`
-	CancelledAt        *time.Time    `bun:"cancelled_at" json:"cancelled_at,omitempty"`
+	OrganizerStaffID   int64      `bun:"organizer_staff_id,notnull" json:"organizer_staff_id"`
+	Title              string     `bun:"title,notnull" json:"title"`
+	Description        *string    `bun:"description" json:"description,omitempty"`
+	Location           *string    `bun:"location" json:"location,omitempty"`
+	StartDate          Date       `bun:"start_date,notnull" json:"start_date"`
+	EndDate            Date       `bun:"end_date,notnull" json:"end_date"`
+	StartTime          time.Time  `bun:"start_time,notnull" json:"start_time"`
+	EndTime            time.Time  `bun:"end_time,notnull" json:"end_time"`
+	AllDay             bool       `bun:"all_day,notnull,default:false" json:"all_day"`
+	DeliveryMode       string     `bun:"delivery_mode,notnull" json:"delivery_mode"`
+	OverviewVisibility string     `bun:"overview_visibility,notnull,default:'organizer'" json:"overview_visibility"`
+	CancelledAt        *time.Time `bun:"cancelled_at" json:"cancelled_at,omitempty"`
 	// DeletedAt marks a feed-visible appointment that the organizer deleted. It is
 	// distinct from CancelledAt (the "Absagen" action, which stays visible in
 	// interactive calendars): a deleted appointment is hidden from every
@@ -98,58 +100,41 @@ type Appointment struct {
 	Revision int `bun:"revision,notnull,default:0" json:"revision"`
 }
 
-// ErrAppointmentLifecycleConflict is returned by the repository when a content
-// update matches zero rows because the appointment was cancelled or deleted by a
-// concurrent request between load and write. The service maps it to a conflict.
-var ErrAppointmentLifecycleConflict = errors.New("appointment changed by a concurrent lifecycle transition")
+// ErrAppointmentLifecycleConflict is returned by the Appointments capability
+// when a content update matches zero rows because the appointment was cancelled
+// or deleted by a concurrent request between load and write.
+var ErrAppointmentLifecycleConflict = appointments.ErrAppointmentLifecycleConflict
 
 func (a *Appointment) Validate() error {
-	if a.OrganizerStaffID <= 0 {
-		return errors.New("organizer_staff_id is required")
+	if a == nil {
+		return errors.New("appointment cannot be nil")
 	}
-	a.Title = strings.TrimSpace(a.Title)
-	if a.Title == "" {
-		return errors.New("title is required")
+	value := &appointments.Appointment{
+		OrganizerStaffID: a.OrganizerStaffID, Title: a.Title, Description: a.Description,
+		Location: a.Location, StartDate: a.StartDate, EndDate: a.EndDate,
+		StartTime: a.StartTime, EndTime: a.EndTime, AllDay: a.AllDay,
+		DeliveryMode: a.DeliveryMode, OverviewVisibility: a.OverviewVisibility,
+		NotifyGuardians: a.NotifyGuardians,
 	}
-	if a.StartDate.IsZero() {
-		return errors.New("start_date is required")
+	if err := value.Validate(); err != nil {
+		return err
 	}
-	if a.EndDate.IsZero() {
-		return errors.New("end_date is required")
-	}
-	if a.EndDate.Before(a.StartDate) {
-		return errors.New("end_date must be on or after start_date")
-	}
-	if !a.AllDay && !timezone.NormalizeWallClock(a.EndTime).After(timezone.NormalizeWallClock(a.StartTime)) && a.StartDate == a.EndDate {
-		return errors.New("end_time must be after start_time on same-day appointments")
-	}
-	switch a.DeliveryMode {
-	case DeliveryModeRSVPRequired, DeliveryModeInformational:
-	default:
-		return errors.New("delivery_mode must be rsvp_required or informational")
-	}
-	if a.OverviewVisibility == "" {
-		a.OverviewVisibility = OverviewVisibilityOrganizer
-	}
-	switch a.OverviewVisibility {
-	case OverviewVisibilityOrganizer, OverviewVisibilityStaff, OverviewVisibilityAll:
-		return nil
-	default:
-		return errors.New("overview_visibility must be organizer, staff, or all")
-	}
+	a.Title = value.Title
+	a.OverviewVisibility = value.OverviewVisibility
+	return nil
 }
 
 type RecurrenceRule struct {
-	base.Model `bun:"schema:calendar,table:recurrence_rules"`
-	base.TenantModel
+	Model `bun:"schema:calendar,table:recurrence_rules"`
+	TenantModel
 
-	AppointmentID   int64          `bun:"appointment_id,notnull" json:"appointment_id"`
-	Frequency       string         `bun:"frequency,notnull" json:"frequency"`
-	IntervalCount   int            `bun:"interval_count,notnull,default:1" json:"interval_count"`
-	Weekdays        []string       `bun:"weekdays,array" json:"weekdays,omitempty"`
-	MonthDays       []int          `bun:"month_days,array" json:"month_days,omitempty"`
-	EndsOn          *timezone.Date `bun:"ends_on" json:"ends_on,omitempty"`
-	OccurrenceCount *int           `bun:"occurrence_count" json:"occurrence_count,omitempty"`
+	AppointmentID   int64    `bun:"appointment_id,notnull" json:"appointment_id"`
+	Frequency       string   `bun:"frequency,notnull" json:"frequency"`
+	IntervalCount   int      `bun:"interval_count,notnull,default:1" json:"interval_count"`
+	Weekdays        []string `bun:"weekdays,array" json:"weekdays,omitempty"`
+	MonthDays       []int    `bun:"month_days,array" json:"month_days,omitempty"`
+	EndsOn          *Date    `bun:"ends_on" json:"ends_on,omitempty"`
+	OccurrenceCount *int     `bun:"occurrence_count" json:"occurrence_count,omitempty"`
 }
 
 func (r *RecurrenceRule) Validate() error {
@@ -214,8 +199,8 @@ func (r *RecurrenceRule) Validate() error {
 }
 
 type AppointmentRecipient struct {
-	base.Model `bun:"schema:calendar,table:appointment_recipients"`
-	base.TenantModel
+	Model `bun:"schema:calendar,table:appointment_recipients"`
+	TenantModel
 
 	AppointmentID     int64      `bun:"appointment_id,notnull" json:"appointment_id"`
 	RecipientType     string     `bun:"recipient_type,notnull" json:"recipient_type"`
@@ -250,16 +235,16 @@ func (r *AppointmentRecipient) Validate() error {
 }
 
 type AppointmentRecipientStudent struct {
-	base.Model `bun:"schema:calendar,table:appointment_recipient_students"`
-	base.TenantModel
+	Model `bun:"schema:calendar,table:appointment_recipient_students"`
+	TenantModel
 
 	RecipientID int64 `bun:"recipient_id,notnull" json:"recipient_id"`
 	StudentID   int64 `bun:"student_id,notnull" json:"student_id"`
 }
 
 type AppointmentTarget struct {
-	base.Model `bun:"schema:calendar,table:appointment_targets"`
-	base.TenantModel
+	Model `bun:"schema:calendar,table:appointment_targets"`
+	TenantModel
 
 	AppointmentID int64   `bun:"appointment_id,notnull" json:"appointment_id"`
 	TargetType    string  `bun:"target_type,notnull" json:"target_type"`
@@ -268,18 +253,18 @@ type AppointmentTarget struct {
 }
 
 type AppointmentOccurrenceOverride struct {
-	base.Model `bun:"schema:calendar,table:appointment_occurrence_overrides"`
-	base.TenantModel
+	Model `bun:"schema:calendar,table:appointment_occurrence_overrides"`
+	TenantModel
 
-	AppointmentID  int64          `bun:"appointment_id,notnull" json:"appointment_id"`
-	OccurrenceDate timezone.Date  `bun:"occurrence_date,notnull" json:"occurrence_date"`
-	Cancelled      bool           `bun:"cancelled,notnull,default:false" json:"cancelled"`
-	Title          *string        `bun:"title" json:"title,omitempty"`
-	Description    *string        `bun:"description" json:"description,omitempty"`
-	Location       *string        `bun:"location" json:"location,omitempty"`
-	StartDate      *timezone.Date `bun:"start_date" json:"start_date,omitempty"`
-	EndDate        *timezone.Date `bun:"end_date" json:"end_date,omitempty"`
-	StartTime      *time.Time     `bun:"start_time" json:"start_time,omitempty"`
-	EndTime        *time.Time     `bun:"end_time" json:"end_time,omitempty"`
-	AllDay         *bool          `bun:"all_day" json:"all_day,omitempty"`
+	AppointmentID  int64      `bun:"appointment_id,notnull" json:"appointment_id"`
+	OccurrenceDate Date       `bun:"occurrence_date,notnull" json:"occurrence_date"`
+	Cancelled      bool       `bun:"cancelled,notnull,default:false" json:"cancelled"`
+	Title          *string    `bun:"title" json:"title,omitempty"`
+	Description    *string    `bun:"description" json:"description,omitempty"`
+	Location       *string    `bun:"location" json:"location,omitempty"`
+	StartDate      *Date      `bun:"start_date" json:"start_date,omitempty"`
+	EndDate        *Date      `bun:"end_date" json:"end_date,omitempty"`
+	StartTime      *time.Time `bun:"start_time" json:"start_time,omitempty"`
+	EndTime        *time.Time `bun:"end_time" json:"end_time,omitempty"`
+	AllDay         *bool      `bun:"all_day" json:"all_day,omitempty"`
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -22,18 +23,18 @@ var errReminderStore = errors.New("reminder store unavailable")
 // scan reaches the step under test with everything before it working.
 
 type failingCandidateScan struct {
-	calModels.AppointmentRepository
+	appointments.Capability
 }
 
-func (failingCandidateScan) ListGuardianReminderCandidates(context.Context, timezone.Date, timezone.Date) ([]*calModels.Appointment, error) {
+func (failingCandidateScan) ListGuardianReminderCandidates(context.Context, appointments.Date, appointments.Date) ([]*appointments.Appointment, error) {
 	return nil, errReminderStore
 }
 
 type failingCandidateLock struct {
-	calModels.AppointmentRepository
+	appointments.Capability
 }
 
-func (failingCandidateLock) LockReminderCandidate(context.Context, int64) (*calModels.Appointment, error) {
+func (failingCandidateLock) FindReminderCandidateForUpdate(context.Context, int64) (*appointments.Appointment, error) {
 	return nil, errReminderStore
 }
 
@@ -57,7 +58,7 @@ type failingMovedOverrides struct {
 	calModels.AppointmentOccurrenceOverrideRepository
 }
 
-func (failingMovedOverrides) FindByAppointmentIDsAndStartDates(context.Context, []int64, []timezone.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
+func (failingMovedOverrides) FindByAppointmentIDsAndStartDates(context.Context, []int64, []calModels.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
 	return nil, errReminderStore
 }
 
@@ -65,7 +66,7 @@ type failingOccurrenceOverrides struct {
 	calModels.AppointmentOccurrenceOverrideRepository
 }
 
-func (failingOccurrenceOverrides) FindByAppointmentIDsAndOccurrenceDates(context.Context, []int64, []timezone.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
+func (failingOccurrenceOverrides) FindByAppointmentIDsAndOccurrenceDates(context.Context, []int64, []calModels.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
 	return nil, errReminderStore
 }
 
@@ -112,7 +113,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 
 	cases := map[string]func(cfg *calendarSvc.Config){
 		"the candidate scan": func(cfg *calendarSvc.Config) {
-			cfg.AppointmentRepo = failingCandidateScan{cfg.AppointmentRepo}
+			cfg.Appointments = failingCandidateScan{cfg.Appointments}
 		},
 		"loading the recurrence rules": func(cfg *calendarSvc.Config) {
 			cfg.RecurrenceRepo = failingRecurrenceList{cfg.RecurrenceRepo}
@@ -121,7 +122,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 			cfg.OverrideRepo = failingMovedOverrides{cfg.OverrideRepo}
 		},
 		"re-locking the appointment": func(cfg *calendarSvc.Config) {
-			cfg.AppointmentRepo = failingCandidateLock{cfg.AppointmentRepo}
+			cfg.Appointments = failingCandidateLock{cfg.Appointments}
 		},
 		"re-reading the recurrence rule": func(cfg *calendarSvc.Config) {
 			cfg.RecurrenceRepo = failingRecurrenceReload{cfg.RecurrenceRepo}

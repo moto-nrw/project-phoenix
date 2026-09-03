@@ -14,7 +14,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
@@ -170,7 +169,7 @@ func TestAssignmentService_PropagatesGroupError(t *testing.T) {
 	svc := assignmentServiceFixture(
 		&asInstanceStaffRepo{rows: []*scheduleModels.InstanceStaff{instanceStaffRow(1, 7)}},
 		&asInstanceRepo{instances: []*scheduleModels.ActivityInstance{inst}},
-		&asRoomRepo{rooms: []*facilitiesModels.Room{{Model: modelBase.Model{ID: 100}, Name: "Raum A"}}},
+		&asRoomRepo{rooms: []*facilitiesModels.Room{{ID: 100, Name: "Raum A"}}},
 		&asGroupRepo{err: errors.New("group read failed")},
 	)
 	date := timezone.NewDate(2026, time.March, 10)
@@ -227,8 +226,8 @@ func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
 		&asInstanceStaffRepo{rows: []*scheduleModels.InstanceStaff{rowA, rowB, rowC, rowMissing}},
 		&asInstanceRepo{instances: []*scheduleModels.ActivityInstance{instA, instB, instC}},
 		&asRoomRepo{rooms: []*facilitiesModels.Room{
-			{Model: modelBase.Model{ID: 100}, Name: "Raum A"},
-			{Model: modelBase.Model{ID: 200}, Name: "Raum B"},
+			{ID: 100, Name: "Raum A"},
+			{ID: 200, Name: "Raum B"},
 		}},
 		&asGroupRepo{groups: []*activitiesModels.Group{
 			{Name: "Lernzeit"}, // ID set below

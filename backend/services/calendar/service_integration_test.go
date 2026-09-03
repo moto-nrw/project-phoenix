@@ -23,6 +23,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -53,11 +54,10 @@ func calendarTestConfig(db *bun.DB) calendarSvc.Config {
 	)
 
 	return calendarSvc.Config{
-		AppointmentRepo:      repos.CalendarAppointment,
+		Appointments:         repos.Appointments(),
 		RecurrenceRepo:       repos.CalendarRecurrenceRule,
 		RecipientRepo:        repos.CalendarAppointmentRecipient,
 		RecipientStudentRepo: repos.CalendarAppointmentRecipientChild,
-		TargetRepo:           repos.CalendarAppointmentTarget,
 		OverrideRepo:         repos.CalendarOccurrenceOverride,
 		StaffRepo:            repos.Staff,
 		StudentRepo:          repos.Student,
@@ -72,9 +72,9 @@ func calendarTestConfig(db *bun.DB) calendarSvc.Config {
 		ShiftTypeRepo:        repos.ShiftType,
 		UserContext:          userContext,
 		DB:                   db,
+		CalendarRenderer:     testCalendarRenderer{renderer: repos.SchoolCalendar()},
 	}
 }
-
 func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
 	t.Helper()
 	return calendarSvc.NewService(calendarTestConfig(db))
@@ -86,6 +86,31 @@ func setupCalendarServiceWithOutbox(t *testing.T, db *bun.DB, outbox calendarSvc
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	return calendarSvc.NewService(cfg)
+}
+
+var errInjectedRecurrenceCreate = errors.New("injected recurrence create failure")
+
+type failingRecurrenceCreate struct {
+	calModels.RecurrenceRuleRepository
+}
+
+func (failingRecurrenceCreate) Create(context.Context, *calModels.RecurrenceRule) error {
+	return errInjectedRecurrenceCreate
+}
+
+type recordingAppointmentCreate struct {
+	appointments.Capability
+	appointmentID int64
+	targets       int
+}
+
+func (r *recordingAppointmentCreate) CreateAppointment(ctx context.Context, input appointments.CreateAppointment) (*appointments.Appointment, []*appointments.AppointmentTarget, error) {
+	appointment, targets, err := r.Capability.CreateAppointment(ctx, input)
+	if err == nil {
+		r.appointmentID = appointment.ID
+		r.targets = len(targets)
+	}
+	return appointment, targets, err
 }
 
 type recordingOutbox struct {
@@ -455,10 +480,10 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 	// concurrent callers gate notifications so no duplicate cancellation e-mail is
 	// sent.
 	fresh := newSilentAppointment("Zweiter", 2)
-	first, err := repos.CalendarAppointment.Cancel(testpkg.Ctx(t), fresh.Appointment.ID)
+	first, err := repos.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
 	require.NoError(t, err)
 	assert.True(t, first, "first cancel performs the transition")
-	second, err := repos.CalendarAppointment.Cancel(testpkg.Ctx(t), fresh.Appointment.ID)
+	second, err := repos.Appointments().CancelAppointment(testpkg.Ctx(t), fresh.Appointment.ID)
 	require.NoError(t, err)
 	assert.False(t, second, "a second (concurrent) cancel does not re-transition, so it must not notify")
 }
@@ -490,15 +515,15 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 
 	// Simulate a delete landing after a cancel request loaded the still-live
 	// appointment: soft-delete it directly.
-	require.NoError(t, repos.CalendarAppointment.SoftDelete(testpkg.Ctx(t), detail.Appointment.ID))
+	require.NoError(t, repos.Appointments().SoftDeleteAppointment(testpkg.Ctx(t), detail.Appointment.ID))
 
 	// The cancel transition must now match zero rows (deleted_at guard) and report
 	// no transition, so CancelStaffAppointment skips the guardian notice.
-	transitioned, err := repos.CalendarAppointment.Cancel(testpkg.Ctx(t), detail.Appointment.ID)
+	transitioned, err := repos.Appointments().CancelAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.False(t, transitioned, "cancel must not transition an appointment a concurrent delete removed")
 
-	after, err := repos.CalendarAppointment.FindByID(testpkg.Ctx(t), detail.Appointment.ID)
+	after, err := repos.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	assert.NotNil(t, after.DeletedAt, "the appointment stays deleted")
@@ -1192,11 +1217,20 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 	// neither reactivates the appointment nor overwrites its content.
 	stale := *detail.Appointment
 	stale.Title = "Edited concurrently"
-	err = repos.CalendarAppointment.Update(testpkg.Ctx(t), &stale)
+	_, err = repos.Appointments().UpdateAppointment(testpkg.Ctx(t), appointments.UpdateAppointment{
+		ID: stale.ID,
+		AppointmentFields: appointments.AppointmentFields{
+			OrganizerStaffID: stale.OrganizerStaffID, Title: stale.Title, Description: stale.Description,
+			Location: stale.Location, StartDate: stale.StartDate, EndDate: stale.EndDate,
+			StartTime: stale.StartTime, EndTime: stale.EndTime, AllDay: stale.AllDay,
+			DeliveryMode: stale.DeliveryMode, OverviewVisibility: stale.OverviewVisibility,
+			NotifyGuardians: stale.NotifyGuardians,
+		},
+	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, calModels.ErrAppointmentLifecycleConflict)
 
-	after, err := repos.CalendarAppointment.FindByID(testpkg.Ctx(t), detail.Appointment.ID)
+	after, err := repos.Appointments().FindAppointment(testpkg.Ctx(t), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	assert.NotNil(t, after.CancelledAt, "the cancellation stands")
@@ -1747,6 +1781,56 @@ func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t
 	assert.Zero(t, count)
 }
 
+func TestCalendarServiceIntegration_CreateRollsBackAppointmentsWhenRecurrenceWriteFails(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	cfg := calendarTestConfig(db)
+	recorder := &recordingAppointmentCreate{Capability: cfg.Appointments}
+	cfg.Appointments = recorder
+	cfg.RecurrenceRepo = failingRecurrenceCreate{RecurrenceRuleRepository: cfg.RecurrenceRepo}
+	service := calendarSvc.NewService(cfg)
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Rollback", "Organizer")
+	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Rollback", "Invitee")
+	endsOn := timezone.NewDate(2030, 3, 31)
+	request := calendarSvc.CreateAppointmentRequest{
+		Title:        "Rollback after appointment targets",
+		StartDate:    timezone.NewDate(2030, 3, 4),
+		EndDate:      timezone.NewDate(2030, 3, 4),
+		StartTime:    wallClock(8, 0),
+		EndTime:      wallClock(9, 0),
+		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"monday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID}},
+	}
+
+	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), request)
+	require.ErrorIs(t, err, errInjectedRecurrenceCreate)
+	assert.Positive(t, recorder.appointmentID, "the appointment insert completed before the injected failure")
+	assert.Equal(t, 1, recorder.targets, "the target insert completed before the injected failure")
+
+	_, err = cfg.Appointments.FindAppointment(testpkg.Ctx(t), recorder.appointmentID)
+	require.ErrorIs(t, err, appointments.ErrAppointmentNotFound)
+	rolledBackTargets, err := cfg.Appointments.FindAppointmentTargets(testpkg.Ctx(t), recorder.appointmentID)
+	require.NoError(t, err)
+	assert.Empty(t, rolledBackTargets)
+
+	retried, err := setupCalendarService(t, db).CreateStaffAppointment(calendarContext(t, organizerAccount.ID), request)
+	require.NoError(t, err)
+	require.Len(t, retried.Targets, 1, "retry creates one target")
+	count, err := db.NewSelect().TableExpr(`calendar.appointments AS "appointment"`).
+		Where(`"appointment".tenant_id = ?`, testpkg.Tenant(t)).
+		Where(`"appointment".title = ?`, request.Title).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "retry creates exactly one appointment")
+}
+
 func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t *testing.T) {
 	t.Parallel()
 
@@ -1784,7 +1868,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 
 	cancelledOverride := &calModels.AppointmentOccurrenceOverride{
 		AppointmentID:  detail.Appointment.ID,
-		OccurrenceDate: timezone.NewDate(2026, 1, 31),
+		OccurrenceDate: calModels.NewDate(2026, 1, 31),
 		Cancelled:      true,
 	}
 	require.NoError(t, repos.CalendarOccurrenceOverride.Create(calendarContext(t, organizerAccount.ID), cancelledOverride))
@@ -1887,7 +1971,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 
 	service := setupCalendarService(t, db)
 	repos := repositories.NewFactory(db)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Organizer")
 	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -1913,7 +1997,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	require.NoError(t, err)
 
 	ctx := calendarContext(t, organizerAccount.ID)
-	emptyGuardianAppointments, err := repos.CalendarAppointment.ListVisibleForGuardianProfiles(ctx, nil, nil, timezone.NewDate(2026, 2, 13), timezone.NewDate(2026, 2, 13))
+	emptyGuardianAppointments, err := repos.Appointments().ListAppointmentsVisibleToGuardians(ctx, nil, nil, calModels.NewDate(2026, 2, 13), calModels.NewDate(2026, 2, 13))
 	require.NoError(t, err)
 	assert.Empty(t, emptyGuardianAppointments)
 
@@ -1926,7 +2010,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	require.NoError(t, err)
 	assert.Empty(t, emptyRecurrences)
 
-	targets, err := repos.CalendarAppointmentTarget.FindByAppointmentID(ctx, detail.Appointment.ID)
+	targets, err := repos.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
 
@@ -1945,19 +2029,9 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	require.NoError(t, err)
 	assert.Empty(t, emptyLinks)
 
-	staffRecipient := &calModels.AppointmentRecipient{
-		RecipientType: calModels.RecipientTypeStaff,
-		StaffID:       &organizer.ID,
-		Status:        calModels.ResponseStatusPending,
-	}
-	require.NoError(t, repos.CalendarAppointmentRecipient.ReplaceForAppointment(ctx, detail.Appointment.ID, []*calModels.AppointmentRecipient{staffRecipient}))
-	replacedRecipients, err := repos.CalendarAppointmentRecipient.FindByAppointmentID(ctx, detail.Appointment.ID)
+	_, err = repos.Appointments().ReplaceAppointmentTargets(ctx, detail.Appointment.ID, nil)
 	require.NoError(t, err)
-	require.Len(t, replacedRecipients, 1)
-	assert.Equal(t, organizer.ID, *replacedRecipients[0].StaffID)
-
-	require.NoError(t, repos.CalendarAppointmentTarget.ReplaceForAppointment(ctx, detail.Appointment.ID, nil))
-	targets, err = repos.CalendarAppointmentTarget.FindByAppointmentID(ctx, detail.Appointment.ID)
+	targets, err = repos.Appointments().FindAppointmentTargets(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Empty(t, targets)
 
@@ -2754,8 +2828,8 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 	// The insert path is exercised twice for the same occurrence; the second call
 	// takes the ON CONFLICT DO UPDATE branch and must NOT error.
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
-	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, calModels.NewDate(2026, 1, 12)))
+	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, calModels.NewDate(2026, 1, 12)))
 
 	// The occurrence is excluded from the series exactly once.
 	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 26))

@@ -122,8 +122,8 @@ func TestTimetableOperationsPlannedNowIncludesSchulhof(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	deps.settings.scope = configModel.OverviewScopeAdmins
 	deps.rooms.rooms = append(deps.rooms.rooms, &facilitiesModel.Room{
-		Model: modelBase.Model{ID: schulhofRoomID},
-		Name:  constants.SchulhofRoomName,
+		ID:   schulhofRoomID,
+		Name: constants.SchulhofRoomName,
 	})
 	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 		instanceWithRoomAndTimes(330, schulhofRoomID, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
@@ -2060,7 +2060,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		},
 		students:      &fakeOpsStudentRepo{byID: map[int64]*usersModel.Student{}},
 		groups:        &fakeOpsEducationGroupRepo{byID: map[int64]*educationModel.Group{}},
-		rooms:         &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{Model: modelBase.Model{ID: 810}, Name: "Lernraum"}}},
+		rooms:         &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{ID: 810, Name: "Lernraum"}}},
 		personService: &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}, staffWithPerson: map[int64]*usersModel.Staff{}},
 		tracks:        &fakeOpsPlanningTrackRepo{byID: map[int64]*scheduleModel.PlanningTrack{}},
 		settings:      &fakeOpsSettings{},

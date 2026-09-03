@@ -151,8 +151,8 @@ func TestRelationshipResolver_ResolveRoom_ExactMatch(t *testing.T) {
 
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 202": {Model: base.Model{ID: 2}, Name: "Raum 202"},
+			"raum 101": {ID: 1, Name: "Raum 101"},
+			"raum 202": {ID: 2, Name: "Raum 202"},
 		},
 	}
 
@@ -204,9 +204,9 @@ func TestRelationshipResolver_ResolveRoom_FuzzyMatch(t *testing.T) {
 
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 102": {Model: base.Model{ID: 2}, Name: "Raum 102"},
-			"raum 201": {Model: base.Model{ID: 3}, Name: "Raum 201"},
+			"raum 101": {ID: 1, Name: "Raum 101"},
+			"raum 102": {ID: 2, Name: "Raum 102"},
+			"raum 201": {ID: 3, Name: "Raum 201"},
 		},
 	}
 
@@ -477,8 +477,8 @@ func TestRelationshipResolver_PreloadRooms(t *testing.T) {
 		// ARRANGE
 		mockRepo := &mockRoomRepo{
 			rooms: []*facilities.Room{
-				{Model: base.Model{ID: 1}, Name: "Raum 101"},
-				{Model: base.Model{ID: 2}, Name: "Raum 202"},
+				{ID: 1, Name: "Raum 101"},
+				{ID: 2, Name: "Raum 202"},
 			},
 		}
 		resolver := NewRelationshipResolver(nil, mockRepo)
@@ -518,9 +518,9 @@ func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
 
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 102": {Model: base.Model{ID: 2}, Name: "Raum 102"},
-			"raum 201": {Model: base.Model{ID: 3}, Name: "Raum 201"},
+			"raum 101": {ID: 1, Name: "Raum 101"},
+			"raum 102": {ID: 2, Name: "Raum 102"},
+			"raum 201": {ID: 3, Name: "Raum 201"},
 		},
 	}
 

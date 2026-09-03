@@ -23,6 +23,41 @@ type Dependencies struct {
 	Observe func(Observation)
 }
 
+// PersistenceRuntime exposes the compose-owned ambient tenant transaction to
+// legacy School Calendar persistence adapters during the migration.
+type PersistenceRuntime struct {
+	Database func(context.Context) bun.IDB
+	TenantID func(context.Context) int64
+}
+
+// PersistenceRuntimeFor builds the migration bridge for legacy calendar
+// repositories without leaking tenant-runtime imports into those adapters.
+func PersistenceRuntimeFor(db *bun.DB) PersistenceRuntime {
+	if db == nil {
+		panic("school calendar compose: database is required")
+	}
+	return PersistenceRuntime{
+		Database: func(ctx context.Context) bun.IDB {
+			transaction, ok := tenant.TransactionFromContext(ctx)
+			if !ok {
+				return db
+			}
+			switch tx := transaction.(type) {
+			case bun.Tx:
+				return tx
+			case *bun.Tx:
+				if tx != nil {
+					return tx
+				}
+				return db
+			default:
+				panic(fmt.Sprintf("school calendar compose: unsupported transaction %T", transaction))
+			}
+		},
+		TenantID: tenant.FromContext,
+	}
+}
+
 // New composes the School Calendar module. Every operation runs on the
 // caller's ambient tenant transaction when one exists (tenant middleware,
 // recurrence gate, scheduler loops) and otherwise on the shared connection,
@@ -163,6 +198,48 @@ func (e engine) UpdateDateframe(ctx context.Context, input schoolcalendar.Update
 
 func (e engine) DeleteDateframe(ctx context.Context, id int64) error {
 	return mapError(e.service.DeleteDateframe(ctx, id))
+}
+
+func (e engine) ValidHolidayRegion(region string) bool {
+	return e.service.ValidHolidayRegion(region)
+}
+
+func (e engine) ListHolidays(ctx context.Context, region, from, to string) ([]schoolcalendar.Holiday, error) {
+	values, err := e.service.ListHolidays(ctx, region, from, to)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]schoolcalendar.Holiday, 0, len(values))
+	for _, value := range values {
+		result = append(result, schoolcalendar.Holiday{Date: value.Date, Name: value.Name})
+	}
+	return result, nil
+}
+
+func (e engine) HolidayDates(ctx context.Context, region, from, to string) (map[string]bool, error) {
+	values, err := e.service.HolidayDates(ctx, region, from, to)
+	return values, mapError(err)
+}
+
+func (e engine) RenderCalendar(ctx context.Context, name string, events []schoolcalendar.CalendarEvent) (string, error) {
+	values := make([]domain.CalendarEvent, 0, len(events))
+	for _, event := range events {
+		var recurrence *domain.CalendarRecurrence
+		if event.Recurrence != nil {
+			recurrence = &domain.CalendarRecurrence{
+				Frequency: event.Recurrence.Frequency, Interval: event.Recurrence.Interval,
+				Weekdays: event.Recurrence.Weekdays, MonthDays: event.Recurrence.MonthDays,
+				Until: event.Recurrence.Until, Count: event.Recurrence.Count,
+			}
+		}
+		values = append(values, domain.CalendarEvent{
+			UID: event.UID, Summary: event.Summary, Description: event.Description, Location: event.Location,
+			StartDate: event.StartDate, EndDate: event.EndDate, StartClock: event.StartClock, EndClock: event.EndClock,
+			AllDay: event.AllDay, Cancelled: event.Cancelled, Sequence: event.Sequence, Stamp: event.Stamp,
+			LastModified: event.LastModified, Recurrence: recurrence, ExDates: event.ExDates,
+		})
+	}
+	return e.service.RenderCalendar(ctx, name, values)
 }
 
 func dateframeFieldsToDomain(fields schoolcalendar.DateframeFields) domain.DateframeFields {
