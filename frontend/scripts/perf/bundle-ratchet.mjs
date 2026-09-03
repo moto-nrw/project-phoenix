@@ -47,7 +47,7 @@ function analyze() {
   const result = spawnSync(
     "pnpm",
     ["exec", "next", "experimental-analyze", "--output"],
-    { stdio: "inherit", env: { ...process.env, SKIP_ENV_VALIDATION: "true" } },
+    { stdio: "inherit" },
   );
   if (result.status !== 0) {
     throw new Error(

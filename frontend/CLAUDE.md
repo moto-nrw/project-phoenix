@@ -160,7 +160,7 @@ const { status, isConnected, error, reconnectAttempts } = useSSE("/api/sse/event
 ## Performance guardrails (#2939)
 
 - **Bundle-size ratchet** (CI job `frontend-build`, blocking): `pnpm run perf:bundle-ratchet` runs `next experimental-analyze` and compares compressed client JS per route against `scripts/perf/bundle-baseline.json`. Tolerance per route is 2 % or 10 kB, whichever is larger. A route above the band fails; a route below it fails too (shrink-only) until the baseline is lowered. New routes need an entry, removed routes must leave. Maintenance: `pnpm run perf:bundle-ratchet --update` (with the CI env, see the script header: local `NEXT_PUBLIC_*` values add about 1 kB per route), commit the JSON, and justify any increase in the PR description. Never widen the tolerance to get green.
-- **Render budget** (Vitest, blocking): `mobile-bottom-nav.test.tsx` and `sidebar.test.tsx` count `<Profiler>` commits over 5 s of fake-timer idle and cap them at 20. A new effect loop in the shell trips this regardless of runner speed. Keep the cap; fix the loop.
+- **Render budget** (Vitest, blocking): `expectIdleRenderBudget` from `src/test/render-budget.tsx` counts `<Profiler>` commits over 5 s of fake-timer idle and caps them at 20; `mobile-bottom-nav.test.tsx` and `sidebar.test.tsx` use it. A new effect loop in the shell trips this regardless of runner speed. Keep the cap; fix the loop. Reuse the helper for any new always-mounted component.
 - Timing-based numbers (LCP, Lighthouse) are deliberately not gates: see `docs/perf/frontend-baseline-2026.md`. Screen-level request/render counters run only in the manual perf harness (`pnpm run perf:trace`, `pnpm run perf:render`).
 
 @AGENTS.md
