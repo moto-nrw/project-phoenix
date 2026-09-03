@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -97,7 +96,7 @@ func (f fakeRoom) FindByIDs(_ context.Context, ids []int64) ([]*facilitiesModel.
 	}
 	rooms := make([]*facilitiesModel.Room, 0, len(ids))
 	for _, id := range ids {
-		rooms = append(rooms, &facilitiesModel.Room{Model: modelBase.Model{ID: id}, Name: "Lernraum"})
+		rooms = append(rooms, &facilitiesModel.Room{ID: id, Name: "Lernraum"})
 	}
 	return rooms, nil
 }
@@ -403,8 +402,8 @@ func TestActivityReminders(t *testing.T) {
 			plannedInstance("Schulhof-Block", 2, 590, 640),
 		}
 		rooms := fakeRoom{rooms: []*facilitiesModel.Room{
-			{Model: modelBase.Model{ID: 1}, Name: "Lernraum"},
-			{Model: modelBase.Model{ID: 2}, Name: constants.SchulhofRoomName},
+			{ID: 1, Name: "Lernraum"},
+			{ID: 2, Name: constants.SchulhofRoomName},
 		}}
 		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}, Room: rooms}}
 

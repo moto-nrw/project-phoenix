@@ -12,6 +12,7 @@ import (
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -34,7 +35,7 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	}))
 	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
-	return db, enrollmentRepo.NewCareOfferingRepository(db), tenantID, phase.ID
+	return db, carePlanTest.NewCareOfferingRepository(t, db), tenantID, phase.ID
 }
 
 func wipeOfferings(db *bun.DB, tenantID, phaseID int64) {

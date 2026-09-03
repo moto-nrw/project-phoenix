@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	holidayModel "github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -341,7 +340,7 @@ type fakeOverviewHolidayService struct {
 	to    timezone.Date
 }
 
-func (f *fakeOverviewHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]holidayModel.Holiday, error) {
+func (f *fakeOverviewHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]Holiday, error) {
 	return nil, f.err
 }
 

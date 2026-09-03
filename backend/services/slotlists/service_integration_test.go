@@ -20,7 +20,6 @@ import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
-	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -30,6 +29,9 @@ import (
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
@@ -212,7 +214,24 @@ func newTestServiceWithSettingsReader(db *bun.DB, settings interface {
 	HasTenantOverride(context.Context, string) (bool, error)
 	LockSlotListCutoffPairShared(context.Context) error
 }) slotlists.Service {
-	return newTestServiceWithCustomRoomRepo(db, facilitiesRepo.NewRoomRepository(db), settings)
+	return newTestServiceWithCustomRoomRepo(db, newTestRoomRepository(db), settings)
+}
+
+func newTestRoomRepository(db *bun.DB) interface {
+	FindByID(context.Context, any) (*facilitiesModels.Room, error)
+} {
+	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
+		DB:            db,
+		DeletionLock:  func(context.Context) error { return nil },
+		DeletionGuard: func(context.Context, int64) error { return nil },
+		Observe:       func(facilitiesCompose.Observation) {},
+	})
+	if err != nil {
+		panic(err)
+	}
+	repository := facilitiesRepositoryAdapter.New()
+	repository.Bind(rooms)
+	return repository
 }
 
 func newTestServiceWithCustomRoomRepo(db *bun.DB, roomRepo interface {
@@ -257,7 +276,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			PickupBaselines: scheduletest.NewPickupBaselineService(
 				scheduleRepo.NewStudentPickupScheduleRepository(db),
 				newBoundRequestChildOfferingRepository(db),
-				enrollmentRepo.NewCareOfferingRepository(db),
+				carePlanTest.CareOfferingRepository(db),
 			),
 			PickupExceptions:  scheduleRepo.NewStudentPickupExceptionRepository(db),
 			CareParticipation: participation,
@@ -266,7 +285,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			newBoundRequestChildOfferingRepository(db),
-			enrollmentRepo.NewCareOfferingRepository(db),
+			carePlanTest.CareOfferingRepository(db),
 		),
 		StudentRepo:        usersRepo.NewStudentRepository(db),
 		PersonRepo:         usersRepo.NewPersonRepository(db),
@@ -282,7 +301,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			scheduletest.NewPickupBaselineService(
 				scheduleRepo.NewStudentPickupScheduleRepository(db),
 				newBoundRequestChildOfferingRepository(db),
-				enrollmentRepo.NewCareOfferingRepository(db),
+				carePlanTest.CareOfferingRepository(db),
 			),
 			db,
 			slog.Default(),
@@ -795,7 +814,7 @@ func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
 	// A staff member supervising none of the two groups still reads every row.
 	staffSvc := newTestServiceWithCustomAccess(
 		f.db,
-		facilitiesRepo.NewRoomRepository(f.db),
+		newTestRoomRepository(f.db),
 		stubSlotListSettings{},
 		slotListUserContext{currentStaff: &userModels.Staff{}},
 	)
@@ -812,7 +831,7 @@ func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
 	// No staff record → no child rows at all.
 	outsiderSvc := newTestServiceWithCustomAccess(
 		f.db,
-		facilitiesRepo.NewRoomRepository(f.db),
+		newTestRoomRepository(f.db),
 		stubSlotListSettings{},
 		slotListUserContext{},
 	)
@@ -1878,7 +1897,7 @@ func TestBuildList_PickupCohortKeepsExpiredActualAttendance(t *testing.T) {
 		CheckInTime: atOn(pickupDate, 8, 0), CheckedInBy: staff.ID, DeviceID: device.ID}
 	attendance.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activeRepo.NewAttendanceRepository(db).Create(ctx, attendance))
-	svc := newTestServiceWithParticipation(db, facilitiesRepo.NewRoomRepository(db), stubSlotListSettings{},
+	svc := newTestServiceWithParticipation(db, newTestRoomRepository(db), stubSlotListSettings{},
 		slotListUserContext{currentStaff: &userModels.Staff{}}, slotListParticipation{student.ID: false})
 	result, err := svc.BuildList(ctx, slotlists.Params{Date: pickupDate, Target: slotlists.TargetPickupCohort,
 		PickupCohort: slotlists.PickupCohortShortDay, Source: slotlists.SourceReconciliation})

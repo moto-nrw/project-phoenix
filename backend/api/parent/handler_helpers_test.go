@@ -18,6 +18,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -216,6 +217,7 @@ func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
 func TestToChildResponse_StringifiesIDs(t *testing.T) {
 	t.Parallel()
 	now := timezone.NewDate(2026, 9, 1)
+	enrolledFrom := careplan.Date(now.String())
 	in := &parentModels.ChildSummary{
 		StudentID:    12345,
 		TenantID:     6789,
@@ -223,7 +225,7 @@ func TestToChildResponse_StringifiesIDs(t *testing.T) {
 		LastName:     "Beispiel",
 		SchoolClass:  "1a",
 		Status:       "active",
-		EnrolledFrom: &now,
+		EnrolledFrom: &enrolledFrom,
 		SchoolName:   "OGS Sonnenschule",
 		SchoolSlug:   "sonnenschule",
 	}
@@ -234,7 +236,7 @@ func TestToChildResponse_StringifiesIDs(t *testing.T) {
 	assert.Equal(t, "1a", out.SchoolClass)
 	assert.Equal(t, "active", out.Status)
 	require.NotNil(t, out.EnrolledFrom)
-	assert.Equal(t, now, *out.EnrolledFrom)
+	assert.Equal(t, enrolledFrom, *out.EnrolledFrom)
 	assert.Nil(t, out.EnrolledUntil, "nil pointers pass through unchanged")
 }
 

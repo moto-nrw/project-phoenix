@@ -112,8 +112,7 @@ func TestNewActiveGroupResponse_WithRoom(t *testing.T) {
 		RoomID:    200,
 		StartTime: now,
 		Room: &facilities.Room{
-			Model: base.Model{ID: 200},
-			Name:  "Test Room",
+			ID: 200, Name: "Test Room",
 		},
 	}
 

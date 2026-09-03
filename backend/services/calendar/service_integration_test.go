@@ -72,9 +72,9 @@ func calendarTestConfig(db *bun.DB) calendarSvc.Config {
 		ShiftTypeRepo:        repos.ShiftType,
 		UserContext:          userContext,
 		DB:                   db,
+		CalendarRenderer:     testCalendarRenderer{renderer: repos.SchoolCalendar()},
 	}
 }
-
 func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
 	t.Helper()
 	return calendarSvc.NewService(calendarTestConfig(db))
@@ -1784,7 +1784,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 
 	cancelledOverride := &calModels.AppointmentOccurrenceOverride{
 		AppointmentID:  detail.Appointment.ID,
-		OccurrenceDate: timezone.NewDate(2026, 1, 31),
+		OccurrenceDate: calModels.NewDate(2026, 1, 31),
 		Cancelled:      true,
 	}
 	require.NoError(t, repos.CalendarOccurrenceOverride.Create(calendarContext(t, organizerAccount.ID), cancelledOverride))
@@ -1913,7 +1913,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	require.NoError(t, err)
 
 	ctx := calendarContext(t, organizerAccount.ID)
-	emptyGuardianAppointments, err := repos.CalendarAppointment.ListVisibleForGuardianProfiles(ctx, nil, nil, timezone.NewDate(2026, 2, 13), timezone.NewDate(2026, 2, 13))
+	emptyGuardianAppointments, err := repos.CalendarAppointment.ListVisibleForGuardianProfiles(ctx, nil, nil, calModels.NewDate(2026, 2, 13), calModels.NewDate(2026, 2, 13))
 	require.NoError(t, err)
 	assert.Empty(t, emptyGuardianAppointments)
 
@@ -2754,8 +2754,8 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 	// The insert path is exercised twice for the same occurrence; the second call
 	// takes the ON CONFLICT DO UPDATE branch and must NOT error.
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
-	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, calModels.NewDate(2026, 1, 12)))
+	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, calModels.NewDate(2026, 1, 12)))
 
 	// The occurrence is excluded from the series exactly once.
 	events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 26))

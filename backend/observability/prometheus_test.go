@@ -213,6 +213,22 @@ func TestObserveSchoolStructureOperationRecordsRuntimeEvidence(t *testing.T) {
 	assert.Equal(t, statementBefore+1, testutil.CollectAndCount(schoolStructureStatementDuration))
 }
 
+func TestObserveFacilitiesOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const operation = "list_rooms_by_id"
+	successBefore := testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "success", "none"))
+	errorBefore := testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "error", "internal_error"))
+	statementBefore := testutil.CollectAndCount(facilitiesStatementDuration)
+
+	ObserveFacilitiesOperation(operation, time.Millisecond, 1, 4, 2*time.Millisecond, "none", nil)
+	ObserveFacilitiesOperation(operation, time.Millisecond, 1, 0, 0, "internal_error", assert.AnError)
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "error", "internal_error")))
+	assert.Equal(t, statementBefore+1, testutil.CollectAndCount(facilitiesStatementDuration))
+}
+
 func TestObserveAuditAppendRecordsRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 

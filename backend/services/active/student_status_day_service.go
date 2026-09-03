@@ -74,7 +74,7 @@ func (s *StudentStatusDayService) UpsertReported(ctx context.Context, entry *act
 		if s.db == nil {
 			return errors.New("student status day service database is not configured")
 		}
-		if err := careplanning.LockExceptionDay(ctx, s.db, entry.StudentID, entry.Date); err != nil {
+		if err := careplanning.LockExceptionDay(ctx, s.db, entry.StudentID, entry.Date.String()); err != nil {
 			return err
 		}
 		if err := s.ensureNoPartialAbsenceConflicts(ctx, entry.StudentID, []timezone.Date{entry.Date}); err != nil {

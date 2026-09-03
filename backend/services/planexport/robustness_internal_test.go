@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -96,11 +95,11 @@ func (s stubPlanningTracks) ListAll(context.Context) ([]*scheduleModel.PlanningT
 
 type stubHolidays struct {
 	scheduleSvc.HolidayService
-	days []holidays.Holiday
+	days []scheduleSvc.Holiday
 	err  error
 }
 
-func (s stubHolidays) HolidaysInRange(context.Context, timezone.Date, timezone.Date) ([]holidays.Holiday, error) {
+func (s stubHolidays) HolidaysInRange(context.Context, timezone.Date, timezone.Date) ([]scheduleSvc.Holiday, error) {
 	return s.days, s.err
 }
 
@@ -296,7 +295,7 @@ func TestNonWorkingDaysPrefersClosingDayOverHoliday(t *testing.T) {
 	service := NewService(Dependencies{
 		Instances:     stubInstances{instances: []*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)}},
 		InstanceStaff: stubInstanceStaff{},
-		Holidays: stubHolidays{days: []holidays.Holiday{
+		Holidays: stubHolidays{days: []scheduleSvc.Holiday{
 			{Date: tuesday, Name: "Christi Himmelfahrt"},
 			{Date: wednesday, Name: "Fronleichnam"},
 		}},

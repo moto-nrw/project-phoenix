@@ -3,14 +3,15 @@
 // a calendar period or closing day by another owner goes through Query or
 // Command instead of a foreign SQL join.
 //
-// The capability stops at the calendar rows themselves. How many planning
-// objects reference a period is a question for the planning owners; public
-// holidays come from the holidays adapter of the same owner.
+// How many planning objects reference a period is a question for the planning
+// owners. The capability also owns statutory-holiday calculation and RFC 5545
+// calendar rendering because both are school-calendar behavior without storage.
 package schoolcalendar
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -39,8 +40,46 @@ var (
 	ErrInvalidCalendarPeriod      = errors.New("invalid calendar period")
 	ErrInvalidClosingDay          = errors.New("invalid closing day")
 	ErrInvalidDateframe           = errors.New("invalid dateframe")
+	ErrInvalidHolidayRange        = errors.New("invalid holiday range")
 	ErrCalendarPeriodNameConflict = errors.New("calendar period name already exists")
 )
+
+// Holiday is one statutory public holiday on a concrete calendar day.
+// Date uses DateLayout and therefore cannot carry a clock or timezone.
+type Holiday struct {
+	Date string `json:"date"`
+	Name string `json:"name"`
+}
+
+// CalendarRecurrence describes the RFC 5545 recurrence fields supported by
+// moto calendar exports.
+type CalendarRecurrence struct {
+	Frequency string
+	Interval  int
+	Weekdays  []string
+	MonthDays []int
+	Until     string
+	Count     *int
+}
+
+// CalendarEvent is the owner-neutral input for one RFC 5545 VEVENT.
+type CalendarEvent struct {
+	UID          string
+	Summary      string
+	Description  string
+	Location     string
+	StartDate    string
+	EndDate      string
+	StartClock   time.Time
+	EndClock     time.Time
+	AllDay       bool
+	Cancelled    bool
+	Sequence     int
+	Stamp        time.Time
+	LastModified time.Time
+	Recurrence   *CalendarRecurrence
+	ExDates      []string
+}
 
 // InvalidDateframeError carries the validation reason; it unwraps to
 // ErrInvalidDateframe so callers can classify it with errors.Is.
@@ -223,6 +262,22 @@ type Query interface {
 
 	FindDateframe(context.Context, int64) (Dateframe, error)
 	ListDateframes(context.Context, DateframeFilter) ([]Dateframe, error)
+
+	HolidayQuery
+	CalendarRenderer
+}
+
+// HolidayQuery exposes the locally computed statutory holidays for a German
+// federal-state ISO code. It performs no network or database access.
+type HolidayQuery interface {
+	ValidHolidayRegion(string) bool
+	ListHolidays(context.Context, string, string, string) ([]Holiday, error)
+	HolidayDates(context.Context, string, string, string) (map[string]bool, error)
+}
+
+// CalendarRenderer renders complete RFC 5545 calendar documents.
+type CalendarRenderer interface {
+	RenderCalendar(context.Context, string, []CalendarEvent) (string, error)
 }
 
 type Command interface {
@@ -270,6 +325,11 @@ type engine interface {
 	CreateDateframe(context.Context, CreateDateframe) (Dateframe, error)
 	UpdateDateframe(context.Context, UpdateDateframe) (Dateframe, error)
 	DeleteDateframe(context.Context, int64) error
+
+	ValidHolidayRegion(string) bool
+	ListHolidays(context.Context, string, string, string) ([]Holiday, error)
+	HolidayDates(context.Context, string, string, string) (map[string]bool, error)
+	RenderCalendar(context.Context, string, []CalendarEvent) (string, error)
 }
 
 type Module struct{ engine engine }
@@ -431,6 +491,66 @@ func (m *Module) DeleteDateframe(ctx context.Context, id int64) error {
 	return m.engine.DeleteDateframe(ctx, id)
 }
 
+// --- holidays and calendar documents ---
+
+func (m *Module) ValidHolidayRegion(region string) bool {
+	return m.engine.ValidHolidayRegion(region)
+}
+
+func (m *Module) ListHolidays(ctx context.Context, region, from, to string) ([]Holiday, error) {
+	if err := validateHolidayWindow(from, to); err != nil {
+		return nil, err
+	}
+	return m.engine.ListHolidays(ctx, region, from, to)
+}
+
+func (m *Module) HolidayDates(ctx context.Context, region, from, to string) (map[string]bool, error) {
+	if err := validateHolidayWindow(from, to); err != nil {
+		return nil, err
+	}
+	return m.engine.HolidayDates(ctx, region, from, to)
+}
+
+func (m *Module) RenderCalendar(ctx context.Context, name string, events []CalendarEvent) (string, error) {
+	for _, event := range events {
+		if err := validateCalendarEvent(event); err != nil {
+			return "", err
+		}
+	}
+	return m.engine.RenderCalendar(ctx, name, events)
+}
+
+func validateHolidayWindow(from, to string) error {
+	invalid := func(reason string) error { return fmt.Errorf("%w: %s", ErrInvalidHolidayRange, reason) }
+	if from == "" || to == "" {
+		return invalid("holiday range needs both from and to dates")
+	}
+	return validateWindow(from, to, invalid)
+}
+
+func validateCalendarEvent(event CalendarEvent) error {
+	if err := validateDate(event.StartDate, "calendar event start date", invalidPeriod); err != nil {
+		return err
+	}
+	if err := validateDate(event.EndDate, "calendar event end date", invalidPeriod); err != nil {
+		return err
+	}
+	if event.StartDate == "" || event.EndDate == "" {
+		return invalidPeriod("calendar event dates are required")
+	}
+	if event.Recurrence != nil && event.Recurrence.Until != "" {
+		if err := validateDate(event.Recurrence.Until, "calendar recurrence until", invalidPeriod); err != nil {
+			return err
+		}
+	}
+	for _, date := range event.ExDates {
+		if err := validateDate(date, "calendar exception date", invalidPeriod); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // --- validation ---
 
 // IsValidPeriodType reports whether t is one of the known period types.
@@ -580,6 +700,8 @@ func ErrorCode(err error) string {
 	case errors.Is(err, ErrCalendarPeriodNotFound), errors.Is(err, ErrClosingDayNotFound), errors.Is(err, ErrDateframeNotFound):
 		return "not_found"
 	case errors.Is(err, ErrInvalidCalendarPeriod), errors.Is(err, ErrInvalidClosingDay), errors.Is(err, ErrInvalidDateframe):
+		return "invalid"
+	case errors.Is(err, ErrInvalidHolidayRange):
 		return "invalid"
 	case errors.Is(err, ErrCalendarPeriodNameConflict):
 		return "calendar_period_name_conflict"
