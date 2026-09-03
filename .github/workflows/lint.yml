@@ -229,6 +229,17 @@ jobs:
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080"
       SKIP_ENV_VALIDATION: "true"
+      API_URL: "http://localhost:8080"
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
+      NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
+      TENANT_DOMAIN: "localhost"
+      NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_SECRET: "ci-bundle-ratchet-throwaway-secret"
+      AUTH_JWT_EXPIRY: "15m"
+      AUTH_JWT_REFRESH_EXPIRY: "168h"
+      METRICS_BEARER_TOKEN: "ci-bundle-ratchet-token"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -257,6 +268,24 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm run build
+
+      # Bundle-Size-Ratchet (#2939): `next experimental-analyze` kompiliert
+      # kalt (Chunk-Aufteilung hängt sonst vom Cache-Zustand ab) und vergleicht
+      # Client-JS je Route mit scripts/perf/bundle-baseline.json. Die Baseline
+      # sind Runner-Zahlen: zum Nachziehen das Artefakt `bundle-measured`
+      # laden und als bundle-baseline.json einchecken.
+      - name: Bundle size ratchet
+        working-directory: frontend
+        run: pnpm run perf:bundle-ratchet
+
+      - name: Upload measured bundle sizes
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bundle-measured
+          path: frontend/perf-results/bundle-measured.json
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Build Storybook
         working-directory: frontend
