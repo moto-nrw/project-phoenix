@@ -1660,7 +1660,7 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		case calModels.TargetTypeParentsByClass:
 			// Only active students' guardians — a former student still tagged with
 			// the class must not receive the class-wide appointment.
-			studentIDs := activeStudentIDs(readSet.studentsByClass[strings.TrimSpace(*target.Value)])
+			studentIDs := activeStudentIDs(readSet.studentsByClass[normalizeCalendarClass(*target.Value)])
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
 				return nil, nil, nil, err

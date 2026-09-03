@@ -98,7 +98,8 @@ func (s *service) loadTargetStudents(ctx context.Context, selection targetSelect
 		}
 		readSet.allSchoolStudents = students
 		for _, student := range readSet.allSchoolStudents {
-			readSet.studentsByClass[student.SchoolClass] = append(readSet.studentsByClass[student.SchoolClass], student)
+			className := normalizeCalendarClass(student.SchoolClass)
+			readSet.studentsByClass[className] = append(readSet.studentsByClass[className], student)
 		}
 	}
 	groupStudents, err := s.cfg.StudentRepo.FindByGroupIDs(ctx, selection.groupIDs)
@@ -208,12 +209,18 @@ func (c *targetSelectionCollector) addClass(value *string) error {
 	if value == nil || strings.TrimSpace(*value) == "" {
 		return fmt.Errorf("%w: class target requires value", ErrInvalidRequest)
 	}
-	className := strings.TrimSpace(*value)
+	className := normalizeCalendarClass(*value)
 	if !c.seenClasses[className] {
 		c.seenClasses[className] = true
 		c.selection.schoolClasses = append(c.selection.schoolClasses, className)
 	}
 	return nil
+}
+
+// normalizeCalendarClass preserves the case-insensitive, trimmed identity
+// previously enforced by StudentRepository.FindBySchoolClass's SQL predicate.
+func normalizeCalendarClass(class string) string {
+	return strings.ToLower(strings.TrimSpace(class))
 }
 
 func targetStudentIDs(
