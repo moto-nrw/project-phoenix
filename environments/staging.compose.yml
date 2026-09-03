@@ -6,6 +6,9 @@ services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
+    # Loopback only: read-only developer access via SSH tunnel (see /root/README.md on the server).
+    ports:
+      - "127.0.0.1:5433:5432"
     volumes:
       - staging-postgres:/var/lib/postgresql/data
     env_file:
