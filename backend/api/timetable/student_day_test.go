@@ -539,10 +539,11 @@ func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-01&to=2026-04-14", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	// FindByID (student resolution) + up to 7 preload queries = 8. Allow a
-	// little headroom for implicit bun/pg metadata queries; assert we're
-	// far below the pre-fix 14*7=98 regime.
-	assert.LessOrEqual(t, hook.n, int64(12),
+	// FindByID (student resolution) + up to 7 preload queries = 8, plus the
+	// one batched class-exception lookup of the arrival projection (#2962).
+	// Allow a little headroom for implicit bun/pg metadata queries; assert
+	// we're far below the pre-fix 14*7=98 regime.
+	assert.LessOrEqual(t, hook.n, int64(13),
 		"14-day /week must stay under the batched ceiling, got %d", hook.n)
 	t.Logf("14-day /week fired %d queries", hook.n)
 }

@@ -470,7 +470,15 @@ function RosterPreviewRow({
     pickupTimesLoaded,
     pickupTimesRedacted,
   );
-  const warnings = row.warnings ?? [];
+  // A class-wide arrival day exception (#2962) is information, not a
+  // warning: it gets its own neutral line below and stays out of the amber
+  // badge, otherwise a whole class would carry a warning for a known reason.
+  const classException = (row.warnings ?? []).find(
+    (warning) => warning.kind === "class_arrival_exception",
+  );
+  const warnings = (row.warnings ?? []).filter(
+    (warning) => warning.kind !== "class_arrival_exception",
+  );
   const warningLabel =
     warnings.length > 0
       ? warnings.map((warning) => warning.message).join("\n")
@@ -523,6 +531,9 @@ function RosterPreviewRow({
           </span>
         </div>
       </div>
+      {classException ? (
+        <p className="mt-2 text-xs text-gray-700">{classException.message}</p>
+      ) : null}
       {warnings.length > 0 ? (
         <p className="text-moto-amber-strong mt-2 text-xs">
           {warnings[0]?.message}

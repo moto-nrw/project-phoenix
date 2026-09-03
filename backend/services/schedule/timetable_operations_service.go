@@ -1528,11 +1528,30 @@ func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals
 			continue
 		}
 		arrivalClock := timezone.NormalizeWallClock(*arrival.ArrivalTime)
-		if arrivalClock.After(slotStartClock) {
+		arrivesLate := arrivalClock.After(slotStartClock)
+		if arrivesLate {
 			expectedArrival := arrival.ArrivalTime.Format("15:04")
 			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
 				Kind:            "arrival_after_slot_start",
 				Message:         "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+				ExpectedArrival: &expectedArrival,
+				SlotStart:       &slotStart,
+			})
+		}
+		// A class-wide day exception (#2962) is information, not a warning:
+		// the class arrives at a different time today and the row says why,
+		// so nobody wonders why the child is not under "Kommt später". When
+		// the row already carries "Kommt um HH:MM Uhr" from the late-arrival
+		// warning, the line adds only the reason instead of repeating the time.
+		if arrival.ClassException != nil {
+			expectedArrival := arrival.ClassException.ArrivalTime
+			message := "Kommt heute um " + expectedArrival + " Uhr (" + arrival.ClassException.Label + ")"
+			if arrivesLate {
+				message = arrival.ClassException.Label
+			}
+			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
+				Kind:            "class_arrival_exception",
+				Message:         message,
 				ExpectedArrival: &expectedArrival,
 				SlotStart:       &slotStart,
 			})

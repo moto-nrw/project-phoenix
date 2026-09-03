@@ -154,6 +154,11 @@ type StaffFilter struct {
 	IDs             []int64
 	PersonIDs       []int64
 	WorkTimeModelID *int64
+	// TenantIDs bounds the listing to the given schools. A cross-tenant
+	// reader (admin transaction) that knows its schools up front passes them
+	// here, so the query stays bounded to those schools instead of scanning
+	// the whole platform. Nil means "every school visible in the transaction".
+	TenantIDs []int64
 	// IncludeDeleted also returns soft-deleted rows; history readers use it
 	// to keep resolving offboarded colleagues.
 	IncludeDeleted bool
@@ -298,6 +303,7 @@ func (m *Module) FindStaffByPerson(ctx context.Context, personID int64) (Staff, 
 func (m *Module) ListStaff(ctx context.Context, filter StaffFilter) ([]Staff, error) {
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.PersonIDs = uniquePositive(filter.PersonIDs)
+	filter.TenantIDs = uniquePositive(filter.TenantIDs)
 	if filter.WorkTimeModelID != nil && *filter.WorkTimeModelID <= 0 {
 		return nil, invalid("work time model ID must be positive")
 	}

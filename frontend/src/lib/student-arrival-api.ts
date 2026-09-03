@@ -440,3 +440,71 @@ export async function fetchClassArrivalTimes(
   );
   return parseResponse<ClassArrivalTimes>(response);
 }
+
+/**
+ * One date on which a whole class arrives at a different time than its
+ * Unterrichtsschluss says (#2962), for example "Unterricht fällt aus".
+ */
+export interface ClassArrivalException {
+  school_class: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** HH:MM */
+  arrival_time: string;
+  reason?: string | null;
+  created_at: string;
+}
+
+export interface ClassArrivalExceptionList {
+  school_class: string;
+  /** Whether the caller may set or remove exceptions (setting + permission). */
+  can_edit: boolean;
+  exceptions: ClassArrivalException[];
+}
+
+export interface ClassArrivalExceptionInput {
+  /** HH:MM */
+  arrival_time: string;
+  reason?: string | null;
+}
+
+function classArrivalExceptionPath(schoolClass: string, date?: string): string {
+  const base = `/api/students/class-arrival-exceptions/${encodeURIComponent(schoolClass)}`;
+  return date ? `${base}/${encodeURIComponent(date)}` : base;
+}
+
+/** Lists the class-wide exceptions from today on (backend default: 60 days). */
+export async function fetchClassArrivalExceptions(
+  schoolClass: string,
+): Promise<ClassArrivalExceptionList> {
+  const response = await fetch(classArrivalExceptionPath(schoolClass), {
+    headers: await authHeaders(),
+  });
+  return parseResponse<ClassArrivalExceptionList>(response);
+}
+
+export async function upsertClassArrivalException(
+  schoolClass: string,
+  date: string,
+  input: ClassArrivalExceptionInput,
+): Promise<ClassArrivalException> {
+  const response = await fetch(classArrivalExceptionPath(schoolClass, date), {
+    method: "PUT",
+    headers: await authHeaders(),
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  return parseResponse<ClassArrivalException>(response);
+}
+
+export async function deleteClassArrivalException(
+  schoolClass: string,
+  date: string,
+): Promise<void> {
+  const response = await fetch(classArrivalExceptionPath(schoolClass, date), {
+    method: "DELETE",
+    headers: await authHeaders(),
+    credentials: "include",
+  });
+  await parseResponse<void>(response);
+}

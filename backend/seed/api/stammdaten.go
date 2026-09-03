@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sort"
+	"time"
 )
 
 // StaffCredentials stores login credentials for a staff member
@@ -52,9 +54,12 @@ type FixedResult struct {
 	GuardianIBANCount     int // Guardians with bank details stored (#2608)
 	PickupScheduleCount   int // Students with weekly pickup schedules seeded
 	ClassArrivalTimeCount int // Classes with seeded arrival times
-	ActivityCount         int
-	DeviceCount           int
-	StaffCredentials      []StaffCredentials // Login credentials for demo
+	// ClassArrivalExceptionCount is the number of class-wide arrival day
+	// exceptions seeded (#2962).
+	ClassArrivalExceptionCount int
+	ActivityCount              int
+	DeviceCount                int
+	StaffCredentials           []StaffCredentials // Login credentials for demo
 }
 
 // NewFixedSeeder creates a new fixed data seeder.
@@ -132,6 +137,9 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	}
 	if err := s.seedClassArrivalTimes(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed class arrival times: %w", err)
+	}
+	if err := s.seedClassArrivalException(ctx, result); err != nil {
+		return nil, fmt.Errorf("failed to seed class arrival exception: %w", err)
 	}
 
 	// 8. Create guardians and link to students
@@ -221,6 +229,46 @@ func (s *FixedSeeder) seedClassArrivalTimes(_ context.Context, result *FixedResu
 
 	if s.verbose {
 		fmt.Printf("  ✓ %d class arrival times seeded\n", result.ClassArrivalTimeCount)
+	}
+	return nil
+}
+
+// seedClassArrivalException gives the first class a class-wide arrival day
+// exception on the next school day (#2962), so the Klassen-Modal and the
+// roster show one on every dev machine.
+func (s *FixedSeeder) seedClassArrivalException(_ context.Context, result *FixedResult) error {
+	classNames := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, student := range DemoStudents {
+		if _, ok := seen[student.Class]; ok {
+			continue
+		}
+		seen[student.Class] = struct{}{}
+		classNames = append(classNames, student.Class)
+	}
+	sort.Strings(classNames)
+	if len(classNames) == 0 {
+		return nil
+	}
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		return fmt.Errorf("load Berlin timezone: %w", err)
+	}
+	date := time.Now().In(berlin)
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDate(0, 0, 1)
+	}
+	isoDate := date.Format("2006-01-02")
+	path := fmt.Sprintf("/api/students/class-arrival-exceptions/%s/%s", url.PathEscape(classNames[0]), isoDate)
+	if _, err := s.client.Put(path, map[string]any{
+		"arrival_time": "11:00",
+		"reason":       "Unterricht fällt aus",
+	}); err != nil {
+		return fmt.Errorf("seed class arrival exception for %s: %w", classNames[0], err)
+	}
+	result.ClassArrivalExceptionCount++
+	if s.verbose {
+		fmt.Printf("  ✓ class arrival exception seeded for %s on %s\n", classNames[0], isoDate)
 	}
 	return nil
 }

@@ -682,3 +682,40 @@ func TestModuleKeepsPersistenceErrorsVisible(t *testing.T) {
 // boolPtr is the tri-state helper the *bool filters need; the shared test
 // package carries pointer helpers for every other type but not for bool.
 func boolPtr(value bool) *bool { return &value }
+
+// A cross-tenant reader (admin transaction) that knows its schools passes them
+// as TenantIDs, so the listing stays bounded to those schools instead of the
+// whole platform.
+func TestModuleFiltersStaffListingsByTenant(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ownTenant := testpkg.Tenant(t)
+	own := createStaff(t, testpkg.Ctx(t), db, module, "Own", "School", schoolmembership.StaffFields{})
+	otherCtx, otherTenant := otherTenantContext(t, db)
+	otherPerson := testpkg.CreateTestPersonForTenant(t, db, otherTenant, "Other", "School")
+	other, err := module.CreateStaff(otherCtx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: otherPerson.ID}})
+	require.NoError(t, err)
+
+	err = testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
+		bounded, err := module.ListStaff(adminCtx, schoolmembership.StaffFilter{TenantIDs: []int64{ownTenant}})
+		require.NoError(t, err)
+		require.Len(t, bounded, 1)
+		assert.Equal(t, own.ID, bounded[0].ID)
+
+		both, err := module.ListStaff(adminCtx, schoolmembership.StaffFilter{TenantIDs: []int64{ownTenant, otherTenant}})
+		require.NoError(t, err)
+		ids := map[int64]bool{}
+		for _, staff := range both {
+			ids[staff.ID] = true
+		}
+		assert.True(t, ids[own.ID] && ids[other.ID])
+		assert.Len(t, both, 2)
+
+		none, err := module.ListStaff(adminCtx, schoolmembership.StaffFilter{TenantIDs: []int64{}})
+		require.NoError(t, err)
+		assert.Empty(t, none, "an empty but present tenant filter matches nothing rather than everything")
+		return nil
+	})
+	require.NoError(t, err)
+}

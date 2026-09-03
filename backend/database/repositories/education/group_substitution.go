@@ -3,6 +3,7 @@ package education
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 
@@ -242,11 +243,14 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 	assignGroupsToSubstitutions(substitutions, groupMap)
 
 	// The staff behind the substitution belongs to School Membership; the
-	// injected resolver attaches it (#2667).
-	if r.substitutionStaff != nil {
-		if err := r.substitutionStaff(ctx, substitutions); err != nil {
-			return nil, err
-		}
+	// injected resolver attaches it (#2667). Fail closed: without it every
+	// substitution would render nameless, which is wrong data rather than an
+	// obvious outage.
+	if r.substitutionStaff == nil {
+		return nil, errors.New("group substitution repository resolves staff through School Membership")
+	}
+	if err := r.substitutionStaff(ctx, substitutions); err != nil {
+		return nil, err
 	}
 
 	return substitutions, nil

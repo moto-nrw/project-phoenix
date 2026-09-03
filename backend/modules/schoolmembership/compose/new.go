@@ -82,7 +82,8 @@ func (e engine) FindStaffByPerson(ctx context.Context, personID int64) (schoolme
 
 func (e engine) ListStaff(ctx context.Context, filter schoolmembership.StaffFilter) ([]schoolmembership.Staff, error) {
 	values, err := e.service.ListStaff(ctx, domain.StaffFilter{
-		IDs: filter.IDs, PersonIDs: filter.PersonIDs, WorkTimeModelID: filter.WorkTimeModelID, IncludeDeleted: filter.IncludeDeleted,
+		IDs: filter.IDs, PersonIDs: filter.PersonIDs, WorkTimeModelID: filter.WorkTimeModelID,
+		TenantIDs: filter.TenantIDs, IncludeDeleted: filter.IncludeDeleted,
 	})
 	if err != nil {
 		return nil, mapError(err)
