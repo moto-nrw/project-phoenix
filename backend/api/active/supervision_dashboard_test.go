@@ -1,20 +1,17 @@
 package active_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -227,34 +224,6 @@ func TestSupervisionDashboard_MinimalProjection(t *testing.T) {
 	}
 }
 
-// dashboardQueryCounter counts every SQL statement issued through the hooked
-// *bun.DB, including statements inside tenant transactions.
-type dashboardQueryCounter struct {
-	mu      sync.Mutex
-	queries []string
-}
-
-func (h *dashboardQueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	h.mu.Lock()
-	h.queries = append(h.queries, event.Query)
-	h.mu.Unlock()
-	return ctx
-}
-
-func (h *dashboardQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
-
-func (h *dashboardQueryCounter) reset() {
-	h.mu.Lock()
-	h.queries = nil
-	h.mu.Unlock()
-}
-
-func (h *dashboardQueryCounter) count() int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return len(h.queries)
-}
-
 // TestSupervisionDashboard_QueryBudget guards the aggregate against
 // per-student N+1 regressions: the query count must not grow with the number
 // of checked-in students, and the total per request stays under a fixed
@@ -279,14 +248,13 @@ func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 		}
 	}
 
-	counter := &dashboardQueryCounter{}
-	tc.db.AddQueryHook(counter)
+	counter := testpkg.CaptureQueries(t, tc.db)
 
 	run := func() int {
-		counter.reset()
+		counter.Reset()
 		rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
-		return counter.count()
+		return counter.Total()
 	}
 
 	addStudents(3)
@@ -306,9 +274,7 @@ func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 	// arrival bulk loads, settings snapshot, tenant tx overhead. Raise only
 	// with a written justification.
 	// Measured at 29 flat; the cap leaves headroom for benign changes only.
-	const maxQueries = 40
-	assert.LessOrEqual(t, largeCount, maxQueries,
-		"aggregated supervision dashboard request exceeded its query budget")
+	testpkg.AssertQueryBudget(t, "api.active.supervision_dashboard", counter.Queries())
 }
 
 // TestSupervisionDashboard_PayloadBudget bounds the wire size for a

@@ -614,6 +614,23 @@ func (r *AppointmentRecipientRepository) FindByAppointmentID(ctx context.Context
 	return rows, nil
 }
 
+func (r *AppointmentRecipientRepository) FindByAppointmentIDs(ctx context.Context, appointmentIDs []int64) ([]*calModels.AppointmentRecipient, error) {
+	if len(appointmentIDs) == 0 {
+		return nil, nil
+	}
+	var rows []*calModels.AppointmentRecipient
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
+		Where(`"appointment_recipient".appointment_id IN (?)`, bun.List(appointmentIDs)).
+		OrderExpr(`"appointment_recipient".appointment_id ASC, "appointment_recipient".recipient_type ASC, "appointment_recipient".id ASC`)
+	query = base.WithTenantFilter(ctx, query, "appointment_recipient")
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("find calendar recipients by appointments: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *AppointmentRecipientRepository) UpdateResponse(ctx context.Context, recipientID int64, status string) error {
 	switch status {
 	case calModels.ResponseStatusPending, calModels.ResponseStatusAccepted, calModels.ResponseStatusDeclined, calModels.ResponseStatusInfo:

@@ -51,6 +51,8 @@ The HTTP server (`serve`) connects as the least-privilege **`phoenix_auth`** rol
 
 **Handler → Service → Repository → Database** — the root `CLAUDE.md` states the rule; `.claude/rules/backend-conventions.md` is the enforcement-level reference (layer discipline, `Repository[T]` generics, model conventions, and the CI ratchet tests `TestHandlerLayerRatchet` + `TestServiceRepositoryRatchet` that fail PRs on violations).
 
+**Query budgets (#2940)**: every list endpoint has a scenario in `test/query_budgets.go` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
+
 ## Critical BUN ORM Patterns
 
 ### Schema-Qualified Tables (MUST USE QUOTES!)

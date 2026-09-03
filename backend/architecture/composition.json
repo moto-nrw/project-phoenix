@@ -17367,7 +17367,7 @@
       "declaration": "TestOGSGroupLive_KeepsOpenVisitWithoutAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        387
+        386
       ],
       "tables": [
         "users.students"
@@ -17379,7 +17379,7 @@
       "declaration": "TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        346
+        345
       ],
       "tables": [
         "users.students"
@@ -26119,7 +26119,7 @@
       "declaration": "newOverviewFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        56
       ],
       "tables": [
         "active.staff_absences",
@@ -30514,8 +30514,8 @@
       "declaration": "TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        356,
-        446
+        345,
+        435
       ],
       "tables": []
     },
@@ -30525,8 +30525,8 @@
       "declaration": "TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead",
       "target": "database/repositories.NewFactory",
       "lines": [
-        101,
-        105
+        88,
+        92
       ],
       "tables": []
     },
@@ -30536,7 +30536,7 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport",
       "target": "database/repositories.NewFactory",
       "lines": [
-        305
+        294
       ],
       "tables": []
     },
@@ -30546,8 +30546,8 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        191,
-        221
+        180,
+        210
       ],
       "tables": [
         "users.staff"
@@ -30559,7 +30559,7 @@
       "declaration": "createOverviewShift",
       "target": "database/repositories.NewFactory",
       "lines": [
-        164
+        153
       ],
       "tables": []
     },
@@ -30569,7 +30569,7 @@
       "declaration": "createOverviewTenantFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        48
+        47
       ],
       "tables": []
     },
@@ -31011,8 +31011,8 @@
       "declaration": "TestBookingAuthorityImpactAndActivationUseTheSameEvaluation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        160,
-        170
+        159,
+        169
       ],
       "tables": []
     },
@@ -31022,7 +31022,7 @@
       "declaration": "TestBookingMutationPlansFutureNaturalEndImmediately",
       "target": "database/repositories.NewFactory",
       "lines": [
-        470
+        469
       ],
       "tables": []
     },
@@ -31032,7 +31032,7 @@
       "declaration": "TestBookingParticipationBoundaryKeepsActualPresenceVisible",
       "target": "database/repositories.NewFactory",
       "lines": [
-        261
+        260
       ],
       "tables": []
     },
@@ -31042,7 +31042,7 @@
       "declaration": "TestConcurrentBookingAuthorityActivationCreatesOneCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        556
+        555
       ],
       "tables": []
     },
@@ -31052,7 +31052,7 @@
       "declaration": "TestConfirmedWithdrawalCannotBypassBookingAuthority",
       "target": "database/repositories.NewFactory",
       "lines": [
-        492
+        491
       ],
       "tables": []
     },
@@ -31062,8 +31062,8 @@
       "declaration": "TestNaturalBookingEndSchedulerIsIdempotent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        339,
-        345
+        338,
+        344
       ],
       "tables": []
     },
@@ -31073,7 +31073,7 @@
       "declaration": "TestNaturalSchedulerPreservesConfirmedWithdrawalAudit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        366
+        365
       ],
       "tables": []
     },
@@ -31083,7 +31083,7 @@
       "declaration": "TestOverdueRebookingReplacesTheStaleCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        401
+        400
       ],
       "tables": []
     },
@@ -31093,7 +31093,7 @@
       "declaration": "assertFiniteRebookingHistory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        424
+        423
       ],
       "tables": [
         "enrollment.request_child_offerings",
@@ -31106,7 +31106,7 @@
       "declaration": "assertNonCareMutationKeepsConfirmedWithdrawal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        516
+        515
       ],
       "tables": []
     },
@@ -32086,7 +32086,7 @@
       "declaration": "setupTimetableScenarioModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        63
+        62
       ],
       "tables": []
     },
