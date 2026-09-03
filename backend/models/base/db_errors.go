@@ -6,7 +6,20 @@ import (
 )
 
 // ErrNotFound is the persistence-neutral repository result for a missing row.
-var ErrNotFound = errors.New("repository: not found")
+//
+// It is a typed sentinel: packages that must not import this one (the HTTP
+// layer, see api/common.IsNotFound) recognise it through the
+// RepositoryNotFound marker method via errors.As, so the match follows the
+// error chain like errors.Is does instead of comparing message text.
+var ErrNotFound error = notFoundError{}
+
+type notFoundError struct{}
+
+func (notFoundError) Error() string { return "repository: not found" }
+
+// RepositoryNotFound marks the not-found sentinel for packages that match it
+// by shape rather than by identity.
+func (notFoundError) RepositoryNotFound() {}
 
 type postgresError interface {
 	error
@@ -96,6 +109,19 @@ func lastDoubleQuotedIdentifier(message string) (string, bool) {
 func IsLockNotAvailable(err error) bool {
 	var pgErr postgresError
 	return errors.As(err, &pgErr) && pgErr.Field('C') == "55P03"
+}
+
+// IsConstraintViolation reports whether err carries PostgreSQL error code
+// 23503 (foreign_key_violation) or 23502 (not_null_violation): a delete or
+// write refused because another row still references it or a required
+// column was left empty.
+func IsConstraintViolation(err error) bool {
+	var pgErr postgresError
+	if errors.As(err, &pgErr) {
+		code := pgErr.Field('C')
+		return code == "23503" || code == "23502"
+	}
+	return hasTextualSQLState(err, "23503") || hasTextualSQLState(err, "23502")
 }
 
 // IsNoRows reports whether err wraps the persistence-neutral repository

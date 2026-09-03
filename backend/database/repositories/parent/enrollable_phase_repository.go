@@ -11,16 +11,96 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // EnrollablePhaseRepository implements parentModels.EnrollablePhaseRepository.
 type EnrollablePhaseRepository struct {
-	db *bun.DB
+	db        *bun.DB
+	students  StudentDirectory
+	guardians GuardianDirectory
+}
+
+// BindStudentDirectory installs the People Directory the enrolled-student
+// eligibility is resolved through (#2662).
+func (r *EnrollablePhaseRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
+}
+
+// BindGuardianDirectory installs the People Directory the account's guardian
+// links are read from (#2663).
+func (r *EnrollablePhaseRepository) BindGuardianDirectory(guardians GuardianDirectory) {
+	r.guardians = guardians
+}
+
+// enrolledSubmitPersonIDs maps the submit-permitted guardian links of one
+// school to the persons of the children that are still ACTIVE or PENDING at
+// that school. The students belong to the People Directory (#2662); the
+// former join carried the same status and tenant predicates.
+func (r *EnrollablePhaseRepository) enrolledSubmitPersonIDs(students map[int64]DirectoryStudent, tenantID int64, studentIDs []int64) []int64 {
+	personIDs := make([]int64, 0, len(studentIDs))
+	seen := make(map[int64]struct{}, len(studentIDs))
+	for _, studentID := range studentIDs {
+		student, found := students[studentID]
+		if !found || student.TenantID != tenantID {
+			continue
+		}
+		if student.Status != string(usersModels.StudentStatusActive) && student.Status != string(usersModels.StudentStatusPending) {
+			continue
+		}
+		if _, dup := seen[student.PersonID]; dup {
+			continue
+		}
+		seen[student.PersonID] = struct{}{}
+		personIDs = append(personIDs, student.PersonID)
+	}
+	return personIDs
 }
 
 // NewEnrollablePhaseRepository wires a fresh repository.
 func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseRepository {
 	return &EnrollablePhaseRepository{db: db}
+}
+
+// guardianGuard is the per-school guardian evidence the picker and the
+// submit gate decide on: whether the account holds any guardian link there
+// (backed by an ACTIVE mapping), whether one of them grants
+// parent_portal.enrollment.submit, and the children behind the permitted
+// links.
+type guardianGuard struct {
+	hasFamilyLink       bool
+	hasSubmitPermission bool
+	submitStudentIDs    []int64
+}
+
+// guardianGuards resolves the guard per tenant from the account's links at
+// the schools where it holds an ACTIVE auth.account_tenants mapping.
+func (r *EnrollablePhaseRepository) guardianGuards(ctx context.Context, accountID int64) (map[int64]*guardianGuard, error) {
+	links, err := activeGuardianLinks(ctx, r.db, r.guardians, accountID)
+	if err != nil {
+		return nil, err
+	}
+	guards := make(map[int64]*guardianGuard)
+	seen := make(map[int64]map[int64]struct{})
+	for _, link := range links {
+		guard := guards[link.TenantID]
+		if guard == nil {
+			guard = &guardianGuard{}
+			guards[link.TenantID] = guard
+			seen[link.TenantID] = make(map[int64]struct{})
+		}
+		guard.hasFamilyLink = true
+		if !link.HasPermission(authorize.GuardianPermissionEnrollmentSubmit) {
+			continue
+		}
+		guard.hasSubmitPermission = true
+		if _, dup := seen[link.TenantID][link.StudentID]; dup {
+			continue
+		}
+		seen[link.TenantID][link.StudentID] = struct{}{}
+		guard.submitStudentIDs = append(guard.submitStudentIDs, link.StudentID)
+	}
+	return guards, nil
 }
 
 // ListEnrollable returns one row per (school, active+open phase) pair
@@ -37,8 +117,8 @@ func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseReposi
 // through this picker. A hidden school stays visible only to an account that
 // holds an actual FAMILY link there — a guardian_profile with at least one
 // students_guardians row, backed by an ACTIVE auth.account_tenants mapping
-// (guard.has_family_link) — so existing families keep seeing their own
-// school's re-enrollment phases.
+// (HasFamilyLink) — so existing families keep seeing their own school's
+// re-enrollment phases.
 //
 // The membership mapping alone (at.account_id / the already_linked display
 // flag) is deliberately NOT the visibility key: auth.account_tenants also
@@ -81,6 +161,10 @@ func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseReposi
 // either. Genuinely new-school applicants (no guardian rows at all) still see
 // open phases.
 //
+// The guardian rows belong to the People Directory (#2663): the phase query
+// carries only the phase and membership columns, the guardian guard is
+// resolved through the directory inside the same admin transaction.
+//
 // Cross-tenant query — must run inside tenant.WithAdminTx.
 func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
 	if accountID <= 0 {
@@ -98,17 +182,11 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		EnrollmentCloseAt *time.Time    `bun:"enrollment_close_at"`
 		AlreadyLinked     bool          `bun:"already_linked"`
 		Audience          string        `bun:"audience"`
-		HasFamilyLink     bool          `bun:"has_family_link"`
-		EnrolledPersonIDs []int64       `bun:"enrolled_submit_person_ids,array"`
 	}
 
 	// The caller applies the enrollment master switch through the settings
 	// platform's typed query seam. This repository owns only the care-plan
 	// projection and must not read config.setting_values directly.
-	//
-	// The LATERAL guard resolves the account's submit permission once per
-	// phase row; the audience WHERE clause below consumes it (see doc
-	// comment).
 	const query = `
 		SELECT
 			ph.tenant_id  AS school_id,
@@ -120,83 +198,46 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			ph.enrollment_open_at  AS enrollment_open_at,
 			ph.enrollment_close_at AS enrollment_close_at,
 			ph.audience   AS audience,
-			(at.account_id IS NOT NULL) AS already_linked,
-			guard.has_family_link AS has_family_link,
-			guard.enrolled_submit_person_ids AS enrolled_submit_person_ids
+			(at.account_id IS NOT NULL) AS already_linked
 		FROM enrollment.phases AS ph
 		LEFT JOIN auth.account_tenants AS at
 			ON at.tenant_id  = ph.tenant_id
 			AND at.account_id = ?
 			AND at.status     = 'active'
-		CROSS JOIN LATERAL (
-			SELECT
-				EXISTS (
-					SELECT 1
-					FROM users.guardian_profiles AS gp
-					JOIN users.students_guardians AS sg
-						ON sg.guardian_profile_id = gp.id
-						AND sg.tenant_id = gp.tenant_id
-					JOIN auth.account_tenants AS act
-						ON act.tenant_id  = gp.tenant_id
-						AND act.account_id = gp.account_id
-						AND act.status     = 'active'
-					WHERE gp.tenant_id = ph.tenant_id
-						AND gp.account_id = ?
-						AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-				) AS has_submit_permission,
-				COALESCE((
-					SELECT array_agg(DISTINCT st.person_id)
-					FROM users.guardian_profiles AS gp
-					JOIN users.students_guardians AS sg
-						ON sg.guardian_profile_id = gp.id
-						AND sg.tenant_id = gp.tenant_id
-					JOIN users.students AS st
-						ON st.id = sg.student_id
-						AND st.tenant_id = sg.tenant_id
-						AND st.status IN ('active', 'pending')
-					JOIN auth.account_tenants AS act
-						ON act.tenant_id  = gp.tenant_id
-						AND act.account_id = gp.account_id
-						AND act.status     = 'active'
-					WHERE gp.tenant_id = ph.tenant_id
-						AND gp.account_id = ?
-						AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-				), '{}'::bigint[]) AS enrolled_submit_person_ids,
-				EXISTS (
-					SELECT 1
-					FROM users.guardian_profiles AS gp
-					JOIN users.students_guardians AS sg
-						ON sg.guardian_profile_id = gp.id
-						AND sg.tenant_id = gp.tenant_id
-					JOIN auth.account_tenants AS act
-						ON act.tenant_id  = gp.tenant_id
-						AND act.account_id = gp.account_id
-						AND act.status     = 'active'
-					WHERE gp.tenant_id = ph.tenant_id
-						AND gp.account_id = ?
-				) AS has_family_link
-		) AS guard
 		WHERE ph.is_active = TRUE
 		  AND (ph.enrollment_open_at IS NULL OR ph.enrollment_open_at <= NOW())
 		  AND (ph.enrollment_close_at IS NULL OR ph.enrollment_close_at >= NOW())
-		  AND (ph.audience <> 'linked_parents' OR guard.has_submit_permission)
 		ORDER BY already_linked DESC, ph.service_start_date
 	`
 
 	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(query,
-		accountID,
-		accountID,
-		authorize.GuardianPermissionEnrollmentSubmit,
-		accountID,
-		authorize.GuardianPermissionEnrollmentSubmit,
-		accountID,
-	).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
+	}
+
+	guards, err := r.guardianGuards(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
+	}
+
+	studentIDs := make([]int64, 0)
+	for _, guard := range guards {
+		studentIDs = append(studentIDs, guard.submitStudentIDs...)
+	}
+	students, err := studentsByID(ctx, r.students, studentIDs)
+	if err != nil {
+		return nil, err
 	}
 
 	out := make([]*parentModels.EnrollablePhase, 0, len(rows))
 	for _, rr := range rows {
+		guard := guards[rr.SchoolID]
+		if guard == nil {
+			guard = &guardianGuard{}
+		}
+		if rr.Audience == "linked_parents" && !guard.hasSubmitPermission {
+			continue
+		}
 		out = append(out, &parentModels.EnrollablePhase{
 			SchoolID:          rr.SchoolID,
 			PhaseID:           rr.PhaseID,
@@ -208,101 +249,66 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			EnrollmentCloseAt: rr.EnrollmentCloseAt,
 			AlreadyLinked:     rr.AlreadyLinked,
 			Audience:          rr.Audience,
-			HasFamilyLink:     rr.HasFamilyLink,
+			HasFamilyLink:     guard.hasFamilyLink,
 
-			EnrolledSubmitPersonIDs: rr.EnrolledPersonIDs,
+			EnrolledSubmitPersonIDs: r.enrolledSubmitPersonIDs(students, rr.SchoolID, guard.submitStudentIDs),
 		})
 	}
 	return out, nil
 }
 
 // GuardianSubmitStatus resolves the (account, school) facts the parent
-// enrollment submit and form-load paths gate on (#1663). One round trip,
-// four EXISTS probes. HasSubmitPermission additionally requires an ACTIVE
-// auth.account_tenants mapping so a deactivated guardian's lingering
-// guardian rows cannot report submit authority.
+// enrollment submit and form-load paths gate on (#1663). HasSubmitPermission
+// additionally requires an ACTIVE auth.account_tenants mapping so a
+// deactivated guardian's lingering guardian rows cannot report submit
+// authority; HasGuardianLink deliberately does not, it reports the
+// relationship as such.
 //
-// HasEnrolledSubmitPermission is the existing_students counterpart and MUST
-// stay identical to guard.has_enrolled_submit_permission in ListEnrollable
-// above: it additionally requires the permission-granting relationship to
-// point at an ACTIVE or PENDING student whose person is not soft-deleted.
-// The picker and the authenticated form gate have to agree — a form that
-// loads for a phase the picker hides is a dead end whose submit always
-// fails. Cross-tenant — must run inside tenant.WithAdminTx.
+// EnrolledSubmitPersonIDs is the existing_students counterpart and MUST stay
+// identical to the guard ListEnrollable applies: it additionally requires the
+// permission-granting relationship to point at an ACTIVE or PENDING student
+// whose person is not soft-deleted. The picker and the authenticated form
+// gate have to agree — a form that loads for a phase the picker hides is a
+// dead end whose submit always fails. Cross-tenant — must run inside
+// tenant.WithAdminTx.
 func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, accountID, tenantID int64) (*parentModels.GuardianSubmitStatus, error) {
 	if accountID <= 0 || tenantID <= 0 {
 		return nil, fmt.Errorf("parent: account_id and tenant_id must be positive")
 	}
 
-	type row struct {
-		Linked              bool    `bun:"linked"`
-		HasGuardianLink     bool    `bun:"has_guardian_link"`
-		HasSubmitPermission bool    `bun:"has_submit_permission"`
-		EnrolledPersonIDs   []int64 `bun:"enrolled_submit_person_ids,array"`
-	}
-
-	const query = `
-		SELECT
-			EXISTS (
-				SELECT 1 FROM auth.account_tenants AS at
-				WHERE at.tenant_id = ? AND at.account_id = ? AND at.status = 'active'
-			) AS linked,
-			EXISTS (
-				SELECT 1
-				FROM users.guardian_profiles AS gp
-				JOIN users.students_guardians AS sg
-					ON sg.guardian_profile_id = gp.id
-					AND sg.tenant_id = gp.tenant_id
-				WHERE gp.tenant_id = ? AND gp.account_id = ?
-			) AS has_guardian_link,
-			EXISTS (
-				SELECT 1
-				FROM users.guardian_profiles AS gp
-				JOIN users.students_guardians AS sg
-					ON sg.guardian_profile_id = gp.id
-					AND sg.tenant_id = gp.tenant_id
-				JOIN auth.account_tenants AS act
-					ON act.tenant_id  = gp.tenant_id
-					AND act.account_id = gp.account_id
-					AND act.status     = 'active'
-				WHERE gp.tenant_id = ? AND gp.account_id = ?
-					AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-			) AS has_submit_permission,
-			COALESCE((
-				SELECT array_agg(DISTINCT st.person_id)
-				FROM users.guardian_profiles AS gp
-				JOIN users.students_guardians AS sg
-					ON sg.guardian_profile_id = gp.id
-					AND sg.tenant_id = gp.tenant_id
-				JOIN users.students AS st
-					ON st.id = sg.student_id
-					AND st.tenant_id = sg.tenant_id
-					AND st.status IN ('active', 'pending')
-				JOIN auth.account_tenants AS act
-					ON act.tenant_id  = gp.tenant_id
-					AND act.account_id = gp.account_id
-					AND act.status     = 'active'
-				WHERE gp.tenant_id = ? AND gp.account_id = ?
-					AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-			), '{}'::bigint[]) AS enrolled_submit_person_ids
-	`
-
-	var out row
-	if err := base.GetDB(ctx, r.db).NewRaw(query,
-		tenantID, accountID,
-		tenantID, accountID,
-		tenantID, accountID,
-		authorize.GuardianPermissionEnrollmentSubmit,
-		tenantID, accountID,
-		authorize.GuardianPermissionEnrollmentSubmit,
-	).Scan(ctx, &out); err != nil {
+	tenants, err := activeMappingTenants(ctx, r.db, accountID)
+	if err != nil {
 		return nil, fmt.Errorf("parent: guardian submit status: %w", err)
 	}
+	_, linked := tenants[tenantID]
 
-	return &parentModels.GuardianSubmitStatus{
-		Linked:                  out.Linked,
-		HasGuardianLink:         out.HasGuardianLink,
-		HasSubmitPermission:     out.HasSubmitPermission,
-		EnrolledSubmitPersonIDs: out.EnrolledPersonIDs,
-	}, nil
+	links, err := guardianLinksByAccount(ctx, r.guardians, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("parent: guardian submit status: %w", err)
+	}
+	status := &parentModels.GuardianSubmitStatus{Linked: linked}
+	submitStudentIDs := make([]int64, 0)
+	seen := make(map[int64]struct{})
+	for _, link := range links {
+		if link.TenantID != tenantID {
+			continue
+		}
+		status.HasGuardianLink = true
+		if !linked || !link.HasPermission(authorize.GuardianPermissionEnrollmentSubmit) {
+			continue
+		}
+		status.HasSubmitPermission = true
+		if _, dup := seen[link.StudentID]; dup {
+			continue
+		}
+		seen[link.StudentID] = struct{}{}
+		submitStudentIDs = append(submitStudentIDs, link.StudentID)
+	}
+
+	students, err := studentsByID(ctx, r.students, submitStudentIDs)
+	if err != nil {
+		return nil, err
+	}
+	status.EnrolledSubmitPersonIDs = r.enrolledSubmitPersonIDs(students, tenantID, submitStudentIDs)
+	return status, nil
 }

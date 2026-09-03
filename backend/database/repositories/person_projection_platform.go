@@ -8,6 +8,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
 
@@ -46,10 +47,11 @@ func (r personAnnouncementViewRepository) GetViewDetails(ctx context.Context, an
 // listings through the People Directory.
 type personOperatorSummariesRepository struct {
 	platformModels.OperatorSummariesRepository
-	persons  peopledirectory.Query
-	schools  func() platformModels.SchoolRepository
-	accounts func() authModels.AccountRepository
-	db       *bun.DB
+	persons    peopledirectory.Query
+	schools    func() platformModels.SchoolRepository
+	accounts   func() authModels.AccountRepository
+	membership func() schoolmembership.Capability
+	db         *bun.DB
 }
 
 func (r personOperatorSummariesRepository) OrganizationSummaries(ctx context.Context) ([]*platformModels.OrganizationSummary, error) {
@@ -152,9 +154,21 @@ func (r personOperatorSummariesRepository) listOperatorPersons(ctx context.Conte
 
 func (r personOperatorSummariesRepository) operatorPersonFacts(ctx context.Context, persons []peopledirectory.Person) (map[int64]bool, map[int64]bool, map[int64]string, error) {
 	personIDs, accountIDs := operatorPersonIDs(persons)
-	staff, students, err := usersRepo.FindOperatorPersonMembership(ctx, r.db, personIDs)
+	students, err := usersRepo.FindOperatorPersonStudentMembership(ctx, r.db, personIDs)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	// Staff membership belongs to School Membership; the operator directory
+	// asks the owner instead of joining users.staff.
+	staff := make(map[int64]bool, len(personIDs))
+	if len(personIDs) > 0 {
+		members, listErr := r.membership().ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs})
+		if listErr != nil {
+			return nil, nil, nil, fmt.Errorf("load operator staff membership: %w", listErr)
+		}
+		for _, member := range members {
+			staff[member.PersonID] = true
+		}
 	}
 	emails, err := r.accounts().FindEmailsByAccountIDs(ctx, accountIDs)
 	if err != nil {

@@ -1,0 +1,255 @@
+package auth_test
+
+import (
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/auth"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// ============================================================================
+// Setup Helpers
+// ============================================================================
+
+// ============================================================================
+// CRUD Tests
+// ============================================================================
+
+// generateHexID generates a unique hexadecimal ID for testing
+func generateHexID(prefix string) string {
+	// Use nanoseconds as hex
+	nano := time.Now().UnixNano()
+	return fmt.Sprintf("%s%X", prefix, nano)
+}
+
+func TestRFIDCardRepository_Create(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).RFIDCard
+	ctx := testpkg.Ctx(t)
+
+	t.Run("creates RFID card with valid data", func(t *testing.T) {
+		uniqueID := generateHexID("ABCD")
+		card := &auth.RFIDCard{
+			Active: true,
+		}
+		card.ID = uniqueID
+
+		err := repo.Create(ctx, card)
+		require.NoError(t, err)
+		assert.NotZero(t, card.CreatedAt)
+
+		// Verify in DB - ID is normalized to uppercase without hyphens
+		normalizedID := uniqueID // already uppercase hex
+		found, err := repo.FindByID(ctx, normalizedID)
+		require.NoError(t, err)
+		assert.True(t, found.Active)
+
+		// Cleanup
+	})
+
+	t.Run("creates RFID card and verifies creation", func(t *testing.T) {
+		uniqueID := generateHexID("DEAD")
+		card := &auth.RFIDCard{
+			Active: true,
+		}
+		card.ID = uniqueID
+
+		err := repo.Create(ctx, card)
+		require.NoError(t, err)
+		assert.NotZero(t, card.CreatedAt)
+
+		found, err := repo.FindByID(ctx, uniqueID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, uniqueID, found.ID)
+
+	})
+}
+
+func TestRFIDCardRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).RFIDCard
+	ctx := testpkg.Ctx(t)
+
+	t.Run("finds existing RFID card", func(t *testing.T) {
+		card := testpkg.CreateTestRFIDCard(t, db, "CAFE")
+
+		found, err := repo.FindByID(ctx, card.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, card.ID, found.ID)
+		assert.True(t, found.Active)
+	})
+
+	t.Run("returns nil for non-existent card (auto-create design)", func(t *testing.T) {
+		// FindByID returns nil, nil for non-existent cards to support auto-create logic
+		found, err := repo.FindByID(ctx, "DEADBEEF999999")
+		require.NoError(t, err)
+		assert.Nil(t, found)
+	})
+}
+
+func TestRFIDCardRepository_Update_ViaActivateDeactivate(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).RFIDCard
+	ctx := testpkg.Ctx(t)
+
+	t.Run("updates RFID card active status via Deactivate", func(t *testing.T) {
+		card := testpkg.CreateTestRFIDCard(t, db, "BABE")
+
+		// Initially active, deactivate it
+		err := repo.Deactivate(ctx, card.ID)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, card.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.False(t, found.Active)
+	})
+
+}
+
+func TestRFIDCardRepository_Delete(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).RFIDCard
+	ctx := testpkg.Ctx(t)
+
+	t.Run("deletes existing RFID card", func(t *testing.T) {
+		card := testpkg.CreateTestRFIDCard(t, db, "FADE")
+
+		err := repo.Delete(ctx, card.ID)
+		require.NoError(t, err)
+
+		// Verify card is deleted - FindByID returns nil for non-existent
+		found, err := repo.FindByID(ctx, card.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found, "expected nil after deletion")
+	})
+
+	t.Run("delete is idempotent", func(t *testing.T) {
+		// Deleting non-existent card should not error
+		err := repo.Delete(ctx, "NONEXISTENT123")
+		require.NoError(t, err)
+	})
+}
+
+// ============================================================================
+// Query Tests
+// ============================================================================
+
+func TestRFIDCardRepository_List(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).RFIDCard
+	ctx := testpkg.Ctx(t)
+
+	t.Run("lists all RFID cards with no filters", func(t *testing.T) {
+		testpkg.CreateTestRFIDCard(t, db, "BEEF")
+
+		cards, err := repo.List(ctx, nil)
+		require.NoError(t, err)
+		assert.NotEmpty(t, cards)
+	})
+
+	t.Run("lists RFID cards with active filter", func(t *testing.T) {
+		testpkg.CreateTestRFIDCard(t, db, "FACE")
+
+		cards, err := repo.List(ctx, map[string]interface{}{
+			"active": true,
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, cards)
+	})
+}
+
+// ============================================================================
+// Activation Tests
+// ============================================================================
+
+func TestRFIDCardRepository_Deactivate(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).RFIDCard
+	ctx := testpkg.Ctx(t)
+
+	t.Run("deactivates active RFID card", func(t *testing.T) {
+		card := testpkg.CreateTestRFIDCard(t, db, "DECA")
+
+		// Verify it starts active
+		found, err := repo.FindByID(ctx, card.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.True(t, found.Active)
+
+		// Deactivate it
+		err = repo.Deactivate(ctx, card.ID)
+		require.NoError(t, err)
+
+		// Verify it's now inactive
+		found, err = repo.FindByID(ctx, card.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.False(t, found.Active)
+	})
+}
+
+// ============================================================================
+// Update Method Tests
+// ============================================================================
+
+func TestRFIDCardRepository_Update(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).RFIDCard
+	ctx := testpkg.Ctx(t)
+
+	t.Run("updates RFID card fields", func(t *testing.T) {
+		// Create card with valid hex ID
+		card := testpkg.CreateTestRFIDCard(t, db, "ABCD1234")
+
+		// Verify initial state
+		found, err := repo.FindByID(ctx, card.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.True(t, found.Active)
+
+		found.Active = false
+		err = repo.Update(ctx, found)
+		require.NoError(t, err)
+
+		// Verify update
+		found, err = repo.FindByID(ctx, card.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.False(t, found.Active)
+	})
+
+	t.Run("fails with nil card", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "nil")
+	})
+}

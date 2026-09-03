@@ -20,6 +20,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -49,7 +50,7 @@ func attachSplitServiceWithValidator(
 		GroupRepo:                  activitiesRepo.NewGroupRepository(s.db),
 		CategoryRepo:               activitiesRepo.NewCategoryRepository(s.db),
 		ScheduleRepo:               activitiesRepo.NewScheduleRepository(s.db),
-		EnrollmentRepo:             activitiesRepo.NewStudentEnrollmentRepository(s.db),
+		EnrollmentRepo:             repositories.NewFactory(s.db).StudentEnrollment,
 		SupervisorRepo:             activitiesRepo.NewSupervisorPlannedRepository(s.db),
 		InstanceRepo:               scheduleRepo.NewActivityInstanceRepository(s.db),
 		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(s.db),
@@ -480,7 +481,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	beforeGroup, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	beforeSchedules := templateSchedules(t, s, created.TemplateID)
-	beforeEnrollments, err := activitiesRepo.NewStudentEnrollmentRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
+	beforeEnrollments, err := repositories.NewFactory(s.db).StudentEnrollment.FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	beforeSupervisors, err := activitiesRepo.NewSupervisorPlannedRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
@@ -540,7 +541,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 		assert.Equal(t, beforeSchedules[i].Weekday, afterSchedules[i].Weekday)
 		assert.Equal(t, beforeSchedules[i].TimeframeID, afterSchedules[i].TimeframeID)
 	}
-	afterEnrollments, err := activitiesRepo.NewStudentEnrollmentRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
+	afterEnrollments, err := repositories.NewFactory(s.db).StudentEnrollment.FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, enrollmentIDs(beforeEnrollments), enrollmentIDs(afterEnrollments))
 	afterSupervisors, err := activitiesRepo.NewSupervisorPlannedRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
@@ -599,7 +600,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 		assert.Nil(t, schedule.ValidUntil)
 	}
 
-	enrollments, err := activitiesRepo.NewStudentEnrollmentRepository(s.db).FindByGroupID(s.ctx, split.NewTemplateID)
+	enrollments, err := repositories.NewFactory(s.db).StudentEnrollment.FindByGroupID(s.ctx, split.NewTemplateID)
 	require.NoError(t, err)
 	activeEnrollments := 0
 	for _, enrollment := range enrollments {

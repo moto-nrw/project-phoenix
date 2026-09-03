@@ -17,13 +17,17 @@ import (
 type StudentDeletionRepository struct {
 	db                   *bun.DB
 	countAuditReferences func(context.Context, int64) (int, error)
+	// countConsents is served by the privacy-consent owner (student-presence,
+	// #2662); the preview must not join users.privacy_consents itself.
+	countConsents func(context.Context, int64) (int, error)
 }
 
 func NewStudentDeletionRepository(
 	db *bun.DB,
 	countAuditReferences func(context.Context, int64) (int, error),
+	countConsents func(context.Context, int64) (int, error),
 ) userModels.StudentDeletionRepository {
-	return &StudentDeletionRepository{db: db, countAuditReferences: countAuditReferences}
+	return &StudentDeletionRepository{db: db, countAuditReferences: countAuditReferences, countConsents: countConsents}
 }
 
 func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64) (*userModels.StudentDeletionCounts, error) {
@@ -72,7 +76,6 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				(SELECT COUNT(*) FROM schedule.care_schedule_change_requests WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM auth.guardian_invitations WHERE tenant_id = ? AND student_id = ?)
 			)::int AS communications,
-			(SELECT COUNT(*) FROM users.privacy_consents WHERE tenant_id = ? AND student_id = ?)::int AS consents,
 			(SELECT COUNT(*) FROM enrollment.request_children WHERE tenant_id = ? AND (created_student_id = ? OR matched_student_id = ?))::int AS enrollment_references,
 			(
 				(SELECT COUNT(*) FROM calendar.appointment_recipient_students WHERE tenant_id = ? AND student_id = ?) +
@@ -87,15 +90,18 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		tenantID, studentID, tenantID, tenantID, studentID,
 		tenantID, studentID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
-		tenantID, studentID,
 		tenantID, studentID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
 	}
-	if r.countAuditReferences == nil {
-		return nil, fmt.Errorf("preview student deletion: audit count capability is required")
+	if r.countAuditReferences == nil || r.countConsents == nil {
+		return nil, fmt.Errorf("preview student deletion: audit and consent count capabilities are required")
+	}
+	counts.Consents, err = r.countConsents(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count consents: %w", err)
 	}
 	auditReferences, err := r.countAuditReferences(ctx, studentID)
 	if err != nil {

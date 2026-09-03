@@ -8,6 +8,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// BindCareStudentLockForDB installs a graph-scoped owner lock for the
+// database used by the timetable services.
+func BindCareStudentLockForDB(db *bun.DB, lock func(context.Context, int64) error, notFound error) {
+	careplanning.BindStudentLockForDB(db, lock, notFound)
+}
+
 // LockCareExceptionDay serializes pickup and arrival exception writes for one
 // child-day. The parent portal treats staff ownership as day-level state, while
 // the data lives in two tables, so every writer must take the same lock before

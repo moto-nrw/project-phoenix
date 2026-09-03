@@ -277,6 +277,10 @@ var (
 		prometheus.CounterOpts{Name: "phoenix_people_directory_http_responses_total", Help: "People Directory HTTP responses by actual status class and stable code."},
 		[]string{"status_class", "code"},
 	)
+	guardianDirectoryHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_guardian_directory_http_responses_total", Help: "Guardian directory (/api/guardians) HTTP responses by actual status class and stable code."},
+		[]string{"status_class", "code"},
+	)
 	schoolStructureOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_school_structure_operations_total", Help: "School Structure operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -296,6 +300,30 @@ var (
 	schoolStructureStatementDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{Name: "phoenix_school_structure_statement_duration_seconds", Help: "Cumulative School Structure database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
+	)
+	schoolMembershipOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_operations_total", Help: "School Membership operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	schoolMembershipDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_membership_operation_duration_seconds", Help: "School Membership operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	schoolMembershipQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_queries_total", Help: "Persistence queries issued by School Membership operations."},
+		[]string{"operation"},
+	)
+	schoolMembershipRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_rows_total", Help: "Rows returned or changed by School Membership operations."},
+		[]string{"operation"},
+	)
+	schoolMembershipStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_membership_statement_duration_seconds", Help: "Cumulative School Membership database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	schoolMembershipHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_http_responses_total", Help: "School Membership HTTP responses under /api/staff by actual status class and stable code."},
+		[]string{"status_class", "code"},
 	)
 	feedbackOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_feedback_operations_total", Help: "Feedback operations by operation, outcome, and stable error code."},
@@ -526,11 +554,18 @@ func init() {
 		peopleDirectoryRowsChanged,
 		peopleDirectoryStatementDuration,
 		peopleDirectoryHTTPResponses,
+		guardianDirectoryHTTPResponses,
 		schoolStructureOperations,
 		schoolStructureDuration,
 		schoolStructureQueries,
 		schoolStructureRows,
 		schoolStructureStatementDuration,
+		schoolMembershipOperations,
+		schoolMembershipDuration,
+		schoolMembershipQueries,
+		schoolMembershipRows,
+		schoolMembershipStatementDuration,
+		schoolMembershipHTTPResponses,
 		feedbackOperations,
 		feedbackHTTPResponses,
 		feedbackDuration,
@@ -698,6 +733,45 @@ func ObservePeopleDirectoryOperation(operation string, duration time.Duration, q
 func ObservePeopleDirectoryHTTPResponse(status int, code string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
 	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
+// ObserveGuardianDirectoryHTTPResponse counts one /api/guardians response by
+// the status class actually written and the stable outcome code (#2663).
+func ObserveGuardianDirectoryHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	guardianDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
+// ObserveSchoolMembershipOperation records the runtime evidence of one School
+// Membership capability call: outcome and stable code, duration, query
+// count, rows, and cumulative statement duration.
+func ObserveSchoolMembershipOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	schoolMembershipOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolMembershipDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		schoolMembershipQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		schoolMembershipRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		schoolMembershipStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveSchoolMembershipHTTPResponse counts one School Membership HTTP
+// adapter response (/api/staff membership routes, /api/class-list-entries)
+// by the status class actually written and the stable outcome code.
+func ObserveSchoolMembershipHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	schoolMembershipHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
 }
 
 func ObserveSchoolStructureOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {

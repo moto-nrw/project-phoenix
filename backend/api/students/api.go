@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -41,7 +42,7 @@ type Resource struct {
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
 	PersonService    userService.PersonService
-	GuardianService  *userService.GuardianService
+	PeopleDirectory  peopleModule.Capability
 	EducationService educationService.Service
 	// GradeTransitionService is required by the purge route only: it strips the
 	// child's name from the transition ledger in the same transaction as the
@@ -361,6 +362,12 @@ func (rs *Resource) Router() chi.Router {
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-schedules/status", rs.getBulkArrivalScheduleStatus)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/class-arrival-times/{schoolClass}", rs.getClassArrivalTimes)
+
+		// Class-wide arrival day exceptions (#2962). Writes additionally run
+		// through operations.class_arrival_exception_editors in the handler.
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/class-arrival-exceptions/{schoolClass}", rs.getClassArrivalExceptions)
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/class-arrival-exceptions/{schoolClass}/{date}", rs.putClassArrivalException)
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/class-arrival-exceptions/{schoolClass}/{date}", rs.deleteClassArrivalException)
 
 		// Web-based school check-in/out. Mode-agnostic (writes attendance only).
 		// The users:checkin permission is the gate; any verified staff member may

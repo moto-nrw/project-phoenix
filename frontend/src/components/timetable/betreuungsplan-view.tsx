@@ -380,11 +380,15 @@ function TimetablesContent() {
     [updateUrlParams],
   );
 
+  // Beim Schließen darf `block` nicht der letzte Plan-Parameter sein: die
+  // Kalenderfläche (#2283) leitet ihren Tab aus d/view/block ab und fiele
+  // sonst auf "Meine Termine" zurück (#2957). Deshalb wird der sichtbare Tag
+  // mitgeschrieben — unverändert, ohne Wochenend-Angleichung.
   const handleSelectInstance = useCallback(
     (instance: EnrichedInstance | null) => {
-      updateUrlParams({ block: instance?.id ?? null });
+      updateUrlParams({ block: instance?.id ?? null, d: requestedDayISO });
     },
-    [updateUrlParams],
+    [requestedDayISO, updateUrlParams],
   );
 
   // Fetch-Fenster. Woche/Monat leiten ihr Fenster aus `d` ab; die Serienansicht

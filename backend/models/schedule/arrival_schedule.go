@@ -30,6 +30,11 @@ const (
 const (
 	ArrivalScheduleSourceStaff         = "staff"
 	ArrivalScheduleSourceClassSchedule = "class_schedule"
+	// ArrivalScheduleSourceClassException marks a projected row whose time
+	// comes from a class-wide day exception (#2962): the whole class arrives
+	// at a different time on that date, which outranks both the class time
+	// and a per-child weekly deviation.
+	ArrivalScheduleSourceClassException = "class_exception"
 )
 
 // StudentArrivalSchedule represents a recurring weekly arrival schedule for a student
@@ -52,6 +57,9 @@ type StudentArrivalSchedule struct {
 	// class it came from. Mirrors StudentPickupSchedule.CareOfferingName.
 	Source      string `bun:"-" json:"source,omitempty"`
 	SourceClass string `bun:"-" json:"source_class,omitempty"`
+	// SourceLabel is the ready-made line a class-wide day exception carries
+	// ("Klasse 4a: Unterricht fällt aus", #2962); empty for every other source.
+	SourceLabel string `bun:"-" json:"source_label,omitempty"`
 }
 
 // Validate ensures arrival schedule data is valid

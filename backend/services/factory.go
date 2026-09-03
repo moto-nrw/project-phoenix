@@ -33,6 +33,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/absence"
@@ -171,6 +172,7 @@ type Factory struct {
 	StaffOffboarding          users.StaffOffboardingService
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
+	PeopleDirectory           peopledirectory.Capability
 	GuardianProfileLoader     *users.GuardianProfileLoader
 	UserContext               usercontext.UserContextService
 	Database                  database.DatabaseService
@@ -420,6 +422,7 @@ func NewFactoryWithModules(
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
+	membership schoolmembership.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -429,10 +432,10 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || membership == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, school membership, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, membership, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -443,6 +446,7 @@ func newFactory(
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
+	membership schoolmembership.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -457,10 +461,13 @@ func newFactory(
 	today := timezone.CalendarDateClock(now)
 	// Persons first: the school projections sort by the names this binds.
 	repos.BindPeopleDirectory(persons)
+	careStudentLock, studentNotFound := repositories.CareStudentLock(persons)
+	schedule.BindCareStudentLockForDB(db, careStudentLock, studentNotFound)
+	repos.BindSchoolMembership(membership)
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
-	settingsRuntime := newSettingsRuntime(db, nil)
+	settingsRuntime := newSettingsRuntime(db, nil).WithSchoolMembership(membership)
 	repos.SetConfigRuntime(settingsRuntime)
 
 	mailer, err := email.NewMailer(email.MailerConfig{
@@ -791,7 +798,7 @@ func newFactory(
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
-	staffClockService := staffclock.NewService(usersService, repos.RFIDCard, workSessionService)
+	staffClockService := staffclock.NewService(usersService, newRFIDCardLookup(repos.RFIDCard.FindByID), workSessionService)
 
 	// Monatskarte read model (#1842) — everything computed on read, the
 	// Übertrag is live.
@@ -1017,6 +1024,7 @@ func newFactory(
 		repos.StudentArrivalSchedule,
 		repos.Student,
 		repos.ClassArrivalTime,
+		repos.ClassArrivalException,
 		repos.RequestChildOffering,
 		repos.CareOffering,
 		settingsService,
@@ -1463,6 +1471,7 @@ func newFactory(
 		repos.ClassArrivalTime,
 		db,
 		logger.With("service", "arrival-schedule"),
+		schedule.WithClassArrivalExceptions(repos.ClassArrivalException),
 	)
 
 	timetableOperationsService := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
@@ -3001,6 +3010,7 @@ func newFactory(
 		StaffOffboarding:        staffOffboardingService,
 		CaregiverCapability:     caregiverCapabilityService,
 		Guardian:                guardianService,
+		PeopleDirectory:         persons,
 		GuardianProfileLoader:   guardianProfileLoader,
 		UserContext:             userContextService,
 		Database:                databaseService,
@@ -3138,6 +3148,9 @@ func newFactory(
 		logger.With("service", "shift_plan_sync"),
 		today,
 	))
+	// The People Directory serves guardians through the owner's legacy
+	// guardian service (#2663); bind it now that the service exists.
+	factory.bindGuardianDirectory(persons, db)
 	return factory, nil
 }
 

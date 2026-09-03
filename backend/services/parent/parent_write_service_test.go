@@ -19,6 +19,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -82,6 +83,9 @@ func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
 func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	lock, notFound, err := repositories.NewCareStudentLock(db)
+	require.NoError(t, err)
+	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -109,6 +113,9 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	lock, notFound, err := repositories.NewCareStudentLock(db)
+	require.NoError(t, err)
+	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{

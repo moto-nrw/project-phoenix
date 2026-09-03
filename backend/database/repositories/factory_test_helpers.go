@@ -1,10 +1,9 @@
 package repositories
 
 import (
+	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -21,11 +20,16 @@ func NewFactoryWithPeopleDirectory(db *bun.DB, clocks ...func() time.Time) (*Fac
 	return factory, nil
 }
 
-// NewPeopleDirectory composes the person owner behind the legacy
-// composition seam for test graphs and CLI roots.
-func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
-	return peopleCompose.New(peopleCompose.Dependencies{
-		DB:      db,
-		Observe: func(peopleCompose.Observation) {},
-	})
+// NewCareStudentLock composes the People Directory's student row lock for
+// test graphs that bind timetable services without services.NewFactory
+// (#2662). It returns the lock and the sentinel the lock reports for a
+// missing child; the directory reads the transaction from the context, so
+// any open pool of the test database serves as the composition anchor.
+func NewCareStudentLock(db *bun.DB) (lock func(context.Context, int64) error, notFound error, err error) {
+	persons, err := NewPeopleDirectory(db)
+	if err != nil {
+		return nil, nil, err
+	}
+	lock, notFound = CareStudentLock(persons)
+	return lock, notFound, nil
 }

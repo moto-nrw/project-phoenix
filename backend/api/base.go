@@ -29,14 +29,13 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
-	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
-	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
+
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
@@ -44,7 +43,6 @@ import (
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	schoolAPI "github.com/moto-nrw/project-phoenix/api/school"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
-	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/api/statistics"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
@@ -81,6 +79,10 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -103,7 +105,16 @@ func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.Offe
 	return lister
 }
 
-func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, event apiCommon.TenantRuntimeEvent) {
+// recordHTTPRuntimeEvent turns one runtime event into a metric and, for
+// failures, one ERROR record carrying method, route, path and status. A
+// rolled-back transaction is only a failure when the client got a 5xx: the
+// tenant middleware and service-owned transactions also roll back behind
+// 401/404/410 responses, and those must not feed the error-spike alert
+// (#2953). The slog-chi request line already records every 4xx at WARN.
+type httpRuntimeObservation = apiCommon.TenantRuntimeObservation
+
+func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntimeObservation) {
+	event, r, status := observation.Event, observation.Request, observation.Status
 	observability.RecordUnitOfWorkEvent(
 		"http",
 		string(event.Kind),
@@ -111,13 +122,21 @@ func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, e
 		event.Duration,
 		event.Retries,
 	)
+	ctx := r.Context()
+	attrs := []slog.Attr{
+		slog.String("method", r.Method),
+		slog.String("route", observation.Route),
+		slog.String("path", customMiddleware.RedactFeedToken(r.URL.Path)),
+		slog.Int("status", status),
+	}
 	switch {
 	case event.Kind == apiCommon.TenantRuntimeMissingTenant:
-		tracer.Failure(ctx, "http", string(event.Kind), "missing_tenant", event.Err)
-	case event.Kind == apiCommon.TenantRuntimeTransaction && event.Err != nil:
-		tracer.Failure(ctx, "http", string(event.Kind), "transaction_failure", event.Err)
+		tracer.Failure(ctx, "http", string(event.Kind), "missing_tenant", event.Err, attrs...)
+	case event.Kind == apiCommon.TenantRuntimeTransaction && event.Err != nil && status >= http.StatusInternalServerError:
+		attrs = append(attrs, slog.String("result", string(event.Result)))
+		tracer.Failure(ctx, "http", string(event.Kind), "transaction_failure", event.Err, attrs...)
 	case event.Kind == apiCommon.TenantRuntimeResponseWrite && event.Err != nil:
-		tracer.Failure(ctx, "http", string(event.Kind), "response_write_failure", event.Err)
+		tracer.Failure(ctx, "http", string(event.Kind), "response_write_failure", event.Err, attrs...)
 	}
 }
 
@@ -126,6 +145,8 @@ type moduleServices struct {
 	mealPlan *mealplanModule.Module
 	feedback *feedbackModule.Module
 	persons  *peopleModule.Module
+	// membership owns users.staff, users.teachers and users.guests (#2667).
+	membership *schoolMembershipModule.Module
 }
 
 func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (moduleServices, error) {
@@ -151,6 +172,15 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		DB: db,
 		Observe: func(observation schoolStructureCompose.Observation) {
 			observability.ObserveSchoolStructureOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolStructureModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	membership, err := schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
+		DB: db,
+		Observe: func(observation schoolMembershipCompose.Observation) {
+			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
 		},
 	})
 	if err != nil {
@@ -189,7 +219,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
-		organizations, persons, groups,
+		organizations, persons, groups, membership,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,
@@ -199,7 +229,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
-	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons}, nil
+	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, membership: membership}, nil
 }
 
 var mealPlanErrorRules = []apiCommon.ErrorRule{
@@ -307,6 +337,7 @@ type API struct {
 	metricsBearerToken string
 	databaseLogger     *slog.Logger
 	feedback           *feedbackModule.Module
+	membership         *schoolMembershipModule.Module
 	securityLogging    bool
 	rateLimiting       bool
 	authRateLimit      string
@@ -317,10 +348,11 @@ type API struct {
 	Students         *studentsAPI.Resource
 	Statistics       *statisticsAPI.Resource
 	Groups           *groupsAPI.Resource
-	Guardians        *guardiansAPI.Resource
+	Guardians        *usersAPI.GuardianResource
 	Import           *importAPI.Resource
 	Activities       *activitiesAPI.Resource
-	Staff            *staffAPI.Resource
+	Staff            *staffHTTP.Resource
+	StaffAdmin       *timeTrackingAPI.StaffAdminResource
 	WorkTimeModels   *worktimemodelsAPI.Resource
 	StaffShifts      *staffshiftsAPI.Resource
 	ShiftTypes       *shifttypesAPI.Resource
@@ -337,7 +369,7 @@ type API struct {
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
 	ClassDay         *classdayAPI.Resource
-	ClassListEntries *classlistentriesAPI.Resource
+	ClassListEntries *classListHTTP.Resource
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
@@ -349,7 +381,7 @@ type API struct {
 	StaffMessaging   *staffMessagingAPI.Resource
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
-	StaffNotices     *staffAPI.StaffNoticeResource
+	StaffNotices     *timeTrackingAPI.StaffNoticeResource
 	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
@@ -481,6 +513,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		metricsBearerToken: metricsBearerToken,
 		databaseLogger:     logger.With("handler", "database"),
 		feedback:           modules.feedback,
+		membership:         modules.membership,
 	}
 
 	// Setup router middleware
@@ -489,8 +522,8 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	api.Router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
 		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)
 	}))
-	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(ctx context.Context, event apiCommon.TenantRuntimeEvent) {
-		recordHTTPRuntimeEvent(ctx, tracer, event)
+	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(observation apiCommon.TenantRuntimeObservation) {
+		recordHTTPRuntimeEvent(tracer, observation)
 	}))
 	api.Router.Use(apiCommon.TenantRequestObserverMiddleware(func(event apiCommon.TenantRequestEvent) {
 		observability.ObserveTenantRequest(
@@ -819,7 +852,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:                api.Services.Users,
-		GuardianService:              api.Services.Guardian,
+		PeopleDirectory:              api.Services.PeopleDirectory,
 		StudentService:               api.Services.Students,
 		ClassListEntryService:        api.Services.ClassListEntries,
 		StudentDeletionService:       api.Services.StudentDeletion,
@@ -875,15 +908,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
-	api.StaffNotices = staffAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
+	api.StaffNotices = timeTrackingAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db, viper.GetString("app_env"))
-	api.Guardians.ListExportService = api.Services.ListExport
+	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services, db, viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffDocuments, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, api.Services.TimeTrackingAuditLog, api.Services.StaffTimeExport, db, logger.With("handler", "staff"))
+	api.Staff, api.StaffAdmin = newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
@@ -1011,7 +1043,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
-	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
+	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Substitution, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)

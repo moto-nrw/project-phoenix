@@ -9,27 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// RFIDCardRepository defines operations for managing RFID cards
-type RFIDCardRepository interface {
-	// Create inserts a new RFID card into the database
-	Create(ctx context.Context, card *RFIDCard) error
-
-	// FindByID retrieves an RFID card by its ID
-	FindByID(ctx context.Context, id string) (*RFIDCard, error)
-
-	// Update updates an existing RFID card
-	Update(ctx context.Context, card *RFIDCard) error
-
-	// Delete removes an RFID card
-	Delete(ctx context.Context, id string) error
-
-	// List retrieves RFID cards matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*RFIDCard, error)
-
-	// Deactivate sets an RFID card as inactive
-	Deactivate(ctx context.Context, id string) error
-}
-
 // PersonRepository defines operations for managing persons
 type PersonRepository interface {
 	base.CRUDRepository[*Person]
@@ -389,9 +368,6 @@ type TeacherRepository interface {
 
 	// FindBySpecialization retrieves teachers by their specialization
 	FindBySpecialization(ctx context.Context, specialization string) ([]*Teacher, error)
-
-	// ListWithOptions retrieves teachers matching the query options
-	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Teacher, error)
 
 	// FindByGroupID retrieves teachers assigned to a group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Teacher, error)

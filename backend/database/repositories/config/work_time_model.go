@@ -216,16 +216,8 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 
 	db := r.runtime.DB(ctx)
 	tenantID := r.runtime.TenantID(ctx)
-	var staffIDs []int64
-	assignedQuery := db.NewSelect().
-		TableExpr(`users.staff AS "staff"`).
-		ColumnExpr(`"staff".id`).
-		Where(`"staff".work_time_model_id = ?`, modelID).
-		Where(`"staff".deleted_at IS NULL`)
-	if tenantID > 0 {
-		assignedQuery = assignedQuery.Where(`"staff".tenant_id = ?`, tenantID)
-	}
-	if err := assignedQuery.Scan(ctx, &staffIDs); err != nil {
+	staffIDs, err := r.runtime.AssignedStaffIDs(ctx, modelID)
+	if err != nil {
 		return fmt.Errorf("load assigned staff: %w", err)
 	}
 	if len(staffIDs) == 0 {
@@ -253,15 +245,9 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 		return fmt.Errorf("close assigned schedule snapshots: %w", err)
 	}
 
-	updateStaffQuery := db.NewUpdate().
-		TableExpr(`users.staff`).
-		Set("rotation_anchor_date = ?", model.RotationAnchorDate).
-		Where("id IN (?)", bun.List(staffIDs)).
-		Where("work_time_model_id = ?", modelID)
-	if tenantID > 0 {
-		updateStaffQuery = updateStaffQuery.Where("tenant_id = ?", tenantID)
-	}
-	if _, err := updateStaffQuery.Exec(ctx); err != nil {
+	// The staff rows belong to School Membership: the runtime stamps the
+	// template's anchor onto every live assignee through that capability.
+	if _, err := r.runtime.RebaseAssignedStaffAnchor(ctx, modelID, string(model.RotationAnchorDate)); err != nil {
 		return fmt.Errorf("update assigned staff rotation anchor: %w", err)
 	}
 
@@ -304,18 +290,11 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 // Delete removes a template; entries cascade via the FK.
 func (r *WorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
 	db := r.runtime.DB(ctx)
-	assignedQuery := db.NewSelect().
-		TableExpr(`users.staff AS "staff"`).
-		Where(`"staff".work_time_model_id = ?`, id).
-		Where(`"staff".deleted_at IS NULL`)
-	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
-		assignedQuery = assignedQuery.Where(`"staff".tenant_id = ?`, tenantID)
-	}
-	assignedCount, err := assignedQuery.Count(ctx)
+	assigned, err := r.runtime.AssignedStaffIDs(ctx, id)
 	if err != nil {
 		return fmt.Errorf("check assigned staff: %w", err)
 	}
-	if assignedCount > 0 {
+	if len(assigned) > 0 {
 		return fmt.Errorf("work time model is assigned to staff")
 	}
 

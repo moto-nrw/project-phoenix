@@ -78,6 +78,9 @@ func (b *countingBroadcaster) BroadcastToGuardian(_, guardianAccountID int64, _ 
 func buildAbsenceService(t *testing.T, today ...func() timezone.Date) (absenceSvc.ExcusedAbsenceRequestService, *countingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	lock, notFound, err := repositories.NewCareStudentLock(db)
+	require.NoError(t, err)
+	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
 	repos := repositories.NewFactory(db)
 	bc := &countingBroadcaster{}
 	emitter := parentmessaging.NewEmitter(

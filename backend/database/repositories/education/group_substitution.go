@@ -3,6 +3,7 @@ package education
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 
@@ -27,6 +28,16 @@ const dateRangeContainsCondition = "start_date <= ? AND end_date >= ?"
 type GroupSubstitutionRepository struct {
 	*base.Repository[*education.GroupSubstitution]
 	db *bun.DB
+	// substitutionStaff attaches RegularStaff and SubstituteStaff through
+	// School Membership, which owns users.staff (#2667). Soft-deleted staff
+	// are expected to resolve so historical substitutions keep their names.
+	substitutionStaff func(ctx context.Context, substitutions []*education.GroupSubstitution) error
+}
+
+// SetSubstitutionStaffResolver installs the staff lookup used by every
+// relation-loading read.
+func (r *GroupSubstitutionRepository) SetSubstitutionStaffResolver(resolve func(ctx context.Context, substitutions []*education.GroupSubstitution) error) {
+	r.substitutionStaff = resolve
 }
 
 // NewGroupSubstitutionRepository creates a new GroupSubstitutionRepository
@@ -221,42 +232,41 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 	}
 
 	// Collect unique IDs
-	groupIDs, staffIDs := collectSubstitutionRelatedIDs(substitutions)
+	groupIDs := collectSubstitutionGroupIDs(substitutions)
 
 	// Load all related data
 	groupMap, err := r.loadGroupsByIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
-	staffMap, err := r.loadStaffByIDs(ctx, staffIDs)
-	if err != nil {
+
+	assignGroupsToSubstitutions(substitutions, groupMap)
+
+	// The staff behind the substitution belongs to School Membership; the
+	// injected resolver attaches it (#2667). Fail closed: without it every
+	// substitution would render nameless, which is wrong data rather than an
+	// obvious outage.
+	if r.substitutionStaff == nil {
+		return nil, errors.New("group substitution repository resolves staff through School Membership")
+	}
+	if err := r.substitutionStaff(ctx, substitutions); err != nil {
 		return nil, err
 	}
-
-	// Assign loaded data to substitutions
-	assignRelationsToSubstitutions(substitutions, groupMap, staffMap)
 
 	return substitutions, nil
 }
 
-// collectSubstitutionRelatedIDs extracts unique group and staff IDs from substitutions
-func collectSubstitutionRelatedIDs(substitutions []*education.GroupSubstitution) (groupIDs, staffIDs map[int64]bool) {
-	groupIDs = make(map[int64]bool)
-	staffIDs = make(map[int64]bool)
+// collectSubstitutionGroupIDs extracts the unique group IDs from substitutions
+func collectSubstitutionGroupIDs(substitutions []*education.GroupSubstitution) map[int64]bool {
+	groupIDs := make(map[int64]bool)
 
 	for _, sub := range substitutions {
 		if sub.GroupID > 0 {
 			groupIDs[sub.GroupID] = true
 		}
-		if sub.RegularStaffID != nil && *sub.RegularStaffID > 0 {
-			staffIDs[*sub.RegularStaffID] = true
-		}
-		if sub.SubstituteStaffID > 0 {
-			staffIDs[sub.SubstituteStaffID] = true
-		}
 	}
 
-	return groupIDs, staffIDs
+	return groupIDs
 }
 
 // loadGroupsByIDs loads groups by their IDs and returns a map
@@ -286,55 +296,11 @@ func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, group
 	return groupMap, nil
 }
 
-// loadStaffByIDs loads staff records by IDs
-func (r *GroupSubstitutionRepository) loadStaffByIDs(ctx context.Context, staffIDs map[int64]bool) (map[int64]*users.Staff, error) {
-	staffMap := make(map[int64]*users.Staff)
-	if len(staffIDs) == 0 {
-		return staffMap, nil
-	}
-
-	staffIDSlice := slices.Collect(maps.Keys(staffIDs))
-
-	// Load staff records. Include soft-deleted staff so historical
-	// substitutions keep resolving the staff member's name after offboarding.
-	var staffList []*users.Staff
-	staffQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(&staffList).
-		ModelTableExpr(`users.staff AS "staff"`).
-		WhereAllWithDeleted().
-		Where(`"staff".id IN (?)`, bun.List(staffIDSlice))
-
-	staffQuery = base.WithTenantFilter(ctx, staffQuery, "staff")
-
-	if err := staffQuery.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "load substitution staff", Err: base.TranslateNotFound(err)}
-	}
-	if len(staffList) == 0 {
-		return staffMap, nil
-	}
-
-	// Build the staff map. Staff.Person is attached by the composition
-	// layer through the People Directory.
-	for _, staff := range staffList {
-		staffMap[staff.ID] = staff
-	}
-
-	return staffMap, nil
-}
-
-// assignRelationsToSubstitutions assigns loaded relations to substitution records
-func assignRelationsToSubstitutions(substitutions []*education.GroupSubstitution, groupMap map[int64]*education.Group, staffMap map[int64]*users.Staff) {
+// assignGroupsToSubstitutions assigns the loaded groups to substitution records
+func assignGroupsToSubstitutions(substitutions []*education.GroupSubstitution, groupMap map[int64]*education.Group) {
 	for _, sub := range substitutions {
 		if group, ok := groupMap[sub.GroupID]; ok {
 			sub.Group = group
-		}
-		if sub.RegularStaffID != nil {
-			if staff, ok := staffMap[*sub.RegularStaffID]; ok {
-				sub.RegularStaff = staff
-			}
-		}
-		if staff, ok := staffMap[sub.SubstituteStaffID]; ok {
-			sub.SubstituteStaff = staff
 		}
 	}
 }

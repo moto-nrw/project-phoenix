@@ -1375,6 +1375,23 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().has("block")).toBe(false);
   });
 
+  // #2957: Ohne einen weiteren Plan-Parameter wäre `block` beim Schließen der
+  // letzte gewesen — die Kalenderfläche hätte danach auf "Meine Termine"
+  // umgeschaltet.
+  it("keeps the visible day in the URL when the slide-over closes (#2957)", async () => {
+    setUrl("block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-close"));
+
+    await waitFor(() =>
+      expect(screen.queryByText("detail-close")).not.toBeInTheDocument(),
+    );
+    expect(urlParams().has("block")).toBe(false);
+    // Der sichtbare Tag (Systemzeit der Suite) bleibt als Plan-Parameter stehen.
+    expect(urlParams().get("d")).toBe("2026-05-06");
+  });
+
   it("marks open-gap instances on the week grid", () => {
     setupSWR({ gaps: [gap] });
     setUrl("view=woche");

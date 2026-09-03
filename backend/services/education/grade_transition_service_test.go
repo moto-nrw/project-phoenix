@@ -36,7 +36,7 @@ func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTrans
 		StudentRepo:      studentRepo,
 		PersonRepo:       personRepo,
 		ClassTeacherRepo: educationRepo.NewClassTeacherRepository(db),
-		StaffRepo:        usersRepo.NewStaffRepository(db),
+		StaffRepo:        repositories.NewFactory(db).Staff,
 		DB:               db,
 	})
 
