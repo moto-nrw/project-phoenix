@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -1530,15 +1531,16 @@ func (r *StudentRepository) FindOverlappingWithGroups(ctx context.Context, from,
 	return mapStudentGroupResults(results), nil
 }
 
-// FindOverlappingWithGroupsOnDate is the string-based owner query used by
-// composition roots that must not expose the repository's calendar-date type
-// across a module boundary.
-func (r *StudentRepository) FindOverlappingWithGroupsOnDate(ctx context.Context, value string) ([]*users.StudentWithGroupInfo, error) {
+// FindOverlappingWithGroupsOnDate translates the meal-plan composition
+// boundary into the repository's calendar-date types. now is an instant so
+// the immediate-activation rule uses the actual current Berlin date rather
+// than applying the requested list date retroactively.
+func (r *StudentRepository) FindOverlappingWithGroupsOnDate(ctx context.Context, value string, now time.Time) ([]*users.StudentWithGroupInfo, error) {
 	date, err := timezone.ParseDate(value)
 	if err != nil {
 		return nil, fmt.Errorf("find students overlapping date: %w", err)
 	}
-	return r.FindOverlappingWithGroups(ctx, date, date, date)
+	return r.FindOverlappingWithGroups(ctx, date, date, timezone.DateFromTime(now))
 }
 
 // LockPhotoFeature acquires the per-tenant pg_advisory_xact_lock that

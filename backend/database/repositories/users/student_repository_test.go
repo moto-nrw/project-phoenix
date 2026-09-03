@@ -758,6 +758,26 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	assert.NotContains(t, ids, alumnus.ID)
 	require.NotNil(t, ids[overlapping.ID].EnrolledUntil)
 	assert.Equal(t, overlappingUntil, *ids[overlapping.ID].EnrolledUntil)
+
+	_, err = db.NewUpdate().
+		TableExpr(`users.students`).
+		Set(`status = ?`, users.StudentStatusInactive).
+		Where(`id = ?`, overlapping.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	historical, err := repo.FindOverlappingWithGroupsOnDate(
+		ctx,
+		"2026-06-01",
+		time.Date(2026, time.June, 9, 8, 0, 0, 0, time.UTC),
+	)
+	require.NoError(t, err)
+	historicalIDs := make(map[int64]bool, len(historical))
+	for _, result := range historical {
+		historicalIDs[result.ID] = true
+	}
+	assert.True(t, historicalIDs[overlapping.ID], "a child enrolled on the list date remains eligible after becoming inactive")
+	assert.False(t, historicalIDs[future.ID], "immediate activation must not apply retroactively to a historical list")
 }
 
 // TestStudentRepository_FindOverlappingWithGroupsImmediateActivation pins the

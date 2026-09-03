@@ -63,6 +63,48 @@ describe("MealParticipantList", () => {
     ).toBeDisabled();
   });
 
+  it("advances the default list when the Berlin date changes", async () => {
+    const { rerender } = render(<MealParticipantList />);
+
+    await waitFor(() => {
+      expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith("2026-09-07");
+    });
+
+    mocks.today = "2026-09-08";
+    rerender(<MealParticipantList />);
+
+    await waitFor(() => {
+      expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith("2026-09-08");
+    });
+    expect(
+      screen.getByRole("button", { name: "Datum: 08.09.2026" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Mittagessen am 08.09.2026")).toBeInTheDocument();
+  });
+
+  it("keeps a manually selected list across a Berlin date change", async () => {
+    const { rerender } = render(<MealParticipantList />);
+
+    await screen.findByText("Mittagessen am 07.09.2026");
+    fireEvent.click(screen.getByRole("button", { name: "Datum: 07.09.2026" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mittwoch, 9. September 2026" }),
+    );
+    await waitFor(() => {
+      expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith("2026-09-09");
+    });
+
+    mocks.today = "2026-09-08";
+    rerender(<MealParticipantList />);
+
+    expect(
+      screen.getByRole("button", { name: "Datum: 09.09.2026" }),
+    ).toBeInTheDocument();
+    expect(mocks.getDailyMealParticipants).not.toHaveBeenCalledWith(
+      "2026-09-08",
+    );
+  });
+
   it("shows the kitchen cutoff and registered children", async () => {
     render(<MealParticipantList />);
 

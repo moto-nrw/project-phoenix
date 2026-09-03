@@ -25512,7 +25512,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        984
+        1004
       ],
       "tables": []
     },
@@ -25522,7 +25522,7 @@
       "declaration": "TestStudentRepository_FindByNameAndClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        831
+        851
       ],
       "tables": []
     },
@@ -25566,7 +25566,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        773
+        793
       ],
       "tables": [
         "users.students"
@@ -25598,7 +25598,7 @@
       "declaration": "TestStudentRepository_LockPhotoFeature",
       "target": "database/repositories.NewFactory",
       "lines": [
-        935
+        955
       ],
       "tables": []
     },
@@ -25608,7 +25608,7 @@
       "declaration": "TestStudentRepository_PurgeAllPhotos",
       "target": "database/repositories.NewFactory",
       "lines": [
-        880
+        900
       ],
       "tables": []
     },

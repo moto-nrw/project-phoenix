@@ -33,7 +33,8 @@ function nextWeekday(date: string): string {
 export function MealParticipantList() {
   const today = useBerlinToday();
   const toast = useToast();
-  const [date, setDate] = useState(() => nextWeekday(today));
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const date = selectedDate ?? nextWeekday(today);
   const [cutoffTime, setCutoffTime] = useState("");
   const [participants, setParticipants] = useState<DailyMealParticipant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,7 +127,7 @@ export function MealParticipantList() {
             <ISODatePicker
               id="meal-participant-date"
               value={date}
-              onChange={setDate}
+              onChange={setSelectedDate}
               ariaLabel={`Datum: ${formatDate(date)}`}
               calendarLayout="popover-below"
               controlSize="md"

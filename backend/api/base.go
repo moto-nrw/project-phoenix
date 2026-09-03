@@ -196,7 +196,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
 		},
 		Now:          time.Now,
-		Participants: mealPlanParticipantFinder(repoFactory),
+		Participants: mealPlanParticipantFinder(repoFactory, time.Now),
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -236,15 +236,15 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, membership: membership}, nil
 }
 
-func mealPlanParticipantFinder(repoFactory *repositories.Factory) mealplanCompose.ParticipantFinder {
+func mealPlanParticipantFinder(repoFactory *repositories.Factory, now func() time.Time) mealplanCompose.ParticipantFinder {
 	return func(ctx context.Context, date string) ([]mealplanCompose.ParticipantCandidate, error) {
-		students, err := repoFactory.Student.FindOverlappingWithGroupsOnDate(ctx, date)
+		students, err := repoFactory.Student.FindOverlappingWithGroupsOnDate(ctx, date, now())
 		if err != nil {
 			return nil, err
 		}
 		candidates := make([]mealplanCompose.ParticipantCandidate, 0, len(students))
 		for _, row := range students {
-			if row == nil || row.Student == nil || row.Person == nil || row.Status != "active" {
+			if row == nil || row.Student == nil || row.Person == nil {
 				continue
 			}
 			candidates = append(candidates, mealplanCompose.ParticipantCandidate{
