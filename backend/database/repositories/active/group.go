@@ -28,7 +28,14 @@ const (
 // GroupRepository implements active.GroupRepository interface
 type GroupRepository struct {
 	*base.Repository[*active.Group]
-	db *bun.DB
+	db    *bun.DB
+	rooms RoomDirectory
+}
+
+// BindRoomDirectory installs the Facilities directory the group reads
+// resolve rooms through (#2665).
+func (r *GroupRepository) BindRoomDirectory(rooms RoomDirectory) {
+	r.rooms = rooms
 }
 
 // NewGroupRepository creates a new GroupRepository
@@ -302,7 +309,6 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		CreatedAt      time.Time  `bun:"created_at"`
 		UpdatedAt      time.Time  `bun:"updated_at"`
 		ActivityName   *string    `bun:"activity_name"`
-		RoomName       *string    `bun:"room_name"`
 	}
 
 	var result sessionQueryResult
@@ -314,9 +320,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
 		ColumnExpr("actg.name AS activity_name"). // Use 'actg' not 'act' to avoid confusion
-		ColumnExpr("rm.name AS room_name").       // Use 'rm' not 'r' for clarity
 		Join("LEFT JOIN activities.groups AS actg ON actg.id = ag.group_id").
-		Join("LEFT JOIN facilities.rooms AS rm ON rm.id = ag.room_id").
 		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
@@ -362,11 +366,16 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		}
 	}
 
-	// Add room info if available
-	if result.RoomName != nil && *result.RoomName != "" {
+	// Add room info if available: the room owner resolves the name the
+	// former LEFT JOIN projected (#2665).
+	rooms, err := roomsByID(ctx, r.rooms, []int64{result.RoomID})
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find active by device ID with names", Err: err}
+	}
+	if room, ok := rooms[result.RoomID]; ok && room.Name != "" {
 		session.Room = &facilities.Room{
 			Model: modelBase.Model{ID: result.RoomID},
-			Name:  *result.RoomName,
+			Name:  room.Name,
 		}
 	}
 
@@ -659,15 +668,15 @@ func collectRoomIDs(groups []*active.Group) []int64 {
 	return ids
 }
 
-// queryRoomsByIDs fetches rooms by their IDs
+// queryRoomsByIDs fetches rooms by their IDs through the Facilities owner.
 func (r *GroupRepository) queryRoomsByIDs(ctx context.Context, ids []int64, op string) ([]*facilities.Room, error) {
-	var rooms []*facilities.Room
-	if err := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rooms).
-		ModelTableExpr(`facilities.rooms AS "room"`).
-		Where(`"room".id IN (?)`, bun.List(ids)).
-		Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
+	found, err := roomsByID(ctx, r.rooms, ids)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: op, Err: err}
+	}
+	rooms := make([]*facilities.Room, 0, len(found))
+	for _, room := range found {
+		rooms = append(rooms, room.legacy())
 	}
 	return rooms, nil
 }
@@ -694,19 +703,30 @@ func groupsToMap(groups []*active.Group) map[int64]*active.Group {
 	return result
 }
 
+// schulhofRoomName is the room the deviceless claim is limited to.
+const schulhofRoomName = "Schulhof"
+
 // FindUnclaimed finds all active groups that have no supervisors assigned
 // This is used to allow teachers to claim Schulhof via the frontend
-// Only returns groups in rooms named "Schulhof" - this is the only room that supports deviceless claiming
+// Only returns groups in rooms named "Schulhof" - this is the only room that
+// supports deviceless claiming. The room owner resolves the rooms; a group
+// whose room is not visible is dropped, as the former INNER JOIN dropped it.
 func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {
-	groups, err := r.queryUnclaimedGroups(ctx)
+	candidates, err := r.queryUnclaimedGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := r.loadUnclaimedGroupRelations(ctx, groups); err != nil {
+	if err := r.loadUnclaimedGroupRelations(ctx, candidates); err != nil {
 		return nil, err
 	}
 
+	groups := make([]*active.Group, 0, len(candidates))
+	for _, g := range candidates {
+		if g.Room != nil && g.Room.Name == schulhofRoomName {
+			groups = append(groups, g)
+		}
+	}
 	return groups, nil
 }
 
@@ -717,10 +737,8 @@ func (r *GroupRepository) queryUnclaimedGroups(ctx context.Context) ([]*active.G
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND ("sup"."end_date" IS NULL OR "sup"."end_date" > CURRENT_DATE)`).
-		Join(`INNER JOIN facilities.rooms AS "room" ON "room"."id" = "group"."room_id"`).
 		Where(`"group"."end_time" IS NULL`).
-		Where(`"sup"."id" IS NULL`).
-		Where(`"room"."name" = ?`, "Schulhof")
+		Where(`"sup"."id" IS NULL`)
 
 	query = base.WithTenantFilter(ctx, query, "group")
 

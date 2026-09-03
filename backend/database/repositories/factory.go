@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -57,6 +58,11 @@ type Factory struct {
 	peopleDirectoryBound     bool
 	schoolStructureBound     bool
 	schoolMembershipBound    bool
+	facilitiesBound          bool
+	// roomBinders hand a room owner to the raw repositories that used to
+	// join facilities.rooms; kept so BindFacilities reaches them after the
+	// projections wrapped the factory fields (#2665).
+	roomBinders []func(facilitiesModule.Query)
 
 	// students is the bound People Directory; audit adapters rebuilt by
 	// ConfigureAuditRuntime after the binding read it again (#2662).
@@ -768,6 +774,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)
+	factory.bindDefaultFacilities(db)
 	factory.membershipDeps = newStaffMembershipDeps(personRepo, accountRepo, accountTenantRepo, permissionRepo, roleRepo)
 	factory.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return factory.GroupTeacher }
 	// Staff, teachers and guests belong to School Membership. Without an

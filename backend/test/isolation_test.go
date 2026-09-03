@@ -41,6 +41,20 @@ func isolationTenants(tb testing.TB, db *bun.DB) (tenantA, tenantB int64) {
 	return tenantA, tenantB
 }
 
+// deviceRoomRows is the test double for the Facilities directory: it reads
+// the room rows the fixtures inserted, exactly what the bound owner returns.
+type deviceRoomRows struct{ db *bun.DB }
+
+func (d deviceRoomRows) ListRoomsByID(ctx context.Context, ids []int64) ([]repoIot.DirectoryRoom, error) {
+	var rooms []repoIot.DirectoryRoom
+	err := d.db.NewSelect().
+		TableExpr(`facilities.rooms AS "room"`).
+		ColumnExpr(`"room".id, "room".tenant_id, "room".name`).
+		Where(`"room".id IN (?)`, bun.List(ids)).
+		Scan(ctx, &rooms)
+	return rooms, err
+}
+
 // ctxForTenant returns a background context with the given tenant ID set.
 func ctxForTenant(tenantID int64) context.Context {
 	return tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
@@ -245,6 +259,9 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 	dB := CreateTestDeviceForTenant(t, db, tenantB, "DEV-B")
 
 	repo := repoIot.NewDeviceRepository(db)
+	// Device reads resolve room names through the Facilities owner (#2665);
+	// the composition root binds it, a bare repository needs it bound here.
+	repo.(*repoIot.DeviceRepository).BindRoomDirectory(deviceRoomRows{db: db})
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)

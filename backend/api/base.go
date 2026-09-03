@@ -69,6 +69,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
@@ -177,6 +179,15 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
+		DB: db,
+		Observe: func(observation facilitiesCompose.Observation) {
+			observability.ObserveFacilitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, facilitiesModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
 	membership, err := schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
 		DB: db,
 		Observe: func(observation schoolMembershipCompose.Observation) {
@@ -219,7 +230,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
-		organizations, persons, groups, membership,
+		organizations, persons, groups, rooms, membership,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,

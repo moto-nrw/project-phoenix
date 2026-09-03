@@ -1768,6 +1768,48 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/facilities",
+      "owner": "facilities",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/compose",
+      "owner": "facilities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/application",
+      "owner": "facilities",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/domain",
+      "owner": "facilities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/ports",
+      "owner": "facilities",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/adapters/postgres",
+      "owner": "facilities",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/messaging",
       "owner": "communication",
       "role": "application",
@@ -5727,6 +5769,148 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.port-domain",
+      "description": "Facilities ports express persistence operations using their own domain values.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "facilities.compose.application",
+      "description": "Facilities composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "application"
+    },
+    {
+      "id": "facilities.compose.domain",
+      "description": "Facilities composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "facilities.compose.orm-sql",
+      "description": "Facilities composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "facilities.compose.port",
+      "description": "Facilities composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "port"
+    },
+    {
+      "id": "facilities.compose.postgres",
+      "description": "Facilities composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "postgres"
+    },
+    {
+      "id": "facilities.compose.public",
+      "description": "Facilities composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.compose.tenant-runtime",
+      "description": "Facilities composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": ["production"],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.internal-test.orm-sql",
+      "description": "Facilities composition tests supply the concrete Bun test database.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "facilities.internal-test.tenant-runtime",
+      "description": "Facilities composition tests verify transaction and RLS behavior through the shared tenant runtime.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.integration-test.public",
+      "description": "Facilities integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.integration-test.support",
+      "description": "Facilities integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "root-composition.to.facilities-compose",
+      "description": "The production root constructs the Facilities module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.facilities-public",
+      "description": "The production root records stable Facilities capability outcomes.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.facilities-compose",
+      "description": "Legacy composition constructs the default Facilities capability for repository graphs.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.facilities-public",
+      "description": "Legacy composition passes the Facilities facade to the room directories.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "facilities",
       "target_role": "public"
     },
     {

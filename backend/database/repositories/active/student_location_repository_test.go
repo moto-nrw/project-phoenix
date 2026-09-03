@@ -8,6 +8,7 @@
 package active_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -16,7 +17,22 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+// roomRowsDirectory is the test double for the Facilities directory: it reads
+// the room rows the fixtures inserted, exactly what the bound owner returns.
+type roomRowsDirectory struct{ db *bun.DB }
+
+func (d roomRowsDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]activeRepo.DirectoryRoom, error) {
+	var rooms []activeRepo.DirectoryRoom
+	err := d.db.NewSelect().
+		TableExpr(`facilities.rooms AS "room"`).
+		ColumnExpr(`"room".id, "room".tenant_id, "room".created_at, "room".updated_at, "room".name`).
+		Where(`"room".id IN (?)`, bun.List(ids)).
+		Scan(ctx, &rooms)
+	return rooms, err
+}
 
 // TestAttendanceRepository_GetTodayByStudentIDs tests fetching today's attendance
 // records for multiple students with hermetic fixtures.
@@ -179,6 +195,9 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	repo := activeRepo.NewGroupRepository(db)
+	// The group reads resolve rooms through the Facilities owner (#2665);
+	// the composition root binds it, a bare repository needs it bound here.
+	repo.(*activeRepo.GroupRepository).BindRoomDirectory(roomRowsDirectory{db: db})
 
 	t.Run("returns groups with room relations", func(t *testing.T) {
 		// ARRANGE: Create two complete group setups

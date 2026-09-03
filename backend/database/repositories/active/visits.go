@@ -27,6 +27,13 @@ type VisitRepository struct {
 	*base.Repository[*active.Visit]
 	db       *bun.DB
 	students StudentDirectory
+	rooms    RoomDirectory
+}
+
+// BindRoomDirectory installs the Facilities directory the visit reads
+// resolve room names through (#2665).
+func (r *VisitRepository) BindRoomDirectory(rooms RoomDirectory) {
+	r.rooms = rooms
 }
 
 // BindStudentDirectory installs the People Directory the open-visit display
@@ -141,8 +148,7 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 // sub-queries, so we must load them manually (see line 245 of this file).
 type visitWithGroupRoom struct {
 	active.Visit
-	GroupRoomID   int64  `bun:"group__room_id"`
-	GroupRoomName string `bun:"room__name"`
+	GroupRoomID int64 `bun:"group__room_id"`
 }
 
 // FindByStudentAndTimeRange finds all visits (active or ended) for a specific
@@ -157,9 +163,7 @@ func (r *VisitRepository) FindByStudentAndTimeRange(ctx context.Context, student
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		ColumnExpr(`"visit".*`).
 		ColumnExpr(`"group".room_id AS "group__room_id"`).
-		ColumnExpr(`"room".name AS "room__name"`).
 		Join(`LEFT JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
-		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
 		Where(`"visit".student_id = ?`, studentID).
 		Where(`"visit".entry_time >= ?`, start).
 		Where(`"visit".entry_time <= ?`, end).
@@ -176,6 +180,16 @@ func (r *VisitRepository) FindByStudentAndTimeRange(ctx context.Context, student
 
 	// Materialize into []*active.Visit with ActiveGroup + Room populated.
 	// When the LEFT JOIN finds no group, GroupRoomID is 0 — leave ActiveGroup nil.
+	// The room owner resolves the names; a room it cannot see yields "",
+	// mirroring the former LEFT JOIN (#2665).
+	roomIDs := make([]int64, 0, len(results))
+	for i := range results {
+		roomIDs = append(roomIDs, results[i].GroupRoomID)
+	}
+	rooms, err := roomsByID(ctx, r.rooms, roomIDs)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by student and time range", Err: err}
+	}
 	visits := make([]*active.Visit, 0, len(results))
 	for i := range results {
 		v := results[i].Visit
@@ -183,7 +197,7 @@ func (r *VisitRepository) FindByStudentAndTimeRange(ctx context.Context, student
 			v.ActiveGroup = &active.Group{
 				RoomID: results[i].GroupRoomID,
 				Room: &facilities.Room{
-					Name: results[i].GroupRoomName,
+					Name: rooms[results[i].GroupRoomID].Name,
 				},
 			}
 		}
@@ -500,27 +514,23 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 // GetCurrentByStudentIDWithRoom finds the current active visit for a student and loads the active group and room.
 func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
 	type currentVisitRow struct {
-		VisitID             int64          `bun:"visit_id"`
-		VisitStudentID      int64          `bun:"visit_student_id"`
-		VisitActiveGroupID  int64          `bun:"visit_active_group_id"`
-		VisitEntryTime      time.Time      `bun:"visit_entry_time"`
-		VisitExitTime       *time.Time     `bun:"visit_exit_time"`
-		VisitCreatedAt      time.Time      `bun:"visit_created_at"`
-		VisitUpdatedAt      time.Time      `bun:"visit_updated_at"`
-		GroupID             sql.NullInt64  `bun:"group_id"`
-		GroupStartTime      time.Time      `bun:"group_start_time"`
-		GroupEndTime        *time.Time     `bun:"group_end_time"`
-		GroupLastActivity   time.Time      `bun:"group_last_activity"`
-		GroupTimeoutMinutes sql.NullInt64  `bun:"group_timeout_minutes"`
-		GroupGroupID        sql.NullInt64  `bun:"group_group_id"`
-		GroupDeviceID       sql.NullInt64  `bun:"group_device_id"`
-		GroupRoomID         sql.NullInt64  `bun:"group_room_id"`
-		GroupCreatedAt      time.Time      `bun:"group_created_at"`
-		GroupUpdatedAt      time.Time      `bun:"group_updated_at"`
-		RoomID              sql.NullInt64  `bun:"room_id"`
-		RoomName            sql.NullString `bun:"room_name"`
-		RoomCreatedAt       time.Time      `bun:"room_created_at"`
-		RoomUpdatedAt       time.Time      `bun:"room_updated_at"`
+		VisitID             int64         `bun:"visit_id"`
+		VisitStudentID      int64         `bun:"visit_student_id"`
+		VisitActiveGroupID  int64         `bun:"visit_active_group_id"`
+		VisitEntryTime      time.Time     `bun:"visit_entry_time"`
+		VisitExitTime       *time.Time    `bun:"visit_exit_time"`
+		VisitCreatedAt      time.Time     `bun:"visit_created_at"`
+		VisitUpdatedAt      time.Time     `bun:"visit_updated_at"`
+		GroupID             sql.NullInt64 `bun:"group_id"`
+		GroupStartTime      time.Time     `bun:"group_start_time"`
+		GroupEndTime        *time.Time    `bun:"group_end_time"`
+		GroupLastActivity   time.Time     `bun:"group_last_activity"`
+		GroupTimeoutMinutes sql.NullInt64 `bun:"group_timeout_minutes"`
+		GroupGroupID        sql.NullInt64 `bun:"group_group_id"`
+		GroupDeviceID       sql.NullInt64 `bun:"group_device_id"`
+		GroupRoomID         sql.NullInt64 `bun:"group_room_id"`
+		GroupCreatedAt      time.Time     `bun:"group_created_at"`
+		GroupUpdatedAt      time.Time     `bun:"group_updated_at"`
 	}
 
 	row := new(currentVisitRow)
@@ -543,12 +553,7 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 		ColumnExpr(`"group".room_id AS group_room_id`).
 		ColumnExpr(`"group".created_at AS group_created_at`).
 		ColumnExpr(`"group".updated_at AS group_updated_at`).
-		ColumnExpr(`"room".id AS room_id`).
-		ColumnExpr(`"room".name AS room_name`).
-		ColumnExpr(`"room".created_at AS room_created_at`).
-		ColumnExpr(`"room".updated_at AS room_updated_at`).
 		Join(`LEFT JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
-		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
 		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
 		OrderExpr(`"visit".entry_time DESC`).
 		Limit(1).
@@ -601,14 +606,20 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 			deviceID := row.GroupDeviceID.Int64
 			group.DeviceID = &deviceID
 		}
-		if row.RoomID.Valid {
+		// The room owner resolves the room the former LEFT JOIN projected; a
+		// room it cannot see leaves Room nil, as the join did (#2665).
+		rooms, err := roomsByID(ctx, r.rooms, []int64{row.GroupRoomID.Int64})
+		if err != nil {
+			return nil, &modelBase.DatabaseError{Op: "get current by student ID with room", Err: err}
+		}
+		if room, ok := rooms[row.GroupRoomID.Int64]; ok {
 			group.Room = &facilities.Room{
 				Model: modelBase.Model{
-					ID:        row.RoomID.Int64,
-					CreatedAt: row.RoomCreatedAt,
-					UpdatedAt: row.RoomUpdatedAt,
+					ID:        room.ID,
+					CreatedAt: room.CreatedAt,
+					UpdatedAt: room.UpdatedAt,
 				},
-				Name: row.RoomName.String,
+				Name: room.Name,
 			}
 		}
 		visit.ActiveGroup = group
@@ -813,7 +824,7 @@ func (r *VisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeG
 type visitGroupNames struct {
 	StudentID         int64  `bun:"student_id"`
 	ActivityGroupName string `bun:"activity_group_name"`
-	RoomName          string `bun:"room_name"`
+	RoomID            *int64 `bun:"room_id"`
 }
 
 // GetTodayVisitNamesForStudents returns activity group + room names for all of
@@ -842,10 +853,9 @@ func (r *VisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, stu
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		ColumnExpr(`"visit".student_id`).
 		ColumnExpr(`COALESCE("activity"."name", '') AS activity_group_name`).
-		ColumnExpr(`COALESCE("room"."name", '') AS room_name`).
+		ColumnExpr(`"group".room_id AS room_id`).
 		Join(`LEFT JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
 		Join(`LEFT JOIN activities.groups AS "activity" ON "activity".id = "group".group_id`).
-		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
 		Where(`"visit".student_id IN (?)`, bun.List(uniqueIDs)).
 		Where(`"visit".entry_time >= ?`, today)
 
@@ -858,13 +868,30 @@ func (r *VisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, stu
 		}
 	}
 
+	// The room owner resolves the names the former LEFT JOIN + COALESCE
+	// projected; an invisible room yields "" (#2665).
+	roomIDs := make([]int64, 0, len(results))
+	for _, row := range results {
+		if row.RoomID != nil {
+			roomIDs = append(roomIDs, *row.RoomID)
+		}
+	}
+	rooms, err := roomsByID(ctx, r.rooms, roomIDs)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "get today visit names for students", Err: err}
+	}
+
 	// Convert to model type.
 	out := make([]active.VisitGroupNames, len(results))
-	for i, r := range results {
+	for i, row := range results {
+		name := ""
+		if row.RoomID != nil {
+			name = rooms[*row.RoomID].Name
+		}
 		out[i] = active.VisitGroupNames{
-			StudentID:         r.StudentID,
-			ActivityGroupName: r.ActivityGroupName,
-			RoomName:          r.RoomName,
+			StudentID:         row.StudentID,
+			ActivityGroupName: row.ActivityGroupName,
+			RoomName:          name,
 		}
 	}
 
@@ -932,8 +959,8 @@ func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit
 // current open visit (visit without exit_time in a still-running active
 // group), newest visit first per student. Students without an open visit are
 // absent from the map. Custom method (backend-conventions Rule 2):
-// DISTINCT ON projection joining active.groups and facilities.rooms for the
-// emergency list. Tenant scoping via defense-in-depth predicate on top of
+// DISTINCT ON projection joining active.groups for the emergency list; the
+// room names come from the Facilities owner (#2665). Tenant scoping via defense-in-depth predicate on top of
 // the caller's RLS transaction.
 func (r *VisitRepository) GetCurrentRoomNamesForStudents(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
 	if len(studentIDs) == 0 {
@@ -941,17 +968,16 @@ func (r *VisitRepository) GetCurrentRoomNamesForStudents(ctx context.Context, st
 	}
 
 	type currentLocationRow struct {
-		StudentID int64          `bun:"student_id"`
-		RoomName  sql.NullString `bun:"room_name"`
+		StudentID int64 `bun:"student_id"`
+		RoomID    int64 `bun:"room_id"`
 	}
 
 	var rows []currentLocationRow
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`active.visits AS "visit"`).
 		ColumnExpr(`DISTINCT ON ("visit".student_id) "visit".student_id`).
-		ColumnExpr(`"room".name AS "room_name"`).
+		ColumnExpr(`"group".room_id AS "room_id"`).
 		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id AND "group".end_time IS NULL`).
-		Join(`JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
 		Where(`"visit".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"visit".exit_time IS NULL`).
 		OrderExpr(`"visit".student_id ASC`).
@@ -966,10 +992,20 @@ func (r *VisitRepository) GetCurrentRoomNamesForStudents(ctx context.Context, st
 		}
 	}
 
+	// The room owner resolves the names; a student whose room it cannot see
+	// stays absent, as the former INNER JOIN dropped the row (#2665).
+	roomIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		roomIDs = append(roomIDs, row.RoomID)
+	}
+	rooms, err := roomsByID(ctx, r.rooms, roomIDs)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "get current room names for students", Err: err}
+	}
 	locations := make(map[int64]string, len(rows))
 	for _, row := range rows {
-		if row.RoomName.Valid {
-			locations[row.StudentID] = row.RoomName.String
+		if room, ok := rooms[row.RoomID]; ok {
+			locations[row.StudentID] = room.Name
 		}
 	}
 	return locations, nil

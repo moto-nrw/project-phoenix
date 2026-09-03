@@ -441,22 +441,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 152,
+          "line": 154,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 267,
+          "line": 278,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 333,
+          "line": 344,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 823,
+          "line": 834,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -466,7 +466,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 456,
+          "line": 467,
           "declaration": "New"
         }
       ]
@@ -476,12 +476,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 144,
+          "line": 146,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 330,
+          "line": 341,
           "declaration": "type API"
         },
         {
@@ -586,27 +586,27 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 419,
+          "line": 420,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 442,
+          "line": 444,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 17,
+          "line": 18,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 25,
+          "line": 26,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 36,
+          "line": 37,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
@@ -16639,7 +16639,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        456
+        467
       ],
       "tables": []
     },
@@ -22769,6 +22769,31 @@
         81
       ],
       "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/room_directory_test.go",
+      "declaration": "TestFactoryResolvesRoomsThroughTheOwner",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        27
+      ],
+      "tables": [
+        "education.groups",
+        "iot.devices"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/room_directory_test.go",
+      "declaration": "TestFindUnclaimedKeepsOnlySchulhofGroups",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        81
+      ],
+      "tables": [
+        "facilities.rooms"
+      ]
     },
     {
       "scope": "test",

@@ -230,15 +230,15 @@ func applyRoomFilter(query *bun.SelectQuery, field string, value interface{}) *b
 // applyCaseInsensitiveExactMatch applies case-insensitive exact match filter
 func applyCaseInsensitiveExactMatch(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+column+") = LOWER(?)", strValue)
+		return query.Where("LOWER(?) = LOWER(?)", bun.Ident(column), strValue)
 	}
-	return query.Where(column+" = ?", value)
+	return query.Where("? = ?", bun.Ident(column), value)
 }
 
 // applyCaseInsensitiveLikeMatch applies case-insensitive LIKE filter
 func applyCaseInsensitiveLikeMatch(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+column+") LIKE LOWER(?)", "%"+strValue+"%")
+		return query.Where("LOWER(?) LIKE LOWER(?)", bun.Ident(column), "%"+strValue+"%")
 	}
 	return query
 }
