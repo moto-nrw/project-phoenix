@@ -183,10 +183,42 @@ describe("TenantPage", () => {
     const inaktiv = screen.getByRole("tab", { name: /Dokumente/ });
     expect(aktiv).toHaveAttribute("aria-selected", "true");
     expect(inaktiv).toHaveAttribute("aria-selected", "false");
+    expect(aktiv).toHaveAttribute("tabindex", "0");
+    expect(inaktiv).toHaveAttribute("tabindex", "-1");
     expect(inaktiv).toHaveTextContent("3");
 
     fireEvent.click(inaktiv);
     expect(onChange).toHaveBeenCalledWith("dokumente");
+  });
+
+  it("wechselt Reiter mit den Pfeiltasten in einer Roving-Tabulator-Reihenfolge", () => {
+    const onChange = vi.fn();
+    render(
+      <TenantPage
+        title="Personalakte"
+        tabs={{
+          value: "stammdaten",
+          onChange,
+          items: [
+            { value: "stammdaten", label: "Stammdaten" },
+            { value: "dokumente", label: "Dokumente" },
+            { value: "verlauf", label: "Verlauf" },
+          ],
+        }}
+      />,
+    );
+
+    const first = screen.getByRole("tab", { name: "Stammdaten" });
+    const second = screen.getByRole("tab", { name: "Dokumente" });
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+
+    expect(second).toHaveFocus();
+    expect(onChange).toHaveBeenCalledWith("dokumente");
+
+    fireEvent.keyDown(second, { key: "End" });
+    expect(screen.getByRole("tab", { name: "Verlauf" })).toHaveFocus();
+    expect(onChange).toHaveBeenLastCalledWith("verlauf");
   });
 
   it("lässt einen Reiter mit Zielpfad wie einen Link navigieren", () => {
@@ -214,6 +246,7 @@ describe("TenantPage", () => {
   });
 
   it("erhält den Zielpfad eines Reiters im Überlaufmenü", () => {
+    const onChange = vi.fn();
     const clientWidth = vi
       .spyOn(HTMLElement.prototype, "clientWidth", "get")
       .mockReturnValue(120);
@@ -227,7 +260,7 @@ describe("TenantPage", () => {
           title="Datenverwaltung"
           tabs={{
             value: "personal",
-            onChange: vi.fn(),
+            onChange,
             items: [
               { value: "kinder", label: "Kinder" },
               {
@@ -247,10 +280,16 @@ describe("TenantPage", () => {
 
       expect(moreButton).toHaveAttribute("role", "tab");
       expect(moreButton).toHaveAttribute("aria-selected", "true");
+      expect(moreButton).toHaveAttribute("tabindex", "0");
 
       expect(within(tablist).getByRole("tab", { name: "Mehr" })).toBe(
         moreButton,
       );
+      moreButton.focus();
+      fireEvent.keyDown(moreButton, { key: "ArrowLeft" });
+      expect(screen.getByRole("tab", { name: "Kinder" })).toHaveFocus();
+      expect(onChange).toHaveBeenCalledWith("kinder");
+
       fireEvent.click(moreButton);
 
       expect(

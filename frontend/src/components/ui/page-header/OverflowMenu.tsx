@@ -77,6 +77,8 @@ interface OverflowMenuProps {
    */
   readonly triggerRole?: "tab";
   readonly triggerAriaSelected?: boolean;
+  /** Tabulator-Reihenfolge für einen Auslöser, der Teil eines Composite-Widgets ist. */
+  readonly triggerTabIndex?: number;
   /** Called when the menu is opened from its trigger. */
   readonly onOpen?: () => void;
   /**
@@ -115,6 +117,7 @@ export function OverflowMenu({
   ariaLabel = "Weitere Aktionen",
   triggerRole,
   triggerAriaSelected,
+  triggerTabIndex,
   onOpen,
   triggerSize = "default",
   triggerClassName = "",
@@ -301,6 +304,7 @@ export function OverflowMenu({
         onClick={handleOpen}
         role={triggerRole}
         aria-selected={triggerAriaSelected}
+        tabIndex={triggerTabIndex}
         aria-label={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={isOpen}

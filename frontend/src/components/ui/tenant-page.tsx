@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import type { MouseEvent, ReactNode } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import {
   useCallback,
   useEffect,
@@ -18,6 +18,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWith
 import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -468,6 +469,9 @@ function TenantPageTabs({
   const rowRef = useRef<HTMLDivElement>(null);
   const tablistRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
+  // Vor der ersten Client-Auflösung gilt die Desktop-Variante. Das entspricht
+  // dem Server-Render und verhindert eine Hydrations-Abweichung.
+  const isPhone = useMediaQuery(BELOW_SM);
   const [visibleCount, setVisibleCount] = useState(items.length);
   // Liegen im scrollenden Band (unter sm) rechts noch Reiter? Dann zeigt ein
   // Verlaufs-Fade an der Kartenkante, dass man scrollen kann — eine hart
@@ -558,6 +562,11 @@ function TenantPageTabs({
 
   const visible = items.slice(0, visibleCount);
   const hidden = items.slice(visibleCount);
+  const hiddenActive = hidden.find((item) => item.value === value);
+  // Auf dem Desktop vertritt „Mehr“ den aktiven verborgenen Reiter. Auf dem
+  // Telefon sind alle Reiter sichtbar, der aktive Reiter bleibt daher selbst
+  // der eine Tabulator-Stopp.
+  const rovingValue = hiddenActive && !isPhone ? "__mehr__" : value;
 
   const tabClass = (active: boolean, disabled?: boolean) =>
     cn(
@@ -597,7 +606,8 @@ function TenantPageTabs({
           href={item.href}
           role={measuring ? undefined : "tab"}
           aria-selected={measuring ? undefined : active}
-          tabIndex={measuring ? -1 : undefined}
+          tabIndex={measuring ? -1 : item.value === rovingValue ? 0 : -1}
+          data-tab-value={item.value}
           className={className}
           onClick={(event: MouseEvent<HTMLAnchorElement>) => {
             // Mittelklick und Klick mit Zusatztaste öffnen ein zweites
@@ -626,7 +636,8 @@ function TenantPageTabs({
         type="button"
         role={measuring ? undefined : "tab"}
         aria-selected={measuring ? undefined : active}
-        tabIndex={measuring ? -1 : undefined}
+        tabIndex={measuring ? -1 : item.value === rovingValue ? 0 : -1}
+        data-tab-value={item.value}
         disabled={item.disabled}
         onClick={() => onChange(item.value)}
         className={className}
@@ -636,13 +647,13 @@ function TenantPageTabs({
     );
   };
 
-  const hiddenActive = hidden.find((item) => item.value === value);
   const moreTrigger = (measuring = false) => (
     <OverflowMenu
       key="__mehr__"
       ariaLabel={MORE_LABEL}
       triggerRole="tab"
       triggerAriaSelected={Boolean(hiddenActive)}
+      triggerTabIndex={measuring ? -1 : rovingValue === "__mehr__" ? 0 : -1}
       triggerClassName={cn(tabClass(Boolean(hiddenActive)), "max-sm:hidden")}
       // leading-6 am Inhalt: ohne das drückt das Pfeil-Symbol die Zeilenhöhe
       // um ein Pixel und der Reiter steht einen Hauch tiefer als seine
@@ -653,6 +664,10 @@ function TenantPageTabs({
           <ChevronDown className="size-3.5" aria-hidden />
         </span>
       }
+      // Der Auslöser gehört zur Roving-Tabulator-Reihenfolge des Bandes.
+      // `onKeyDown` sitzt am tablist-Container, damit alle Reiter dieselben
+      // Pfeiltasten verwenden und der portalisierte Menüinhalt davon getrennt
+      // bleibt.
       items={(measuring ? items : hidden).map((item) => ({
         label: item.label,
         href: item.href,
@@ -662,6 +677,51 @@ function TenantPageTabs({
       }))}
     />
   );
+
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (
+      event.key !== "ArrowLeft" &&
+      event.key !== "ArrowRight" &&
+      event.key !== "Home" &&
+      event.key !== "End"
+    ) {
+      return;
+    }
+
+    const current = (event.target as HTMLElement).closest<HTMLElement>(
+      '[role="tab"]',
+    );
+    if (!current || !tablistRef.current?.contains(current)) return;
+
+    const tabs = Array.from(
+      tablistRef.current.querySelectorAll<HTMLElement>('[role="tab"]'),
+    ).filter((tab) => {
+      if (tab.hasAttribute("disabled")) return false;
+      // Desktop: die via `sm:hidden` gerenderten Überlauf-Reiter sind nicht
+      // sichtbar. Telefon: „Mehr“ ist via `max-sm:hidden` ausgeblendet.
+      return isPhone
+        ? !tab.classList.contains("max-sm:hidden")
+        : !tab.classList.contains("sm:hidden");
+    });
+    const index = tabs.indexOf(current);
+    if (index === -1 || tabs.length === 0) return;
+
+    event.preventDefault();
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? tabs.length - 1
+          : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) %
+            tabs.length;
+    const next = tabs[nextIndex]!;
+    next.focus();
+
+    // Der Überlauf öffnet erst auf ausdrückliche Aktivierung. Jeder konkrete
+    // Reiter wechselt beim Pfeil wie ein automatisch aktiviertes Tab-Panel.
+    const nextValue = next.dataset.tabValue;
+    if (nextValue) onChange(nextValue);
+  };
 
   return (
     // Die Randaufhebung gehoert dem Reiterband: seine Grundlinie laeuft ueber
@@ -688,6 +748,8 @@ function TenantPageTabs({
             ref={tablistRef}
             role="tablist"
             aria-label={label}
+            tabIndex={-1}
+            onKeyDown={handleTabKeyDown}
             // Unter sm scrollt das Band bis an den Kartenrand; der Innenrand
             // der Karte sitzt als Polster im Scrollbereich, damit der erste
             // und der letzte Reiter nicht am Rahmen kleben.
