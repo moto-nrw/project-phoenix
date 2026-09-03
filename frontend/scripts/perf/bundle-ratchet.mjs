@@ -35,6 +35,7 @@ import {
 import { dirname, join } from "node:path";
 
 import { readRouteBundles } from "./bundle-routes.mjs";
+import { perfServerEnv } from "./env.mjs";
 
 const BASELINE_FILE = join(process.cwd(), "scripts/perf/bundle-baseline.json");
 const TOLERANCE_RATIO = 0.02;
@@ -74,7 +75,14 @@ function analyze() {
     const result = spawnSync(
       "pnpm",
       ["exec", "next", "experimental-analyze", "--output"],
-      { stdio: "inherit" },
+      {
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          ...perfServerEnv(),
+          SKIP_ENV_VALIDATION: "true",
+        },
+      },
     );
     if (result.status !== 0) {
       throw new Error(

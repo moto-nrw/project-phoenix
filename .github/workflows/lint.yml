@@ -229,6 +229,17 @@ jobs:
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080"
       SKIP_ENV_VALIDATION: "true"
+      API_URL: "http://localhost:8080"
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
+      NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
+      TENANT_DOMAIN: "localhost"
+      NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_SECRET: "ci-bundle-ratchet-throwaway-secret"
+      AUTH_JWT_EXPIRY: "15m"
+      AUTH_JWT_REFRESH_EXPIRY: "168h"
+      METRICS_BEARER_TOKEN: "ci-bundle-ratchet-token"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
