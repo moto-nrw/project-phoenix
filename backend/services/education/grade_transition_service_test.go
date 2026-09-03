@@ -9,7 +9,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -30,13 +29,14 @@ func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTrans
 	transitionRepo := newGradeTransitionRepository(t, db)
 	studentRepo := usersRepo.NewStudentRepository(db)
 	personRepo := usersRepo.NewPersonRepository(db)
+	repos := repositories.NewFactory(db)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo:   transitionRepo,
 		StudentRepo:      studentRepo,
 		PersonRepo:       personRepo,
-		ClassTeacherRepo: educationRepo.NewClassTeacherRepository(db),
-		StaffRepo:        repositories.NewFactory(db).Staff,
+		ClassTeacherRepo: repos.ClassTeacher,
+		StaffRepo:        repos.Staff,
 		DB:               db,
 	})
 

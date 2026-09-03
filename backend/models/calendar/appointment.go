@@ -4,15 +4,17 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 )
 
 const (
-	DeliveryModeRSVPRequired  = "rsvp_required"
-	DeliveryModeInformational = "informational"
+	DeliveryModeRSVPRequired  = appointments.DeliveryModeRSVPRequired
+	DeliveryModeInformational = appointments.DeliveryModeInformational
 
-	OverviewVisibilityOrganizer = "organizer"
-	OverviewVisibilityStaff     = "staff"
-	OverviewVisibilityAll       = "all"
+	OverviewVisibilityOrganizer = appointments.OverviewVisibilityOrganizer
+	OverviewVisibilityStaff     = appointments.OverviewVisibilityStaff
+	OverviewVisibilityAll       = appointments.OverviewVisibilityAll
 
 	RecipientTypeStaff           = "staff"
 	RecipientTypeGuardianProfile = "guardian_profile"
@@ -26,13 +28,13 @@ const (
 	EventSourceTimetable   = "timetable"
 	EventSourceShift       = "shift"
 
-	TargetTypeStaff            = "staff"
-	TargetTypeGuardianProfile  = "guardian_profile"
-	TargetTypeAllStaff         = "all_staff"
-	TargetTypeAllSchoolParents = "all_school_parents"
-	TargetTypeParentsByClass   = "parents_by_class"
-	TargetTypeParentsByGroup   = "parents_by_group"
-	TargetTypeParentsByStudent = "parents_by_student"
+	TargetTypeStaff            = appointments.TargetTypeStaff
+	TargetTypeGuardianProfile  = appointments.TargetTypeGuardianProfile
+	TargetTypeAllStaff         = appointments.TargetTypeAllStaff
+	TargetTypeAllSchoolParents = appointments.TargetTypeAllSchoolParents
+	TargetTypeParentsByClass   = appointments.TargetTypeParentsByClass
+	TargetTypeParentsByGroup   = appointments.TargetTypeParentsByGroup
+	TargetTypeParentsByStudent = appointments.TargetTypeParentsByStudent
 
 	RecurrenceFrequencyDaily   = "daily"
 	RecurrenceFrequencyWeekly  = "weekly"
@@ -60,6 +62,9 @@ var validRecurrenceWeekdays = map[string]bool{
 	"sunday":    true,
 }
 
+// Appointment is the legacy transport shape. Persistence and lifecycle rules
+// are owned by modules/appointments; this type remains while the calendar HTTP
+// surface is migrated without changing its JSON contract.
 type Appointment struct {
 	Model `bun:"schema:calendar,table:appointments"`
 	TenantModel
@@ -95,45 +100,28 @@ type Appointment struct {
 	Revision int `bun:"revision,notnull,default:0" json:"revision"`
 }
 
-// ErrAppointmentLifecycleConflict is returned by the repository when a content
-// update matches zero rows because the appointment was cancelled or deleted by a
-// concurrent request between load and write. The service maps it to a conflict.
-var ErrAppointmentLifecycleConflict = errors.New("appointment changed by a concurrent lifecycle transition")
+// ErrAppointmentLifecycleConflict is returned by the Appointments capability
+// when a content update matches zero rows because the appointment was cancelled
+// or deleted by a concurrent request between load and write.
+var ErrAppointmentLifecycleConflict = appointments.ErrAppointmentLifecycleConflict
 
 func (a *Appointment) Validate() error {
-	if a.OrganizerStaffID <= 0 {
-		return errors.New("organizer_staff_id is required")
+	if a == nil {
+		return errors.New("appointment cannot be nil")
 	}
-	a.Title = strings.TrimSpace(a.Title)
-	if a.Title == "" {
-		return errors.New("title is required")
+	value := &appointments.Appointment{
+		OrganizerStaffID: a.OrganizerStaffID, Title: a.Title, Description: a.Description,
+		Location: a.Location, StartDate: a.StartDate, EndDate: a.EndDate,
+		StartTime: a.StartTime, EndTime: a.EndTime, AllDay: a.AllDay,
+		DeliveryMode: a.DeliveryMode, OverviewVisibility: a.OverviewVisibility,
+		NotifyGuardians: a.NotifyGuardians,
 	}
-	if a.StartDate.IsZero() {
-		return errors.New("start_date is required")
+	if err := value.Validate(); err != nil {
+		return err
 	}
-	if a.EndDate.IsZero() {
-		return errors.New("end_date is required")
-	}
-	if a.EndDate.Before(a.StartDate) {
-		return errors.New("end_date must be on or after start_date")
-	}
-	if !a.AllDay && !normalizeWallClock(a.EndTime).After(normalizeWallClock(a.StartTime)) && a.StartDate == a.EndDate {
-		return errors.New("end_time must be after start_time on same-day appointments")
-	}
-	switch a.DeliveryMode {
-	case DeliveryModeRSVPRequired, DeliveryModeInformational:
-	default:
-		return errors.New("delivery_mode must be rsvp_required or informational")
-	}
-	if a.OverviewVisibility == "" {
-		a.OverviewVisibility = OverviewVisibilityOrganizer
-	}
-	switch a.OverviewVisibility {
-	case OverviewVisibilityOrganizer, OverviewVisibilityStaff, OverviewVisibilityAll:
-		return nil
-	default:
-		return errors.New("overview_visibility must be organizer, staff, or all")
-	}
+	a.Title = value.Title
+	a.OverviewVisibility = value.OverviewVisibility
+	return nil
 }
 
 type RecurrenceRule struct {

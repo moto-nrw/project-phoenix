@@ -69,6 +69,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
@@ -226,6 +228,15 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
+		DB: db,
+		Observe: func(observation appointmentsCompose.Observation) {
+			observability.ObserveAppointmentsOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, appointmentsModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
 	carePlan, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
@@ -283,7 +294,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
-		organizations, persons, groups, rooms, membership, calendar,
+		organizations, persons, groups, rooms, membership, calendar, appointmentCapability,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,

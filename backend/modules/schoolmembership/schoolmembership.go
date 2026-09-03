@@ -1,7 +1,8 @@
 // Package schoolmembership is the public School Membership capability. It
-// owns users.staff, users.teachers, users.guests and users.class_list_entries:
-// every read or write of a staff, teacher, guest or class-list-entry row by
-// another owner goes through Query or Command instead of a foreign SQL join.
+// owns users.staff, users.teachers, users.guests, users.class_list_entries,
+// education.class_teachers and education.group_teacher. Every read or write
+// of those rows by another owner goes through Query or Command instead of a
+// foreign SQL join.
 //
 // The capability stops at the membership rows themselves. Person names live
 // with the People Directory, login accounts and roles with Identity Access;
@@ -214,6 +215,9 @@ type Query interface {
 	// ListClassListEntries returns the entries matching the filter, ordered
 	// by last name, first name (both case-folded) and ID.
 	ListClassListEntries(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
+
+	ListClassAssignments(context.Context, ClassAssignmentFilter) ([]ClassAssignment, error)
+	ListGroupAssignments(context.Context, GroupAssignmentFilter) ([]GroupAssignment, error)
 }
 
 type Command interface {
@@ -246,6 +250,16 @@ type Command interface {
 	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
 	// DeleteClassListEntry removes the entry; entries carry no tombstone.
 	DeleteClassListEntry(context.Context, int64) error
+
+	CreateClassAssignment(context.Context, CreateClassAssignment) (ClassAssignment, error)
+	UpdateClassAssignment(context.Context, UpdateClassAssignment) (ClassAssignment, error)
+	DeleteClassAssignment(context.Context, int64) error
+	DeleteClassAssignmentsByStaff(context.Context, int64) (int64, error)
+
+	CreateGroupAssignment(context.Context, CreateGroupAssignment) (GroupAssignment, error)
+	UpdateGroupAssignment(context.Context, UpdateGroupAssignment) (GroupAssignment, error)
+	DeleteGroupAssignment(context.Context, int64) error
+	DeleteGroupAssignmentsByTeacher(context.Context, int64) (int64, error)
 }
 
 type Capability interface {
@@ -286,13 +300,40 @@ type engine interface {
 	DeleteClassListEntry(context.Context, int64) error
 }
 
-type Module struct{ engine engine }
+type teachingAssignmentEngine interface {
+	ListClassAssignments(context.Context, ClassAssignmentFilter) ([]ClassAssignment, error)
+	CreateClassAssignment(context.Context, CreateClassAssignment) (ClassAssignment, error)
+	UpdateClassAssignment(context.Context, UpdateClassAssignment) (ClassAssignment, error)
+	DeleteClassAssignment(context.Context, int64) error
+	DeleteClassAssignmentsByStaff(context.Context, int64) (int64, error)
 
-func NewModule(engine engine) *Module {
+	ListGroupAssignments(context.Context, GroupAssignmentFilter) ([]GroupAssignment, error)
+	CreateGroupAssignment(context.Context, CreateGroupAssignment) (GroupAssignment, error)
+	UpdateGroupAssignment(context.Context, UpdateGroupAssignment) (GroupAssignment, error)
+	DeleteGroupAssignment(context.Context, int64) error
+	DeleteGroupAssignmentsByTeacher(context.Context, int64) (int64, error)
+}
+
+type Module struct {
+	engine              engine
+	teachingAssignments teachingAssignmentEngine
+}
+
+func NewModule(engine engine, teachingAssignments ...teachingAssignmentEngine) *Module {
 	if engine == nil {
 		panic("school membership: engine is required")
 	}
-	return &Module{engine: engine}
+	if len(teachingAssignments) > 1 {
+		panic("school membership: at most one teaching assignment engine is allowed")
+	}
+	module := &Module{engine: engine}
+	if len(teachingAssignments) == 1 {
+		if teachingAssignments[0] == nil {
+			panic("school membership: teaching assignment engine is required")
+		}
+		module.teachingAssignments = teachingAssignments[0]
+	}
+	return module
 }
 
 // --- staff ---
@@ -605,7 +646,7 @@ func ErrorCode(err error) string {
 	case err == nil:
 		return "none"
 	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrGuestNotFound),
-		errors.Is(err, ErrClassListEntryNotFound):
+		errors.Is(err, ErrClassListEntryNotFound), errors.Is(err, ErrClassAssignmentNotFound), errors.Is(err, ErrGroupAssignmentNotFound):
 		return "not_found"
 	case errors.Is(err, ErrInvalidMembership):
 		return "invalid"
@@ -615,6 +656,10 @@ func ErrorCode(err error) string {
 		return "personnel_number_conflict"
 	case errors.Is(err, ErrClassListEntryDuplicate):
 		return "class_list_entry_conflict"
+	case errors.Is(err, ErrClassAssignmentConflict):
+		return "class_assignment_conflict"
+	case errors.Is(err, ErrGroupAssignmentConflict):
+		return "group_assignment_conflict"
 	default:
 		return "internal_error"
 	}
