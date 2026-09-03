@@ -5,6 +5,7 @@ import "time"
 // Room is the ORM compatibility row retained for legacy relations and test
 // fixtures. Runtime room reads and writes go through modules/facilities.
 type Room struct {
+	//nolint:unused // BUN consumes this table metadata through reflection.
 	tableName struct{}  `bun:"table:facilities.rooms,alias:room"`
 	ID        int64     `bun:"id,pk,autoincrement" json:"id"`
 	TenantID  int64     `bun:"tenant_id,notnull" json:"tenant_id"`

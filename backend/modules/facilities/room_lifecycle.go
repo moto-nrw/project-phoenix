@@ -28,10 +28,6 @@ const (
 	WCMaxParticipants           = 20
 )
 
-func IsWCRoomName(name string) bool { return name == WCRoomName || name == WCRoomAliasName }
-
-func IsSystemRoomName(name string) bool { return name == SchulhofRoomName || IsWCRoomName(name) }
-
 var roomColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
 
 var reservedRoomColors = map[string]struct{}{

@@ -437,8 +437,10 @@ func (rs *Resource) historyWindow(r *http.Request, roomID int64, capDays int) (t
 	requestedStart := startTime
 	startTime = endTime.Add(-maxDuration)
 	rs.runtime.Log.Info("room history window clamped to retention cap",
-		"room_id", roomID, "requested_start", requestedStart.Format(time.RFC3339),
-		"clamped_start", startTime.Format(time.RFC3339), "end", endTime.Format(time.RFC3339),
+		"room_id", roomID,
+		"requested_start", requestedStart.Format(time.RFC3339),
+		"clamped_start", startTime.Format(time.RFC3339),
+		"end", endTime.Format(time.RFC3339),
 		"cap_days", capDays)
 	return startTime, endTime, nil
 }

@@ -37,9 +37,7 @@ func (rs *Resource) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.Failure(w, r, FailureInvalid, fmt.Errorf("unsupported export format %q", request.Format), "invalid_request")
 		return
 	}
-	file, err := rs.runtime.ExportSnapshot(r.Context(), SnapshotRequest{
-		Format: request.Format, Title: request.Title, RoomIDs: request.RoomIDs, IncludeTransit: request.IncludeTransit,
-	})
+	file, err := rs.runtime.ExportSnapshot(r.Context(), SnapshotRequest(request))
 	if err != nil {
 		kind, code := classifyExportFailure(err)
 		rs.runtime.Failure(w, r, kind, err, code)

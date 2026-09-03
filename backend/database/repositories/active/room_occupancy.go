@@ -22,7 +22,7 @@ func (r *GroupRepository) ListRoomOccupancy(ctx context.Context, roomIDs []int64
 		ColumnExpr(`COALESCE(array_agg(DISTINCT "supervisor".staff_id) FILTER (WHERE "supervisor".staff_id IS NOT NULL AND "supervisor".end_date IS NULL), '{}'::bigint[]) AS supervisor_staff_ids`).
 		Join(`LEFT JOIN active.visits AS "visit" ON "visit".active_group_id = "group".id`).
 		Join(`LEFT JOIN active.group_supervisors AS "supervisor" ON "supervisor".group_id = "group".id`).
-		Where(`"group".room_id IN (?)`, bun.In(roomIDs)).
+		Where(`"group".room_id IN (?)`, bun.List(roomIDs)).
 		Where(`"group".end_time IS NULL`).
 		GroupExpr(`"group".room_id`).
 		OrderExpr(`"group".room_id`)

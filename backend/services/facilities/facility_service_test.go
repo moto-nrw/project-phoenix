@@ -131,7 +131,7 @@ func (s *roomServiceStub) FindRoomByName(context.Context, string) (*facilitiesMo
 func (s *roomServiceStub) CreateRoom(_ context.Context, room *facilitiesModule.Room) error {
 	room.ID = 41
 	s.created = room
-	if facilitiesModule.IsWCRoomName(room.Name) {
+	if room.Name == facilitiesModule.WCRoomName || room.Name == facilitiesModule.WCRoomAliasName {
 		s.toilet = room
 	} else {
 		s.schulhof = room
