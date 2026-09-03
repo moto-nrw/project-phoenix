@@ -3,56 +3,39 @@ package facilities
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// RoomRepository defines the interface for room repository operations
+// RoomRepository is the temporary compatibility contract for legacy callers.
+// Its implementation delegates every room read and write to the owner facade.
 type RoomRepository interface {
-	base.CRUDRepository[*Room]
-
-	// FindByIDs retrieves rooms by their IDs.
-	FindByIDs(ctx context.Context, ids []int64) ([]*Room, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*Room, error)
-
-	// FindByName retrieves a room by its name (case-insensitive).
-	FindByName(ctx context.Context, name string) (*Room, error)
-
-	// FindWithOccupancy returns the room plus its live occupancy aggregate.
-	FindWithOccupancy(ctx context.Context, id int64) (*RoomOccupancyRow, error)
-
-	// ListWithOccupancy returns rooms (optionally filtered) plus their live
-	// occupancy aggregates, ordered by name.
-	ListWithOccupancy(ctx context.Context, options *base.QueryOptions) ([]RoomOccupancyRow, error)
-
-	// FindByCategory retrieves rooms by category
-	FindByCategory(ctx context.Context, category string) ([]*Room, error)
+	Create(context.Context, *Room) error
+	FindByID(context.Context, any) (*Room, error)
+	Update(context.Context, *Room) error
+	Delete(context.Context, any) error
+	List(context.Context, map[string]any) ([]*Room, error)
+	FindByIDs(context.Context, []int64) ([]*Room, error)
+	FindByIDForUpdate(context.Context, int64) (*Room, error)
+	FindByName(context.Context, string) (*Room, error)
+	FindByCategory(context.Context, string) ([]*Room, error)
 }
 
-// RoomOccupancyRow is the room + live-occupancy projection returned by the
-// occupancy lookups; the service maps it onto its RoomWithOccupancy view.
+// RoomOccupancyRow remains a compatibility DTO while live presence moves to
+// its own projection. It contains no room persistence behavior.
 type RoomOccupancyRow struct {
-	ID        int64     `bun:"id"`
-	Name      string    `bun:"name"`
-	Building  string    `bun:"building"`
-	Floor     *int      `bun:"floor"`
-	Capacity  *int      `bun:"capacity"`
-	Category  *string   `bun:"category"`
-	Color     *string   `bun:"color"`
-	CreatedAt time.Time `bun:"created_at"`
-	UpdatedAt time.Time `bun:"updated_at"`
-
-	IsOccupied   bool    `bun:"is_occupied"`
-	GroupName    *string `bun:"group_name"`
-	CategoryName *string `bun:"category_name"`
-	StudentCount int     `bun:"student_count"`
-	// SupervisorStaffIDs are the staff members currently supervising in the
-	// room, the only supervision fact the repository reads itself.
-	SupervisorStaffIDs []int64 `bun:"supervisor_staff_ids,array"`
-	// SupervisorPersonIDs are the persons behind those staff members. The
-	// composition layer fills them through School Membership and turns them
-	// into SupervisorNames through the People Directory; the repository
-	// never reads staff rows or person names itself.
-	SupervisorPersonIDs []int64 `bun:"-"`
-	SupervisorNames     *string `bun:"supervisor_names,scanonly"`
+	ID                  int64
+	Name                string
+	Building            string
+	Floor               *int
+	Capacity            *int
+	Category            *string
+	Color               *string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	IsOccupied          bool
+	GroupName           *string
+	CategoryName        *string
+	StudentCount        int
+	SupervisorStaffIDs  []int64
+	SupervisorPersonIDs []int64
+	SupervisorNames     *string
 }

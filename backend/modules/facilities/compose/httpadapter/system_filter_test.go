@@ -1,7 +1,7 @@
 // Tests for the is_system filtering on the rooms list endpoints: Schulhof is
 // available to staff planning, while infrastructure rooms stay hidden unless
 // the caller explicitly requests all system rooms.
-package rooms_test
+package httpadapter
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/constants"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -80,8 +80,8 @@ func TestListRooms_IncludesOnlySchulhofFromSystemRoomsByDefault(t *testing.T) {
 
 	markRoomAsSystem(t, tc.db, tenantID, system.ID)
 	markRoomAsSystem(t, tc.db, tenantID, schulhof.ID)
-	setRoomNameAndBuilding(t, tc.db, tenantID, wc.ID, constants.WCRoomName, "Sanitär")
-	setRoomNameAndBuilding(t, tc.db, tenantID, schulhof.ID, constants.SchulhofRoomName, "Außengelände")
+	setRoomNameAndBuilding(t, tc.db, tenantID, wc.ID, facilitiesModule.WCRoomName, "Sanitär")
+	setRoomNameAndBuilding(t, tc.db, tenantID, schulhof.ID, facilitiesModule.SchulhofRoomName, "Außengelände")
 
 	t.Run("default_excludes_system", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/", nil)
@@ -118,7 +118,7 @@ func TestListRooms_IncludesOnlySchulhofFromSystemRoomsByDefault(t *testing.T) {
 	})
 
 	t.Run("toilette_alias_is_hidden", func(t *testing.T) {
-		setRoomNameAndBuilding(t, tc.db, tenantID, wc.ID, constants.WCRoomAliasName, "Sanitär")
+		setRoomNameAndBuilding(t, tc.db, tenantID, wc.ID, facilitiesModule.WCRoomAliasName, "Sanitär")
 		req := testutil.NewRequest("GET", "/", nil)
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
@@ -141,8 +141,8 @@ func TestGetAvailableRooms_IncludesOnlySchulhofFromSystemRoomsByDefault(t *testi
 
 	markRoomAsSystem(t, tc.db, tenantID, system.ID)
 	markRoomAsSystem(t, tc.db, tenantID, schulhof.ID)
-	setRoomNameAndBuilding(t, tc.db, tenantID, wc.ID, constants.WCRoomName, "Sanitär")
-	setRoomNameAndBuilding(t, tc.db, tenantID, schulhof.ID, constants.SchulhofRoomName, "Außengelände")
+	setRoomNameAndBuilding(t, tc.db, tenantID, wc.ID, facilitiesModule.WCRoomName, "Sanitär")
+	setRoomNameAndBuilding(t, tc.db, tenantID, schulhof.ID, facilitiesModule.SchulhofRoomName, "Außengelände")
 
 	t.Run("default_excludes_system", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/available", nil)
@@ -169,7 +169,7 @@ func TestGetAvailableRooms_IncludesOnlySchulhofFromSystemRoomsByDefault(t *testi
 	})
 
 	t.Run("toilette_alias_is_hidden", func(t *testing.T) {
-		setRoomNameAndBuilding(t, tc.db, tenantID, wc.ID, constants.WCRoomAliasName, "Sanitär")
+		setRoomNameAndBuilding(t, tc.db, tenantID, wc.ID, facilitiesModule.WCRoomAliasName, "Sanitär")
 		req := testutil.NewRequest("GET", "/available", nil)
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())

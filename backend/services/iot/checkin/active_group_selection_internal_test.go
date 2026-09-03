@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesService "github.com/moto-nrw/project-phoenix/services/activities"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -101,7 +101,7 @@ func TestUseExistingActiveGroupCannotSelectPreviousDaySession(t *testing.T) {
 
 	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
 	deviceID := int64(91)
-	room := &facilities.Room{Model: base.Model{ID: 42}, Name: "Schulhof"}
+	room := &facilities.Room{ID: 42, Name: "Schulhof"}
 	stale := &active.Group{
 		Model:     base.Model{ID: 100},
 		RoomID:    room.ID,
@@ -159,7 +159,7 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleConflictBeforeCreate(t *testing.T)
 		logger:     slog.New(slog.DiscardHandler),
 		now:        func() time.Time { return now },
 	}
-	room := &facilities.Room{Model: base.Model{ID: 42}, Name: constants.WCRoomName}
+	room := &facilities.Room{ID: 42, Name: constants.WCRoomName}
 
 	selection, err := service.findOrCreateActiveGroupForRoom(context.Background(), room, 91)
 
@@ -174,7 +174,7 @@ func TestFindOrCreateRegularRoomReusesPreviousDayGroup(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
-	room := &facilities.Room{Model: base.Model{ID: 42}, Name: "Klassenraum 1a"}
+	room := &facilities.Room{ID: 42, Name: "Klassenraum 1a"}
 	stale := &active.Group{
 		Model:     base.Model{ID: 100},
 		RoomID:    room.ID,
@@ -199,7 +199,7 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleGroupBeforeSelectingCurrent(t *tes
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
-	room := &facilities.Room{Model: base.Model{ID: 42}, Name: constants.SchulhofRoomName}
+	room := &facilities.Room{ID: 42, Name: constants.SchulhofRoomName}
 	stale := &active.Group{
 		Model:     base.Model{ID: 100},
 		RoomID:    room.ID,
@@ -228,7 +228,7 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleGroupBeforeSelectingCurrent(t *tes
 func TestRejectedCapacityRemovesNewSpecialRoomGroup(t *testing.T) {
 	t.Parallel()
 
-	room := &facilities.Room{Model: base.Model{ID: 42}, Name: constants.WCRoomName}
+	room := &facilities.Room{ID: 42, Name: constants.WCRoomName}
 	activity := &activities.Group{Model: base.Model{ID: 300}, Name: "WC", MaxParticipants: 999}
 	activeStub := &capacityRejectedActiveService{createdGroupID: 200}
 	service := &CheckinService{
@@ -255,7 +255,7 @@ func TestFullRoomDoesNotCreateSpecialRoomGroup(t *testing.T) {
 
 	capacity := 1
 	room := &facilities.Room{
-		Model:    base.Model{ID: 42},
+		ID:       42,
 		Name:     constants.WCRoomName,
 		Capacity: &capacity,
 	}

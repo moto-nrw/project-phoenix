@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestRoom_Validate(t *testing.T) {
@@ -218,10 +217,7 @@ func TestRoom_GetFullName(t *testing.T) {
 func TestRoom_GetID(t *testing.T) {
 	t.Parallel()
 
-	room := &Room{
-		Model: base.Model{ID: 42},
-		Name:  "Test Room",
-	}
+	room := &Room{ID: 42, Name: "Test Room"}
 
 	// GetID returns interface{}, so we compare with int64
 	if got, ok := room.GetID().(int64); !ok || got != 42 {
@@ -233,10 +229,7 @@ func TestRoom_GetCreatedAt(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	room := &Room{
-		Model: base.Model{CreatedAt: now},
-		Name:  "Test Room",
-	}
+	room := &Room{CreatedAt: now, Name: "Test Room"}
 
 	if got := room.GetCreatedAt(); !got.Equal(now) {
 		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
@@ -247,10 +240,7 @@ func TestRoom_GetUpdatedAt(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	room := &Room{
-		Model: base.Model{UpdatedAt: now},
-		Name:  "Test Room",
-	}
+	room := &Room{UpdatedAt: now, Name: "Test Room"}
 
 	if got := room.GetUpdatedAt(); !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)

@@ -14,7 +14,6 @@ import (
 	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
-	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
@@ -25,6 +24,7 @@ import (
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -603,7 +603,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
-		Room: facilities.NewRoomRepository(db),
+		Room: facilitiesRepositoryAdapter.New(),
 
 		// Education repositories
 		Group:                 education.NewGroupRepository(db),

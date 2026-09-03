@@ -32,6 +32,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -1172,27 +1173,42 @@ func newFactory(
 
 	// Initialize facilities service
 	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
-		RoomRepo:        repos.Room,
-		ActiveGroupRepo: repos.ActiveGroup,
-		PersonQuery:     newFacilitiesPersonQuery(persons),
-		LockTemplateRecurrence: func(ctx context.Context) error {
-			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		Rooms:     rooms,
+		Occupancy: facilitiesLegacy.OccupancyProjection(repos.ActiveGroup, repos.ActivityGroup, membership, persons),
+		History:   facilitiesLegacy.HistoryProjection(repos.ActiveGroup),
+		ValidateDeletion: func(ctx context.Context, roomID int64) error {
+			activeGroups, err := repos.ActiveGroup.FindActiveByRoomID(ctx, roomID)
+			if err != nil {
+				return err
+			}
+			if len(activeGroups) > 0 {
+				return facilitiesModule.ErrRoomInUse
+			}
+			if err := schedule.LockTenantRecurrenceWrites(ctx, db); err != nil {
+				return err
+			}
+			if err := careOfferingResourceValidator.ValidateRoomDeletion(ctx, roomID); err != nil {
+				if errors.Is(err, enrollment.ErrCareOfferingInvalid) {
+					return facilitiesModule.ErrRoomRequiredByOffering
+				}
+				return err
+			}
+			return nil
 		},
-		ValidateCareOfferingRoomDeletion: careOfferingResourceValidator.ValidateRoomDeletion,
 	})
 
 	// Initialize Schulhof service (depends on facilities, activities, and active services)
 	schulhofService := facilities.NewSchulhofService(
 		facilitiesService,
-		activitiesService,
-		activeService,
+		facilitiesLegacy.ActivityCatalog(activitiesService),
+		facilitiesLegacy.OpenGroupCatalog(activeService),
 		facilitiesLogger,
 	)
 
 	// Initialize WC service (depends on facilities and activities services)
 	wcService := facilities.NewWCService(
 		facilitiesService,
-		activitiesService,
+		facilitiesLegacy.ActivityCatalog(activitiesService),
 		facilitiesLogger,
 	)
 
@@ -1323,7 +1339,7 @@ func newFactory(
 	displayService := display.NewService(display.Dependencies{
 		DisplayRepo:       repos.Display,
 		SchoolRepo:        repos.School,
-		Facilities:        facilitiesService,
+		Facilities:        rooms,
 		ActiveGroupRepo:   repos.ActiveGroup,
 		VisitRepo:         repos.ActiveVisit,
 		ActivityGroupRepo: repos.ActivityGroup,
@@ -3136,7 +3152,7 @@ func newFactory(
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
-	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
+	facilitiesLegacy.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
 	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
 	tenantSettings := config.NewTenantOperations(
 		settingsService,

@@ -614,12 +614,10 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 		}
 		if room, ok := rooms[row.GroupRoomID.Int64]; ok {
 			group.Room = &facilities.Room{
-				Model: modelBase.Model{
-					ID:        room.ID,
-					CreatedAt: room.CreatedAt,
-					UpdatedAt: room.UpdatedAt,
-				},
-				Name: room.Name,
+				ID:        room.ID,
+				CreatedAt: room.CreatedAt,
+				UpdatedAt: room.UpdatedAt,
+				Name:      room.Name,
 			}
 		}
 		visit.ActiveGroup = group

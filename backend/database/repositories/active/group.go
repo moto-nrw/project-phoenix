@@ -374,8 +374,8 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 	}
 	if room, ok := rooms[result.RoomID]; ok && room.Name != "" {
 		session.Room = &facilities.Room{
-			Model: modelBase.Model{ID: result.RoomID},
-			Name:  room.Name,
+			ID:   result.RoomID,
+			Name: room.Name,
 		}
 	}
 

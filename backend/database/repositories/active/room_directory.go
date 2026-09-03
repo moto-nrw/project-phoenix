@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 )
 
@@ -72,14 +71,16 @@ func roomsByID(ctx context.Context, directory RoomDirectory, ids []int64) (map[i
 // same shape as before.
 func (r DirectoryRoom) legacy() *facilities.Room {
 	room := &facilities.Room{
-		Model:    modelBase.Model{ID: r.ID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt},
-		Name:     r.Name,
-		Building: r.Building,
-		Floor:    r.Floor,
-		Capacity: r.Capacity,
-		Category: r.Category,
-		Color:    r.Color,
-		IsSystem: r.IsSystem,
+		ID:        r.ID,
+		CreatedAt: r.CreatedAt,
+		UpdatedAt: r.UpdatedAt,
+		Name:      r.Name,
+		Building:  r.Building,
+		Floor:     r.Floor,
+		Capacity:  r.Capacity,
+		Category:  r.Category,
+		Color:     r.Color,
+		IsSystem:  r.IsSystem,
 	}
 	room.SetTenantID(r.TenantID)
 	return room

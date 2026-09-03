@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 )
@@ -78,12 +77,14 @@ func attachRooms(ctx context.Context, directory RoomDirectory, groups []*educati
 
 func (r DirectoryRoom) legacy() *facilities.Room {
 	return &facilities.Room{
-		Model:    modelBase.Model{ID: r.ID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt},
-		Name:     r.Name,
-		Building: r.Building,
-		Floor:    r.Floor,
-		Capacity: r.Capacity,
-		Category: r.Category,
-		Color:    r.Color,
+		ID:        r.ID,
+		CreatedAt: r.CreatedAt,
+		UpdatedAt: r.UpdatedAt,
+		Name:      r.Name,
+		Building:  r.Building,
+		Floor:     r.Floor,
+		Capacity:  r.Capacity,
+		Category:  r.Category,
+		Color:     r.Color,
 	}
 }

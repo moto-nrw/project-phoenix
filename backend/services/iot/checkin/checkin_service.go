@@ -14,8 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -599,9 +599,6 @@ func (s *CheckinService) useExistingActiveGroup(ctx context.Context, activeGroup
 		slog.Bool("device_matched", selected.DeviceID != nil && *selected.DeviceID == deviceID),
 	)
 
-	if selected.Room == nil {
-		selected.Room = room
-	}
 	return &SelectedActiveGroup{
 		Group:        selected,
 		RoomName:     room.Name,
@@ -666,7 +663,6 @@ func (s *CheckinService) createSpecialRoomActiveGroupIfNeeded(ctx context.Contex
 		return nil, specialRoomCreationError(room.Name)
 	}
 
-	newActiveGroup.Room = room
 	newActiveGroup.ActualGroup = activityGroup
 	s.getLogger().InfoContext(ctx, "auto-created active group for special room",
 		slog.String("room_name", room.Name),

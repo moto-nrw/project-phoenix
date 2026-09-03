@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,8 +26,8 @@ import (
 	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -38,7 +39,7 @@ const maxDisplayNameLength = 100
 type Dependencies struct {
 	DisplayRepo       displayModels.Repository
 	SchoolRepo        platformModels.SchoolRepository
-	Facilities        facilities.Service
+	Facilities        facilitiesModule.Query
 	ActiveGroupRepo   activeModels.GroupRepository
 	VisitRepo         activeModels.VisitRepository
 	ActivityGroupRepo activitiesModels.GroupRepository
@@ -307,7 +308,7 @@ func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
 	now := s.Now()
 	today := timezone.DateFromTime(now)
 
-	rooms, err := s.Facilities.ListRooms(ctx, nil)
+	rooms, err := s.Facilities.ListRooms(ctx, facilitiesModule.RoomFilter{})
 	if err != nil {
 		return nil, fmt.Errorf("rooms: %w", err)
 	}
@@ -337,23 +338,8 @@ func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
 		return nil, fmt.Errorf("attendance: %w", err)
 	}
 
-	roomNames := make(map[int64]string, len(rooms))
-	occupancy := make([]RoomOccupancy, 0, len(rooms))
-	roomsOccupied := 0
-	for _, room := range rooms {
-		roomNames[room.ID] = room.Name
-		if room.IsOccupied {
-			roomsOccupied++
-		}
-		occupancy = append(occupancy, RoomOccupancy{
-			Name:         room.Name,
-			GroupName:    room.GroupName,
-			CategoryName: room.CategoryName,
-			StudentCount: room.StudentCount,
-			Capacity:     room.Capacity,
-			IsOccupied:   room.IsOccupied,
-		})
-	}
+	roomNames := roomNamesByID(rooms)
+	occupancy, roomsOccupied := buildRoomOccupancy(rooms, activeGroups, visits, templates)
 
 	running := buildRunningActivities(activeGroups, visits, templates, instances, roomNames)
 	upcoming := buildUpcomingActivities(instances, templates, roomNames, now)
@@ -372,6 +358,88 @@ func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
 			ActivitiesRunning: len(running),
 		},
 	}, nil
+}
+
+func roomNamesByID(rooms []facilitiesModule.Room) map[int64]string {
+	result := make(map[int64]string, len(rooms))
+	for _, room := range rooms {
+		result[room.ID] = room.Name
+	}
+	return result
+}
+
+func buildRoomOccupancy(
+	rooms []facilitiesModule.Room,
+	groups []*activeModels.Group,
+	visits []*activeModels.Visit,
+	templates []*activitiesModels.Group,
+) ([]RoomOccupancy, int) {
+	templateByID := make(map[int64]*activitiesModels.Group, len(templates))
+	for _, template := range templates {
+		templateByID[template.ID] = template
+	}
+	groupsByRoom := make(map[int64][]*activeModels.Group)
+	studentsByGroup := make(map[int64]map[int64]struct{})
+	for _, group := range groups {
+		groupsByRoom[group.RoomID] = append(groupsByRoom[group.RoomID], group)
+	}
+	for _, visit := range visits {
+		if visit.ExitTime == nil {
+			if studentsByGroup[visit.ActiveGroupID] == nil {
+				studentsByGroup[visit.ActiveGroupID] = make(map[int64]struct{})
+			}
+			studentsByGroup[visit.ActiveGroupID][visit.StudentID] = struct{}{}
+		}
+	}
+	result := make([]RoomOccupancy, 0, len(rooms))
+	occupied := 0
+	for _, room := range rooms {
+		row := roomOccupancy(room, groupsByRoom[room.ID], studentsByGroup, templateByID)
+		if row.IsOccupied {
+			occupied++
+		}
+		result = append(result, row)
+	}
+	return result, occupied
+}
+
+func roomOccupancy(
+	room facilitiesModule.Room,
+	groups []*activeModels.Group,
+	studentsByGroup map[int64]map[int64]struct{},
+	templates map[int64]*activitiesModels.Group,
+) RoomOccupancy {
+	names := make([]string, 0, len(groups))
+	categories := make([]string, 0, len(groups))
+	students := make(map[int64]struct{})
+	for _, group := range groups {
+		if templateID, ok := group.TemplateID(); ok {
+			template := templates[templateID]
+			if template != nil {
+				names = append(names, template.Name)
+				if template.Category != nil {
+					categories = append(categories, template.Category.Name)
+				}
+			}
+		}
+		for studentID := range studentsByGroup[group.ID] {
+			students[studentID] = struct{}{}
+		}
+	}
+	return RoomOccupancy{
+		Name: room.Name, GroupName: joinedNames(names), CategoryName: joinedNames(categories),
+		StudentCount: len(students), Capacity: room.Capacity, IsOccupied: len(groups) > 0,
+	}
+}
+
+func joinedNames(values []string) *string {
+	if len(values) == 0 {
+		return nil
+	}
+	sort.Strings(values)
+	values = slices.Compact(values)
+	joined := strings.Join(values, ", ")
+	return &joined
 }
 
 // buildRunningActivities maps currently active sessions to display rows.

@@ -41,7 +41,6 @@ import (
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
-	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	schoolAPI "github.com/moto-nrw/project-phoenix/api/school"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
@@ -72,6 +71,7 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
@@ -149,6 +149,7 @@ type moduleServices struct {
 	mealPlan *mealplanModule.Module
 	feedback *feedbackModule.Module
 	persons  *peopleModule.Module
+	rooms    *facilitiesModule.Module
 	// membership owns users.staff, users.teachers and users.guests (#2667).
 	membership *schoolMembershipModule.Module
 }
@@ -181,8 +182,29 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	var legacyFacilities interface {
+		ValidateRoomDeletion(context.Context, int64) error
+	}
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB: db,
+		DeletionGuard: func(ctx context.Context, roomID int64) error {
+			if legacyFacilities == nil {
+				return facilitiesModule.ErrRoomDeletionGuardUnavailable
+			}
+			err := legacyFacilities.ValidateRoomDeletion(ctx, roomID)
+			var coded interface{ Code() string }
+			if !errors.As(err, &coded) {
+				return err
+			}
+			switch coded.Code() {
+			case "room_in_use":
+				return facilitiesModule.ErrRoomInUse
+			case "room_required_by_offering":
+				return facilitiesModule.ErrRoomRequiredByOffering
+			default:
+				return err
+			}
+		},
 		Observe: func(observation facilitiesCompose.Observation) {
 			observability.ObserveFacilitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, facilitiesModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -244,7 +266,8 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
-	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, membership: membership}, nil
+	legacyFacilities = factory.Facilities
+	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, membership: membership}, nil
 }
 
 func mealPlanParticipantFinder(repoFactory *repositories.Factory, now func() time.Time) mealplanCompose.ParticipantFinder {
@@ -424,13 +447,14 @@ type API struct {
 	databaseLogger     *slog.Logger
 	feedback           *feedbackModule.Module
 	membership         *schoolMembershipModule.Module
+	rooms              *facilitiesModule.Module
 	securityLogging    bool
 	rateLimiting       bool
 	authRateLimit      string
 
 	// API Resources
 	Auth             *authAPI.Resource
-	Rooms            *roomsAPI.Resource
+	Rooms            *roomsHTTPAdapter.Resource
 	Students         *studentsAPI.Resource
 	Statistics       *statisticsAPI.Resource
 	Groups           *groupsAPI.Resource
@@ -600,6 +624,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		databaseLogger:     logger.With("handler", "database"),
 		feedback:           modules.feedback,
 		membership:         modules.membership,
+		rooms:              modules.rooms,
 	}
 
 	// Setup router middleware
@@ -914,17 +939,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth.SetMFAService(api.Services.MFA)
 	api.Auth.SetPasskeyService(api.Services.Passkey)
 	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
-	api.Rooms = roomsAPI.NewResource(roomsAPI.ResourceConfig{
-		FacilityService:    api.Services.Facilities,
-		SettingsService:    api.Services.Settings,
-		UserContextService: api.Services.UserContext,
-		Logger:             logger.With("handler", "rooms"),
-		DB:                 db,
-	})
-	api.Rooms.ActiveService = api.Services.Active
-	api.Rooms.PersonService = api.Services.Users
-	api.Rooms.EducationService = api.Services.Education
-	api.Rooms.ListExportService = api.Services.ListExport
+	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
+		Facilities: api.Services.Facilities, Settings: api.Services.Settings,
+		UserContext: api.Services.UserContext, Active: api.Services.Active,
+		Users: api.Services.Users, Education: api.Services.Education,
+		ListExport: api.Services.ListExport,
+	}, db, logger.With("handler", "rooms"))
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
 		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
 		StudentRepo: repoFactory.Student,

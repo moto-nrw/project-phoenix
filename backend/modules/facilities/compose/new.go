@@ -17,8 +17,9 @@ import (
 type Observation = ports.Observation
 
 type Dependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
+	DB            *bun.DB
+	DeletionGuard func(context.Context, int64) error
+	Observe       func(Observation)
 }
 
 // New composes the Facilities module. Reads run on the caller's ambient
@@ -26,7 +27,7 @@ type Dependencies struct {
 // Shared connections require a caller tenant and apply an explicit predicate;
 // an ambient transaction without one relies on its RLS scope (device auth).
 func New(dependencies Dependencies) (*facilities.Module, error) {
-	if dependencies.DB == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.DeletionGuard == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
@@ -57,7 +58,7 @@ func New(dependencies Dependencies) (*facilities.Module, error) {
 			return nil, 0, fmt.Errorf("facilities postgres: unsupported transaction %T", transaction)
 		}
 	})
-	service := application.New(store, func(observation Observation) {
+	service := application.New(store, transaction{}, dependencies.DeletionGuard, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
@@ -66,33 +67,79 @@ func New(dependencies Dependencies) (*facilities.Module, error) {
 
 type engine struct{ service *application.Service }
 
+type transaction struct{}
+
+func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return callback(ctx)
+	}
+	return tenant.WithinCurrentTenant(ctx, callback)
+}
+
+func (transaction) AcquireLock(ctx context.Context, key string) error {
+	return tenant.AcquireLock(ctx, key, false)
+}
+
+func (e engine) CreateRoom(ctx context.Context, input facilities.CreateRoom) (facilities.Room, error) {
+	value, err := e.service.Create(ctx, domain.CreateRoom{
+		Name: input.Name, Building: input.Building, Floor: input.Floor, Capacity: input.Capacity,
+		Category: input.Category, Color: input.Color, IsSystem: input.IsSystem,
+	})
+	return toPublic(value), mapError(err)
+}
+
+func (e engine) UpdateRoom(ctx context.Context, input facilities.UpdateRoom) (facilities.Room, error) {
+	value, err := e.service.Update(ctx, domain.UpdateRoom{
+		ID: input.ID, Name: input.Name, Building: input.Building, Floor: input.Floor,
+		Capacity: input.Capacity, Category: input.Category, Color: input.Color,
+	})
+	return toPublic(value), mapError(err)
+}
+
+func (e engine) DeleteRoom(ctx context.Context, id int64) error {
+	return mapError(e.service.Delete(ctx, id))
+}
+
 func (e engine) FindRoom(ctx context.Context, id int64) (facilities.Room, error) {
 	value, err := e.service.FindByID(ctx, id)
 	return toPublic(value), mapError(err)
 }
 
+func (e engine) FindRoomByName(ctx context.Context, name string) (facilities.Room, error) {
+	value, err := e.service.FindByName(ctx, name)
+	return toPublic(value), mapError(err)
+}
+
+func (e engine) FindToiletRoom(ctx context.Context, excludeRoomID int64) (facilities.Room, error) {
+	value, err := e.service.FindToilet(ctx, excludeRoomID)
+	return toPublic(value), mapError(err)
+}
+
+func (e engine) ListRooms(ctx context.Context, filter facilities.RoomFilter) ([]facilities.Room, error) {
+	values, err := e.service.List(ctx, domain.RoomFilter{
+		Name: filter.Name, NameContains: filter.NameContains, Building: filter.Building,
+		BuildingContains: filter.BuildingContains, Floor: filter.Floor, Category: filter.Category,
+		MinimumCapacity: filter.MinimumCapacity, MaximumCapacity: filter.MaximumCapacity, Search: filter.Search,
+	})
+	return toPublicList(values), mapError(err)
+}
+
 func (e engine) ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {
 	values, err := e.service.ListByIDs(ctx, ids)
-	if err != nil {
-		return nil, mapError(err)
-	}
-	result := make([]facilities.Room, 0, len(values))
-	for _, value := range values {
-		result = append(result, toPublic(value))
-	}
-	return result, nil
+	return toPublicList(values), mapError(err)
 }
 
 func (e engine) LockRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {
 	values, err := e.service.LockByIDs(ctx, ids)
-	if err != nil {
-		return nil, mapError(err)
-	}
+	return toPublicList(values), mapError(err)
+}
+
+func toPublicList(values []domain.Room) []facilities.Room {
 	result := make([]facilities.Room, 0, len(values))
 	for _, value := range values {
 		result = append(result, toPublic(value))
 	}
-	return result, nil
+	return result
 }
 
 func toPublic(value domain.Room) facilities.Room {
@@ -104,8 +151,20 @@ func toPublic(value domain.Room) facilities.Room {
 }
 
 func mapError(err error) error {
-	if errors.Is(err, domain.ErrNotFound) {
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
 		return facilities.ErrRoomNotFound
+	case errors.Is(err, domain.ErrDuplicate):
+		return facilities.ErrDuplicateRoom
+	case errors.Is(err, domain.ErrDuplicateToilet):
+		return facilities.ErrDuplicateToiletRoom
+	case errors.Is(err, domain.ErrColorAlreadyInUse):
+		return facilities.ErrRoomColorAlreadyInUse
+	case errors.Is(err, domain.ErrSystemProtected):
+		return facilities.ErrSystemRoomProtected
+	case errors.Is(err, domain.ErrSystemNameReserved):
+		return facilities.ErrSystemRoomNameReserved
+	default:
+		return err
 	}
-	return err
 }

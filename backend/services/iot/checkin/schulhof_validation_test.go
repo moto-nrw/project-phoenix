@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/constants"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	facilityModels "github.com/moto-nrw/project-phoenix/modules/facilities"
 	activitySvc "github.com/moto-nrw/project-phoenix/services/activities"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	checkin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
@@ -70,7 +70,7 @@ func TestSchulhofActivityGroupSelectsDedicatedActivityAmongSameNameActivities(t 
 	t.Parallel()
 
 	room := &facilityModels.Room{
-		Model:    base.Model{ID: 42},
+		ID:       42,
 		Name:     constants.SchulhofRoomName,
 		IsSystem: true,
 	}

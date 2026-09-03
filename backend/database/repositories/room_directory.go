@@ -11,6 +11,7 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/uptrace/bun"
 )
 
@@ -19,7 +20,10 @@ import (
 // module themselves (api/base.go) so runtime evidence is kept.
 func NewFacilities(db *bun.DB) (facilitiesModule.Capability, error) {
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB:      db,
+		DB: db,
+		DeletionGuard: func(context.Context, int64) error {
+			return facilitiesModule.ErrRoomDeletionGuardUnavailable
+		},
 		Observe: func(facilitiesCompose.Observation) {},
 	})
 }
@@ -34,6 +38,15 @@ func (f *Factory) bindDefaultFacilities(db *bun.DB) {
 		panic(fmt.Sprintf("repository factory: compose facilities: %v", err))
 	}
 	f.roomBinders = f.roomBinders[:0]
+	if repo, ok := f.Room.(*facilitiesRepositoryAdapter.Repository); ok {
+		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
+			capability, ok := rooms.(facilitiesModule.Capability)
+			if !ok {
+				panic("repository factory: Facilities query does not support room commands")
+			}
+			repo.Bind(capability)
+		})
+	}
 	if repo, ok := f.ActiveGroup.(*activeRepo.GroupRepository); ok {
 		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
 			repo.BindRoomDirectory(activeRoomDirectory{rooms})

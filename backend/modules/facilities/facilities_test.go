@@ -22,6 +22,21 @@ func (e *recordingEngine) FindRoom(_ context.Context, id int64) (facilities.Room
 	return facilities.Room{ID: id, Name: "Igelraum"}, nil
 }
 
+func (e *recordingEngine) FindRoomByName(_ context.Context, name string) (facilities.Room, error) {
+	e.calls++
+	return facilities.Room{Name: name}, nil
+}
+
+func (e *recordingEngine) FindToiletRoom(context.Context, int64) (facilities.Room, error) {
+	e.calls++
+	return facilities.Room{Name: facilities.WCRoomName}, nil
+}
+
+func (e *recordingEngine) ListRooms(context.Context, facilities.RoomFilter) ([]facilities.Room, error) {
+	e.calls++
+	return []facilities.Room{{Name: "Igelraum"}}, nil
+}
+
 func (e *recordingEngine) ListRoomsByID(_ context.Context, ids []int64) ([]facilities.Room, error) {
 	e.calls++
 	e.listIDs = ids
@@ -35,6 +50,16 @@ func (e *recordingEngine) ListRoomsByID(_ context.Context, ids []int64) ([]facil
 func (e *recordingEngine) LockRoomsByID(_ context.Context, ids []int64) ([]facilities.Room, error) {
 	return e.ListRoomsByID(context.Background(), ids)
 }
+
+func (e *recordingEngine) CreateRoom(_ context.Context, input facilities.CreateRoom) (facilities.Room, error) {
+	return facilities.Room{Name: input.Name, Color: input.Color}, nil
+}
+
+func (e *recordingEngine) UpdateRoom(_ context.Context, input facilities.UpdateRoom) (facilities.Room, error) {
+	return facilities.Room{ID: input.ID, Name: input.Name, Color: input.Color}, nil
+}
+
+func (e *recordingEngine) DeleteRoom(context.Context, int64) error { return nil }
 
 func TestModuleRejectsInvalidIdentifiersBeforeReachingTheEngine(t *testing.T) {
 	t.Parallel()

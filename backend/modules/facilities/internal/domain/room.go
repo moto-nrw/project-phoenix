@@ -5,7 +5,24 @@ import (
 	"time"
 )
 
-var ErrNotFound = errors.New("room not found")
+var (
+	ErrNotFound           = errors.New("room not found")
+	ErrDuplicate          = errors.New("room already exists")
+	ErrDuplicateToilet    = errors.New("toilet room already exists")
+	ErrColorAlreadyInUse  = errors.New("room color already exists")
+	ErrSystemProtected    = errors.New("system room is protected")
+	ErrSystemNameReserved = errors.New("system room name is reserved")
+)
+
+const (
+	SchulhofRoomName = "Schulhof"
+	WCRoomName       = "WC"
+	WCRoomAliasName  = "Toilette"
+
+	RoomNameUniqueConstraint    = "idx_rooms_tenant_name"
+	RoomColorUniqueConstraint   = "uniq_facilities_rooms_tenant_color"
+	RoomWCAliasUniqueConstraint = "uniq_facilities_rooms_tenant_wc_alias"
+)
 
 type Room struct {
 	ID        int64
@@ -19,6 +36,38 @@ type Room struct {
 	Category  *string
 	Color     *string
 	IsSystem  bool
+}
+
+type CreateRoom struct {
+	Name     string
+	Building string
+	Floor    *int
+	Capacity *int
+	Category *string
+	Color    *string
+	IsSystem bool
+}
+
+type UpdateRoom struct {
+	ID       int64
+	Name     string
+	Building string
+	Floor    *int
+	Capacity *int
+	Category *string
+	Color    *string
+}
+
+type RoomFilter struct {
+	Name             *string
+	NameContains     *string
+	Building         *string
+	BuildingContains *string
+	Floor            *int
+	Category         *string
+	MinimumCapacity  *int
+	MaximumCapacity  *int
+	Search           *string
 }
 
 type OperationStats struct {

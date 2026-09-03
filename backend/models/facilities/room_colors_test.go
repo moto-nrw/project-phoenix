@@ -1,12 +1,9 @@
-package facilities_test
+package facilities
 
 import (
 	"errors"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +27,7 @@ func TestIsReservedRoomColor(t *testing.T) {
 			"#6B7280", // UNKNOWN / NOT_ARRIVAL
 		}
 		for _, c := range reserved {
-			assert.True(t, facilities.IsReservedRoomColor(c),
+			assert.True(t, IsReservedRoomColor(c),
 				"expected %s to be reserved", c)
 		}
 	})
@@ -39,7 +36,7 @@ func TestIsReservedRoomColor(t *testing.T) {
 		// User-supplied input could land in any of these shapes; all must hit.
 		variants := []string{"#5080d8", " #5080D8 ", "5080D8", "5080d8"}
 		for _, v := range variants {
-			assert.True(t, facilities.IsReservedRoomColor(v),
+			assert.True(t, IsReservedRoomColor(v),
 				"variant %q should be reserved", v)
 		}
 	})
@@ -47,7 +44,7 @@ func TestIsReservedRoomColor(t *testing.T) {
 	t.Run("expands #RGB shorthand", func(t *testing.T) {
 		// #6B7280 is reserved as #6B7280; test a known shorthand collapse to
 		// confirm the expansion path works at all.
-		assert.False(t, facilities.IsReservedRoomColor("#FFF"),
+		assert.False(t, IsReservedRoomColor("#FFF"),
 			"#FFF expands to #FFFFFF which is not reserved")
 		// Build a 3-char that expands to a reserved 6-char: there is no exact
 		// 3→6 collision in the list (e.g. #837 → #883377 ≠ any reserved), so
@@ -64,7 +61,7 @@ func TestIsReservedRoomColor(t *testing.T) {
 			"#A3D977", "#FFD580", "#1ABC9C", "#000000", "#FFFFFF",
 		}
 		for _, c := range nonReserved {
-			assert.False(t, facilities.IsReservedRoomColor(c),
+			assert.False(t, IsReservedRoomColor(c),
 				"%s should not be reserved", c)
 		}
 	})
@@ -76,15 +73,15 @@ func TestIsReservedRoomColor(t *testing.T) {
 		// admin pick the same hex afterwards would break that. Both
 		// upper- and lower-case must be rejected since the picker emits
 		// uppercase but a direct API call could send either.
-		assert.True(t, facilities.IsReservedRoomColor("#4F46E5"))
-		assert.True(t, facilities.IsReservedRoomColor("#4f46e5"))
+		assert.True(t, IsReservedRoomColor("#4F46E5"))
+		assert.True(t, IsReservedRoomColor("#4f46e5"))
 	})
 
 	t.Run("handles empty and malformed input gracefully", func(t *testing.T) {
-		assert.False(t, facilities.IsReservedRoomColor(""))
-		assert.False(t, facilities.IsReservedRoomColor("#"))
-		assert.False(t, facilities.IsReservedRoomColor("not-a-color"))
-		assert.False(t, facilities.IsReservedRoomColor("#GGGGGG"))
+		assert.False(t, IsReservedRoomColor(""))
+		assert.False(t, IsReservedRoomColor("#"))
+		assert.False(t, IsReservedRoomColor("not-a-color"))
+		assert.False(t, IsReservedRoomColor("#GGGGGG"))
 	})
 }
 
@@ -92,45 +89,45 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 	t.Parallel()
 
 	t.Run("rejects a reserved color", func(t *testing.T) {
-		room := &facilities.Room{
+		room := &Room{
 			Name:  "Reserved Color Room",
-			Color: testpkg.StrPtr("#5080D8"),
+			Color: stringPointer("#5080D8"),
 		}
 		err := room.Validate()
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, facilities.ErrReservedColor),
+		assert.True(t, errors.Is(err, ErrReservedColor),
 			"expected ErrReservedColor, got %v", err)
-		assert.True(t, facilities.IsValidationError(err),
+		assert.True(t, IsValidationError(err),
 			"reserved-color error should report as validation error")
 	})
 
 	t.Run("allows a non-reserved hex", func(t *testing.T) {
-		room := &facilities.Room{
+		room := &Room{
 			Name:  "Custom Color Room",
-			Color: testpkg.StrPtr("#A3D977"),
+			Color: stringPointer("#A3D977"),
 		}
 		require.NoError(t, room.Validate())
 	})
 
 	t.Run("allows nil color (default fallback to blue)", func(t *testing.T) {
-		room := &facilities.Room{Name: "No Color"}
+		room := &Room{Name: "No Color"}
 		require.NoError(t, room.Validate())
 	})
 
 	t.Run("rejects malformed hex with sentinel", func(t *testing.T) {
-		room := &facilities.Room{
+		room := &Room{
 			Name:  "Bad Color",
-			Color: testpkg.StrPtr("not-hex"),
+			Color: stringPointer("not-hex"),
 		}
 		err := room.Validate()
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, facilities.ErrInvalidColorFormat))
+		assert.True(t, errors.Is(err, ErrInvalidColorFormat))
 	})
 
 	t.Run("auto-prefixes # before validation", func(t *testing.T) {
-		room := &facilities.Room{
+		room := &Room{
 			Name:  "Prefixed",
-			Color: testpkg.StrPtr("A3D977"),
+			Color: stringPointer("A3D977"),
 		}
 		require.NoError(t, room.Validate())
 		require.NotNil(t, room.Color)
@@ -138,13 +135,13 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 	})
 
 	t.Run("auto-prefix into reserved color is still rejected", func(t *testing.T) {
-		room := &facilities.Room{
+		room := &Room{
 			Name:  "Sneaky",
-			Color: testpkg.StrPtr("5080D8"), // missing # → adds # → matches reserved
+			Color: stringPointer("5080D8"), // missing # → adds # → matches reserved
 		}
 		err := room.Validate()
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, facilities.ErrReservedColor))
+		assert.True(t, errors.Is(err, ErrReservedColor))
 	})
 
 	t.Run("expands #RGB shorthand to #RRGGBB before storing", func(t *testing.T) {
@@ -152,9 +149,9 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 		// and "#AABBCC" persist as textually different rows even though
 		// they render the same CSS color. Native picker always emits 6
 		// digits, but a direct API call could send either form.
-		room := &facilities.Room{
+		room := &Room{
 			Name:  "Shorthand",
-			Color: testpkg.StrPtr("#abc"),
+			Color: stringPointer("#abc"),
 		}
 		require.NoError(t, room.Validate())
 		require.NotNil(t, room.Color)
@@ -172,9 +169,9 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 		// shorthand input — that path is covered indirectly: expansion
 		// runs before IsReservedRoomColor, so any future reserved hex of
 		// that shape would trip the reserved check after expansion.
-		room := &facilities.Room{
+		room := &Room{
 			Name:  "Shorthand prefix",
-			Color: testpkg.StrPtr("abc"), // missing # → adds # → expands → uppercases
+			Color: stringPointer("abc"), // missing # → adds # → expands → uppercases
 		}
 		require.NoError(t, room.Validate())
 		require.NotNil(t, room.Color)
@@ -187,12 +184,14 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 		// canonical form. Without normalisation, "#a3d977" and "#A3D977"
 		// flow through as-is and the API answers two visually-identical
 		// rooms with different colour strings.
-		room := &facilities.Room{
+		room := &Room{
 			Name:  "Mixed Case",
-			Color: testpkg.StrPtr("#a3D977"),
+			Color: stringPointer("#a3D977"),
 		}
 		require.NoError(t, room.Validate())
 		require.NotNil(t, room.Color)
 		assert.Equal(t, "#A3D977", *room.Color)
 	})
 }
+
+func stringPointer(value string) *string { return &value }

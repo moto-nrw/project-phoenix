@@ -85,6 +85,15 @@ type GroupRepository interface {
 	// filtered to sessions supervised by that staff member; pass nil to see
 	// every session (admin / all_staff scope).
 	AggregateRoomSessions(ctx context.Context, roomID int64, start, end time.Time, supervisorStaffID *int64) ([]*RoomSessionAggregate, error)
+	ListRoomOccupancy(context.Context, []int64) ([]RoomOccupancy, error)
+}
+
+// RoomOccupancy contains only student-presence-owned facts keyed by room ID.
+type RoomOccupancy struct {
+	RoomID             int64   `bun:"room_id"`
+	ActivityGroupIDs   []int64 `bun:"activity_group_ids,array"`
+	StudentCount       int     `bun:"student_count"`
+	SupervisorStaffIDs []int64 `bun:"supervisor_staff_ids,array"`
 }
 
 // RoomSessionAggregate is one row in the per-room session timeline. It is

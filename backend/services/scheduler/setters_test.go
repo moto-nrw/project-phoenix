@@ -244,8 +244,8 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 	normalInstance := newInstance(152, 252)
 	repo := &fakeInstanceRepo{instances: []*scheduleModel.ActivityInstance{schulhofInstance, normalInstance}}
 	roomRepo := &fakeOverdueRoomRepo{rooms: []*facilitiesModel.Room{
-		{Model: base.Model{ID: 251}, Name: constants.SchulhofRoomName},
-		{Model: base.Model{ID: 252}, Name: "Lernraum"},
+		{ID: 251, Name: constants.SchulhofRoomName},
+		{ID: 252, Name: "Lernraum"},
 	}}
 	spy := testpkg.NewRecordingBroadcaster()
 	s := unitScheduler(&Scheduler{
@@ -646,7 +646,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 		logger:       slog.Default(),
 		instanceRepo: repo,
 		instanceRoomRepo: &fakeOverdueRoomRepo{rooms: []*facilitiesModel.Room{
-			{Model: base.Model{ID: 42}, Name: "Lernraum"},
+			{ID: 42, Name: "Lernraum"},
 		}},
 		overdueBroadcaster: spy})
 

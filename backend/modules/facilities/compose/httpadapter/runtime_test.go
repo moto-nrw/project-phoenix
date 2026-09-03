@@ -1,8 +1,9 @@
-package rooms_test
+package httpadapter
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,10 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -32,7 +35,8 @@ func init() {
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	resource *roomsAPI.Resource
+	services *services.Factory
+	resource *Resource
 	router   chi.Router
 }
 
@@ -45,16 +49,34 @@ func setupRoomsRoute(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := roomsAPI.NewResource(roomsAPI.ResourceConfig{
-		FacilityService:    svc.Facilities,
-		SettingsService:    svc.Settings,
-		UserContextService: svc.UserContext,
-		Logger:             slog.Default(),
-		DB:                 db,
+	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
+		DB: db,
+		DeletionGuard: func(ctx context.Context, roomID int64) error {
+			err := svc.Facilities.ValidateRoomDeletion(ctx, roomID)
+			var coded interface{ Code() string }
+			if !errors.As(err, &coded) {
+				return err
+			}
+			switch coded.Code() {
+			case "room_in_use":
+				return facilitiesModule.ErrRoomInUse
+			case "room_required_by_offering":
+				return facilitiesModule.ErrRoomRequiredByOffering
+			default:
+				return err
+			}
+		},
+		Observe: func(facilitiesCompose.Observation) {},
 	})
+	require.NoError(t, err)
+	resource := NewResource(rooms, Dependencies{
+		Facilities: svc.Facilities, Settings: svc.Settings, UserContext: svc.UserContext,
+		Active: svc.Active, Users: svc.Users, Education: svc.Education, ListExport: svc.ListExport,
+	}, db, slog.Default())
 
 	return &testContext{
 		db:       db,
+		services: svc,
 		resource: resource,
 		router:   resource.Router(),
 	}
@@ -414,9 +436,9 @@ func TestGetRoomHistory(t *testing.T) {
 	// instead of the feature-disabled branch (which has its own coverage
 	// in TestGetRoomHistory_FeatureDisabled).
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 
 	// Create test room
@@ -512,9 +534,9 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ScopeRoom")
@@ -628,11 +650,11 @@ func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
-	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyRoomDetailVisibleDays, 1, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyRoomDetailVisibleDays, 1, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
-		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyRoomDetailVisibleDays, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyRoomDetailVisibleDays, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ClampRoom")
@@ -685,9 +707,9 @@ func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
 	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "DurationRoom")
