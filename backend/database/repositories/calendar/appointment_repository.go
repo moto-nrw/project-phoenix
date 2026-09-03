@@ -53,9 +53,7 @@ func (r *AppointmentRepository) FindByIDForUpdate(ctx context.Context, id int64)
 		ModelTableExpr(tableExprAppointmentsAsAppointment).
 		Where(`"appointment".id = ?`, id).
 		For("UPDATE")
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment")
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// Preserve the sentinel so lifecycle callers can render a concurrent
@@ -84,9 +82,7 @@ func (r *AppointmentRepository) LockReminderCandidate(ctx context.Context, id in
 		// to block lifecycle writes, but permits the FK's KEY SHARE lock so the
 		// claim can commit before the external push is sent.
 		For("NO KEY UPDATE")
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment")
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -113,9 +109,7 @@ func (r *AppointmentRepository) ListVisibleForStaff(ctx context.Context, staffID
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list visible staff calendar appointments: %w", err)
@@ -144,9 +138,7 @@ func (r *AppointmentRepository) ListCancellationTombstonesForStaff(ctx context.C
 			  AND ar.staff_id = ?
 		))`, staffID, calModels.RecipientTypeStaff, staffID).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list cancellation staff calendar tombstones: %w", err)
 	}
@@ -181,9 +173,7 @@ func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Conte
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list visible guardian calendar appointments: %w", err)
@@ -227,9 +217,7 @@ func (r *AppointmentRepository) ListCancellationTombstonesForGuardianProfiles(ct
 			)`, calModels.RecipientTypeGuardianProfile, bun.List(guardianProfileIDs), bun.List(studentIDs)).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list cancellation guardian calendar tombstones: %w", err)
@@ -318,9 +306,7 @@ func (r *AppointmentRepository) ListGuardianReminderCandidates(ctx context.Conte
 			  AND aoo.start_date BETWEEN ? AND ?
 		)
 	)`, from, to, to, from, from, from, to)
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list guardian reminder candidates: %w", err)
@@ -366,9 +352,7 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 		Where(`"appointment".cancelled_at IS NULL`).
 		Where(`"appointment".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, "appointment")
 
 	// RETURNING the counter rather than incrementing the in-memory copy: the
 	// database owns it (BumpRevision advances it from child-table changes too), so
@@ -404,9 +388,7 @@ func (r *AppointmentRepository) BumpRevision(ctx context.Context, appointmentID 
 		Set(`revision = revision + 1`).
 		Set(`updated_at = ?`, time.Now()).
 		Where(`"appointment".id = ?`, appointmentID)
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, "appointment")
 	if _, err := q.Exec(ctx); err != nil {
 		return fmt.Errorf("bump appointment revision: %w", err)
 	}
@@ -435,9 +417,7 @@ func (r *AppointmentRepository) Cancel(ctx context.Context, appointmentID int64)
 		Where(`"appointment".id = ?`, appointmentID).
 		Where(`"appointment".cancelled_at IS NULL`).
 		Where(`"appointment".deleted_at IS NULL`)
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, "appointment")
 	result, err := q.Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("cancel appointment: %w", err)
@@ -462,9 +442,7 @@ func (r *AppointmentRepository) SoftDelete(ctx context.Context, appointmentID in
 		Set(`updated_at = ?`, now).
 		Where(`"appointment".id = ?`, appointmentID).
 		Where(`"appointment".deleted_at IS NULL`)
-	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, "appointment")
 	if _, err := q.Exec(ctx); err != nil {
 		return fmt.Errorf("soft-delete appointment: %w", err)
 	}
@@ -476,9 +454,7 @@ func (r *AppointmentRepository) DeleteFeedTombstonesBefore(ctx context.Context, 
 		Model((*calModels.Appointment)(nil)).
 		ModelTableExpr(tableExprAppointmentsAsAppointment).
 		Where(`COALESCE("appointment".deleted_at, "appointment".cancelled_at) < ?`, before)
-	if where, value, ok := base.TenantWhere(ctx, "appointment"); ok {
-		q = q.Where(where, value)
-	}
+	q = base.WithTenantFilter(ctx, q, "appointment")
 	result, err := q.Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("delete expired appointment tombstones: %w", err)
@@ -524,9 +500,7 @@ func (r *RecurrenceRuleRepository) FindByAppointmentID(ctx context.Context, appo
 		ModelTableExpr(`calendar.recurrence_rules AS "recurrence_rule"`).
 		Where(`"recurrence_rule".appointment_id = ?`, appointmentID).
 		Limit(1)
-	if where, val, ok := base.TenantWhere(ctx, "recurrence_rule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "recurrence_rule")
 
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -547,9 +521,7 @@ func (r *RecurrenceRuleRepository) FindByAppointmentIDs(ctx context.Context, app
 		Model(&rows).
 		ModelTableExpr(`calendar.recurrence_rules AS "recurrence_rule"`).
 		Where(`"recurrence_rule".appointment_id IN (?)`, bun.List(appointmentIDs))
-	if where, val, ok := base.TenantWhere(ctx, "recurrence_rule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "recurrence_rule")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("find calendar recurrence rules: %w", err)
 	}
@@ -561,9 +533,7 @@ func (r *RecurrenceRuleRepository) DeleteByAppointmentID(ctx context.Context, ap
 		Model((*calModels.RecurrenceRule)(nil)).
 		ModelTableExpr(`calendar.recurrence_rules AS "recurrence_rule"`).
 		Where(`"recurrence_rule".appointment_id = ?`, appointmentID)
-	if where, val, ok := base.TenantWhere(ctx, "recurrence_rule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "recurrence_rule")
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("delete calendar recurrence rule: %w", err)
 	}
@@ -605,9 +575,7 @@ func (r *AppointmentRecipientRepository) FindByID(ctx context.Context, id int64)
 		Model(row).
 		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
 		Where(`"appointment_recipient".id = ?`, id)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_recipient"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment_recipient")
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -622,9 +590,7 @@ func (r *AppointmentRecipientRepository) ReplaceForAppointment(ctx context.Conte
 		Model((*calModels.AppointmentRecipient)(nil)).
 		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
 		Where(`"appointment_recipient".appointment_id = ?`, appointmentID)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_recipient"); ok {
-		deleteQuery = deleteQuery.Where(where, val)
-	}
+	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "appointment_recipient")
 	if _, err := deleteQuery.Exec(ctx); err != nil {
 		return fmt.Errorf("replace calendar recipients: delete existing: %w", err)
 	}
@@ -641,9 +607,7 @@ func (r *AppointmentRecipientRepository) FindByAppointmentID(ctx context.Context
 		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
 		Where(`"appointment_recipient".appointment_id = ?`, appointmentID).
 		OrderExpr(`"appointment_recipient".recipient_type ASC, "appointment_recipient".id ASC`)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_recipient"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment_recipient")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("find calendar recipients: %w", err)
 	}
@@ -667,9 +631,7 @@ func (r *AppointmentRecipientRepository) UpdateResponse(ctx context.Context, rec
 	} else {
 		query = query.Set(`responded_at = NULL`)
 	}
-	if where, val, ok := base.TenantWhere(ctx, "appointment_recipient"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment_recipient")
 	res, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("update calendar recipient response: %w", err)
@@ -750,9 +712,7 @@ func (r *AppointmentRecipientStudentRepository) FindByRecipientIDs(ctx context.C
 		ModelTableExpr(`calendar.appointment_recipient_students AS "appointment_recipient_student"`).
 		Where(`"appointment_recipient_student".recipient_id IN (?)`, bun.List(recipientIDs)).
 		OrderExpr(`"appointment_recipient_student".recipient_id ASC, "appointment_recipient_student".student_id ASC`)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_recipient_student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment_recipient_student")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("find calendar recipient-student links: %w", err)
 	}
@@ -772,9 +732,7 @@ func (r *AppointmentTargetRepository) ReplaceForAppointment(ctx context.Context,
 		Model((*calModels.AppointmentTarget)(nil)).
 		ModelTableExpr(`calendar.appointment_targets AS "appointment_target"`).
 		Where(`"appointment_target".appointment_id = ?`, appointmentID)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_target"); ok {
-		deleteQuery = deleteQuery.Where(where, val)
-	}
+	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "appointment_target")
 	if _, err := deleteQuery.Exec(ctx); err != nil {
 		return fmt.Errorf("replace calendar targets: delete existing: %w", err)
 	}
@@ -803,9 +761,7 @@ func (r *AppointmentTargetRepository) FindByAppointmentID(ctx context.Context, a
 		ModelTableExpr(`calendar.appointment_targets AS "appointment_target"`).
 		Where(`"appointment_target".appointment_id = ?`, appointmentID).
 		OrderExpr(`"appointment_target".id ASC`)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_target"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment_target")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("find calendar targets: %w", err)
 	}
@@ -833,9 +789,7 @@ func (r *AppointmentOccurrenceOverrideRepository) FindCancelledByAppointmentIDs(
 		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
 		Where(`"appointment_occurrence_override".cancelled = ?`, true).
 		OrderExpr(`"appointment_occurrence_override".occurrence_date ASC, "appointment_occurrence_override".id ASC`)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_occurrence_override"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment_occurrence_override")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("find cancelled calendar occurrence overrides: %w", err)
 	}
@@ -870,9 +824,7 @@ func (r *AppointmentOccurrenceOverrideRepository) DeleteByAppointmentID(ctx cont
 		Model((*calModels.AppointmentOccurrenceOverride)(nil)).
 		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
 		Where(`"appointment_occurrence_override".appointment_id = ?`, appointmentID)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_occurrence_override"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment_occurrence_override")
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("delete calendar occurrence overrides: %w", err)
 	}
@@ -890,9 +842,7 @@ func (r *AppointmentOccurrenceOverrideRepository) FindByAppointmentIDsAndOccurre
 		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
 		Where(`"appointment_occurrence_override".occurrence_date IN (?)`, bun.List(occurrenceDates)).
 		OrderExpr(`"appointment_occurrence_override".occurrence_date ASC, "appointment_occurrence_override".id ASC`)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_occurrence_override"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment_occurrence_override")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("find calendar occurrence overrides: %w", err)
 	}
@@ -910,9 +860,7 @@ func (r *AppointmentOccurrenceOverrideRepository) FindByAppointmentIDsAndStartDa
 		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
 		Where(`"appointment_occurrence_override".start_date IN (?)`, bun.List(startDates)).
 		OrderExpr(`"appointment_occurrence_override".start_date ASC, "appointment_occurrence_override".id ASC`)
-	if where, val, ok := base.TenantWhere(ctx, "appointment_occurrence_override"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "appointment_occurrence_override")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("find calendar occurrence overrides by start date: %w", err)
 	}

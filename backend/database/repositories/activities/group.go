@@ -31,12 +31,19 @@ type GroupRepository struct {
 	*base.Repository[*activities.Group]
 	db       *bun.DB
 	students StudentDirectory
+	periods  CalendarPeriodSource
 }
 
 // BindStudentDirectory installs the People Directory the dynamic target
 // cohorts are resolved through (#2662).
 func (r *GroupRepository) BindStudentDirectory(students StudentDirectory) {
 	r.students = students
+}
+
+// BindCalendarPeriods installs the School Calendar query the capacity
+// occurrences read active periods through (#2666).
+func (r *GroupRepository) BindCalendarPeriods(periods CalendarPeriodSource) {
+	r.periods = periods
 }
 
 // NewGroupRepository creates a new GroupRepository
@@ -1149,13 +1156,31 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 	if err != nil {
 		return nil, err
 	}
+	if r.periods == nil {
+		return nil, errCalendarPeriodSourceRequired
+	}
+	activePeriods, err := r.periods.ListActiveCalendarPeriods(ctx)
+	if err != nil {
+		return nil, err
+	}
+	periodIDs, periodStarts, periodEnds, periodCycleLengths, periodAnchors := capacityPeriodColumns(activePeriods)
+	// The tenant's active periods arrive from the School Calendar owner as
+	// parallel arrays; active_periods replaces the former read of
+	// schedule.calendar_periods with the same columns and semantics.
 	err = base.GetDB(ctx, r.db).NewRaw(`
-		WITH selected_period AS (
-			SELECT id AS calendar_period_id, start_date, end_date, week_cycle_length, week_cycle_anchor
-			FROM schedule.calendar_periods
-			WHERE tenant_id = ?
-			  AND is_active = TRUE
-			  AND (?::BIGINT IS NULL OR id = ?)
+		WITH active_periods AS (
+			SELECT
+				period.calendar_period_id,
+				period.start_date,
+				period.end_date,
+				period.week_cycle_length,
+				NULLIF(period.week_cycle_anchor, '')::DATE AS week_cycle_anchor
+			FROM unnest(?::BIGINT[], ?::DATE[], ?::DATE[], ?::INT[], ?::TEXT[])
+				AS period(calendar_period_id, start_date, end_date, week_cycle_length, week_cycle_anchor)
+		), selected_period AS (
+			SELECT calendar_period_id, start_date, end_date, week_cycle_length, week_cycle_anchor
+			FROM active_periods
+			WHERE (?::BIGINT IS NULL OR calendar_period_id = ?)
 		), candidate_occurrences AS MATERIALIZED (
 			SELECT DISTINCT
 				g.id AS template_id,
@@ -1199,11 +1224,9 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 					s.calendar_period_id IS NULL
 					AND g.calendar_period_id IS NULL
 					AND period.calendar_period_id = (
-						SELECT MIN(active_period.id)
-						FROM schedule.calendar_periods AS active_period
-						WHERE active_period.tenant_id = g.tenant_id
-						  AND active_period.is_active = TRUE
-						  AND active_period.start_date <= days.day::DATE
+						SELECT MIN(active_period.calendar_period_id)
+						FROM active_periods AS active_period
+						WHERE active_period.start_date <= days.day::DATE
 						  AND active_period.end_date >= days.day::DATE
 					)
 				)
@@ -1303,7 +1326,9 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 		FROM capacity_parts
 		GROUP BY template_id, calendar_period_id, occurrence_date
 		ORDER BY template_id ASC, occurrence_date ASC, calendar_period_id ASC
-	`, tenantID, periodID, periodID,
+	`, pgdialect.Array(periodIDs), pgdialect.Array(periodStarts), pgdialect.Array(periodEnds),
+		pgdialect.Array(periodCycleLengths), pgdialect.Array(periodAnchors),
+		periodID, periodID,
 		tenantID, bun.List(templateIDs),
 		pgdialect.Array(dynamicTemplateIDs), pgdialect.Array(dynamicStudentIDs), tenantID,
 		tenantID,

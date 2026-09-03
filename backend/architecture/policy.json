@@ -2004,6 +2004,48 @@
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar",
+      "owner": "school-calendar",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/compose",
+      "owner": "school-calendar",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/adapters/postgres",
+      "owner": "school-calendar",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/application",
+      "owner": "school-calendar",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/domain",
+      "owner": "school-calendar",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/ports",
+      "owner": "school-calendar",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -7389,6 +7431,149 @@
       "source_role": "compose",
       "target_owner": "school-membership",
       "target_role": "public"
+    },
+    {
+      "id": "school-calendar.port-domain",
+      "description": "School Calendar ports express persistence operations using their own domain values.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "school-calendar.compose.application",
+      "description": "School Calendar composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "application"
+    },
+    {
+      "id": "school-calendar.compose.domain",
+      "description": "School Calendar composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "domain"
+    },
+    {
+      "id": "school-calendar.compose.orm-sql",
+      "description": "School Calendar composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-calendar.compose.port",
+      "description": "School Calendar composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "port"
+    },
+    {
+      "id": "school-calendar.compose.postgres",
+      "description": "School Calendar composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "postgres"
+    },
+    {
+      "id": "school-calendar.compose.public",
+      "description": "School Calendar composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.compose.tenant-runtime",
+      "description": "School Calendar composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.internal-test.orm-sql",
+      "description": "School Calendar composition tests supply the concrete Bun test database.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-calendar.internal-test.tenant-runtime",
+      "description": "School Calendar composition tests verify transaction, rollback, and tenant isolation through the shared tenant runtime.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.integration-test.public",
+      "description": "School Calendar integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.integration-test.support",
+      "description": "School Calendar integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "root-composition.to.school-calendar-compose",
+      "description": "The production root constructs the School Calendar module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.school-calendar-public",
+      "description": "The production root records stable School Calendar capability outcomes and shares the facade.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.school-calendar-compose",
+      "description": "Legacy composition constructs the required School Calendar capability for the repository and test graphs.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.school-calendar-public",
+      "description": "Legacy composition serves the calendar period, closing day and dateframe repositories over the School Calendar facade.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
     }
+
   ]
 }
