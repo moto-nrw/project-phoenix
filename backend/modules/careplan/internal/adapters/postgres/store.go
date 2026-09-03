@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -692,7 +691,7 @@ func execute(ctx context.Context, query executable, operation string) (domain.Op
 	result, err := query.Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolation(err) {
+		if isUniqueViolation(err) {
 			stats.Conflicts = 1
 		}
 		return stats, 0, fmt.Errorf("care plan postgres: %s: %w", operation, err)
@@ -703,6 +702,11 @@ func execute(ctx context.Context, query executable, operation string) (domain.Op
 	}
 	stats.Rows = rows
 	return stats, rows, nil
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr interface{ Field(byte) string }
+	return errors.As(err, &pgErr) && pgErr.Field('C') == "23505"
 }
 
 func wrapOfferingChangeWrite(operation string, err error) error {

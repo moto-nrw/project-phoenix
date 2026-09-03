@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/uptrace/bun"
 )
 
@@ -18,7 +17,11 @@ import (
 // interval has run out (#2487).
 type CareExitRepository struct {
 	db       *bun.DB
-	carePlan careplan.Capability
+	carePlan interface {
+		FindCareExits(context.Context, []int64) (map[int64]*userModels.CareExit, error)
+		UpsertCareExit(context.Context, *userModels.CareExit) error
+		DeleteCareExits(context.Context, []int64) error
+	}
 }
 
 // NewCareExitRepository builds the repository.
@@ -28,7 +31,11 @@ func NewCareExitRepository(db *bun.DB) userModels.CareExitRepository {
 	}
 }
 
-func (r *CareExitRepository) BindCarePlan(capability careplan.Capability) {
+func (r *CareExitRepository) BindCarePlan(capability interface {
+	FindCareExits(context.Context, []int64) (map[int64]*userModels.CareExit, error)
+	UpsertCareExit(context.Context, *userModels.CareExit) error
+	DeleteCareExits(context.Context, []int64) error
+}) {
 	if capability == nil {
 		panic("care exit repository: care plan capability is required")
 	}
@@ -43,11 +50,7 @@ func (r *CareExitRepository) FindByStudentIDs(ctx context.Context, studentIDs []
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find care exits by student ids", Err: err}
 	}
-	result := make(map[int64]*userModels.CareExit, len(values))
-	for studentID, value := range values {
-		result[studentID] = careExitToLegacy(value)
-	}
-	return result, nil
+	return values, nil
 }
 
 func (r *CareExitRepository) Upsert(ctx context.Context, exit *userModels.CareExit) error {
@@ -57,7 +60,7 @@ func (r *CareExitRepository) Upsert(ctx context.Context, exit *userModels.CareEx
 	if r.carePlan == nil {
 		return errors.New("care exit repository: care plan capability is not bound")
 	}
-	err := r.carePlan.UpsertCareExit(ctx, careExitToPublic(exit))
+	err := r.carePlan.UpsertCareExit(ctx, exit)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "upsert care exit", Err: base.TranslateNotFound(err)}
 	}
@@ -146,23 +149,4 @@ func (r *CareExitRepository) ListEnded(
 		row.RecordedAt = &recordedAt
 	}
 	return rows, total, nil
-}
-
-func careExitToPublic(value *userModels.CareExit) careplan.CareExit {
-	var previous *careplan.Date
-	if value.PreviousEnrolledUntil != nil {
-		converted := careplan.Date(value.PreviousEnrolledUntil.String())
-		previous = &converted
-	}
-	return careplan.CareExit{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, StudentID: value.StudentID, PreviousEnrolledUntil: previous, Reason: value.Reason, ReasonNote: value.ReasonNote, RecordedBy: value.RecordedBy, WithdrawalCompletionID: value.WithdrawalCompletionID}
-}
-
-func careExitToLegacy(value careplan.CareExit) *userModels.CareExit {
-	result := &userModels.CareExit{StudentID: value.StudentID, Reason: value.Reason, ReasonNote: value.ReasonNote, RecordedBy: value.RecordedBy, WithdrawalCompletionID: value.WithdrawalCompletionID}
-	result.ID, result.TenantID, result.CreatedAt, result.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
-	if value.PreviousEnrolledUntil != nil {
-		converted := timezone.Date(value.PreviousEnrolledUntil.String())
-		result.PreviousEnrolledUntil = &converted
-	}
-	return result
 }

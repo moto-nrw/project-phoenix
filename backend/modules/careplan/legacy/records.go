@@ -5,13 +5,12 @@ import (
 	"errors"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 type companionRepository struct{ capability careplan.Capability }
 
-var _ userModels.StudentCompanionRepository = companionRepository{}
+var _ usersRepo.StudentCompanionRepository = companionRepository{}
 
 type CompanionRepository struct{ companionRepository }
 
@@ -19,19 +18,19 @@ func NewCompanionRepository(capability careplan.Capability) *CompanionRepository
 	return &CompanionRepository{companionRepository{capability: capability}}
 }
 
-func (r companionRepository) ListForStudent(ctx context.Context, studentID int64) ([]*userModels.StudentCompanion, error) {
+func (r companionRepository) ListForStudent(ctx context.Context, studentID int64) ([]*usersRepo.StudentCompanion, error) {
 	values, err := r.capability.ListCompanionEdges(ctx, studentID)
 	if err != nil {
 		return nil, usersRepo.WrapError("list student companions", err)
 	}
-	result := make([]*userModels.StudentCompanion, 0, len(values))
+	result := make([]*usersRepo.StudentCompanion, 0, len(values))
 	for _, value := range values {
 		result = append(result, companionToLegacy(value))
 	}
 	return result, nil
 }
 
-func (r companionRepository) ListLinksForStudent(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error) {
+func (r companionRepository) ListLinksForStudent(ctx context.Context, studentID int64) ([]usersRepo.CompanionLink, error) {
 	values, err := r.ListLinksForStudents(ctx, []int64{studentID})
 	if err != nil {
 		return nil, err
@@ -39,23 +38,23 @@ func (r companionRepository) ListLinksForStudent(ctx context.Context, studentID 
 	return values[studentID], nil
 }
 
-func (r companionRepository) ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]userModels.CompanionLink, error) {
+func (r companionRepository) ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]usersRepo.CompanionLink, error) {
 	values, err := r.capability.ListCompanionLinks(ctx, studentIDs)
 	if err != nil {
 		return nil, usersRepo.WrapError("list student companions", err)
 	}
-	result := make(map[int64][]userModels.CompanionLink, len(values))
+	result := make(map[int64][]usersRepo.CompanionLink, len(values))
 	for studentID, links := range values {
-		converted := make([]userModels.CompanionLink, 0, len(links))
+		converted := make([]usersRepo.CompanionLink, 0, len(links))
 		for _, link := range links {
-			converted = append(converted, userModels.CompanionLink{CompanionStudentID: link.CompanionStudentID, FirstName: link.FirstName, LastName: link.LastName, Weekdays: link.Weekdays})
+			converted = append(converted, usersRepo.CompanionLink{CompanionStudentID: link.CompanionStudentID, FirstName: link.FirstName, LastName: link.LastName, Weekdays: link.Weekdays})
 		}
 		result[studentID] = converted
 	}
 	return result, nil
 }
 
-func (r companionRepository) ReplaceForStudent(ctx context.Context, studentID int64, edges []*userModels.StudentCompanion) error {
+func (r companionRepository) ReplaceForStudent(ctx context.Context, studentID int64, edges []*usersRepo.StudentCompanion) error {
 	values := make([]careplan.CompanionEdge, 0, len(edges))
 	for _, edge := range edges {
 		if edge == nil {
@@ -67,8 +66,8 @@ func (r companionRepository) ReplaceForStudent(ctx context.Context, studentID in
 }
 
 func (r companionRepository) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
-	if _, ok := userModels.CompanionWeekdayKeys[weekday]; !ok {
-		return nil, userModels.ErrCompanionInvalidWeekday
+	if _, ok := usersRepo.CompanionWeekdayKeys[weekday]; !ok {
+		return nil, usersRepo.ErrCompanionInvalidWeekday
 	}
 	values, err := r.capability.CompanionIDsForWeekday(ctx, studentIDs, weekday)
 	return values, usersRepo.WrapError("list companions for weekday", err)
@@ -93,25 +92,25 @@ func (r companionRepository) DeleteEdges(ctx context.Context, edgeIDs []int64) e
 	return usersRepo.WrapError("delete student companion edges", r.capability.DeleteCompanionEdges(ctx, edgeIDs))
 }
 
-func companionToPublic(value *userModels.StudentCompanion) careplan.CompanionEdge {
+func companionToPublic(value *usersRepo.StudentCompanion) careplan.CompanionEdge {
 	return careplan.CompanionEdge{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, StudentLowID: value.StudentLowID, StudentHighID: value.StudentHighID, Weekday: value.Weekday}
 }
 
-func companionToLegacy(value careplan.CompanionEdge) *userModels.StudentCompanion {
-	result := &userModels.StudentCompanion{StudentLowID: value.StudentLowID, StudentHighID: value.StudentHighID, Weekday: value.Weekday}
+func companionToLegacy(value careplan.CompanionEdge) *usersRepo.StudentCompanion {
+	result := &usersRepo.StudentCompanion{StudentLowID: value.StudentLowID, StudentHighID: value.StudentHighID, Weekday: value.Weekday}
 	result.ID, result.TenantID, result.CreatedAt, result.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return result
 }
 
 type careDocumentRepository struct{ capability careplan.Capability }
 
-var _ userModels.StudentDocumentRepository = careDocumentRepository{}
+var _ usersRepo.StudentDocumentRepository = careDocumentRepository{}
 
-func NewCareDocumentRepository(capability careplan.Capability) userModels.StudentDocumentRepository {
+func NewCareDocumentRepository(capability careplan.Capability) usersRepo.StudentDocumentRepository {
 	return careDocumentRepository{capability: capability}
 }
 
-func (r careDocumentRepository) Create(ctx context.Context, document *userModels.StudentDocument) error {
+func (r careDocumentRepository) Create(ctx context.Context, document *usersRepo.StudentDocument) error {
 	if document == nil {
 		return errors.New("StudentDocument cannot be nil")
 	}
@@ -126,15 +125,15 @@ func (r careDocumentRepository) Create(ctx context.Context, document *userModels
 	return nil
 }
 
-func (r careDocumentRepository) FindForOwner(ctx context.Context, studentID, documentID int64) (*userModels.StudentDocument, error) {
+func (r careDocumentRepository) FindForOwner(ctx context.Context, studentID, documentID int64) (*usersRepo.StudentDocument, error) {
 	return r.find(ctx, studentID, documentID, false)
 }
 
-func (r careDocumentRepository) FindForOwnerIncludingDeleted(ctx context.Context, studentID, documentID int64) (*userModels.StudentDocument, error) {
+func (r careDocumentRepository) FindForOwnerIncludingDeleted(ctx context.Context, studentID, documentID int64) (*usersRepo.StudentDocument, error) {
 	return r.find(ctx, studentID, documentID, true)
 }
 
-func (r careDocumentRepository) find(ctx context.Context, studentID, documentID int64, includeDeleted bool) (*userModels.StudentDocument, error) {
+func (r careDocumentRepository) find(ctx context.Context, studentID, documentID int64, includeDeleted bool) (*usersRepo.StudentDocument, error) {
 	value, err := r.capability.FindCareDocument(ctx, studentID, documentID, includeDeleted)
 	if errors.Is(err, careplan.ErrCareDocumentNotFound) {
 		return nil, usersRepo.NotFoundError("find student_document")
@@ -145,27 +144,27 @@ func (r careDocumentRepository) find(ctx context.Context, studentID, documentID 
 	return careDocumentToLegacy(value), nil
 }
 
-func (r careDocumentRepository) ListByOwnerID(ctx context.Context, studentID int64, categories []string) ([]*userModels.StudentDocument, error) {
+func (r careDocumentRepository) ListByOwnerID(ctx context.Context, studentID int64, categories []string) ([]*usersRepo.StudentDocument, error) {
 	values, err := r.capability.ListCareDocuments(ctx, studentID, categories)
 	return careDocumentsToLegacy(values), usersRepo.WrapError("list student_document", err)
 }
 
-func (r careDocumentRepository) ListPendingFileCleanupByOwnerID(ctx context.Context, studentID int64) ([]*userModels.StudentDocument, error) {
+func (r careDocumentRepository) ListPendingFileCleanupByOwnerID(ctx context.Context, studentID int64) ([]*usersRepo.StudentDocument, error) {
 	values, err := r.capability.ListPendingCareDocumentCleanup(ctx, studentID)
 	return careDocumentsToLegacy(values), usersRepo.WrapError("list pending student_document cleanup", err)
 }
 
-func (r careDocumentRepository) ListDeletedPendingFileCleanups(ctx context.Context) ([]*userModels.StudentDocument, error) {
+func (r careDocumentRepository) ListDeletedPendingFileCleanups(ctx context.Context) ([]*usersRepo.StudentDocument, error) {
 	values, err := r.capability.ListDeletedCareDocuments(ctx, 0, nil)
 	return careDocumentsToLegacy(values), usersRepo.WrapError("list deleted student_document cleanup", err)
 }
 
-func (r careDocumentRepository) ListDeletedPendingFileCleanupByOwnerID(ctx context.Context, studentID int64, categories []string) ([]*userModels.StudentDocument, error) {
+func (r careDocumentRepository) ListDeletedPendingFileCleanupByOwnerID(ctx context.Context, studentID int64, categories []string) ([]*usersRepo.StudentDocument, error) {
 	values, err := r.capability.ListDeletedCareDocuments(ctx, studentID, categories)
 	return careDocumentsToLegacy(values), usersRepo.WrapError("list pending deleted student_document cleanup", err)
 }
 
-func (r careDocumentRepository) SoftDelete(ctx context.Context, document *userModels.StudentDocument, deletedBy int64) error {
+func (r careDocumentRepository) SoftDelete(ctx context.Context, document *usersRepo.StudentDocument, deletedBy int64) error {
 	at, err := r.capability.SoftDeleteCareDocument(ctx, document.ID, deletedBy)
 	if errors.Is(err, careplan.ErrCareDocumentNotFound) {
 		return usersRepo.NotFoundError("soft delete student_document")
@@ -181,7 +180,7 @@ func (r careDocumentRepository) MarkFileDeleted(ctx context.Context, documentID 
 	return usersRepo.WrapError("mark student_document file deleted", r.capability.MarkCareDocumentFileDeleted(ctx, documentID))
 }
 
-func (r careDocumentRepository) QueueFileCleanup(ctx context.Context, cleanup *userModels.StudentDocumentFileCleanup) error {
+func (r careDocumentRepository) QueueFileCleanup(ctx context.Context, cleanup *usersRepo.StudentDocumentFileCleanup) error {
 	if cleanup == nil {
 		return errors.New("StudentDocumentFileCleanup cannot be nil")
 	}
@@ -193,20 +192,20 @@ func (r careDocumentRepository) QueueFileCleanup(ctx context.Context, cleanup *u
 	return nil
 }
 
-func (r careDocumentRepository) ListQueuedFileCleanups(ctx context.Context) ([]*userModels.StudentDocumentFileCleanup, error) {
+func (r careDocumentRepository) ListQueuedFileCleanups(ctx context.Context) ([]*usersRepo.StudentDocumentFileCleanup, error) {
 	return r.listCleanups(ctx, nil)
 }
 
-func (r careDocumentRepository) ListQueuedFileCleanupByOwnerID(ctx context.Context, studentID int64) ([]*userModels.StudentDocumentFileCleanup, error) {
+func (r careDocumentRepository) ListQueuedFileCleanupByOwnerID(ctx context.Context, studentID int64) ([]*usersRepo.StudentDocumentFileCleanup, error) {
 	return r.listCleanups(ctx, &studentID)
 }
 
-func (r careDocumentRepository) listCleanups(ctx context.Context, studentID *int64) ([]*userModels.StudentDocumentFileCleanup, error) {
+func (r careDocumentRepository) listCleanups(ctx context.Context, studentID *int64) ([]*usersRepo.StudentDocumentFileCleanup, error) {
 	values, err := r.capability.ListCareDocumentCleanups(ctx, studentID)
 	if err != nil {
 		return nil, usersRepo.WrapError("list queued student_document file cleanup", err)
 	}
-	result := make([]*userModels.StudentDocumentFileCleanup, 0, len(values))
+	result := make([]*usersRepo.StudentDocumentFileCleanup, 0, len(values))
 	for _, value := range values {
 		result = append(result, careDocumentCleanupToLegacy(value))
 	}
@@ -225,45 +224,45 @@ func (r careDocumentRepository) ActivateQueuedFileCleanupByFilename(ctx context.
 	return usersRepo.WrapError("activate queued student_document file cleanup", r.capability.ActivateCareDocumentCleanup(ctx, filename))
 }
 
-func careDocumentToPublic(value *userModels.StudentDocument) careplan.CareDocument {
+func careDocumentToPublic(value *usersRepo.StudentDocument) careplan.CareDocument {
 	return careplan.CareDocument{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, StudentID: value.StudentID, Category: value.Category, FilenameDisplay: value.FilenameDisplay, FilenameStored: value.FilenameStored, SizeBytes: value.SizeBytes, ContentType: value.ContentType, UploadedBy: value.UploadedBy, DeletedAt: value.DeletedAt, DeletedBy: value.DeletedBy, FileDeletedAt: value.FileDeletedAt}
 }
 
-func careDocumentToLegacy(value careplan.CareDocument) *userModels.StudentDocument {
-	result := new(userModels.StudentDocument)
+func careDocumentToLegacy(value careplan.CareDocument) *usersRepo.StudentDocument {
+	result := new(usersRepo.StudentDocument)
 	applyCareDocument(result, value)
 	return result
 }
 
-func applyCareDocument(result *userModels.StudentDocument, value careplan.CareDocument) {
+func applyCareDocument(result *usersRepo.StudentDocument, value careplan.CareDocument) {
 	result.ID, result.TenantID, result.CreatedAt, result.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	result.StudentID, result.Category, result.FilenameDisplay, result.FilenameStored = value.StudentID, value.Category, value.FilenameDisplay, value.FilenameStored
 	result.SizeBytes, result.ContentType, result.UploadedBy = value.SizeBytes, value.ContentType, value.UploadedBy
 	result.DeletedAt, result.DeletedBy, result.FileDeletedAt = value.DeletedAt, value.DeletedBy, value.FileDeletedAt
 }
 
-func careDocumentsToLegacy(values []careplan.CareDocument) []*userModels.StudentDocument {
+func careDocumentsToLegacy(values []careplan.CareDocument) []*usersRepo.StudentDocument {
 	if values == nil {
 		return nil
 	}
-	result := make([]*userModels.StudentDocument, 0, len(values))
+	result := make([]*usersRepo.StudentDocument, 0, len(values))
 	for _, value := range values {
 		result = append(result, careDocumentToLegacy(value))
 	}
 	return result
 }
 
-func careDocumentCleanupToPublic(value *userModels.StudentDocumentFileCleanup) careplan.CareDocumentCleanup {
+func careDocumentCleanupToPublic(value *usersRepo.StudentDocumentFileCleanup) careplan.CareDocumentCleanup {
 	return careplan.CareDocumentCleanup{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, OwnerID: value.OwnerID, FilenameStored: value.FilenameStored, RetryAfter: value.RetryAfter, CleanedAt: value.CleanedAt}
 }
 
-func careDocumentCleanupToLegacy(value careplan.CareDocumentCleanup) *userModels.StudentDocumentFileCleanup {
-	result := &userModels.StudentDocumentFileCleanup{}
+func careDocumentCleanupToLegacy(value careplan.CareDocumentCleanup) *usersRepo.StudentDocumentFileCleanup {
+	result := &usersRepo.StudentDocumentFileCleanup{}
 	applyCareDocumentCleanup(result, value)
 	return result
 }
 
-func applyCareDocumentCleanup(result *userModels.StudentDocumentFileCleanup, value careplan.CareDocumentCleanup) {
+func applyCareDocumentCleanup(result *usersRepo.StudentDocumentFileCleanup, value careplan.CareDocumentCleanup) {
 	result.ID, result.TenantID, result.CreatedAt, result.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	result.OwnerID, result.FilenameStored, result.RetryAfter, result.CleanedAt = value.OwnerID, value.FilenameStored, value.RetryAfter, value.CleanedAt
 }

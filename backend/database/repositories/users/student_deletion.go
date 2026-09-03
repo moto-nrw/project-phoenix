@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -21,10 +20,14 @@ type StudentDeletionRepository struct {
 	// countConsents is served by the privacy-consent owner (student-presence,
 	// #2662); the preview must not join users.privacy_consents itself.
 	countConsents func(context.Context, int64) (int, error)
-	carePlan      careplan.Query
+	carePlan      interface {
+		CountCompanionLinks(context.Context, int64) (int, error)
+	}
 }
 
-func (r *StudentDeletionRepository) BindCarePlan(capability careplan.Query) {
+func (r *StudentDeletionRepository) BindCarePlan(capability interface {
+	CountCompanionLinks(context.Context, int64) (int, error)
+}) {
 	if capability == nil {
 		panic("student deletion repository: care plan capability is required")
 	}

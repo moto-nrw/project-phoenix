@@ -228,7 +228,17 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	carePlan, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
-		People:      persons,
+		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+			values, err := persons.ListStudentNamesByID(ctx, ids)
+			if err != nil {
+				return nil, err
+			}
+			result := make([]carePlanCompose.StudentName, 0, len(values))
+			for _, value := range values {
+				result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
+			}
+			return result, nil
+		}),
 		StudentLock: persons.LockStudent, StudentNotFound: peopleModule.ErrStudentNotFound,
 		Observe: func(observation carePlanCompose.Observation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)

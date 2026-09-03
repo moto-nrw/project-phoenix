@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -18,11 +17,11 @@ import (
 )
 
 type recordingStudentNames struct {
-	values []peopledirectory.StudentName
+	values []StudentName
 	calls  int
 }
 
-func (p *recordingStudentNames) ListStudentNamesByID(context.Context, []int64) ([]peopledirectory.StudentName, error) {
+func (p *recordingStudentNames) ListStudentNamesByID(context.Context, []int64) ([]StudentName, error) {
 	p.calls++
 	return p.values, nil
 }
@@ -33,7 +32,7 @@ func TestCompanionFacadePreservesNamesIsolationAndQueryCount(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	first := testpkg.CreateTestStudent(t, db, "Erstes", "Kind", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Zweites", "Kind", "1a")
-	people := &recordingStudentNames{values: []peopledirectory.StudentName{{
+	people := &recordingStudentNames{values: []StudentName{{
 		StudentID: second.ID, FirstName: "Zweites", LastName: "Kind",
 	}}}
 	var observations []Observation

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +23,7 @@ type observationLog struct {
 
 type emptyPeopleDirectory struct{}
 
-func (emptyPeopleDirectory) ListStudentNamesByID(context.Context, []int64) ([]peopledirectory.StudentName, error) {
+func (emptyPeopleDirectory) ListStudentNamesByID(context.Context, []int64) ([]StudentName, error) {
 	return nil, nil
 }
 

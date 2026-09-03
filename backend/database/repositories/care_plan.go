@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -22,7 +23,17 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability) (careplan.Capa
 	studentLock, studentNotFound := CareStudentLock(students)
 	return carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
-		People:      students,
+		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+			values, err := students.ListStudentNamesByID(ctx, ids)
+			if err != nil {
+				return nil, err
+			}
+			result := make([]carePlanCompose.StudentName, 0, len(values))
+			for _, value := range values {
+				result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
+			}
+			return result, nil
+		}),
 		StudentLock: studentLock, StudentNotFound: studentNotFound,
 	})
 }
@@ -61,11 +72,35 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 		repository.BindCarePlan(careExitCarePlanDirectory{capability: capability})
 	}
 	if repository, ok := f.CareExit.(*usersRepo.CareExitRepository); ok {
-		repository.BindCarePlan(capability)
+		repository.BindCarePlan(careExitDirectory{capability: capability})
 	}
 	if repository, ok := f.StudentDeletion.(*usersRepo.StudentDeletionRepository); ok {
 		repository.BindCarePlan(capability)
 	}
+}
+
+type careExitDirectory struct{ capability careplan.Capability }
+
+func (d careExitDirectory) FindCareExits(ctx context.Context, ids []int64) (map[int64]*usersRepo.CareExit, error) {
+	values, err := d.capability.FindCareExits(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]*usersRepo.CareExit, len(values))
+	for id, value := range values {
+		row := &usersRepo.CareExit{StudentID: value.StudentID, Reason: value.Reason, ReasonNote: value.ReasonNote, RecordedBy: value.RecordedBy, WithdrawalCompletionID: value.WithdrawalCompletionID}
+		row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
+		result[id] = row
+	}
+	return result, nil
+}
+
+func (d careExitDirectory) UpsertCareExit(ctx context.Context, row *usersRepo.CareExit) error {
+	return d.capability.UpsertCareExit(ctx, careplan.CareExit{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Reason: row.Reason, ReasonNote: row.ReasonNote, RecordedBy: row.RecordedBy, WithdrawalCompletionID: row.WithdrawalCompletionID})
+}
+
+func (d careExitDirectory) DeleteCareExits(ctx context.Context, ids []int64) error {
+	return d.capability.DeleteCareExits(ctx, ids)
 }
 
 func (f *Factory) bindCarePlanAuditDirectory() {
@@ -159,20 +194,42 @@ func (d careExitCarePlanDirectory) ClosePendingOfferingChanges(ctx context.Conte
 	return d.capability.ClosePendingOfferingChanges(ctx, studentIDs, reason, reviewedBy, at)
 }
 
-func (d careExitCarePlanDirectory) ListCareExitRemovals(ctx context.Context, studentIDs []int64) ([]careplan.CareExitRemoval, error) {
-	return d.capability.ListCareExitRemovals(ctx, studentIDs)
+func (d careExitCarePlanDirectory) ListCareExitRemovals(ctx context.Context, studentIDs []int64) ([]usersRepo.CareExitRemoval, error) {
+	values, err := d.capability.ListCareExitRemovals(ctx, studentIDs)
+	return convertCareExitRecords[[]careplan.CareExitRemoval, []usersRepo.CareExitRemoval](values, err)
 }
 
-func (d careExitCarePlanDirectory) ListCareExitSourceRemovals(ctx context.Context, studentIDs []int64) ([]careplan.CareExitSourceRemoval, error) {
-	return d.capability.ListCareExitSourceRemovals(ctx, studentIDs)
+func (d careExitCarePlanDirectory) ListCareExitSourceRemovals(ctx context.Context, studentIDs []int64) ([]usersRepo.CareExitSourceRemoval, error) {
+	values, err := d.capability.ListCareExitSourceRemovals(ctx, studentIDs)
+	return convertCareExitRecords[[]careplan.CareExitSourceRemoval, []usersRepo.CareExitSourceRemoval](values, err)
 }
 
-func (d careExitCarePlanDirectory) RecordCareExitRemovals(ctx context.Context, values []careplan.CareExitRemoval) error {
-	return d.capability.RecordCareExitRemovals(ctx, values)
+func (d careExitCarePlanDirectory) RecordCareExitRemovals(ctx context.Context, values []usersRepo.CareExitRemoval) error {
+	converted, err := convertCareExitRecords[[]usersRepo.CareExitRemoval, []careplan.CareExitRemoval](values, nil)
+	if err != nil {
+		return err
+	}
+	return d.capability.RecordCareExitRemovals(ctx, converted)
 }
 
-func (d careExitCarePlanDirectory) RecordCareExitSourceRemovals(ctx context.Context, values []careplan.CareExitSourceRemoval) error {
-	return d.capability.RecordCareExitSourceRemovals(ctx, values)
+func (d careExitCarePlanDirectory) RecordCareExitSourceRemovals(ctx context.Context, values []usersRepo.CareExitSourceRemoval) error {
+	converted, err := convertCareExitRecords[[]usersRepo.CareExitSourceRemoval, []careplan.CareExitSourceRemoval](values, nil)
+	if err != nil {
+		return err
+	}
+	return d.capability.RecordCareExitSourceRemovals(ctx, converted)
+}
+
+func convertCareExitRecords[From any, To any](values From, err error) (To, error) {
+	var result To
+	if err != nil {
+		return result, err
+	}
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return result, err
+	}
+	return result, json.Unmarshal(encoded, &result)
 }
 
 func (d careExitCarePlanDirectory) DiscardCareExitRemovals(ctx context.Context, studentIDs []int64) error {

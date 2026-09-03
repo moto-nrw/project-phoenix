@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -23,15 +22,29 @@ import (
 type Observation = ports.Observation
 type AmbientDatabase func(context.Context) bun.IDB
 
-type PeopleDirectory interface {
-	ListStudentNamesByID(context.Context, []int64) ([]peopledirectory.StudentName, error)
+// StudentName is the display projection Care Plan needs for companion links.
+// Composition translates the People Directory result at its boundary.
+type StudentName struct {
+	StudentID int64
+	FirstName string
+	LastName  string
+}
+
+type StudentNameFinder interface {
+	ListStudentNamesByID(context.Context, []int64) ([]StudentName, error)
+}
+
+type StudentNameFinderFunc func(context.Context, []int64) ([]StudentName, error)
+
+func (f StudentNameFinderFunc) ListStudentNamesByID(ctx context.Context, ids []int64) ([]StudentName, error) {
+	return f(ctx, ids)
 }
 
 type Dependencies struct {
 	DB              *bun.DB
 	Observe         func(Observation)
 	AmbientDB       AmbientDatabase
-	People          PeopleDirectory
+	People          StudentNameFinder
 	StudentLock     careplanning.StudentLock
 	StudentNotFound error
 }
@@ -87,7 +100,7 @@ func carePlanDatabase(db *bun.DB) postgres.Database {
 
 type engine struct {
 	service *application.Service
-	people  PeopleDirectory
+	people  StudentNameFinder
 }
 
 func (e engine) FindCareOffering(ctx context.Context, id int64) (careplan.CareOffering, error) {

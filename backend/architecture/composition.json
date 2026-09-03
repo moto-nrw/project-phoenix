@@ -31665,22 +31665,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 305,
+          "line": 315,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 408,
+          "line": 418,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 474,
+          "line": 484,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 966,
+          "line": 976,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31690,7 +31690,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 598,
+          "line": 608,
           "declaration": "New"
         }
       ]
@@ -31705,7 +31705,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 471,
+          "line": 481,
           "declaration": "type API"
         },
         {
