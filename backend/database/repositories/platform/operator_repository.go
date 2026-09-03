@@ -137,13 +137,14 @@ func (r *OperatorRepository) IncrementMFAAttempts(ctx context.Context, id int64,
 		MFALockedUntil *time.Time `bun:"mfa_locked_until"`
 	}
 	row := new(incrementRow)
+	lockedUntil := time.Now().Add(lockoutDuration)
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.Operator)(nil)).
 		ModelTableExpr(tablePlatformOperators).
 		Set("mfa_attempts = mfa_attempts + 1").
 		Set(
-			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN now() + (? * interval '1 second') ELSE mfa_locked_until END",
-			threshold, int64(lockoutDuration.Seconds()),
+			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN ? ELSE mfa_locked_until END",
+			threshold, lockedUntil,
 		).
 		Where("id = ?", id).
 		Returning("mfa_attempts, mfa_locked_until").

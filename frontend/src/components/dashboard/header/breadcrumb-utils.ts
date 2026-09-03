@@ -93,7 +93,7 @@ const mainRoutes: Record<string, string> = {
   // ihn im Elternmodus mit dem übersetzten parentNav-Eintrag.
   "/parents/messages": "Nachrichten",
   "/parents/news": "Neuigkeiten",
-  "/parents/meal-plan": "Essensplan",
+  "/parents/meal-plan": "Mittagessen",
 };
 
 const subPageLabels: Record<string, string> = {

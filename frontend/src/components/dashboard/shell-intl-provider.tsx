@@ -9,11 +9,12 @@ import { DEFAULT_LOCALE } from "~/i18n/locales";
 // layout. The German-only staff + operator shells get only the namespaces used
 // by their shell instead of shipping the complete parent message catalog.
 //
-// Besides the shell itself it carries the namespaces of the shared settings
-// cards, which the staff profile page and the school settings page (#2208)
-// mount, plus the consent summary shown in student master data. Without these
-// subsets every label there renders as its message key.
+// Besides the shell itself it carries the namespaces of staff-facing shared
+// components: settings cards, the meal participant list and its date picker,
+// plus the consent summary shown in student master data. Without these subsets
+// every label there renders as its message key.
 const SHELL_MESSAGES = {
+  datePicker: deMessages.datePicker,
   parentNav: deMessages.parentNav,
   pwaInstallHint: deMessages.pwaInstallHint,
   notificationPreferences: deMessages.notificationPreferences,
@@ -21,6 +22,7 @@ const SHELL_MESSAGES = {
   parentNotificationSetup: deMessages.parentNotificationSetup,
   parentCalendarSubscribe: deMessages.parentCalendarSubscribe,
   staffCalendarSubscribe: deMessages.staffCalendarSubscribe,
+  mealParticipantList: deMessages.mealParticipantList,
   parentChild: {
     consents: deMessages.parentChild.consents,
   },

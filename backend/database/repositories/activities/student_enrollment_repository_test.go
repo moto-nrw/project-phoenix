@@ -608,12 +608,11 @@ func TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource(t *tes
 	groupManual := testpkg.CreateTestActivityGroup(t, db, "BackfillSourceManual")
 	requestChildID := createEnrollmentRequestChildForStudentEnrollmentTest(t, db, student.ID)
 
-	reviewedAt := time.Now().UTC()
 	_, err := db.NewRaw(`
 		UPDATE enrollment.request_children
-		SET reviewed_at = ?
+		SET reviewed_at = CURRENT_TIMESTAMP
 		WHERE tenant_id = ? AND id = ?
-	`, reviewedAt, testpkg.Tenant(t), requestChildID).Exec(context.Background())
+	`, testpkg.Tenant(t), requestChildID).Exec(context.Background())
 	require.NoError(t, err)
 
 	validFrom := timezone.NewDate(2026, time.September, 1)

@@ -441,22 +441,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 152,
+          "line": 154,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 267,
+          "line": 239,
+          "declaration": "mealPlanParticipantFinder"
+        },
+        {
+          "file": "api/base.go",
+          "line": 342,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 333,
+          "line": 408,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 823,
+          "line": 898,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -466,7 +471,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 456,
+          "line": 531,
           "declaration": "New"
         }
       ]
@@ -476,12 +481,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 144,
+          "line": 146,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 330,
+          "line": 405,
           "declaration": "type API"
         },
         {
@@ -551,7 +556,7 @@
         },
         {
           "file": "services/auth/mfa_service.go",
-          "line": 286,
+          "line": 287,
           "declaration": "type MFAServiceConfig"
         },
         {
@@ -591,12 +596,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 419,
+          "line": 423,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 442,
+          "line": 446,
           "declaration": "newFactory"
         },
         {
@@ -16644,7 +16649,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        456
+        531
       ],
       "tables": []
     },
@@ -16804,7 +16809,7 @@
       "declaration": "setupOperatorInvitationRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        300
+        314
       ],
       "tables": []
     },
@@ -16814,7 +16819,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        290
+        304
       ],
       "tables": []
     },
@@ -16824,7 +16829,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        291
+        305
       ],
       "tables": []
     },
@@ -20058,7 +20063,7 @@
       "declaration": "TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        716
+        715
       ],
       "tables": []
     },
@@ -20098,7 +20103,7 @@
       "declaration": "TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        667
+        666
       ],
       "tables": []
     },
@@ -20108,7 +20113,7 @@
       "declaration": "TestStudentEnrollmentRepository_Delete_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        777
+        776
       ],
       "tables": []
     },
@@ -25515,7 +25520,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        984
+        1015
       ],
       "tables": []
     },
@@ -25525,7 +25530,7 @@
       "declaration": "TestStudentRepository_FindByNameAndClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        831
+        862
       ],
       "tables": []
     },
@@ -25569,7 +25574,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        773
+        804
       ],
       "tables": [
         "users.students"
@@ -25601,7 +25606,7 @@
       "declaration": "TestStudentRepository_LockPhotoFeature",
       "target": "database/repositories.NewFactory",
       "lines": [
-        935
+        966
       ],
       "tables": []
     },
@@ -25611,7 +25616,7 @@
       "declaration": "TestStudentRepository_PurgeAllPhotos",
       "target": "database/repositories.NewFactory",
       "lines": [
-        880
+        911
       ],
       "tables": []
     },
@@ -29276,7 +29281,7 @@
       "declaration": "buildMealPlanService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        46
       ],
       "tables": []
     },
@@ -31403,7 +31408,7 @@
       "declaration": "TestMasterDataReview_ListHistory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        28
+        29
       ],
       "tables": [
         "users.student_data_change_requests"
@@ -31415,7 +31420,7 @@
       "declaration": "TestMasterDataReview_ListHistoryScopedToWritableChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        115
+        119
       ],
       "tables": []
     },
