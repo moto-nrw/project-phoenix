@@ -22776,7 +22776,7 @@
       "declaration": "TestFactoryResolvesRoomsThroughTheOwner",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        46
       ],
       "tables": [
         "education.groups",
@@ -22789,7 +22789,7 @@
       "declaration": "TestFindUnclaimedKeepsOnlySchulhofGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        81
+        100
       ],
       "tables": [
         "facilities.rooms"
