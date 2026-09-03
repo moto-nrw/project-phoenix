@@ -42,7 +42,7 @@ type AccountRepository interface {
 	// placeholder and clears the username (GDPR person deletion).
 	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error
 	// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
-	// mfa_locked_until = now() + lockoutDuration when the post-increment
+	// mfa_locked_until to the application-clock deadline when the post-increment
 	// value reaches threshold. The CAS-style UPDATE means N concurrent
 	// failed verifies count as N, not 1, closing the lockout-bypass race
 	// from #1430 review item #6. Returns the post-update counter so the
@@ -54,7 +54,7 @@ type AccountRepository interface {
 	// inadvertently overwrite a concurrent increment.
 	ResetMFAAttempts(ctx context.Context, id int64) error
 	// IncrementPINAttempts atomically bumps pin_attempts by one and sets
-	// pin_locked_until = now() + lockoutDuration when the post-increment
+	// pin_locked_until to the application-clock deadline when the post-increment
 	// value reaches threshold. Mirrors IncrementMFAAttempts: the CAS-style
 	// UPDATE means N concurrent failed PIN entries count as N, not 1,
 	// closing the read-modify-write lockout-bypass race that the previous

@@ -11,7 +11,9 @@ import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import type { DatePickerLabels } from "~/lib/date-picker-labels";
 import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+import { cn } from "~/lib/utils";
 import {
+  CALENDAR_PANEL_MARGIN,
   clampCalendarWidth,
   computeCalendarPanelPosition,
   type PanelGeometry,
@@ -25,7 +27,9 @@ import {
 // - "popover": rendered into document.body via a portal and positioned from the
 //   trigger's viewport rect. Escapes clipping ancestors AND leaves the layout
 //   untouched — the right choice inside scrollable panels/modals.
-type CalendarLayout = "overlay" | "inline" | "popover";
+// - "popover-below": like "popover", but stays below the trigger while at
+//   least a usable, internally scrollable calendar height remains.
+type CalendarLayout = "overlay" | "inline" | "popover" | "popover-below";
 
 /**
  * Trigger height. The picker replaced native inputs that sat next to kit
@@ -69,15 +73,42 @@ function resolveLabels(labels?: DatePickerLabels) {
 
 // Geometry lives in calendar-panel-position.ts so this picker and the range
 // picker cannot drift apart again.
-type PopoverPosition = PanelGeometry;
+type PopoverPosition = PanelGeometry & { readonly maxHeight?: number };
+const CALENDAR_TRIGGER_GAP = 4;
+const MIN_USABLE_CALENDAR_HEIGHT = 240;
 
-function computePopoverPosition(rect: DOMRect): PopoverPosition {
+function computePopoverPosition(
+  rect: DOMRect,
+  prefersBelow: boolean,
+): PopoverPosition {
   const viewport = { width: window.innerWidth, height: window.innerHeight };
-  return computeCalendarPanelPosition(
-    rect,
-    clampCalendarWidth(rect.width, viewport.width),
-    viewport,
-  );
+  const width = clampCalendarWidth(rect.width, viewport.width);
+  // A 240px panel keeps the header and several full week rows usable. Below
+  // that floor, the normal flip-up rule is safer than a tiny scroll slit.
+  const availableBelow =
+    viewport.height -
+    CALENDAR_PANEL_MARGIN -
+    (rect.bottom + CALENDAR_TRIGGER_GAP);
+  const canStayBelow =
+    prefersBelow && availableBelow >= MIN_USABLE_CALENDAR_HEIGHT;
+  const position = canStayBelow
+    ? computeCalendarPanelPosition(
+        rect,
+        width,
+        viewport,
+        MIN_USABLE_CALENDAR_HEIGHT,
+      )
+    : computeCalendarPanelPosition(rect, width, viewport);
+  const opensBelow = position.top >= rect.bottom;
+  return canStayBelow && opensBelow
+    ? {
+        ...position,
+        maxHeight: Math.max(
+          0,
+          viewport.height - position.top - CALENDAR_PANEL_MARGIN,
+        ),
+      }
+    : position;
 }
 
 type DatePickerProps =
@@ -87,6 +118,8 @@ type DatePickerProps =
       readonly onChange: (date: Date | null) => void;
       readonly placeholder?: string;
       readonly className?: string;
+      /** Optional visual treatment for compact filter toolbars. */
+      readonly triggerClassName?: string;
       /**
        * @deprecated No longer read. The panel measures the viewport and flips
        * up or down on its own; callers cannot know which side fits. Kept so the
@@ -172,6 +205,7 @@ export function DatePicker({
   // floating layouts now go through the measured portal path, so every calendar
   // panel in the app obeys the same geometry; "inline" stays in normal flow.
   const isPopover = calendarLayout !== "inline";
+  const prefersBelow = calendarLayout === "popover-below";
   const isMultiple = props.mode === "multiple";
   const isDisabled = !isMultiple && props.disabled === true;
   // Known only after the trigger is measured; until then assume the roomy
@@ -234,9 +268,12 @@ export function DatePicker({
   const syncPopoverPosition = useCallback(() => {
     if (!containerRef.current) return;
     setPopoverPosition(
-      computePopoverPosition(containerRef.current.getBoundingClientRect()),
+      computePopoverPosition(
+        containerRef.current.getBoundingClientRect(),
+        prefersBelow,
+      ),
     );
-  }, []);
+  }, [prefersBelow]);
 
   // Opening measures the trigger and shows the calendar in the SAME event, so
   // React commits both together and the portal's first paint is already in
@@ -378,23 +415,25 @@ export function DatePicker({
           aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
           disabled={isDisabled}
           onClick={toggleOpen}
-          className={`flex items-center rounded-lg border transition-all ${
+          className={cn(
+            "flex items-center rounded-lg border transition-all",
             iconOnly
               ? "h-10 w-10 shrink-0 justify-center"
               : `min-w-0 flex-1 justify-between ${
                   TRIGGER_SIZE_CLASS[
                     (isMultiple ? undefined : props.controlSize) ?? "sm"
                   ]
-                }`
-          } ${
-            !isMultiple && props.invalid ? "border-moto-red" : "border-gray-200"
-          } ${
+                }`,
+            !isMultiple && props.invalid
+              ? "border-moto-red"
+              : "border-gray-200",
             isDisabled
               ? "cursor-not-allowed bg-gray-50 text-gray-400"
               : isOpen
                 ? "border-gray-300 bg-gray-50"
-                : "bg-white hover:bg-gray-50"
-          }`}
+                : "bg-white hover:bg-gray-50",
+            !isMultiple ? props.triggerClassName : undefined,
+          )}
         >
           {!iconOnly && (
             <span className={displayValue ? "text-gray-900" : "text-gray-500"}>
@@ -472,6 +511,7 @@ export function DatePicker({
                     top: popoverPosition.top,
                     left: popoverPosition.left,
                     width: popoverPosition.width,
+                    maxHeight: popoverPosition.maxHeight,
                     pointerEvents: "auto",
                   }}
                 >
@@ -486,6 +526,7 @@ export function DatePicker({
                   top: popoverPosition.top,
                   left: popoverPosition.left,
                   width: popoverPosition.width,
+                  maxHeight: popoverPosition.maxHeight,
                   pointerEvents: "auto",
                 }}
               >
@@ -695,6 +736,7 @@ export function ISODatePicker({
   readonly disabledDay?: Matcher;
   readonly placeholder?: string;
   readonly className?: string;
+  readonly triggerClassName?: string;
   readonly dropdownPlacement?: "up" | "down";
   readonly calendarLayout?: CalendarLayout;
   readonly monthYearNavigation?: boolean;

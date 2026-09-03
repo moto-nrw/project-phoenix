@@ -2004,6 +2004,111 @@
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar",
+      "owner": "school-calendar",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/compose",
+      "owner": "school-calendar",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/adapters/postgres",
+      "owner": "school-calendar",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/application",
+      "owner": "school-calendar",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/domain",
+      "owner": "school-calendar",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/ports",
+      "owner": "school-calendar",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan",
+      "owner": "care-plan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/compose",
+      "owner": "care-plan",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/internal/adapters/postgres",
+      "owner": "care-plan",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/internal/application",
+      "owner": "care-plan",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/internal/domain",
+      "owner": "care-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/internal/ports",
+      "owner": "care-plan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/legacy",
+      "owner": "care-plan",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/integration",
+      "owner": "care-plan",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/careplantest",
+      "owner": "care-plan",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -2573,6 +2678,18 @@
     },
     {
       "name": "schedule.meal_plan_entries",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_participation_overrides",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_participation_schedules",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_sickness_status_history",
       "write_owner": "meal-plan"
     },
     {
@@ -7389,6 +7506,578 @@
       "source_role": "compose",
       "target_owner": "school-membership",
       "target_role": "public"
+    },
+    {
+      "id": "school-calendar.port-domain",
+      "description": "School Calendar ports express persistence operations using their own domain values.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "school-calendar.compose.application",
+      "description": "School Calendar composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "application"
+    },
+    {
+      "id": "school-calendar.compose.domain",
+      "description": "School Calendar composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "domain"
+    },
+    {
+      "id": "school-calendar.compose.orm-sql",
+      "description": "School Calendar composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-calendar.compose.port",
+      "description": "School Calendar composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "port"
+    },
+    {
+      "id": "school-calendar.compose.postgres",
+      "description": "School Calendar composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "postgres"
+    },
+    {
+      "id": "school-calendar.compose.public",
+      "description": "School Calendar composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.compose.tenant-runtime",
+      "description": "School Calendar composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": ["production"],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.internal-test.orm-sql",
+      "description": "School Calendar composition tests supply the concrete Bun test database.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-calendar.internal-test.tenant-runtime",
+      "description": "School Calendar composition tests verify transaction, rollback, and tenant isolation through the shared tenant runtime.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.integration-test.public",
+      "description": "School Calendar integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.integration-test.support",
+      "description": "School Calendar integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "root-composition.to.school-calendar-compose",
+      "description": "The production root constructs the School Calendar module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.school-calendar-public",
+      "description": "The production root records stable School Calendar capability outcomes and shares the facade.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.school-calendar-compose",
+      "description": "Legacy composition constructs the required School Calendar capability for the repository and test graphs.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.school-calendar-public",
+      "description": "Legacy composition serves the calendar period, closing day and dateframe repositories over the School Calendar facade.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.port-domain",
+      "description": "Care Plan ports express persistence operations using owner domain values.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "care-plan.compose.application",
+      "description": "Care Plan composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "application"
+    },
+    {
+      "id": "care-plan.compose.domain",
+      "description": "Care Plan composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.compose.orm-sql",
+      "description": "Care Plan composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "care-plan.compose.port",
+      "description": "Care Plan composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "port"
+    },
+    {
+      "id": "care-plan.compose.postgres",
+      "description": "Care Plan composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "postgres"
+    },
+    {
+      "id": "care-plan.compose.public",
+      "description": "Care Plan composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.compose.tenant-runtime",
+      "description": "Care Plan composition resolves transactions and advisory locks through the tenant runtime.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.integration-test.public",
+      "description": "Care Plan integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.integration-test.runtime",
+      "description": "Care Plan integration tests verify tenant transactions and RLS.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.integration-test.support",
+      "description": "Care Plan integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "care-plan.integration-test.orm-sql",
+      "description": "Care Plan integration tests use Bun for fixture rows outside the owner tables.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "root-composition.to.care-plan-compose",
+      "description": "The production root constructs the Care Plan module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.care-plan-public",
+      "description": "The production root records stable Care Plan outcomes and shares the facade.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.care-plan-compose",
+      "description": "Legacy composition constructs Care Plan for repository and test graphs.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.care-plan-public",
+      "description": "Legacy repository adapters delegate care-offering and change-request work to Care Plan.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.care-plan-adapter",
+      "description": "Legacy composition installs the Care Plan compatibility adapters.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.to.care-plan-adapter",
+      "description": "The production root supplies ambient database resolution to Care Plan.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "adapter"
+    },
+    {
+      "id": "care-plan.adapter.public",
+      "description": "The compatibility adapter delegates to the Care Plan facade.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.adapter.people-public",
+      "description": "The offering-change compatibility adapter resolves person search through People Directory.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.adapter.people-postgres",
+      "description": "The compatibility adapter preserves legacy repository errors.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "postgres"
+    },
+    {
+      "id": "care-plan.adapter.enrollment-domain",
+      "description": "The compatibility adapter preserves legacy enrollment contracts.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.adapter.transaction-domain",
+      "description": "The compatibility adapter preserves legacy database error and queue filter contracts.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.adapter.legacy-date",
+      "description": "The compatibility adapter maps legacy calendar-date values at its boundary.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.postgres.public",
+      "description": "Care Plan Postgres adapters use the owner facade vocabulary.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "postgres",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.domain.public",
+      "description": "Legacy Care Plan domain contracts use the owner calendar-day value.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "domain",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.application.public",
+      "description": "Care Plan application code consumes the owner facade vocabulary.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.adapter.transaction-postgres",
+      "description": "The compatibility adapter joins the ambient database transaction.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
+      "id": "care-plan.adapter.parent-postgres",
+      "description": "The compatibility adapter supplies runtime composition to legacy Care Plan repositories.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "postgres"
+    },
+    {
+      "id": "care-plan.adapter.orm-sql",
+      "description": "The compatibility adapter accepts the concrete Bun database from composition.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "care-plan.adapter.compose",
+      "description": "The compatibility adapter supplies ambient database resolution to Care Plan composition.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.testsupport.public",
+      "description": "Care Plan test support exposes the owner facade.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "test-support",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.testsupport.compose",
+      "description": "Care Plan test support constructs the owner module.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "test-support",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.testsupport.adapter",
+      "description": "Care Plan test support exposes compatibility contracts.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "test-support",
+      "target_owner": "care-plan",
+      "target_role": "adapter"
+    },
+    {
+      "id": "care-plan.testsupport.enrollment-domain",
+      "description": "Care Plan test support returns the legacy enrollment fixture contract.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "test-support",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.testsupport.people-public",
+      "description": "Care Plan test support supplies the required student lock through People Directory.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.testsupport.people-compose",
+      "description": "Care Plan test support composes People Directory for the required student lock.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "test-support.to.care-plan-public",
+      "description": "Cross-owner audit tests bind Care Plan projections through its public capability.",
+      "scopes": ["internal_test"],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.care-plan-support",
+      "description": "Cross-owner audit tests compose Care Plan through its test support.",
+      "scopes": ["internal_test"],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "test-support"
+    },
+    {
+      "id": "enrollment-test.to.care-plan-support",
+      "description": "Enrollment behavior tests compose Care Plan fixtures through its test support.",
+      "scopes": ["external_test"],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "care-plan",
+      "target_role": "test-support"
+    },
+    {
+      "id": "class-day-test.to.care-plan-support",
+      "description": "Class-day integration tests compose Care Plan fixtures through its test support.",
+      "scopes": ["external_test"],
+      "source_owner": "class-day-view",
+      "source_role": "module-behavior-test",
+      "target_owner": "care-plan",
+      "target_role": "test-support"
+    },
+    {
+      "id": "enrollment-test.to.care-plan-public",
+      "description": "Phase-expiry behavior tests bind the Care Plan projection port.",
+      "scopes": ["external_test"],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.integration-test.security-application",
+      "description": "Care Plan cross-tenant contract tests configure guardian permissions.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "care-plan.integration-test.legacy-composition",
+      "description": "Care Plan compatibility tests exercise the production repository wiring.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.integration-test.postgres",
+      "description": "Care Plan compatibility tests exercise the legacy Postgres projection adapter.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "postgres"
+    },
+    {
+      "id": "care-plan.integration-test.enrollment-domain",
+      "description": "Care Plan compatibility fixtures use enrollment contract constants.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.integration-test.domain",
+      "description": "Care Plan compatibility tests assert legacy owner-domain views.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.integration-test.people-domain",
+      "description": "Care Plan compatibility fixtures create guardian-link rows.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
     }
+
   ]
 }

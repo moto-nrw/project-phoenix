@@ -33,6 +33,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -313,7 +314,11 @@ func (f *Factory) SetSettingsObservers(
 	}
 }
 
-type MealPlanSettingsBinder func(func(context.Context) (bool, error))
+type MealPlanSettingsBinder func(
+	func(context.Context) (bool, error),
+	func(context.Context) (bool, error),
+	func(context.Context) (string, error),
+)
 
 type FeedbackSettingsBinder func(
 	func(context.Context) (bool, error),
@@ -423,6 +428,7 @@ func NewFactoryWithModules(
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
 	membership schoolmembership.Capability,
+	calendar schoolcalendar.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -432,10 +438,10 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || membership == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, school membership, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || membership == nil || calendar == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, school membership, school calendar, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, membership, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, membership, calendar, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -447,6 +453,7 @@ func newFactory(
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
 	membership schoolmembership.Capability,
+	calendar schoolcalendar.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -461,9 +468,8 @@ func newFactory(
 	today := timezone.CalendarDateClock(now)
 	// Persons first: the school projections sort by the names this binds.
 	repos.BindPeopleDirectory(persons)
-	careStudentLock, studentNotFound := repositories.CareStudentLock(persons)
-	schedule.BindCareStudentLockForDB(db, careStudentLock, studentNotFound)
 	repos.BindSchoolMembership(membership)
+	repos.BindSchoolCalendar(calendar)
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
@@ -661,9 +667,17 @@ func newFactory(
 		logger,
 	)
 	if mealPlan != nil {
-		bindMealPlanSettings(func(ctx context.Context) (bool, error) {
-			return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
-		})
+		bindMealPlanSettings(
+			func(ctx context.Context) (bool, error) {
+				return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
+			},
+			func(ctx context.Context) (bool, error) {
+				return settingsService.ResolveBool(ctx, configModels.KeyMealRegistrationEnabled)
+			},
+			func(ctx context.Context) (string, error) {
+				return settingsService.ResolveString(ctx, configModels.KeyMealRegistrationCutoffTime)
+			},
+		)
 	}
 	if bindFeedbackSettings != nil {
 		bindFeedbackSettings(

@@ -2572,6 +2572,13 @@ func TodayDate() timezone.Date {
 	return timezone.TodayDate()
 }
 
+// WallClock returns a normalized clock-only value (PostgreSQL TIME) for
+// callers that should not depend on the application's time implementation
+// directly.
+func WallClock(hour, minute int) time.Time {
+	return timezone.NormalizeWallClock(time.Date(1, time.January, 1, hour, minute, 0, 0, time.UTC))
+}
+
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
 // Activity group / active group / status default to a planned template-backed
 // instance; override via opts for lifecycle-edge tests.
@@ -2662,6 +2669,44 @@ func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *schedule.Calenda
 	period.IsActive = active
 	_, err := db.NewUpdate().Model(period).Column("is_active").WherePK().Exec(ctx)
 	require.NoError(tb, err, "Failed to set test calendar period active state")
+}
+
+// CreateTestClosingDay inserts a schedule.closing_days row spanning
+// [start, end] for the test tenant. The tenant-owned row dies with the clone.
+func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end timezone.Date, reason string) *schedule.ClosingDay {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.ClosingDay{StartDate: start, EndDate: end, Reason: reason}
+	row.SetTenantID(fixtureTenantID(tb))
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.closing_days`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test closing day")
+	return row
+}
+
+// CreateTestDateframe inserts a schedule.dateframes row for the test tenant.
+// Dateframes are instants (TIMESTAMPTZ), so the bounds are passed as such.
+func CreateTestDateframe(tb testing.TB, db *bun.DB, name string, start, end time.Time) *schedule.Dateframe {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.Dateframe{Name: name, StartDate: start, EndDate: end}
+	row.SetTenantID(fixtureTenantID(tb))
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.dateframes`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test dateframe")
+	return row
 }
 
 // StaffNoticeOpts controls optional fields for NewTestStaffNotice.

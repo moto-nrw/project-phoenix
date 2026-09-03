@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -25,7 +26,7 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
 	requestRepo := enrollmentRepo.NewRequestRepository(db)
 	childRepo := enrollmentRepo.NewRequestChildRepository(db)
-	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
 	linkRepo := enrollmentRepo.NewRequestChildOfferingRepository(db)
 
 	source := makeValidPhase(uniquePhaseName("expiry-source"))

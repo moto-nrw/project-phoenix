@@ -465,7 +465,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx|text-[11px]@188 text-[11px]@225
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@164
-src/app/[tenant]/(protected)/meal-plan/page.tsx|text-[11px]@645
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1343 text-[11px]@1343 text-[10px]@1347 text-[10px]@1356 text-[11px]@1356 text-[10px]@2020
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@235 text-[11px]@276
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@218

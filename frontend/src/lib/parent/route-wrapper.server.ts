@@ -240,14 +240,15 @@ export function createParentPatchHandler<T, B = unknown>(
  * pass-through parent routes instead of hand-rolling
  * `createParentXHandler(async … parentApiX(…))`.
  */
-export const { proxyGet, proxyPost, proxyPut } = makeProxyFactories({
-  get: createParentGetHandler,
-  post: createParentPostHandler,
-  put: createParentPutHandler,
-  del: createParentDeleteHandler,
-  apiGet: parentApiGet,
-  apiPost: parentApiPost,
-  apiPut: parentApiPut,
-  apiDelete: parentApiDelete,
-  fetcherUnwrapsData: true,
-});
+export const { proxyGet, proxyPost, proxyPut, proxyDelete } =
+  makeProxyFactories({
+    get: createParentGetHandler,
+    post: createParentPostHandler,
+    put: createParentPutHandler,
+    del: createParentDeleteHandler,
+    apiGet: parentApiGet,
+    apiPost: parentApiPost,
+    apiPut: parentApiPut,
+    apiDelete: parentApiDelete,
+    fetcherUnwrapsData: true,
+  });

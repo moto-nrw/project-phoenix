@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -560,15 +559,6 @@ func TestConcurrentBookingAuthorityActivationCreatesOneCompletion(t *testing.T) 
 	assert.Equal(t, 1, total)
 }
 
-type bookingAuthorityQueryCounter struct{ count atomic.Int64 }
-
-func (c *bookingAuthorityQueryCounter) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
-	c.count.Add(1)
-	return ctx
-}
-
-func (*bookingAuthorityQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
-
 func TestBookingAuthorityReconciliationQueryCountIsIndependentOfStudentCount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -576,15 +566,16 @@ func TestBookingAuthorityReconciliationQueryCountIsIndependentOfStudentCount(t *
 	large := testpkg.NewTenantScope(t, db)
 	createContinuousBookingStudents(t, db, small, 1)
 	createContinuousBookingStudents(t, db, large, 8)
-	counter := &bookingAuthorityQueryCounter{}
+	counter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(counter)
 
 	_, err := bookingAuthorityService(t, countedDB, true).ApplyBookingAuthoritySetting(small.Context(), timezone.TodayDate(), true)
 	require.NoError(t, err)
-	smallCount := counter.count.Swap(0)
+	smallCount := counter.Total()
+	counter.Reset()
 	_, err = bookingAuthorityService(t, countedDB, true).ApplyBookingAuthoritySetting(large.Context(), timezone.TodayDate(), true)
 	require.NoError(t, err)
-	assert.Equal(t, smallCount, counter.count.Load(), "reconciliation must use fixed batch queries")
+	assert.Equal(t, smallCount, counter.Total(), "reconciliation must use fixed batch queries")
 }
 
 func createContinuousBookingStudents(t *testing.T, db *bun.DB, scope testpkg.TenantScope, count int) {

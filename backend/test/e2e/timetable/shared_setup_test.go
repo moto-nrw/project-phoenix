@@ -16,7 +16,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http/httptest"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -370,20 +369,6 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		validFromUTC: validFrom,
 	}
 }
-
-// queryCounter is a bun.QueryHook that counts queries between reset and read.
-type queryCounter struct {
-	count atomic.Int64
-}
-
-func (q *queryCounter) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
-	return ctx
-}
-func (q *queryCounter) AfterQuery(_ context.Context, _ *bun.QueryEvent) {
-	q.count.Add(1)
-}
-func (q *queryCounter) reset()     { q.count.Store(0) }
-func (q *queryCounter) get() int64 { return q.count.Load() }
 
 // nextWeekday returns the next occurrence of the given ISO weekday (1=Mon...7=Sun)
 // at least `minDaysAhead` days from `from`.

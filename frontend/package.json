@@ -31,7 +31,8 @@
     "perf:render": "playwright test -c playwright.perf-dev.config.ts",
     "perf:report": "node scripts/perf/report.mjs",
     "perf:bundle": "node scripts/perf/analyze.mjs",
-    "perf:bundle-report": "node scripts/perf/bundle-report.mjs"
+    "perf:bundle-report": "node scripts/perf/bundle-report.mjs",
+    "perf:bundle-ratchet": "node scripts/perf/bundle-ratchet.mjs"
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.6.0",
@@ -110,9 +111,13 @@
   "knip": {
     "includeEntryExports": true,
     "playwright": {
+      "config": [],
       "entry": [
         "**/*.@(spec|test).?(c|m)[jt]s?(x)",
-        "scripts/perf/*.perf.ts"
+        "scripts/perf/*.perf.ts",
+        "playwright.config.ts",
+        "playwright.guides.config.ts",
+        "e2e/**/*.ts"
       ]
     },
     "project": [

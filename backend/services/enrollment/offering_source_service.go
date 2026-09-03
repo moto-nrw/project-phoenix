@@ -1495,7 +1495,7 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 	}
 	// Same boundary rule as ListOfferingSourceOptions: mirror what a resync
 	// for the selected period would seed.
-	countedFrom := timezone.TodayDate()
+	countedFrom := s.todayDate()
 	if calendarPeriodID != nil {
 		period, err := s.CalendarPeriodRepo.FindByID(ctx, *calendarPeriodID)
 		if err != nil {
@@ -1570,7 +1570,7 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 	// period a link that ends before the period begins contributes nothing.
 	// For a running (or past) period today stays the boundary — links that
 	// already ended are no longer plannable either way.
-	countedFrom := timezone.TodayDate()
+	countedFrom := s.todayDate()
 	if period != nil && period.StartDate.After(countedFrom) {
 		countedFrom = period.StartDate
 	}

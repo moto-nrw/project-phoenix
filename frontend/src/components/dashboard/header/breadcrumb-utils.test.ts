@@ -207,7 +207,7 @@ describe("breadcrumb-utils", () => {
       it("should return German fallback titles for parent navigation entries", () => {
         expect(getPageTitle("/parents/messages")).toBe("Nachrichten");
         expect(getPageTitle("/parents/news")).toBe("Neuigkeiten");
-        expect(getPageTitle("/parents/meal-plan")).toBe("Essensplan");
+        expect(getPageTitle("/parents/meal-plan")).toBe("Mittagessen");
       });
 
       it("should return 'Home' for unknown route", () => {
