@@ -34,7 +34,21 @@ type ClassArrivalException struct {
 	ArrivalTime time.Time `bun:"arrival_time,notnull" json:"arrival_time"`
 	Reason      *string   `bun:"reason" json:"reason,omitempty"`
 	CreatedBy   *int64    `bun:"created_by,nullzero" json:"created_by,omitempty"`
+	// Origin is the portal that entered the row (#2970): the OGS portal or
+	// "moto schule". Readers show "eingetragen von der Schule" for the
+	// latter; created_by alone cannot tell the two apart. Empty binds the
+	// column default (ogs).
+	Origin string `bun:"origin,notnull,nullzero,default:'ogs'" json:"origin"`
 }
+
+// Origin values of ClassArrivalException.Origin.
+const (
+	// ClassArrivalExceptionOriginOGS marks a row entered in the OGS portal.
+	ClassArrivalExceptionOriginOGS = "ogs"
+	// ClassArrivalExceptionOriginSchool marks a row a Lehrkraft entered
+	// through "moto schule" (#2970).
+	ClassArrivalExceptionOriginSchool = "school"
+)
 
 // Validate rejects an empty class, a missing date, a missing time and an
 // overlong reason without mutating the model.
@@ -50,6 +64,9 @@ func (e *ClassArrivalException) Validate() error {
 	}
 	if e.Reason != nil && utf8.RuneCountInString(*e.Reason) > classArrivalExceptionReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
+	}
+	if e.Origin != "" && e.Origin != ClassArrivalExceptionOriginOGS && e.Origin != ClassArrivalExceptionOriginSchool {
+		return errors.New("origin must be ogs or school")
 	}
 	return nil
 }

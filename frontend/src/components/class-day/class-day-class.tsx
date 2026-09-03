@@ -10,18 +10,21 @@
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { ClassDayReport } from "~/lib/class-day-api";
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import type { ClassDayClasses } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { ClassArrivalExceptionDialog } from "./class-arrival-exception-dialog";
 import { countDayChanges } from "./day-changes";
 import {
   classDayDateParam,
@@ -33,6 +36,23 @@ import { Section } from "./student-row";
 const logger = createLogger({ component: "ClassDayClass" });
 
 const REPORT_FOCUS_THROTTLE_MS = 60 * 1000;
+
+/**
+ * Die Klassen-Tagesausnahme als eine Zeile (#2962/#2970): "Heute kommt die
+ * Klasse um 12:45 Uhr (Unterricht fällt aus)". Für andere Tage nennt sie den
+ * Tag statt "Heute", damit die Zeile nicht als heutige Änderung gelesen wird.
+ */
+export function classArrivalExceptionLine(
+  report: Pick<ClassDayReport, "class_arrival_exception">,
+  dateISO: string,
+  today: string,
+): string | null {
+  const exception = report.class_arrival_exception;
+  if (!exception) return null;
+  const when = dateISO === today ? "Heute" : `Am ${formatDate(dateISO)}`;
+  const reason = exception.reason ? ` (${exception.reason})` : "";
+  return `${when} kommt die Klasse um ${exception.arrival_time} Uhr${reason}`;
+}
 
 /** Die Zahlen des Tages als eine Zeile unter dem Klassennamen. */
 function summaryLine(report: ClassDayReport): string {
@@ -58,6 +78,11 @@ export interface ClassDayClassProps {
     schoolClass: string,
     date: string,
   ) => Promise<ClassDayReport>;
+  /**
+   * Zugewiesene Klassen mit dem Schreib-Flag (#2970). Ohne Abruf gibt es
+   * keinen Knopf, die Ansicht bleibt rein lesend.
+   */
+  readonly fetchClasses?: () => Promise<ClassDayClasses>;
   /** Nur für Tests: fixiert den Vergleichstag für "Heute gemeldet". */
   readonly now?: Date;
 }
@@ -65,6 +90,7 @@ export interface ClassDayClassProps {
 export function ClassDayClass({
   schoolClass,
   fetchClassDay,
+  fetchClasses,
   now,
 }: ClassDayClassProps) {
   // Kein Default-Prop: eine `new Date()` in der Signatur bricht die
@@ -73,11 +99,36 @@ export function ClassDayClass({
   const searchParams = useSearchParams();
   const dateISO = classDayDateParam(searchParams.get("tag"));
   const weekend = isWeekendISO(dateISO);
+  const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false);
+
+  // Das Schreib-Flag kommt von der Klassenliste (Berechtigung UND Freigabe
+  // der OGS). Bei "nicht freigegeben" gibt es keinen Knopf und keinen
+  // ausgegrauten Hinweis: nichts, was nach einer Aktion aussieht.
+  const { data: classes } = useSWRAuth(
+    fetchClasses ? "class-day-classes" : null,
+    async () => {
+      if (!fetchClasses) {
+        return { classes: [], can_write_arrival_exception: false };
+      }
+      try {
+        return await fetchClasses();
+      } catch (err) {
+        logger.error("class_day_classes_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    },
+    { revalidateOnFocus: false },
+  );
+  const canWriteArrivalException =
+    classes?.can_write_arrival_exception === true;
 
   const {
     data: report,
     error,
     isLoading,
+    mutate: refetchReport,
   } = useSWRAuth(
     schoolClass && !weekend ? `class-day-${schoolClass}-${dateISO}` : null,
     async () => {
@@ -117,6 +168,11 @@ export function ClassDayClass({
   // Bleiben/Gehen-Split — alle nicht abgemeldeten Kinder neutral listen.
   const unknownRows = useMemo(() => rows.filter((row) => !row.status), [rows]);
   const changes = countDayChanges(report ?? null);
+  const exceptionLine =
+    report && !weekend
+      ? classArrivalExceptionLine(report, dateISO, todayISO())
+      : null;
+  const isToday = dateISO === todayISO();
 
   return (
     <div
@@ -153,6 +209,29 @@ export function ClassDayClass({
               : ""}
           </p>
         )}
+        {/* Die Klassen-Tagesausnahme steht über der Liste, auch wenn die OGS
+            sie eingetragen hat und die Schule nichts ändern darf. */}
+        {exceptionLine ? (
+          <p className="mt-1 text-sm font-medium text-gray-900">
+            {exceptionLine}
+          </p>
+        ) : null}
+        {/* Nur mit Freigabe der OGS (#2970). Der Knopf nennt den Tag, den er
+            vorbelegt: "heute" nur, wenn heute angezeigt wird. */}
+        {schoolClass && !weekend && canWriteArrivalException ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setExceptionDialogOpen(true)}
+            >
+              {isToday
+                ? "Ankunft heute ändern"
+                : "Ankunft an diesem Tag ändern"}
+            </Button>
+          </div>
+        ) : null}
 
         {schoolClass && weekend && (
           <EmptyState
@@ -261,6 +340,16 @@ export function ClassDayClass({
             </div>
           )}
       </section>
+
+      {schoolClass && canWriteArrivalException ? (
+        <ClassArrivalExceptionDialog
+          isOpen={exceptionDialogOpen}
+          onClose={() => setExceptionDialogOpen(false)}
+          schoolClass={schoolClass}
+          defaultDate={weekend ? null : parseISODate(dateISO)}
+          onChanged={() => void refetchReport()}
+        />
+      ) : null}
     </div>
   );
 }

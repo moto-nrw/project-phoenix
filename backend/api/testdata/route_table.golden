@@ -101,6 +101,7 @@ DELETE /parent/me/children/{studentId}/consents/photo
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
+DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
 DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
@@ -547,6 +548,8 @@ GET /public/enrollment-legal-documents/{filename}
 GET /public/login-image/{filename}
 GET /school-sse/events
 GET /school/class-day/
+GET /school/class-day/arrival-exceptions
+GET /school/class-day/arrival-exceptions/block-start
 GET /school/class-day/classes
 GET /school/notifications/preferences/
 GET /school/notifications/push/public-key
@@ -1010,6 +1013,7 @@ PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
+PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 QUERY /internal/metrics
 TRACE /internal/metrics

@@ -586,12 +586,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 419,
+          "line": 420,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 442,
+          "line": 443,
           "declaration": "newFactory"
         },
         {
@@ -16845,6 +16845,16 @@
     },
     {
       "scope": "test",
+      "file": "api/classday/class_day_arrival_exceptions_test.go",
+      "declaration": "setupArrivalExceptionRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        56
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "api/classlistentries/class_list_entries_api_test.go",
       "declaration": "setupClassListEntriesRoute",
       "target": "api/testutil.SetupAPITest",
@@ -17167,6 +17177,16 @@
       "target": "api/testutil.SetupAPITest",
       "lines": [
         44
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/school/school_arrival_exceptions_test.go",
+      "declaration": "setupSchoolArrivalExceptionRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        34
       ],
       "tables": []
     },

@@ -71,6 +71,7 @@ func (r *ClassArrivalExceptionRepository) Upsert(ctx context.Context, row *sched
 		Set("reason = EXCLUDED.reason").
 		Set("school_class = EXCLUDED.school_class").
 		Set("created_by = EXCLUDED.created_by").
+		Set("origin = EXCLUDED.origin").
 		Set("updated_at = NOW()").
 		Returning("*").
 		Scan(ctx)

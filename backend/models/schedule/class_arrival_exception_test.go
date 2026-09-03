@@ -35,3 +35,23 @@ func TestClassArrivalExceptionValidate(t *testing.T) {
 	long := strings.Repeat("x", 256)
 	assert.Error(t, (&ClassArrivalException{SchoolClass: "4a", Date: timezone.NewDate(2027, 3, 1), ArrivalTime: noon, Reason: &long}).Validate())
 }
+
+// TestClassArrivalExceptionOrigin pins the two portals a row can come from
+// (#2970): empty binds the column default, anything else must be one of them.
+func TestClassArrivalExceptionOrigin(t *testing.T) {
+	t.Parallel()
+	noon := time.Date(0, 1, 1, 12, 0, 0, 0, time.UTC)
+	base := ClassArrivalException{SchoolClass: "4a", Date: timezone.NewDate(2027, 3, 1), ArrivalTime: noon}
+
+	fromSchool := base
+	fromSchool.Origin = ClassArrivalExceptionOriginSchool
+	assert.NoError(t, fromSchool.Validate())
+
+	fromOGS := base
+	fromOGS.Origin = ClassArrivalExceptionOriginOGS
+	assert.NoError(t, fromOGS.Validate())
+
+	unknown := base
+	unknown.Origin = "parents"
+	assert.Error(t, unknown.Validate())
+}

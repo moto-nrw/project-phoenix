@@ -125,6 +125,7 @@ const (
 	KeySessionInactivityTimeoutMin           = "operations.session_inactivity_timeout_minutes"
 	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
 	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
+	KeySchoolPortalWriteScope                = "operations.school_portal_write_scope"
 	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
 	KeyStatusFlagClearTime                   = "operations.status_flag_clear_time"
 	KeySickClearMode                         = "operations.sick_clear_mode"
@@ -240,6 +241,19 @@ const (
 	// ClassArrivalExceptionEditorsAllStaff lets every staff member holding
 	// users:update set one.
 	ClassArrivalExceptionEditorsAllStaff = "all_staff"
+)
+
+// SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970).
+// The OGS decides what a Lehrkraft may write into OGS data through "moto
+// schule"; the default is nothing. A single-select on purpose: the key is
+// meant to carry further school-portal write rights as more values, and a
+// multi-select is built once a second value exists.
+const (
+	// SchoolPortalWriteScopeNone keeps the school portal read-only. Default.
+	SchoolPortalWriteScopeNone = "none"
+	// SchoolPortalWriteScopeClassArrivalExceptions lets a Lehrkraft set the
+	// class-wide arrival day exception (#2962) for her assigned classes.
+	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
 )
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The

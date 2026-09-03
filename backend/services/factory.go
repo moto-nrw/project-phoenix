@@ -256,6 +256,7 @@ type Factory struct {
 	EnrollmentPhaseExpiry     enrollment.PhaseExpiryService
 	EnrollmentDecision        enrollment.DecisionService
 	EnrollmentReport          enrollment.ReportService
+	ClassDayArrivalExceptions enrollment.ClassDayArrivalExceptionService
 	EnrollmentRollover        enrollment.RolloverService
 	EnrollmentChangeRequest   enrollment.ChangeRequestService
 	EnrollmentDeletion        enrollment.EnrollmentDeletionService
@@ -2286,9 +2287,19 @@ func newFactory(
 		ClassListEntryRepo:       repos.ClassListEntry,
 		PickupScheduleSvc:        pickupScheduleService,
 		ArrivalScheduleSvc:       arrivalScheduleService,
+		ClassArrivalExceptions:   arrivalScheduleService,
 		CareDaySvc:               careDayService,
 		Settings:                 settingsService,
 		CareParticipation:        careLifecycleService,
+	})
+	// The class-day view's one write seam (#2970): a Lehrkraft sets the
+	// class-wide arrival day exception through moto schule.
+	classDayArrivalExceptionService := enrollment.NewClassDayArrivalExceptionService(enrollment.ClassDayArrivalExceptionConfig{
+		ArrivalSchedule: arrivalScheduleService,
+		Settings:        settingsService,
+		BlockStarts:     timetableOperationsService,
+		Broadcaster:     realtimeHub,
+		Logger:          logger.With("service", "class-day-arrival-exceptions"),
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
@@ -3104,6 +3115,7 @@ func newFactory(
 		EnrollmentPhaseExpiry:     enrollmentPhaseExpiryService,
 		EnrollmentDecision:        enrollmentDecisionService,
 		EnrollmentReport:          enrollmentReportService,
+		ClassDayArrivalExceptions: classDayArrivalExceptionService,
 		EnrollmentRollover:        enrollmentRolloverService,
 		EnrollmentChangeRequest:   enrollmentChangeRequestService,
 		EnrollmentDeletion:        enrollmentDeletionService,
