@@ -65,48 +65,48 @@ type PendingOfferingChange struct {
 }
 
 type CareExitRemoval struct {
-	ID                       int64
-	TenantID                 int64
-	StudentID                int64
-	Kind                     string
-	InstanceID               *int64
-	RoomID                   *int64
-	Status                   *string
-	Substatus                *string
-	Note                     *string
-	IsUnplanned              *bool
-	NotScheduled             *bool
-	ManualStatusAt           *time.Time
-	StudentStatusDayID       *int64
-	PickupExceptionID        *int64
-	EnrollmentID             *int64
-	WasDeleted               bool
-	PreviousValidUntil       *timezone.Date
-	ActivityGroupID          *int64
-	ValidFrom                *timezone.Date
-	CalendarPeriodID         *int64
-	EnrollmentRequestChildID *int64
-	SelectedWeekdays         []int
-	AttendanceStatus         *string
-	Weekday                  *int
-	CreatedAt                time.Time
+	ID                       int64          `json:"id"`
+	TenantID                 int64          `json:"tenant_id"`
+	StudentID                int64          `json:"student_id"`
+	Kind                     string         `json:"kind"`
+	InstanceID               *int64         `json:"instance_id"`
+	RoomID                   *int64         `json:"room_id"`
+	Status                   *string        `json:"status"`
+	Substatus                *string        `json:"substatus"`
+	Note                     *string        `json:"note"`
+	IsUnplanned              *bool          `json:"is_unplanned"`
+	NotScheduled             *bool          `json:"not_scheduled"`
+	ManualStatusAt           *time.Time     `json:"manual_status_at"`
+	StudentStatusDayID       *int64         `json:"student_status_day_id"`
+	PickupExceptionID        *int64         `json:"pickup_exception_id"`
+	EnrollmentID             *int64         `json:"enrollment_id"`
+	WasDeleted               bool           `json:"was_deleted"`
+	PreviousValidUntil       *timezone.Date `json:"previous_valid_until"`
+	ActivityGroupID          *int64         `json:"activity_group_id"`
+	ValidFrom                *timezone.Date `json:"valid_from"`
+	CalendarPeriodID         *int64         `json:"calendar_period_id"`
+	EnrollmentRequestChildID *int64         `json:"enrollment_request_child_id"`
+	SelectedWeekdays         []int          `json:"selected_weekdays"`
+	AttendanceStatus         *string        `json:"attendance_status"`
+	Weekday                  *int           `json:"weekday"`
+	CreatedAt                time.Time      `json:"created_at"`
 }
 
 type CareExitSourceRemoval struct {
-	ID          int64
-	TenantID    int64
-	StudentID   int64
-	Kind        string
-	SourceRowID int64
-	WasDeleted  bool
-	Snapshot    json.RawMessage
-	CreatedAt   time.Time
+	ID          int64           `json:"id"`
+	TenantID    int64           `json:"tenant_id"`
+	StudentID   int64           `json:"student_id"`
+	Kind        string          `json:"kind"`
+	SourceRowID int64           `json:"source_row_id"`
+	WasDeleted  bool            `json:"was_deleted"`
+	Snapshot    json.RawMessage `json:"snapshot"`
+	CreatedAt   time.Time       `json:"created_at"`
 }
 
 const (
 	CareExitRemovalRoster          = "roster"
 	CareExitRemovalBooking         = "booking"
-	CareExitSourceBooking          = "booking"
+	CareExitSourceBooking          = "source_booking"
 	CareExitSourcePickupSchedule   = "pickup_schedule"
 	CareExitSourceArrivalSchedule  = "arrival_schedule"
 	CareExitSourcePickupException  = "pickup_exception"

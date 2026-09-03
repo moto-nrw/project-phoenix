@@ -90,13 +90,21 @@ func (d careExitDirectory) FindCareExits(ctx context.Context, ids []int64) (map[
 	for id, value := range values {
 		row := &usersRepo.CareExit{StudentID: value.StudentID, Reason: value.Reason, ReasonNote: value.ReasonNote, RecordedBy: value.RecordedBy, WithdrawalCompletionID: value.WithdrawalCompletionID}
 		row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
+		if value.PreviousEnrolledUntil != nil {
+			row.PreviousEnrolledUntil = usersRepo.CareExitDate(value.PreviousEnrolledUntil.String())
+		}
 		result[id] = row
 	}
 	return result, nil
 }
 
 func (d careExitDirectory) UpsertCareExit(ctx context.Context, row *usersRepo.CareExit) error {
-	return d.capability.UpsertCareExit(ctx, careplan.CareExit{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Reason: row.Reason, ReasonNote: row.ReasonNote, RecordedBy: row.RecordedBy, WithdrawalCompletionID: row.WithdrawalCompletionID})
+	value := careplan.CareExit{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Reason: row.Reason, ReasonNote: row.ReasonNote, RecordedBy: row.RecordedBy, WithdrawalCompletionID: row.WithdrawalCompletionID}
+	if row.PreviousEnrolledUntil != nil {
+		converted := careplan.Date(row.PreviousEnrolledUntil.String())
+		value.PreviousEnrolledUntil = &converted
+	}
+	return d.capability.UpsertCareExit(ctx, value)
 }
 
 func (d careExitDirectory) DeleteCareExits(ctx context.Context, ids []int64) error {

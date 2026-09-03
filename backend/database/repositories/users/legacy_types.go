@@ -1,6 +1,9 @@
 package users
 
-import userModels "github.com/moto-nrw/project-phoenix/models/users"
+import (
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+)
 
 // These aliases let compatibility adapters depend on the People Directory
 // repository boundary instead of its internal model package.
@@ -14,3 +17,8 @@ type CareExit = userModels.CareExit
 
 var CompanionWeekdayKeys = userModels.CompanionWeekdayKeys
 var ErrCompanionInvalidWeekday = userModels.ErrCompanionInvalidWeekday
+
+func CareExitDate(value string) *timezone.Date {
+	date := timezone.Date(value)
+	return &date
+}
