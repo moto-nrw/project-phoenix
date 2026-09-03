@@ -66,7 +66,7 @@ function fileKey(context) {
   return idx === -1 ? posix : posix.slice(idx + 1);
 }
 
-/** Parse `token@line` rows into an immutable per-file match snapshot. */
+/** Parse `token@line` rows into immutable per-file occurrence snapshots. */
 function parseLocationBaseline(source) {
   return new Map(
     source
@@ -74,13 +74,20 @@ function parseLocationBaseline(source) {
       .split("\n")
       .map((row) => {
         const [file, encoded] = row.split("|");
-        return [file, new Set(encoded.split(" "))];
+        const occurrences = new Map();
+        for (const location of encoded.split(" ")) {
+          occurrences.set(location, (occurrences.get(location) ?? 0) + 1);
+        }
+        return [file, occurrences];
       }),
   );
 }
 
-function isBaselineMatch(baseline, key, match, line) {
-  return baseline.get(key)?.has(`${match}@${line}`) ?? false;
+function isBaselineMatch(baseline, key, match, line, seenOccurrences) {
+  const location = `${match}@${line}`;
+  const seen = seenOccurrences.get(location) ?? 0;
+  seenOccurrences.set(location, seen + 1);
+  return seen < (baseline.get(key)?.get(location) ?? 0);
 }
 
 function restrictMatchBaseline(baselineFiles, baseline) {
@@ -197,6 +204,7 @@ function makeClassStringRule({
       if (!key.startsWith("src/")) return {};
       if (EXEMPT_FILE_RE.test(key)) return {};
       if (skipUiKit && key.startsWith(UI_KIT_DIR)) return {};
+      const seenBaselineOccurrences = new Map();
       const check = (node, text) => {
         regex.lastIndex = 0;
         for (const match of text.matchAll(regex)) {
@@ -210,7 +218,15 @@ function makeClassStringRule({
               ? node.loc.start.line +
                 (text.slice(0, match.index).match(/\n/g)?.length ?? 0)
               : undefined;
-          if (!isBaselineMatch(baseline, key, match[0], line)) {
+          if (
+            !isBaselineMatch(
+              baseline,
+              key,
+              match[0],
+              line,
+              seenBaselineOccurrences,
+            )
+          ) {
             context.report({ node, messageId, data: { match: match[0] } });
           }
         }

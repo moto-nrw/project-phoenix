@@ -50,6 +50,17 @@ describe("ui-kit/no-tiny-text", () => {
     expect(result.status).toBe(1);
     expect(output).toContain("ui-kit(no-tiny-text)");
   });
+
+  it("rejects an additional legacy token on the same baseline line", () => {
+    const result = lintSource(
+      `${"\n".repeat(31)}const className = "text-[10px] text-[10px]";`,
+      "src/components/ui/avatar.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-tiny-text\)/g)).toHaveLength(1);
+  });
 });
 
 describe("ui-kit/no-hand-rolled-surface", () => {
