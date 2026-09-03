@@ -461,8 +461,9 @@ describe("StaffCalendarPage", () => {
 
     const { rerender } = render(<StaffCalendarPage />);
 
-    // Kit-Regel: Radix-Tabs aktivieren auf mousedown, nicht auf click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Betreuungsplan" }));
+    // Die Seitenreiter des Tenant-Gerüsts sind einfache Buttons (click),
+    // keine Radix-Tabs mehr (mousedown).
+    fireEvent.click(screen.getByRole("tab", { name: "Betreuungsplan" }));
     rerender(<StaffCalendarPage />);
 
     await waitFor(() =>
