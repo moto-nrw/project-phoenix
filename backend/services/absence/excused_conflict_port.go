@@ -2,7 +2,6 @@ package absence
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -110,13 +109,14 @@ func (s *excusedAbsenceRequestService) conflictGroupDates(
 	ctx context.Context, requestIDs []int64,
 ) ([]timezone.Date, error) {
 	var dates []timezone.Date
+	requests, err := s.requestRepo.FindByIDs(ctx, requestIDs)
+	if err != nil {
+		return nil, fmt.Errorf("active: load conflict group dates: %w", err)
+	}
 	for _, requestID := range requestIDs {
-		req, err := s.requestRepo.FindByID(ctx, requestID)
-		if err != nil {
-			if errors.Is(err, activeModels.ErrExcusedRequestNotFound) {
-				continue
-			}
-			return nil, fmt.Errorf("active: load conflict group dates: %w", err)
+		req, ok := requests[requestID]
+		if !ok {
+			continue
 		}
 		dates = append(dates, req.Dates...)
 	}

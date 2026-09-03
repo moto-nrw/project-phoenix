@@ -768,12 +768,48 @@ type PendingApprovalView struct {
 }
 
 // ListPendingApprovalsDetailed returns the approval queue with guardian, child,
-// and requester names resolved. The queue is short (one row per outstanding
-// request), so the per-row lookups are acceptable.
+// and requester names resolved.
 func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Context) ([]*PendingApprovalView, error) {
 	invitations, err := s.InvitationRepo.FindPendingApproval(ctx)
 	if err != nil {
 		return nil, &AuthError{Op: opGuardianInviteApprove, Err: err}
+	}
+	if len(invitations) == 0 {
+		return []*PendingApprovalView{}, nil
+	}
+
+	profileIDs := make([]int64, 0, len(invitations))
+	studentIDs := make([]int64, 0, len(invitations))
+	accountIDs := make([]int64, 0, len(invitations))
+	for _, invitation := range invitations {
+		profileIDs = append(profileIDs, invitation.GuardianProfileID)
+		if invitation.StudentID != nil {
+			studentIDs = append(studentIDs, *invitation.StudentID)
+		}
+		if invitation.RequestedByAccountID != nil {
+			accountIDs = append(accountIDs, *invitation.RequestedByAccountID)
+		}
+	}
+
+	profiles := make(map[int64]*userModels.GuardianProfile)
+	if s.GuardianProfileRepo != nil {
+		profiles, _ = s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
+	}
+	students := make(map[int64]*userModels.Student)
+	if s.StudentRepo != nil && len(studentIDs) > 0 {
+		students, _ = s.StudentRepo.FindByIDs(ctx, studentIDs)
+	}
+	personIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		personIDs = append(personIDs, student.PersonID)
+	}
+	persons := make(map[int64]*userModels.Person)
+	if s.PersonRepo != nil && len(personIDs) > 0 {
+		persons, _ = s.PersonRepo.FindByIDs(ctx, personIDs)
+	}
+	emails := make(map[int64]string)
+	if s.AccountRepo != nil && len(accountIDs) > 0 {
+		emails, _ = s.AccountRepo.FindEmailsByAccountIDs(ctx, accountIDs)
 	}
 
 	views := make([]*PendingApprovalView, 0, len(invitations))
@@ -785,48 +821,26 @@ func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Con
 			ExpiresAt:         inv.ExpiresAt,
 			RoleUpgrade:       inv.RoleUpgrade,
 		}
-		s.fillGuardianFields(ctx, inv.GuardianProfileID, view)
+		if profile := profiles[inv.GuardianProfileID]; profile != nil {
+			view.GuardianName = strings.TrimSpace(profile.GetFullName())
+			if profile.Email != nil {
+				view.GuardianEmail = strings.TrimSpace(*profile.Email)
+			}
+		}
 		if inv.StudentID != nil {
 			view.StudentID = *inv.StudentID
-			view.StudentName = s.resolveStudentName(ctx, *inv.StudentID)
+			if student := students[*inv.StudentID]; student != nil {
+				if person := persons[student.PersonID]; person != nil {
+					view.StudentName = strings.TrimSpace(person.FirstName + " " + person.LastName)
+				}
+			}
 		}
 		if inv.RequestedByAccountID != nil {
-			if acc, accErr := s.AccountRepo.FindByID(ctx, *inv.RequestedByAccountID); accErr == nil && acc != nil {
-				view.RequestedByEmail = acc.Email
-			}
+			view.RequestedByEmail = emails[*inv.RequestedByAccountID]
 		}
 		views = append(views, view)
 	}
 	return views, nil
-}
-
-// fillGuardianFields populates the guardian name + email on the view.
-func (s *guardianInvitationService) fillGuardianFields(ctx context.Context, guardianProfileID int64, view *PendingApprovalView) {
-	profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
-	if err != nil || profile == nil {
-		return
-	}
-	view.GuardianName = strings.TrimSpace(profile.GetFullName())
-	if profile.Email != nil {
-		view.GuardianEmail = strings.TrimSpace(*profile.Email)
-	}
-}
-
-// resolveStudentName resolves a child's display name via student → person.
-// Best-effort: returns "" when the lookup fails.
-func (s *guardianInvitationService) resolveStudentName(ctx context.Context, studentID int64) string {
-	if s.StudentRepo == nil {
-		return ""
-	}
-	student, err := s.StudentRepo.FindByID(ctx, studentID)
-	if err != nil || student == nil {
-		return ""
-	}
-	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
-	if err != nil || person == nil {
-		return ""
-	}
-	return strings.TrimSpace(person.FirstName + " " + person.LastName)
 }
 
 // RevokeAccess removes one account's link to one child. Parents may not remove

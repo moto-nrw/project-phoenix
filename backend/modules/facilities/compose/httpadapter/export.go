@@ -73,6 +73,15 @@ func loadRoomSnapshotLocations(ctx context.Context, dependencies Dependencies, r
 		return nil, err
 	}
 	selected := selectedRoomIDSet(request.RoomIDs)
+	var studentsByRoom map[int64][]int64
+	if bulk, ok := dependencies.Active.(interface {
+		ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error)
+	}); ok {
+		studentsByRoom, err = bulk.ListOpenVisitStudentIDsByRoom(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
 	locations := make([]roomSnapshotLocation, 0, len(rooms)+1)
 	for _, room := range rooms {
 		if selected != nil {
@@ -80,9 +89,12 @@ func loadRoomSnapshotLocations(ctx context.Context, dependencies Dependencies, r
 				continue
 			}
 		}
-		studentIDs, err := dependencies.Active.ListStudentsPresentInRoom(ctx, room.ID)
-		if err != nil {
-			return nil, err
+		studentIDs := studentsByRoom[room.ID]
+		if studentsByRoom == nil {
+			studentIDs, err = dependencies.Active.ListStudentsPresentInRoom(ctx, room.ID)
+			if err != nil {
+				return nil, err
+			}
 		}
 		locations = append(locations, roomSnapshotLocation{
 			Name: room.Name, Status: occupiedLabel(room.IsOccupied), Building: room.Building,

@@ -266,6 +266,17 @@ func (r groupStudentRepository) FindByTeacherIDWithGroups(ctx context.Context, t
 	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
 }
 
+func (r groupStudentRepository) FindByTeacherIDsWithGroups(ctx context.Context, teacherIDs []int64) ([]*usersModels.StudentWithGroupInfo, error) {
+	batch, ok := r.StudentRepository.(interface {
+		FindByTeacherIDsWithGroups(context.Context, []int64) ([]*usersModels.StudentWithGroupInfo, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("student repository does not support teacher batch lookup")
+	}
+	rows, err := batch.FindByTeacherIDsWithGroups(ctx, teacherIDs)
+	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
+}
+
 func (r groupStudentRepository) FindAllWithGroups(ctx context.Context) ([]*usersModels.StudentWithGroupInfo, error) {
 	rows, err := r.StudentRepository.FindAllWithGroups(ctx)
 	return EnrichStudentGroupNames(ctx, r.groups, rows, err)

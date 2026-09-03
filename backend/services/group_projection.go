@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -15,6 +16,16 @@ import (
 type overlappingRosterGroupNames struct {
 	userModels.StudentRepository
 	groups schoolstructure.Query
+}
+
+func (r overlappingRosterGroupNames) FindByTeacherIDsWithGroups(ctx context.Context, teacherIDs []int64) ([]*userModels.StudentWithGroupInfo, error) {
+	batch, ok := r.StudentRepository.(interface {
+		FindByTeacherIDsWithGroups(context.Context, []int64) ([]*userModels.StudentWithGroupInfo, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("student repository does not support teacher batch lookup")
+	}
+	return batch.FindByTeacherIDsWithGroups(ctx, teacherIDs)
 }
 
 func (r overlappingRosterGroupNames) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*userModels.StudentWithGroupInfo, error) {

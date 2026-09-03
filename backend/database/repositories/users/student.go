@@ -1461,6 +1461,27 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 	return infos, nil
 }
 
+// FindByTeacherIDsWithGroups retrieves the union of students supervised by any
+// of the teachers. A child shared by multiple teachers appears once.
+func (r *StudentRepository) FindByTeacherIDsWithGroups(ctx context.Context, teacherIDs []int64) ([]*users.StudentWithGroupInfo, error) {
+	if len(teacherIDs) == 0 {
+		return []*users.StudentWithGroupInfo{}, nil
+	}
+	var results []*studentWithPersonAndGroup
+	if err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
+		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "student".group_id`).
+		Where(`"gt".teacher_id IN (?) AND "student".group_id IS NOT NULL`, bun.List(teacherIDs)).
+		Distinct().
+		Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by teacher IDs with groups", Err: base.TranslateNotFound(err)}
+	}
+	infos := mapStudentGroupResults(results)
+	if err := r.hydrateBusDaysForGroupInfo(ctx, infos); err != nil {
+		return nil, err
+	}
+	return infos, nil
+}
+
 // FindAllWithGroups retrieves all students with their group names.
 // Uses LEFT JOIN on groups so students without a group assignment are included.
 func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.StudentWithGroupInfo, error) {

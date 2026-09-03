@@ -478,6 +478,20 @@ func (s *service) presentStudentsInRooms(ctx context.Context, roomIDs []int64) (
 		return nil, nil
 	}
 	studentSet := make(map[int64]struct{})
+	if s.BulkVisits != nil {
+		byRoom, err := s.BulkVisits.ListOpenVisitStudentIDsByRoom(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, roomID := range roomIDs {
+			for _, id := range byRoom[roomID] {
+				studentSet[id] = struct{}{}
+			}
+		}
+		return slices.Collect(maps.Keys(studentSet)), nil
+	}
+	// Compatibility path for narrow adapters; production wiring always
+	// provides BulkVisits.
 	for _, roomID := range roomIDs {
 		present, err := s.Supervision.ListStudentsPresentInRoom(ctx, roomID)
 		if err != nil {

@@ -542,6 +542,16 @@
     },
     {
       "scope": "test",
+      "file": "api/reminders/presence_query_budget_test.go",
+      "declaration": "setupReminderPresenceRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        16
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "api/schedules/schedules_test.go",
       "declaration": "setupSchedulesRoute",
       "target": "api/testutil.SetupAPITest",
@@ -1541,6 +1551,16 @@
       "tables": [
         "active.groups"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/combined_group_query_budget_test.go",
+      "declaration": "TestCombinedGroupFindWithGroupsQueryBudget",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        18
+      ],
+      "tables": []
     },
     {
       "scope": "test",
@@ -3571,6 +3591,18 @@
         318
       ],
       "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/activities/supervisor_planned_query_budget_test.go",
+      "declaration": "TestSupervisorPlannedFindByStaffIDQueryBudget",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        16
+      ],
+      "tables": [
+        "activities.supervisors"
+      ]
     },
     {
       "scope": "test",
@@ -9616,6 +9648,18 @@
       "tables": [
         "active.staff_absences",
         "active.work_sessions",
+        "config.staff_work_schedules"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/active/work_time_month_query_budget_test.go",
+      "declaration": "TestFutureCompTimeCommitmentQueryBudget",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        23
+      ],
+      "tables": [
         "config.staff_work_schedules"
       ]
     },

@@ -1022,37 +1022,41 @@ func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int
 		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
 	}
 
-	// Iterate all mappings — skip deleted or inactive schools, use the first valid one.
-	// Track lookup errors separately so we don't mask DB failures as "not found".
-	var lastLookupErr error
-	for _, t := range tenants {
-		school, err := s.repos.School.FindByID(ctx, t.TenantID)
-		if err != nil {
-			s.getLogger().Warn("failed to resolve school for tenant",
-				slog.Int64("tenant_id", t.TenantID),
-				slog.Any("error", err),
-			)
-			lastLookupErr = err
-			continue
+	schools, err := s.repos.School.FindActiveByAccountID(ctx, accountID)
+	if err != nil {
+		return 0, 0, fmt.Errorf("resolve account schools: %w", err)
+	}
+	// Narrow adapters predating the batch method can return a nil slice. Keep
+	// their single-row behavior; the database repository returns the batch.
+	if schools == nil {
+		var lastLookupErr error
+		for _, mapping := range tenants {
+			school, lookupErr := s.repos.School.FindByID(ctx, mapping.TenantID)
+			if lookupErr != nil {
+				lastLookupErr = lookupErr
+				continue
+			}
+			if school != nil && !school.IsDeleted() && school.Active {
+				return mapping.TenantID, school.OrganizationID, nil
+			}
 		}
-		if school == nil {
-			continue
+		if lastLookupErr != nil {
+			return 0, 0, fmt.Errorf("resolve school for tenant: %w", lastLookupErr)
 		}
-		if school.IsDeleted() || !school.Active {
-			s.getLogger().Debug("skipping deleted or inactive tenant during default resolution",
-				slog.Int64("account_id", accountID),
-				slog.Int64("tenant_id", t.TenantID),
-				slog.Bool("deleted", school.IsDeleted()),
-				slog.Bool("active", school.Active),
-			)
-			continue
-		}
-		return t.TenantID, school.OrganizationID, nil
+		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
+	}
+	organizationBySchool := make(map[int64]int64, len(schools))
+	for _, school := range schools {
+		organizationBySchool[school.ID] = school.OrganizationID
 	}
 
-	// If every lookup failed with a DB error, propagate it instead of masking as not-found.
-	if lastLookupErr != nil {
-		return 0, 0, fmt.Errorf("resolve school for tenant: %w", lastLookupErr)
+	// Preserve account-tenant mapping order after resolving the valid schools
+	// in one query.
+	for _, t := range tenants {
+		organizationID, ok := organizationBySchool[t.TenantID]
+		if ok {
+			return t.TenantID, organizationID, nil
+		}
 	}
 
 	// All mappings point to deleted/inactive schools — no valid tenant available.

@@ -56,6 +56,10 @@ var queryBudgets = map[string]queryBudget{
 	"api.active.supervision_dashboard": {max: 40},
 	// api/active — GET /active/groups list, 8 active groups with visits.
 	"api.active.groups.list": {max: 9},
+	// #2941: formerly one identity query per supervisor / teacher.
+	"api.activities.available_supervisors.specialization.reads": {max: 5},
+	"api.iot.teacher_students.reads":                            {max: 5},
+	"api.rooms.snapshot_export.reads":                           {max: 4},
 	// api/timetable — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},
@@ -64,6 +68,16 @@ var queryBudgets = map[string]queryBudget{
 	"api.timetable.instances.list": {max: 7},
 	// services/calendar — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
+	// #2941: list/read enrichment stays flat as result rows grow.
+	"services.active.work_session_history.reads":           {max: 7},
+	"services.active.future_comp_time_commitment.reads":    {max: 4, exact: true},
+	"services.auth.pending_guardian_approvals.reads":       {max: 6},
+	"services.education.suggest_mappings.reads":            {max: 4},
+	"services.reminders.present_students_in_rooms.reads":   {max: 6},
+	"services.users.list_guardians.reads":                  {max: 2},
+	"services.users.student_guardians.reads":               {max: 4},
+	"repositories.active.combined_group_with_groups.reads": {max: 3, exact: true},
+	"repositories.activities.supervisors_by_staff.reads":   {max: 2, exact: true},
 	// services/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},

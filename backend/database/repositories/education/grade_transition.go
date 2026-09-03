@@ -639,6 +639,23 @@ func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, 
 	return len(students), nil
 }
 
+// GetStudentCountsByClasses returns all requested cohort sizes from one People
+// Directory read. Missing classes have a zero count.
+func (r *GradeTransitionRepository) GetStudentCountsByClasses(ctx context.Context, classes []string) (map[string]int, error) {
+	counts := make(map[string]int, len(classes))
+	if len(classes) == 0 {
+		return counts, nil
+	}
+	students, err := r.GetStudentsByClasses(ctx, classes)
+	if err != nil {
+		return nil, err
+	}
+	for _, student := range students {
+		counts[student.SchoolClass]++
+	}
+	return counts, nil
+}
+
 // GetStudentsByClasses retrieves the non-alumni students in the given
 // classes through the People Directory (#2662), in class/id order. The
 // person names and the name order are attached by the composition layer

@@ -1770,15 +1770,29 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get audit counts: %w", err)
 	}
+	breaksBySession, err := s.breakRepo.GetBySessionIDs(ctx, sessionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session breaks: %w", err)
+	}
+	// Some narrow repository adapters return a nil map for unsupported bulk
+	// reads. Preserve the single-row contract for those adapters; the database
+	// repository always returns a non-nil map and stays on the flat query path.
+	if breaksBySession == nil {
+		breaksBySession = make(map[int64][]*activeModels.WorkSessionBreak, len(sessionIDs))
+		for _, sessionID := range sessionIDs {
+			breaks, lookupErr := s.breakRepo.GetBySessionID(ctx, sessionID)
+			if lookupErr != nil {
+				return nil, fmt.Errorf("failed to get breaks for session %d: %w", sessionID, lookupErr)
+			}
+			breaksBySession[sessionID] = breaks
+		}
+	}
 
 	// Wrap each session in SessionResponse with calculated fields and breaks
 	now := s.now()
 	responses := make([]*SessionResponse, len(sessions))
 	for i, session := range sessions {
-		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get breaks for session %d: %w", session.ID, err)
-		}
+		breaks := breaksBySession[session.ID]
 
 		// The as-of clock of a block is its own end, not the wall clock: an
 		// open block that has passed its live limit stopped counting there
@@ -2799,11 +2813,37 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 	if len(expiredBreaks) == 0 {
 		return 0, nil
 	}
+	sessionIDs := make([]interface{}, 0, len(expiredBreaks))
+	for _, brk := range expiredBreaks {
+		sessionIDs = append(sessionIDs, brk.SessionID)
+	}
+	sessions, err := s.repo.List(ctx, &modelBase.QueryOptions{
+		Filter: modelBase.NewFilter().Where("id", modelBase.OpIn, sessionIDs),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve work sessions for balance lock: %w", err)
+	}
+	if sessions == nil {
+		for _, brk := range expiredBreaks {
+			session, lookupErr := s.repo.FindByID(ctx, brk.SessionID)
+			if lookupErr != nil {
+				return 0, fmt.Errorf("failed to resolve work session for balance lock: %w", lookupErr)
+			}
+			if session.ID == 0 {
+				session.ID = brk.SessionID
+			}
+			sessions = append(sessions, session)
+		}
+	}
+	sessionsByID := make(map[int64]*activeModels.WorkSession, len(sessions))
+	for _, session := range sessions {
+		sessionsByID[session.ID] = session
+	}
 	staffIDs := make([]int64, 0, len(expiredBreaks))
 	for _, brk := range expiredBreaks {
-		session, err := s.repo.FindByID(ctx, brk.SessionID)
-		if err != nil {
-			return 0, fmt.Errorf("failed to resolve work session for balance lock: %w", err)
+		session, ok := sessionsByID[brk.SessionID]
+		if !ok {
+			return 0, fmt.Errorf("failed to resolve work session %d for balance lock", brk.SessionID)
 		}
 		staffIDs = append(staffIDs, session.StaffID)
 	}

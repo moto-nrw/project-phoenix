@@ -416,6 +416,10 @@ func (m *PersonServiceMock) GetStudentsWithGroupsByTeacher(ctx context.Context, 
 	return nil, nil
 }
 
+func (m *PersonServiceMock) GetStudentsWithGroupsByTeachers(ctx context.Context, teacherIDs []int64) ([]users.StudentWithGroup, error) {
+	return nil, nil
+}
+
 func (m *PersonServiceMock) GetAllStudentsWithGroups(ctx context.Context) ([]users.StudentWithGroup, error) {
 	if m.GetAllStudentsWithGroupsFn != nil {
 		return m.GetAllStudentsWithGroupsFn(ctx)

@@ -289,6 +289,7 @@ func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []i
 		return uniqueStudents
 	}
 
+	resolvedTeacherIDs := make([]int64, 0, len(teacherIDs))
 	for _, staffID := range teacherIDs {
 		teacher, ok := teacherMap[staffID]
 		if !ok || teacher == nil {
@@ -297,20 +298,15 @@ func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []i
 			)
 			continue
 		}
-
-		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(ctx, teacher.ID)
-		if err != nil {
-			slog.Default().WarnContext(ctx, "failed to fetch students for teacher",
-				slog.Int64("teacher_id", teacher.ID),
-				slog.Int64("staff_id", staffID),
-				slog.String("error", err.Error()),
-			)
-			continue
-		}
-
-		for _, student := range students {
-			uniqueStudents[student.Student.ID] = student
-		}
+		resolvedTeacherIDs = append(resolvedTeacherIDs, teacher.ID)
+	}
+	students, err := rs.UsersService.GetStudentsWithGroupsByTeachers(ctx, resolvedTeacherIDs)
+	if err != nil {
+		slog.Default().WarnContext(ctx, "failed to batch-find students for teachers", slog.String("error", err.Error()))
+		return uniqueStudents
+	}
+	for _, student := range students {
+		uniqueStudents[student.Student.ID] = student
 	}
 
 	return uniqueStudents
