@@ -92,6 +92,29 @@ func (r *AppointmentRepository) LockReminderCandidate(ctx context.Context, id in
 	return appointment, nil
 }
 
+// LockReminderCandidates rechecks and locks several reminder candidates in a
+// single deterministic query. Ineligible IDs are omitted from the result.
+func (r *AppointmentRepository) LockReminderCandidates(ctx context.Context, ids []int64) ([]*calModels.Appointment, error) {
+	if len(ids) == 0 {
+		return []*calModels.Appointment{}, nil
+	}
+	rows := make([]*calModels.Appointment, 0, len(ids))
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`"appointment".id IN (?)`, bun.List(ids)).
+		Where(`"appointment".deleted_at IS NULL`).
+		Where(`"appointment".cancelled_at IS NULL`).
+		Where(`"appointment".notify_guardians`).
+		OrderExpr(`"appointment".id ASC`).
+		For("NO KEY UPDATE")
+	query = base.WithTenantFilter(ctx, query, "appointment")
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("lock reminder candidates: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *AppointmentRepository) ListVisibleForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*calModels.Appointment, error) {
 	var rows []*calModels.Appointment
 	query := base.GetDB(ctx, r.DB).NewSelect().

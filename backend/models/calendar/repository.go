@@ -56,6 +56,9 @@ type AppointmentRepository interface {
 	// lock. It returns nil when a lifecycle transition has made the appointment
 	// ineligible since the scheduler's coarse candidate scan.
 	LockReminderCandidate(ctx context.Context, id int64) (*Appointment, error)
+	// LockReminderCandidates is the batch form used by the reminder scan. Rows
+	// are locked in ID order to keep concurrent scans deterministic.
+	LockReminderCandidates(ctx context.Context, ids []int64) ([]*Appointment, error)
 }
 
 type RecurrenceRuleRepository interface {
