@@ -655,6 +655,11 @@ func (s *service) findReminderCandidateForUpdate(ctx context.Context, appointmen
 	return calendarAppointment(value), err
 }
 
+func (s *service) findReminderCandidatesForUpdate(ctx context.Context, appointmentIDs []int64) ([]*calModels.Appointment, error) {
+	values, err := s.cfg.Appointments.FindReminderCandidatesForUpdate(ctx, appointmentIDs)
+	return calendarAppointments(values), err
+}
+
 // appointmentDetail reloads the full detail (recurrence, recipients, targets)
 // for an appointment. Used by the lifecycle operations so callers (and the
 // notification layer in Phase B) get the same shape as CreateStaffAppointment.
@@ -1685,22 +1690,16 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 	if deliveryMode == calModels.DeliveryModeInformational {
 		status = calModels.ResponseStatusInfo
 	}
+	readSet, err := s.loadTargetResolutionReadSet(ctx, targets)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	staffIDs := map[int64]struct{}{}
 	guardianStudents := map[int64]map[int64]struct{}{}
-	activeGuardianCache := map[int64]bool{}
 	targetRows := make([]*calModels.AppointmentTarget, 0, len(targets))
 	guardianCanReceive := func(guardianProfileID int64) (bool, error) {
-		if active, ok := activeGuardianCache[guardianProfileID]; ok {
-			return active, nil
-		}
-		profiles, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, []int64{guardianProfileID})
-		if err != nil {
-			return false, err
-		}
-		_, active := profiles[guardianProfileID]
-		activeGuardianCache[guardianProfileID] = active
-		return active, nil
+		return readSet.activeGuardians[guardianProfileID], nil
 	}
 	addGuardian := func(guardianProfileID int64, studentID *int64) (bool, error) {
 		if guardianProfileID <= 0 {
@@ -1722,12 +1721,8 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		return true, nil
 	}
 	addStudentGuardians := func(studentID int64) (int, error) {
-		links, err := s.cfg.StudentGuardianRepo.FindByStudentID(ctx, studentID)
-		if err != nil {
-			return 0, err
-		}
 		added := 0
-		for _, link := range links {
+		for _, link := range readSet.linksByStudent[studentID] {
 			if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
 				ok, err := addGuardian(link.GuardianProfileID, &studentID)
 				if err != nil {
@@ -1740,57 +1735,16 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		}
 		return added, nil
 	}
-	// addStudentsGuardians is the bulk equivalent for multi-student targets
-	// (whole-school / group / class). It resolves every student's guardian links
-	// AND their active-portal status in two queries total, seeding
-	// activeGuardianCache so the per-guardian add below never re-queries — a
-	// school-wide appointment would otherwise fan out into thousands of queries.
+	// All guardian links and active profiles were loaded once before this loop;
+	// target expansion below is now pure in-memory grouping.
 	addStudentsGuardians := func(studentIDs []int64) (int, error) {
-		if len(studentIDs) == 0 {
-			return 0, nil
-		}
-		links, err := s.cfg.StudentGuardianRepo.FindByStudentIDs(ctx, studentIDs)
-		if err != nil {
-			return 0, err
-		}
-		pending := make([]int64, 0, len(links))
-		seenPending := map[int64]struct{}{}
-		for _, link := range links {
-			if !authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
-				continue
-			}
-			if _, cached := activeGuardianCache[link.GuardianProfileID]; cached {
-				continue
-			}
-			if _, dup := seenPending[link.GuardianProfileID]; dup {
-				continue
-			}
-			seenPending[link.GuardianProfileID] = struct{}{}
-			pending = append(pending, link.GuardianProfileID)
-		}
-		if len(pending) > 0 {
-			active, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, pending)
-			if err != nil {
-				return 0, err
-			}
-			for _, id := range pending {
-				_, ok := active[id]
-				activeGuardianCache[id] = ok
-			}
-		}
 		added := 0
-		for _, link := range links {
-			if !authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
-				continue
-			}
-			studentID := link.StudentID
-			ok, err := addGuardian(link.GuardianProfileID, &studentID)
+		for _, studentID := range studentIDs {
+			count, err := addStudentGuardians(studentID)
 			if err != nil {
 				return 0, err
 			}
-			if ok {
-				added++
-			}
+			added += count
 		}
 		return added, nil
 	}
@@ -1806,42 +1760,20 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			// Only invite staff who can actually use the calendar (active
 			// account + calendar:own); unreachable staff would leave RSVP
 			// appointments permanently pending and skew attendee counts.
-			reachable, err := s.cfg.StaffRepo.FindReachableCalendarStaffIDs(ctx, nil)
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			for staffID := range reachable {
+			for staffID := range readSet.reachableStaff {
 				staffIDs[staffID] = struct{}{}
 			}
 		case calModels.TargetTypeStaff:
-			if target.ID == nil || *target.ID <= 0 {
-				return nil, nil, nil, fmt.Errorf("%w: staff target requires id", ErrInvalidRequest)
-			}
-			reachable, err := s.cfg.StaffRepo.FindReachableCalendarStaffIDs(ctx, []int64{*target.ID})
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			if !reachable[*target.ID] {
+			if !readSet.reachableStaff[*target.ID] {
 				return nil, nil, nil, fmt.Errorf("%w: staff target is not available", ErrInvalidRequest)
 			}
 			staffIDs[*target.ID] = struct{}{}
 		case calModels.TargetTypeGuardianProfile:
-			if target.ID == nil || *target.ID <= 0 {
-				return nil, nil, nil, fmt.Errorf("%w: guardian target requires id", ErrInvalidRequest)
-			}
-			profiles, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, []int64{*target.ID})
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			if _, ok := profiles[*target.ID]; !ok {
+			if !readSet.activeGuardians[*target.ID] {
 				return nil, nil, nil, fmt.Errorf("%w: guardian target is not available", ErrInvalidRequest)
 			}
-			links, err := s.cfg.StudentGuardianRepo.FindByGuardianProfileID(ctx, *target.ID)
-			if err != nil {
-				return nil, nil, nil, err
-			}
 			visible := false
-			for _, link := range links {
+			for _, link := range readSet.linksByGuardian[*target.ID] {
 				if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
 					visible = true
 					studentID := link.StudentID
@@ -1858,11 +1790,7 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			// in bulk so a school-wide appointment stays a couple of queries, not one
 			// per student. Filter to active students at the DB so pending or inactive
 			// (e.g. former) families never receive school-wide appointments.
-			students, err := s.cfg.StudentRepo.List(ctx, map[string]any{"status": string(userModels.StudentStatusActive)})
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			studentIDs := activeStudentIDs(students)
+			studentIDs := activeStudentIDs(readSet.allSchoolStudents)
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
 				return nil, nil, nil, err
@@ -1871,9 +1799,6 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 				return nil, nil, nil, fmt.Errorf("%w: no reachable guardians at this school", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeParentsByStudent:
-			if target.ID == nil || *target.ID <= 0 {
-				return nil, nil, nil, fmt.Errorf("%w: student target requires id", ErrInvalidRequest)
-			}
 			added, err := addStudentGuardians(*target.ID)
 			if err != nil {
 				return nil, nil, nil, err
@@ -1882,16 +1807,9 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeParentsByGroup:
-			if target.ID == nil || *target.ID <= 0 {
-				return nil, nil, nil, fmt.Errorf("%w: group target requires id", ErrInvalidRequest)
-			}
-			students, err := s.cfg.StudentRepo.FindByGroupID(ctx, *target.ID)
-			if err != nil {
-				return nil, nil, nil, err
-			}
 			// Only active students' guardians — a former student still assigned to
 			// the group must not receive the group-wide appointment.
-			studentIDs := activeStudentIDs(students)
+			studentIDs := activeStudentIDs(readSet.studentsByGroup[*target.ID])
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
 				return nil, nil, nil, err
@@ -1900,16 +1818,9 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeParentsByClass:
-			if target.Value == nil || strings.TrimSpace(*target.Value) == "" {
-				return nil, nil, nil, fmt.Errorf("%w: class target requires value", ErrInvalidRequest)
-			}
-			students, err := s.cfg.StudentRepo.FindBySchoolClass(ctx, strings.TrimSpace(*target.Value))
-			if err != nil {
-				return nil, nil, nil, err
-			}
 			// Only active students' guardians — a former student still tagged with
 			// the class must not receive the class-wide appointment.
-			studentIDs := activeStudentIDs(students)
+			studentIDs := activeStudentIDs(readSet.studentsByClass[normalizeCalendarClass(*target.Value)])
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
 				return nil, nil, nil, err
@@ -1917,8 +1828,6 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if added == 0 {
 				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
 			}
-		default:
-			return nil, nil, nil, fmt.Errorf("%w: unknown target type %q", ErrInvalidRequest, target.Type)
 		}
 	}
 

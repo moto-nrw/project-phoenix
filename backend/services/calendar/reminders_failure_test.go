@@ -48,10 +48,15 @@ func (failingRecurrenceList) FindRecurrenceRules(context.Context, []int64) ([]*a
 
 type failingRecurrenceReload struct {
 	appointments.Capability
+	calls int
 }
 
-func (failingRecurrenceReload) FindRecurrenceRule(context.Context, int64) (*appointments.RecurrenceRule, error) {
-	return nil, errReminderStore
+func (f *failingRecurrenceReload) FindRecurrenceRules(ctx context.Context, ids []int64) ([]*appointments.RecurrenceRule, error) {
+	f.calls++
+	if f.calls > 1 {
+		return nil, errReminderStore
+	}
+	return f.Capability.FindRecurrenceRules(ctx, ids)
 }
 
 type failingMovedOverrides struct {
@@ -125,7 +130,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 			cfg.Appointments = failingCandidateLock{cfg.Appointments}
 		},
 		"re-reading the recurrence rule": func(cfg *calendarSvc.Config) {
-			cfg.Appointments = failingRecurrenceReload{cfg.Appointments}
+			cfg.Appointments = &failingRecurrenceReload{Capability: cfg.Appointments}
 		},
 		"re-reading the occurrence override": func(cfg *calendarSvc.Config) {
 			cfg.Appointments = failingOccurrenceOverrides{cfg.Appointments}

@@ -77,6 +77,11 @@ func (e engine) FindReminderCandidateForUpdate(ctx context.Context, id int64) (*
 	return appointmentToPublic(value), nil
 }
 
+func (e engine) FindReminderCandidatesForUpdate(ctx context.Context, ids []int64) ([]*appointments.Appointment, error) {
+	values, err := e.service.FindReminderCandidatesForUpdate(ctx, ids)
+	return appointmentsToPublic(values), mapError(err)
+}
+
 func (e engine) ListAppointmentsVisibleToStaff(ctx context.Context, staffID int64, from, to appointments.Date) ([]*appointments.Appointment, error) {
 	values, err := e.service.ListAppointmentsVisibleToStaff(ctx, staffID, domain.Date(from), domain.Date(to))
 	return appointmentsToPublic(values), mapError(err)

@@ -140,6 +140,28 @@ func (s *Store) FindReminderCandidateForUpdate(ctx context.Context, id int64) (d
 	return appointmentToDomain(*row), found, stats, err
 }
 
+func (s *Store) FindReminderCandidatesForUpdate(ctx context.Context, ids []int64) ([]domain.Appointment, domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "lock reminder candidates")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	if len(ids) == 0 {
+		return []domain.Appointment{}, domain.OperationStats{}, nil
+	}
+	rows := []appointmentRow{}
+	query := db.NewSelect().Model(&rows).ModelTableExpr(appointmentTable).
+		Where(`"appointment".id IN (?)`, bun.List(ids)).
+		Where(`"appointment".deleted_at IS NULL`).
+		Where(`"appointment".cancelled_at IS NULL`).
+		Where(`"appointment".notify_guardians`).
+		OrderExpr(`"appointment".id`).
+		For("NO KEY UPDATE")
+	query = withTenant(query, "appointment", tenantID)
+	stats, err := scanAll(ctx, query, "lock reminder candidates")
+	stats.Rows = int64(len(rows))
+	return appointmentsToDomain(rows), stats, err
+}
+
 func (s *Store) ListAppointmentsVisibleToStaff(ctx context.Context, staffID int64, from, to domain.Date) ([]domain.Appointment, domain.OperationStats, error) {
 	db, tenantID, err := s.databaseForTenant(ctx, "list staff appointments")
 	if err != nil {

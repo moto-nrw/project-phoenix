@@ -373,14 +373,16 @@ func (s *rolloverService) cloneOfferingCatalog(ctx context.Context, sourcePhaseI
 
 func (s *rolloverService) listCarriedOfferingIDs(ctx context.Context, sourcePhase *enrollmentModels.Phase, children []*enrollmentModels.RequestChild) ([]int64, error) {
 	ids := make(map[int64]struct{})
+	childIDs := make([]int64, 0, len(children))
 	for _, child := range children {
-		offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, sourcePhase.ServiceEndDate)
-		if err != nil {
-			return nil, fmt.Errorf("rollover: list source offerings for child %d: %w", child.ID, err)
-		}
-		for _, offering := range offerings {
-			ids[offering.CareOfferingID] = struct{}{}
-		}
+		childIDs = append(childIDs, child.ID)
+	}
+	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, sourcePhase.ServiceEndDate)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: list source offerings: %w", err)
+	}
+	for _, offering := range offerings {
+		ids[offering.CareOfferingID] = struct{}{}
 	}
 	result := make([]int64, 0, len(ids))
 	for id := range ids {
@@ -486,10 +488,18 @@ func (s *rolloverService) loadRolloverSourceChildren(ctx context.Context, source
 
 func (s *rolloverService) rollSourceRequests(ctx context.Context, input rolloverRequestInput) error {
 	requestOrder, childrenByRequest := groupRolloverChildrenByRequest(input.sourceChildren)
+	requests, err := s.RequestRepo.ListByIDs(ctx, requestOrder)
+	if err != nil {
+		return fmt.Errorf("rollover: load source requests: %w", err)
+	}
+	requestsByID := make(map[int64]*enrollmentModels.Request, len(requests))
+	for _, request := range requests {
+		requestsByID[request.ID] = request
+	}
 	for _, sourceRequestID := range requestOrder {
-		sourceRequest, err := s.RequestRepo.FindByID(ctx, sourceRequestID)
-		if err != nil {
-			return fmt.Errorf("rollover: load source request %d: %w", sourceRequestID, err)
+		sourceRequest := requestsByID[sourceRequestID]
+		if sourceRequest == nil {
+			return fmt.Errorf("rollover: source request %d not found", sourceRequestID)
 		}
 		requestInput := input
 		requestInput.sourceRequest = sourceRequest
@@ -822,13 +832,31 @@ func (s *rolloverService) ListReviewQueue(ctx context.Context, phaseID int64) ([
 	if err != nil {
 		return nil, fmt.Errorf("rollover: list review queue: %w", err)
 	}
+	requestIDs := make([]int64, 0, len(children))
+	sourceChildIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		requestIDs = append(requestIDs, child.RequestID)
+		if child.RolloverSourceChildID != nil {
+			sourceChildIDs = append(sourceChildIDs, *child.RolloverSourceChildID)
+		}
+	}
+	requests, err := s.RequestRepo.ListByIDs(ctx, requestIDs)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: load review queue requests: %w", err)
+	}
+	sourceChildren, err := s.RequestChildRepo.ListByIDs(ctx, sourceChildIDs)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: load review queue source children: %w", err)
+	}
+	requestsByID := requestMap(requests)
+	sourceChildrenByID := requestChildMap(sourceChildren)
 	out := make([]*ReviewQueueItem, 0, len(children))
 	for _, c := range children {
-		req, reqErr := s.RequestRepo.FindByID(ctx, c.RequestID)
-		if reqErr != nil {
+		req := requestsByID[c.RequestID]
+		if req == nil {
 			s.Logger.Warn("rollover: review queue request lookup failed",
 				slog.Int64("request_child_id", c.ID),
-				slog.String("error", reqErr.Error()))
+				slog.Int64("request_id", c.RequestID))
 			continue
 		}
 		item := &ReviewQueueItem{Child: c, Request: req}
@@ -837,13 +865,27 @@ func (s *rolloverService) ListReviewQueue(ctx context.Context, phaseID int64) ([
 			// the RLS-bypass admin tx the handler wraps lets us read
 			// it. If we can't, the admin still gets a useful row —
 			// just without the prior-year context.
-			if src, srcErr := s.RequestChildRepo.FindByID(ctx, *c.RolloverSourceChildID); srcErr == nil {
-				item.SourceChild = src
-			}
+			item.SourceChild = sourceChildrenByID[*c.RolloverSourceChildID]
 		}
 		out = append(out, item)
 	}
 	return out, nil
+}
+
+func requestMap(rows []*enrollmentModels.Request) map[int64]*enrollmentModels.Request {
+	result := make(map[int64]*enrollmentModels.Request, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row
+	}
+	return result
+}
+
+func requestChildMap(rows []*enrollmentModels.RequestChild) map[int64]*enrollmentModels.RequestChild {
+	result := make(map[int64]*enrollmentModels.RequestChild, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row
+	}
+	return result
 }
 
 // DecideReview applies the admin's keep/drop/defer action.
