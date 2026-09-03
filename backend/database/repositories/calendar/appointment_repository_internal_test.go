@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ func TestClaimReminderPushRejectsIncompleteClaims(t *testing.T) {
 
 	repo := &AppointmentRecipientRepository{}
 	ctx := testpkg.TenantContext(41)
-	occurrence := testpkg.Date(2026, 4, 2)
+	occurrence := calModels.NewDate(2026, 4, 2)
 
 	cases := map[string]struct {
 		appointmentID     int64
@@ -51,8 +52,10 @@ func TestClaimReminderPushRejectsIncompleteClaims(t *testing.T) {
 func TestReminderPushClaimsRequireATenant(t *testing.T) {
 	t.Parallel()
 
-	repo := &AppointmentRecipientRepository{}
-	occurrence := testpkg.Date(2026, 4, 2)
+	repo := &AppointmentRecipientRepository{runtime: Runtime{
+		TenantID: func(context.Context) int64 { return 0 },
+	}}
+	occurrence := calModels.NewDate(2026, 4, 2)
 
 	claimed, err := repo.ClaimReminderPush(context.Background(), 42, 3, occurrence, 7)
 	require.EqualError(t, err, "tenant id is required")
@@ -69,7 +72,7 @@ func TestFindByAppointmentIDsAndStartDatesShortCircuitsEmptyInput(t *testing.T) 
 
 	repo := &AppointmentOccurrenceOverrideRepository{}
 	ctx := testpkg.TenantContext(41)
-	dates := listOf(testpkg.Date(2026, 4, 2))
+	dates := listOf(calModels.NewDate(2026, 4, 2))
 
 	rows, err := repo.FindByAppointmentIDsAndStartDates(ctx, nil, dates)
 	require.NoError(t, err)

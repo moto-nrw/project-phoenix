@@ -478,3 +478,39 @@ func TestModuleListsDateframesWithNamePatternPaginationAndSorting(t *testing.T) 
 	_, err = module.FindDateframe(ctx, other.ID)
 	require.ErrorIs(t, err, schoolcalendar.ErrDateframeNotFound)
 }
+
+func TestModuleExposesGermanPublicHolidaysAndObservations(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	log := &observationLog{}
+	module := buildModule(t, db, log.record)
+
+	require.True(t, module.ValidHolidayRegion("DE-NW"))
+	require.False(t, module.ValidHolidayRegion("DE-XX"))
+	list, err := module.ListHolidays(context.Background(), "DE-NW", "2026-05-01", "2026-05-31")
+	require.NoError(t, err)
+	byDate := make(map[string]string, len(list))
+	for _, holiday := range list {
+		byDate[holiday.Date] = holiday.Name
+	}
+	assert.Equal(t, "Tag der Arbeit", byDate["2026-05-01"])
+	assert.Equal(t, "Christi Himmelfahrt", byDate["2026-05-14"])
+	assert.Equal(t, "Pfingstmontag", byDate["2026-05-25"])
+
+	dates, err := module.HolidayDates(context.Background(), "DE-BB", "2026-01-01", "2026-12-31")
+	require.NoError(t, err)
+	assert.True(t, dates["2026-04-05"], "Brandenburg includes Easter Sunday")
+	assert.True(t, dates["2026-05-24"], "Brandenburg includes Pentecost Sunday")
+	assert.Contains(t, log.operations(), "list_holidays")
+	assert.Contains(t, log.operations(), "holiday_dates")
+}
+
+func TestModuleRejectsInvalidHolidayWindowsBeforeTheEngine(t *testing.T) {
+	t.Parallel()
+	module := buildModule(t, testpkg.SetupTestDB(t))
+
+	_, err := module.ListHolidays(context.Background(), "DE-NW", "2026-06-02", "2026-06-01")
+	require.ErrorIs(t, err, schoolcalendar.ErrInvalidHolidayRange)
+	_, err = module.HolidayDates(context.Background(), "DE-NW", "not-a-date", "2026-06-01")
+	require.ErrorIs(t, err, schoolcalendar.ErrInvalidHolidayRange)
+}

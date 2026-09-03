@@ -835,7 +835,7 @@ func newFactory(
 
 	// Public holidays per Bundesland (#1418 3a): computed from the
 	// operations.federal_state setting, zero the Soll of their day.
-	holidayService := schedule.NewHolidayService(settingsService, logger.With("service", "holidays"))
+	holidayService := schedule.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: repos.SchoolCalendar()}, logger.With("service", "holidays"))
 	// Tenant closing days (#1418 3b) share the Soll=0 semantics of public
 	// holidays. The Soll consumers get the UNION of both via the composite
 	// reader; Factory.Holidays stays the plain holiday service so the
@@ -2617,6 +2617,7 @@ func newFactory(
 		ShiftTypeRepo:          repos.ShiftType,
 		UserContext:            userContextService,
 		DB:                     db,
+		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: repos.SchoolCalendar()},
 		Outbox:                 emailOutboxService,
 		PushOutbox:             durablePushAdapter{module: deliveryRuntime.Module},
 		SchoolRepo:             repos.School,

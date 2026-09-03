@@ -17,8 +17,8 @@ func validAppointment() *Appointment {
 	return &Appointment{
 		OrganizerStaffID: 1,
 		Title:            "  Elternabend  ",
-		StartDate:        testpkg.Date(2026, 1, 5),
-		EndDate:          testpkg.Date(2026, 1, 5),
+		StartDate:        NewDate(2026, 1, 5),
+		EndDate:          NewDate(2026, 1, 5),
 		StartTime:        testClock(9, 0),
 		EndTime:          testClock(10, 0),
 		DeliveryMode:     DeliveryModeRSVPRequired,
@@ -84,7 +84,7 @@ func TestRecurrenceRuleValidate(t *testing.T) {
 	t.Parallel()
 
 	count := 2
-	endsOn := testpkg.Date(2026, 2, 1)
+	endsOn := NewDate(2026, 2, 1)
 
 	tests := []struct {
 		name    string
@@ -173,57 +173,4 @@ func TestAppointmentRecipientValidate(t *testing.T) {
 			require.EqualError(t, err, tt.wantErr)
 		})
 	}
-}
-
-func TestCalendarModelAccessors(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	appointment := &Appointment{}
-	appointment.ID = 10
-	appointment.CreatedAt = now
-	appointment.UpdatedAt = now.Add(time.Hour)
-	assert.Equal(t, int64(10), appointment.GetID())
-	assert.Equal(t, now, appointment.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Hour), appointment.GetUpdatedAt())
-
-	recurrence := &RecurrenceRule{}
-	recurrence.ID = 11
-	recurrence.CreatedAt = now
-	recurrence.UpdatedAt = now
-	assert.Equal(t, int64(11), recurrence.GetID())
-	assert.Equal(t, now, recurrence.GetCreatedAt())
-	assert.Equal(t, now, recurrence.GetUpdatedAt())
-
-	recipient := &AppointmentRecipient{}
-	recipient.ID = 12
-	recipient.CreatedAt = now
-	recipient.UpdatedAt = now
-	assert.Equal(t, int64(12), recipient.GetID())
-	assert.Equal(t, now, recipient.GetCreatedAt())
-	assert.Equal(t, now, recipient.GetUpdatedAt())
-
-	link := &AppointmentRecipientStudent{}
-	link.ID = 13
-	link.CreatedAt = now
-	link.UpdatedAt = now
-	assert.Equal(t, int64(13), link.GetID())
-	assert.Equal(t, now, link.GetCreatedAt())
-	assert.Equal(t, now, link.GetUpdatedAt())
-
-	target := &AppointmentTarget{}
-	target.ID = 14
-	target.CreatedAt = now
-	target.UpdatedAt = now
-	assert.Equal(t, int64(14), target.GetID())
-	assert.Equal(t, now, target.GetCreatedAt())
-	assert.Equal(t, now, target.GetUpdatedAt())
-
-	override := &AppointmentOccurrenceOverride{}
-	override.ID = 15
-	override.CreatedAt = now
-	override.UpdatedAt = now
-	assert.Equal(t, int64(15), override.GetID())
-	assert.Equal(t, now, override.GetCreatedAt())
-	assert.Equal(t, now, override.GetUpdatedAt())
 }

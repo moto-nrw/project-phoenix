@@ -190,6 +190,39 @@ func (s *Service) DeleteDateframe(ctx context.Context, id int64) error {
 	})
 }
 
+// --- holidays and calendar documents ---
+
+func (s *Service) ValidHolidayRegion(region string) bool {
+	return domain.ValidHolidayRegion(region)
+}
+
+func (s *Service) ListHolidays(_ context.Context, region, from, to string) (result []domain.Holiday, err error) {
+	err = s.run("list_holidays", func(stats *domain.OperationStats) error {
+		result, err = domain.HolidaysInRange(region, from, to)
+		stats.Rows = int64(len(result))
+		return err
+	})
+	return result, err
+}
+
+func (s *Service) HolidayDates(_ context.Context, region, from, to string) (result map[string]bool, err error) {
+	err = s.run("holiday_dates", func(stats *domain.OperationStats) error {
+		result, err = domain.HolidayDates(region, from, to)
+		stats.Rows = int64(len(result))
+		return err
+	})
+	return result, err
+}
+
+func (s *Service) RenderCalendar(_ context.Context, name string, events []domain.CalendarEvent) (result string, err error) {
+	err = s.run("render_calendar", func(stats *domain.OperationStats) error {
+		result = domain.RenderCalendar(name, events)
+		stats.Rows = int64(len(events))
+		return nil
+	})
+	return result, err
+}
+
 // --- plumbing ---
 
 func (s *Service) run(operation string, fn func(*domain.OperationStats) error) (err error) {

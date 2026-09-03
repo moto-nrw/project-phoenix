@@ -5,20 +5,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calendarModels "github.com/moto-nrw/project-phoenix/models/calendar"
-	"github.com/uptrace/bun"
 )
 
 type StaffFeedTombstoneRepository struct {
-	*base.Repository[*calendarModels.StaffFeedTombstone]
+	runtime Runtime
 }
 
-func NewStaffFeedTombstoneRepository(db *bun.DB) calendarModels.StaffFeedTombstoneRepository {
-	repo := base.NewRepository[*calendarModels.StaffFeedTombstone](db, "calendar.staff_feed_tombstones", "StaffFeedTombstone")
-	repo.TenantScoped = true
-	return &StaffFeedTombstoneRepository{Repository: repo}
+func NewStaffFeedTombstoneRepository(runtime Runtime) calendarModels.StaffFeedTombstoneRepository {
+	runtime.validate()
+	return &StaffFeedTombstoneRepository{runtime: runtime}
 }
 
 // ListForStaffSince keeps the ordered timestamp range and PostgreSQL TIME
@@ -26,29 +22,38 @@ func NewStaffFeedTombstoneRepository(db *bun.DB) calendarModels.StaffFeedTombsto
 // QueryOptions domain across its architecture boundary.
 func (r *StaffFeedTombstoneRepository) ListForStaffSince(ctx context.Context, staffID int64, since time.Time) ([]*calendarModels.StaffFeedTombstone, error) {
 	rows := make([]*calendarModels.StaffFeedTombstone, 0)
-	query := base.GetDB(ctx, r.DB).NewSelect().
+	query := r.runtime.Database(ctx).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`calendar.staff_feed_tombstones AS "staff_feed_tombstone"`).
 		Where(`"staff_feed_tombstone".staff_id = ?`, staffID).
 		Where(`"staff_feed_tombstone".cancelled_at >= ?`, since).
 		OrderExpr(`"staff_feed_tombstone".cancelled_at ASC`)
-	query = base.WithTenantFilter(ctx, query, "staff_feed_tombstone")
+	query = withTenantFilter(r.runtime, ctx, query, "staff_feed_tombstone")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list staff feed tombstones: %w", err)
 	}
 	for _, row := range rows {
-		row.StartTime = timezone.NormalizeWallClock(row.StartTime)
-		row.EndTime = timezone.NormalizeWallClock(row.EndTime)
+		row.StartTime = normalizeWallClock(row.StartTime)
+		row.EndTime = normalizeWallClock(row.EndTime)
 	}
 	return rows, nil
 }
 
-// DeleteBefore exposes the feed-retention operation while delegating its
-// tenant-scoped timestamp deletion to the generic repository implementation.
+// DeleteBefore removes tenant-scoped tombstones older than the retention
+// cutoff and reports the number deleted.
 func (r *StaffFeedTombstoneRepository) DeleteBefore(ctx context.Context, before time.Time) (int, error) {
-	count, err := r.Repository.DeleteBefore(ctx, "cancelled_at", before, "delete expired staff feed tombstones")
+	query := r.runtime.Database(ctx).NewDelete().
+		Model((*calendarModels.StaffFeedTombstone)(nil)).
+		ModelTableExpr(`calendar.staff_feed_tombstones AS "staff_feed_tombstone"`).
+		Where(`"staff_feed_tombstone".cancelled_at < ?`, before)
+	query = withTenantFilter(r.runtime, ctx, query, "staff_feed_tombstone")
+	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("delete expired staff feed tombstones: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("delete expired staff feed tombstones: rows affected: %w", err)
 	}
 	return int(count), nil
 }

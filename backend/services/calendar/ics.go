@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/ical"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -107,11 +106,11 @@ func (s *service) renderAppointmentICS(ctx context.Context, appointment *calMode
 		}
 	}
 	event := appointmentICSEvent(appointment, recurrence, cancelled)
-	content := ical.Render(appointment.Title, []ical.Event{event})
-	return icsFilename(appointment.Title), content, nil
+	content, err := s.renderCalendar(ctx, appointment.Title, []CalendarEvent{event})
+	return icsFilename(appointment.Title), content, err
 }
 
-func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calModels.RecurrenceRule, cancelledOverrides []*calModels.AppointmentOccurrenceOverride) ical.Event {
+func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calModels.RecurrenceRule, cancelledOverrides []*calModels.AppointmentOccurrenceOverride) CalendarEvent {
 	description := ""
 	if appointment.Description != nil {
 		description = *appointment.Description
@@ -120,7 +119,7 @@ func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calMode
 	if appointment.Location != nil {
 		location = *appointment.Location
 	}
-	event := ical.Event{
+	event := CalendarEvent{
 		// Include the tenant so the UID is globally unique: a parent's feed
 		// aggregates appointments across schools, and appointment IDs repeat per
 		// tenant — a tenant-local UID would let one school's event overwrite
@@ -129,8 +128,8 @@ func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calMode
 		Summary:     appointment.Title,
 		Description: description,
 		Location:    location,
-		StartDate:   appointment.StartDate,
-		EndDate:     appointment.EndDate,
+		StartDate:   appointment.StartDate.String(),
+		EndDate:     appointment.EndDate.String(),
 		StartClock:  appointment.StartTime,
 		EndClock:    appointment.EndTime,
 		AllDay:      appointment.AllDay,
@@ -164,24 +163,35 @@ func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calMode
 	// FIRST horizon they saw, silently dropping later occurrences. Emitting the
 	// true recurrence keeps the event stable across polls; the window only governs
 	// which appointments are INCLUDED (applyAppointmentWindow + hasOccurrenceInWindow).
-	if first != appointment.StartDate {
-		event.StartDate = first
-		event.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
+	if first != toTimezoneDate(appointment.StartDate) {
+		event.StartDate = first.String()
+		event.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate)).String()
 	}
-	event.Recurrence = &ical.Recurrence{
-		Freq:      recurrence.Frequency,
+	until := ""
+	if recurrence.EndsOn != nil {
+		until = recurrence.EndsOn.String()
+	}
+	event.Recurrence = &CalendarRecurrence{
+		Frequency: recurrence.Frequency,
 		Interval:  recurrence.IntervalCount,
 		Weekdays:  recurrence.Weekdays,
 		MonthDays: recurrence.MonthDays,
-		Until:     recurrence.EndsOn,
+		Until:     until,
 		Count:     recurrence.OccurrenceCount,
 	}
 	// Single occurrences cancelled via "Nur diesen Termin" become EXDATEs so
 	// subscribed external calendars drop them from the RRULE expansion.
 	for _, override := range cancelledOverrides {
-		event.ExDates = append(event.ExDates, override.OccurrenceDate)
+		event.ExDates = append(event.ExDates, override.OccurrenceDate.String())
 	}
 	return event
+}
+
+func (s *service) renderCalendar(ctx context.Context, name string, events []CalendarEvent) (string, error) {
+	if s.cfg.CalendarRenderer == nil {
+		return "", fmt.Errorf("%w: calendar renderer not configured", ErrInvalidRequest)
+	}
+	return s.cfg.CalendarRenderer.RenderCalendar(ctx, name, events)
 }
 
 // icsFilename builds a safe download filename from the appointment title.

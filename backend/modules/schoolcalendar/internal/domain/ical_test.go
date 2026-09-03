@@ -1,4 +1,4 @@
-package ical
+package domain
 
 import (
 	"strings"
@@ -12,15 +12,19 @@ func stamp() time.Time {
 	return time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 }
 
+func date(year int, month time.Month, day int) string {
+	return testpkg.Date(year, month, day).String()
+}
+
 func TestRenderTimedEvent(t *testing.T) {
 	t.Parallel()
 
-	out := Render("Familienkalender", []Event{{
+	out := RenderCalendar("Familienkalender", []CalendarEvent{{
 		UID:        "appt-1@moto",
 		Summary:    "Elternabend",
 		Location:   "Aula",
-		StartDate:  testpkg.Date(2026, 4, 2),
-		EndDate:    testpkg.Date(2026, 4, 2),
+		StartDate:  date(2026, 4, 2),
+		EndDate:    date(2026, 4, 2),
 		StartClock: testpkg.WallClock(18, 0),
 		EndClock:   testpkg.WallClock(19, 30),
 		Stamp:      stamp(),
@@ -50,11 +54,11 @@ func TestRenderTimedEvent(t *testing.T) {
 func TestRenderAllDayEvent(t *testing.T) {
 	t.Parallel()
 
-	out := Render("", []Event{{
+	out := RenderCalendar("", []CalendarEvent{{
 		UID:       "appt-2@moto",
 		Summary:   "Wandertag",
-		StartDate: testpkg.Date(2026, 5, 4),
-		EndDate:   testpkg.Date(2026, 5, 4),
+		StartDate: date(2026, 5, 4),
+		EndDate:   date(2026, 5, 4),
 		AllDay:    true,
 		Stamp:     stamp(),
 	}})
@@ -70,20 +74,20 @@ func TestRenderAllDayEvent(t *testing.T) {
 func TestRenderRecurrence(t *testing.T) {
 	t.Parallel()
 
-	until := testpkg.Date(2026, 6, 30)
-	out := Render("", []Event{{
+	until := date(2026, 6, 30)
+	out := RenderCalendar("", []CalendarEvent{{
 		UID:        "appt-3@moto",
 		Summary:    "Wöchentliche AG",
-		StartDate:  testpkg.Date(2026, 4, 6),
-		EndDate:    testpkg.Date(2026, 4, 6),
+		StartDate:  date(2026, 4, 6),
+		EndDate:    date(2026, 4, 6),
 		StartClock: testpkg.WallClock(14, 0),
 		EndClock:   testpkg.WallClock(15, 0),
 		Stamp:      stamp(),
-		Recurrence: &Recurrence{
-			Freq:     "weekly",
-			Interval: 2,
-			Weekdays: []string{"monday", "wednesday"},
-			Until:    &until,
+		Recurrence: &CalendarRecurrence{
+			Frequency: "weekly",
+			Interval:  2,
+			Weekdays:  []string{"monday", "wednesday"},
+			Until:     until,
 		},
 	}})
 	if !strings.Contains(out, "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20260630T") {
@@ -97,11 +101,11 @@ func TestRenderFoldsLongLines(t *testing.T) {
 	// A long, multibyte summary forces RFC 5545 line folding (continuation
 	// lines start with a space) without splitting a UTF-8 rune.
 	long := "Sehr langer Terminname mit Umlauten äöü und vielen Wörtern zur Prüfung der Zeilenfaltung über fünfundsiebzig Oktette hinaus"
-	out := Render("", []Event{{
+	out := RenderCalendar("", []CalendarEvent{{
 		UID:       "appt-fold@moto",
 		Summary:   long,
-		StartDate: testpkg.Date(2026, 5, 4),
-		EndDate:   testpkg.Date(2026, 5, 4),
+		StartDate: date(2026, 5, 4),
+		EndDate:   date(2026, 5, 4),
 		AllDay:    true,
 		Stamp:     stamp(),
 	}})
@@ -121,11 +125,11 @@ func TestRenderFoldsLongLines(t *testing.T) {
 func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
 	t.Parallel()
 
-	timed := Render("", []Event{{
+	timed := RenderCalendar("", []CalendarEvent{{
 		UID:        "appt-tz@moto",
 		Summary:    "Besprechung",
-		StartDate:  testpkg.Date(2026, 5, 4),
-		EndDate:    testpkg.Date(2026, 5, 4),
+		StartDate:  date(2026, 5, 4),
+		EndDate:    date(2026, 5, 4),
 		StartClock: testpkg.WallClock(14, 0),
 		EndClock:   testpkg.WallClock(15, 0),
 		Stamp:      stamp(),
@@ -144,11 +148,11 @@ func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
 	}
 
 	// An all-day-only calendar references no TZID, so no VTIMEZONE is emitted.
-	allDay := Render("", []Event{{
+	allDay := RenderCalendar("", []CalendarEvent{{
 		UID:       "appt-allday-tz@moto",
 		Summary:   "Wandertag",
-		StartDate: testpkg.Date(2026, 5, 4),
-		EndDate:   testpkg.Date(2026, 5, 4),
+		StartDate: date(2026, 5, 4),
+		EndDate:   date(2026, 5, 4),
 		AllDay:    true,
 		Stamp:     stamp(),
 	}})
@@ -160,7 +164,7 @@ func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
 func TestRenderEmptyCalendarIncludesComponent(t *testing.T) {
 	t.Parallel()
 
-	out := Render("Leerer Kalender", nil)
+	out := RenderCalendar("Leerer Kalender", nil)
 
 	if !strings.Contains(out, "BEGIN:VTIMEZONE") {
 		t.Fatalf("RFC 5545 requires at least one calendar component\n%s", out)
@@ -173,31 +177,31 @@ func TestRenderEmptyCalendarIncludesComponent(t *testing.T) {
 func TestRenderRecurrenceWithExDates(t *testing.T) {
 	t.Parallel()
 
-	out := Render("", []Event{{
+	out := RenderCalendar("", []CalendarEvent{{
 		UID:        "appt-ex@moto",
 		Summary:    "Wöchentliche AG",
-		StartDate:  testpkg.Date(2026, 4, 6),
-		EndDate:    testpkg.Date(2026, 4, 6),
+		StartDate:  date(2026, 4, 6),
+		EndDate:    date(2026, 4, 6),
 		StartClock: testpkg.WallClock(14, 0),
 		EndClock:   testpkg.WallClock(15, 0),
 		Stamp:      stamp(),
-		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}},
-		ExDates:    listOf(testpkg.Date(2026, 4, 20)),
+		Recurrence: &CalendarRecurrence{Frequency: "weekly", Interval: 1, Weekdays: []string{"monday"}},
+		ExDates:    listOf(date(2026, 4, 20)),
 	}})
 	// The excluded occurrence matches the DTSTART time in Berlin.
 	if !strings.Contains(out, "EXDATE;TZID=Europe/Berlin:20260420T140000") {
 		t.Errorf("missing timed EXDATE\n%s", out)
 	}
 
-	allDay := Render("", []Event{{
+	allDay := RenderCalendar("", []CalendarEvent{{
 		UID:        "appt-ex-allday@moto",
 		Summary:    "Ganztägige Reihe",
-		StartDate:  testpkg.Date(2026, 4, 6),
-		EndDate:    testpkg.Date(2026, 4, 6),
+		StartDate:  date(2026, 4, 6),
+		EndDate:    date(2026, 4, 6),
 		AllDay:     true,
 		Stamp:      stamp(),
-		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}},
-		ExDates:    listOf(testpkg.Date(2026, 4, 20)),
+		Recurrence: &CalendarRecurrence{Frequency: "weekly", Interval: 1, Weekdays: []string{"monday"}},
+		ExDates:    listOf(date(2026, 4, 20)),
 	}})
 	if !strings.Contains(allDay, "EXDATE;VALUE=DATE:20260420") {
 		t.Errorf("missing all-day EXDATE\n%s", allDay)
@@ -207,12 +211,12 @@ func TestRenderRecurrenceWithExDates(t *testing.T) {
 func TestRenderCancelledAndEscaping(t *testing.T) {
 	t.Parallel()
 
-	out := Render("", []Event{{
+	out := RenderCalendar("", []CalendarEvent{{
 		UID:         "appt-4@moto",
 		Summary:     "Abgesagt; wichtig, mit Komma",
 		Description: "Zeile1\nZeile2",
-		StartDate:   testpkg.Date(2026, 4, 2),
-		EndDate:     testpkg.Date(2026, 4, 2),
+		StartDate:   date(2026, 4, 2),
+		EndDate:     date(2026, 4, 2),
 		AllDay:      true,
 		Cancelled:   true,
 		Sequence:    2,
@@ -235,15 +239,15 @@ func TestRenderCancelledAndEscaping(t *testing.T) {
 func TestRenderAllDayRecurrenceUntilIsDate(t *testing.T) {
 	t.Parallel()
 
-	until := testpkg.Date(2026, 6, 30)
-	out := Render("", []Event{{
+	until := date(2026, 6, 30)
+	out := RenderCalendar("", []CalendarEvent{{
 		UID:        "appt-allday-rrule@moto",
 		Summary:    "Ganztägige Reihe",
-		StartDate:  testpkg.Date(2026, 4, 6),
-		EndDate:    testpkg.Date(2026, 4, 6),
+		StartDate:  date(2026, 4, 6),
+		EndDate:    date(2026, 4, 6),
 		AllDay:     true,
 		Stamp:      stamp(),
-		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}, Until: &until},
+		Recurrence: &CalendarRecurrence{Frequency: "weekly", Interval: 1, Weekdays: []string{"monday"}, Until: until},
 	}})
 	// An all-day (VALUE=DATE) DTSTART requires a date-valued UNTIL, not a
 	// date-time; a date-time UNTIL here is invalid iCalendar.
@@ -260,15 +264,15 @@ func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
 
 	// A daily rule that happens to carry weekdays must NOT export BYDAY — the app
 	// ignores weekdays for daily rules, so exporting BYDAY would diverge.
-	daily := Render("", []Event{{
+	daily := RenderCalendar("", []CalendarEvent{{
 		UID:        "appt-daily@moto",
 		Summary:    "Täglich",
-		StartDate:  testpkg.Date(2026, 4, 6),
-		EndDate:    testpkg.Date(2026, 4, 6),
+		StartDate:  date(2026, 4, 6),
+		EndDate:    date(2026, 4, 6),
 		StartClock: testpkg.WallClock(9, 0),
 		EndClock:   testpkg.WallClock(10, 0),
 		Stamp:      stamp(),
-		Recurrence: &Recurrence{Freq: "daily", Interval: 1, Weekdays: []string{"monday"}},
+		Recurrence: &CalendarRecurrence{Frequency: "daily", Interval: 1, Weekdays: []string{"monday"}},
 	}})
 	// Scope the check to the event's RRULE — the VTIMEZONE legitimately carries a
 	// BYDAY for its DST rule, which is unrelated.
@@ -277,15 +281,15 @@ func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
 	}
 
 	// A weekly rule carrying month_days must export BYDAY but NOT BYMONTHDAY.
-	weekly := Render("", []Event{{
+	weekly := RenderCalendar("", []CalendarEvent{{
 		UID:        "appt-weekly@moto",
 		Summary:    "Wöchentlich",
-		StartDate:  testpkg.Date(2026, 4, 6),
-		EndDate:    testpkg.Date(2026, 4, 6),
+		StartDate:  date(2026, 4, 6),
+		EndDate:    date(2026, 4, 6),
 		StartClock: testpkg.WallClock(9, 0),
 		EndClock:   testpkg.WallClock(10, 0),
 		Stamp:      stamp(),
-		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}, MonthDays: []int{15}},
+		Recurrence: &CalendarRecurrence{Frequency: "weekly", Interval: 1, Weekdays: []string{"monday"}, MonthDays: []int{15}},
 	}})
 	weeklyRRULE := eventRRULE(weekly)
 	if !strings.Contains(weeklyRRULE, "BYDAY=MO") {
@@ -314,11 +318,11 @@ func eventRRULE(out string) string {
 func TestRenderSequenceAndLastModified(t *testing.T) {
 	t.Parallel()
 
-	out := Render("", []Event{{
+	out := RenderCalendar("", []CalendarEvent{{
 		UID:          "appt-rev@moto",
 		Summary:      "Geändert",
-		StartDate:    testpkg.Date(2026, 4, 2),
-		EndDate:      testpkg.Date(2026, 4, 2),
+		StartDate:    date(2026, 4, 2),
+		EndDate:      date(2026, 4, 2),
 		AllDay:       true,
 		Sequence:     3,
 		Stamp:        stamp(),

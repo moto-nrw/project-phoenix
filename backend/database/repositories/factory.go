@@ -29,6 +29,7 @@ import (
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
@@ -545,6 +546,11 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		return db, tenantID
 	}
 	parentRuntime := carePlanLegacy.NewParentRuntime(db)
+	schoolCalendarRuntime := schoolCalendarCompose.PersistenceRuntimeFor(db)
+	calendarRuntime := calendarRepo.Runtime{
+		Database: schoolCalendarRuntime.Database,
+		TenantID: schoolCalendarRuntime.TenantID,
+	}
 	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
 	accountRepo := auth.NewAccountRepository(db)
@@ -771,13 +777,13 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffMessage:       users.NewStaffMessageRepository(db),
 
 		// Calendar repositories
-		CalendarAppointment:               calendarRepo.NewAppointmentRepository(db),
-		CalendarRecurrenceRule:            calendarRepo.NewRecurrenceRuleRepository(db),
-		CalendarAppointmentRecipient:      calendarRepo.NewAppointmentRecipientRepository(db),
-		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(db),
-		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(db),
-		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
-		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
+		CalendarAppointment:               calendarRepo.NewAppointmentRepository(calendarRuntime),
+		CalendarRecurrenceRule:            calendarRepo.NewRecurrenceRuleRepository(calendarRuntime),
+		CalendarAppointmentRecipient:      calendarRepo.NewAppointmentRecipientRepository(calendarRuntime),
+		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(calendarRuntime),
+		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(calendarRuntime),
+		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(calendarRuntime),
+		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(calendarRuntime),
 		ParentAnnouncement:                parentAnnouncement,
 		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
 	}

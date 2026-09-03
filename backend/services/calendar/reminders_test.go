@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,8 +41,8 @@ func TestOccurrenceStartInstant(t *testing.T) {
 			timezone.NewDate(2026, 10, 25),
 		} {
 			appointment := helperAppointment()
-			appointment.StartDate = date
-			appointment.EndDate = date
+			appointment.StartDate = calModels.Date(date)
+			appointment.EndDate = calModels.Date(date)
 			appointment.AllDay = true
 
 			assert.Equal(t, allDayReminderHour, occurrenceStartInstant(appointment).Hour(), date.String())
@@ -55,8 +54,8 @@ func TestOccurrenceStartInstant(t *testing.T) {
 		// the appointment's own wall clock: deriving the instant by adding a fixed
 		// UTC offset would make one of them an hour off.
 		appointment := helperAppointment()
-		appointment.StartDate = timezone.NewDate(2026, 7, 1)
-		appointment.EndDate = timezone.NewDate(2026, 7, 1)
+		appointment.StartDate = calModels.NewDate(2026, 7, 1)
+		appointment.EndDate = calModels.NewDate(2026, 7, 1)
 
 		start := occurrenceStartInstant(appointment)
 
@@ -71,14 +70,14 @@ func TestAppointmentWithOverride(t *testing.T) {
 
 	t.Run("moves the appointment onto the occurrence and keeps its span", func(t *testing.T) {
 		appointment := helperAppointment()
-		appointment.EndDate = timezone.NewDate(2026, 1, 6) // a two-day appointment
+		appointment.EndDate = calModels.NewDate(2026, 1, 6) // a two-day appointment
 
 		effective := appointmentWithOverride(appointment, timezone.NewDate(2026, 3, 9), nil)
 
-		assert.Equal(t, timezone.NewDate(2026, 3, 9), effective.StartDate)
-		assert.Equal(t, timezone.NewDate(2026, 3, 10), effective.EndDate,
+		assert.Equal(t, calModels.NewDate(2026, 3, 9), effective.StartDate)
+		assert.Equal(t, calModels.NewDate(2026, 3, 10), effective.EndDate,
 			"the second day has to travel with the occurrence")
-		assert.Equal(t, appointment.StartDate, timezone.NewDate(2026, 1, 5),
+		assert.Equal(t, appointment.StartDate, calModels.NewDate(2026, 1, 5),
 			"the stored appointment must not be mutated")
 	})
 
@@ -87,7 +86,7 @@ func TestAppointmentWithOverride(t *testing.T) {
 		movedStart := helperClock(15, 30)
 		override := &calModels.AppointmentOccurrenceOverride{
 			AppointmentID:  appointment.ID,
-			OccurrenceDate: timezone.NewDate(2026, 1, 5),
+			OccurrenceDate: calModels.NewDate(2026, 1, 5),
 			StartTime:      &movedStart,
 		}
 
@@ -119,7 +118,7 @@ func TestReminderOccurrences(t *testing.T) {
 	t.Run("a weekly series yields every matching day in the window", func(t *testing.T) {
 		appointment := helperAppointment()
 		rule := &calModels.RecurrenceRule{
-			Model:         base.Model{ID: 1},
+			Model:         calModels.Model{ID: 1},
 			AppointmentID: appointment.ID,
 			Frequency:     calModels.RecurrenceFrequencyWeekly,
 			IntervalCount: 1,
