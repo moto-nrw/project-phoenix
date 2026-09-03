@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
+import {
+  expectIdleRenderBudget,
+  RENDER_BUDGET_MAX_COMMITS,
+} from "~/test/render-budget";
 
 // Mock dependencies before importing component
 vi.mock("next/navigation", () => ({
@@ -1325,5 +1329,29 @@ describe("MobileBottomNav", () => {
         expect.any(Object),
       );
     });
+  });
+
+  // Render-Budget (#2939): die Nav lief bis #2978 auf jeder Seite in einer
+  // Effekt-Schleife. Ohne den Fix aus #2978 zählt der Helfer hier 51 Commits.
+  describe("render budget", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each([
+      ["/dashboard", true],
+      ["/ogs-groups", false],
+      ["/settings", true],
+    ])(
+      `commits at most ${RENDER_BUDGET_MAX_COMMITS} times in idle on %s`,
+      async (pathname, admin) => {
+        vi.useFakeTimers();
+        mockIsAdmin.mockReturnValue(admin);
+        mockUseSession.mockReturnValue(createMockSession(admin));
+        mockUsePathname.mockReturnValue(pathname);
+
+        await expectIdleRenderBudget(<MobileBottomNav />);
+      },
+    );
   });
 });

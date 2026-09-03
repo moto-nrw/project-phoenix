@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func stamp() time.Time {
@@ -19,10 +19,10 @@ func TestRenderTimedEvent(t *testing.T) {
 		UID:        "appt-1@moto",
 		Summary:    "Elternabend",
 		Location:   "Aula",
-		StartDate:  timezone.NewDate(2026, 4, 2),
-		EndDate:    timezone.NewDate(2026, 4, 2),
-		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 19, 30, 0, 0, time.UTC)),
+		StartDate:  testpkg.Date(2026, 4, 2),
+		EndDate:    testpkg.Date(2026, 4, 2),
+		StartClock: testpkg.WallClock(18, 0),
+		EndClock:   testpkg.WallClock(19, 30),
 		Stamp:      stamp(),
 	}})
 
@@ -53,8 +53,8 @@ func TestRenderAllDayEvent(t *testing.T) {
 	out := Render("", []Event{{
 		UID:       "appt-2@moto",
 		Summary:   "Wandertag",
-		StartDate: timezone.NewDate(2026, 5, 4),
-		EndDate:   timezone.NewDate(2026, 5, 4),
+		StartDate: testpkg.Date(2026, 5, 4),
+		EndDate:   testpkg.Date(2026, 5, 4),
 		AllDay:    true,
 		Stamp:     stamp(),
 	}})
@@ -70,14 +70,14 @@ func TestRenderAllDayEvent(t *testing.T) {
 func TestRenderRecurrence(t *testing.T) {
 	t.Parallel()
 
-	until := timezone.NewDate(2026, 6, 30)
+	until := testpkg.Date(2026, 6, 30)
 	out := Render("", []Event{{
 		UID:        "appt-3@moto",
 		Summary:    "Wöchentliche AG",
-		StartDate:  timezone.NewDate(2026, 4, 6),
-		EndDate:    timezone.NewDate(2026, 4, 6),
-		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		StartDate:  testpkg.Date(2026, 4, 6),
+		EndDate:    testpkg.Date(2026, 4, 6),
+		StartClock: testpkg.WallClock(14, 0),
+		EndClock:   testpkg.WallClock(15, 0),
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{
 			Freq:     "weekly",
@@ -100,8 +100,8 @@ func TestRenderFoldsLongLines(t *testing.T) {
 	out := Render("", []Event{{
 		UID:       "appt-fold@moto",
 		Summary:   long,
-		StartDate: timezone.NewDate(2026, 5, 4),
-		EndDate:   timezone.NewDate(2026, 5, 4),
+		StartDate: testpkg.Date(2026, 5, 4),
+		EndDate:   testpkg.Date(2026, 5, 4),
 		AllDay:    true,
 		Stamp:     stamp(),
 	}})
@@ -124,10 +124,10 @@ func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
 	timed := Render("", []Event{{
 		UID:        "appt-tz@moto",
 		Summary:    "Besprechung",
-		StartDate:  timezone.NewDate(2026, 5, 4),
-		EndDate:    timezone.NewDate(2026, 5, 4),
-		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		StartDate:  testpkg.Date(2026, 5, 4),
+		EndDate:    testpkg.Date(2026, 5, 4),
+		StartClock: testpkg.WallClock(14, 0),
+		EndClock:   testpkg.WallClock(15, 0),
 		Stamp:      stamp(),
 	}})
 	// A timed event references TZID=Europe/Berlin, which must be backed by a
@@ -147,8 +147,8 @@ func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
 	allDay := Render("", []Event{{
 		UID:       "appt-allday-tz@moto",
 		Summary:   "Wandertag",
-		StartDate: timezone.NewDate(2026, 5, 4),
-		EndDate:   timezone.NewDate(2026, 5, 4),
+		StartDate: testpkg.Date(2026, 5, 4),
+		EndDate:   testpkg.Date(2026, 5, 4),
 		AllDay:    true,
 		Stamp:     stamp(),
 	}})
@@ -176,13 +176,13 @@ func TestRenderRecurrenceWithExDates(t *testing.T) {
 	out := Render("", []Event{{
 		UID:        "appt-ex@moto",
 		Summary:    "Wöchentliche AG",
-		StartDate:  timezone.NewDate(2026, 4, 6),
-		EndDate:    timezone.NewDate(2026, 4, 6),
-		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		StartDate:  testpkg.Date(2026, 4, 6),
+		EndDate:    testpkg.Date(2026, 4, 6),
+		StartClock: testpkg.WallClock(14, 0),
+		EndClock:   testpkg.WallClock(15, 0),
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}},
-		ExDates:    []timezone.Date{timezone.NewDate(2026, 4, 20)},
+		ExDates:    listOf(testpkg.Date(2026, 4, 20)),
 	}})
 	// The excluded occurrence matches the DTSTART time in Berlin.
 	if !strings.Contains(out, "EXDATE;TZID=Europe/Berlin:20260420T140000") {
@@ -192,12 +192,12 @@ func TestRenderRecurrenceWithExDates(t *testing.T) {
 	allDay := Render("", []Event{{
 		UID:        "appt-ex-allday@moto",
 		Summary:    "Ganztägige Reihe",
-		StartDate:  timezone.NewDate(2026, 4, 6),
-		EndDate:    timezone.NewDate(2026, 4, 6),
+		StartDate:  testpkg.Date(2026, 4, 6),
+		EndDate:    testpkg.Date(2026, 4, 6),
 		AllDay:     true,
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}},
-		ExDates:    []timezone.Date{timezone.NewDate(2026, 4, 20)},
+		ExDates:    listOf(testpkg.Date(2026, 4, 20)),
 	}})
 	if !strings.Contains(allDay, "EXDATE;VALUE=DATE:20260420") {
 		t.Errorf("missing all-day EXDATE\n%s", allDay)
@@ -211,8 +211,8 @@ func TestRenderCancelledAndEscaping(t *testing.T) {
 		UID:         "appt-4@moto",
 		Summary:     "Abgesagt; wichtig, mit Komma",
 		Description: "Zeile1\nZeile2",
-		StartDate:   timezone.NewDate(2026, 4, 2),
-		EndDate:     timezone.NewDate(2026, 4, 2),
+		StartDate:   testpkg.Date(2026, 4, 2),
+		EndDate:     testpkg.Date(2026, 4, 2),
 		AllDay:      true,
 		Cancelled:   true,
 		Sequence:    2,
@@ -235,12 +235,12 @@ func TestRenderCancelledAndEscaping(t *testing.T) {
 func TestRenderAllDayRecurrenceUntilIsDate(t *testing.T) {
 	t.Parallel()
 
-	until := timezone.NewDate(2026, 6, 30)
+	until := testpkg.Date(2026, 6, 30)
 	out := Render("", []Event{{
 		UID:        "appt-allday-rrule@moto",
 		Summary:    "Ganztägige Reihe",
-		StartDate:  timezone.NewDate(2026, 4, 6),
-		EndDate:    timezone.NewDate(2026, 4, 6),
+		StartDate:  testpkg.Date(2026, 4, 6),
+		EndDate:    testpkg.Date(2026, 4, 6),
 		AllDay:     true,
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}, Until: &until},
@@ -263,10 +263,10 @@ func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
 	daily := Render("", []Event{{
 		UID:        "appt-daily@moto",
 		Summary:    "Täglich",
-		StartDate:  timezone.NewDate(2026, 4, 6),
-		EndDate:    timezone.NewDate(2026, 4, 6),
-		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC)),
+		StartDate:  testpkg.Date(2026, 4, 6),
+		EndDate:    testpkg.Date(2026, 4, 6),
+		StartClock: testpkg.WallClock(9, 0),
+		EndClock:   testpkg.WallClock(10, 0),
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "daily", Interval: 1, Weekdays: []string{"monday"}},
 	}})
@@ -280,10 +280,10 @@ func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
 	weekly := Render("", []Event{{
 		UID:        "appt-weekly@moto",
 		Summary:    "Wöchentlich",
-		StartDate:  timezone.NewDate(2026, 4, 6),
-		EndDate:    timezone.NewDate(2026, 4, 6),
-		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC)),
+		StartDate:  testpkg.Date(2026, 4, 6),
+		EndDate:    testpkg.Date(2026, 4, 6),
+		StartClock: testpkg.WallClock(9, 0),
+		EndClock:   testpkg.WallClock(10, 0),
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}, MonthDays: []int{15}},
 	}})
@@ -317,8 +317,8 @@ func TestRenderSequenceAndLastModified(t *testing.T) {
 	out := Render("", []Event{{
 		UID:          "appt-rev@moto",
 		Summary:      "Geändert",
-		StartDate:    timezone.NewDate(2026, 4, 2),
-		EndDate:      timezone.NewDate(2026, 4, 2),
+		StartDate:    testpkg.Date(2026, 4, 2),
+		EndDate:      testpkg.Date(2026, 4, 2),
 		AllDay:       true,
 		Sequence:     3,
 		Stamp:        stamp(),
@@ -331,3 +331,6 @@ func TestRenderSequenceAndLastModified(t *testing.T) {
 		t.Errorf("missing LAST-MODIFIED\n%s", out)
 	}
 }
+
+// listOf builds a typed slice from the helper's return type without naming it.
+func listOf[T any](items ...T) []T { return items }

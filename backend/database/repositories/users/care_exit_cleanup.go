@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -31,7 +32,8 @@ import (
 // writing half (the confirmation) side by side, where a divergence is
 // visible.
 type CareExitCleanupRepository struct {
-	db *bun.DB
+	db      *bun.DB
+	periods CalendarPeriodDirectory
 	// rooms re-validates snapshot room references through the Facilities
 	// owner on restore (#2665).
 	rooms RoomDirectory
@@ -43,9 +45,27 @@ func (r *CareExitCleanupRepository) BindRoomDirectory(rooms RoomDirectory) {
 	r.rooms = rooms
 }
 
+// CalendarPeriodDirectory is the School Calendar query the restore re-validates
+// booking period references through. schedule.calendar_periods belongs to that
+// owner (#2666); the composition root binds the owner query behind this port
+// instead of the former SQL subquery. It fails while unbound.
+type CalendarPeriodDirectory interface {
+	// ListCalendarPeriodIDs returns the ids of every period of the current
+	// tenant.
+	ListCalendarPeriodIDs(ctx context.Context) ([]int64, error)
+}
+
+var errCalendarPeriodDirectoryRequired = errors.New("users repositories: calendar period directory is not bound")
+
 // NewCareExitCleanupRepository builds the repository.
 func NewCareExitCleanupRepository(db *bun.DB) userModels.CareExitCleanupRepository {
 	return &CareExitCleanupRepository{db: db}
+}
+
+// BindCalendarPeriods installs the School Calendar query the booking restore
+// reads surviving period ids through (#2666).
+func (r *CareExitCleanupRepository) BindCalendarPeriods(periods CalendarPeriodDirectory) {
+	r.periods = periods
 }
 
 // openRequestQueues names the four parent request tables and the status value
@@ -1070,6 +1090,16 @@ func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, student
 	// NOTHING carries no target on purpose — besides the primary key there is a
 	// partial unique index over the open-ended bookings, and a booking somebody
 	// re-created in the meantime must be left alone, not error out the restore.
+	// The calendar period reference is re-validated against the School
+	// Calendar owner's surviving ids (#2666): a snapshot that points at a
+	// deleted period restores as NULL, exactly like the former subquery.
+	if r.periods == nil {
+		return 0, errCalendarPeriodDirectoryRequired
+	}
+	periodIDs, err := r.periods.ListCalendarPeriodIDs(ctx)
+	if err != nil {
+		return 0, err
+	}
 	deletedResult, err := db.ExecContext(ctx, `
 		INSERT INTO activities.student_enrollments (
 			id, tenant_id, student_id, activity_group_id, valid_from, valid_until,
@@ -1078,8 +1108,7 @@ func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, student
 		)
 		SELECT rm.enrollment_id, rm.tenant_id, rm.student_id, rm.activity_group_id,
 		       rm.valid_from, rm.previous_valid_until,
-		       (SELECT cp.id FROM schedule.calendar_periods AS cp
-		         WHERE cp.tenant_id = rm.tenant_id AND cp.id = rm.calendar_period_id),
+		       CASE WHEN rm.calendar_period_id = ANY(?::BIGINT[]) THEN rm.calendar_period_id END,
 		       (SELECT rc.id FROM enrollment.request_children AS rc
 		         WHERE rc.tenant_id = rm.tenant_id AND rc.id = rm.enrollment_request_child_id),
 		       rm.selected_weekdays, rm.attendance_status, rm.weekday
@@ -1091,7 +1120,7 @@ func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, student
 		  AND rm.tenant_id = ?
 		  AND rm.student_id IN (?)
 		ON CONFLICT DO NOTHING
-	`, tenantID, bun.List(studentIDs))
+	`, pgdialect.Array(periodIDs), tenantID, bun.List(studentIDs))
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "restore deleted bookings after care exit change", Err: base.TranslateNotFound(err)}
 	}

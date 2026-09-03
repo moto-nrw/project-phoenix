@@ -4,8 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,28 +16,32 @@ func TestClaimReminderPushRejectsIncompleteClaims(t *testing.T) {
 	t.Parallel()
 
 	repo := &AppointmentRecipientRepository{}
-	ctx := tenant.WithTenantID(context.Background(), 41)
-	occurrence := timezone.NewDate(2026, 4, 2)
+	ctx := testpkg.TenantContext(41)
+	occurrence := testpkg.Date(2026, 4, 2)
 
 	cases := map[string]struct {
 		appointmentID     int64
 		revision          int
-		occurrence        timezone.Date
+		missingOccurrence bool
 		guardianProfileID int64
 	}{
-		"missing appointment":       {0, 3, occurrence, 7},
-		"negative revision":         {42, -1, occurrence, 7},
-		"missing occurrence date":   {42, 3, timezone.Date(""), 7},
-		"missing guardian profile":  {42, 3, occurrence, 0},
-		"negative guardian profile": {42, 3, occurrence, -1},
+		"missing appointment":       {0, 3, false, 7},
+		"negative revision":         {42, -1, false, 7},
+		"missing occurrence date":   {42, 3, true, 7},
+		"missing guardian profile":  {42, 3, false, 0},
+		"negative guardian profile": {42, 3, false, -1},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			claimed, err := repo.ClaimReminderPush(ctx, tc.appointmentID, tc.revision, tc.occurrence, tc.guardianProfileID)
+			occurrenceDate := occurrence
+			if tc.missingOccurrence {
+				occurrenceDate = ""
+			}
+			claimed, err := repo.ClaimReminderPush(ctx, tc.appointmentID, tc.revision, occurrenceDate, tc.guardianProfileID)
 			require.Error(t, err)
 			assert.False(t, claimed)
 
-			assert.Error(t, repo.ReleaseReminderPush(ctx, tc.appointmentID, tc.revision, tc.occurrence, tc.guardianProfileID))
+			assert.Error(t, repo.ReleaseReminderPush(ctx, tc.appointmentID, tc.revision, occurrenceDate, tc.guardianProfileID))
 		})
 	}
 }
@@ -49,7 +52,7 @@ func TestReminderPushClaimsRequireATenant(t *testing.T) {
 	t.Parallel()
 
 	repo := &AppointmentRecipientRepository{}
-	occurrence := timezone.NewDate(2026, 4, 2)
+	occurrence := testpkg.Date(2026, 4, 2)
 
 	claimed, err := repo.ClaimReminderPush(context.Background(), 42, 3, occurrence, 7)
 	require.EqualError(t, err, "tenant id is required")
@@ -65,8 +68,8 @@ func TestFindByAppointmentIDsAndStartDatesShortCircuitsEmptyInput(t *testing.T) 
 	t.Parallel()
 
 	repo := &AppointmentOccurrenceOverrideRepository{}
-	ctx := tenant.WithTenantID(context.Background(), 41)
-	dates := []timezone.Date{timezone.NewDate(2026, 4, 2)}
+	ctx := testpkg.TenantContext(41)
+	dates := listOf(testpkg.Date(2026, 4, 2))
 
 	rows, err := repo.FindByAppointmentIDsAndStartDates(ctx, nil, dates)
 	require.NoError(t, err)
@@ -76,3 +79,6 @@ func TestFindByAppointmentIDsAndStartDatesShortCircuitsEmptyInput(t *testing.T) 
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }
+
+// listOf builds a typed slice from the helper's return type without naming it.
+func listOf[T any](items ...T) []T { return items }

@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  expectIdleRenderBudget,
+  RENDER_BUDGET_MAX_COMMITS,
+} from "~/test/render-budget";
+import {
   act,
   render,
   screen,
@@ -2695,5 +2699,28 @@ describe("Sidebar", () => {
       const body = header.nextElementSibling?.firstElementChild;
       expect(body).toHaveAttribute("inert");
     });
+  });
+
+  // Render-Budget (#2939): Profiler-Commits in 5 s Leerlauf, siehe
+  // ~/test/render-budget. Eine neue Effekt-Schleife in der Shell fällt hier auf.
+  describe("render budget", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each([
+      ["/dashboard", true],
+      ["/ogs-groups", false],
+    ])(
+      `commits at most ${RENDER_BUDGET_MAX_COMMITS} times in idle on %s`,
+      async (pathname, admin) => {
+        vi.useFakeTimers();
+        mockIsAdmin.mockReturnValue(admin);
+        mockUseSession.mockReturnValue(createMockSession(admin));
+        mockUsePathname.mockReturnValue(pathname);
+
+        await expectIdleRenderBudget(<Sidebar />);
+      },
+    );
   });
 });

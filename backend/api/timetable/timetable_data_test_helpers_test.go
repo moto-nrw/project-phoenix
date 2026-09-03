@@ -67,7 +67,7 @@ func testTimetableDataWithOfferingCallbacks(
 		InstanceStaffRepo:     scheduleRepo.NewInstanceStaffRepository(db),
 		StaffShiftRepo:        scheduleRepo.NewStaffShiftRepository(db),
 		StaffRepo:             repositories.NewFactory(db).Staff,
-		CalendarPeriodRepo:    scheduleRepo.NewCalendarPeriodRepository(db),
+		CalendarPeriodRepo:    repositories.NewFactory(db).CalendarPeriod,
 		ActiveGroupRepo:       repositories.NewFactory(db).ActiveGroup,
 		SupervisorRepo:        supervisorRepo,
 		ArrivalScheduleRepo:   scheduleRepo.NewStudentArrivalScheduleRepository(db),

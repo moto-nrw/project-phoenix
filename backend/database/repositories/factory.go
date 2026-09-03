@@ -26,6 +26,7 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
@@ -62,7 +63,11 @@ type Factory struct {
 	// roomBinders hand a room owner to the raw repositories that used to
 	// join facilities.rooms; kept so BindFacilities reaches them after the
 	// projections wrapped the factory fields (#2665).
-	roomBinders []func(facilitiesModule.Query)
+	roomBinders         []func(facilitiesModule.Query)
+	schoolCalendarBound bool
+	// schoolCalendar is the bound capability behind the calendar period,
+	// closing day and dateframe adapters (#2666).
+	schoolCalendar schoolcalendar.Capability
 
 	// students is the bound People Directory; audit adapters rebuilt by
 	// ConfigureAuditRuntime after the binding read it again (#2662).
@@ -614,8 +619,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		GroupSubstitution:     education.NewGroupSubstitutionRepository(db),
 		GradeTransition:       education.NewGradeTransitionRepository(db),
 
-		// Schedule repositories
-		Dateframe:                 schedule.NewDateframeRepository(db),
+		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
+		// belong to School Calendar and are bound below.
 		Timeframe:                 schedule.NewTimeframeRepository(db),
 		RecurrenceRule:            schedule.NewRecurrenceRuleRepository(db),
 		StudentPickupSchedule:     schedule.NewStudentPickupScheduleRepository(db),
@@ -631,8 +636,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
 		PlanningTrack:             schedule.NewPlanningTrackRepository(db),
 		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
-		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
-		ClosingDay:                schedule.NewClosingDayRepository(db),
 		ActivityInstance:          activityInstance,
 		InstanceIdempotency:       activityInstance,
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
@@ -787,6 +790,14 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		panic(fmt.Sprintf("repository factory: compose school membership: %v", err))
 	}
 	factory.bindStaffMembershipAdapters(membership)
+	// Calendar periods, closing days and dateframes belong to School
+	// Calendar; the unobserved default keeps every legacy consumer on the
+	// owner until the production root binds the observed module (#2666).
+	calendar, err := NewSchoolCalendar(db)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: compose school calendar: %v", err))
+	}
+	factory.bindSchoolCalendarAdapters(calendar)
 	// The decorators are wired once, innermost: they read the capability
 	// lazily so a later BindSchoolMembership swap reaches them too, and they
 	// stay under the school/person/group wrappers bound afterwards.
