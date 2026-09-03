@@ -16,9 +16,10 @@ type DirectoryRoom struct {
 // RoomDirectory is the owner query the care-exit restore validates room
 // references through. It fails while unbound; there is no fallback join.
 type RoomDirectory interface {
-	// ListRoomsByID returns the rooms visible in the caller's transaction.
+	// LockRoomsByID returns the rooms visible in the caller's transaction and
+	// keeps them from deletion until that transaction commits or rolls back.
 	// Missing IDs are absent.
-	ListRoomsByID(ctx context.Context, ids []int64) ([]DirectoryRoom, error)
+	LockRoomsByID(ctx context.Context, ids []int64) ([]DirectoryRoom, error)
 }
 
 var errRoomDirectoryRequired = errors.New("users repositories: room directory is not bound")
@@ -40,7 +41,7 @@ func validRoomIDs(ctx context.Context, directory RoomDirectory, tenantID int64, 
 	if len(candidates) == 0 {
 		return valid, nil
 	}
-	rooms, err := directory.ListRoomsByID(ctx, candidates)
+	rooms, err := directory.LockRoomsByID(ctx, candidates)
 	if err != nil {
 		return nil, err
 	}

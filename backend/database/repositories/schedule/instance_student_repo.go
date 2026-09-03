@@ -1496,6 +1496,21 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		var restored int
+		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			var restoreErr error
+			restored, restoreErr = r.restoreArchivedByTransition(txCtx, transitionID, studentIDs, from)
+			return restoreErr
+		})
+		return restored, err
+	}
+	return r.restoreArchivedByTransition(ctx, transitionID, studentIDs, from)
+}
+
+func (r *InstanceStudentRepository) restoreArchivedByTransition(
+	ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date,
+) (int, error) {
 
 	// Serialize with partial-absence create/update/delete on the same
 	// child/day before reading pe.excused_from. Without the care-day lock a

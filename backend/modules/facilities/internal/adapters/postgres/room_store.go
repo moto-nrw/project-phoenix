@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type Database func(context.Context) (bun.IDB, error)
+type Database func(context.Context) (bun.IDB, int64, error)
 
 type Store struct{ database Database }
 
@@ -38,14 +38,17 @@ func New(database Database) *Store {
 }
 
 func (s *Store) FindByID(ctx context.Context, id int64) (domain.Room, bool, domain.OperationStats, error) {
-	db, err := s.database(ctx)
+	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.Room{}, false, domain.OperationStats{}, err
 	}
 	row := roomRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = roomSelect(db, &row).Where(`"room".id = ?`, id).Scan(ctx)
+	err = roomSelect(db, &row).
+		Where(`"room".id = ?`, id).
+		Where(`"room".tenant_id = ?`, tenantID).
+		Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Room{}, false, stats, nil
@@ -58,17 +61,32 @@ func (s *Store) FindByID(ctx context.Context, id int64) (domain.Room, bool, doma
 }
 
 func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]domain.Room, domain.OperationStats, error) {
-	db, err := s.database(ctx)
+	return s.listByIDs(ctx, ids, "")
+}
+
+// LockByIDs resolves the rooms while holding key-share locks until the
+// caller's transaction ends. A concurrent DELETE therefore cannot invalidate
+// a room reference between restore validation and its INSERT.
+func (s *Store) LockByIDs(ctx context.Context, ids []int64) ([]domain.Room, domain.OperationStats, error) {
+	return s.listByIDs(ctx, ids, "KEY SHARE")
+}
+
+func (s *Store) listByIDs(ctx context.Context, ids []int64, lock string) ([]domain.Room, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []roomRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = roomSelect(db, &rows).
+	query := roomSelect(db, &rows).
 		Where(`"room".id IN (?)`, bun.List(ids)).
-		OrderExpr(`"room".name ASC, "room".id ASC`).
-		Scan(ctx)
+		Where(`"room".tenant_id = ?`, tenantID).
+		OrderExpr(`"room".name ASC, "room".id ASC`)
+	if lock != "" {
+		query = query.For(lock)
+	}
+	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, stats, fmt.Errorf("facilities postgres: list rooms: %w", err)

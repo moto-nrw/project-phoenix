@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -125,4 +126,70 @@ func TestModuleFallsBackToTheSharedConnectionWithoutTransaction(t *testing.T) {
 	found, err := module.FindRoom(testpkg.Ctx(t), room.ID)
 	require.NoError(t, err)
 	assert.Equal(t, room.Name, found.Name)
+}
+
+func TestModuleFiltersSharedConnectionByTenant(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db, func(Observation) {})
+	room := testpkg.CreateTestRoom(t, db, "Igelraum")
+	otherTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenant)
+	foreign := testpkg.CreateTestRoomForTenant(t, db, otherTenant, "Fuchsbau")
+
+	listed, err := module.ListRoomsByID(testpkg.Ctx(t), []int64{room.ID, foreign.ID})
+	require.NoError(t, err)
+	require.Len(t, listed, 1, "the shared connection must still enforce the caller tenant")
+	assert.Equal(t, room.ID, listed[0].ID)
+
+	_, err = module.FindRoom(testpkg.Ctx(t), foreign.ID)
+	assert.ErrorIs(t, err, facilities.ErrRoomNotFound)
+}
+
+func TestModuleKeepsLockedRoomsUntilTenantTransactionEnds(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db, func(Observation) {})
+	tenantID := testpkg.Tenant(t)
+	room := testpkg.CreateTestRoom(t, db, "Igelraum")
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	holderDone := make(chan error, 1)
+	go func() {
+		holderDone <- testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			_, err := module.LockRoomsByID(ctx, []int64{room.ID})
+			if err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+
+	select {
+	case <-locked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("room lock was not acquired")
+	}
+
+	deleteDone := make(chan error, 1)
+	go func() {
+		deleteDone <- testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+			_, err := tx.NewDelete().TableExpr("facilities.rooms").Where("id = ?", room.ID).Exec(ctx)
+			return err
+		})
+	}()
+
+	select {
+	case err := <-deleteDone:
+		require.NoError(t, err, "room deletion must wait for the restore lock")
+		t.Fatal("room deletion did not wait for the restore lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	require.NoError(t, <-holderDone)
+	require.NoError(t, <-deleteDone)
 }

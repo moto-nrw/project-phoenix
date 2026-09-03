@@ -10,6 +10,7 @@ import (
 type Store interface {
 	FindByID(context.Context, int64) (domain.Room, bool, domain.OperationStats, error)
 	ListByIDs(context.Context, []int64) ([]domain.Room, domain.OperationStats, error)
+	LockByIDs(context.Context, []int64) ([]domain.Room, domain.OperationStats, error)
 }
 
 type Observation struct {

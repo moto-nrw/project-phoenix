@@ -980,6 +980,19 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		var restored int
+		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			var restoreErr error
+			restored, restoreErr = r.restoreRemovals(txCtx, studentIDs)
+			return restoreErr
+		})
+		return restored, err
+	}
+	return r.restoreRemovals(ctx, studentIDs)
+}
+
+func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, studentIDs []int64) (int, error) {
 	tenantID := tenant.FromContext(ctx)
 	db := base.GetDB(ctx, r.db)
 	restored := 0

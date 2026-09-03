@@ -23,27 +23,30 @@ type Dependencies struct {
 
 // New composes the Facilities module. Reads run on the caller's ambient
 // tenant transaction when one exists (tenant middleware, scheduler loops)
-// and otherwise on the shared connection, exactly like the legacy
-// repositories' base.GetDB resolution, so RLS visibility is unchanged.
+// and otherwise on the shared connection with an explicit tenant predicate.
 func New(dependencies Dependencies) (*facilities.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, error) {
+	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
+		tenantID, err := tenant.TenantFromContext(ctx)
+		if err != nil {
+			return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", err)
+		}
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return dependencies.DB, nil
+			return dependencies.DB, tenantID.Int64(), nil
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
-			return tx, nil
+			return tx, tenantID.Int64(), nil
 		case *bun.Tx:
 			if tx != nil {
-				return tx, nil
+				return tx, tenantID.Int64(), nil
 			}
-			return dependencies.DB, nil
+			return dependencies.DB, tenantID.Int64(), nil
 		default:
-			return nil, fmt.Errorf("facilities postgres: unsupported transaction %T", transaction)
+			return nil, 0, fmt.Errorf("facilities postgres: unsupported transaction %T", transaction)
 		}
 	})
 	service := application.New(store, func(observation Observation) {
@@ -62,6 +65,18 @@ func (e engine) FindRoom(ctx context.Context, id int64) (facilities.Room, error)
 
 func (e engine) ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {
 	values, err := e.service.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]facilities.Room, 0, len(values))
+	for _, value := range values {
+		result = append(result, toPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) LockRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {
+	values, err := e.service.LockByIDs(ctx, ids)
 	if err != nil {
 		return nil, mapError(err)
 	}

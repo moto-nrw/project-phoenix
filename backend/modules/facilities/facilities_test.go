@@ -32,6 +32,10 @@ func (e *recordingEngine) ListRoomsByID(_ context.Context, ids []int64) ([]facil
 	return result, nil
 }
 
+func (e *recordingEngine) LockRoomsByID(_ context.Context, ids []int64) ([]facilities.Room, error) {
+	return e.ListRoomsByID(context.Background(), ids)
+}
+
 func TestModuleRejectsInvalidIdentifiersBeforeReachingTheEngine(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
@@ -73,6 +77,17 @@ func TestModuleForwardsValidReadsToTheEngine(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int64{3, 5}, engine.listIDs)
 	assert.Len(t, rooms, 2)
+}
+
+func TestModuleForwardsRoomLocksToTheEngine(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := facilities.NewModule(engine)
+
+	rooms, err := module.LockRoomsByID(context.Background(), []int64{3, 5})
+	require.NoError(t, err)
+	assert.Len(t, rooms, 2)
+	assert.Equal(t, []int64{3, 5}, engine.listIDs)
 }
 
 func TestErrorCodeIsStable(t *testing.T) {

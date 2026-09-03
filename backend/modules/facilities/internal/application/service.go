@@ -49,6 +49,16 @@ func (s *Service) ListByIDs(ctx context.Context, ids []int64) (result []domain.R
 	return result, err
 }
 
+func (s *Service) LockByIDs(ctx context.Context, ids []int64) (result []domain.Room, err error) {
+	err = s.run("lock_rooms_by_id", func(stats *domain.OperationStats) error {
+		rooms, queryStats, lockErr := s.store.LockByIDs(ctx, ids)
+		stats.Add(queryStats)
+		result = rooms
+		return lockErr
+	})
+	return result, err
+}
+
 func (s *Service) run(operation string, fn func(*domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}

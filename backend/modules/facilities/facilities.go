@@ -33,6 +33,7 @@ type Room struct {
 type Query interface {
 	FindRoom(context.Context, int64) (Room, error)
 	ListRoomsByID(context.Context, []int64) ([]Room, error)
+	LockRoomsByID(context.Context, []int64) ([]Room, error)
 }
 
 type Capability interface {
@@ -42,6 +43,7 @@ type Capability interface {
 type engine interface {
 	FindRoom(context.Context, int64) (Room, error)
 	ListRoomsByID(context.Context, []int64) ([]Room, error)
+	LockRoomsByID(context.Context, []int64) ([]Room, error)
 }
 
 type Module struct{ engine engine }
@@ -73,6 +75,21 @@ func (m *Module) ListRoomsByID(ctx context.Context, ids []int64) ([]Room, error)
 		}
 	}
 	return m.engine.ListRoomsByID(ctx, ids)
+}
+
+// LockRoomsByID returns the visible rooms while retaining key-share locks for
+// the caller's transaction. It is for restore flows that must keep a checked
+// room reference valid until their dependent INSERT finishes.
+func (m *Module) LockRoomsByID(ctx context.Context, ids []int64) ([]Room, error) {
+	if len(ids) == 0 {
+		return []Room{}, nil
+	}
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, ErrInvalidRoom
+		}
+	}
+	return m.engine.LockRoomsByID(ctx, ids)
 }
 
 func ErrorCode(err error) string {

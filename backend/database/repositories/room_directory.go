@@ -140,8 +140,8 @@ func (d iotRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]iot
 
 type scheduleRoomDirectory struct{ rooms facilitiesModule.Query }
 
-func (d scheduleRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]scheduleRepo.DirectoryRoom, error) {
-	rooms, err := d.rooms.ListRoomsByID(ctx, ids)
+func (d scheduleRoomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]scheduleRepo.DirectoryRoom, error) {
+	rooms, err := d.rooms.LockRoomsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +154,8 @@ func (d scheduleRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) (
 
 type usersRoomDirectory struct{ rooms facilitiesModule.Query }
 
-func (d usersRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]usersRepo.DirectoryRoom, error) {
-	rooms, err := d.rooms.ListRoomsByID(ctx, ids)
+func (d usersRoomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]usersRepo.DirectoryRoom, error) {
+	rooms, err := d.rooms.LockRoomsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
