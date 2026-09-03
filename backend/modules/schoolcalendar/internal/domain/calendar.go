@@ -39,6 +39,7 @@ type DateframeSort struct {
 type DateframeFilter struct {
 	IDs             []int64
 	Name            string
+	NameFold        string
 	NamePattern     string
 	Contains        *time.Time
 	OverlappingFrom *time.Time

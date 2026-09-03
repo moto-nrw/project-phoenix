@@ -1163,7 +1163,16 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 	if err != nil {
 		return nil, err
 	}
-	periodIDs, periodStarts, periodEnds, periodCycleLengths, periodAnchors := capacityPeriodColumns(activePeriods)
+	// The former subqueries correlated the period with the template's
+	// tenant; keeping only the caller's tenant preserves that even when the
+	// owner query ran unscoped.
+	tenantPeriods := activePeriods[:0:0]
+	for _, period := range activePeriods {
+		if period.TenantID == tenantID {
+			tenantPeriods = append(tenantPeriods, period)
+		}
+	}
+	periodIDs, periodStarts, periodEnds, periodCycleLengths, periodAnchors := capacityPeriodColumns(tenantPeriods)
 	// The tenant's active periods arrive from the School Calendar owner as
 	// parallel arrays; active_periods replaces the former read of
 	// schedule.calendar_periods with the same columns and semantics.

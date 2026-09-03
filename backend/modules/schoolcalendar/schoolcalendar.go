@@ -190,13 +190,15 @@ type DateframeSort struct {
 }
 
 // DateframeFilter narrows a dateframe listing. Name is a case-insensitive
-// exact match, NamePattern a case-insensitive SQL LIKE pattern. Contains
+// exact match, NameFold a case-insensitive exact match, NamePattern a
+// case-insensitive SQL LIKE pattern. Contains
 // selects the ranges holding the instant; OverlappingFrom/OverlappingTo the
 // ranges touching the inclusive window (both must be set together). Limit
 // zero means no limit; the listing is ordered by ID when Sort is empty.
 type DateframeFilter struct {
 	IDs             []int64
 	Name            string
+	NameFold        string
 	NamePattern     string
 	Contains        *time.Time
 	OverlappingFrom *time.Time

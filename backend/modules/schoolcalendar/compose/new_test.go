@@ -334,6 +334,29 @@ func TestModuleReadsOnTheSharedConnectionWithoutTransaction(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestModuleRefusesWritesWithoutABoundTenant(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	period := createPeriod(t, ctx, module, periodFields("Guarded", "2030-08-01", "2031-07-31", true))
+	day := createClosingDay(t, ctx, module, "2030-11-04", "2030-11-08", "Guarded")
+	unscoped := testpkg.WithPackageTenantRuntime(context.Background())
+
+	_, err := module.CreateCalendarPeriod(unscoped, schoolcalendar.CreateCalendarPeriod{CalendarPeriodFields: periodFields("Unscoped", "2030-08-01", "2031-07-31", true)})
+	require.ErrorContains(t, err, "tenant is required")
+	_, err = module.UpdateCalendarPeriod(unscoped, schoolcalendar.UpdateCalendarPeriod{ID: period.ID, CalendarPeriodFields: periodFields("Unscoped", "2030-08-01", "2031-07-31", true)})
+	require.ErrorContains(t, err, "tenant is required")
+	require.ErrorContains(t, module.DeleteCalendarPeriod(unscoped, period.ID), "tenant is required")
+	_, err = module.UpdateClosingDay(unscoped, schoolcalendar.UpdateClosingDay{ID: day.ID, ClosingDayFields: schoolcalendar.ClosingDayFields{StartDate: "2030-11-04", EndDate: "2030-11-08", Reason: "Unscoped"}})
+	require.ErrorContains(t, err, "tenant is required")
+	require.ErrorContains(t, module.DeleteClosingDay(unscoped, day.ID), "tenant is required")
+
+	stillThere, err := module.FindCalendarPeriod(ctx, period.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Guarded", stillThere.Name)
+}
+
 func TestModuleObservesCalendarOperations(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -429,10 +452,13 @@ func TestModuleListsDateframesWithNamePatternPaginationAndSorting(t *testing.T) 
 	require.Len(t, page, 1)
 	assert.Equal(t, beta.ID, page[0].ID)
 
+	folded, err := module.ListDateframes(ctx, schoolcalendar.DateframeFilter{NameFold: "listing ALPHA"})
+	require.NoError(t, err)
+	require.Len(t, folded, 1, "the folded name match ignores case")
+	assert.Equal(t, alpha.ID, folded[0].ID)
 	exact, err := module.ListDateframes(ctx, schoolcalendar.DateframeFilter{Name: "listing ALPHA"})
 	require.NoError(t, err)
-	require.Len(t, exact, 1, "the exact name match folds case")
-	assert.Equal(t, alpha.ID, exact[0].ID)
+	assert.Empty(t, exact, "the exact name match keeps case")
 
 	contains := january.AddDate(0, 2, 0)
 	containing, err := module.ListDateframes(ctx, schoolcalendar.DateframeFilter{Contains: &contains})

@@ -532,7 +532,7 @@ func (r dateframeCalendarRepository) list(ctx context.Context, listing scheduleR
 
 // FindByName keeps the legacy not-found error shape for an unknown name.
 func (r dateframeCalendarRepository) FindByName(ctx context.Context, name string) (*scheduleModels.Dateframe, error) {
-	values, err := r.calendar.ListDateframes(ctx, schoolcalendar.DateframeFilter{Name: name, Limit: 1})
+	values, err := r.calendar.ListDateframes(ctx, schoolcalendar.DateframeFilter{NameFold: name, Limit: 1})
 	if err != nil {
 		return nil, calendarError("find by name", err)
 	}
@@ -583,7 +583,7 @@ func (p capacityCalendarPeriods) ListActiveCalendarPeriods(ctx context.Context) 
 	}
 	result := make([]activitiesRepo.CapacityCalendarPeriod, 0, len(values))
 	for _, value := range values {
-		period := activitiesRepo.CapacityCalendarPeriod{ID: value.ID, WeekCycleLength: value.WeekCycleLength}
+		period := activitiesRepo.CapacityCalendarPeriod{ID: value.ID, TenantID: value.TenantID, WeekCycleLength: value.WeekCycleLength}
 		setDate(&period.StartDate, value.StartDate)
 		setDate(&period.EndDate, value.EndDate)
 		setOptionalDate(&period.WeekCycleAnchor, value.WeekCycleAnchor)

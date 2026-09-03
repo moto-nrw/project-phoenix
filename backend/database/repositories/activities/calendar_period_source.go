@@ -13,6 +13,7 @@ import (
 // of the former SQL subqueries.
 type CapacityCalendarPeriod struct {
 	ID              int64
+	TenantID        int64
 	StartDate       timezone.Date
 	EndDate         timezone.Date
 	WeekCycleLength int

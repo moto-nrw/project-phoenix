@@ -75,6 +75,20 @@ type closingDayRow struct {
 	Reason        string       `bun:"reason,notnull"`
 }
 
+// tenantDatabase resolves the connection for a write that must stay inside
+// one tenant: without a bound tenant the row predicate would be missing and
+// a superuser connection could reach another school's rows by bare id.
+func (s *Store) tenantDatabase(ctx context.Context, operation string) (bun.IDB, int64, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	if tenantID <= 0 {
+		return nil, 0, fmt.Errorf("school calendar postgres: tenant is required to %s", operation)
+	}
+	return db, tenantID, nil
+}
+
 // --- calendar periods ---
 
 func (s *Store) FindCalendarPeriod(ctx context.Context, id int64) (domain.CalendarPeriod, bool, domain.OperationStats, error) {
@@ -163,7 +177,7 @@ func (s *Store) CreateCalendarPeriod(ctx context.Context, fields domain.Calendar
 }
 
 func (s *Store) UpdateCalendarPeriod(ctx context.Context, id int64, fields domain.CalendarPeriodFields) (domain.CalendarPeriod, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, tenantID, err := s.tenantDatabase(ctx, "update a calendar period")
 	if err != nil {
 		return domain.CalendarPeriod{}, domain.OperationStats{}, err
 	}
@@ -189,7 +203,7 @@ func (s *Store) UpdateCalendarPeriod(ctx context.Context, id int64, fields domai
 }
 
 func (s *Store) DeleteCalendarPeriod(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, tenantID, err := s.tenantDatabase(ctx, "delete a calendar period")
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -267,7 +281,7 @@ func (s *Store) CreateClosingDay(ctx context.Context, fields domain.ClosingDayFi
 }
 
 func (s *Store) UpdateClosingDay(ctx context.Context, id int64, fields domain.ClosingDayFields) (domain.ClosingDay, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, tenantID, err := s.tenantDatabase(ctx, "update a closing day")
 	if err != nil {
 		return domain.ClosingDay{}, domain.OperationStats{}, err
 	}
@@ -292,7 +306,7 @@ func (s *Store) UpdateClosingDay(ctx context.Context, id int64, fields domain.Cl
 }
 
 func (s *Store) DeleteClosingDay(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, tenantID, err := s.tenantDatabase(ctx, "delete a closing day")
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -344,7 +358,10 @@ func (s *Store) ListDateframes(ctx context.Context, filter domain.DateframeFilte
 		query = query.Where(`"dateframe".id IN (?)`, bun.List(filter.IDs))
 	}
 	if filter.Name != "" {
-		query = query.Where(`LOWER("dateframe".name) = LOWER(?)`, filter.Name)
+		query = query.Where(`"dateframe".name = ?`, filter.Name)
+	}
+	if filter.NameFold != "" {
+		query = query.Where(`LOWER("dateframe".name) = LOWER(?)`, filter.NameFold)
 	}
 	if filter.NamePattern != "" {
 		query = query.Where(`"dateframe".name ILIKE ?`, filter.NamePattern)
@@ -407,7 +424,7 @@ func (s *Store) CreateDateframe(ctx context.Context, fields domain.DateframeFiel
 }
 
 func (s *Store) UpdateDateframe(ctx context.Context, id int64, fields domain.DateframeFields) (domain.Dateframe, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, tenantID, err := s.tenantDatabase(ctx, "update a dateframe")
 	if err != nil {
 		return domain.Dateframe{}, domain.OperationStats{}, err
 	}
@@ -432,7 +449,7 @@ func (s *Store) UpdateDateframe(ctx context.Context, id int64, fields domain.Dat
 }
 
 func (s *Store) DeleteDateframe(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, tenantID, err := s.tenantDatabase(ctx, "delete a dateframe")
 	if err != nil {
 		return domain.OperationStats{}, err
 	}

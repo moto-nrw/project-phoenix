@@ -137,7 +137,7 @@ func (e engine) ListDateframes(ctx context.Context, filter schoolcalendar.Datefr
 		sort = append(sort, domain.DateframeSort{Field: field.Field, Descending: field.Descending})
 	}
 	values, err := e.service.ListDateframes(ctx, domain.DateframeFilter{
-		IDs: filter.IDs, Name: filter.Name, NamePattern: filter.NamePattern, Contains: filter.Contains,
+		IDs: filter.IDs, Name: filter.Name, NameFold: filter.NameFold, NamePattern: filter.NamePattern, Contains: filter.Contains,
 		OverlappingFrom: filter.OverlappingFrom, OverlappingTo: filter.OverlappingTo,
 		Sort: sort, Limit: filter.Limit, Offset: filter.Offset,
 	})
