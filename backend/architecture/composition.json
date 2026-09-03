@@ -32007,6 +32007,18 @@
     {
       "scope": "test",
       "file": "test/class_list_entry_isolation_test.go",
+      "declaration": "TestClassListEntryRepositoryCannotSmuggleAForeignTenant",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        124
+      ],
+      "tables": [
+        "users.class_list_entries"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "test/class_list_entry_isolation_test.go",
       "declaration": "TestClassListEntryTenantIsolation",
       "target": "database/repositories.NewFactory",
       "lines": [
