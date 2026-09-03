@@ -1111,7 +1111,7 @@ function StaffCalendarPageInner() {
                                         {choice.label}
                                       </span>
                                       {choice.covered && !selected ? (
-                                        <span className="text-[11px] font-medium text-gray-500">
+                                        <span className="text-xs font-medium text-gray-500">
                                           bereits enthalten
                                         </span>
                                       ) : null}
