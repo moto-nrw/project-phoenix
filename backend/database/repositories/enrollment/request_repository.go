@@ -299,6 +299,21 @@ func (r *RequestRepository) ExistsBySchemaID(ctx context.Context, schemaID int64
 	return count > 0, nil
 }
 
+func (r *RequestRepository) ExistsBySchemaIDs(ctx context.Context, schemaIDs []int64) (bool, error) {
+	if len(schemaIDs) == 0 {
+		return false, nil
+	}
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Request)(nil)).
+		ModelTableExpr(requestTableExpr).
+		Where(`"request".schema_id IN (?)`, bun.List(schemaIDs)).
+		Count(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check schema references in requests: %w", err)
+	}
+	return count > 0, nil
+}
+
 // FindByStatusToken looks up a request by its status_token. Used by the
 // public status/edit page (PR 7). Public route — caller must wrap in
 // WithAdminTx because the token is the only auth signal.

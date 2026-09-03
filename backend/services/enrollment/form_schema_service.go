@@ -368,31 +368,28 @@ func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
 	if err != nil {
 		return fmt.Errorf("list schema versions: %w", err)
 	}
-	found := false
+	lineageIDs := make([]int64, 0)
 	for _, schema := range schemas {
-		if schema.Name != source.Name {
-			continue
-		}
-		found = true
-
-		phaseUsesSchema, phaseErr := s.phaseRepo.ExistsByFormSchemaID(ctx, schema.ID)
-		if phaseErr != nil {
-			return fmt.Errorf("check schema phase references: %w", phaseErr)
-		}
-		if phaseUsesSchema {
-			return ErrFormSchemaHasPhases
-		}
-
-		requestUsesSchema, requestErr := s.requestRepo.ExistsBySchemaID(ctx, schema.ID)
-		if requestErr != nil {
-			return fmt.Errorf("check schema request references: %w", requestErr)
-		}
-		if requestUsesSchema {
-			return ErrFormSchemaHasRequests
+		if schema.Name == source.Name {
+			lineageIDs = append(lineageIDs, schema.ID)
 		}
 	}
-	if !found {
+	if len(lineageIDs) == 0 {
 		return ErrFormSchemaNotFound
+	}
+	phaseUsesSchema, err := s.phaseRepo.ExistsByFormSchemaIDs(ctx, lineageIDs)
+	if err != nil {
+		return fmt.Errorf("check schema phase references: %w", err)
+	}
+	if phaseUsesSchema {
+		return ErrFormSchemaHasPhases
+	}
+	requestUsesSchema, err := s.requestRepo.ExistsBySchemaIDs(ctx, lineageIDs)
+	if err != nil {
+		return fmt.Errorf("check schema request references: %w", err)
+	}
+	if requestUsesSchema {
+		return ErrFormSchemaHasRequests
 	}
 
 	if err := s.repo.DeleteByName(ctx, source.Name); err != nil {

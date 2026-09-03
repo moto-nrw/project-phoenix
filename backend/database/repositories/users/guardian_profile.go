@@ -201,6 +201,37 @@ func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email strin
 	return profile, nil
 }
 
+// FindByEmails retrieves profiles keyed by trimmed, lower-case email.
+func (r *GuardianProfileRepository) FindByEmails(ctx context.Context, emails []string) (map[string]*users.GuardianProfile, error) {
+	normalized := make([]string, 0, len(emails))
+	seen := make(map[string]bool, len(emails))
+	for _, email := range emails {
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email != "" && !seen[email] {
+			seen[email] = true
+			normalized = append(normalized, email)
+		}
+	}
+	result := make(map[string]*users.GuardianProfile, len(normalized))
+	if len(normalized) == 0 {
+		return result, nil
+	}
+	rows := make([]*users.GuardianProfile, 0, len(normalized))
+	if err := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`LOWER("guardian_profile".email) IN (?)`, bun.List(normalized)).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to find guardian profiles by emails: %w", err)
+	}
+	for _, profile := range rows {
+		if profile.Email != nil {
+			result[strings.ToLower(strings.TrimSpace(*profile.Email))] = profile
+		}
+	}
+	return result, nil
+}
+
 // FindByAccountID retrieves a guardian profile by their account ID
 func (r *GuardianProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.GuardianProfile, error) {
 	profile := new(users.GuardianProfile)

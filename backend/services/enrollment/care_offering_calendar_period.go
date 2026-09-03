@@ -187,19 +187,22 @@ func (s *careOfferingService) loadCareOfferingPeriodChangeSegments(
 ) ([]loadedCareOfferingSegment, bool, error) {
 	loaded := make([]loadedCareOfferingSegment, 0, len(series))
 	referencesChangedPeriod := false
+	groupIDs := make([]int64, 0, len(series))
+	for _, segment := range series {
+		if segment != nil {
+			groupIDs = append(groupIDs, segment.ID)
+		}
+	}
+	scheduleRows, err := s.ActivityScheduleRepo.FindByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, false, fmt.Errorf("load care offering %d timetable schedules: %w", offeringID, err)
+	}
+	schedulesByGroup := activitySchedulesByGroup(scheduleRows)
 	for _, segment := range series {
 		if segment == nil {
 			continue
 		}
-		schedules, err := s.ActivityScheduleRepo.FindByGroupID(ctx, segment.ID)
-		if err != nil {
-			return nil, false, fmt.Errorf(
-				"load care offering %d timetable segment %d schedules: %w",
-				offeringID,
-				segment.ID,
-				err,
-			)
-		}
+		schedules := schedulesByGroup[segment.ID]
 		schedulesReferenceChangedPeriod := schedulesReferencePeriod(schedules, periodID)
 		referencesChangedPeriod = referencesChangedPeriod ||
 			referencesPeriod(segment.CalendarPeriodID, periodID) ||
@@ -210,6 +213,16 @@ func (s *careOfferingService) loadCareOfferingPeriodChangeSegments(
 		})
 	}
 	return loaded, referencesChangedPeriod, nil
+}
+
+func activitySchedulesByGroup(rows []*activitiesModels.Schedule) map[int64][]*activitiesModels.Schedule {
+	result := make(map[int64][]*activitiesModels.Schedule)
+	for _, row := range rows {
+		if row != nil {
+			result[row.ActivityGroupID] = append(result[row.ActivityGroupID], row)
+		}
+	}
+	return result
 }
 
 func schedulesReferencePeriod(schedules []*activitiesModels.Schedule, periodID int64) bool {

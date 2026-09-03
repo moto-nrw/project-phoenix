@@ -64,6 +64,10 @@ var queryBudgets = map[string]queryBudget{
 	"api.timetable.instances.list": {max: 7},
 	// services/calendar — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
+	// services/enrollment — list/read paths stay flat as rows grow (#2941).
+	"services.enrollment.list_child_offerings.reads":    {max: 5},
+	"services.enrollment.offering_source_options.reads": {max: 5},
+	"services.enrollment.rollover_review_queue.reads":   {max: 3},
 	// services/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},

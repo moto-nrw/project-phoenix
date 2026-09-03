@@ -606,6 +606,8 @@ type GuardianProfileRepository interface {
 
 	// FindByEmail retrieves a guardian profile by their email address
 	FindByEmail(ctx context.Context, email string) (*GuardianProfile, error)
+	// FindByEmails retrieves guardian profiles keyed by normalized email.
+	FindByEmails(ctx context.Context, emails []string) (map[string]*GuardianProfile, error)
 
 	// FindByAccountID retrieves a guardian profile by their account ID
 	FindByAccountID(ctx context.Context, accountID int64) (*GuardianProfile, error)

@@ -62,6 +62,24 @@ func (r *ScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) (
 	return schedules, nil
 }
 
+// FindByGroupIDs loads schedules for several groups in one query.
+func (r *ScheduleRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activities.Schedule, error) {
+	if len(groupIDs) == 0 {
+		return []*activities.Schedule{}, nil
+	}
+	rows := make([]*activities.Schedule, 0)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
+		Where(`"schedule".activity_group_id IN (?)`, bun.List(groupIDs)).
+		OrderExpr(`"schedule".activity_group_id ASC, "schedule".weekday ASC, "schedule".timeframe_id ASC`)
+	query = base.WithTenantFilter(ctx, query, "schedule")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by group IDs", Err: base.TranslateNotFound(err)}
+	}
+	return rows, nil
+}
+
 // FindByWeekday finds all schedules for a specific weekday
 func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) ([]*activities.Schedule, error) {
 	var schedules []*activities.Schedule

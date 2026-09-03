@@ -399,6 +399,7 @@ type PhaseRepository interface {
 	// ExistsByFormSchemaID is the safety check for schema deletion -
 	// phases owning the schema must be repointed first.
 	ExistsByFormSchemaID(ctx context.Context, schemaID int64) (bool, error)
+	ExistsByFormSchemaIDs(ctx context.Context, schemaIDs []int64) (bool, error)
 
 	// RepointFormSchema advances every phase bound to one of fromIDs to
 	// point at toID instead. Called after a schema edit publishes a new

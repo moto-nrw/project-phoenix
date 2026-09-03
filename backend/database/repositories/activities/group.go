@@ -149,6 +149,32 @@ func (r *GroupRepository) FindTemplatesBySourceOffering(ctx context.Context, off
 	return groups, nil
 }
 
+// FindTemplatesBySourceOfferings returns live templates fed by any supplied
+// care offering in one tenant-scoped query.
+func (r *GroupRepository) FindTemplatesBySourceOfferings(ctx context.Context, offeringIDs []int64) ([]*activities.Group, error) {
+	if len(offeringIDs) == 0 {
+		return []*activities.Group{}, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	groups := make([]*activities.Group, 0)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&groups).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".is_template = TRUE`).
+		Where(`"group".archived_at IS NULL`).
+		Where(`EXISTS (
+			SELECT 1 FROM jsonb_array_elements_text("group".source_care_offering_ids) AS source(id)
+			WHERE source.id::BIGINT IN (?)
+		)`, bun.List(offeringIDs)).
+		OrderExpr(`"group".id ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find templates by source offerings", Err: base.TranslateNotFound(err)}
+	}
+	return groups, nil
+}
+
 // UpdateTemplateOfferingSource rewrites only the offering-source columns of
 // one template — see the interface doc for why the detach flow needs this
 // (jsonb array carries no FK; both columns must change atomically under

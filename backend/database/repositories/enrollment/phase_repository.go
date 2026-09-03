@@ -269,6 +269,21 @@ func (r *PhaseRepository) ExistsByFormSchemaID(ctx context.Context, schemaID int
 	return count > 0, nil
 }
 
+func (r *PhaseRepository) ExistsByFormSchemaIDs(ctx context.Context, schemaIDs []int64) (bool, error) {
+	if len(schemaIDs) == 0 {
+		return false, nil
+	}
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Phase)(nil)).
+		ModelTableExpr(phaseTableExpr).
+		Where(`"phase".form_schema_id IN (?)`, bun.List(schemaIDs)).
+		Count(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check phase references: %w", err)
+	}
+	return count > 0, nil
+}
+
 // RepointFormSchema advances every phase currently bound to one of
 // fromIDs so it points at toID instead. Used when a schema is edited:
 // publishing a new version mints a new schema id, and live phases must

@@ -151,6 +151,7 @@ type GroupRepository interface {
 	// One offering may feed many parallel Regeltermine; split successors carry
 	// the copied source column, so every live segment appears individually.
 	FindTemplatesBySourceOffering(ctx context.Context, offeringID int64) ([]*Group, error)
+	FindTemplatesBySourceOfferings(ctx context.Context, offeringIDs []int64) ([]*Group, error)
 
 	// UpdateTemplateOfferingSource rewrites ONLY a template's offering-source
 	// columns: the id array plus the Jahrgang filter, both NULLed when the
@@ -200,6 +201,7 @@ type ScheduleRepository interface {
 
 	// FindByGroupID finds all schedules for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Schedule, error)
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*Schedule, error)
 
 	// FindByWeekday finds all schedules for a specific weekday
 	FindByWeekday(ctx context.Context, weekday string) ([]*Schedule, error)

@@ -622,40 +622,34 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
+	childIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		childIDs = append(childIDs, child.ID)
+	}
 	onDate := BookingViewDate(s.todayDate(), phase.ServiceEndDate)
 	// The date the WRITE path treats as "now".
 	selectionDate := currentOfferingSelectionDate(phase)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list child offering history: %w", err)
+	}
+	currentLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, selectionDate)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list current child offerings: %w", err)
+	}
+	linksByChild := requestChildOfferingsByChild(links)
+	currentIDs := requestChildOfferingIDSet(currentLinks)
+	offeringByID := s.careOfferingsByID(ctx, links)
 	out := make(map[int64]ChildOfferingSet, len(children))
 	for _, child := range children {
-		links, lerr := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, child.ID)
-		if lerr != nil {
-			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
-		}
-		// Which rows count as "current" is NOT re-derived here. This is the
-		// very call UpdateChildOfferings makes to read the selection it is
-		// about to replace, so the two agree by construction — including the
-		// repository's pre-phase-start fallback, which a hand-written
-		// predicate would miss. Getting this wrong deletes bookings.
-		currentLinks, cerr := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, selectionDate)
-		if cerr != nil {
-			return nil, fmt.Errorf("decision: list current offerings for child %d: %w", child.ID, cerr)
-		}
-		isCurrent := make(map[int64]bool, len(currentLinks))
-		for _, link := range currentLinks {
-			if link != nil {
-				isCurrent[link.ID] = true
-			}
-		}
-
-		offeringByID := s.careOfferingsByID(ctx, links)
 		set := ChildOfferingSet{}
-		for _, link := range links {
+		for _, link := range linksByChild[child.ID] {
 			if link == nil || (link.ValidUntil != nil && !link.ValidUntil.After(onDate)) {
 				continue
 			}
 			row := childOfferingRow(link, offeringByID[link.CareOfferingID], onDate)
 			switch {
-			case isCurrent[link.ID]:
+			case currentIDs[link.ID]:
 				set.Current = append(set.Current, row)
 			case link.ValidFrom != nil && link.ValidFrom.After(selectionDate):
 				set.Upcoming = append(set.Upcoming, row)
@@ -667,6 +661,26 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 		out[child.ID] = set
 	}
 	return out, nil
+}
+
+func requestChildOfferingsByChild(links []*enrollmentModels.RequestChildOffering) map[int64][]*enrollmentModels.RequestChildOffering {
+	result := make(map[int64][]*enrollmentModels.RequestChildOffering)
+	for _, link := range links {
+		if link != nil {
+			result[link.RequestChildID] = append(result[link.RequestChildID], link)
+		}
+	}
+	return result
+}
+
+func requestChildOfferingIDSet(links []*enrollmentModels.RequestChildOffering) map[int64]bool {
+	result := make(map[int64]bool, len(links))
+	for _, link := range links {
+		if link != nil {
+			result[link.ID] = true
+		}
+	}
+	return result
 }
 
 // careOfferingsByID resolves the catalog entries behind a child's
@@ -853,35 +867,12 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		}
 	}
 
-	// Load each distinct pinned schema version once for label resolution.
-	schemas := make(map[int64]*enrollmentModels.FormSchema)
-	for _, req := range requests {
-		if req.SchemaID == nil {
-			continue
-		}
-		if _, ok := schemas[*req.SchemaID]; ok {
-			continue
-		}
-		fs, ferr := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
-		if ferr != nil {
-			// Fail closed. The renderer only emits custom answers for fields
-			// found in the loaded schemas, so a missing schema would silently
-			// drop this request's custom_data from the file while the audit
-			// row still records a "complete" disclosure. That is worse than a
-			// hard failure for a GDPR export. There is also no legitimate way
-			// to reach this branch: DeleteSchema refuses to drop any schema
-			// version a request still references (ErrFormSchemaHasRequests),
-			// so a pinned schema behind an existing request cannot have been
-			// deleted. A FindByID error here is therefore a transient read
-			// error (a retry succeeds) or data corruption (must be loud) —
-			// never an intentionally-removed schema. Abort before any audit
-			// row is written so no incomplete disclosure is recorded.
-			s.Logger.Error("decision: export schema lookup failed, aborting export",
-				slog.Int64("schema_id", *req.SchemaID),
-				slog.String("error", ferr.Error()))
-			return nil, fmt.Errorf("decision: export load schema %d: %w", *req.SchemaID, ferr)
-		}
-		schemas[*req.SchemaID] = fs
+	// Fail closed: missing schema labels would silently omit custom answers
+	// from a GDPR export while still recording a complete disclosure.
+	schemas, err := loadFormSchemasByRequests(ctx, s.FormSchemaRepo, requests)
+	if err != nil {
+		s.Logger.Error("decision: export schema lookup failed, aborting export", slog.String("error", err.Error()))
+		return nil, fmt.Errorf("decision: export load schemas: %w", err)
 	}
 
 	rows := make([]ExportRequestRow, 0, len(requests))
@@ -957,26 +948,23 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		return nil, fmt.Errorf("decision: export student load offerings: %w", err)
 	}
 
-	offeringByID := make(map[int64]*enrollmentModels.CareOffering)
-	for phaseID := range phaseIDs {
-		offerings, err := s.CareOfferingRepo.ListByPhase(ctx, phaseID)
-		if err != nil {
-			return nil, fmt.Errorf("decision: export student load care offerings: %w", err)
-		}
-		for _, off := range offerings {
-			offeringByID[off.ID] = off
-		}
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, uniqueCareOfferingIDs(links))
+	if err != nil {
+		return nil, fmt.Errorf("decision: export student load care offerings: %w", err)
 	}
+	offeringByID := careOfferingMap(offerings)
 
 	childrenByRequest := groupChildrenByRequest(filteredChildren, len(reqIDs))
 
-	phases := make(map[int64]*enrollmentModels.Phase, len(phaseIDs))
+	phaseRows, err := s.PhaseRepo.ListByIDs(ctx, int64SetKeys(phaseIDs))
+	if err != nil {
+		return nil, fmt.Errorf("decision: export student load phases: %w", err)
+	}
+	phases := phaseMap(phaseRows)
 	for phaseID := range phaseIDs {
-		phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
-		if err != nil {
-			return nil, fmt.Errorf("decision: export student load phase %d: %w", phaseID, err)
+		if phases[phaseID] == nil {
+			return nil, fmt.Errorf("decision: export student load phase %d: missing", phaseID)
 		}
-		phases[phaseID] = phase
 	}
 	childrenByID := make(map[int64]*enrollmentModels.RequestChild, len(filteredChildren))
 	for _, child := range filteredChildren {
@@ -989,22 +977,9 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 	links = filterOfferingsAtPhaseDate(links, childrenByID, requestsByID, phases)
 	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
 
-	schemas := make(map[int64]*enrollmentModels.FormSchema)
-	for _, req := range requests {
-		if req.SchemaID == nil {
-			continue
-		}
-		if _, ok := schemas[*req.SchemaID]; ok {
-			continue
-		}
-		if s.FormSchemaRepo == nil {
-			return nil, fmt.Errorf("decision: export student schema repo not configured")
-		}
-		schema, err := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
-		if err != nil {
-			return nil, fmt.Errorf("decision: export student load schema %d: %w", *req.SchemaID, err)
-		}
-		schemas[*req.SchemaID] = schema
+	schemas, err := loadFormSchemasByRequests(ctx, s.FormSchemaRepo, requests)
+	if err != nil {
+		return nil, fmt.Errorf("decision: export student load schemas: %w", err)
 	}
 
 	rows := make([]ExportRequestRow, 0, len(requests))
@@ -2624,27 +2599,31 @@ func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
 	if err := decodeStructured(raw, &entries); err != nil {
 		return out, nil
 	}
+	emails := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		emails = append(emails, strings.TrimSpace(strings.ToLower(entry.Email)))
+	}
+	profilesByEmail, err := s.GuardianProfileRepo.FindByEmails(ctx, emails)
+	if err != nil {
+		return out, err
+	}
+	phoneOnlyProfiles, err := s.loadPhoneOnlyContactProfiles(ctx, studentID)
+	if err != nil {
+		return out, err
+	}
 	for _, entry := range entries {
 		email := strings.TrimSpace(strings.ToLower(entry.Email))
 		if email == "" {
-			profiles, err := s.phoneOnlyContactProfilesForStudent(ctx, studentID, entry)
-			if err != nil {
-				return out, err
-			}
-			for _, profile := range profiles {
+			for _, profile := range phoneOnlyProfiles.match(entry) {
 				if profile != nil && profile.ID > 0 {
 					out[profile.ID] = true
 				}
 			}
 			continue
 		}
-		profile, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
-		if err == nil && profile != nil && profile.ID > 0 {
+		profile := profilesByEmail[email]
+		if profile != nil && profile.ID > 0 {
 			out[profile.ID] = true
-			continue
-		}
-		if err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound) {
-			return out, err
 		}
 	}
 	return out, nil
@@ -3064,16 +3043,14 @@ func (s *decisionService) resyncMultiSourceTemplatesForChild(
 	if err != nil {
 		return fmt.Errorf("decision: list child offerings for multi-source resync: %w", err)
 	}
+	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOfferings(ctx, offeringIDsFromLinks(links))
+	if err != nil {
+		return fmt.Errorf("decision: list sourced templates: %w", err)
+	}
 	multiSource := make(map[int64]*activities.Group)
-	for _, offeringID := range offeringIDsFromLinks(links) {
-		templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOffering(ctx, offeringID)
-		if err != nil {
-			return fmt.Errorf("decision: list sourced templates for care offering %d: %w", offeringID, err)
-		}
-		for _, tmpl := range templates {
-			if tmpl != nil && len(tmpl.SourceCareOfferingIDs) > 1 {
-				multiSource[tmpl.ID] = tmpl
-			}
+	for _, tmpl := range templates {
+		if tmpl != nil && len(tmpl.SourceCareOfferingIDs) > 1 {
+			multiSource[tmpl.ID] = tmpl
 		}
 	}
 	// Same scoped, phase-anchored boundary as the materialization pass: the
@@ -3286,6 +3263,10 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 	if err != nil {
 		return nil, nil, err
 	}
+	sourced, schedules, err := s.loadSourcedTemplateDraftInputs(ctx, uniqueCareOfferingIDs(links))
+	if err != nil {
+		return nil, nil, err
+	}
 	drafts := make(map[int64]*careEnrollmentDraft)
 	// Templates sourcing several offerings are not drafted per link — see
 	// addSourcedTemplateDrafts — the caller resyncs them after persisting.
@@ -3298,7 +3279,7 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 				slog.Int64("care_offering_id", link.CareOfferingID))
 			continue
 		}
-		if err := s.addCareOfferingDrafts(ctx, drafts, multiSource, offering, link, phase, gradeLevel); err != nil {
+		if err := s.addCareOfferingDrafts(ctx, drafts, multiSource, offering, link, phase, gradeLevel, sourced[offering.ID], schedules); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -3306,6 +3287,25 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 		draft.studentValidUntil = cloneOptionalDraftDate(studentValidUntil)
 	}
 	return drafts, multiSource, nil
+}
+
+func (s *decisionService) loadSourcedTemplateDraftInputs(
+	ctx context.Context,
+	offeringIDs []int64,
+) (map[int64][]*activities.Group, map[int64][]*activities.Schedule, error) {
+	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOfferings(ctx, offeringIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decision: list sourced templates: %w", err)
+	}
+	groupIDs := make([]int64, 0, len(templates))
+	for _, template := range templates {
+		groupIDs = append(groupIDs, template.ID)
+	}
+	schedules, err := s.ActivityScheduleRepo.FindByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decision: load sourced template schedules: %w", err)
+	}
+	return sourcedTemplatesByOffering(templates), activitySchedulesByGroup(schedules), nil
 }
 
 // studentCareDraftBounds derives the child's grade filter and exclusive care
@@ -3340,11 +3340,13 @@ func (s *decisionService) addCareOfferingDrafts(
 	link *enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
 	gradeLevel *int16,
+	templates []*activities.Group,
+	schedules map[int64][]*activities.Schedule,
 ) error {
 	if err := s.addLegacyLinkedGroupDrafts(ctx, drafts, offering, link, phase); err != nil {
 		return err
 	}
-	return s.addSourcedTemplateDrafts(ctx, drafts, multiSource, offering, link, phase, gradeLevel)
+	return s.addSourcedTemplateDrafts(ctx, drafts, multiSource, offering, link, phase, gradeLevel, templates, schedules)
 }
 
 // addLegacyLinkedGroupDrafts is the pre-#2137 offering→template feed: the one
@@ -3434,11 +3436,9 @@ func (s *decisionService) addSourcedTemplateDrafts(
 	link *enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
 	gradeLevel *int16,
+	templates []*activities.Group,
+	schedulesByGroup map[int64][]*activities.Schedule,
 ) error {
-	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOffering(ctx, offering.ID)
-	if err != nil {
-		return fmt.Errorf("decision: list sourced templates for care offering %d: %w", link.CareOfferingID, err)
-	}
 	if len(templates) == 0 {
 		return nil
 	}
@@ -3459,10 +3459,7 @@ func (s *decisionService) addSourcedTemplateDrafts(
 			multiSource[tmpl.ID] = tmpl
 			continue
 		}
-		schedules, err := s.ActivityScheduleRepo.FindByGroupID(ctx, tmpl.ID)
-		if err != nil {
-			return fmt.Errorf("decision: load schedules of sourced template %d: %w", tmpl.ID, err)
-		}
+		schedules := schedulesByGroup[tmpl.ID]
 		if len(schedules) == 0 || !schedulesOverlapEnrollmentPhase(schedules, phase) {
 			s.logSkippedSourcedTemplate(tmpl.ID, []int64{offering.ID}, "no schedule overlaps the enrollment phase", nil)
 			continue
@@ -4502,72 +4499,6 @@ func contactIdentityPhones(entry enrollmentModels.ContactEntry) map[string]bool 
 	return phones
 }
 
-func (s *decisionService) phoneOnlyContactProfilesForStudent(
-	ctx context.Context,
-	studentID int64,
-	entry enrollmentModels.ContactEntry,
-) ([]*users.GuardianProfile, error) {
-	if studentID <= 0 ||
-		s.StudentGuardianRepo == nil ||
-		s.GuardianProfileRepo == nil ||
-		s.GuardianPhoneRepo == nil {
-		return nil, nil
-	}
-	firstName := contactIdentityName(entry.FirstName)
-	lastName := contactIdentityName(entry.LastName)
-	phones := contactIdentityPhones(entry)
-	if firstName == "" || lastName == "" || len(phones) == 0 {
-		return nil, nil
-	}
-
-	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, err
-	}
-	profileIDs := make([]int64, 0, len(links))
-	seenProfileIDs := map[int64]bool{}
-	for _, link := range links {
-		if link == nil ||
-			link.IsPrimary ||
-			authorize.IsFullGuardianRole(link.GuardianRole) ||
-			link.GuardianProfileID <= 0 ||
-			seenProfileIDs[link.GuardianProfileID] {
-			continue
-		}
-		seenProfileIDs[link.GuardianProfileID] = true
-		profileIDs = append(profileIDs, link.GuardianProfileID)
-	}
-	if len(profileIDs) == 0 {
-		return nil, nil
-	}
-
-	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
-	if err != nil {
-		return nil, err
-	}
-	phonesByProfile, err := s.GuardianPhoneRepo.FindByGuardianIDs(ctx, profileIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	matches := make([]*users.GuardianProfile, 0, 1)
-	for _, profileID := range profileIDs {
-		profile := profiles[profileID]
-		if profile == nil ||
-			contactIdentityName(profile.FirstName) != firstName ||
-			contactIdentityName(profile.LastName) != lastName {
-			continue
-		}
-		for _, phone := range phonesByProfile[profileID] {
-			if phone != nil && phones[strings.TrimSpace(phone.PhoneNumber)] {
-				matches = append(matches, profile)
-				break
-			}
-		}
-	}
-	return matches, nil
-}
-
 func (s *decisionService) upsertContactStudentGuardianLink(ctx context.Context, rel *users.StudentGuardian) error {
 	if rel == nil {
 		return errors.New("contact student guardian link cannot be nil")
@@ -4628,27 +4559,30 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 	if err := decodeStructured(raw, &entries); err != nil {
 		return linkedProfileIDs, fmt.Errorf("decode contact_list: %w", err)
 	}
+	emails := make([]string, 0, len(entries))
 	for i := range entries {
-		c := entries[i]
-		if err := c.Validate(); err != nil {
+		if err := entries[i].Validate(); err != nil {
 			return linkedProfileIDs, err
 		}
+		emails = append(emails, strings.ToLower(strings.TrimSpace(entries[i].Email)))
+	}
+	profilesByEmail, err := s.GuardianProfileRepo.FindByEmails(ctx, emails)
+	if err != nil {
+		return linkedProfileIDs, fmt.Errorf("find contact profiles by email: %w", err)
+	}
+	phoneOnlyProfiles, err := s.loadPhoneOnlyContactProfiles(ctx, studentID)
+	if err != nil {
+		return linkedProfileIDs, fmt.Errorf("load phone-only contact profiles: %w", err)
+	}
+	for i := range entries {
+		c := entries[i]
 
 		var profile *users.GuardianProfile
 		emailLC := strings.ToLower(strings.TrimSpace(c.Email))
 		if emailLC != "" {
-			existing, err := s.GuardianProfileRepo.FindByEmail(ctx, emailLC)
-			if err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound) {
-				return linkedProfileIDs, fmt.Errorf("find contact profile by email: %w", err)
-			}
-			if err == nil {
-				profile = existing
-			}
+			profile = profilesByEmail[emailLC]
 		} else {
-			matches, err := s.phoneOnlyContactProfilesForStudent(ctx, studentID, c)
-			if err != nil {
-				return linkedProfileIDs, fmt.Errorf("resolve phone-only contact profile: %w", err)
-			}
+			matches := phoneOnlyProfiles.match(c)
 			if len(matches) > 0 {
 				profile = matches[0]
 			}
@@ -4668,6 +4602,10 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 			}
 		}
 		linkedProfileIDs[profile.ID] = true
+		if emailLC != "" {
+			profilesByEmail[emailLC] = profile
+		}
+		phoneOnlyProfiles.add(profile, c)
 
 		// Phone numbers — append, dedup by unique index.
 		if s.GuardianPhoneRepo != nil {

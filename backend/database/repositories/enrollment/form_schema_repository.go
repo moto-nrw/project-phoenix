@@ -62,6 +62,25 @@ func (r *FormSchemaRepository) FindByID(ctx context.Context, id int64) (*enrollm
 	return schema, nil
 }
 
+// ListByIDs loads schema versions in one tenant-scoped query.
+func (r *FormSchemaRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.FormSchema, error) {
+	if len(ids) == 0 {
+		return []*enrollment.FormSchema{}, nil
+	}
+	rows := make([]*enrollment.FormSchema, 0, len(ids))
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(formSchemaTableExpr).
+		Where(`"form_schema".id IN (?)`, bun.List(ids))
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to list form schemas by ids: %w", err)
+	}
+	return rows, nil
+}
+
 // FindActive returns the currently-active form schema for the tenant
 // in context. Returns sql.ErrNoRows (wrapped) when none exists so
 // callers can branch on errors.Is(err, sql.ErrNoRows). The service
