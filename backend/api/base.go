@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
-	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
@@ -37,6 +36,7 @@ import (
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
+	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
@@ -98,6 +98,8 @@ import (
 	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -160,6 +162,7 @@ type moduleServices struct {
 	feedback      *feedbackModule.Module
 	persons       *peopleModule.Module
 	rooms         *facilitiesModule.Module
+	timetable     *timetableModule.Module
 	// membership owns users.staff, users.teachers and users.guests (#2667).
 	membership *schoolMembershipModule.Module
 }
@@ -212,6 +215,19 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		DB: db,
 		Observe: func(observation schoolCalendarCompose.Observation) {
 			observability.ObserveSchoolCalendarOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolCalendarModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
+		DB: db,
+		Observe: func(observation timetableCompose.Observation) {
+			observability.ObserveTimetableActivitiesOperation(
+				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
+				observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration,
+				timetableModule.ErrorCode(observation.Err), observation.Err,
+			)
 		},
 	})
 	if err != nil {
@@ -287,7 +303,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
-		organizations, persons, groups, rooms, membership, calendar, appointmentCapability,
+		organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
 		communicationCapability,
 		func(observation communicationCompose.Observation) {
 			observability.ObserveCommunicationOperation(
@@ -311,7 +327,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, membership: membership}, nil
+	return moduleServices{services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership}, nil
 }
 
 func composeFacilities(db *bun.DB, legacyFacilities *interface {

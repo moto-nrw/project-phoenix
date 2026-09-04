@@ -6,9 +6,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -36,30 +36,7 @@ func (r *OfferingChangeImpactRepository) ListManualPlanningOccurrences(
 		return nil, fmt.Errorf("valid planning date range is required")
 	}
 
-	rows := make([]enrollmentModels.ManualPlanningOccurrence, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		ColumnExpr(`"activity_group".id AS activity_group_id`).
-		ColumnExpr(`"activity_group".name AS activity_group_name`).
-		ColumnExpr(`"activity_instance".id AS instance_id`).
-		ColumnExpr(`"activity_instance".date`).
-		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
-		Join(`INNER JOIN activities.groups AS "activity_group" ON "activity_group".id = "activity_instance".activity_group_id AND "activity_group".tenant_id = "activity_instance".tenant_id`).
-		Where(`"instance_student".student_id = ?`, studentID).
-		Where(`"instance_student".is_unplanned = FALSE`).
-		Where(`"instance_student".not_scheduled = FALSE`).
-		Where(`"activity_instance".date BETWEEN ? AND ?`, from, to).
-		Where(`"activity_instance".status = ?`, scheduleModels.InstanceStatusPlanned).
-		Where(`"activity_instance".calendar_period_id IS NOT NULL`).
-		Where(`"activity_instance".is_spontaneous = FALSE`).
-		Where(`"activity_group".is_template = TRUE`).
-		Where(`"activity_group".type = ?`, activitiesModels.GroupTypeCare).
-		Where(`COALESCE(jsonb_array_length("activity_group".source_care_offering_ids), 0) = 0`).
-		OrderExpr(`"activity_group".name, "activity_group".id, "activity_instance".date, "activity_instance".id`)
-	query = base.WithTenantFilter(ctx, query, "instance_student")
-
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("list manual planning occurrences: %w", err)
-	}
-	return rows, nil
+	return timetableprojection.ListManualPlanningOccurrences(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), studentID, from, to,
+	)
 }

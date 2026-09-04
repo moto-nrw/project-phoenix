@@ -3,8 +3,8 @@ package repositories
 import (
 	"context"
 
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activitiesRepo "github.com/moto-nrw/project-phoenix/modules/timetable/compose/repositoryadapter"
 )
 
 // staffActivityGroupRepository attaches the staff member to the supervisors

@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activitiesRepo "github.com/moto-nrw/project-phoenix/modules/timetable/compose/repositoryadapter"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

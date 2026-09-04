@@ -17,7 +17,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -25,6 +24,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	activitiesRepo "github.com/moto-nrw/project-phoenix/modules/timetable/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1941,7 +1941,9 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 	st := &scheduleModel.ShiftType{Name: fmt.Sprintf("Betreuung-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
 	require.NoError(t, stRepo.Create(s.ctx, st))
 	t.Cleanup(func() { _ = stRepo.Delete(s.ctx, st.ID) })
-	require.NoError(t, catRepo.SetShiftTypeForCategories(s.ctx, st.ID, []int64{s.category.ID}))
+	s.category.ShiftTypeID = &st.ID
+	_, err := catRepo.UpdateColumns(s.ctx, s.category, "shift_type_id")
+	require.NoError(t, err)
 
 	body := createTemplateBody(s, "Tpl-ShiftBadge")
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
