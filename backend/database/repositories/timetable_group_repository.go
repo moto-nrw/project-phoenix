@@ -124,6 +124,70 @@ func (r timetableActivityGroupRepository) FindAllTemplates(ctx context.Context) 
 	return r.listLegacyGroups(ctx, timetable.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, OrderByName: true}, "find all templates")
 }
 
+func (r timetableActivityGroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*activitiesModels.Group, map[int64]int, error) {
+	groups, err := r.timetable.ListGroups(ctx, timetable.GroupFilter{OrderByName: true})
+	if err != nil {
+		return nil, nil, activitiesRepo.WrapDatabaseError("find groups", err)
+	}
+	counts := make(map[int64]int, len(groups))
+	if len(groups) == 0 {
+		return legacyGroups(groups), counts, nil
+	}
+	groupIDs := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		groupIDs = append(groupIDs, group.ID)
+	}
+	enrollments, err := r.timetable.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{ActivityGroupIDs: groupIDs})
+	if err != nil {
+		return nil, nil, activitiesRepo.WrapDatabaseError("count enrollments", err)
+	}
+	for _, enrollment := range enrollments {
+		counts[enrollment.ActivityGroupID]++
+	}
+	return legacyGroups(groups), counts, nil
+}
+
+func (r timetableActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activitiesModels.Group, []*activitiesModels.SupervisorPlanned, error) {
+	group, err := r.timetable.FindGroup(ctx, groupID)
+	if err != nil {
+		return nil, nil, legacyGroupReadError("find group", err)
+	}
+	supervisors, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{GroupIDs: []int64{groupID}})
+	if err != nil {
+		return nil, nil, activitiesRepo.WrapDatabaseError("find supervisors", err)
+	}
+	return legacyGroup(group), legacyPlannedSupervisors(supervisors), nil
+}
+
+func (r timetableActivityGroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*activitiesModels.Group, error) {
+	supervisors, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staffID})
+	if err != nil {
+		return nil, activitiesRepo.WrapDatabaseError("find by staff supervisor", err)
+	}
+	groupIDs := uniqueSupervisorGroupIDs(supervisors)
+	if len(groupIDs) == 0 {
+		return []*activitiesModels.Group{}, nil
+	}
+	groups, err := r.timetable.ListGroups(ctx, timetable.GroupFilter{IDs: groupIDs})
+	if err != nil {
+		return nil, activitiesRepo.WrapDatabaseError("find by staff supervisor", err)
+	}
+	return legacyGroups(groups), nil
+}
+
+func uniqueSupervisorGroupIDs(values []timetable.PlannedSupervisor) []int64 {
+	seen := make(map[int64]struct{}, len(values))
+	result := make([]int64, 0, len(values))
+	for _, value := range values {
+		if _, exists := seen[value.GroupID]; exists {
+			continue
+		}
+		seen[value.GroupID] = struct{}{}
+		result = append(result, value.GroupID)
+	}
+	return result
+}
+
 func (r timetableActivityGroupRepository) FindTemplateSeries(ctx context.Context, groupID int64) ([]*activitiesModels.Group, error) {
 	isTemplate := true
 	return r.listLegacyGroups(ctx, timetable.GroupFilter{

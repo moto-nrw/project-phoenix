@@ -78,11 +78,12 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 	if !ok {
 		panic("repository factory: activity group repository must serve group targets")
 	}
-	f.ActivityGroup = timetableActivityGroupRepository{
+	activityGroups := timetableActivityGroupRepository{
 		activityGroupTargets: targets,
 		timetable:            capability,
 		groups:               f.schoolStructure,
 	}
+	f.ActivityGroup = f.decorateActivityGroups(activityGroups)
 	f.ActivitySchedule = timetableActivityScheduleRepository{timetable: capability}
 	var supervisors activitiesModels.SupervisorPlannedRepository = timetableActivitySupervisorRepository{timetable: capability}
 	if f.schoolMembership != nil {
@@ -100,4 +101,14 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 	f.Timeframe = timetableTimeframeRepository{timetable: capability}
 	f.PlanningTrack = timetablePlanningTrackRepository{timetable: capability}
 	f.RecurrenceRule = timetableRecurrenceRuleRepository{timetable: capability}
+}
+
+func (f *Factory) decorateActivityGroups(groups activitiesModels.GroupRepository) activitiesModels.GroupRepository {
+	if f.schoolMembership != nil {
+		groups = newStaffActivityGroupRepository(groups, f.schoolMembership)
+	}
+	if f.peopleDirectoryBound {
+		groups = newPersonActivityGroupRepository(groups, f.students)
+	}
+	return groups
 }
