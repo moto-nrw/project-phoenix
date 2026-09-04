@@ -1,5 +1,18 @@
 # Domain glossary
 
+## Demo-Daten
+
+Ein **Demo-Schulprofil** ist ein stabil benanntes, synthetisches Szenario für
+genau eine Schule im lokalen Entwicklungs-Seed. Es legt die schulbezogenen
+Einstellungen, Zugangsdaten, Stammdaten und fachlich erwarteten Zustände fest
+und wird über dieselben HTTP-Schnittstellen aufgebaut, die auch das Produkt
+verwendet.
+
+**Szenarioparität** bedeutet, dass die Demo-Schulprofile die relevanten, in
+echten Schulen vorkommenden Konfigurationen und fachlichen Zustände
+repräsentieren. Sie bedeutet weder eine Kopie von Produktionsdaten noch deren
+Zeilenzahlen oder Verteilungen.
+
 ## Auswahl
 
 Eine **Auswahl** ist eine vorübergehende, manuell zusammengestellte Menge von
