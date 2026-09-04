@@ -57,8 +57,10 @@ export function SidebarGroup({
   labelsVisible = true,
   children,
 }: SidebarGroupProps) {
-  const iconColor =
-    containsActive && !isOpen ? "text-gray-900" : "text-gray-400";
+  // Das Icon trägt die Farbe der Beschriftung (gray-600 der Kopfzeile),
+  // wie bei den Zeilen darunter; nur eine zugeklappte Gruppe mit der
+  // aktuellen Seite darin hebt es an.
+  const iconColor = containsActive && !isOpen ? "text-gray-900" : "";
   const showBadge = badgeCount > 0 && !isOpen;
 
   return (
@@ -134,7 +136,7 @@ export function SidebarGroup({
               Streifen (64px) gibt es dafür keinen Platz; die Einrückung
               gleitet dort mit derselben Bewegung auf null wie die Breite. */}
           <div
-            className={`${SIDEBAR_NAV_GAP} pt-1 motion-safe:transition-[margin,padding] motion-safe:duration-200 motion-safe:ease-in-out ${
+            className={`${SIDEBAR_NAV_GAP} pt-1 motion-safe:transition-[margin-left,border-color] motion-safe:duration-200 motion-safe:ease-in-out ${
               collapsed
                 ? "ml-0 border-l border-transparent"
                 : "ml-[15px] border-l border-gray-200"
