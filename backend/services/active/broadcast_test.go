@@ -182,6 +182,29 @@ func TestBroadcast_EndVisitSendsOnePreciseRefresh(t *testing.T) {
 	assert.Equal(t, []string{eduGroupIDStr}, *checkouts[0].Data.GroupIDs)
 }
 
+func TestBroadcast_EndVisitRunsAfterCommit(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	svc, broadcaster := newServiceWithBroadcaster(t, db)
+	activity := testpkg.CreateTestActivityGroup(t, db, "end-visit-after-commit")
+	room := testpkg.CreateTestRoom(t, db, "End Visit After Commit Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "EndVisit", "AfterCommit", "1a")
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	broadcaster.Reset()
+
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		if err := svc.EndVisit(txCtx, visit.ID); err != nil {
+			return err
+		}
+		assert.Empty(t, broadcaster.Calls(), "the checkout event must wait for the transaction commit")
+		return nil
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, broadcaster.EventsOfType(realtime.EventStudentCheckOut))
+}
+
 func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	t.Parallel()
 
