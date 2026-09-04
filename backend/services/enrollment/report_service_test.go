@@ -581,7 +581,8 @@ func TestClassRosterParticipationUsesOneTodaySnapshot(t *testing.T) {
 
 func TestClassRosterAppliesBookingParticipationBoundary(t *testing.T) {
 	t.Parallel()
-	endedYesterday := timezone.TodayDate().AddDays(-1)
+	today := timezone.NewDate(2026, 8, 24)
+	endedYesterday := today.AddDays(-1)
 	students := []*userModels.Student{
 		{Model: baseModels.Model{ID: 41}, PersonID: 141, SchoolClass: "2a", Status: userModels.StudentStatusAlumnus, EnrolledUntil: &endedYesterday},
 		{Model: baseModels.Model{ID: 42}, PersonID: 142, SchoolClass: "2a", Status: userModels.StudentStatusActive},
@@ -591,6 +592,7 @@ func TestClassRosterAppliesBookingParticipationBoundary(t *testing.T) {
 		142: {Model: baseModels.Model{ID: 142}, FirstName: "Ab", LastName: "Lücke"},
 	}, &fakeClassRosterRequestRepo{}, &fakeClassRosterChildRepo{})
 	svc.CareParticipation = fakeClassCareParticipation{41: true}
+	svc.Now = func() time.Time { return today.BerlinMidnight().Add(12 * time.Hour) }
 
 	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "2a"})
 	require.NoError(t, err)

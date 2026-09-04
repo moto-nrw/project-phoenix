@@ -4,7 +4,7 @@
 "use client";
 
 import { forwardRef } from "react";
-import Link from "next/link";
+import { NavLink } from "~/components/ui/nav-link";
 import { useTranslations } from "next-intl";
 import { EyeIcon, UserIcon } from "@phosphor-icons/react";
 import { Avatar } from "~/components/ui/avatar";
@@ -211,14 +211,14 @@ export function ProfileDropdownMenu({
       {/* Menu items */}
       <div className="p-2">
         {profileUrl && (
-          <Link
+          <NavLink
             href={profileUrl}
             onClick={onClose}
             className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
           >
             <ProfileIcon />
             {profileLabel ?? t("profile")}
-          </Link>
+          </NavLink>
         )}
 
         {onStartPreview && (

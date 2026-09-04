@@ -9,7 +9,7 @@ import React, {
   useEffect,
   useMemo,
 } from "react";
-import Link from "next/link";
+import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -1054,7 +1054,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       }
 
                       return (
-                        <Link
+                        <NavLink
                           key={item.href}
                           href={href}
                           onClick={closeOverflowMenu}
@@ -1075,7 +1075,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                           <span className="text-base font-medium">
                             {item.label}
                           </span>
-                        </Link>
+                        </NavLink>
                       );
                     })}
                   </div>
@@ -1138,7 +1138,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                 }
 
                 return (
-                  <Link
+                  <NavLink
                     key={item.href}
                     href={item.href}
                     ref={(el: HTMLAnchorElement | null) => {
@@ -1163,7 +1163,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         {item.label}
                       </span>
                     )}
-                  </Link>
+                  </NavLink>
                 );
               })}
 

@@ -129,6 +129,8 @@ type PickupAdjustmentServiceConfig struct {
 	Audit               usersService.StudentPickupPlanRecorder
 	Students            usersModels.StudentRepository
 	DB                  *bun.DB
+	// Today returns the current calendar day. Nil uses timezone.TodayDate.
+	Today func() timezone.Date
 }
 
 type pickupAdjustmentService struct {
@@ -136,6 +138,9 @@ type pickupAdjustmentService struct {
 }
 
 func NewPickupAdjustmentService(cfg PickupAdjustmentServiceConfig) PickupAdjustmentService {
+	if cfg.Today == nil {
+		cfg.Today = timezone.TodayDate
+	}
 	return &pickupAdjustmentService{PickupAdjustmentServiceConfig: cfg}
 }
 
@@ -143,7 +148,15 @@ func (s *pickupAdjustmentService) Preview(
 	ctx context.Context,
 	input PickupAdjustmentPreviewInput,
 ) (*PickupAdjustmentPreview, error) {
-	input, explicitByDay, err := normalizePickupAdjustmentInput(input)
+	return s.preview(ctx, input, s.Today())
+}
+
+func (s *pickupAdjustmentService) preview(
+	ctx context.Context,
+	input PickupAdjustmentPreviewInput,
+	today timezone.Date,
+) (*PickupAdjustmentPreview, error) {
+	input, explicitByDay, err := normalizePickupAdjustmentInput(input, today)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +164,7 @@ func (s *pickupAdjustmentService) Preview(
 		return nil, fmt.Errorf("pickup adjustment: preview dependencies are not configured")
 	}
 	if input.Selections != nil {
-		if err := s.preflightPickupOffering(ctx, input.StudentID, input.EffectiveFrom); err != nil {
+		if err := s.preflightPickupOffering(ctx, input.StudentID, input.EffectiveFrom, today); err != nil {
 			return nil, err
 		}
 	}
@@ -163,6 +176,16 @@ func (s *pickupAdjustmentService) Preview(
 	if err != nil {
 		return nil, err
 	}
+	return s.completePickupAdjustmentPreview(ctx, input, current, offering, proposed, preview)
+}
+
+func (s *pickupAdjustmentService) completePickupAdjustmentPreview(
+	ctx context.Context,
+	input PickupAdjustmentPreviewInput,
+	current, offering scheduleService.PickupWeek,
+	proposed map[int]PickupAdjustmentSchedule,
+	preview *PickupAdjustmentPreview,
+) (*PickupAdjustmentPreview, error) {
 	if err := s.attachOfferingAdjustment(ctx, input, proposed, preview); err != nil {
 		return nil, err
 	}
@@ -323,19 +346,20 @@ func (s *pickupAdjustmentService) Apply(
 	if s.DB == nil || s.PickupSchedules == nil || s.Audit == nil || s.Students == nil {
 		return nil, fmt.Errorf("pickup adjustment: apply dependencies are not configured")
 	}
-	normalized, _, err := normalizePickupAdjustmentInput(input.PickupAdjustmentPreviewInput)
+	today := s.Today()
+	normalized, _, err := normalizePickupAdjustmentInput(input.PickupAdjustmentPreviewInput, today)
 	if err != nil {
 		return nil, err
 	}
 	input.PickupAdjustmentPreviewInput = normalized
-	resolution, err := pickupAdjustmentResolution(input)
+	resolution, err := pickupAdjustmentResolution(input, today)
 	if err != nil {
 		return nil, err
 	}
 	var result *PickupAdjustmentResult
 	err = tenant.WithTenantTx(ctx, s.DB, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
 		var applyErr error
-		result, applyErr = s.applyPickupAdjustment(txCtx, input, resolution)
+		result, applyErr = s.applyPickupAdjustment(txCtx, input, resolution, today)
 		return applyErr
 	})
 	if err != nil {
@@ -344,7 +368,7 @@ func (s *pickupAdjustmentService) Apply(
 	return result, err
 }
 
-func pickupAdjustmentResolution(input PickupAdjustmentApplyInput) (string, error) {
+func pickupAdjustmentResolution(input PickupAdjustmentApplyInput, today timezone.Date) (string, error) {
 	resolution := strings.TrimSpace(input.Resolution)
 	if resolution == "" {
 		resolution = PickupAdjustmentResolutionException
@@ -352,7 +376,7 @@ func pickupAdjustmentResolution(input PickupAdjustmentApplyInput) (string, error
 	if resolution != PickupAdjustmentResolutionException && resolution != PickupAdjustmentResolutionOffering {
 		return "", fmt.Errorf("%w: unknown resolution %q", ErrPickupAdjustmentInvalid, resolution)
 	}
-	if resolution == PickupAdjustmentResolutionException && input.EffectiveFrom.After(timezone.TodayDate()) {
+	if resolution == PickupAdjustmentResolutionException && input.EffectiveFrom.After(today) {
 		return "", fmt.Errorf("%w: lasting exceptions take effect immediately", ErrPickupAdjustmentInvalid)
 	}
 	return resolution, nil
@@ -362,6 +386,7 @@ func (s *pickupAdjustmentService) applyPickupAdjustment(
 	ctx context.Context,
 	input PickupAdjustmentApplyInput,
 	resolution string,
+	today timezone.Date,
 ) (*PickupAdjustmentResult, error) {
 	if err := s.preparePickupAdjustment(ctx, input, resolution); err != nil {
 		return nil, err
@@ -370,11 +395,11 @@ func (s *pickupAdjustmentService) applyPickupAdjustment(
 		return nil, err
 	}
 	if resolution == PickupAdjustmentResolutionOffering {
-		if err := s.preflightPickupOffering(ctx, input.StudentID, input.EffectiveFrom); err != nil {
+		if err := s.preflightPickupOffering(ctx, input.StudentID, input.EffectiveFrom, today); err != nil {
 			return nil, err
 		}
 	}
-	preview, err := s.Preview(ctx, input.PickupAdjustmentPreviewInput)
+	preview, err := s.preview(ctx, input.PickupAdjustmentPreviewInput, today)
 	if err != nil {
 		return nil, err
 	}
@@ -387,31 +412,34 @@ func (s *pickupAdjustmentService) applyPickupAdjustment(
 	if err := s.applyPickupResolution(ctx, input, preview, resolution); err != nil {
 		return nil, err
 	}
-	// Arrival schedules are manual overrides without an effective date. Only a
-	// lasting exception owns them; offering changes use the booking projection.
-	if input.ArrivalSchedules != nil && appliesArrivalSchedules(
-		resolution, input.EffectiveFrom,
-	) {
-		if s.ArrivalSchedules == nil {
-			return nil, errors.New("pickup adjustment: arrival schedule service is not configured")
-		}
-		rows, err := pickupArrivalScheduleRows(
-			input.StudentID, input.CreatedByStaffID, *input.ArrivalSchedules,
-		)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ArrivalSchedules.UpsertBulkStudentArrivalSchedules(
-			ctx, input.StudentID, rows,
-		); err != nil {
-			return nil, fmt.Errorf("pickup adjustment: update arrival schedules: %w", err)
-		}
+	if err := s.applyPickupArrivalSchedules(ctx, input, resolution, today); err != nil {
+		return nil, err
 	}
 	return &PickupAdjustmentResult{Resolution: resolution}, nil
 }
 
-func appliesArrivalSchedules(resolution string, effectiveFrom timezone.Date) bool {
-	return appliesArrivalSchedulesOn(resolution, effectiveFrom, timezone.TodayDate())
+func (s *pickupAdjustmentService) applyPickupArrivalSchedules(
+	ctx context.Context,
+	input PickupAdjustmentApplyInput,
+	resolution string,
+	today timezone.Date,
+) error {
+	// Arrival schedules are manual overrides without an effective date. Only a
+	// lasting exception owns them; offering changes use the booking projection.
+	if input.ArrivalSchedules == nil || !appliesArrivalSchedulesOn(resolution, input.EffectiveFrom, today) {
+		return nil
+	}
+	if s.ArrivalSchedules == nil {
+		return errors.New("pickup adjustment: arrival schedule service is not configured")
+	}
+	rows, err := pickupArrivalScheduleRows(input.StudentID, input.CreatedByStaffID, *input.ArrivalSchedules)
+	if err != nil {
+		return err
+	}
+	if err := s.ArrivalSchedules.UpsertBulkStudentArrivalSchedules(ctx, input.StudentID, rows); err != nil {
+		return fmt.Errorf("pickup adjustment: update arrival schedules: %w", err)
+	}
+	return nil
 }
 
 func appliesArrivalSchedulesOn(resolution string, effectiveFrom, today timezone.Date) bool {
@@ -479,8 +507,9 @@ func (s *pickupAdjustmentService) preflightPickupOffering(
 	ctx context.Context,
 	studentID int64,
 	effectiveFrom timezone.Date,
+	today timezone.Date,
 ) error {
-	if !effectiveFrom.After(timezone.TodayDate()) {
+	if !effectiveFrom.After(today) {
 		return nil
 	}
 	if s.PickupScheduleRepo == nil {
@@ -503,6 +532,7 @@ func (s *pickupAdjustmentService) ApplyBulkExceptions(
 	if s.PickupSchedules == nil || s.Settings == nil {
 		return nil, fmt.Errorf("pickup adjustment: bulk dependencies are not configured")
 	}
+	today := s.Today()
 	reviewEnabled, err := s.Settings.ResolveBool(ctx, configModel.KeyRequirePickupOfferingReview)
 	if err != nil {
 		return nil, fmt.Errorf("pickup adjustment: resolve offering review setting: %w", err)
@@ -523,17 +553,18 @@ func (s *pickupAdjustmentService) ApplyBulkExceptions(
 	if s.DB == nil || s.Audit == nil || s.Students == nil {
 		return nil, fmt.Errorf("pickup adjustment: bulk review dependencies are not configured")
 	}
-	return s.applyReviewedBulkExceptions(ctx, input, filter)
+	return s.applyReviewedBulkExceptions(ctx, input, filter, today)
 }
 
 func (s *pickupAdjustmentService) applyReviewedBulkExceptions(
 	ctx context.Context,
 	input PickupAdjustmentBulkInput,
 	filter scheduleService.ArrivalScheduleBulkFilter,
+	today timezone.Date,
 ) (*scheduleService.BulkUpsertResult, error) {
 	var result *scheduleService.BulkUpsertResult
 	err := tenant.WithTenantTx(ctx, s.DB, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-		before, err := s.lockAndSnapshotBulkStudents(txCtx, input)
+		before, err := s.lockAndSnapshotBulkStudents(txCtx, input, today)
 		if err != nil {
 			return err
 		}
@@ -543,7 +574,7 @@ func (s *pickupAdjustmentService) applyReviewedBulkExceptions(
 		if err != nil {
 			return err
 		}
-		return s.auditBulkPickupPlans(txCtx, input, result.AffectedStudentIDs, before)
+		return s.auditBulkPickupPlans(txCtx, input, result.AffectedStudentIDs, before, today)
 	})
 	if err != nil {
 		tenant.MarkRollback(ctx)
@@ -554,6 +585,7 @@ func (s *pickupAdjustmentService) applyReviewedBulkExceptions(
 func (s *pickupAdjustmentService) lockAndSnapshotBulkStudents(
 	ctx context.Context,
 	input PickupAdjustmentBulkInput,
+	today timezone.Date,
 ) (map[int64]string, error) {
 	studentIDs := slices.Clone(input.StudentIDs)
 	sort.Slice(studentIDs, func(i, j int) bool { return studentIDs[i] < studentIDs[j] })
@@ -573,7 +605,7 @@ func (s *pickupAdjustmentService) lockAndSnapshotBulkStudents(
 			}
 		}
 	}
-	return s.projectPickupPlanLabels(ctx, studentIDs)
+	return s.projectPickupPlanLabels(ctx, studentIDs, today)
 }
 
 func (s *pickupAdjustmentService) auditBulkPickupPlans(
@@ -581,8 +613,9 @@ func (s *pickupAdjustmentService) auditBulkPickupPlans(
 	input PickupAdjustmentBulkInput,
 	studentIDs []int64,
 	before map[int64]string,
+	today timezone.Date,
 ) error {
-	after, err := s.projectPickupPlanLabels(ctx, studentIDs)
+	after, err := s.projectPickupPlanLabels(ctx, studentIDs, today)
 	if err != nil {
 		return err
 	}
@@ -607,11 +640,11 @@ func (s *pickupAdjustmentService) auditBulkPickupPlans(
 func (s *pickupAdjustmentService) projectPickupPlanLabels(
 	ctx context.Context,
 	studentIDs []int64,
+	today timezone.Date,
 ) (map[int64]string, error) {
 	if s.PickupBaselines == nil {
 		return nil, fmt.Errorf("pickup adjustment: pickup baseline reader is not configured")
 	}
-	today := timezone.TodayDate()
 	weekStart := today.AddDays(scheduleModels.WeekdayMonday - isoWeekday(today))
 	projection, err := s.PickupBaselines.Project(ctx, studentIDs, weekStart, weekStart.AddDays(4))
 	if err != nil {
@@ -724,6 +757,7 @@ func offeringSelectionsEqual(left, right []OfferingChangeSelection) bool {
 
 func normalizePickupAdjustmentInput(
 	input PickupAdjustmentPreviewInput,
+	today timezone.Date,
 ) (PickupAdjustmentPreviewInput, map[int]PickupAdjustmentSchedule, error) {
 	if input.StudentID <= 0 {
 		return input, nil, fmt.Errorf("%w: student is required", ErrPickupAdjustmentInvalid)
@@ -732,9 +766,9 @@ func normalizePickupAdjustmentInput(
 		return input, nil, fmt.Errorf("%w: pickup times require care days", ErrPickupAdjustmentInvalid)
 	}
 	if input.EffectiveFrom.IsZero() {
-		input.EffectiveFrom = timezone.TodayDate()
+		input.EffectiveFrom = today
 	}
-	if input.EffectiveFrom.Before(timezone.TodayDate()) {
+	if input.EffectiveFrom.Before(today) {
 		return input, nil, fmt.Errorf("%w: effective date is in the past", ErrPickupAdjustmentInvalid)
 	}
 	input.CareDays = append([]int(nil), input.CareDays...)

@@ -1,9 +1,11 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
 import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
@@ -19,17 +21,8 @@ import { createLogger } from "~/lib/logger";
 import { fetchStudent } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
 import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from "~/components/ui/chart";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 
@@ -39,11 +32,12 @@ const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
   negative: "Negatives Feedback",
 };
 
-const feedbackChartConfig = {
-  positive: { label: "Positiv", color: MOTO_COLOR_PALETTE.green.base },
-  neutral: { label: "Neutral", color: MOTO_COLOR_PALETTE.amber.base },
-  negative: { label: "Negativ", color: MOTO_COLOR_PALETTE.red.base },
-} satisfies ChartConfig;
+const FeedbackHistoryChart = dynamic(() => import("./feedback-history-chart"), {
+  ssr: false,
+  loading: () => (
+    <Skeleton className="h-[180px] w-full sm:h-[220px]" aria-hidden />
+  ),
+});
 
 const feedbackToneColors = {
   positive: MOTO_COLOR_PALETTE.green.base,
@@ -364,69 +358,7 @@ function StudentFeedbackHistoryPageContent() {
               {/* Stacked bar chart */}
               {chartData.length > 1 && (
                 <div className="mt-6">
-                  <ChartContainer
-                    config={feedbackChartConfig}
-                    className="!aspect-auto h-[180px] w-full sm:h-[220px]"
-                  >
-                    <BarChart
-                      accessibilityLayer
-                      data={chartData}
-                      margin={{ top: 4, right: 4, bottom: 0, left: -24 }}
-                      barCategoryGap={chartData.length > 14 ? 1 : 4}
-                    >
-                      <CartesianGrid vertical={false} />
-                      <XAxis
-                        dataKey="day"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        fontSize={11}
-                        interval={
-                          chartData.length > 14
-                            ? Math.floor(chartData.length / 7)
-                            : 0
-                        }
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={4}
-                        fontSize={11}
-                        allowDecimals={false}
-                      />
-                      <ChartTooltip
-                        content={
-                          <ChartTooltipContent
-                            labelFormatter={(
-                              _value: unknown,
-                              payload: ReadonlyArray<{
-                                payload?: { label?: string };
-                              }>,
-                            ) => payload[0]?.payload?.label ?? ""}
-                          />
-                        }
-                      />
-                      <ChartLegend content={<ChartLegendContent />} />
-                      <Bar
-                        dataKey="negative"
-                        stackId="fb"
-                        fill="var(--color-negative)"
-                        radius={[0, 0, 4, 4]}
-                      />
-                      <Bar
-                        dataKey="neutral"
-                        stackId="fb"
-                        fill="var(--color-neutral)"
-                        radius={[0, 0, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="positive"
-                        stackId="fb"
-                        fill="var(--color-positive)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ChartContainer>
+                  <FeedbackHistoryChart data={chartData} />
                 </div>
               )}
             </>

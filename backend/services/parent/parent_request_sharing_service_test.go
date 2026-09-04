@@ -12,6 +12,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -22,7 +23,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	repos := repositories.NewFactory(db)
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	recipient := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
 
 	_, err := db.NewUpdate().
 		TableExpr(`users.students_guardians`).
@@ -108,7 +109,7 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
 	request := &userModels.StudentDataChangeRequest{
 		StudentID: author.StudentID, SubmittedBy: author.AccountID,
 		Target: userModels.DataChangeTargetPerson, FieldKey: "first_name",

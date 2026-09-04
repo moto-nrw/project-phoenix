@@ -8,17 +8,16 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // AnnouncementsResource handles operator announcements endpoints
 type AnnouncementsResource struct {
-	announcementService platformSvc.AnnouncementService
+	announcementService communication.Capability
 }
 
 // NewAnnouncementsResource creates a new announcements resource
-func NewAnnouncementsResource(announcementService platformSvc.AnnouncementService) *AnnouncementsResource {
+func NewAnnouncementsResource(announcementService communication.Capability) *AnnouncementsResource {
 	return &AnnouncementsResource{
 		announcementService: announcementService,
 	}
@@ -153,7 +152,7 @@ func (rs *AnnouncementsResource) CreateAnnouncement(w http.ResponseWriter, r *ht
 		return
 	}
 
-	announcement := &platform.Announcement{
+	announcement := &communication.Announcement{
 		Title:           req.Title,
 		Content:         req.Content,
 		Type:            req.Type,
@@ -167,10 +166,10 @@ func (rs *AnnouncementsResource) CreateAnnouncement(w http.ResponseWriter, r *ht
 
 	// Set defaults if not provided
 	if announcement.Type == "" {
-		announcement.Type = platform.TypeAnnouncement
+		announcement.Type = communication.TypeAnnouncement
 	}
 	if announcement.Severity == "" {
-		announcement.Severity = platform.SeverityInfo
+		announcement.Severity = communication.SeverityInfo
 	}
 
 	// Parse expires_at if provided
@@ -303,7 +302,7 @@ func (rs *AnnouncementsResource) GetViewDetails(w http.ResponseWriter, r *http.R
 }
 
 // newAnnouncementResponse creates an announcement response from an announcement model
-func newAnnouncementResponse(a *platform.Announcement) AnnouncementResponse {
+func newAnnouncementResponse(a *communication.Announcement) AnnouncementResponse {
 	targetRoles := a.TargetRoles
 	if targetRoles == nil {
 		targetRoles = []string{}
@@ -346,7 +345,7 @@ func newAnnouncementResponse(a *platform.Announcement) AnnouncementResponse {
 	// Determine status
 	if a.IsDraft() {
 		response.Status = "draft"
-	} else if platformSvc.IsAnnouncementExpired(a, time.Now()) {
+	} else if communication.IsAnnouncementExpired(a, time.Now()) {
 		response.Status = "expired"
 	} else {
 		response.Status = "published"

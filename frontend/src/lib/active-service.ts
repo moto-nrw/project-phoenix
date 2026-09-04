@@ -144,10 +144,6 @@ function mapNullableVisitPayload(
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
-function resolveBackendUrl(proxyPath: string, backendPath: string): string {
-  return resolveApiUrl(proxyPath, backendPath);
-}
-
 /**
  * Execute proxy fetch request (browser context).
  * Handles session auth, headers, and error responses.
@@ -228,7 +224,7 @@ async function coreFetch<T>(
     } else {
       const responseData = await executeBackendFetch<ApiResponse<T>>(
         method,
-        resolveBackendUrl(proxyPath, backendPath),
+        await resolveApiUrl(proxyPath, backendPath),
         body,
       );
       return responseData.data;
@@ -258,7 +254,7 @@ async function coreFetchVoid(
     } else {
       await executeBackendFetch<unknown>(
         method,
-        resolveBackendUrl(proxyPath, backendPath),
+        await resolveApiUrl(proxyPath, backendPath),
         body,
       );
     }
@@ -337,7 +333,7 @@ async function proxyGetPaginated<TBackend, TFrontend>(
     } else {
       const response = await executeBackendFetch<unknown>(
         "GET",
-        resolveBackendUrl(proxyPath, backendPath),
+        await resolveApiUrl(proxyPath, backendPath),
       );
       const items = extractArrayFromResponse<TBackend>(response);
       return items.map(mapper);
@@ -761,7 +757,7 @@ export const activeService = {
     const useProxyApi = globalThis.window !== undefined;
     const proxyPath = "/api/active/groups/unclaimed";
     const backendPath = "/active/groups/unclaimed";
-    const url = resolveBackendUrl(proxyPath, backendPath);
+    const url = await resolveApiUrl(proxyPath, backendPath);
 
     const metadataKeys = new Set([
       "status",

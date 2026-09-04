@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -56,7 +55,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 		RequestID:        request.ID,
 		FirstName:        "Zkorrektur",
 		LastName:         lastName,
-		DateOfBirth:      timezone.TodayDate().AddDays(-2500),
+		DateOfBirth:      studentsTestToday.AddDays(-2500),
 		Status:           enrollmentModels.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
@@ -85,7 +84,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	t.Parallel()
 
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "CorrectionReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggCorrectionGroup")
@@ -192,7 +191,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 
 func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testing.T) {
 	t.Parallel()
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Withdrawal", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "WithdrawalReviewGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Komplett", "Abmeldung", "WA1")
@@ -248,7 +247,7 @@ func insertPendingOfferingChangeRequest(
 				map[string]any{"offering_id": fixture.mittag.ID},
 			},
 		},
-		EffectiveFrom: timezone.TodayDate().AddDays(30),
+		EffectiveFrom: studentsTestToday.AddDays(30),
 		Status:        enrollmentModels.OfferingChangeStatusPending,
 	}
 	row.TenantID = fixture.tenantID

@@ -1,7 +1,7 @@
 // Package appointments is the public Appointments capability. It owns the
-// appointment lifecycle and the targeting intent captured when an appointment
-// is created. Other owners use Query or Command instead of reading
-// calendar.appointments or calendar.appointment_targets directly.
+// appointment lifecycle, targeting intent, resolved recipients, replies, and
+// reminder-delivery claims. Other owners use Query or Command instead of
+// reading the owned calendar tables directly.
 package appointments
 
 import (
@@ -33,6 +33,14 @@ const (
 	TargetTypeParentsByGroup   = "parents_by_group"
 	TargetTypeParentsByStudent = "parents_by_student"
 
+	RecipientTypeStaff           = "staff"
+	RecipientTypeGuardianProfile = "guardian_profile"
+
+	ResponseStatusPending  = "pending"
+	ResponseStatusAccepted = "accepted"
+	ResponseStatusDeclined = "declined"
+	ResponseStatusInfo     = "info"
+
 	RecurrenceFrequencyDaily   = "daily"
 	RecurrenceFrequencyWeekly  = "weekly"
 	RecurrenceFrequencyMonthly = "monthly"
@@ -50,6 +58,7 @@ var validRecurrenceWeekdays = map[string]bool{
 
 var (
 	ErrAppointmentNotFound          = errors.New("appointment not found")
+	ErrAppointmentRecipientNotFound = errors.New("appointment recipient not found")
 	ErrInvalidAppointment           = errors.New("invalid appointment")
 	ErrAppointmentLifecycleConflict = errors.New("appointment changed by a concurrent lifecycle transition")
 )
@@ -283,6 +292,52 @@ type AppointmentOccurrenceOverride struct {
 	AllDay         *bool      `json:"all_day,omitempty"`
 }
 
+type AppointmentRecipient struct {
+	ID                int64      `json:"id"`
+	TenantID          int64      `json:"tenant_id"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	AppointmentID     int64      `json:"appointment_id"`
+	RecipientType     string     `json:"recipient_type"`
+	StaffID           *int64     `json:"staff_id,omitempty"`
+	GuardianProfileID *int64     `json:"guardian_profile_id,omitempty"`
+	Status            string     `json:"status"`
+	RespondedAt       *time.Time `json:"responded_at,omitempty"`
+}
+
+func (r *AppointmentRecipient) Validate() error {
+	if r == nil {
+		return invalid("appointment recipient cannot be nil")
+	}
+	if r.AppointmentID <= 0 {
+		return invalid("appointment_id is required")
+	}
+	return validateRecipientFields(AppointmentRecipientFields{
+		RecipientType: r.RecipientType, StaffID: r.StaffID,
+		GuardianProfileID: r.GuardianProfileID, Status: r.Status,
+	})
+}
+
+type AppointmentRecipientStudent struct {
+	ID          int64     `json:"id"`
+	TenantID    int64     `json:"tenant_id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	RecipientID int64     `json:"recipient_id"`
+	StudentID   int64     `json:"student_id"`
+}
+
+// AppointmentRecipientFields is one resolved appointment audience member.
+// StudentIDs is populated only for guardian recipients and becomes rows in
+// calendar.appointment_recipient_students in the same UnitOfWork.
+type AppointmentRecipientFields struct {
+	RecipientType     string
+	StaffID           *int64
+	GuardianProfileID *int64
+	Status            string
+	StudentIDs        []int64
+}
+
 type CreateAppointment struct {
 	AppointmentFields
 	Targets []AppointmentTargetFields
@@ -313,6 +368,11 @@ type Query interface {
 	FindOccurrenceOverrides(context.Context, []int64, []Date) ([]*AppointmentOccurrenceOverride, error)
 	FindOccurrenceOverridesByStartDates(context.Context, []int64, []Date) ([]*AppointmentOccurrenceOverride, error)
 	FindCancelledOccurrenceOverrides(context.Context, []int64) ([]*AppointmentOccurrenceOverride, error)
+	FindAppointmentRecipient(context.Context, int64) (*AppointmentRecipient, error)
+	FindAppointmentRecipients(context.Context, int64) ([]*AppointmentRecipient, error)
+	FindAppointmentRecipientsByAppointmentIDs(context.Context, []int64) ([]*AppointmentRecipient, error)
+	FindAppointmentRecipientStudents(context.Context, []int64) ([]*AppointmentRecipientStudent, error)
+	CountAppointmentRecipientStudents(context.Context, int64) (int, error)
 }
 
 type Command interface {
@@ -332,6 +392,12 @@ type Command interface {
 	// CancelAppointmentOccurrence upserts the cancellation and bumps the parent
 	// revision in one UnitOfWork. It returns false when already cancelled.
 	CancelAppointmentOccurrence(context.Context, int64, Date) (bool, error)
+	// CreateAppointmentRecipients writes recipients and their student links in
+	// one UnitOfWork. A failed link insert rolls back every recipient insert.
+	CreateAppointmentRecipients(context.Context, int64, []AppointmentRecipientFields) ([]*AppointmentRecipient, []*AppointmentRecipientStudent, error)
+	UpdateAppointmentRecipientResponse(context.Context, int64, string) error
+	ClaimReminderPushDelivery(context.Context, int64, int, Date, int64) (bool, error)
+	ReleaseReminderPushDelivery(context.Context, int64, int, Date, int64) error
 }
 
 type Capability interface {
@@ -447,6 +513,43 @@ func (m *Module) FindCancelledOccurrenceOverrides(ctx context.Context, appointme
 	return m.engine.FindCancelledOccurrenceOverrides(ctx, positiveIDs(appointmentIDs))
 }
 
+func (m *Module) FindAppointmentRecipient(ctx context.Context, recipientID int64) (*AppointmentRecipient, error) {
+	if recipientID <= 0 {
+		return nil, invalid("appointment recipient ID is required")
+	}
+	return m.engine.FindAppointmentRecipient(ctx, recipientID)
+}
+
+func (m *Module) FindAppointmentRecipients(ctx context.Context, appointmentID int64) ([]*AppointmentRecipient, error) {
+	if appointmentID <= 0 {
+		return nil, invalid("appointment ID is required")
+	}
+	return m.engine.FindAppointmentRecipients(ctx, appointmentID)
+}
+
+func (m *Module) FindAppointmentRecipientsByAppointmentIDs(ctx context.Context, appointmentIDs []int64) ([]*AppointmentRecipient, error) {
+	appointmentIDs = positiveIDs(appointmentIDs)
+	if len(appointmentIDs) == 0 {
+		return []*AppointmentRecipient{}, nil
+	}
+	return m.engine.FindAppointmentRecipientsByAppointmentIDs(ctx, appointmentIDs)
+}
+
+func (m *Module) FindAppointmentRecipientStudents(ctx context.Context, recipientIDs []int64) ([]*AppointmentRecipientStudent, error) {
+	recipientIDs = positiveIDs(recipientIDs)
+	if len(recipientIDs) == 0 {
+		return []*AppointmentRecipientStudent{}, nil
+	}
+	return m.engine.FindAppointmentRecipientStudents(ctx, recipientIDs)
+}
+
+func (m *Module) CountAppointmentRecipientStudents(ctx context.Context, studentID int64) (int, error) {
+	if studentID <= 0 {
+		return 0, invalid("student ID is required")
+	}
+	return m.engine.CountAppointmentRecipientStudents(ctx, studentID)
+}
+
 func (m *Module) CreateAppointment(ctx context.Context, input CreateAppointment) (*Appointment, []*AppointmentTarget, error) {
 	fields, err := validateFields(input.AppointmentFields)
 	if err != nil {
@@ -536,6 +639,81 @@ func (m *Module) CancelAppointmentOccurrence(ctx context.Context, appointmentID 
 		return false, invalid("appointment ID and occurrence date are required")
 	}
 	return m.engine.CancelAppointmentOccurrence(ctx, appointmentID, occurrenceDate)
+}
+
+func (m *Module) CreateAppointmentRecipients(ctx context.Context, appointmentID int64, fields []AppointmentRecipientFields) ([]*AppointmentRecipient, []*AppointmentRecipientStudent, error) {
+	if appointmentID <= 0 {
+		return nil, nil, invalid("appointment ID is required")
+	}
+	normalized := make([]AppointmentRecipientFields, 0, len(fields))
+	for _, value := range fields {
+		for _, studentID := range value.StudentIDs {
+			if studentID <= 0 {
+				return nil, nil, invalid("student IDs must be positive")
+			}
+		}
+		value.StudentIDs = positiveIDs(value.StudentIDs)
+		if err := validateRecipientFields(value); err != nil {
+			return nil, nil, err
+		}
+		normalized = append(normalized, value)
+	}
+	return m.engine.CreateAppointmentRecipients(ctx, appointmentID, normalized)
+}
+
+func (m *Module) UpdateAppointmentRecipientResponse(ctx context.Context, recipientID int64, status string) error {
+	if recipientID <= 0 {
+		return invalid("appointment recipient ID is required")
+	}
+	if !validResponseStatus(status) {
+		return invalid("invalid recipient status")
+	}
+	return m.engine.UpdateAppointmentRecipientResponse(ctx, recipientID, status)
+}
+
+func (m *Module) ClaimReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, occurrenceDate Date, guardianProfileID int64) (bool, error) {
+	if appointmentID <= 0 || revision < 0 || occurrenceDate.IsZero() || guardianProfileID <= 0 {
+		return false, invalid("appointment ID, revision, occurrence date, and guardian profile ID are required")
+	}
+	return m.engine.ClaimReminderPushDelivery(ctx, appointmentID, revision, occurrenceDate, guardianProfileID)
+}
+
+func (m *Module) ReleaseReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, occurrenceDate Date, guardianProfileID int64) error {
+	if appointmentID <= 0 || revision < 0 || occurrenceDate.IsZero() || guardianProfileID <= 0 {
+		return invalid("appointment ID, revision, occurrence date, and guardian profile ID are required")
+	}
+	return m.engine.ReleaseReminderPushDelivery(ctx, appointmentID, revision, occurrenceDate, guardianProfileID)
+}
+
+func validateRecipientFields(fields AppointmentRecipientFields) error {
+	switch fields.RecipientType {
+	case RecipientTypeStaff:
+		if fields.StaffID == nil || *fields.StaffID <= 0 || fields.GuardianProfileID != nil {
+			return invalid("staff recipient requires staff_id only")
+		}
+		if len(fields.StudentIDs) > 0 {
+			return invalid("staff recipient cannot have student IDs")
+		}
+	case RecipientTypeGuardianProfile:
+		if fields.GuardianProfileID == nil || *fields.GuardianProfileID <= 0 || fields.StaffID != nil {
+			return invalid("guardian recipient requires guardian_profile_id only")
+		}
+	default:
+		return invalid("invalid recipient_type")
+	}
+	if !validResponseStatus(fields.Status) {
+		return invalid("invalid recipient status")
+	}
+	return nil
+}
+
+func validResponseStatus(status string) bool {
+	switch status {
+	case ResponseStatusPending, ResponseStatusAccepted, ResponseStatusDeclined, ResponseStatusInfo:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateFields(fields AppointmentFields) (AppointmentFields, error) {
@@ -656,7 +834,7 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrAppointmentNotFound):
+	case errors.Is(err, ErrAppointmentNotFound), errors.Is(err, ErrAppointmentRecipientNotFound):
 		return "not_found"
 	case errors.Is(err, ErrInvalidAppointment):
 		return "invalid"

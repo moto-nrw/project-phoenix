@@ -48,7 +48,12 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 		return e
 	})
 	require.NoError(t, err)
-	rejectedDecision, err := repos.StudentDataChangeRequest.FindByID(ctx, rejected.ID)
+	var rejectedDecision *userModels.StudentDataChangeRequest
+	err = testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var findErr error
+		rejectedDecision, findErr = repos.StudentDataChangeRequest.FindByID(txCtx, rejected.ID)
+		return findErr
+	})
 	require.NoError(t, err)
 	autoAppliedAt := rejectedDecision.UpdatedAt.Add(time.Second)
 	// The auto-applied row never went through Decide — flip it directly, like

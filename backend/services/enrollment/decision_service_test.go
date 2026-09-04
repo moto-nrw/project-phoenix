@@ -3806,7 +3806,7 @@ func TestDecisionService_ListChildOfferings_MatchesWritePathSelection(t *testing
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	today := timezone.TodayDate()
+	today := decisionTestToday
 	for _, tc := range []struct {
 		name         string
 		slug         string
@@ -3822,7 +3822,10 @@ func TestDecisionService_ListChildOfferings_MatchesWritePathSelection(t *testing
 
 			current := createAdjustmentCareOfferingWith(t, env, "Aktuell "+tc.name, nil)
 			later := createAdjustmentCareOfferingWith(t, env, "Später "+tc.name, nil)
-			laterStart := tc.serviceStart.AddDays(60)
+			laterStart := today.AddDays(5)
+			if laterStart.Before(tc.serviceStart) {
+				laterStart = tc.serviceStart.AddDays(60)
+			}
 			createChildOfferingLink(t, env, childID, current.ID, nil, &laterStart)
 			createChildOfferingLink(t, env, childID, later.ID, &laterStart, nil)
 
@@ -3833,7 +3836,7 @@ func TestDecisionService_ListChildOfferings_MatchesWritePathSelection(t *testing
 			phase, err := env.repos.Phase.FindByID(ctx, env.sourcePhase.ID)
 			require.NoError(t, err)
 			writeLinks, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(
-				ctx, childID, enrollmentService.WriteSelectionDateForTest(phase))
+				ctx, childID, enrollmentService.WriteSelectionDateForTest(phase, today))
 			require.NoError(t, err)
 
 			readIDs := make([]int64, 0, len(rows[childID].Current))
@@ -3929,7 +3932,7 @@ func TestDecisionService_ListChildOfferings_UsesTodayBeforeServiceStart(t *testi
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	today := timezone.TodayDate()
+	today := decisionTestToday
 	serviceStart := today.AddDays(45)
 	setSourcePhaseServiceStartDate(t, env, serviceStart)
 	reqID, childID := submitOneChild(t, env, "lco-prestart@example.com", "Lina", "PreStart")

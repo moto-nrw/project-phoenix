@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
@@ -45,7 +46,7 @@ type ResourceConfig struct {
 	InvitationService          platformSvc.OperatorInvitationService
 	ProvisioningService        platformSvc.OperatorProvisioningService
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
-	AnnouncementsService       platformSvc.AnnouncementService
+	AnnouncementsService       communication.Capability
 	UnregisteredTagScanService auditSvc.UnregisteredTagScanService
 	SettingsService            configSvc.SettingsService
 	// Broadcaster is optional. When supplied, the inner SettingsResource emits

@@ -98,6 +98,30 @@ type occurrenceOverrideRow struct {
 	AllDay         *bool        `bun:"all_day"`
 }
 
+type appointmentRecipientRow struct {
+	bun.BaseModel     `bun:"table:calendar.appointment_recipients,alias:appointment_recipient"`
+	ID                int64      `bun:"id,pk,autoincrement"`
+	TenantID          int64      `bun:"tenant_id,notnull"`
+	CreatedAt         time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt         time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	AppointmentID     int64      `bun:"appointment_id,notnull"`
+	RecipientType     string     `bun:"recipient_type,notnull"`
+	StaffID           *int64     `bun:"staff_id"`
+	GuardianProfileID *int64     `bun:"guardian_profile_id"`
+	Status            string     `bun:"status,notnull"`
+	RespondedAt       *time.Time `bun:"responded_at"`
+}
+
+type appointmentRecipientStudentRow struct {
+	bun.BaseModel `bun:"table:calendar.appointment_recipient_students,alias:appointment_recipient_student"`
+	ID            int64     `bun:"id,pk,autoincrement"`
+	TenantID      int64     `bun:"tenant_id,notnull"`
+	CreatedAt     time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt     time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	RecipientID   int64     `bun:"recipient_id,notnull"`
+	StudentID     int64     `bun:"student_id,notnull"`
+}
+
 func (s *Store) databaseForTenant(ctx context.Context, operation string) (bun.IDB, int64, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -397,6 +421,76 @@ func (s *Store) FindCancelledOccurrenceOverrides(ctx context.Context, appointmen
 	return occurrenceOverridesToDomain(rows), stats, err
 }
 
+func (s *Store) FindAppointmentRecipient(ctx context.Context, recipientID int64) (domain.AppointmentRecipient, bool, domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "find an appointment recipient")
+	if err != nil {
+		return domain.AppointmentRecipient{}, false, domain.OperationStats{}, err
+	}
+	row := new(appointmentRecipientRow)
+	query := withTenant(db.NewSelect().Model(row).
+		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
+		Where(`"appointment_recipient".id = ?`, recipientID), "appointment_recipient", tenantID)
+	found, stats, err := scanOne(ctx, query, "find appointment recipient")
+	return appointmentRecipientToDomain(*row), found, stats, err
+}
+
+func (s *Store) FindAppointmentRecipients(ctx context.Context, appointmentIDs []int64) ([]domain.AppointmentRecipient, domain.OperationStats, error) {
+	if len(appointmentIDs) == 0 {
+		return []domain.AppointmentRecipient{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.databaseForTenant(ctx, "find appointment recipients")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := make([]appointmentRecipientRow, 0)
+	query := withTenant(db.NewSelect().Model(&rows).
+		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
+		Where(`"appointment_recipient".appointment_id IN (?)`, bun.List(appointmentIDs)).
+		OrderExpr(`"appointment_recipient".appointment_id ASC, "appointment_recipient".recipient_type ASC, "appointment_recipient".id ASC`), "appointment_recipient", tenantID)
+	stats, err := scanAll(ctx, query, "find appointment recipients")
+	stats.Rows = int64(len(rows))
+	return appointmentRecipientsToDomain(rows), stats, err
+}
+
+func (s *Store) FindAppointmentRecipientStudents(ctx context.Context, recipientIDs []int64) ([]domain.AppointmentRecipientStudent, domain.OperationStats, error) {
+	if len(recipientIDs) == 0 {
+		return []domain.AppointmentRecipientStudent{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.databaseForTenant(ctx, "find appointment recipient students")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := make([]appointmentRecipientStudentRow, 0)
+	query := withTenant(db.NewSelect().Model(&rows).
+		ModelTableExpr(`calendar.appointment_recipient_students AS "appointment_recipient_student"`).
+		Where(`"appointment_recipient_student".recipient_id IN (?)`, bun.List(recipientIDs)).
+		OrderExpr(`"appointment_recipient_student".recipient_id ASC, "appointment_recipient_student".student_id ASC`), "appointment_recipient_student", tenantID)
+	stats, err := scanAll(ctx, query, "find appointment recipient students")
+	stats.Rows = int64(len(rows))
+	return appointmentRecipientStudentsToDomain(rows), stats, err
+}
+
+func (s *Store) CountAppointmentRecipientStudents(ctx context.Context, studentID int64) (int, domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "count appointment recipient students")
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	var count int
+	query := withTenant(db.NewSelect().
+		TableExpr(`calendar.appointment_recipient_students AS "appointment_recipient_student"`).
+		ColumnExpr("COUNT(*)").
+		Where(`"appointment_recipient_student".student_id = ?`, studentID), "appointment_recipient_student", tenantID)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx, &count)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return 0, stats, fmt.Errorf("appointments postgres: count appointment recipient students: %w", err)
+	}
+	stats.Rows = 1
+	return count, stats, nil
+}
+
 func (s *Store) CreateAppointment(ctx context.Context, fields domain.AppointmentFields) (domain.Appointment, domain.OperationStats, error) {
 	db, tenantID, err := s.databaseForTenant(ctx, "create an appointment")
 	if err != nil {
@@ -606,6 +700,104 @@ func (s *Store) CancelOccurrence(ctx context.Context, appointmentID int64, occur
 	return rows > 0, stats, err
 }
 
+func (s *Store) InsertAppointmentRecipients(ctx context.Context, appointmentID int64, fields []domain.AppointmentRecipientFields) ([]domain.AppointmentRecipient, domain.OperationStats, error) {
+	if len(fields) == 0 {
+		return []domain.AppointmentRecipient{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.databaseForTenant(ctx, "create appointment recipients")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := make([]appointmentRecipientRow, 0, len(fields))
+	for _, field := range fields {
+		rows = append(rows, appointmentRecipientRow{
+			TenantID: tenantID, AppointmentID: appointmentID,
+			RecipientType: field.RecipientType, StaffID: field.StaffID,
+			GuardianProfileID: field.GuardianProfileID, Status: field.Status,
+		})
+	}
+	stats, _, err := execute(ctx, db.NewInsert().Model(&rows).
+		ModelTableExpr(`calendar.appointment_recipients`).Returning("*"), "create appointment recipients")
+	return appointmentRecipientsToDomain(rows), stats, err
+}
+
+func (s *Store) InsertAppointmentRecipientStudents(ctx context.Context, links []domain.AppointmentRecipientStudent) ([]domain.AppointmentRecipientStudent, domain.OperationStats, error) {
+	if len(links) == 0 {
+		return []domain.AppointmentRecipientStudent{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.databaseForTenant(ctx, "create appointment recipient students")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := make([]appointmentRecipientStudentRow, 0, len(links))
+	for _, link := range links {
+		rows = append(rows, appointmentRecipientStudentRow{
+			TenantID: tenantID, RecipientID: link.RecipientID, StudentID: link.StudentID,
+		})
+	}
+	stats, _, err := execute(ctx, db.NewInsert().Model(&rows).
+		ModelTableExpr(`calendar.appointment_recipient_students`).Returning("*"), "create appointment recipient students")
+	return appointmentRecipientStudentsToDomain(rows), stats, err
+}
+
+func (s *Store) UpdateAppointmentRecipientResponse(ctx context.Context, recipientID int64, status string) (bool, domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "update an appointment recipient response")
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	query := withTenant(db.NewUpdate().Model((*appointmentRecipientRow)(nil)).
+		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
+		Set("status = ?", status).
+		Where(`"appointment_recipient".id = ?`, recipientID), "appointment_recipient", tenantID)
+	if status == "accepted" || status == "declined" {
+		query = query.Set("responded_at = NOW()")
+	} else {
+		query = query.Set("responded_at = NULL")
+	}
+	stats, rows, err := execute(ctx, query, "update appointment recipient response")
+	return rows == 1, stats, err
+}
+
+func (s *Store) ClaimReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, occurrenceDate domain.Date, guardianProfileID int64) (bool, domain.OperationStats, error) {
+	db, _, err := s.databaseForTenant(ctx, "claim a reminder push delivery")
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	var claimed bool
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewRaw(`SELECT calendar.claim_appointment_reminder_push_delivery(?, ?, ?, ?)`, appointmentID, revision, occurrenceDate, guardianProfileID).Scan(ctx, &claimed)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return false, stats, fmt.Errorf("appointments postgres: claim reminder push delivery: %w", err)
+	}
+	if claimed {
+		stats.Rows = 1
+	} else {
+		stats.DuplicatePreventionConflicts = 1
+	}
+	return claimed, stats, nil
+}
+
+func (s *Store) ReleaseReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, occurrenceDate domain.Date, guardianProfileID int64) (bool, domain.OperationStats, error) {
+	db, _, err := s.databaseForTenant(ctx, "release a reminder push delivery")
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	var released bool
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewRaw(`SELECT calendar.release_appointment_reminder_push_delivery(?, ?, ?, ?)`, appointmentID, revision, occurrenceDate, guardianProfileID).Scan(ctx, &released)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return false, stats, fmt.Errorf("appointments postgres: release reminder push delivery: %w", err)
+	}
+	if released {
+		stats.Rows = 1
+	}
+	return released, stats, nil
+}
+
 func applyAppointmentWindow(query *bun.SelectQuery, from, to domain.Date) *bun.SelectQuery {
 	return query.Where(`(
 		("appointment".end_date >= ? AND "appointment".start_date <= ?)
@@ -708,6 +900,38 @@ func occurrenceOverridesToDomain(rows []occurrenceOverrideRow) []domain.Appointm
 	result := make([]domain.AppointmentOccurrenceOverride, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, occurrenceOverrideToDomain(row))
+	}
+	return result
+}
+
+func appointmentRecipientToDomain(row appointmentRecipientRow) domain.AppointmentRecipient {
+	return domain.AppointmentRecipient{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		AppointmentID: row.AppointmentID, RecipientType: row.RecipientType,
+		StaffID: row.StaffID, GuardianProfileID: row.GuardianProfileID,
+		Status: row.Status, RespondedAt: row.RespondedAt,
+	}
+}
+
+func appointmentRecipientsToDomain(rows []appointmentRecipientRow) []domain.AppointmentRecipient {
+	result := make([]domain.AppointmentRecipient, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, appointmentRecipientToDomain(row))
+	}
+	return result
+}
+
+func appointmentRecipientStudentToDomain(row appointmentRecipientStudentRow) domain.AppointmentRecipientStudent {
+	return domain.AppointmentRecipientStudent{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		RecipientID: row.RecipientID, StudentID: row.StudentID,
+	}
+}
+
+func appointmentRecipientStudentsToDomain(rows []appointmentRecipientStudentRow) []domain.AppointmentRecipientStudent {
+	result := make([]domain.AppointmentRecipientStudent, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, appointmentRecipientStudentToDomain(row))
 	}
 	return result
 }

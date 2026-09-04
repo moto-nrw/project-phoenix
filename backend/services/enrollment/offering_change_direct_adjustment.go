@@ -32,7 +32,7 @@ func (s *offeringChangeRequestService) PrepareDirectOfferingAdjustment(
 	if err := s.DirectApplier.LockOfferingDerivedWrites(ctx); err != nil {
 		return err
 	}
-	_, err := s.previewDirectOfferingAdjustment(ctx, input, true)
+	_, err := s.previewDirectOfferingAdjustment(ctx, input, true, s.todayDate())
 	return err
 }
 
@@ -44,15 +44,16 @@ func (s *offeringChangeRequestService) PreviewDirectOfferingAdjustment(
 	ctx context.Context,
 	input DirectOfferingAdjustmentInput,
 ) (*DirectOfferingAdjustmentPreview, error) {
-	return s.previewDirectOfferingAdjustment(ctx, input, false)
+	return s.previewDirectOfferingAdjustment(ctx, input, false, s.todayDate())
 }
 
 func (s *offeringChangeRequestService) previewDirectOfferingAdjustment(
 	ctx context.Context,
 	input DirectOfferingAdjustmentInput,
 	checkCapacity bool,
+	today timezone.Date,
 ) (*DirectOfferingAdjustmentPreview, error) {
-	scope, err := s.directAdjustmentScope(ctx, input)
+	scope, err := s.directAdjustmentScope(ctx, input, today)
 	if err != nil {
 		return nil, err
 	}
@@ -83,15 +84,16 @@ func (s *offeringChangeRequestService) previewDirectOfferingAdjustment(
 func (s *offeringChangeRequestService) directAdjustmentScope(
 	ctx context.Context,
 	input DirectOfferingAdjustmentInput,
+	today timezone.Date,
 ) (*directOfferingAdjustmentScope, error) {
 	if input.StudentID <= 0 {
 		return nil, fmt.Errorf("%w: student is required", ErrOfferingChangeInvalid)
 	}
 	effectiveFrom := input.EffectiveFrom
 	if effectiveFrom.IsZero() {
-		effectiveFrom = timezone.TodayDate()
+		effectiveFrom = today
 	}
-	if effectiveFrom.Before(timezone.TodayDate()) {
+	if effectiveFrom.Before(today) {
 		return nil, fmt.Errorf("%w: effective date is in the past", ErrOfferingChangeDateOutOfRange)
 	}
 	if err := s.ensureDirectCareOfferingsEnabled(ctx); err != nil {
@@ -109,7 +111,7 @@ func (s *offeringChangeRequestService) directAdjustmentScope(
 	if err != nil {
 		return nil, err
 	}
-	earliest := timezone.TodayDate()
+	earliest := today
 	if earliest.Before(phase.ServiceStartDate) {
 		earliest = phase.ServiceStartDate
 	}
@@ -236,7 +238,8 @@ func (s *offeringChangeRequestService) ApplyDirectOfferingAdjustment(
 	ctx context.Context,
 	input DirectOfferingAdjustmentInput,
 ) error {
-	preview, err := s.previewDirectOfferingAdjustment(ctx, input, true)
+	today := s.todayDate()
+	preview, err := s.previewDirectOfferingAdjustment(ctx, input, true, today)
 	if err != nil {
 		return err
 	}
@@ -255,7 +258,7 @@ func (s *offeringChangeRequestService) ApplyDirectOfferingAdjustment(
 	excluded := offeringIDSet(input.ExcludedAutoOfferingIDs)
 	effectiveFrom := input.EffectiveFrom
 	if effectiveFrom.IsZero() {
-		effectiveFrom = timezone.TodayDate()
+		effectiveFrom = today
 	}
 	_, err = s.DirectApplier.UpdateChildOfferings(ctx, UpdateChildOfferingsInput{
 		RequestID:                   preview.RequestID,
