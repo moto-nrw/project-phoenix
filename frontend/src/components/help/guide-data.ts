@@ -596,8 +596,8 @@ export const appChapters: readonly GuideChapter[] = [
           "`Tagesbetrieb` ist beim ersten Besuch geöffnet. Dort stehen `Meine Gruppen`, `Aktuelle Aufsicht`, `Alle Kinder`, `Räume`, `Aktivitäten`, `Vertretungen` und `Anfragen`.",
           "Auf den Namen einer Gruppe tippen, um sie auf- oder zuzuklappen. moto merkt sich, welche Gruppen offen sind. Öffnen Sie eine Seite, klappt ihre Gruppe von selbst auf.",
           "`Eltern` bündelt Nachrichten, Mitteilungen, Elternzugänge, Bankverbindungen, Essensplan und die Anmeldungen. `Team` enthält Zeiterfassung, Mein Kalender, Mitarbeiter, Team-Chat und Tagesinformationen.",
-          "`Planung` (nur Admins) enthält Betreuungsplan, Dienstplan, Vertretungsplan, Tageslisten, Schuljahr und Ferien sowie Abrechnung. `Verwaltung` enthält Datenverwaltung, Tagesauswertung, Statistik, Dateien und Info-Displays.",
-          "Ganz unten stehen immer `Notfall`, `Hilfe` und `Einstellungen`. Mit dem Pfeil oben links wird die Leiste schmal; die Gruppen bleiben als Symbole erhalten.",
+          "`Planung` enthält je nach Ihren Rechten Betreuungsplan, Dienstplan, Vertretungsplan, Tageslisten, Schuljahr und Ferien sowie Abrechnung. `Verwaltung` enthält Datenverwaltung, Tagesauswertung, Statistik, Dateien und Info-Displays.",
+          "Welche Gruppen und Seiten Sie sehen, hängt von Ihrer Rolle und Ihren Rechten ab. Auch eingeschaltete Funktionen spielen eine Rolle. Unten stehen immer `Notfall` und `Hilfe`. Admins sehen außerdem `Einstellungen`. Mit dem Pfeil oben links wird die Leiste schmal; die Gruppen bleiben als Symbole erhalten.",
         ],
         callout: {
           title: "Kinderdaten oder Alle Kinder?",
@@ -1475,7 +1475,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Betreuungsplan bei Bedarf abschalten",
-          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; Betreuungsplan, Dienstplan und Terminvertretungen verschwinden dann aus dem Bereich `Planung` in der Seitenleiste und zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist. Die `Kalenderzeiträume` bleiben erreichbar, weil die Anmeldephasen (Bereich `Anmeldungen`) damit verknüpft werden.",
+          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; Betreuungsplan, Dienstplan und Vertretungsplan verschwinden dann aus dem Bereich `Planung` in der Seitenleiste und zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist. `Schuljahr und Ferien` bleibt erreichbar, weil die Anmeldephasen (Bereich `Anmeldungen`) damit verknüpft werden.",
           tone: "blue",
         },
         screenshot:
