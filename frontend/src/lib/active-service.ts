@@ -419,11 +419,19 @@ async function proxyPostVoid(
 }
 
 /** Build query string suffix for active filter */
-function buildActiveFilterSuffix(filters?: { active?: boolean }): string {
-  if (filters?.active === undefined) {
-    return "";
+function buildActiveFilterSuffix(filters?: {
+  active?: boolean;
+  activeGroupIds?: readonly string[];
+}): string {
+  const params = new URLSearchParams();
+  if (filters?.active !== undefined) {
+    params.set("active", filters.active.toString());
   }
-  return `?active=${filters.active.toString()}`;
+  if (filters?.activeGroupIds && filters.activeGroupIds.length > 0) {
+    params.set("active_group_ids", filters.activeGroupIds.join(","));
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }
 
 export const activeService = {
@@ -557,7 +565,10 @@ export const activeService = {
   },
 
   // Visits
-  getVisits: async (filters?: { active?: boolean }): Promise<Visit[]> => {
+  getVisits: async (filters?: {
+    active?: boolean;
+    activeGroupIds?: readonly string[];
+  }): Promise<Visit[]> => {
     const suffix = buildActiveFilterSuffix(filters);
     return proxyGetArray<BackendVisit, Visit>(
       `/api/active/visits${suffix}`,

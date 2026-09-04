@@ -488,6 +488,11 @@ export function useGlobalSSE(): SSEHookState {
             // with the tenant slug, so the real key is
             // "<tenant>:room-students-1" and startsWith would never match.
             key.includes("room-students-") ||
+            // The room-move toolbar derives push eligibility from the current
+            // visits of all active source sessions. Refresh it alongside the
+            // visible room list so a remote check-in, checkout, or move cannot
+            // leave selectable children based on an old source session.
+            key.includes("room-bulk-source-visits-") ||
             // Room header in the detail modal/subpage — supervisor,
             // groupName, studentCount, isOccupied. Without this, the
             // "Aktuell anwesend: X" InfoItem stays stale while the
@@ -659,6 +664,24 @@ export function useGlobalSSE(): SSEHookState {
       hasPendingActivityEvent.current ||
       hasPendingActiveSupervisionEvent.current ||
       hasPendingDashboardEvent.current;
+    if (
+      hasPendingActivityEvent.current ||
+      hasPendingActiveSupervisionEvent.current
+    ) {
+      // The room-move toolbar reads supervisorCount from active groups to
+      // decide which push targets are safe. A supervision or session change
+      // rewrites that count, so its shared metadata must not outlive the
+      // supervision caches refreshed below.
+      mutate(
+        (key) =>
+          typeof key === "string" && key.includes("room-bulk-active-groups"),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "room_move_active_groups",
+        });
+      });
+    }
     if (refreshLiveSupervision) {
       const refreshRoster =
         hasPendingRemoteRosterEvent.current ||
@@ -669,6 +692,7 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("active-supervision-dashboard-") ||
+            key.includes("room-bulk-active-supervisions-") ||
             (refreshRoster && key.includes("timetable-roster-")) ||
             key.includes("room-detail-") ||
             key.includes("tracking-indicators-")),

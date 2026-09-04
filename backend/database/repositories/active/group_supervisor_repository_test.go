@@ -519,6 +519,37 @@ func TestGroupSupervisorRepository_UsesInjectedClockForActiveSupervisions(t *tes
 		assert.Equal(t, supervisor.ID, found[0].ID)
 	})
 
+	t.Run("excludes and does not end a future supervision", func(t *testing.T) {
+		data := createSupervisorTestData(t, db)
+		future := &active.GroupSupervisor{
+			GroupID: data.ActiveGroup.ID, StaffID: data.Staff1.ID,
+			StartDate: today.AddDays(1), Role: "future supervisor",
+		}
+		require.NoError(t, repo.Create(ctx, future))
+
+		found, err := repo.FindByActiveGroupID(ctx, data.ActiveGroup.ID, true)
+		require.NoError(t, err)
+		assert.Empty(t, found)
+
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("active_only", true).Equal("id", future.ID)
+		found, err = repo.List(ctx, options)
+		require.NoError(t, err)
+		assert.Empty(t, found)
+
+		require.NoError(t, repo.EndSupervision(ctx, future.ID))
+		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Zero(t, count)
+		countByGroup, err := repo.EndSupervisionsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID})
+		require.NoError(t, err)
+		assert.Zero(t, countByGroup)
+
+		reloaded, err := repo.FindByID(ctx, future.ID)
+		require.NoError(t, err)
+		assert.Nil(t, reloaded.EndDate)
+	})
+
 	t.Run("ends one supervision on the injected date", func(t *testing.T) {
 		_, supervisor := createActiveSupervisor(t)
 		require.NoError(t, repo.EndSupervision(ctx, supervisor.ID))
