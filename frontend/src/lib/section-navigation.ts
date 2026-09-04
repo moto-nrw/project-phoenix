@@ -1,24 +1,30 @@
 /**
- * Shared catalogs for the grouped navigation sections (Datenverwaltung,
- * Eltern, Anmeldungen) plus the matching helpers.
+ * Shared catalogs for the navigation sections (Datenverwaltung, Eltern,
+ * Team, Anmeldungen) plus the matching helpers.
  *
  * Vorher standen diese Listen in sidebar.tsx, und die Eltern- bzw.
  * Anmeldungs-Pfade zusätzlich nochmal in use-sidebar-accordion.ts — Kopien,
  * die von Hand synchron gehalten werden mussten. Die Breadcrumbs brauchen
  * dieselben Labels und hätten weitere Kopien angelegt. Deshalb liegt der
- * Katalog hier: die Seitenleiste, das Akkordeon-Auto-Aufklappen und die
- * Breadcrumbs lesen alle aus derselben Quelle, damit Seitenleisten-Eintrag
- * und Breadcrumb nie auseinanderlaufen.
+ * Katalog hier: die Seitenleiste, das mobile Mehr-Menü, das Auto-Aufklappen
+ * und die Breadcrumbs lesen alle aus derselben Quelle, damit
+ * Seitenleisten-Eintrag und Breadcrumb nie auseinanderlaufen.
  *
  * Die Planungsseiten haben ihren eigenen Katalog in planning-navigation.ts
  * (sie tragen zusätzlich Legacy-Redirect-Präfixe), benutzen aber denselben
  * `matchesPathPrefix` von hier.
  *
+ * Welche Seite in welcher Gruppe der Seitenleiste steht und in welcher
+ * Reihenfolge, sagt `staff-navigation.ts` (#2826). Hier steht nur, wie eine
+ * Seite heißt, wo sie liegt und zu welcher Breadcrumb-Sektion sie gehört.
+ *
  * NEUEN BEREICH ANLEGEN: Katalog (`*_SECTION` + `*_SUB_PAGES`) hier
- * ergänzen, `getActive*SubPage` daraus ableiten, und in
- * `breadcrumb-utils.getSectionBreadcrumb` eine Zeile hinzufügen. Der Test
- * `navigation-sync.test.ts` prüft danach automatisch, dass jeder Eintrag
- * einen Breadcrumb und einen Seitentitel bekommt.
+ * ergänzen, `getActive*SubPage` daraus ableiten, in
+ * `breadcrumb-utils.getSectionBreadcrumb` eine Zeile hinzufügen und die
+ * Seiten in `staff-navigation.ts` einer Gruppe zuordnen. Die Tests
+ * `navigation-sync.test.ts` und `staff-navigation.test.ts` prüfen danach
+ * automatisch, dass jeder Eintrag einen Breadcrumb, einen Seitentitel und
+ * genau einen Platz in der Seitenleiste bekommt.
  */
 
 export interface SectionSubPage {
@@ -42,9 +48,14 @@ export const DATABASE_SECTION: HubSectionRoot = {
   href: "/database",
 };
 
-export const PARENT_SECTION: HubSectionRoot = {
+/**
+ * Eltern ist seit #2826 eine Gruppe der Seitenleiste, kein Akkordeon mit
+ * Hub-Seite mehr: die frühere Übersicht /eltern war nur ein zweiter Weg zu
+ * Seiten, die jetzt direkt in der Gruppe stehen. Ohne `href` rendert die
+ * Breadcrumb den Namen als reinen Text, wie bei Planung.
+ */
+export const PARENT_SECTION: SectionRoot = {
   label: "Eltern",
-  href: "/eltern",
 };
 
 export const ENROLLMENT_SECTION: HubSectionRoot = {
@@ -62,18 +73,24 @@ export const PLANNING_SECTION: SectionRoot = {
 };
 
 /**
- * Kommunikation im Team: Team-Chat und Tagesinformationen. Keine Hub-Seite —
- * der Klick auf den Bereich landet auf der ersten sichtbaren Unterseite,
- * wie bei Planung. Bewusst getrennt vom Eltern-Akkordeon: dort steht, was
- * die Einrichtung mit den Familien austauscht, hier, was intern bleibt.
+ * Team-intern: Team-Chat und Tagesinformationen. Keine Hub-Seite. In der
+ * Seitenleiste stehen beide in der Gruppe „Team" neben Zeiterfassung, Mein
+ * Kalender und Mitarbeiter (#2826); die Breadcrumb trägt denselben Namen,
+ * damit Leiste und Kopfzeile dasselbe Wort zeigen. Bewusst getrennt von
+ * Eltern: dort steht, was die Einrichtung mit den Familien austauscht, hier,
+ * was intern bleibt.
  */
 export const COMMUNICATION_SECTION: SectionRoot = {
-  label: "Kommunikation",
+  label: "Team",
 };
 
 /** Unterseiten des Datenverwaltung-Akkordeons, in Anzeigereihenfolge. */
 export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
-  { href: "/database/students", label: "Kinder" },
+  // „Kinderdaten", nicht „Kinder": die Seite ist der Datensatz (anlegen,
+  // importieren, Betreuung beenden). Der laufende Tag heißt „Alle Kinder"
+  // und steht im Tagesbetrieb; zwei Einträge namens „Kinder" waren genau die
+  // Verwechslung aus #2826 (ADR 0008).
+  { href: "/database/students", label: "Kinderdaten" },
   { href: "/database/personal", label: "Personal" },
   { href: "/database/rooms", label: "Räume" },
   { href: "/database/activities", label: "Aktivitäten" },
@@ -91,12 +108,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * sidebar.tsx; hier steht nur, welche Regel gilt.
  */
 type ParentSubPageFeature =
-  | "overview"
-  | "messages"
-  | "approvals"
-  | "announcements"
-  | "bankDetails"
-  | "mealPlan";
+  "messages" | "approvals" | "announcements" | "bankDetails" | "mealPlan";
 
 export interface ParentSubPage extends SectionSubPage {
   readonly feature: ParentSubPageFeature;
@@ -108,10 +120,10 @@ export interface CommunicationSubPage extends SectionSubPage {
   readonly feature: CommunicationSubPageFeature;
 }
 
-/** Unterseiten des Kommunikation-Akkordeons, in Anzeigereihenfolge. */
+/** Team-interne Seiten der Gruppe „Team", in Anzeigereihenfolge. */
 export const COMMUNICATION_SUB_PAGES: readonly CommunicationSubPage[] = [
   // OGS-interner Team-Chat (#2598). Bewusst NICHT „Nachrichten": so heißt der
-  // Eltern-Chat im Eltern-Akkordeon. Zwei gleich benannte Einträge waren genau
+  // Eltern-Chat in der Gruppe Eltern. Zwei gleich benannte Einträge waren genau
   // der Grund, warum Schulen ihre Anfragen am falschen Ort gesucht haben.
   { href: "/team-chat", label: "Team-Chat", feature: "teamChat" },
   // Tagesinformationen (#2180): Hinweise der Leitung an das ganze Team.
@@ -123,26 +135,26 @@ export const COMMUNICATION_SUB_PAGES: readonly CommunicationSubPage[] = [
   },
 ];
 
-/** Unterseiten des Eltern-Akkordeons, in Anzeigereihenfolge. */
+/** Seiten der Gruppe „Eltern", in Anzeigereihenfolge. */
 export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
-  // "Übersicht" (not "Überblick") so it does not collide with the Anmeldungen
-  // accordion's "Überblick" hub — both would otherwise render simultaneously.
-  { href: "/eltern", label: "Übersicht", feature: "overview" },
   { href: "/messages", label: "Nachrichten", feature: "messages" },
-  {
-    href: "/admin/guardian-approvals",
-    label: "Konto-Anfragen",
-    feature: "approvals",
-  },
-  // Die Elternanfragen sind in das Top-Level-Modul "Anfragen" umgezogen
-  // (#2429); /admin/change-requests leitet dorthin um.
   {
     // One entry, two jobs: the page itself splits Mitteilungen from Umfragen
     // (#1371). Both are the same broadcast workflow, so a second nav item would
     // only make staff guess which one they need.
     href: "/parent-announcements",
-    label: "Mitteilungen und Umfragen",
+    label: "Mitteilungen",
     feature: "announcements",
+  },
+  // Die Elternanfragen sind in das Top-Level-Modul "Anfragen" umgezogen
+  // (#2429); /admin/change-requests leitet dorthin um.
+  {
+    // „Elternzugänge", nicht „Konto-Anfragen": neben dem Modul „Anfragen"
+    // wären das zwei Einträge mit demselben Wortstamm (#2826). Die Seite gibt
+    // Zugänge zum Elternportal frei.
+    href: "/admin/guardian-approvals",
+    label: "Elternzugänge",
+    feature: "approvals",
   },
   {
     href: "/eltern/bankverbindungen",
@@ -154,7 +166,8 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
 
 /**
  * Die flachen Seiten der Mitarbeiter-Navigation: alles, was in der
- * Seitenleiste als einzelner Eintrag steht statt in einem Akkordeon.
+ * Seitenleiste als einzelner Eintrag steht und zu keinem Katalog-Bereich
+ * gehört.
  *
  * Titel und Pfad standen bisher doppelt im Code — einmal in `NAV_ITEMS`
  * (sidebar.tsx), einmal in `mainRoutes` (breadcrumb-utils.ts). Wer eine Seite
@@ -249,25 +262,10 @@ export function getActiveParentSubPage(pathname: string): ParentSubPage | null {
   return findActiveSubPage(PARENT_SUB_PAGES, pathname);
 }
 
-export function getActiveParentSubPageHref(pathname: string): string | null {
-  return getActiveParentSubPage(pathname)?.href ?? null;
-}
-
 export function getActiveCommunicationSubPage(
   pathname: string,
 ): CommunicationSubPage | null {
   return findActiveSubPage(COMMUNICATION_SUB_PAGES, pathname);
-}
-
-export function getActiveCommunicationSubPageHref(
-  pathname: string,
-): string | null {
-  return getActiveCommunicationSubPage(pathname)?.href ?? null;
-}
-
-/** Gehört der Pfad in den Kommunikation-Bereich (Team-Chat, Tagesinformationen)? */
-export function isCommunicationPath(pathname: string): boolean {
-  return getActiveCommunicationSubPage(pathname) !== null;
 }
 
 export function getActiveEnrollmentSubPage(
@@ -280,11 +278,6 @@ export function getActiveEnrollmentSubPageHref(
   pathname: string,
 ): string | null {
   return getActiveEnrollmentSubPage(pathname)?.href ?? null;
-}
-
-/** Gehört der Pfad in den Eltern-Bereich (Hub oder eine Unterseite)? */
-export function isElternPath(pathname: string): boolean {
-  return getActiveParentSubPage(pathname) !== null;
 }
 
 /** Gehört der Pfad in den Anmeldungen-Bereich (Hub oder eine Unterseite)? */
