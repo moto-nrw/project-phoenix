@@ -13,6 +13,10 @@ import (
 
 var feedbackValues = []string{"positive", "neutral", "negative"}
 
+// Eight seeded sessions receive students round-robin. The 85th student would
+// become the 11th child in Leseecke, whose seeded capacity is 10.
+const fullDayCheckinLimit = 84
+
 // FullDayOptions configures a full-day simulation run.
 type FullDayOptions struct {
 	StatePath string
@@ -309,7 +313,7 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 		}
 		rt.Counts.AttendanceRecords++
 
-		if i < 85 && len(rt.ActiveRoomIDs) > 0 {
+		if i < fullDayCheckinLimit && len(rt.ActiveRoomIDs) > 0 {
 			roomID := rt.ActiveRoomIDs[i%len(rt.ActiveRoomIDs)]
 			checkinBody := map[string]any{
 				"student_rfid": rfidTag,
@@ -350,7 +354,7 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 		rt.Counts.StudentsSick++
 	}
 
-	for i := 75; i < 85 && i < len(rt.State.Students); i++ {
+	for i := 75; i < fullDayCheckinLimit && i < len(rt.State.Students); i++ {
 		student := rt.State.Students[i]
 		rfidTag, ok := rt.RFIDTags[student.ID]
 		if !ok {

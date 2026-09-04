@@ -307,11 +307,20 @@ func TestRunFullDay_NoDevices(t *testing.T) {
 
 // simulationAPIMock creates a mock API server for simulation tests.
 func simulationAPIMock(t *testing.T, failedPaths ...string) *simulationHTTPTestServer {
-	return simulationAPIMockWithUnknownCode(t, "rfid_tag_not_found", failedPaths...)
+	return simulationAPIMockWithOptions(t, "rfid_tag_not_found", 0, failedPaths...)
 }
 
 func simulationAPIMockWithUnknownCode(t *testing.T, unknownCode string, failedPaths ...string) *simulationHTTPTestServer {
+	return simulationAPIMockWithOptions(t, unknownCode, 0, failedPaths...)
+}
+
+func simulationAPIMockWithCheckinLimit(t *testing.T, checkinLimit int) *simulationHTTPTestServer {
+	return simulationAPIMockWithOptions(t, "rfid_tag_not_found", checkinLimit)
+}
+
+func simulationAPIMockWithOptions(t *testing.T, unknownCode string, checkinLimit int, failedPaths ...string) *simulationHTTPTestServer {
 	t.Helper()
+	checkedInRFIDs := make(map[string]bool)
 	return newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		if slices.Contains(failedPaths, r.URL.Path) {
@@ -350,6 +359,24 @@ func simulationAPIMockWithUnknownCode(t *testing.T, unknownCode string, failedPa
 				w.WriteHeader(404)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag", "code": unknownCode})
 				return
+			}
+			rfidTag, _ := body["student_rfid"].(string)
+			action, _ := body["action"].(string)
+			if checkinLimit > 0 && action == "checkout" {
+				if !checkedInRFIDs[rfidTag] {
+					w.WriteHeader(409)
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": "Student is not checked in", "code": "STUDENT_NOT_CHECKED_IN"})
+					return
+				}
+				delete(checkedInRFIDs, rfidTag)
+			}
+			if checkinLimit > 0 && action == "checkin" {
+				if len(checkedInRFIDs) >= checkinLimit {
+					w.WriteHeader(409)
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": "Room capacity exceeded", "code": "ROOM_CAPACITY_EXCEEDED"})
+					return
+				}
+				checkedInRFIDs[rfidTag] = true
 			}
 			w.WriteHeader(simulationHTTPStatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": 1}})
@@ -438,7 +465,9 @@ func TestRunFullDay_FailsWholeRunWhenActivityStartFails(t *testing.T) {
 func TestRunFullDay_ManyStudents(t *testing.T) {
 	t.Parallel()
 
-	srv := simulationAPIMock(t)
+	// The seeded room plan can admit 84 round-robin check-ins before its
+	// smallest room reaches capacity.
+	srv := simulationAPIMockWithCheckinLimit(t, 84)
 	defer srv.Close()
 
 	dir := t.TempDir()
