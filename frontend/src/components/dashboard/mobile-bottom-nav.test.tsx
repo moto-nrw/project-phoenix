@@ -109,6 +109,8 @@ import {
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import {
+  useAttendanceLogEnabled,
+  useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
@@ -128,6 +130,8 @@ const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
+const mockUseAttendanceLogEnabled = vi.mocked(useAttendanceLogEnabled);
+const mockUseDisplayEnabled = vi.mocked(useDisplayEnabled);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
@@ -479,11 +483,10 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
-      // Nur Planungs- und Eltern-Hub-Links tragen das Tenant-Präfix; /calendar
-      // bleibt bar.
+      // Alle tenant-gebundenen Drawer-Links tragen im Pfadmodus das Präfix.
       expect(screen.getByText("Mein Kalender").closest("a")).toHaveAttribute(
         "href",
-        "/calendar",
+        "/test-tenant/calendar",
       );
       expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
     });
@@ -813,7 +816,10 @@ describe("MobileBottomNav", () => {
       fireEvent.click(staffLink);
 
       // The link should exist and be clickable
-      expect(staffLink.closest("a")).toHaveAttribute("href", "/staff");
+      expect(staffLink.closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/staff",
+      );
     });
 
     it("displays additional nav items in drawer", () => {
@@ -853,9 +859,31 @@ describe("MobileBottomNav", () => {
 
       const link = screen.getByText("Statistik").closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/statistics");
+      expect(link).toHaveAttribute("href", "/test-tenant/statistics");
       expect(screen.queryByText("Berichte")).not.toBeInTheDocument();
       expect(screen.queryByText("Bald verfügbar")).not.toBeInTheDocument();
+    });
+
+    it("prefixes tenant-scoped Verwaltungsseiten in the path-routing drawer", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseAttendanceLogEnabled.mockReturnValue(true);
+      mockUseDisplayEnabled.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+      fireEvent.click(getMoreButton());
+
+      for (const { label, href } of [
+        { label: "Tagesauswertung", href: "/test-tenant/day-log" },
+        { label: "Statistik", href: "/test-tenant/statistics" },
+        { label: "Dateien", href: "/test-tenant/dateien" },
+        { label: "Info-Displays", href: "/test-tenant/info-displays" },
+      ] as const) {
+        expect(screen.getByText(label).closest("a")).toHaveAttribute(
+          "href",
+          href,
+        );
+      }
     });
 
     it("shows Statistik to non-admin staff with both required permissions", () => {
@@ -871,7 +899,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(getMoreButton());
       expect(screen.getByText("Statistik").closest("a")).toHaveAttribute(
         "href",
-        "/statistics",
+        "/test-tenant/statistics",
       );
     });
 
@@ -886,7 +914,7 @@ describe("MobileBottomNav", () => {
       const zeiterfassungElement = screen.getByText("Zeiterfassung");
       const link = zeiterfassungElement.closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/time-tracking");
+      expect(link).toHaveAttribute("href", "/test-tenant/time-tracking");
     });
 
     it("does not show the old Dienstpläne placeholder for admins", () => {

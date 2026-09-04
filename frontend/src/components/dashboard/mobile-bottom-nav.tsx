@@ -534,13 +534,12 @@ interface DrawerGroup {
 }
 
 // Tenant-scoped [tenant]/… routes that need the slug prefix in path-routing
-// mode. /help is host-agnostic and must not carry the slug. Same set as the
-// desktop sidebar.
+// mode. PAGE_ITEMS is the catalog for every staff drawer page; only /help is
+// host-agnostic and must not carry the slug.
 const TENANT_SCOPED_HREFS = new Set<string>([
-  "/anfragen",
-  ...PARENT_SUB_PAGES.map((page) => page.href),
-  ...COMMUNICATION_SUB_PAGES.map((page) => page.href),
-  ...PLANNING_SUB_PAGES.map((page) => page.href),
+  ...PAGE_ITEMS.filter((item) => item.href !== STAFF_FLAT_PAGES.help.href).map(
+    (item) => item.href,
+  ),
 ]);
 
 const NFC_ONLY_HREFS = new Set<string>(["/activities"]);
