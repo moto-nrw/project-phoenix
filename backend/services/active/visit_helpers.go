@@ -378,7 +378,11 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 	if s.Broadcaster == nil {
 		return
 	}
-	s.emitVisitCreated(ctx, visit, snapshot, s.getStudentForSSE(ctx, visit.StudentID))
+	studentRec := s.getStudentForSSE(ctx, visit.StudentID)
+	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitVisitCreated(broadcastCtx, visit, snapshot, studentRec)
+	})
 }
 
 // emitVisitCreated publishes a visit using routing data already resolved in

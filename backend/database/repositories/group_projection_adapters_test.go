@@ -47,6 +47,33 @@ func TestSupervisionBlockersResolveGroupNamesThroughTheOwner(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSupervisionBlockersExcludeFutureSupervisions(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+
+	staff := testpkg.CreateTestStaff(t, db, "Future", "Blocker")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Future Blocker Activity")
+	room := testpkg.CreateTestRoom(t, db, "Future Blocker Room")
+	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	supervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor")
+	_, err := db.NewUpdate().
+		TableExpr("active.group_supervisors").
+		Set("start_date = CURRENT_DATE + 1").
+		Where("id = ?", supervision.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	factory := repositories.NewFactory(db)
+	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
+		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID, tenantID)
+		require.NoError(t, err)
+		assert.Empty(t, rows)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestStudentRosterGroupNamesAreEmptyWithoutGroup(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

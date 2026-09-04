@@ -4,12 +4,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // activeSvcBypassAuth mirrors the old unauthenticated move path: the
@@ -749,4 +751,227 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_EndedTargetFails(t *te
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, activeSvc.ErrActiveGroupAlreadyEnded)
+}
+
+// moveAuthFixture is one present child sitting in a source room plus a target
+// session in another room. Supervisions are left to the individual tests so
+// each one states the push-or-pull rule (#2969) it pins.
+type moveAuthFixture struct {
+	staff       *usersModel.Staff
+	colleague   *usersModel.Staff
+	studentID   int64
+	sourceGroup *activeModel.Group
+	targetGroup *activeModel.Group
+}
+
+func newMoveAuthFixture(t *testing.T, db *bun.DB, tag string) moveAuthFixture {
+	t.Helper()
+	now := time.Now()
+
+	sourceActivity := testpkg.CreateTestActivityGroup(t, db, tag+"-source")
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, tag+"-target")
+	sourceRoom := testpkg.CreateTestRoom(t, db, tag+" Source Room")
+	targetRoom := testpkg.CreateTestRoom(t, db, tag+" Target Room")
+	sourceGroup := testpkg.CreateTestActiveGroup(t, db, sourceActivity.ID, sourceRoom.ID)
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+	staff := testpkg.CreateTestStaff(t, db, "MoveAuth", tag+"-Caller")
+	colleague := testpkg.CreateTestStaff(t, db, "MoveAuth", tag+"-Colleague")
+	device := testpkg.CreateTestDevice(t, db, tag+"-device")
+	student := testpkg.CreateTestStudent(t, db, "MoveAuth", tag, tag)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-25*time.Minute), nil)
+
+	return moveAuthFixture{
+		staff:       staff,
+		colleague:   colleague,
+		studentID:   student.ID,
+		sourceGroup: sourceGroup,
+		targetGroup: targetGroup,
+	}
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourceIntoColleagueTarget(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	fx := newMoveAuthFixture(t, db, "push")
+
+	// Push (#2969): the caller supervises only the SOURCE; a colleague runs
+	// the target session.
+	testpkg.CreateTestGroupSupervisor(t, db, fx.staff.ID, fx.sourceGroup.ID, "supervisor")
+	testpkg.CreateTestGroupSupervisor(t, db, fx.colleague.ID, fx.targetGroup.ID, "supervisor")
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff.ID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, []int64{fx.studentID}, result.Moved)
+
+	currentVisit, err := service.GetStudentCurrentVisit(ctx, fx.studentID)
+	require.NoError(t, err)
+	assert.Equal(t, fx.targetGroup.ID, currentVisit.ActiveGroupID)
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsWhenNeitherRoomSupervised(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	fx := newMoveAuthFixture(t, db, "neither")
+
+	// Both rooms are supervised, but by the colleague, not by the caller.
+	testpkg.CreateTestGroupSupervisor(t, db, fx.colleague.ID, fx.sourceGroup.ID, "supervisor")
+	testpkg.CreateTestGroupSupervisor(t, db, fx.colleague.ID, fx.targetGroup.ID, "supervisor")
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff.ID})
+
+	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+	assert.Nil(t, result)
+
+	currentVisit, err := service.GetStudentCurrentVisit(ctx, fx.studentID)
+	require.NoError(t, err)
+	assert.Equal(t, fx.sourceGroup.ID, currentVisit.ActiveGroupID, "the child must stay in the source room")
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushIntoUnsupervisedTarget(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	fx := newMoveAuthFixture(t, db, "unsupervised")
+
+	// Source supervised by the caller, but nobody is running the target.
+	testpkg.CreateTestGroupSupervisor(t, db, fx.staff.ID, fx.sourceGroup.ID, "supervisor")
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff.ID})
+
+	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+	assert.Nil(t, result)
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushIntoTargetWithFutureSupervision(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	fx := newMoveAuthFixture(t, db, "future-supervision")
+
+	// The caller supervises the source room. The target's assignment begins
+	// tomorrow, so it cannot make the target room safe for a push today.
+	testpkg.CreateTestGroupSupervisor(t, db, fx.staff.ID, fx.sourceGroup.ID, "supervisor")
+	targetSupervision := testpkg.CreateTestGroupSupervisor(t, db, fx.colleague.ID, fx.targetGroup.ID, "supervisor")
+	targetSupervision.StartDate = timezone.TodayDate().AddDays(1)
+	require.NoError(t, service.UpdateGroupSupervisor(ctx, targetSupervision))
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff.ID})
+
+	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+	assert.Nil(t, result)
+
+	currentVisit, err := service.GetStudentCurrentVisit(ctx, fx.studentID)
+	require.NoError(t, err)
+	assert.Equal(t, fx.sourceGroup.ID, currentVisit.ActiveGroupID, "the child must stay in the source room")
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushIntoAmbiguousTargetRoom(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	fx := newMoveAuthFixture(t, db, "ambiguous")
+
+	// A second running session in the target room makes the room ambiguous.
+	otherActivity := testpkg.CreateTestActivityGroup(t, db, "ambiguous-second")
+	testpkg.CreateTestActiveGroup(t, db, otherActivity.ID, fx.targetGroup.RoomID)
+	testpkg.CreateTestGroupSupervisor(t, db, fx.staff.ID, fx.sourceGroup.ID, "supervisor")
+	testpkg.CreateTestGroupSupervisor(t, db, fx.colleague.ID, fx.targetGroup.ID, "supervisor")
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff.ID})
+
+	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+	assert.Nil(t, result)
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_PullIgnoresAmbiguousTargetRoom(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	fx := newMoveAuthFixture(t, db, "pull-ambiguous")
+
+	// Pull (#2329) stays as it was: the caller supervises the target group
+	// itself and therefore names it unambiguously, even with a second
+	// session in the same room.
+	otherActivity := testpkg.CreateTestActivityGroup(t, db, "pull-ambiguous-second")
+	testpkg.CreateTestActiveGroup(t, db, otherActivity.ID, fx.targetGroup.RoomID)
+	testpkg.CreateTestGroupSupervisor(t, db, fx.staff.ID, fx.targetGroup.ID, "supervisor")
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff.ID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, []int64{fx.studentID}, result.Moved)
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushOfTransitChild(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	now := time.Now()
+	fx := newMoveAuthFixture(t, db, "transit-push")
+
+	// A second child is present but has no room: there is no source
+	// supervision that could authorize a push, and the caller does not
+	// supervise the target.
+	device := testpkg.CreateTestDevice(t, db, "transit-push-device")
+	transitStudent := testpkg.CreateTestStudent(t, db, "MoveAuth", "Transit", "transit-push-2")
+	testpkg.CreateTestAttendance(t, db, transitStudent.ID, fx.staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestGroupSupervisor(t, db, fx.staff.ID, fx.sourceGroup.ID, "supervisor")
+	testpkg.CreateTestGroupSupervisor(t, db, fx.colleague.ID, fx.targetGroup.ID, "supervisor")
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID, transitStudent.ID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff.ID})
+
+	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+	assert.Nil(t, result)
+
+	currentVisit, err := service.GetStudentCurrentVisit(ctx, fx.studentID)
+	require.NoError(t, err)
+	assert.Equal(t, fx.sourceGroup.ID, currentVisit.ActiveGroupID, "a forbidden batch must move nobody")
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushWithChildFromUnsupervisedRoom(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	now := time.Now()
+	fx := newMoveAuthFixture(t, db, "mixed-push")
+
+	// The batch mixes a child from the caller's room with a child from a
+	// third room the caller does not supervise.
+	thirdActivity := testpkg.CreateTestActivityGroup(t, db, "mixed-push-third")
+	thirdRoom := testpkg.CreateTestRoom(t, db, "Mixed Push Third Room")
+	thirdGroup := testpkg.CreateTestActiveGroup(t, db, thirdActivity.ID, thirdRoom.ID)
+	device := testpkg.CreateTestDevice(t, db, "mixed-push-device")
+	otherStudent := testpkg.CreateTestStudent(t, db, "MoveAuth", "Third", "mixed-push-2")
+	testpkg.CreateTestAttendance(t, db, otherStudent.ID, fx.staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	testpkg.CreateTestVisit(t, db, otherStudent.ID, thirdGroup.ID, now.Add(-25*time.Minute), nil)
+	testpkg.CreateTestGroupSupervisor(t, db, fx.staff.ID, fx.sourceGroup.ID, "supervisor")
+	testpkg.CreateTestGroupSupervisor(t, db, fx.colleague.ID, fx.targetGroup.ID, "supervisor")
+	testpkg.CreateTestGroupSupervisor(t, db, fx.colleague.ID, thirdGroup.ID, "supervisor")
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID, otherStudent.ID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff.ID})
+
+	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+	assert.Nil(t, result)
 }

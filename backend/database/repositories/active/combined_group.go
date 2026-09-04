@@ -176,7 +176,7 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CombinedGroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.CombinedGroup, error) {
 	if options != nil && options.Filter != nil {
-		rewriteActiveOnlyFilter(options.Filter, "end_time", bun.Safe("NOW()"))
+		rewriteActiveOnlyFilter(options.Filter, "", "end_time", bun.Safe("NOW()"))
 	}
 
 	groups, err := r.ListWithOptions(ctx, options)

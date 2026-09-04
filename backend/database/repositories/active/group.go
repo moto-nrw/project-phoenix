@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -30,6 +31,7 @@ type GroupRepository struct {
 	*base.Repository[*active.Group]
 	db    *bun.DB
 	rooms RoomDirectory
+	today func() timezone.Date
 }
 
 // BindRoomDirectory installs the Facilities directory the group reads
@@ -39,12 +41,13 @@ func (r *GroupRepository) BindRoomDirectory(rooms RoomDirectory) {
 }
 
 // NewGroupRepository creates a new GroupRepository
-func NewGroupRepository(db *bun.DB) active.GroupRepository {
+func NewGroupRepository(db *bun.DB, clocks ...func() time.Time) active.GroupRepository {
 	repo := base.NewRepository[*active.Group](db, "active.groups", "Group")
 	repo.TenantScoped = true
 	return &GroupRepository{
 		Repository: repo,
 		db:         db,
+		today:      timezone.CalendarDateClock(clocks...),
 	}
 }
 
@@ -68,6 +71,20 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	}
 
 	return groups, nil
+}
+
+// LockRoomSessionWrites serializes active session changes for one tenant room.
+// A push move depends on the target room containing exactly one active session
+// until its visit writes commit, without blocking sessions in other rooms.
+func (r *GroupRepository) LockRoomSessionWrites(ctx context.Context, roomID int64) error {
+	if roomID <= 0 {
+		return &modelBase.DatabaseError{Op: "lock room session writes", Err: errors.New("invalid room ID")}
+	}
+	key := fmt.Sprintf("active-room-session:%d:%d", tenant.FromContext(ctx), roomID)
+	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
+		return &modelBase.DatabaseError{Op: "lock room session writes", Err: err}
+	}
+	return nil
 }
 
 // FindActiveByRoomIDAndDeviceID finds the active group in a room for a specific device.
@@ -736,7 +753,7 @@ func (r *GroupRepository) queryUnclaimedGroups(ctx context.Context) ([]*active.G
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND ("sup"."end_date" IS NULL OR "sup"."end_date" > CURRENT_DATE)`).
+		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND "sup"."start_date" <= ? AND ("sup"."end_date" IS NULL OR "sup"."end_date" > ?)`, r.today(), r.today()).
 		Where(`"group"."end_time" IS NULL`).
 		Where(`"sup"."id" IS NULL`)
 

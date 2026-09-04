@@ -10,6 +10,7 @@ import (
 	"time"
 
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -84,6 +85,7 @@ func (m *mockActiveSvcForSSE) GetTrackingIndicators(_ context.Context, _ []int64
 }
 
 func (m *mockActiveSvcForSSE) SetSettingsService(_ activeSvc.SettingsResolver) {}
+func (m *mockActiveSvcForSSE) SetTenantRuntime(_ tenant.UnitOfWork)            {}
 func (m *mockActiveSvcForSSE) GetPresenceMode(_ context.Context) string        { return "detailed" }
 
 // Stubs for the rest of active.Service (never called by resolveSupervisions)
