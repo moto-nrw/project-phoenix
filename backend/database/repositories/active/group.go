@@ -73,16 +73,16 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	return groups, nil
 }
 
-// LockActiveGroupWrites serializes active session writes for the current
-// transaction. A push move relies on the target room containing exactly one
-// active session until its visit writes commit; a row lock on that session
-// cannot prevent another session from being created in the same room.
-func (r *GroupRepository) LockActiveGroupWrites(ctx context.Context) error {
-	_, err := base.GetDB(ctx, r.db).NewRaw(
-		`LOCK TABLE active.groups IN SHARE ROW EXCLUSIVE MODE`,
-	).Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "lock active group writes", Err: err}
+// LockRoomSessionWrites serializes active session changes for one tenant room.
+// A push move depends on the target room containing exactly one active session
+// until its visit writes commit, without blocking sessions in other rooms.
+func (r *GroupRepository) LockRoomSessionWrites(ctx context.Context, roomID int64) error {
+	if roomID <= 0 {
+		return &modelBase.DatabaseError{Op: "lock room session writes", Err: errors.New("invalid room ID")}
+	}
+	key := fmt.Sprintf("active-room-session:%d:%d", tenant.FromContext(ctx), roomID)
+	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
+		return &modelBase.DatabaseError{Op: "lock room session writes", Err: err}
 	}
 	return nil
 }

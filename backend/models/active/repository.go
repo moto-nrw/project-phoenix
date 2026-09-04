@@ -26,9 +26,9 @@ type GroupRepository interface {
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
 
-	// LockActiveGroupWrites prevents concurrent active session writes until the
-	// current transaction completes.
-	LockActiveGroupWrites(ctx context.Context) error
+	// LockRoomSessionWrites serializes active session writes for one room until
+	// the current transaction completes.
+	LockRoomSessionWrites(ctx context.Context, roomID int64) error
 
 	// FindActiveByRoomIDAndDeviceID finds the active group in a room that belongs to a specific device.
 	FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID int64, deviceID int64) (*Group, error)
@@ -185,6 +185,10 @@ type VisitRepository interface {
 
 	// GetCurrentByStudentIDs finds the current active visit for multiple students
 	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
+
+	// GetCurrentByStudentIDsForUpdate finds and locks current active visits for
+	// multiple students.
+	GetCurrentByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
 
 	// CountActiveByRoomID counts currently active visits across all active groups in a room.
 	CountActiveByRoomID(ctx context.Context, roomID int64) (int, error)

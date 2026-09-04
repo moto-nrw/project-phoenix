@@ -80,7 +80,7 @@ func (m *mockGroupRepository) FindActiveByRoomID(ctx context.Context, roomID int
 	return nil, nil
 }
 
-func (m *mockGroupRepository) LockActiveGroupWrites(context.Context) error {
+func (m *mockGroupRepository) LockRoomSessionWrites(context.Context, int64) error {
 	return nil
 }
 
@@ -325,6 +325,10 @@ func (m *mockVisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context,
 
 func (m *mockVisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
 	return nil, nil
+}
+
+func (m *mockVisitRepository) GetCurrentByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
+	return m.GetCurrentByStudentIDs(ctx, studentIDs)
 }
 
 func (m *mockVisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64) (int, error) {

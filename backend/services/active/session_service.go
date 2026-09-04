@@ -139,6 +139,9 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		if err != nil {
 			return err
 		}
+		if err := s.GroupRepo.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
+			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
+		}
 
 		_, err = createSession(txCtx, finalRoomID)
 		return err
@@ -636,6 +639,11 @@ func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID in
 
 // validateManualRoomSelection validates manually selected room based on conflict strategy
 func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64, strategy RoomConflictStrategy) (int64, error) {
+	if s.GroupRepo != nil {
+		if err := s.GroupRepo.LockRoomSessionWrites(ctx, roomID); err != nil {
+			return 0, err
+		}
+	}
 	if strategy == RoomConflictIgnore {
 		return roomID, nil
 	}

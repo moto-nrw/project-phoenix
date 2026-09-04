@@ -192,6 +192,7 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
+	requestedIDs := uniqueIDs
 	if s.StudentRepo != nil {
 		lockedStudents, err := s.StudentRepo.FindByIDsForUpdate(ctx, uniqueIDs)
 		if err != nil {
@@ -214,18 +215,22 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 		}
 	}
 
+	var lockedTargetRoomID int64
+	staleVisitIDs := make(map[int64]struct{})
 	if auth != nil && !auth.BypassResourceChecks {
-		// Take the table-level write gate before any active-group row lock. This
-		// order matches PostgreSQL's own UPDATE lock acquisition and prevents a
-		// session writer from waiting on this move while this move waits on it.
-		if err := s.GroupRepo.LockActiveGroupWrites(ctx); err != nil {
-			return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+		var err error
+		lockedTargetRoomID, err = s.lockMoveTargetRoom(ctx, activeGroupID, op)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	targetGroup, err := s.lockActiveGroupForMove(ctx, activeGroupID, op)
 	if err != nil {
 		return nil, err
+	}
+	if lockedTargetRoomID > 0 && targetGroup.RoomID != lockedTargetRoomID {
+		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
 
 	openAttendance, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
@@ -236,13 +241,43 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 		if err := s.lockMoveSourceGroups(ctx, uniqueIDs, currentVisits, targetGroup.ID, op); err != nil {
 			return nil, err
 		}
-		if err := s.authorizeStudentMove(ctx, auth.StaffID, targetGroup, uniqueIDs, openAttendance, currentVisits, op); err != nil {
+		refreshedVisits, err := s.VisitRepo.GetCurrentByStudentIDsForUpdate(ctx, uniqueIDs)
+		if err != nil {
+			return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+		}
+		if refreshedVisits == nil {
+			refreshedVisits = map[int64]*active.Visit{}
+		}
+		moveIDs := make([]int64, 0, len(uniqueIDs))
+		for _, studentID := range uniqueIDs {
+			if currentVisits[studentID] != nil && refreshedVisits[studentID] == nil {
+				staleVisitIDs[studentID] = struct{}{}
+				continue
+			}
+			moveIDs = append(moveIDs, studentID)
+		}
+		currentVisits = refreshedVisits
+		if len(moveIDs) == 0 {
+			result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
+			for _, studentID := range requestedIDs {
+				if _, stale := staleVisitIDs[studentID]; stale {
+					result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
+				}
+			}
+			return result, nil
+		}
+		if err := s.authorizeStudentMove(ctx, auth.StaffID, targetGroup, moveIDs, openAttendance, currentVisits, op); err != nil {
 			return nil, err
 		}
+		uniqueIDs = moveIDs
 	}
 	if s.GetPresenceMode(ctx) == "binary" {
 		result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
-		for _, studentID := range uniqueIDs {
+		for _, studentID := range requestedIDs {
+			if _, stale := staleVisitIDs[studentID]; stale {
+				result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
+				continue
+			}
 			if currentVisits[studentID] != nil {
 				result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipConflict})
 				continue
@@ -257,6 +292,11 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 	}
 
 	result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
+	for _, studentID := range requestedIDs {
+		if _, stale := staleVisitIDs[studentID]; stale {
+			result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
+		}
+	}
 	for _, studentID := range uniqueIDs {
 		if !studentHasOpenAttendance(openAttendance, studentID) {
 			result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
@@ -487,6 +527,23 @@ func (s *service) lockMoveSourceGroups(ctx context.Context, studentIDs []int64, 
 		}
 	}
 	return nil
+}
+
+// lockMoveTargetRoom serializes a push move with session changes in its target
+// room. The target row is locked afterwards and checked again before visits are
+// created, so a concurrent room reassignment cannot use a stale room lock.
+func (s *service) lockMoveTargetRoom(ctx context.Context, activeGroupID int64, op string) (int64, error) {
+	group, err := s.GroupRepo.FindByID(ctx, activeGroupID)
+	if err != nil {
+		return 0, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	if group == nil || !group.IsActive() || group.RoomID <= 0 {
+		return 0, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
+	}
+	if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+		return 0, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	return group.RoomID, nil
 }
 
 func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64, op string) (map[int64]struct{}, error) {
