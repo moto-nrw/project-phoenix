@@ -173,6 +173,28 @@ Die Schleife ist weg (Faktor 20 bis 23 beim Aufruf, Leerlauf bei 0). Was bleibt:
 - **Zeiterfassung, Wochenwechsel: 7.526 Renders**, davon je 900 für die recharts-Schichten `BarStackClipLayer`, `BarRectangleNeverActive`, `BarRectangle`. Das Chart wird bei jedem Datenwechsel komplett neu aufgebaut.
 - Die 14 Leerlauf-Renders auf drei Screens sind ein einzelner `SessionProvider`-Refetch, unauffällig.
 
+### Nachtrag: nach den Fixes aus #2975
+
+Nachgemessen am 2026-09-04 mit demselben Harness, auf einem anderen Seed-Stand
+(117 Kinder statt 100) und auf einem Dev-Server ohne CPU-Drosselung. Die Zahlen
+sind deshalb NICHT mit der Tabelle oben vergleichbar, wohl aber untereinander:
+vorher und nachher wurden im selben Lauf-Setup gemessen, mit identischem
+Ruhefenster (40,1 s) und Datenstand, einmal auf `development` und einmal mit
+den Fixes.
+
+| Screen          | Messung          | vorher | nachher | Änderung |
+| --------------- | ---------------- | ------ | ------- | -------- |
+| students/search | Aufruf bis Ruhe  | 14.958 | 13.101  | −12 %    |
+| students/search | 4 Zeichen tippen | 25.389 | 642     | −97 %    |
+| time-tracking   | Aufruf bis Ruhe  | 13.914 | 6.123   | −56 %    |
+| time-tracking   | „Vorherige Woche“ | 8.248 | 653     | −92 %    |
+
+Die Zielmarken aus #2975 (Tippen unter 1.000, Wochenwechsel unter 2.000) sind
+damit erreicht. Was die Zahlen gesenkt hat, steht im Commit zu #2975: das
+Suchfeld hält die Zeichen selbst, die Kinderkarte ist eine memoisierte
+Komponente, die Zeitzeilen holen ihre Minuten-Uhr aus einem Kontext, und die
+Wochenübersicht ist memoisiert und animiert die Balken nicht mehr.
+
 ## Hypothesen-Check
 
 | Verdacht aus #2938                                                                          | Urteil                    | Beleg                                                                                                                                                                                                                                                                                   |
