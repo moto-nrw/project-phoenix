@@ -167,9 +167,9 @@ export function StudentsInRoomSection({
       activeGroups.filter((group) => group.isActive && group.roomId === roomId),
     [activeGroups, roomId],
   );
-  const supervisesSourceRoom =
-    sourceGroups.length > 0 &&
-    sourceGroups.every((group) => supervisedTargetGroupIds.has(group.id));
+  const supervisesSourceRoom = sourceGroups.some((group) =>
+    supervisedTargetGroupIds.has(group.id),
+  );
   const targetScope: TargetScope = showAllTargets
     ? "all"
     : supervisesSourceRoom
@@ -418,7 +418,8 @@ interface TargetRoomOption {
  * Which rooms may be offered as move targets (#2969):
  * - `all`: admins see every room with exactly one running session.
  * - `supervised`: a supervisor of THIS room may push into every room whose
- *   single running session has at least one supervisor (colleagues count).
+ *   single running session has at least one supervisor (colleagues count),
+ *   or pull into their own running session.
  * - `own`: everyone else may only pull into rooms they supervise themselves.
  */
 type TargetScope = "all" | "supervised" | "own";
@@ -442,24 +443,35 @@ function buildTargetRoomOptions(
     groupsByRoomId.set(group.roomId, groupsInRoom);
   });
 
-  const isEligible = (group: ActiveGroup): boolean => {
-    if (scope === "all") return true;
-    if (ownActiveGroupIds.has(group.id)) return true;
-    return scope === "supervised" && (group.supervisorCount ?? 0) > 0;
-  };
-
   return [...groupsByRoomId.entries()]
     .flatMap(([targetRoomId, groups]) => {
-      const activeGroup = groups.length === 1 ? groups[0] : undefined;
-      if (!activeGroup || !isEligible(activeGroup)) return [];
       const room = roomsById.get(targetRoomId);
-      return [
-        {
-          activeGroupId: activeGroup.id,
-          roomId: targetRoomId,
-          roomName: room?.name ?? `Raum ${targetRoomId}`,
-        },
-      ];
+      const ownGroups = groups.filter((group) =>
+        ownActiveGroupIds.has(group.id),
+      );
+      const unambiguousGroup = groups.length === 1 ? groups[0] : undefined;
+
+      const eligibleGroups =
+        scope === "all"
+          ? unambiguousGroup
+            ? [unambiguousGroup]
+            : []
+          : scope === "own"
+            ? ownGroups
+            : [
+                ...ownGroups,
+                ...(unambiguousGroup &&
+                !ownActiveGroupIds.has(unambiguousGroup.id) &&
+                (unambiguousGroup.supervisorCount ?? 0) > 0
+                  ? [unambiguousGroup]
+                  : []),
+              ];
+
+      return eligibleGroups.map((activeGroup) => ({
+        activeGroupId: activeGroup.id,
+        roomId: targetRoomId,
+        roomName: room?.name ?? `Raum ${targetRoomId}`,
+      }));
     })
     .sort((a, b) => a.roomName.localeCompare(b.roomName, "de"));
 }

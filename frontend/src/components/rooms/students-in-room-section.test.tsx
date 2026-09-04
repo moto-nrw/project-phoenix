@@ -793,6 +793,38 @@ describe("StudentsInRoomSection", () => {
       ).toBeInTheDocument();
     });
 
+    it("keeps push targets available when another source session is not supervised (#2969)", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          {
+            id: "supervised-source",
+            roomId: "42",
+            isActive: true,
+            supervisorCount: 1,
+          },
+          { id: "unsupervised-source", roomId: "42", isActive: true },
+          {
+            id: "colleague",
+            roomId: "9001",
+            isActive: true,
+            supervisorCount: 1,
+          },
+        ],
+        rooms: [{ id: "9001", name: "Raum 6" }],
+        activeSupervisions: makeSupervisions([
+          { id: "supervised-source", roomId: "42", isActive: true },
+        ]),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+
     it("lets a source supervisor push a child into a colleague's room (#2969)", async () => {
       mockMoveStudentsToActiveGroup.mockResolvedValue({
         moved: ["7"],
@@ -900,12 +932,15 @@ describe("StudentsInRoomSection", () => {
           { id: "source", roomId: "42", isActive: true },
           { id: "first", roomId: "9000", isActive: true },
           { id: "second", roomId: "9000", isActive: true },
-          { id: "single", roomId: "9001", isActive: true },
+          { id: "single", roomId: "9001", isActive: true, supervisorCount: 1 },
         ],
         rooms: [
           { id: "9000", name: "Raum mit Konflikt" },
           { id: "9001", name: "Raum 6" },
         ],
+        activeSupervisions: makeSupervisions([
+          { id: "source", roomId: "42", isActive: true },
+        ]),
       });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
@@ -919,7 +954,7 @@ describe("StudentsInRoomSection", () => {
       ).toBeInTheDocument();
     });
 
-    it("keeps a room ambiguous even when only one of its sessions is supervised", () => {
+    it("offers an own pull target in an otherwise ambiguous room", () => {
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
       setBulkData({
         activeGroups: [
@@ -936,13 +971,9 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      fireEvent.click(screen.getByLabelText("Zielraum"));
       expect(
-        screen.queryByRole("option", { name: "Raum mit Konflikt" }),
-      ).toBeNull();
-      expect(
-        screen.getByText(
-          "Zurzeit hat kein anderer Raum eine laufende Aufsicht.",
-        ),
+        screen.getByRole("option", { name: "Raum mit Konflikt" }),
       ).toBeInTheDocument();
     });
 
