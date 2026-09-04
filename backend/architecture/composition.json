@@ -1566,7 +1566,7 @@
       "declaration": "TestVisitRepository_ListOpenVisitStudentIDsByRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        200
+        206
       ],
       "tables": [
         "active.groups"
