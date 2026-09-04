@@ -84,10 +84,12 @@ function mapSupervisedGroup(data: BackendActiveGroup): SupervisedGroup {
  */
 export async function loadUserContext(
   token: string,
+  options?: { signal?: AbortSignal },
 ): Promise<UserContextResponse> {
   const result = await apiGet<{ data: BackendNavigationContext }>(
     "/api/me/navigation",
     token,
+    options,
   );
 
   // Transform backend data to frontend format

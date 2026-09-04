@@ -76,7 +76,7 @@ export function TenantProviders({
   tenantSlug,
   tenant,
   routingMode,
-  session = null,
+  session,
   shell = null,
 }: Readonly<{
   children: React.ReactNode;
@@ -111,7 +111,7 @@ export function TenantProviders({
 
   return (
     <SessionProvider
-      session={session}
+      session={session ?? undefined}
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >

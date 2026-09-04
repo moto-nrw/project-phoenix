@@ -50,17 +50,19 @@ interface Envelope<T> {
  */
 async function optional<T>(
   name: string,
-  load: () => Promise<T>,
+  load: (signal: AbortSignal) => Promise<T>,
 ): Promise<T | undefined> {
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<undefined>((resolve) => {
     timer = setTimeout(() => {
       logger.warn("shell_bootstrap_timeout", { field: name });
+      controller.abort();
       resolve(undefined);
     }, REQUEST_BUDGET_MS);
   });
   try {
-    return await Promise.race([load(), timeout]);
+    return await Promise.race([load(controller.signal), timeout]);
   } catch (error) {
     logger.debug("shell_bootstrap_skipped", {
       field: name,
@@ -68,7 +70,7 @@ async function optional<T>(
     });
     return undefined;
   } finally {
-    if (timer) clearTimeout(timer);
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 
@@ -76,7 +78,7 @@ async function loadSupervision(
   session: Session,
   tenant: TenantInfo,
   token: string,
-): Promise<SupervisionSnapshot> {
+): Promise<SupervisionSnapshot | null> {
   // Same gates as SupervisionProvider: the server answers every request
   // itself, these only skip calls that are guaranteed to 403.
   const adminScope = hasEffectiveAdminScope(session);
@@ -88,57 +90,73 @@ async function loadSupervision(
     adminScope || tenant.operationalOverviewScope === "all_staff";
 
   let overviewOk = false;
-  const loadSupervised = async (): Promise<SupervisedGroupPayload[]> => {
+  const loadSupervised = async (
+    signal: AbortSignal,
+  ): Promise<SupervisedGroupPayload[]> => {
     if (canReadGroups && mayHaveOverview) {
       try {
         const overview = await apiGet<
           Envelope<SupervisedGroupPayload[] | null>
-        >("/api/active/supervisors/all", token);
+        >("/api/active/supervisors/all", token, { signal });
         overviewOk = true;
         return overview.data ?? [];
-      } catch {
+      } catch (error) {
+        if (signal.aborted) throw error;
         // 403 = this school keeps the caller on their own supervisions.
       }
     }
     const own = await apiGet<Envelope<SupervisedGroupPayload[] | null>>(
       "/api/me/groups/supervised",
       token,
+      { signal },
     );
     return own.data ?? [];
   };
 
   const [groups, supervised, schulhof] = await Promise.all([
-    optional("groups", async () => {
+    optional("groups", async (signal) => {
       const response = await apiGet<Envelope<NavigationEducationalGroup[]>>(
         "/api/students/ogs-group-navigation",
         token,
+        { signal },
       );
       return response.data;
     }),
     optional("supervised", loadSupervised),
     canReadGroups
-      ? optional("schulhof", async () => {
+      ? optional("schulhof", async (signal) => {
           const response = await apiGet<Envelope<SchulhofStatus>>(
             "/api/active/schulhof/status",
             token,
+            { signal },
           );
           return response.data;
         })
       : Promise.resolve(undefined),
   ]);
 
+  // SupervisionProvider treats any snapshot as a complete initial load. Do
+  // not seed partial data: its ordinary browser request is the recovery path.
+  if (
+    groups === undefined ||
+    supervised === undefined ||
+    (canReadGroups && schulhof === undefined)
+  ) {
+    return null;
+  }
+
   return {
-    groups: groups ?? null,
-    supervised: supervised ?? null,
+    groups,
+    supervised,
     schulhof: schulhof ?? null,
-    overviewOk: supervised !== undefined && overviewOk,
+    overviewOk,
   };
 }
 
 async function loadCount(
   name: keyof ShellCounts,
   enabled: boolean,
-  load: () => Promise<number>,
+  load: (signal: AbortSignal) => Promise<number>,
 ): Promise<number | undefined> {
   return enabled ? optional(name, load) : undefined;
 }
@@ -171,56 +189,69 @@ async function loadCounts(
     enrollmentRequestsPending,
     careWithdrawalsPending,
   ] = await Promise.all([
-    loadCount("staffAbsencesPending", canReviewAbsences, async () => {
+    loadCount("staffAbsencesPending", canReviewAbsences, async (signal) => {
       const response = await apiGet<Envelope<unknown[] | null>>(
         "/api/staff/absences/pending",
         token,
+        { signal },
       );
       return (response.data ?? []).length;
     }),
-    loadCount("messagesUnread", tenant.messagingEnabled, async () => {
+    loadCount("messagesUnread", tenant.messagingEnabled, async (signal) => {
       const response = await apiGet<Envelope<{ unread_count?: number }>>(
         "/api/messages/unread-count",
         token,
-      );
-      return response.data?.unread_count ?? 0;
-    }),
-    loadCount("teamChatUnread", tenant.staffMessagingEnabled, async () => {
-      const response = await apiGet<Envelope<{ unread_count?: number }>>(
-        "/api/staff-messages/unread-count",
-        token,
+        { signal },
       );
       return response.data?.unread_count ?? 0;
     }),
     loadCount(
+      "teamChatUnread",
+      tenant.staffMessagingEnabled,
+      async (signal) => {
+        const response = await apiGet<Envelope<{ unread_count?: number }>>(
+          "/api/staff-messages/unread-count",
+          token,
+          { signal },
+        );
+        return response.data?.unread_count ?? 0;
+      },
+    ),
+    loadCount(
       "staffNoticesPending",
       hasPermission(session, "users:read"),
-      async () => {
+      async (signal) => {
         const response = await apiGet<
           Envelope<Array<{
             requires_acknowledgement: boolean;
             acknowledged_at?: string;
           }> | null>
-        >("/api/staff-notices/today", token);
+        >("/api/staff-notices/today", token, { signal });
         return (response.data ?? []).filter(
           (n) => n.requires_acknowledgement && !n.acknowledged_at,
         ).length;
       },
     ),
-    loadCount("changeRequestsPending", canReviewParentRequests, async () => {
-      const response = await apiGet<Envelope<{ pending_count?: number }>>(
-        "/api/students/change-requests/pending-count",
-        token,
-      );
-      return response.data?.pending_count ?? 0;
-    }),
+    loadCount(
+      "changeRequestsPending",
+      canReviewParentRequests,
+      async (signal) => {
+        const response = await apiGet<Envelope<{ pending_count?: number }>>(
+          "/api/students/change-requests/pending-count",
+          token,
+          { signal },
+        );
+        return response.data?.pending_count ?? 0;
+      },
+    ),
     loadCount(
       "enrollmentRequestsPending",
       canReviewEnrollmentChangeRequests(session),
-      async () => {
+      async (signal) => {
         const response = await apiGet<Envelope<{ pending_count?: number }>>(
           "/api/enrollment/admin/change-requests/pending-count",
           token,
+          { signal },
         );
         return response.data?.pending_count ?? 0;
       },
@@ -228,10 +259,11 @@ async function loadCounts(
     loadCount(
       "careWithdrawalsPending",
       canReviewCareWithdrawals(session),
-      async () => {
+      async (signal) => {
         const response = await apiGet<Envelope<{ total?: number }>>(
           "/api/students/care-withdrawals?page_size=1",
           token,
+          { signal },
         );
         return response.data?.total ?? 0;
       },
@@ -274,46 +306,51 @@ export async function loadShellBootstrap(
     supervision,
     counts,
   ] = await Promise.all([
-    optional("userContext", async () => {
-      const context = await loadUserContext(token);
+    optional("userContext", async (signal) => {
+      const context = await loadUserContext(token, { signal });
       // An incomplete projection is an error state for useUserContext (it
       // retries); leave that path to the browser instead of caching it.
       return context.incomplete ? undefined : context;
     }),
     canReadConfig
-      ? optional("settingsSchema", async () => {
+      ? optional("settingsSchema", async (signal) => {
           const response = await apiGet<Envelope<SettingsSchema>>(
             "/api/settings/schema",
             token,
+            { signal },
           );
           return response.data;
         })
       : Promise.resolve(undefined),
-    optional("profile", async () => {
+    optional("profile", async (signal) => {
       const response = await apiGet<Envelope<BackendProfile>>(
         "/api/me/profile",
         token,
+        { signal },
       );
       return mapProfileResponse(response.data);
     }),
-    optional("accountTenants", async () => {
+    optional("accountTenants", async (signal) => {
       const response = await apiGet<Envelope<AccountTenantBackend[] | null>>(
         "/auth/account/tenants",
         token,
+        { signal },
       );
       return (response.data ?? []).map(mapAccountTenant);
     }),
-    optional("reminders", async () => {
+    optional("reminders", async (signal) => {
       const response = await apiGet<Envelope<RemindersResult>>(
         "/api/reminders",
         token,
+        { signal },
       );
       return response.data;
     }),
-    optional("announcements", async () => {
+    optional("announcements", async (signal) => {
       const response = await apiGet<Envelope<UnreadAnnouncement[] | null>>(
         "/api/platform/announcements/unread",
         token,
+        { signal },
       );
       return response.data ?? [];
     }),

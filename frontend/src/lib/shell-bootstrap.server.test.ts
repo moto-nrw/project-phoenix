@@ -129,7 +129,10 @@ describe("loadShellBootstrap", () => {
       count: 0,
     });
     expect(shell.announcements).toEqual([{ id: 1 }]);
-    expect(loadUserContext).toHaveBeenCalledWith("access-token");
+    expect(loadUserContext).toHaveBeenCalledWith(
+      "access-token",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(shell.userContext?.incomplete).toBe(false);
     expect(shell.settingsSchema).toEqual({ tabs: [] });
     expect(shell.profile?.firstName).toBe("Ada");
@@ -231,14 +234,7 @@ describe("loadShellBootstrap", () => {
     expect(shell.accountTenants).toBeUndefined();
     expect(shell.reminders).toBeUndefined();
     expect(shell.announcements).toBeUndefined();
-    expect(shell.supervision).toEqual({
-      groups: null,
-      supervised: [
-        { id: 3, group_id: 3, room_id: 2, room: { id: 2, name: "B" } },
-      ],
-      schulhof: null,
-      overviewOk: false,
-    });
+    expect(shell.supervision).toBeNull();
     expect(Object.values(shell.counts).every((v) => v === undefined)).toBe(
       true,
     );
@@ -260,5 +256,38 @@ describe("loadShellBootstrap", () => {
     const shell = await loadShellBootstrap(session(), tenant);
 
     expect(shell.userContext).toBeUndefined();
+  });
+
+  it("aborts timed-out backend preloads", async () => {
+    vi.useFakeTimers();
+    let profileSignal: AbortSignal | undefined;
+    mockApiGet.mockImplementation(
+      (
+        endpoint: string,
+        _token: string,
+        options?: { signal?: AbortSignal },
+      ) => {
+        if (endpoint !== "/api/me/profile") {
+          throw new Error(`unrouted ${endpoint}`);
+        }
+        profileSignal = options?.signal;
+        return new Promise((_, reject) => {
+          profileSignal?.addEventListener("abort", () => {
+            reject(new Error("aborted"));
+          });
+        });
+      },
+    );
+
+    try {
+      const shellPromise = loadShellBootstrap(session(), tenant);
+      await vi.advanceTimersByTimeAsync(1500);
+      const shell = await shellPromise;
+
+      expect(profileSignal?.aborted).toBe(true);
+      expect(shell.profile).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

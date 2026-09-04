@@ -150,6 +150,22 @@ describe("TenantProviders with a server snapshot", () => {
     );
   });
 
+  it("leaves a missing server snapshot for Auth.js to resolve", () => {
+    render(
+      <TenantProviders
+        tenantSlug="school-a"
+        tenant={tenant}
+        routingMode="subdomain"
+      >
+        <div />
+      </TenantProviders>,
+    );
+
+    expect(mockSessionProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ session: undefined }),
+    );
+  });
+
   it("primes the session cache before any child layout effect runs", () => {
     render(
       <TenantProviders
