@@ -283,7 +283,7 @@ jobs:
             exit 1
           fi
           for manifest in package.json frontend/package.json; do
-            actual=$(jq -r '(.packageManager // "") | sub("^pnpm@"; "") | split("+")[0]' "$manifest")
+            actual=$(jq -r '(.packageManager // "") | if startswith("pnpm@") then sub("^pnpm@"; "") | split("+")[0] else empty end' "$manifest")
             if [[ "$actual" != "$expected" ]]; then
               echo "::error file=$manifest::packageManager version $actual does not match Devbox pin $expected"
               exit 1
