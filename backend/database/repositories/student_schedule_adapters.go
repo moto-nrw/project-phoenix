@@ -10,6 +10,17 @@ import (
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 )
 
+// StudentScheduleRepositories contains the Care Plan compatibility adapters
+// still consumed by legacy schedule services.
+type StudentScheduleRepositories struct {
+	ArrivalSchedule  scheduleModels.StudentArrivalScheduleRepository
+	ArrivalException scheduleModels.StudentArrivalExceptionRepository
+	ArrivalNote      scheduleModels.StudentArrivalNoteRepository
+	PickupSchedule   scheduleModels.StudentPickupScheduleRepository
+	PickupException  scheduleModels.StudentPickupExceptionRepository
+	PickupNote       scheduleModels.StudentPickupNoteRepository
+}
+
 type arrivalScheduleRepository struct{ careplan.Capability }
 type arrivalExceptionRepository struct{ careplan.Capability }
 type arrivalNoteRepository struct{ careplan.Capability }

@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
@@ -37,6 +36,7 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
+	"github.com/moto-nrw/project-phoenix/services/slotlists/slotlisttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,11 +71,11 @@ var pickupNow = time.Date(2025, 9, 3, 12, 0, 0, 0, timezone.Berlin)
 var pickupDate = timezone.DateFromTime(pickupNow)
 
 func studentPickupScheduleRepository(db *bun.DB) scheduleModels.StudentPickupScheduleRepository {
-	return repositories.NewFactory(db).StudentPickupSchedule
+	return slotlisttest.NewStudentScheduleRepositories(db).PickupSchedule
 }
 
 func studentPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupExceptionRepository {
-	return repositories.NewFactory(db).StudentPickupException
+	return slotlisttest.NewStudentScheduleRepositories(db).PickupException
 }
 
 // atOn returns the given Berlin wall-clock instant on calendar date d, so a
@@ -273,7 +273,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 	ResolveString(context.Context, string) (string, error)
 	LockSlotListCutoffPairShared(context.Context) error
 }, userCtx slotListUserContext, participation scheduleSvc.CareParticipationResolver) slotlists.Service {
-	scheduleRepos := repositories.NewFactory(db)
+	scheduleRepos := slotlisttest.NewStudentScheduleRepositories(db)
 	return slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
 		InstanceStudentRepo: newBoundInstanceStudentRepository(db),
@@ -281,19 +281,19 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 		AttendanceRepo:      activeRepo.NewAttendanceRepository(db),
 		StatusDayRepo:       activeRepo.NewStudentStatusDayRepository(db),
 		CareDayService: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
-			ArrivalSchedules:  scheduleRepos.StudentArrivalSchedule,
-			ArrivalExceptions: scheduleRepos.StudentArrivalException,
+			ArrivalSchedules:  scheduleRepos.ArrivalSchedule,
+			ArrivalExceptions: scheduleRepos.ArrivalException,
 			PickupBaselines: scheduletest.NewPickupBaselineService(
-				scheduleRepos.StudentPickupSchedule,
+				scheduleRepos.PickupSchedule,
 				newBoundRequestChildOfferingRepository(db),
 				carePlanTest.CareOfferingRepository(db),
 			),
-			PickupExceptions:  scheduleRepos.StudentPickupException,
+			PickupExceptions:  scheduleRepos.PickupException,
 			CareParticipation: participation,
 		}),
-		PickupExceptionRepo: scheduleRepos.StudentPickupException,
+		PickupExceptionRepo: scheduleRepos.PickupException,
 		PickupBaselines: scheduletest.NewPickupBaselineService(
-			scheduleRepos.StudentPickupSchedule,
+			scheduleRepos.PickupSchedule,
 			newBoundRequestChildOfferingRepository(db),
 			carePlanTest.CareOfferingRepository(db),
 		),
@@ -302,14 +302,14 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 		EducationGroupRepo: educationRepo.NewGroupRepository(db),
 		RoomRepo:           roomRepo,
 		PickupService: scheduleSvc.NewPickupScheduleServiceWithBulk(
-			scheduleRepos.StudentPickupSchedule,
-			scheduleRepos.StudentPickupException,
-			scheduleRepos.StudentPickupNote,
+			scheduleRepos.PickupSchedule,
+			scheduleRepos.PickupException,
+			scheduleRepos.PickupNote,
 			usersRepo.NewStudentRepository(db),
 			usersRepo.NewPersonRepository(db),
 			nil,
 			scheduletest.NewPickupBaselineService(
-				scheduleRepos.StudentPickupSchedule,
+				scheduleRepos.PickupSchedule,
 				newBoundRequestChildOfferingRepository(db),
 				carePlanTest.CareOfferingRepository(db),
 			),
@@ -317,9 +317,9 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			slog.Default(),
 		),
 		ArrivalService: scheduleSvc.NewArrivalScheduleServiceWithBaselines(
-			scheduleRepos.StudentArrivalSchedule,
-			scheduleRepos.StudentArrivalException,
-			scheduleRepos.StudentArrivalNote,
+			scheduleRepos.ArrivalSchedule,
+			scheduleRepos.ArrivalException,
+			scheduleRepos.ArrivalNote,
 			usersRepo.NewStudentRepository(db),
 			usersRepo.NewPersonRepository(db),
 			nil,

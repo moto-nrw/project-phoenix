@@ -1908,6 +1908,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "services/slotlists/slotlisttest",
+      "owner": "class-day-view",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/statistics",
       "owner": "student-presence",
       "role": "application",
@@ -8751,11 +8758,20 @@
       "target_role": "test-support"
     },
     {
-      "id": "class-day-test.to.legacy-composition",
-      "description": "Class-day integration tests exercise the Care Plan adapters installed by legacy composition.",
+      "id": "class-day-test.to.slot-list-support",
+      "description": "Class-day integration tests compose their production adapters through local test support.",
       "scopes": ["external_test"],
       "source_owner": "class-day-view",
       "source_role": "module-behavior-test",
+      "target_owner": "class-day-view",
+      "target_role": "test-support"
+    },
+    {
+      "id": "slot-list-support.to.legacy-composition",
+      "description": "Slot-list test support narrows the legacy factory to student schedule adapters.",
+      "scopes": ["production"],
+      "source_owner": "class-day-view",
+      "source_role": "test-support",
       "target_owner": "legacy-composition",
       "target_role": "compose"
     },

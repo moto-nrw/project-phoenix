@@ -94,6 +94,16 @@
       "tables": []
     },
     {
+      "scope": "production",
+      "file": "database/repositories/factory_test_helpers.go",
+      "declaration": "NewStudentScheduleRepositories",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        40
+      ],
+      "tables": []
+    },
+    {
       "scope": "test",
       "file": "api/absence-types/api_test.go",
       "declaration": "setupAbsenceTypesRoute",
@@ -14338,36 +14348,6 @@
       "lines": [
         101,
         112
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/slotlists/service_integration_test.go",
-      "declaration": "newTestServiceWithParticipation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        276
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/slotlists/service_integration_test.go",
-      "declaration": "studentPickupExceptionRepository",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        78
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/slotlists/service_integration_test.go",
-      "declaration": "studentPickupScheduleRepository",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        74
       ],
       "tables": []
     },
