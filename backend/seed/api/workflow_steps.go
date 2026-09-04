@@ -119,6 +119,9 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	}
 
 	state := s.seeder.collectSeedState(rt.FixedSeeder, rt.StaffPIN, rt.Bootstrap)
+	if virtual, ok := rt.Values["profile.virtual_device"].(SeedDevice); ok {
+		state.Devices[virtual.DeviceID] = virtual
+	}
 	state.Credentials.Operator = &SeedOperatorCredentials{
 		Email:    rt.OperatorEmail,
 		Password: rt.OperatorPassword,
@@ -129,7 +132,7 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 		state.Topology.Schools++
 		state.CareWithdrawals = rt.CareWithdrawals
 	}
-	state.Topology.Mode = "full-demo"
+	state.Topology.Mode = "profiles"
 	state.Scenarios.DefaultPlayer = "pyreportal"
 	state.Scenarios.DefaultMode = "hybrid"
 	state.Parents = append([]ParentCredentials(nil), rt.Parents...)
@@ -170,6 +173,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			healthCheckStep{},
 			operatorLoginStep{},
 			bootstrapTenantStep{seeder: seeder},
+			configureProfileStep{definition: seeder.definition},
 			seedMasterDataStep{seeder: seeder},
 			seedPlanningDemoStep{},
 			seedStudentStatusVariantsStep{},
@@ -200,6 +204,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedParentLetterStep{},
 			seedCareWithdrawalsStep{seeder: seeder},
 			seedInactiveAccountStep{},
+			verifyProfileStep{definition: seeder.definition},
 			buildStateStep{seeder: seeder},
 			printSummaryStep{seeder: seeder},
 		},

@@ -1017,6 +1017,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "demoprofile",
+      "owner": "dev-tools",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "email",
       "owner": "delivery-platform",
       "role": "adapter",
@@ -4135,6 +4142,29 @@
       "source_role": "workflow-integration-test",
       "target_owner_kind": "workflow",
       "target_role": "public"
+    },
+    {
+      "id": "dev-tools.adapter-test.demo-profile-contract",
+      "description": "Demo seed and simulation adapter tests may use the demo profile contract.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "adapter-test",
+      "target_owner": "dev-tools",
+      "target_role": "contract"
+    },
+    {
+      "id": "dev-tools.cli.demo-profile-contract",
+      "description": "Demo seed and simulation CLIs may use the demo profile contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "cli",
+      "target_owner": "dev-tools",
+      "target_role": "contract"
     },
     {
       "id": "external.cli-config.cli",

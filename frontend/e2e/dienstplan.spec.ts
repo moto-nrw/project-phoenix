@@ -4,9 +4,8 @@ import {
   type Page,
   test,
 } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
+import { loadSeedAccess } from "../scripts/seed-state";
 import {
   berlinTodayISO,
   parseISODate,
@@ -41,40 +40,7 @@ import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 // aktiv, deshalb NIE auf `load`/`networkidle` warten, sondern auf konkrete
 // Selektoren mit `domcontentloaded`.
 
-interface SeedAccess {
-  slug: string;
-  email: string;
-  password: string;
-}
-
-function loadAccess(): SeedAccess | null {
-  const envSlug = process.env.E2E_TENANT_SLUG;
-  const envEmail = process.env.E2E_TEST_EMAIL;
-  const envPassword = process.env.E2E_TEST_PASSWORD;
-  let slug = envSlug;
-  let email = envEmail;
-  let password = envPassword;
-  try {
-    const raw = readFileSync(
-      join(process.cwd(), "..", "backend", ".seed-state.json"),
-      "utf8",
-    );
-    const seed = JSON.parse(raw) as {
-      bootstrap?: { tenant_slug?: string };
-      accounts?: { admin?: Array<{ email?: string; password?: string }> };
-    };
-    const admin = seed.accounts?.admin?.[0];
-    slug = slug ?? seed.bootstrap?.tenant_slug;
-    email = email ?? admin?.email;
-    password = password ?? admin?.password;
-  } catch {
-    // Keine Seed-Datei (z. B. CI ohne lokalen Stack): nur Env-Werte zählen.
-  }
-  if (slug && email && password) return { slug, email, password };
-  return null;
-}
-
-const access = loadAccess();
+const access = loadSeedAccess();
 const base = access ? `http://${access.slug}.localhost:3000` : "";
 const TODAY = berlinTodayISO();
 

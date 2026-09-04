@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
@@ -10,7 +10,8 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
-import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   indexWorkSessionMinutesByBerlinDate,
@@ -62,8 +63,13 @@ function useWeekChartData({
   readonly history: WorkSessionHistory[];
   readonly weekOffset: number;
 }): WeekChartPoint[] {
+  // The chart's date axis is keyed by Berlin calendar days. Keeping that day as
+  // an explicit dependency makes the memo accurate and rolls an open tab over
+  // at Berlin midnight without rebuilding it for every render.
+  const todayISO = useBerlinToday();
+
   return useMemo(() => {
-    const referenceDate = parseISODate(berlinTodayISO());
+    const referenceDate = parseISODate(todayISO);
     referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
     const allDays: Date[] = [];
     const day = new Date(referenceDate);
@@ -86,7 +92,7 @@ function useWeekChartData({
         breakMinutes: dayMinutes?.breakMinutes ?? 0,
       };
     });
-  }, [history, weekOffset]);
+  }, [history, todayISO, weekOffset]);
 }
 
 function tooltipLabelFormatter(
@@ -146,12 +152,14 @@ function WeekChartSeries() {
         stackId="a"
         fill="var(--color-breakMinutes)"
         radius={[0, 0, 4, 4]}
+        isAnimationActive={false}
       />
       <Bar
         dataKey="netMinutes"
         stackId="a"
         fill="var(--color-netMinutes)"
         radius={[4, 4, 0, 0]}
+        isAnimationActive={false}
       />
     </>
   );
@@ -204,7 +212,7 @@ function WeekChartHeader({
   );
 }
 
-export default function WeekChart({
+const WeekChart = memo(function WeekChart({
   history,
   weekOffset,
 }: {
@@ -227,4 +235,6 @@ export default function WeekChart({
       </div>
     </div>
   );
-}
+});
+
+export default WeekChart;
