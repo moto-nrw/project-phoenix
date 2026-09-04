@@ -3,7 +3,7 @@
   "packages": [
     "go@1.27.0",
     "nodejs_24@latest",
-    "pnpm@latest",
+    "pnpm_10@10.34.4",
     "openssl@latest",
     "jq@latest",
     "ripgrep@latest",
