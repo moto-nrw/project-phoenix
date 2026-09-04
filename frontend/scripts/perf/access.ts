@@ -42,12 +42,15 @@ export function loadAccess(): SeedAccess {
 }
 
 /**
- * Port des gemessenen Next-Servers. Standard 3000 wie bisher; PERF_PORT
- * überschreibt ihn, damit der Lauf neben einem fremden Stack auf :3000
- * (anderes Worktree) möglich bleibt.
+ * Port des gemessenen Next-Servers. Er muss explizit gesetzt sein, damit der
+ * Harness nicht unbemerkt einen Server aus einem anderen Worktree misst.
  */
 export function perfPort(): string {
-  return process.env.PERF_PORT ?? "3000";
+  const port = process.env.PERF_PORT;
+  if (!port) {
+    throw new Error("PERF_PORT must be set for the performance harness.");
+  }
+  return port;
 }
 
 export function tenantBaseUrl(access: SeedAccess): string {

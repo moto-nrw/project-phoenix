@@ -44,14 +44,16 @@ export function NavLink({
   ...rest
 }: NavLinkProps) {
   const router = useContext(AppRouterContext);
-  const prefetchOnIntent =
+  const prefetchRouter =
     router !== null &&
     process.env.NODE_ENV !== "development" &&
     target !== "_blank" &&
-    isInternalPath(href);
+    isInternalPath(href)
+      ? router
+      : null;
 
   const prefetch = () => {
-    if (prefetchOnIntent) router.prefetch(href);
+    prefetchRouter?.prefetch(href);
   };
 
   return (

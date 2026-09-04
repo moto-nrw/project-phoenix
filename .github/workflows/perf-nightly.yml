@@ -218,6 +218,8 @@ jobs:
         id: trace
         working-directory: frontend
         continue-on-error: true
+        env:
+          PERF_PORT: "3000"
         run: pnpm run perf:trace
 
       # Dev server with react-scan injected: render counts per screen and
@@ -227,6 +229,8 @@ jobs:
         id: render
         working-directory: frontend
         continue-on-error: true
+        env:
+          PERF_PORT: "3000"
         run: pnpm run perf:render
 
       - name: Build report
