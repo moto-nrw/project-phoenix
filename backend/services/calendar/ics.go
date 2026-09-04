@@ -30,7 +30,7 @@ func (s *service) StaffAppointmentICS(ctx context.Context, appointmentID int64) 
 	if appointment == nil || appointment.DeletedAt != nil {
 		return "", "", ErrNotFound
 	}
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+	recipients, err := s.cfg.Appointments.FindAppointmentRecipients(ctx, appointment.ID)
 	if err != nil {
 		return "", "", err
 	}
@@ -68,7 +68,7 @@ func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointme
 			if appointment == nil || appointment.DeletedAt != nil {
 				return nil
 			}
-			recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(txCtx, appointment.ID)
+			recipients, err := s.cfg.Appointments.FindAppointmentRecipients(txCtx, appointment.ID)
 			if err != nil {
 				return err
 			}

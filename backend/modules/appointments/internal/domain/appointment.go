@@ -7,6 +7,7 @@ import (
 
 var (
 	ErrAppointmentNotFound          = errors.New("appointment not found")
+	ErrAppointmentRecipientNotFound = errors.New("appointment recipient not found")
 	ErrAppointmentLifecycleConflict = errors.New("appointment changed by a concurrent lifecycle transition")
 )
 
@@ -96,6 +97,36 @@ type AppointmentOccurrenceOverride struct {
 	StartTime      *time.Time
 	EndTime        *time.Time
 	AllDay         *bool
+}
+
+type AppointmentRecipient struct {
+	ID                int64
+	TenantID          int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	AppointmentID     int64
+	RecipientType     string
+	StaffID           *int64
+	GuardianProfileID *int64
+	Status            string
+	RespondedAt       *time.Time
+}
+
+type AppointmentRecipientStudent struct {
+	ID          int64
+	TenantID    int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	RecipientID int64
+	StudentID   int64
+}
+
+type AppointmentRecipientFields struct {
+	RecipientType     string
+	StaffID           *int64
+	GuardianProfileID *int64
+	Status            string
+	StudentIDs        []int64
 }
 
 type OperationStats struct {
