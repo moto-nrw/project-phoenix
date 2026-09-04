@@ -5,6 +5,10 @@
 pre-commit:
   parallel: true
   commands:
+    agent-context:
+      glob: "{AGENTS.md,CLAUDE.md,backend/AGENTS.md,backend/CLAUDE.md,frontend/AGENTS.md,frontend/CLAUDE.md,.agents/**,.claude/**,.codex/**,backend/.claude/**,frontend/.agents/**,frontend/.claude/**,docs/agents/**,scripts/check-agent-context*.mjs,lefthook.yml}"
+      run: node scripts/check-agent-context.mjs && node --test scripts/check-agent-context.test.mjs
+
     # Git secrets check (if installed)
     git-secrets:
       run: git secrets --pre_commit_hook 2>/dev/null || true

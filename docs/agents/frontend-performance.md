@@ -1,0 +1,10 @@
+# Frontend performance guardrails
+
+Read before changing bundle baselines, shell rendering, or performance tooling.
+Paths below are relative to `frontend/` except `.github/` and `docs/`.
+
+## Ratchets and evidence (#2939)
+
+- **Bundle-size ratchet** (CI job `frontend-build`, blocking): `pnpm run perf:bundle-ratchet` runs `next experimental-analyze` and compares compressed client JS per route against `scripts/perf/bundle-baseline.json`. Tolerance per route is 2 % or 10 kB, whichever is larger. A route above the band fails; a route below it fails too (shrink-only) until the baseline is lowered. New routes need an entry, removed routes must leave. The analysis always compiles cold (chunk splits depend on the Turbopack cache state). The baseline holds runner numbers: chunking differs between macOS and the Linux runner (one route by 48 kB), so maintenance means downloading the `bundle-measured` artifact of the `frontend-build` job and committing it as `bundle-baseline.json`, then justifying any increase in the PR description. A local `--update` produces macOS numbers and is only for experiments. Never widen the tolerance to get green.
+- **Render budget** (Vitest, blocking): `expectIdleRenderBudget` from `src/test/render-budget.tsx` counts `<Profiler>` commits over 5 s of fake-timer idle and caps them at 20; `mobile-bottom-nav.test.tsx` and `sidebar.test.tsx` use it. A new effect loop in the shell trips this regardless of runner speed. Keep the cap; fix the loop. Reuse the helper for any new always-mounted component.
+- **Nightly counters** (`.github/workflows/perf-nightly.yml`, non-blocking): runs `pnpm run perf:trace` and `pnpm run perf:render` against a seeded backend on weeknights and via `workflow_dispatch`; the report lands in the job summary and as a 30-day artifact. Compare counters (requests per screen, duplicates, longest chain, renders per interaction) with `docs/perf/frontend-baseline-2026.md`; runner timings are not comparable across machines. Timing-based numbers (LCP, Lighthouse) are deliberately not gates.
