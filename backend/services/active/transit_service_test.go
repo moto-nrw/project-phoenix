@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -850,6 +851,31 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushIntoUnsupe
 
 	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
 	assert.Nil(t, result)
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushIntoTargetWithFutureSupervision(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	fx := newMoveAuthFixture(t, db, "future-supervision")
+
+	// The caller supervises the source room. The target's assignment begins
+	// tomorrow, so it cannot make the target room safe for a push today.
+	testpkg.CreateTestGroupSupervisor(t, db, fx.staff.ID, fx.sourceGroup.ID, "supervisor")
+	targetSupervision := testpkg.CreateTestGroupSupervisor(t, db, fx.colleague.ID, fx.targetGroup.ID, "supervisor")
+	targetSupervision.StartDate = timezone.TodayDate().AddDays(1)
+	require.NoError(t, service.UpdateGroupSupervisor(ctx, targetSupervision))
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff.ID})
+
+	require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+	assert.Nil(t, result)
+
+	currentVisit, err := service.GetStudentCurrentVisit(ctx, fx.studentID)
+	require.NoError(t, err)
+	assert.Equal(t, fx.sourceGroup.ID, currentVisit.ActiveGroupID, "the child must stay in the source room")
 }
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushIntoAmbiguousTargetRoom(t *testing.T) {

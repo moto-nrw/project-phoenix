@@ -239,7 +239,7 @@ type GroupSupervisorRepository interface {
 	ListActiveSupervisedRooms(ctx context.Context) ([]StaffRoomSupervision, error)
 
 	// FindByActiveGroupID finds supervisors for a specific active group
-	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+	// If activeOnly is true, only returns supervisors whose date interval includes today.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*GroupSupervisor, error)
 
 	// FindByActiveGroupIDs finds supervisors for multiple active groups in a single query
