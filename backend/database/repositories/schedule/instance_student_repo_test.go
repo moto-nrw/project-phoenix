@@ -17,7 +17,12 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+func newBoundPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupExceptionRepository {
+	return repositories.NewFactory(db).StudentPickupException
+}
 
 func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 	t.Parallel()
@@ -1920,7 +1925,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
 
 	replayed, err := repo.RestoreArchivedByTransition(ctx, transition.ID, graduates, today)
 	require.NoError(t, err)
@@ -1996,7 +2001,7 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
 
 	n, err := repo.ApplyActivePartialAbsencesForInstance(ctx, cancelledInst.ID, date)
 	require.NoError(t, err)
@@ -2053,7 +2058,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
 
 	n, err := repo.ApplyPartialAbsence(ctx, partial.ID)
 	require.NoError(t, err)
@@ -2104,7 +2109,7 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
 
 	// Both rows get claimed while their instances are still live, then one
 	// block completes — the realistic order for a same-day pickup change.
@@ -2163,7 +2168,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
 
 	n, err := repo.ApplyPartialAbsence(ctx, partial.ID)
 	require.NoError(t, err)
@@ -2245,7 +2250,7 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
 	otherException.ExcusedFrom = &from
 	otherException.ExcusedAuto = true
-	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, otherException))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, otherException))
 
 	blocks, err = repo.FindPartialAbsenceBlocks(ctx, student.ID, date,
 		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))

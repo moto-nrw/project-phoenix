@@ -33,6 +33,16 @@ func (r *StudentStatusDayRepository) BindStudentDirectory(students StudentDirect
 	r.students = students
 }
 
+// BindCarePlan installs the pickup-exception owner on the nested roster
+// repository used by status-day reconciliation.
+func (r *StudentStatusDayRepository) BindCarePlan(query scheduleRepo.PickupExceptionDirectory) {
+	if repository, ok := r.slotRepo.(interface {
+		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+	}); ok {
+		repository.BindCarePlan(query)
+	}
+}
+
 func NewStudentStatusDayRepository(db *bun.DB) active.StudentStatusDayOverviewRepository {
 	repo := base.NewRepository[*active.StudentStatusDay](db, "active.student_status_days", "StudentStatusDay")
 	repo.TenantScoped = true

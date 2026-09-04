@@ -647,12 +647,12 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		// belong to School Calendar and are bound below.
 		Timeframe:                 schedule.NewTimeframeRepository(db),
 		RecurrenceRule:            schedule.NewRecurrenceRuleRepository(db),
-		StudentPickupSchedule:     schedule.NewStudentPickupScheduleRepository(db),
-		StudentPickupException:    schedule.NewStudentPickupExceptionRepository(db),
-		StudentPickupNote:         schedule.NewStudentPickupNoteRepository(db),
-		StudentArrivalSchedule:    schedule.NewStudentArrivalScheduleRepository(db),
-		StudentArrivalException:   schedule.NewStudentArrivalExceptionRepository(db),
-		StudentArrivalNote:        schedule.NewStudentArrivalNoteRepository(db),
+		StudentPickupSchedule:     nil, // bound to Care Plan below
+		StudentPickupException:    nil, // bound to Care Plan below
+		StudentPickupNote:         nil, // bound to Care Plan below
+		StudentArrivalSchedule:    nil, // bound to Care Plan below
+		StudentArrivalException:   nil, // bound to Care Plan below
+		StudentArrivalNote:        nil, // bound to Care Plan below
 		CareScheduleChangeRequest: schedule.NewCareScheduleChangeRequestRepository(db),
 		StaffShift:                schedule.NewStaffShiftRepository(db),
 		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),

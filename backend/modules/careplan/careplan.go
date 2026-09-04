@@ -206,6 +206,7 @@ type DecideOfferingChange struct {
 
 type Query interface {
 	CareRecordsQuery
+	StudentSchedulesQuery
 	FindCareOffering(context.Context, int64) (CareOffering, error)
 	ListCareOfferings(context.Context, CareOfferingFilter) ([]CareOffering, error)
 	CountCareOfferingsByPhase(context.Context, int64) (int, error)
@@ -216,6 +217,7 @@ type Query interface {
 
 type Command interface {
 	CareRecordsCommand
+	StudentSchedulesCommand
 	CreateCareOffering(context.Context, CreateCareOffering) (CareOffering, error)
 	UpdateCareOffering(context.Context, UpdateCareOffering) (CareOffering, error)
 	DeleteCareOffering(context.Context, int64) error
@@ -653,7 +655,7 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrCareOfferingNotFound), errors.Is(err, ErrOfferingChangeNotFound), errors.Is(err, ErrCareDocumentNotFound):
+	case errors.Is(err, ErrCareOfferingNotFound), errors.Is(err, ErrOfferingChangeNotFound), errors.Is(err, ErrCareDocumentNotFound), errors.Is(err, ErrStudentScheduleNotFound):
 		return "not_found"
 	case errors.Is(err, ErrOfferingChangeNotPending):
 		return "not_pending"
@@ -662,7 +664,7 @@ func ErrorCode(err error) string {
 	case errors.Is(err, ErrInvalidCareOffering), errors.Is(err, ErrInvalidOfferingChange),
 		errors.Is(err, ErrInvalidCareExit), errors.Is(err, ErrInvalidCompanion), errors.Is(err, ErrInvalidCareDocument),
 		errors.Is(err, ErrCareExitInvalidReason), errors.Is(err, ErrCareExitNoteRequired),
-		errors.Is(err, ErrCareExitNoteNotAllowed), errors.Is(err, ErrCareExitNoteTooLong):
+		errors.Is(err, ErrCareExitNoteNotAllowed), errors.Is(err, ErrCareExitNoteTooLong), errors.Is(err, ErrInvalidStudentSchedule):
 		return "invalid"
 	case errors.Is(err, ErrCareOfferingTriggerInvalid):
 		return "invalid_trigger"
