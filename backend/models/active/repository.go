@@ -26,6 +26,10 @@ type GroupRepository interface {
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
 
+	// LockActiveGroupWrites prevents concurrent active session writes until the
+	// current transaction completes.
+	LockActiveGroupWrites(ctx context.Context) error
+
 	// FindActiveByRoomIDAndDeviceID finds the active group in a room that belongs to a specific device.
 	FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID int64, deviceID int64) (*Group, error)
 

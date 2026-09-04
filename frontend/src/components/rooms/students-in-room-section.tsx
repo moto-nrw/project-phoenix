@@ -169,13 +169,18 @@ export function StudentsInRoomSection({
     [activeGroups, roomId],
   );
   const sourceGroupIDs = useMemo(
-    () => sourceGroups.map((group) => group.id),
+    () => sourceGroups.map((group) => group.id).sort(),
     [sourceGroups],
   );
+  const sourceVisitsKey = useMemo(
+    () =>
+      !showAllTargets && sourceGroupIDs.length > 0
+        ? `room-bulk-source-visits-${JSON.stringify(sourceGroupIDs)}`
+        : null,
+    [showAllTargets, sourceGroupIDs],
+  );
   const { data: sourceVisitsByStudentID } = useSWRAuth<Map<string, Visit>>(
-    !showAllTargets && sourceGroupIDs.length > 0
-      ? `room-bulk-source-visits-${sourceGroupIDs.join("-")}`
-      : null,
+    sourceVisitsKey,
     async () => {
       const visits = await activeService.getVisits({
         active: true,

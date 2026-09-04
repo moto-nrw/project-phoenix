@@ -168,6 +168,19 @@ func (s *service) MoveStudentsToActiveGroupAuthorized(ctx context.Context, stude
 }
 
 func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization) (*StudentMoveResult, error) {
+	var result *StudentMoveResult
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		var moveErr error
+		result, moveErr = s.moveStudentsToActiveGroupLocked(txCtx, studentIDs, activeGroupID, auth)
+		return moveErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization) (*StudentMoveResult, error) {
 	const op = "MoveStudentsToActiveGroup"
 
 	if activeGroupID <= 0 || len(studentIDs) == 0 {
@@ -506,6 +519,13 @@ func (s *service) authorizeStudentMove(
 // running sessions (ambiguous assignment) or into a session nobody supervises
 // right now.
 func (s *service) ensureMoveTargetIsSupervised(ctx context.Context, targetGroup *active.Group, op string) error {
+	// The target group row is already locked, but that does not protect this
+	// room-wide cardinality check from a concurrent session creation in another
+	// group row. Hold the write-conflicting table lock until the request
+	// transaction commits, including the visit writes below.
+	if err := s.GroupRepo.LockActiveGroupWrites(ctx); err != nil {
+		return &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
 	groupsInRoom, err := s.GroupRepo.FindActiveByRoomID(ctx, targetGroup.RoomID)
 	if err != nil {
 		return &ActiveError{Op: op, Err: ErrDatabaseOperation}

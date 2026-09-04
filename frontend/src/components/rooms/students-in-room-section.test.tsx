@@ -559,6 +559,23 @@ describe("StudentsInRoomSection", () => {
   });
 
   describe("bulk room move", () => {
+    it("uses one source-visit cache key for equivalent source group sets", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "source-b", roomId: "42", isActive: true },
+          { id: "source-a", roomId: "42", isActive: true },
+        ],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(mockUseSWRAuth).toHaveBeenCalledWith(
+        'room-bulk-source-visits-["source-a","source-b"]',
+        expect.any(Function),
+      );
+    });
+
     it("renders the roster read-only when web attendance is disabled", () => {
       vi.mocked(useAttendanceWebEnabled).mockReturnValue(false);
       setSWR({ data: { students: [makeStudent()] } });
