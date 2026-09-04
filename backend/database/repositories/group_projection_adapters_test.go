@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,10 +57,9 @@ func TestSupervisionBlockersExcludeFutureSupervisions(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Future Blocker Room")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	supervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor")
-	future := timezone.TodayDate().AddDays(1)
 	_, err := db.NewUpdate().
 		TableExpr("active.group_supervisors").
-		Set("start_date = ?", future).
+		Set("start_date = CURRENT_DATE + 1").
 		Where("id = ?", supervision.ID).
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
