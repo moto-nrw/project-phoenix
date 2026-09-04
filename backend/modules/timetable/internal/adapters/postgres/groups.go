@@ -331,15 +331,15 @@ func groupListQuery(db bun.IDB, rows *[]groupRow, tenantID int64, filter domain.
 func applyGroupSourceFilter(query *bun.SelectQuery, tenantID int64, filter domain.GroupFilter) *bun.SelectQuery {
 	if filter.SeriesForGroupID != nil {
 		query = query.Where(`COALESCE("group".series_root_id, "group".id) = (
-			SELECT COALESCE(selected.series_root_id, selected.id) FROM activities.groups AS selected
-			WHERE selected.tenant_id = ? AND selected.id = ?)`, tenantID, *filter.SeriesForGroupID)
+			SELECT COALESCE("selected".series_root_id, "selected".id) FROM activities.groups AS "selected"
+			WHERE "selected".tenant_id = ? AND "selected".id = ?)`, tenantID, *filter.SeriesForGroupID)
 	}
 	if len(filter.SourceOfferingIDs) == 1 {
 		query = query.Where(`"group".source_care_offering_ids @> to_jsonb(?::BIGINT)`, filter.SourceOfferingIDs[0])
 	} else if len(filter.SourceOfferingIDs) > 1 {
 		query = query.Where(`EXISTS (
-			SELECT 1 FROM jsonb_array_elements_text("group".source_care_offering_ids) AS source(id)
-			WHERE source.id::BIGINT IN (?))`, bun.List(filter.SourceOfferingIDs))
+			SELECT 1 FROM jsonb_array_elements_text("group".source_care_offering_ids) AS "source"(id)
+			WHERE "source".id::BIGINT IN (?))`, bun.List(filter.SourceOfferingIDs))
 	}
 	if filter.HasOfferingSource {
 		query = query.Where(`"group".source_care_offering_ids IS NOT NULL`)

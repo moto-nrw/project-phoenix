@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -328,14 +329,9 @@ func legacyGroupID(id any) (int64, bool) {
 	}
 }
 
-type legacyRepositoryNotFound struct{}
-
-func (legacyRepositoryNotFound) Error() string       { return "repository: not found" }
-func (legacyRepositoryNotFound) RepositoryNotFound() {}
-
 func legacyGroupReadError(operation string, err error) error {
-	if errors.Is(err, timetable.ErrGroupNotFound) {
-		err = legacyRepositoryNotFound{}
+	if errors.Is(err, timetable.ErrGroupNotFound) || errors.Is(err, timetable.ErrInvalidGroupQuery) {
+		return activitiesRepo.WrapNotFoundDatabaseError(operation)
 	}
-	return fmt.Errorf("database error during %s: %w", operation, err)
+	return activitiesRepo.WrapDatabaseError(operation, err)
 }

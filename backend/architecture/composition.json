@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        687
+        686
       ],
       "tables": []
     },
@@ -7228,6 +7228,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/timetable_group_repository_test.go",
+      "declaration": "TestTimetableGroupAdapterPreservesDatabaseErrorContract",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        16
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/users/care_exit_repository_test.go",
       "declaration": "TestCareExitCleanupRepository_LocksPersonImpactRows",
       "target": "database/repositories.NewFactory",
@@ -9756,7 +9766,7 @@
       "declaration": "TestActivityService_EnrollStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        621
+        641
       ],
       "tables": []
     },
@@ -9766,8 +9776,8 @@
       "declaration": "TestActivityService_SetCategoryShiftTypeLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2988,
-        2989
+        3008,
+        3009
       ],
       "tables": []
     },
@@ -31720,27 +31730,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 170,
+          "line": 169,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 394,
+          "line": 393,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 497,
+          "line": 496,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 563,
+          "line": 562,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1055,
+          "line": 1054,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31750,7 +31760,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 687,
+          "line": 686,
           "declaration": "New"
         }
       ]
@@ -31760,12 +31770,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 159,
+          "line": 158,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 560,
+          "line": 559,
           "declaration": "type API"
         },
         {
@@ -31885,17 +31895,17 @@
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 33,
+          "line": 34,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 41,
+          "line": 42,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 52,
+          "line": 53,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]

@@ -12,7 +12,7 @@ import (
 
 // Service implements the ActivityService interface
 type Service struct {
-	categories      timetable.Capability
+	timetable       timetable.Capability
 	groupRepo       activities.GroupRepository
 	scheduleRepo    activities.ScheduleRepository
 	supervisorRepo  activities.SupervisorPlannedRepository
@@ -28,7 +28,7 @@ type activityOccupancy interface {
 
 // NewService creates a new activity service
 func NewService(
-	categories timetable.Capability,
+	timetableCapability timetable.Capability,
 	groupRepo activities.GroupRepository,
 	scheduleRepo activities.ScheduleRepository,
 	supervisorRepo activities.SupervisorPlannedRepository,
@@ -38,7 +38,7 @@ func NewService(
 	studentRepo userModels.StudentRepository,
 ) (*Service, error) {
 	return &Service{
-		categories:      categories,
+		timetable:       timetableCapability,
 		groupRepo:       groupRepo,
 		scheduleRepo:    scheduleRepo,
 		supervisorRepo:  supervisorRepo,
@@ -72,10 +72,10 @@ const (
 
 // CreateCategory creates a new activity category
 func (s *Service) CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error) {
-	if category == nil || s.categories == nil {
+	if category == nil || s.timetable == nil {
 		return nil, &ActivityError{Op: "create category", Err: timetable.ErrInvalidCategory}
 	}
-	created, err := s.categories.CreateCategory(ctx, timetable.CreateCategory{
+	created, err := s.timetable.CreateCategory(ctx, timetable.CreateCategory{
 		Name: category.Name, Description: category.Description, Color: category.Color, IsSystem: category.IsSystem,
 	})
 	if err != nil {
@@ -86,10 +86,10 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 
 // GetCategory retrieves a category by ID
 func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Category, error) {
-	if s.categories == nil {
+	if s.timetable == nil {
 		return nil, &ActivityError{Op: opGetCategory, Err: timetable.ErrCategoryNotFound}
 	}
-	category, err := s.categories.FindCategory(ctx, id)
+	category, err := s.timetable.FindCategory(ctx, id)
 	if err != nil {
 		return nil, categoryActivityError(opGetCategory, err)
 	}
@@ -98,10 +98,10 @@ func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Catego
 
 // ListCategories lists all activity categories
 func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, error) {
-	if s.categories == nil {
+	if s.timetable == nil {
 		return nil, &ActivityError{Op: "list categories", Err: errors.New("category capability is required")}
 	}
-	categories, err := s.categories.ListCategories(ctx)
+	categories, err := s.timetable.ListCategories(ctx)
 	if err != nil {
 		return nil, &ActivityError{Op: "list categories", Err: err}
 	}
@@ -118,10 +118,10 @@ func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, e
 // category side, so the write is owned here. Runs inside the caller's tenant
 // transaction (the shift-types router wires TenantTxMiddleware).
 func (s *Service) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {
-	if s.categories == nil {
+	if s.timetable == nil {
 		return &ActivityError{Op: "set category shift type links", Err: errors.New("category capability is required")}
 	}
-	if err := s.categories.SetCategoryShiftTypeLinks(ctx, shiftTypeID, categoryIDs); err != nil {
+	if err := s.timetable.SetCategoryShiftTypeLinks(ctx, shiftTypeID, categoryIDs); err != nil {
 		return categoryActivityError("set category shift type links", err)
 	}
 	return nil
@@ -141,6 +141,7 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 	if err := s.validateAndSetCategory(ctx, group); err != nil {
 		return nil, err
 	}
+	validatedCategory := group.Category
 	group.SetTenantID(group.Category.GetTenantID())
 
 	if err := s.groupRepo.Create(ctx, group); err != nil {
@@ -159,6 +160,7 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 	if err != nil {
 		return nil, &ActivityError{Op: "retrieve created group", Err: err}
 	}
+	result.Category = validatedCategory
 
 	return result, nil
 }
@@ -169,7 +171,7 @@ func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.
 		return nil
 	}
 
-	category, err := s.categories.FindCategoryForAssignment(ctx, group.CategoryID)
+	category, err := s.timetable.FindCategoryForAssignment(ctx, group.CategoryID)
 	if err != nil {
 		return categoryActivityError("validate category", err)
 	}
@@ -216,9 +218,9 @@ func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivitySer
 
 // GetGroup retrieves an activity group by ID
 func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, error) {
-	group, err := s.categories.FindGroup(ctx, id)
+	group, err := s.timetable.FindGroup(ctx, id)
 	if err != nil {
-		if errors.Is(err, timetable.ErrGroupNotFound) {
+		if errors.Is(err, timetable.ErrGroupNotFound) || errors.Is(err, timetable.ErrInvalidGroupQuery) {
 			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, &ActivityError{Op: opGetGroup, Err: err}
@@ -383,7 +385,7 @@ func (s *Service) ListGroups(ctx context.Context, query *activities.GroupListQue
 			Name: query.Name, CategoryID: query.CategoryID, IsSystem: query.IsSystem, IDs: query.IDs,
 		}
 	}
-	groups, err := s.categories.ListGroups(ctx, filter)
+	groups, err := s.timetable.ListGroups(ctx, filter)
 	if err != nil {
 		return nil, &ActivityError{Op: "list groups", Err: err}
 	}
@@ -428,13 +430,13 @@ func (s *Service) ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupW
 // FindByCategory finds all activity groups in a specific category
 func (s *Service) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
 	// First verify the category exists
-	_, err := s.categories.FindCategory(ctx, categoryID)
+	_, err := s.timetable.FindCategory(ctx, categoryID)
 	if err != nil {
 		return nil, categoryActivityError(opFindByCategory, err)
 	}
 
 	// Use the repository method
-	groups, err := s.categories.ListGroups(ctx, timetable.GroupFilter{CategoryID: &categoryID, OrderByName: true})
+	groups, err := s.timetable.ListGroups(ctx, timetable.GroupFilter{CategoryID: &categoryID, OrderByName: true})
 	if err != nil {
 		return nil, &ActivityError{Op: opFindByCategory, Err: err}
 	}
@@ -454,39 +456,24 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 		return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: err}
 	}
 
-	// Load the category if not already loaded
+	// Load the category if not already loaded.
 	if group.Category == nil && group.CategoryID > 0 {
-		category, err := s.categories.FindCategory(ctx, group.CategoryID)
+		category, err := s.timetable.FindCategory(ctx, group.CategoryID)
 		if err != nil {
-			slog.Default().WarnContext(ctx, "failed to load category for group",
-				slog.Int64("group_id", id),
-				slog.String("error", err.Error()))
-		} else {
-			group.Category = categoryFromOwner(category)
+			return nil, nil, nil, &ActivityError{Op: opGetCategory, Err: err}
 		}
+		group.Category = categoryFromOwner(category)
 	}
 
-	// Get supervisors - handle errors gracefully
-	var supervisors []*activities.SupervisorPlanned
-	var supervisorErr error
-	supervisors, supervisorErr = s.supervisorRepo.FindByGroupID(ctx, id)
-	if supervisorErr != nil {
-		// Log the error but continue - we'll return an error at the end
-		// so the caller can decide whether to use the partial data
-		slog.Default().WarnContext(ctx, "failed to load supervisors for group",
-			slog.Int64("group_id", id),
-			slog.String("error", supervisorErr.Error()))
+	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, id)
+	if err != nil {
+		return nil, nil, nil, &ActivityError{Op: "get supervisors", Err: err}
 	}
 
 	// Get schedules
 	schedules, err := s.scheduleRepo.FindByGroupID(ctx, id)
 	if err != nil {
 		return nil, nil, nil, &ActivityError{Op: "get schedules", Err: err}
-	}
-
-	// If we had a supervisor error, return it after loading everything else
-	if supervisorErr != nil {
-		return group, nil, schedules, &ActivityError{Op: "get supervisors", Err: supervisorErr}
 	}
 
 	return group, supervisors, schedules, nil

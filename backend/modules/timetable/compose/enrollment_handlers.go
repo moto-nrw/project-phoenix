@@ -90,7 +90,12 @@ func (rs *Resource) getStudentEnrollments(w http.ResponseWriter, r *http.Request
 		if group == nil {
 			continue // Skip nil groups to prevent panic
 		}
-		responses = append(responses, newActivityResponse(group, rs.getEnrollmentCount(r.Context(), group.ID)))
+		enrollmentCount, err := rs.getEnrollmentCount(r.Context(), group.ID)
+		if err != nil {
+			common.RenderError(w, r, ErrorRenderer(err))
+			return
+		}
+		responses = append(responses, newActivityResponse(group, enrollmentCount))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Activities for student ID %d retrieved successfully", studentID))
@@ -116,7 +121,12 @@ func (rs *Resource) getAvailableActivities(w http.ResponseWriter, r *http.Reques
 		if group == nil {
 			continue // Skip nil groups to prevent panic
 		}
-		responses = append(responses, newActivityResponse(group, rs.getEnrollmentCount(r.Context(), group.ID)))
+		enrollmentCount, err := rs.getEnrollmentCount(r.Context(), group.ID)
+		if err != nil {
+			common.RenderError(w, r, ErrorRenderer(err))
+			return
+		}
+		responses = append(responses, newActivityResponse(group, enrollmentCount))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Available activities for student ID %d retrieved successfully", studentID))
@@ -178,10 +188,16 @@ func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Create a simplified response
+	enrollmentCount, err := rs.getEnrollmentCount(r.Context(), activity.ID)
+	if err != nil {
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
+	}
+
 	response := map[string]interface{}{
 		"activity_id":       activity.ID,
 		"activity_name":     activity.Name,
-		"enrollment_count":  rs.getEnrollmentCount(r.Context(), activity.ID),
+		"enrollment_count":  enrollmentCount,
 		"max_participants":  activity.ParticipantLimit(),
 		"students_enrolled": req.StudentIDs,
 	}

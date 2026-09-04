@@ -93,6 +93,10 @@ var queryBudgets = map[string]queryBudget{
 	// modules/schoolmembership — assignment lists, 8 rows each.
 	"modules.schoolmembership.list_class_assignments": {max: 5},
 	"modules.schoolmembership.list_group_assignments": {max: 5},
+	// modules/timetable — group and target lookups stay one bulk query as IDs grow.
+	"modules.timetable.groups.list":          {max: 1, exact: true},
+	"modules.timetable.group_targets.list":   {max: 1, exact: true},
+	"modules.timetable.target_students.list": {max: 1, exact: true},
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},

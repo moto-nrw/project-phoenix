@@ -234,6 +234,11 @@ func TestModuleOwnsTemplateFilters(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bySource, 1)
 	assert.Equal(t, segment.ID, bySource[0].ID)
+	bySources, err := module.ListGroups(ctx, timetable.GroupFilter{
+		IsTemplate: &isTemplate, SourceOfferingIDs: []int64{101, 102}, ActiveOnly: true, OrderByID: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{root.ID, segment.ID}, groupIDs(bySources))
 	series, err := module.ListGroups(ctx, timetable.GroupFilter{
 		IsTemplate: &isTemplate, SeriesForGroupID: &segment.ID, ActiveOnly: true, OrderByID: true,
 	})
@@ -295,6 +300,77 @@ func TestTemplateWritesRespectTenantAndOuterRollback(t *testing.T) {
 	unchanged, err := module.FindGroup(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Original", unchanged.Name)
+
+	rows, err = module.UpdateTemplate(ctx, template.ID, validTemplateUpdate(category.ID, room.ID, "Retried", nil))
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+	retried, err := module.FindGroup(ctx, template.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Retried", retried.Name)
+}
+
+func TestTemplateOfferingSourceUpdateRollsBackAndRetries(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	category := createCategory(t, ctx, module, "Offering source rollback")
+	template := createTemplate(t, ctx, module, category.ID, "Template", []int64{301})
+	wantErr := errors.New("abort offering source update")
+
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if updateErr := module.UpdateGroupOfferingSource(txCtx, template.ID, timetable.OfferingSourceInput{
+			CareOfferingIDs: []int64{302}, GradeLevels: []int{2},
+		}); updateErr != nil {
+			return updateErr
+		}
+		return wantErr
+	})
+	require.ErrorIs(t, err, wantErr)
+	assertTemplateOfferingSource(t, ctx, module, template.ID, []int64{301}, nil)
+
+	require.NoError(t, module.UpdateGroupOfferingSource(ctx, template.ID, timetable.OfferingSourceInput{
+		CareOfferingIDs: []int64{302}, GradeLevels: []int{2},
+	}))
+	assertTemplateOfferingSource(t, ctx, module, template.ID, []int64{302}, []int{2})
+}
+
+func TestTemplateArchiveRollsBackAndRetries(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	category := createCategory(t, ctx, module, "Archive rollback")
+	template := createTemplate(t, ctx, module, category.ID, "Template", nil)
+	wantErr := errors.New("abort template archive")
+
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		rows, archiveErr := module.ArchiveTemplate(txCtx, template.ID)
+		require.EqualValues(t, 1, rows)
+		if archiveErr != nil {
+			return archiveErr
+		}
+		return wantErr
+	})
+	require.ErrorIs(t, err, wantErr)
+	unarchived, err := module.FindGroup(ctx, template.ID)
+	require.NoError(t, err)
+	assert.Nil(t, unarchived.ArchivedAt)
+
+	rows, err := module.ArchiveTemplate(ctx, template.ID)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+	rows, err = module.ArchiveTemplate(ctx, template.ID)
+	require.NoError(t, err)
+	assert.Zero(t, rows)
+}
+
+func assertTemplateOfferingSource(t *testing.T, ctx context.Context, module *timetable.Module, id int64, offeringIDs []int64, grades []int) {
+	t.Helper()
+	group, err := module.FindGroup(ctx, id)
+	require.NoError(t, err)
+	assert.Equal(t, offeringIDs, group.SourceCareOfferingIDs)
+	assert.Equal(t, grades, group.SourceGradeLevels)
 }
 
 func createTemplate(t *testing.T, ctx context.Context, module *timetable.Module, categoryID int64, name string, sourceIDs []int64) timetable.Group {

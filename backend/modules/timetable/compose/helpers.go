@@ -206,12 +206,12 @@ func newSupervisorResponse(supervisor *activities.SupervisorPlanned) SupervisorR
 // =============================================================================
 
 // getEnrollmentCount returns the number of enrolled students for an activity.
-func (rs *Resource) getEnrollmentCount(ctx context.Context, activityID int64) int {
+func (rs *Resource) getEnrollmentCount(ctx context.Context, activityID int64) (int, error) {
 	students, err := rs.ActivityService.GetEnrolledStudents(ctx, activityID)
-	if err != nil || students == nil {
-		return 0
+	if err != nil {
+		return 0, err
 	}
-	return len(students)
+	return len(students), nil
 }
 
 // formatEndTime safely formats the end time, handling nil values

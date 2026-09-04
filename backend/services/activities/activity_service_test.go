@@ -129,6 +129,15 @@ func TestActivityService_GetCategory(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
+
+	t.Run("maps non-positive IDs to not found", func(t *testing.T) {
+		for _, id := range []int64{0, -1} {
+			result, err := service.GetGroup(ctx, id)
+
+			require.ErrorIs(t, err, activities.ErrGroupNotFound)
+			assert.Nil(t, result)
+		}
+	})
 }
 
 func TestActivityService_ListCategories(t *testing.T) {
@@ -564,6 +573,17 @@ func TestActivityService_GetGroupWithDetails(t *testing.T) {
 			assert.Equal(t, group.ID, resultGroup.ID)
 		}
 		// These may be empty but should not error
+	})
+
+	t.Run("maps non-positive IDs to not found", func(t *testing.T) {
+		for _, id := range []int64{0, -1} {
+			group, supervisors, schedules, err := service.GetGroupWithDetails(ctx, id)
+
+			require.ErrorIs(t, err, activities.ErrGroupNotFound)
+			assert.Nil(t, group)
+			assert.Nil(t, supervisors)
+			assert.Nil(t, schedules)
+		}
 	})
 }
 

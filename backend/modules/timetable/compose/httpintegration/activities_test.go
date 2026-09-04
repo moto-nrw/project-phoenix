@@ -7,6 +7,8 @@
 package httpintegration_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -21,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -36,6 +39,15 @@ type testContext struct {
 	db       *bun.DB
 	resource *activitiesAPI.Resource
 	router   chi.Router
+}
+
+type failingDetailActivityService struct {
+	activitiesSvc.ActivityService
+	err error
+}
+
+func (s failingDetailActivityService) GetGroupWithDetails(context.Context, int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error) {
+	return nil, nil, nil, s.err
 }
 
 // setupActivitiesRoute initializes test database, services, resource, and a router
@@ -127,6 +139,18 @@ func TestGetActivity_NotFound(t *testing.T) {
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertNotFound(t, rr)
+}
+
+func TestGetActivity_NonPositiveIDIsNotFound(t *testing.T) {
+	t.Parallel()
+	ctx := setupActivitiesRoute(t)
+
+	for _, path := range []string{"/activities/0", "/activities/-1"} {
+		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil)
+		rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+
+		testutil.AssertNotFound(t, rr)
+	}
 }
 
 func TestGetActivity_InvalidID(t *testing.T) {
@@ -264,6 +288,31 @@ func TestUpdateActivity_Success(t *testing.T) {
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestUpdateActivity_DetailReadFailureRollsBackAndRetries(t *testing.T) {
+	t.Parallel()
+	ctx := setupActivitiesRoute(t)
+	originalService := ctx.resource.ActivityService
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Before detail failure")
+	body := map[string]interface{}{
+		"name": "After detail failure", "max_participants": 25,
+		"is_open": false, "category_id": activity.CategoryID,
+	}
+	wantErr := errors.New("detail read failed")
+	ctx.resource.ActivityService = failingDetailActivityService{ActivityService: originalService, err: wantErr}
+
+	request := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/activities/%d", activity.ID), body)
+	failed := testutil.ExecuteWithAuth(t, ctx.router, request, testutil.DefaultTestClaims())
+	assert.Equal(t, http.StatusInternalServerError, failed.Code)
+	rolledBack, err := originalService.GetGroup(testpkg.Ctx(t), activity.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Before detail failure", rolledBack.Name)
+
+	ctx.resource.ActivityService = originalService
+	request = testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/activities/%d", activity.ID), body)
+	retried := testutil.ExecuteWithAuth(t, ctx.router, request, testutil.DefaultTestClaims())
+	testutil.AssertSuccessResponse(t, retried, http.StatusOK)
 }
 
 func TestUpdateActivity_NotFound(t *testing.T) {

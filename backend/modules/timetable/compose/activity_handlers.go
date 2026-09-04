@@ -16,54 +16,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// fetchActivityData retrieves activity group with details, using fallback if needed.
-func (rs *Resource) fetchActivityData(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error) {
-	group, supervisors, schedules, detailsErr := rs.ActivityService.GetGroupWithDetails(ctx, id)
-	if detailsErr != nil {
-		slog.Default().WarnContext(ctx, "Error getting detailed group info",
-			slog.String("error", detailsErr.Error()),
-			slog.Int64("group_id", id),
-		)
-		return rs.fetchActivityDataFallback(ctx, id)
-	}
-	return group, supervisors, schedules, nil
-}
-
-// fetchActivityDataFallback retrieves activity data piece by piece when GetGroupWithDetails fails.
-func (rs *Resource) fetchActivityDataFallback(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error) {
-	group, err := rs.ActivityService.GetGroup(ctx, id)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	schedules, scheduleErr := rs.ActivityService.GetGroupSchedules(ctx, id)
-	if scheduleErr != nil {
-		slog.Default().WarnContext(ctx, "Error getting schedules",
-			slog.String("error", scheduleErr.Error()),
-			slog.Int64("group_id", id),
-		)
-		schedules = []*activities.Schedule{}
-	}
-
-	supervisors, _ := rs.ActivityService.GetGroupSupervisors(ctx, id)
-	return group, supervisors, schedules, nil
-}
-
-// ensureCategoryLoaded loads the category if it's missing from the group.
-func (rs *Resource) ensureCategoryLoaded(ctx context.Context, group *activities.Group) {
-	if group.Category == nil && group.CategoryID > 0 {
-		category, catErr := rs.ActivityService.GetCategory(ctx, group.CategoryID)
-		if catErr != nil {
-			slog.Default().WarnContext(ctx, "Error getting category",
-				slog.Int64("category_id", group.CategoryID),
-				slog.String("error", catErr.Error()),
-			)
-		} else if category != nil {
-			group.Category = category
-		}
-	}
-}
-
 // buildBaseActivityResponse creates the base activity response structure.
 func buildBaseActivityResponse(group *activities.Group, enrollmentCount int) ActivityResponse {
 	response := ActivityResponse{
@@ -148,33 +100,19 @@ func updateGroupFields(group *activities.Group, req *ActivityRequest) {
 	group.PlannedRoomID = req.PlannedRoomID
 }
 
-// fetchUpdatedGroupData retrieves the updated group with details and handles nil checks.
-func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *activities.Group) (*activities.Group, error) {
-	detailedGroup, _, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(ctx, updatedGroup.ID)
+// fetchUpdatedGroupData retrieves the updated group with response details.
+func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, groupID int64) (*activities.Group, error) {
+	detailedGroup, supervisors, schedules, err := rs.ActivityService.GetGroupWithDetails(ctx, groupID)
 	if err != nil {
-		slog.Default().ErrorContext(ctx, "Failed to get detailed group info after update", slog.String("error", err.Error()))
-		if updatedGroup != nil {
-			updatedGroup.Schedules = []*activities.Schedule{}
-		}
-		return updatedGroup, err
+		return nil, err
+	}
+	if detailedGroup == nil {
+		return nil, errors.New("activity detail query returned no group")
 	}
 
-	// Handle schedule assignment with nil checks
-	if detailedGroup != nil {
-		if updatedSchedules != nil {
-			updatedGroup.Schedules = updatedSchedules
-		} else {
-			slog.Default().Warn("updatedSchedules is nil despite no error from GetGroupWithDetails")
-			updatedGroup.Schedules = []*activities.Schedule{}
-		}
-	} else {
-		slog.Default().Warn("detailedGroup is nil despite no error from GetGroupWithDetails")
-		if updatedGroup != nil {
-			updatedGroup.Schedules = []*activities.Schedule{}
-		}
-	}
-
-	return updatedGroup, nil
+	detailedGroup.Supervisors = supervisors
+	detailedGroup.Schedules = schedules
+	return detailedGroup, nil
 }
 
 // buildUpdateResponse creates the final response for an activity update.
@@ -185,14 +123,33 @@ func (rs *Resource) buildUpdateResponse(ctx context.Context, group *activities.G
 	}
 
 	enrolledStudents, err := rs.ActivityService.GetEnrolledStudents(ctx, activityID)
-	enrollmentCount := 0
 	if err != nil {
-		slog.Default().ErrorContext(ctx, "Failed to get enrolled students", slog.String("error", err.Error()))
-	} else if enrolledStudents != nil {
-		enrollmentCount = len(enrolledStudents)
+		return ActivityResponse{}, err
 	}
 
-	return newActivityResponse(group, enrollmentCount), nil
+	response := newActivityResponse(group, len(enrolledStudents))
+	addSupervisorsToResponse(&response, group.Supervisors)
+	return response, nil
+}
+
+func (rs *Resource) updateActivityInTx(ctx context.Context, group *activities.Group, staffID int64, canManage bool, supervisorIDs []int64, schedules []*activities.Schedule) (ActivityResponse, error) {
+	var response ActivityResponse
+	err := tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		updated, err := rs.ActivityService.UpdateGroupWithDetails(txCtx, group, staffID, canManage, supervisorIDs, schedules)
+		if err != nil {
+			return err
+		}
+		if updated == nil {
+			return errors.New("activity update returned no group")
+		}
+		detailed, err := rs.fetchUpdatedGroupData(txCtx, updated.ID)
+		if err != nil {
+			return err
+		}
+		response, err = rs.buildUpdateResponse(txCtx, detailed, updated.ID)
+		return err
+	})
+	return response, err
 }
 
 // =============================================================================
@@ -243,8 +200,8 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 	}
 	supervisorMap, err := rs.ActivityService.GetSupervisorsForGroups(r.Context(), groupIDs)
 	if err != nil {
-		slog.Default().ErrorContext(r.Context(), "Error loading supervisors", slog.String("error", err.Error()))
-		supervisorMap = make(map[int64][]*activities.SupervisorPlanned)
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
 	}
 
 	// Build response with supervisors
@@ -277,8 +234,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch activity data with fallback handling
-	group, supervisors, schedules, err := rs.fetchActivityData(r.Context(), id)
+	group, supervisors, schedules, err := rs.ActivityService.GetGroupWithDetails(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -291,11 +247,12 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure category is loaded
-	rs.ensureCategoryLoaded(r.Context(), group)
-
 	// Build response
-	enrollmentCount := rs.getEnrollmentCount(r.Context(), id)
+	enrollmentCount, err := rs.getEnrollmentCount(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
+	}
 	response := buildBaseActivityResponse(group, enrollmentCount)
 	addCategoryToResponse(&response, group)
 	addSupervisorsToResponse(&response, supervisors)
@@ -354,13 +311,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	// EXTREMELY SIMPLIFIED APPROACH - don't try to get additional details at all
 	// Just create a response with what we know is valid and return it
 	if createdGroup == nil {
-		// This should never happen if CreateGroup didn't return an error, but just in case
-		slog.Default().Warn("CreateGroup returned nil group without error")
-		common.Respond(w, r, http.StatusCreated, ActivityResponse{
-			Name:       req.Name, // Use the original request data as fallback
-			CategoryID: req.CategoryID,
-			Schedules:  []ScheduleResponse{},
-		}, msgActivityCreatedSuccess)
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("activity creation returned no group")))
 		return
 	}
 
@@ -432,9 +383,8 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		CreatedAt:  createdGroup.CreatedAt,
 	}
 
-	// Get category name for response
-	if category, err := rs.ActivityService.GetCategory(r.Context(), req.CategoryID); err == nil && category != nil {
-		response.CategoryName = category.Name
+	if createdGroup.Category != nil {
+		response.CategoryName = createdGroup.Category.Name
 	}
 
 	// Get room name if room was specified
@@ -449,7 +399,11 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		response.SupervisorName = fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName)
 	} else {
 		// Try to get person info for non-staff users
-		person, _ := rs.UserContextService.GetCurrentPerson(r.Context())
+		person, err := rs.UserContextService.GetCurrentPerson(r.Context())
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
 		if person != nil {
 			response.SupervisorName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
 		}
@@ -499,38 +453,16 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Group fields + supervisors + schedules update as one unit: any failure
-	// rolls back the whole transaction and propagates (issue #575 B10 —
-	// previously supervisor/schedule failures were logged at Warn and the
-	// partial state committed with a 200).
-	var updatedGroup *activities.Group
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		var txErr error
-		updatedGroup, txErr = rs.ActivityService.UpdateGroupWithDetails(ctx, existingGroup, staffID, hasManagePermission, req.SupervisorIDs, newSchedules)
-		return txErr
-	}); err != nil {
+	response, err := rs.updateActivityInTx(
+		r.Context(), existingGroup, staffID, hasManagePermission, req.SupervisorIDs, newSchedules,
+	)
+	if err != nil {
 		// Check for ownership error
 		if errors.Is(err, activitiesSvc.ErrNotOwner) {
 			common.RenderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 		common.RenderError(w, r, ErrorRenderer(err))
-		return
-	}
-
-	// Fetch updated group data with details
-	finalGroup, err := rs.fetchUpdatedGroupData(r.Context(), updatedGroup)
-	if err != nil {
-		response := newActivityResponse(finalGroup, 0)
-		common.Respond(w, r, http.StatusOK, response, msgActivityUpdatedSuccess)
-		return
-	}
-
-	// Build and return response
-	response, err := rs.buildUpdateResponse(r.Context(), finalGroup, id)
-	if err != nil {
-		common.Respond(w, r, http.StatusOK, ActivityResponse{}, "Activity updated but details could not be retrieved")
 		return
 	}
 
