@@ -16,7 +16,7 @@ type timetableTimeframeRepository struct{ timetable timetable.TimeframeCapabilit
 
 func (r timetableTimeframeRepository) Create(ctx context.Context, value *scheduleModels.Timeframe) error {
 	if value == nil {
-		return errors.New("Timeframe cannot be nil or zero value")
+		return errors.New("timeframe cannot be nil or zero value")
 	}
 	if err := value.Validate(); err != nil {
 		return err
@@ -42,7 +42,7 @@ func (r timetableTimeframeRepository) FindByID(ctx context.Context, id any) (*sc
 
 func (r timetableTimeframeRepository) Update(ctx context.Context, value *scheduleModels.Timeframe) error {
 	if value == nil {
-		return errors.New("Timeframe cannot be nil or zero value")
+		return errors.New("timeframe cannot be nil or zero value")
 	}
 	if err := value.Validate(); err != nil {
 		return err
