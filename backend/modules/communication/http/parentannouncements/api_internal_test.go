@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	announcementService "github.com/moto-nrw/project-phoenix/services/announcement"
+	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +15,7 @@ func TestRenderAnnouncementErrorMapsSystemAnnouncementImmutableToConflict(t *tes
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodDelete, "/parent-announcements/1", nil)
 
-	renderAnnouncementError(recorder, request, announcementService.ErrSystemAnnouncementImmutable)
+	renderAnnouncementError(recorder, request, announcementService.ErrSystemParentAnnouncementImmutable)
 
 	assert.Equal(t, http.StatusConflict, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"code":"system_announcement_immutable"`)

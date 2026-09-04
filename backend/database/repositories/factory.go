@@ -265,8 +265,6 @@ type Factory struct {
 
 	// Platform domain (operator dashboard)
 	Operator                 platformModels.OperatorRepository
-	Announcement             platformModels.AnnouncementRepository
-	AnnouncementView         platformModels.AnnouncementViewRepository
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
 	OperatorRefreshToken     platformModels.OperatorRefreshTokenRepository
@@ -735,8 +733,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 
 		// Platform repositories
 		Operator:                 platformRepo.NewOperatorRepository(db),
-		Announcement:             platformRepo.NewAnnouncementRepository(db),
-		AnnouncementView:         platformRepo.NewAnnouncementViewRepository(db),
 		OperatorAuditLog:         platformRepo.NewOperatorAuditLogRepository(db),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
 		OperatorRefreshToken:     platformRepo.NewOperatorRefreshTokenRepository(db),

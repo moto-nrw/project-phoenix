@@ -47,7 +47,7 @@ var ErrAttachmentLimitReached = errors.New("announcement attachment limit reache
 
 // AnnouncementGuard is the staff-side question this package cannot answer:
 // does the announcement exist in the current tenant, and may its content
-// still be changed. Implemented by services/announcement.
+// still be changed. Implemented by the Communication parent-announcement capability.
 type AnnouncementGuard interface {
 	// AnnouncementExists returns ErrAttachmentNotFound-shaped nil/false when
 	// the announcement is absent from the current tenant.
