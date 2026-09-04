@@ -79,10 +79,25 @@ schedule, online enrollment, and weekly-plan-driven care. The seeder reads
 these settings and the expected children, devices, and planned activities back
 through the API before it writes the state file.
 
+The same organization also contains `Demo-Schule Manuell` / `manuell`. Its
+school-admin login is `manuell-admin@example.test` / `Manuell1234%`. This
+profile uses binary presence, web attendance without NFC terminals, open care,
+open rooms, disabled enrollment, and weekly-plan-driven care. It contains 12
+children with contacts and weekly plans. Four children are present and four
+have already checked out; room-visit history stays empty. The account with the
+semantic key `entwickler-admin` can switch between `vollbetrieb` and `manuell`.
+Each school's dedicated school-admin account remains isolated to that school.
+
 The simulator uses `vollbetrieb` without a flag. Select it explicitly with:
 
 ```bash
 docker compose run server go run . simulate full-day --profile vollbetrieb
+```
+
+Inspect the manual profile without starting an IoT simulation:
+
+```bash
+docker compose run server go run . simulate status --profile manuell
 ```
 
 Reset the development database before recreating this deterministic profile:

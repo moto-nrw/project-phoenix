@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -621,10 +622,48 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.Len(t, profile.Entities.Students, len(DemoStudents))
 	assert.Len(t, profile.Devices, len(DemoDevices)+1)
 	assert.True(t, profile.Devices[webManualDeviceID].Protected)
+	require.NotEmpty(t, profile.Credentials.Accounts.Admin)
+	assert.Equal(t, sharedDeveloperAdminKey, profile.Credentials.Accounts.Admin[0].Key)
+	manual, err := state.SelectProfile(ManualProfileKey)
+	require.NoError(t, err)
+	assert.Equal(t, "manuell", manual.School.TenantSlug)
+	assert.Equal(t, "manuell-admin@example.test", manual.Credentials.SchoolAdmin.Email)
+	assert.Equal(t, manualProfileDefinition().Settings, manual.Settings)
+	assert.Len(t, manual.Entities.Students, 12)
+	assert.Len(t, manual.Entities.Guardians, 12)
+	assert.Empty(t, manual.Entities.Rooms)
+	assert.Empty(t, manual.Entities.Activities)
+	assert.Len(t, manual.Entities.Groups, 2)
+	assert.Empty(t, manual.Devices["web-anwesenheit"].APIKey)
+	assert.True(t, manual.Devices["web-anwesenheit"].Protected)
+	require.Len(t, manual.Credentials.Accounts.Admin, 1)
+	assert.Equal(t, sharedDeveloperAdminKey, manual.Credentials.Accounts.Admin[0].Key)
+	assert.Equal(t, profile.Credentials.Accounts.Admin[0].Email, manual.Credentials.Accounts.Admin[0].Email)
+	assert.Equal(t, int64(5001), manual.Credentials.Accounts.Admin[0].StaffID)
+	assert.Zero(t, manual.Credentials.Accounts.Admin[0].TeacherID)
 	require.NotNil(t, state.CareWithdrawals)
-	assert.Equal(t, 2, state.Topology.Schools)
+	assert.Equal(t, 3, state.Topology.Schools)
+	assert.Equal(t, []string{ManualProfileKey, DefaultProfileKey}, state.Organizations["demo-traeger-nord"].Profiles)
 	assert.NotEmpty(t, state.CareWithdrawals.SchoolAdmin.Email)
 	assertWithdrawalSeedTrace(t, trace)
+}
+
+func TestManualGuardianForStudentUsesStudentIndex(t *testing.T) {
+	t.Parallel()
+
+	for _, expected := range []struct {
+		studentIndex int
+		name         string
+	}{
+		{studentIndex: 0, name: "Sabine Schneider"},
+		{studentIndex: 4, name: "Thomas Richter"},
+		{studentIndex: 10, name: "Ralf Zimmermann"},
+		{studentIndex: 11, name: "Susanne Braun"},
+	} {
+		guardian, err := manualGuardianForStudent(expected.studentIndex)
+		require.NoError(t, err)
+		assert.Equal(t, expected.name, guardian.FirstName+" "+guardian.LastName)
+	}
 }
 
 type failingSeedAdapter struct {
@@ -789,6 +828,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	t.Helper()
 	idCounter := int64(0)
 	var planningStaffID int64
+	manualStudents := make(map[int64]map[string]any)
+	manualAttendance := make(map[int64]string)
+	manualSettingWrites := make(map[string]json.RawMessage)
+	var manualSharedAccountID int64
 	var trace *fullSeedAPITrace
 	if len(traces) > 0 {
 		trace = traces[0]
@@ -797,11 +840,159 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	return newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		idCounter++
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(seedHTTPStatusOK)
+		authorization := r.Header.Get("Authorization")
+		manualAuth := authorization == "Bearer manual-admin-token"
+
+		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
+			var body struct {
+				Value json.RawMessage `json:"value"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			key := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+			expected, ok := manualProfileDefinition().Settings[key]
+			require.True(t, ok, "unexpected manual setting %s", key)
+			require.JSONEq(t, string(expected.Value), string(body.Value))
+			manualSettingWrites[key] = body.Value
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": nil})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodPost && r.URL.Path == "/api/groups" {
+			require.Len(t, manualSettingWrites, len(manualProfileDefinition().Settings))
+		}
+		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/operator/accounts/") && strings.HasSuffix(r.URL.Path, "/tenants") {
+			_, err := fmt.Sscanf(r.URL.Path, "/operator/accounts/%d/tenants", &manualSharedAccountID)
+			require.NoError(t, err)
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			require.Equal(t, float64(2), body["school_id"])
+			require.Equal(t, float64(1), body["role_id"])
+			require.Equal(t, DemoStaff[0].FirstName, body["first_name"])
+			require.Equal(t, DemoStaff[0].LastName, body["last_name"])
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
+
+		if r.URL.Path == "/auth/switch-tenant" {
+			if authorization != "Bearer shared-admin-token" && authorization != "Bearer shared-switched-token" {
+				w.WriteHeader(seedHTTPStatusUnauthorized)
+				_, _ = fmt.Fprint(w, `{"error":"tenant access denied"}`)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"access_token": "shared-switched-token", "refresh_token": "shared-refresh",
+			})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/auth/account/tenants" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{"slug": "vollbetrieb"}, {"slug": "manuell"}},
+			})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/operator/devices/9000/transfer-status" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"is_protected": true},
+			})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodPost && strings.HasSuffix(r.URL.Path, "/school-checkin") {
+			var body struct {
+				Action string `json:"action"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			studentPart := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/students/"), "/school-checkin")
+			var studentID int64
+			_, err := fmt.Sscan(studentPart, &studentID)
+			require.NoError(t, err)
+			status := "checked_in"
+			if body.Action == "out" {
+				status = "checked_out"
+			}
+			manualAttendance[studentID] = status
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"status": status, "changed": true},
+			})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodPost && r.URL.Path == "/api/students" {
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			guardians, ok := body["guardians"].([]any)
+			require.True(t, ok)
+			require.Len(t, guardians, 1)
+			require.Len(t, body["arrival_schedules"], 5)
+			require.Len(t, body["pickup_schedules"], 5)
+			manualStudents[idCounter] = body
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"id": idCounter},
+			})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/students" {
+			students := make([]map[string]any, 0, len(manualStudents))
+			for studentID, created := range manualStudents {
+				row := maps.Clone(created)
+				row["id"] = studentID
+				row["current_location"] = "Abwesend"
+				switch manualAttendance[studentID] {
+				case "checked_in":
+					row["current_location"] = "Anwesend"
+				case "checked_out":
+					row["actual_pickup_time"] = "15:30"
+				}
+				students = append(students, row)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": students,
+				"pagination": map[string]any{"total_records": len(students)},
+			})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/guardians/students/") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{"guardian": map[string]any{"id": idCounter + 10_000}}},
+			})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodGet && strings.HasSuffix(r.URL.Path, "/visit-history") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{"id": 1}, {"id": 2}},
+			})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/by-role" {
+			require.Equal(t, "admin", r.URL.Query().Get("role"))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{"id": 5001, "account_id": manualSharedAccountID}},
+			})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodGet && (strings.HasSuffix(r.URL.Path, "/arrival-schedules") || strings.HasSuffix(r.URL.Path, "/pickup-schedules")) {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"schedules": []map[string]any{
+					{"weekday": 1}, {"weekday": 2}, {"weekday": 3}, {"weekday": 4}, {"weekday": 5},
+				}},
+			})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/students/arrival-settings" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"care_days_source": "weekly_plan"},
+			})
+			return
+		}
 
 		if r.Method == seedHTTPMethodGet && (r.URL.Path == "/api/settings/schema" || strings.HasSuffix(r.URL.Path, "/settings/schema")) {
 			items := make([]map[string]any, 0)
-			for key, setting := range fullOperationProfileDefinition().Settings {
+			definition := fullOperationProfileDefinition()
+			if manualAuth || strings.Contains(r.URL.Path, "/operator/schools/2/") {
+				definition = manualProfileDefinition()
+			}
+			for key, setting := range definition.Settings {
 				items = append(items, map[string]any{"key": key, "value": setting.Value})
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -813,8 +1004,8 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			deviceType := r.URL.Query().Get("device_type")
 			devices := make([]map[string]any, 0)
 			if deviceType == "virtual" {
-				devices = append(devices, map[string]any{"device_id": webManualDeviceID, "device_type": "virtual", "name": "Web-Anwesenheit"})
-			} else {
+				devices = append(devices, map[string]any{"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": "Web-Anwesenheit"})
+			} else if !manualAuth {
 				for _, device := range DemoDevices {
 					devices = append(devices, map[string]any{"device_id": device.DeviceID, "device_type": "terminal", "name": device.Name})
 				}
@@ -1044,13 +1235,23 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 
 		case "/operator/schools":
+			var body struct {
+				Slug string `json:"slug"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			var schoolID int64 = 1
+			name := "Demo-Schule Vollbetrieb"
+			if body.Slug == ManualProfileKey {
+				schoolID = 2
+				name = "Demo-Schule Manuell"
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data": map[string]any{
-					"id":              1,
-					"name":            "Demo-Schule Vollbetrieb",
-					"slug":            "vollbetrieb",
-					"subdomain":       "vollbetrieb",
+					"id":              schoolID,
+					"name":            name,
+					"slug":            body.Slug,
+					"subdomain":       body.Slug,
 					"active":          true,
 					"organization_id": 1,
 				},
@@ -1066,6 +1267,13 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				},
 			})
 
+		case "/operator/schools/2/invite-admin":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{
+					"id": 2, "token": "manual-invite-token", "email": "manuell-admin@example.test",
+				},
+			})
+
 		case "/auth/invitations/seed-invite-token/accept":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
@@ -1075,9 +1283,29 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				},
 			})
 
+		case "/auth/invitations/manual-invite-token/accept":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{
+					"account_id": 2, "email": "manuell-admin@example.test",
+				},
+			})
+
 		case "/auth/login":
+			var body struct {
+				Email string `json:"email"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			token := "test-jwt-token"
+			switch body.Email {
+			case "vollbetrieb-admin@example.test":
+				token = "full-admin-token"
+			case "manuell-admin@example.test":
+				token = "manual-admin-token"
+			case "demo1@mail.de":
+				token = "shared-admin-token"
+			}
 			_ = json.NewEncoder(w).Encode(map[string]string{
-				"access_token":  "test-jwt-token",
+				"access_token":  token,
 				"refresh_token": "refresh",
 			})
 
