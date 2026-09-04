@@ -27,7 +27,7 @@ Core env vars are **required with no fallbacks** (root `CLAUDE.md` "No Fallbacks
 | `NEXTAUTH_URL` / `NEXTAUTH_SECRET` | Server | NextAuth base URL + JWT secret |
 | `SKIP_ENV_VALIDATION` | Build | `true` skips env validation (Docker builds) |
 
-**`getServerApiUrl()`** (`lib/server-api-url.ts`) returns `env.API_URL` — no fallback chain. Route handlers must use it; never `NEXT_PUBLIC_API_URL` on the server.
+**`getServerApiUrl()`** (`lib/server-api-url.ts`) returns the startup-validated `process.env.API_URL` — no fallback chain. Route handlers must use it; never `NEXT_PUBLIC_API_URL` on the server.
 
 ### Server-Only Import Isolation (`.server.ts`)
 

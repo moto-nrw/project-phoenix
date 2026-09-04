@@ -16,7 +16,7 @@ import { useShellSeed } from "~/lib/shell-seed";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
 import { trackTenantEvent } from "~/lib/analytics";
-import { env } from "~/env";
+import { clientEnv } from "~/env.client";
 import { Alert } from "~/components/ui/alert";
 import {
   BrandLink,
@@ -126,7 +126,7 @@ export function BrandTenantSwitcher({
         // Always use subdomain routing — the proxy rewrites subdomains
         // to path segments, so navigating to a path directly on the old
         // subdomain creates a broken double-prefixed URL.
-        const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
+        const tenantDomain = clientEnv.NEXT_PUBLIC_TENANT_DOMAIN;
         const port = window.location.port ? `:${window.location.port}` : "";
         const protocol = window.location.protocol;
         window.location.href = `${protocol}//${targetTenant.subdomain}.${tenantDomain}${port}/dashboard`;

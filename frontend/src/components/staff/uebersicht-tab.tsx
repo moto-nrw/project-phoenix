@@ -1,35 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import type { DateRange } from "react-day-picker";
 
 import {
   buildDefaultPresets,
   DateRangePicker,
 } from "~/components/ui/date-range-picker";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Cell,
-  Label,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
-
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "~/components/ui/chart";
+import { Skeleton } from "~/components/ui/skeleton";
+import type { ChartConfig } from "~/components/ui/chart";
 import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
 import {
   staffAbsenceService,
@@ -74,56 +56,25 @@ type TargetsByDay = ReadonlyMap<string, number>;
 
 const EMPTY_TARGETS: TargetsByDay = new Map<string, number>();
 
-type DistributionCenterLabelProps = {
-  readonly total: number;
-  readonly viewBox?: unknown;
-};
-
 type ConcreteDateRange = {
   readonly from: Date;
   readonly to: Date;
 };
 
-function DistributionCenterLabel({
-  total,
-  viewBox,
-}: DistributionCenterLabelProps) {
-  const center =
-    viewBox && typeof viewBox === "object"
-      ? (viewBox as { cx?: unknown; cy?: unknown })
-      : null;
-
-  if (
-    center &&
-    typeof center.cx === "number" &&
-    typeof center.cy === "number"
-  ) {
-    return (
-      <text
-        x={center.cx}
-        y={center.cy}
-        textAnchor="middle"
-        dominantBaseline="middle"
-      >
-        <tspan
-          x={center.cx}
-          y={center.cy}
-          className="fill-gray-900 text-3xl font-bold"
-        >
-          {total}
-        </tspan>
-        <tspan
-          x={center.cx}
-          y={center.cy + 22}
-          className="fill-gray-500 text-sm"
-        >
-          Tage
-        </tspan>
-      </text>
-    );
-  }
-  return null;
-}
+const DailyTrendChart = dynamic(
+  () => import("./uebersicht-charts").then((module) => module.DailyTrendChart),
+  { ssr: false, loading: () => <Skeleton className="h-64" aria-hidden /> },
+);
+const BalanceTrendChart = dynamic(
+  () =>
+    import("./uebersicht-charts").then((module) => module.BalanceTrendChart),
+  { ssr: false, loading: () => <Skeleton className="h-64" aria-hidden /> },
+);
+const DistributionChart = dynamic(
+  () =>
+    import("./uebersicht-charts").then((module) => module.DistributionChart),
+  { ssr: false, loading: () => <Skeleton className="h-64" aria-hidden /> },
+);
 
 // Long-term analytical view for a staff member. Owns three sections:
 //   A. Jahres-Header — 3 KpiCards (Saldo, Urlaub, Krank seit Jahresbeginn)
@@ -422,67 +373,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
                 : "Noch keine Daten — sobald die erste Arbeitszeit erfasst ist, erscheint der Vergleich."}
             </p>
           ) : (
-            <ChartContainer
-              config={dailyConfig}
-              className="!aspect-auto h-64 w-full"
-            >
-              <LineChart
-                accessibilityLayer
-                data={dailyTrendData}
-                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="dayLabel"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  fontSize={11}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tickFormatter={(v) => formatHoursCompact(Number(v))}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={4}
-                  fontSize={11}
-                  width={56}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      indicator="line"
-                      labelFormatter={(_l, payload) => {
-                        const p = payload?.[0]?.payload as
-                          { fullLabel?: string } | undefined;
-                        return p?.fullLabel ?? "";
-                      }}
-                      formatter={(value) => formatSignedDuration(Number(value))}
-                    />
-                  }
-                />
-                <Line
-                  dataKey="soll"
-                  name="Soll"
-                  type="monotone"
-                  stroke="var(--color-soll)"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 4"
-                  dot={false}
-                  isAnimationActive={false}
-                />
-                <Line
-                  dataKey="ist"
-                  name="Ist"
-                  type="monotone"
-                  stroke="var(--color-ist)"
-                  strokeWidth={2.5}
-                  dot={{ fill: "var(--color-ist)", r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ChartContainer>
+            <DailyTrendChart config={dailyConfig} data={dailyTrendData} />
           )}
         </SectionCard>
 
@@ -507,69 +398,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
                 : "Noch keine Daten — der Saldo erscheint, sobald die erste Woche erfasst ist."}
             </p>
           ) : (
-            <ChartContainer
-              config={trendConfig}
-              className="!aspect-auto h-64 w-full"
-            >
-              <AreaChart
-                accessibilityLayer
-                data={weeklyTrendData}
-                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="fillBalance" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="5%"
-                      stopColor="var(--color-balance)"
-                      stopOpacity={0.18}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor="var(--color-balance)"
-                      stopOpacity={0.02}
-                    />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="weekLabel"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  fontSize={11}
-                />
-                <YAxis
-                  tickFormatter={(v) => formatHoursCompact(Number(v))}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={4}
-                  fontSize={11}
-                  width={56}
-                />
-                <ReferenceLine
-                  y={0}
-                  stroke={MOTO_COLOR_PALETTE.neutral.light}
-                  strokeDasharray="3 3"
-                  strokeWidth={1}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      indicator="line"
-                      formatter={(value) => formatSignedDuration(Number(value))}
-                    />
-                  }
-                />
-                <Area
-                  dataKey="balance"
-                  type="natural"
-                  stroke="var(--color-balance)"
-                  strokeWidth={2.5}
-                  fill="url(#fillBalance)"
-                />
-              </AreaChart>
-            </ChartContainer>
+            <BalanceTrendChart config={trendConfig} data={weeklyTrendData} />
           )}
         </SectionCard>
       </div>
@@ -594,72 +423,33 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
           </p>
         ) : (
           <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-2">
-            <ChartContainer
+            <DistributionChart
               config={distributionConfig}
-              className="mx-auto aspect-square h-64 w-full max-w-[18rem]"
-            >
-              <PieChart>
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      hideLabel
-                      formatter={(value, _name, item) => {
-                        const days = Number(value);
-                        const labelMaybe = item?.payload?.label;
-                        const label =
-                          typeof labelMaybe === "string" ? labelMaybe : "";
-                        return `${label}: ${days} ${days === 1 ? "Tag" : "Tage"}`;
-                      }}
-                    />
-                  }
-                />
-                <Pie
-                  data={distributionData.filter((d) => d.value > 0)}
-                  dataKey="value"
-                  nameKey="key"
-                  innerRadius={60}
-                  outerRadius={95}
-                  strokeWidth={3}
-                >
-                  {distributionData
-                    .filter((d) => d.value > 0)
-                    .map((d) => (
-                      <Cell key={d.key} fill={d.color} />
-                    ))}
-                  <Label
-                    content={
-                      <DistributionCenterLabel total={distributionTotal} />
-                    }
-                  />
-                </Pie>
-              </PieChart>
-            </ChartContainer>
-
+              data={distributionData}
+              total={distributionTotal}
+            />
             <div className="flex flex-col gap-2">
-              {distributionData.map((d) => {
-                const isZero = d.value === 0;
-                const pct =
-                  distributionTotal > 0
-                    ? Math.round((d.value / distributionTotal) * 100)
-                    : 0;
+              {distributionData.map((point) => {
+                const percentage = Math.round(
+                  (point.value / distributionTotal) * 100,
+                );
                 return (
                   <div
-                    key={d.key}
-                    className={`flex items-center justify-between gap-3 text-sm ${
-                      isZero ? "opacity-40" : ""
-                    }`}
+                    key={point.key}
+                    className={`flex items-center justify-between gap-3 text-sm ${point.value === 0 ? "opacity-40" : ""}`}
                   >
                     <span className="flex items-center gap-2 text-gray-700">
                       <span
                         className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: d.color }}
+                        style={{ backgroundColor: point.color }}
                       />
-                      {d.label}
+                      {point.label}
                     </span>
                     <span className="text-gray-500 tabular-nums">
-                      {d.value} {d.value === 1 ? "Tag" : "Tage"}
-                      <span className="ml-2 text-gray-400">({pct}%)</span>
+                      {point.value} {point.value === 1 ? "Tag" : "Tage"}
+                      <span className="ml-2 text-gray-400">
+                        ({percentage}%)
+                      </span>
                     </span>
                   </div>
                 );
@@ -673,16 +463,6 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
 }
 
 // ─── Chart configs ───────────────────────────────────────────────────────────
-
-// Compact Y-axis label for the Stundenkonto-Verlauf chart. Shows whole hours
-// only (e.g. "+12h", "−466h") so the value fits one line — the full precision
-// stays in the tooltip via formatSignedDuration.
-function formatHoursCompact(minutes: number): string {
-  if (minutes === 0) return "0h";
-  const sign = minutes > 0 ? "+" : "−";
-  const hours = Math.round(Math.abs(minutes) / 60);
-  return `${sign}${hours}h`;
-}
 
 const trendConfig = {
   balance: { label: "Saldo", color: MOTO_COLOR_PALETTE.green.base },

@@ -18,7 +18,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { listAllTenants } from "~/lib/tenant-api";
 import type { TenantListResult, TenantSummary } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
-import { env } from "~/env";
+import { clientEnv } from "~/env.client";
 
 const logger = createLogger({ component: "RootPage" });
 
@@ -51,7 +51,7 @@ export default function RootPage() {
 
     setIsNavigating(true);
 
-    const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
+    const tenantDomain = clientEnv.NEXT_PUBLIC_TENANT_DOMAIN;
     const portSuffix = window.location.port ? `:${window.location.port}` : "";
     const host = `${tenant.subdomain}.${tenantDomain}${portSuffix}`;
 
