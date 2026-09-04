@@ -370,6 +370,91 @@ func (e *recordingEngine) DeleteActivityExceptionsBefore(context.Context, string
 	return 0, nil
 }
 
+func (e *recordingEngine) FindActivityInstance(context.Context, int64) (timetable.ActivityInstance, error) {
+	e.calls++
+	return timetable.ActivityInstance{}, nil
+}
+
+func (e *recordingEngine) ListActivityInstances(context.Context, timetable.ActivityInstanceFilter) ([]timetable.ActivityInstance, error) {
+	e.calls++
+	return []timetable.ActivityInstance{}, nil
+}
+
+func (e *recordingEngine) MaxActivityInstanceID(context.Context) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) CountActivityInstances(context.Context, *string) (int, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) OldestActivityInstanceBefore(context.Context, *string) (*string, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) CreateActivityInstance(context.Context, timetable.ActivityInstanceInput) (timetable.ActivityInstance, error) {
+	e.calls++
+	return timetable.ActivityInstance{}, nil
+}
+
+func (e *recordingEngine) CreateTemplateBackedActivityInstanceIfAbsent(context.Context, timetable.ActivityInstanceInput) (timetable.ActivityInstance, bool, error) {
+	e.calls++
+	return timetable.ActivityInstance{}, false, nil
+}
+
+func (e *recordingEngine) CreateIdempotentActivityInstance(context.Context, timetable.ActivityInstanceInput) (timetable.ActivityInstance, bool, error) {
+	e.calls++
+	return timetable.ActivityInstance{}, false, nil
+}
+
+func (e *recordingEngine) UpdateActivityInstance(context.Context, int64, timetable.ActivityInstanceInput) (timetable.ActivityInstance, error) {
+	e.calls++
+	return timetable.ActivityInstance{}, nil
+}
+
+func (e *recordingEngine) PatchActivityInstance(context.Context, int64, timetable.ActivityInstanceInput, []string) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteActivityInstance(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) MarkActivityInstanceCompleted(context.Context, int64, time.Time) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) CompleteActiveActivityInstances(context.Context, []int64, time.Time) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) DeletePlannedActivityInstances(context.Context, string, *string, *int64, bool) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteRemovedWeekendActivityInstances(context.Context, int64, []int) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) PropagateActivityInstanceListKind(context.Context, int64, *string, *string, string) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteActivityInstancesBefore(context.Context, string) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
 	e.calls++
 	e.targets = targets
@@ -457,6 +542,7 @@ func (e *recordingEngine) ObserveRejection(operation string, _ time.Duration, _ 
 }
 
 func TestActivityExceptionRejectsInvalidWrites(t *testing.T) {
+	t.Parallel()
 	engine := &recordingEngine{}
 	module := timetable.NewModule(engine)
 	override := "13:00:00"
@@ -476,6 +562,7 @@ func TestActivityExceptionRejectsInvalidWrites(t *testing.T) {
 }
 
 func TestActivityExceptionRejectsInvalidQueries(t *testing.T) {
+	t.Parallel()
 	engine := &recordingEngine{}
 	module := timetable.NewModule(engine)
 	_, err := module.FindActivityException(context.Background(), 0)

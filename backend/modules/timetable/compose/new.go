@@ -519,6 +519,96 @@ func (e engine) DeleteActivityExceptionsBefore(ctx context.Context, before strin
 	return rows, mapError(err)
 }
 
+func (e engine) FindActivityInstance(ctx context.Context, id int64) (timetable.ActivityInstance, error) {
+	value, err := e.service.FindActivityInstance(ctx, id)
+	return activityInstanceToPublic(value), mapError(err)
+}
+
+func (e engine) ListActivityInstances(ctx context.Context, filter timetable.ActivityInstanceFilter) ([]timetable.ActivityInstance, error) {
+	values, err := e.service.ListActivityInstances(ctx, domain.ActivityInstanceFilter(filter))
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.ActivityInstance, 0, len(values))
+	for _, value := range values {
+		result = append(result, activityInstanceToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) MaxActivityInstanceID(ctx context.Context) (int64, error) {
+	result, err := e.service.MaxActivityInstanceID(ctx)
+	return result, mapError(err)
+}
+
+func (e engine) CountActivityInstances(ctx context.Context, before *string) (int, error) {
+	result, err := e.service.CountActivityInstances(ctx, before)
+	return result, mapError(err)
+}
+
+func (e engine) OldestActivityInstanceBefore(ctx context.Context, before *string) (*string, error) {
+	result, err := e.service.OldestActivityInstanceBefore(ctx, before)
+	return result, mapError(err)
+}
+
+func (e engine) CreateActivityInstance(ctx context.Context, input timetable.ActivityInstanceInput) (timetable.ActivityInstance, error) {
+	value, err := e.service.CreateActivityInstance(ctx, domain.ActivityInstanceFields(input))
+	return activityInstanceToPublic(value), mapError(err)
+}
+
+func (e engine) CreateTemplateBackedActivityInstanceIfAbsent(ctx context.Context, input timetable.ActivityInstanceInput) (timetable.ActivityInstance, bool, error) {
+	value, inserted, err := e.service.CreateTemplateBackedActivityInstanceIfAbsent(ctx, domain.ActivityInstanceFields(input))
+	return activityInstanceToPublic(value), inserted, mapError(err)
+}
+
+func (e engine) CreateIdempotentActivityInstance(ctx context.Context, input timetable.ActivityInstanceInput) (timetable.ActivityInstance, bool, error) {
+	value, inserted, err := e.service.CreateIdempotentActivityInstance(ctx, domain.ActivityInstanceFields(input))
+	return activityInstanceToPublic(value), inserted, mapError(err)
+}
+
+func (e engine) UpdateActivityInstance(ctx context.Context, id int64, input timetable.ActivityInstanceInput) (timetable.ActivityInstance, error) {
+	value, err := e.service.UpdateActivityInstance(ctx, id, domain.ActivityInstanceFields(input))
+	return activityInstanceToPublic(value), mapError(err)
+}
+
+func (e engine) PatchActivityInstance(ctx context.Context, id int64, input timetable.ActivityInstanceInput, columns []string) (int64, error) {
+	rows, err := e.service.PatchActivityInstance(ctx, id, domain.ActivityInstanceFields(input), columns)
+	return rows, mapError(err)
+}
+
+func (e engine) DeleteActivityInstance(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteActivityInstance(ctx, id))
+}
+
+func (e engine) MarkActivityInstanceCompleted(ctx context.Context, id int64, completedAt time.Time) error {
+	return mapError(e.service.MarkActivityInstanceCompleted(ctx, id, completedAt))
+}
+
+func (e engine) CompleteActiveActivityInstances(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
+	rows, err := e.service.CompleteActiveActivityInstances(ctx, activeGroupIDs, completedAt)
+	return rows, mapError(err)
+}
+
+func (e engine) DeletePlannedActivityInstances(ctx context.Context, from string, to *string, groupID *int64, preserveDeviations bool) (int64, error) {
+	rows, err := e.service.DeletePlannedActivityInstances(ctx, from, to, groupID, preserveDeviations)
+	return rows, mapError(err)
+}
+
+func (e engine) DeleteRemovedWeekendActivityInstances(ctx context.Context, groupID int64, weekdays []int) (int64, error) {
+	rows, err := e.service.DeleteRemovedWeekendActivityInstances(ctx, groupID, weekdays)
+	return rows, mapError(err)
+}
+
+func (e engine) PropagateActivityInstanceListKind(ctx context.Context, groupID int64, previousKind, newKind *string, after string) (int64, error) {
+	rows, err := e.service.PropagateActivityInstanceListKind(ctx, groupID, previousKind, newKind, after)
+	return rows, mapError(err)
+}
+
+func (e engine) DeleteActivityInstancesBefore(ctx context.Context, before string) (int64, error) {
+	rows, err := e.service.DeleteActivityInstancesBefore(ctx, before)
+	return rows, mapError(err)
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -794,6 +884,21 @@ func activityExceptionFields(value timetable.ActivityExceptionInput) domain.Acti
 	}
 }
 
+func activityInstanceToPublic(value domain.ActivityInstance) timetable.ActivityInstance {
+	return timetable.ActivityInstance{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Date: value.Date, ActivityGroupID: value.ActivityGroupID, CalendarPeriodID: value.CalendarPeriodID,
+		Title: value.Title, Description: value.Description, StartTime: value.StartTime, EndTime: value.EndTime,
+		RoomID: value.RoomID, RequiredStaff: value.RequiredStaff, Status: value.Status, ActiveGroupID: value.ActiveGroupID,
+		ListKind: value.ListKind, IsSpontaneous: value.IsSpontaneous, UnderstaffedAck: value.UnderstaffedAck,
+		UnderstaffedNote: value.UnderstaffedNote, CancelReason: value.CancelReason, Notes: value.Notes,
+		IdempotencyKey: value.IdempotencyKey, IdempotencyFingerprint: value.IdempotencyFingerprint,
+		CreatedBy: value.CreatedBy, StartedBy: value.StartedBy, StartedAt: value.StartedAt,
+		CompletedAt: value.CompletedAt, CompletedBy: value.CompletedBy, ReopenUntil: value.ReopenUntil,
+		CompletionSnapshot: value.CompletionSnapshot,
+	}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -826,6 +931,8 @@ func mapError(err error) error {
 		return timetable.ErrRecurrenceRuleNotFound
 	case errors.Is(err, domain.ErrActivityExceptionNotFound):
 		return timetable.ErrActivityExceptionNotFound
+	case errors.Is(err, domain.ErrActivityInstanceNotFound):
+		return timetable.ErrActivityInstanceNotFound
 	default:
 		return err
 	}

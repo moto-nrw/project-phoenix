@@ -85,6 +85,23 @@ type Store interface {
 	UpdateActivityException(context.Context, int64, domain.ActivityExceptionFields) (domain.ActivityException, bool, domain.OperationStats, error)
 	DeleteActivityException(context.Context, int64) (domain.OperationStats, error)
 	DeleteActivityExceptionsBefore(context.Context, string) (int64, domain.OperationStats, error)
+	FindActivityInstance(context.Context, int64) (domain.ActivityInstance, bool, domain.OperationStats, error)
+	ListActivityInstances(context.Context, domain.ActivityInstanceFilter) ([]domain.ActivityInstance, domain.OperationStats, error)
+	MaxActivityInstanceID(context.Context) (int64, domain.OperationStats, error)
+	CountActivityInstances(context.Context, *string) (int, domain.OperationStats, error)
+	OldestActivityInstanceBefore(context.Context, *string) (*string, domain.OperationStats, error)
+	CreateActivityInstance(context.Context, domain.ActivityInstanceFields) (domain.ActivityInstance, domain.OperationStats, error)
+	CreateTemplateBackedActivityInstanceIfAbsent(context.Context, domain.ActivityInstanceFields) (domain.ActivityInstance, bool, domain.OperationStats, error)
+	CreateIdempotentActivityInstance(context.Context, domain.ActivityInstanceFields) (domain.ActivityInstance, bool, domain.OperationStats, error)
+	UpdateActivityInstance(context.Context, int64, domain.ActivityInstanceFields) (domain.ActivityInstance, bool, domain.OperationStats, error)
+	PatchActivityInstance(context.Context, int64, domain.ActivityInstanceFields, []string) (int64, domain.OperationStats, error)
+	DeleteActivityInstance(context.Context, int64) (domain.OperationStats, error)
+	MarkActivityInstanceCompleted(context.Context, int64, time.Time) (bool, domain.OperationStats, error)
+	CompleteActiveActivityInstances(context.Context, []int64, time.Time) (int64, domain.OperationStats, error)
+	DeletePlannedActivityInstances(context.Context, string, *string, *int64, bool) (int64, domain.OperationStats, error)
+	DeleteRemovedWeekendActivityInstances(context.Context, int64, []int, string) (int64, domain.OperationStats, error)
+	PropagateActivityInstanceListKind(context.Context, int64, *string, *string, string, time.Time) (int64, domain.OperationStats, error)
+	DeleteActivityInstancesBefore(context.Context, string) (int64, domain.OperationStats, error)
 }
 
 type Transaction interface {

@@ -102,6 +102,9 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 	f.PlanningTrack = timetablePlanningTrackRepository{timetable: capability}
 	f.RecurrenceRule = timetableRecurrenceRuleRepository{timetable: capability}
 	f.ActivityException = timetableActivityExceptionRepository{timetable: capability}
+	instances := timetableActivityInstanceRepository{timetable: capability}
+	f.ActivityInstance = instances
+	f.InstanceIdempotency = instances
 }
 
 func (f *Factory) decorateActivityGroups(groups activitiesModels.GroupRepository) activitiesModels.GroupRepository {

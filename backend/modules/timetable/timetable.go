@@ -56,6 +56,9 @@ var (
 	ErrActivityExceptionNotFound     = errors.New("activity exception not found")
 	ErrInvalidActivityException      = errors.New("invalid activity exception")
 	ErrInvalidActivityExceptionQuery = errors.New("invalid activity exception query")
+	ErrActivityInstanceNotFound      = errors.New("activity instance not found")
+	ErrInvalidActivityInstance       = errors.New("invalid activity instance")
+	ErrInvalidActivityInstanceQuery  = errors.New("invalid activity instance query")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -160,6 +163,7 @@ type Query interface {
 	PlanningTrackQuery
 	RecurrenceRuleQuery
 	ActivityExceptionQuery
+	ActivityInstanceQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
@@ -181,6 +185,7 @@ type Command interface {
 	PlanningTrackCommand
 	RecurrenceRuleCommand
 	ActivityExceptionCommand
+	ActivityInstanceCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -702,6 +707,135 @@ func (m *Module) DeleteActivityExceptionsBefore(ctx context.Context, before stri
 	return m.engine.DeleteActivityExceptionsBefore(ctx, before)
 }
 
+func (m *Module) FindActivityInstance(ctx context.Context, id int64) (ActivityInstance, error) {
+	if id <= 0 {
+		return ActivityInstance{}, m.reject("find_activity_instance", ErrInvalidActivityInstanceQuery)
+	}
+	return m.engine.FindActivityInstance(ctx, id)
+}
+
+func (m *Module) ListActivityInstances(ctx context.Context, filter ActivityInstanceFilter) ([]ActivityInstance, error) {
+	if !validActivityInstanceFilter(filter) {
+		return nil, m.reject("list_activity_instances", ErrInvalidActivityInstanceQuery)
+	}
+	return m.engine.ListActivityInstances(ctx, filter)
+}
+
+func (m *Module) MaxActivityInstanceID(ctx context.Context) (int64, error) {
+	return m.engine.MaxActivityInstanceID(ctx)
+}
+
+func (m *Module) CountActivityInstances(ctx context.Context, before *string) (int, error) {
+	if !validOptionalDate(before) {
+		return 0, m.reject("count_activity_instances", ErrInvalidActivityInstanceQuery)
+	}
+	return m.engine.CountActivityInstances(ctx, before)
+}
+
+func (m *Module) OldestActivityInstanceBefore(ctx context.Context, before *string) (*string, error) {
+	if !validOptionalDate(before) {
+		return nil, m.reject("oldest_activity_instance", ErrInvalidActivityInstanceQuery)
+	}
+	return m.engine.OldestActivityInstanceBefore(ctx, before)
+}
+
+func (m *Module) CreateActivityInstance(ctx context.Context, input ActivityInstanceInput) (ActivityInstance, error) {
+	input, ok := normalizeActivityInstance(input)
+	if !ok {
+		return ActivityInstance{}, m.reject("create_activity_instance", ErrInvalidActivityInstance)
+	}
+	return m.engine.CreateActivityInstance(ctx, input)
+}
+
+func (m *Module) CreateTemplateBackedActivityInstanceIfAbsent(ctx context.Context, input ActivityInstanceInput) (ActivityInstance, bool, error) {
+	input, ok := normalizeActivityInstance(input)
+	if !ok || input.ActivityGroupID == nil {
+		return ActivityInstance{}, false, m.reject("create_template_backed_activity_instance", ErrInvalidActivityInstance)
+	}
+	return m.engine.CreateTemplateBackedActivityInstanceIfAbsent(ctx, input)
+}
+
+func (m *Module) CreateIdempotentActivityInstance(ctx context.Context, input ActivityInstanceInput) (ActivityInstance, bool, error) {
+	input, ok := normalizeActivityInstance(input)
+	if !ok || input.IdempotencyKey == nil {
+		return ActivityInstance{}, false, m.reject("create_idempotent_activity_instance", ErrInvalidActivityInstance)
+	}
+	return m.engine.CreateIdempotentActivityInstance(ctx, input)
+}
+
+func (m *Module) UpdateActivityInstance(ctx context.Context, id int64, input ActivityInstanceInput) (ActivityInstance, error) {
+	input, ok := normalizeActivityInstance(input)
+	if id <= 0 || !ok {
+		return ActivityInstance{}, m.reject("update_activity_instance", ErrInvalidActivityInstance)
+	}
+	return m.engine.UpdateActivityInstance(ctx, id, input)
+}
+
+func (m *Module) PatchActivityInstance(ctx context.Context, id int64, input ActivityInstanceInput, columns []string) (int64, error) {
+	if id <= 0 || len(columns) == 0 || !validActivityInstanceColumns(columns) {
+		return 0, m.reject("patch_activity_instance", ErrInvalidActivityInstance)
+	}
+	return m.engine.PatchActivityInstance(ctx, id, input, columns)
+}
+
+func (m *Module) DeleteActivityInstance(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_activity_instance", ErrInvalidActivityInstance)
+	}
+	return m.engine.DeleteActivityInstance(ctx, id)
+}
+
+func (m *Module) MarkActivityInstanceCompleted(ctx context.Context, id int64, completedAt time.Time) error {
+	if id <= 0 || completedAt.IsZero() {
+		return m.reject("mark_activity_instance_completed", ErrInvalidActivityInstance)
+	}
+	return m.engine.MarkActivityInstanceCompleted(ctx, id, completedAt)
+}
+
+func (m *Module) CompleteActiveActivityInstances(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
+	if hasInvalidID(activeGroupIDs) || completedAt.IsZero() {
+		return 0, m.reject("complete_active_activity_instances", ErrInvalidActivityInstance)
+	}
+	return m.engine.CompleteActiveActivityInstances(ctx, activeGroupIDs, completedAt)
+}
+
+func (m *Module) DeletePlannedActivityInstances(ctx context.Context, from string, to *string, groupID *int64, preserveDeviations bool) (int64, error) {
+	if !validDate(from) || !validOptionalDate(to) || (groupID != nil && *groupID <= 0) {
+		return 0, m.reject("delete_planned_activity_instances", ErrInvalidActivityInstance)
+	}
+	return m.engine.DeletePlannedActivityInstances(ctx, from, to, groupID, preserveDeviations)
+}
+
+func (m *Module) DeleteRemovedWeekendActivityInstances(ctx context.Context, groupID int64, weekdays []int) (int64, error) {
+	if groupID <= 0 || invalidActivityInstanceWeekdays(weekdays) {
+		return 0, m.reject("delete_removed_weekend_activity_instances", ErrInvalidActivityInstance)
+	}
+	return m.engine.DeleteRemovedWeekendActivityInstances(ctx, groupID, weekdays)
+}
+
+func (m *Module) PropagateActivityInstanceListKind(ctx context.Context, groupID int64, previousKind, newKind *string, after string) (int64, error) {
+	if groupID <= 0 || !validDate(after) {
+		return 0, m.reject("propagate_activity_instance_list_kind", ErrInvalidActivityInstance)
+	}
+	return m.engine.PropagateActivityInstanceListKind(ctx, groupID, previousKind, newKind, after)
+}
+
+func (m *Module) DeleteActivityInstancesBefore(ctx context.Context, before string) (int64, error) {
+	if !validDate(before) {
+		return 0, m.reject("delete_activity_instances_before", ErrInvalidActivityInstance)
+	}
+	return m.engine.DeleteActivityInstancesBefore(ctx, before)
+}
+
+func invalidActivityInstanceWeekdays(weekdays []int) bool {
+	for _, weekday := range weekdays {
+		if !validWeekday(weekday) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {
 	normalized, err := normalizeGroupTargets(groupID, targets)
 	if err != nil {
@@ -981,6 +1115,76 @@ func validActivityExceptionOverride(input ActivityExceptionInput) bool {
 	start, _ := time.Parse("15:04:05", *input.StartTime)
 	end, _ := time.Parse("15:04:05", *input.EndTime)
 	return end.After(start)
+}
+
+func validActivityInstanceFilter(filter ActivityInstanceFilter) bool {
+	if filter.Limit < 0 || filter.Offset < 0 || hasInvalidID(filter.IDs) ||
+		hasInvalidID(filter.ActivityGroupIDs) || hasInvalidID(filter.ActiveGroupIDs) ||
+		(filter.ActivityGroupID != nil && *filter.ActivityGroupID <= 0) ||
+		(filter.ActiveGroupID != nil && *filter.ActiveGroupID <= 0) ||
+		!validOptionalDate(filter.Date) || !validOptionalDate(filter.FromDate) || !validOptionalDate(filter.ToDate) {
+		return false
+	}
+	for _, date := range filter.Dates {
+		if !validDate(date) {
+			return false
+		}
+	}
+	return filter.Status == "" || validActivityInstanceStatus(filter.Status)
+}
+
+func normalizeActivityInstance(input ActivityInstanceInput) (ActivityInstanceInput, bool) {
+	if input.ListKind != nil && *input.ListKind == "" {
+		input.ListKind = nil
+	}
+	if input.Title == "" || len(input.Title) > ActivityInstanceTitleMaxLength ||
+		!validDate(input.Date) || !validClock(input.StartTime) || !validClock(input.EndTime) ||
+		input.RoomID <= 0 || !validActivityInstanceStatus(input.Status) ||
+		(input.RequiredStaff != nil && *input.RequiredStaff < 0) || !normalizeListKind(&input.ListKind) {
+		return input, false
+	}
+	start, _ := time.Parse("15:04:05", input.StartTime)
+	end, _ := time.Parse("15:04:05", input.EndTime)
+	if !end.After(start) {
+		return input, false
+	}
+	if input.IdempotencyKey != nil {
+		if strings.TrimSpace(*input.IdempotencyKey) == "" || len(*input.IdempotencyKey) > ActivityInstanceIdempotencyKeyMaxLength {
+			return input, false
+		}
+	}
+	return input, true
+}
+
+func validActivityInstanceStatus(value string) bool {
+	return value == InstanceStatusPlanned || value == InstanceStatusActive ||
+		value == InstanceStatusCompleted || value == InstanceStatusCancelled
+}
+
+func validActivityInstanceColumns(columns []string) bool {
+	for _, column := range columns {
+		switch column {
+		case "date", "activity_group_id", "calendar_period_id", "title", "description",
+			"start_time", "end_time", "room_id", "required_staff", "status", "active_group_id",
+			"list_kind", "is_spontaneous", "understaffed_ack", "understaffed_note", "cancel_reason",
+			"notes", "started_by", "started_at", "completed_at", "completed_by", "reopen_until",
+			"completion_snapshot":
+		default:
+			return false
+		}
+	}
+	return !hasDuplicateString(columns)
+}
+
+func hasDuplicateString(values []string) bool {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if _, exists := seen[value]; exists {
+			return true
+		}
+		seen[value] = struct{}{}
+	}
+	return false
 }
 
 func normalizePlanningTrack(input PlanningTrackInput) (PlanningTrackInput, bool) {
