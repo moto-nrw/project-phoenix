@@ -42,7 +42,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/dateien",
   "/day-log",
   "/dienstplan",
-  "/eltern",
   "/eltern/bankverbindungen",
   "/emergency",
   "/enrollment-form",

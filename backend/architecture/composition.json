@@ -1964,7 +1964,7 @@
       "declaration": "TestGroupSupervisorRepository_Create_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        779
+        794
       ],
       "tables": []
     },
@@ -1984,7 +1984,7 @@
       "declaration": "TestGroupSupervisorRepository_EndAllActiveByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        885
+        900
       ],
       "tables": []
     },
@@ -1994,7 +1994,7 @@
       "declaration": "TestGroupSupervisorRepository_EndByActiveGroupAndStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1026
+        1041
       ],
       "tables": []
     },
@@ -2004,7 +2004,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        462
+        477
       ],
       "tables": []
     },
@@ -2014,7 +2014,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_AlreadyEnded",
       "target": "database/repositories.NewFactory",
       "lines": [
-        838
+        853
       ],
       "tables": []
     },
@@ -2024,7 +2024,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        866
+        881
       ],
       "tables": []
     },
@@ -2044,7 +2044,7 @@
       "declaration": "TestGroupSupervisorRepository_FindByActiveGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        332
+        347
       ],
       "tables": []
     },
@@ -2054,8 +2054,8 @@
       "declaration": "TestGroupSupervisorRepository_FindByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402,
-        403
+        417,
+        418
       ],
       "tables": []
     },
@@ -2075,7 +2075,7 @@
       "declaration": "TestGroupSupervisorRepository_FindStaleOpen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1124
+        1139
       ],
       "tables": []
     },
@@ -2085,7 +2085,7 @@
       "declaration": "TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        594
+        609
       ],
       "tables": []
     },
@@ -2105,7 +2105,7 @@
       "declaration": "TestGroupSupervisorRepository_List_WithQueryOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        811
+        826
       ],
       "tables": []
     },
@@ -2125,7 +2125,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_NilSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        736
+        751
       ],
       "tables": []
     },
@@ -2135,7 +2135,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        751
+        766
       ],
       "tables": []
     },
@@ -9396,7 +9396,7 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        190
+        213
       ],
       "tables": []
     },
