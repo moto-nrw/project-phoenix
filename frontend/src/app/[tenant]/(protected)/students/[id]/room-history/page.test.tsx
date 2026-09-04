@@ -48,6 +48,17 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
+vi.mock("./history-charts", () => ({
+  default: () => (
+    <div>
+      <h2>Anwesenheit</h2>
+      <p>Tägliche Aufenthaltsdauer in Stunden</p>
+      <h2>Aktivität</h2>
+      <p>Raumwechsel pro Tag</p>
+    </div>
+  ),
+}));
+
 // Mock fetch to simulate backend responses
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
