@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -98,4 +99,21 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 		organizations: organizations, persons: persons, groups: groups, rooms: rooms,
 		membership: membership, calendar: calendar, timetable: timetableCapability,
 	}, nil
+}
+
+func timetableStudents(students peopledirectory.StudentQuery) timetableCompose.StudentDirectory {
+	return timetableCompose.StudentDirectoryFunc(func(ctx context.Context) ([]timetableCompose.TargetStudent, error) {
+		values, err := students.ListEnrolledStudents(ctx)
+		if err != nil {
+			return nil, err
+		}
+		result := make([]timetableCompose.TargetStudent, 0, len(values))
+		for _, value := range values {
+			result = append(result, timetableCompose.TargetStudent{
+				ID: value.ID, SchoolClass: value.SchoolClass, EducationGroupID: value.GroupID,
+				EnrolledUntil: value.EnrolledUntil,
+			})
+		}
+		return result, nil
+	})
 }

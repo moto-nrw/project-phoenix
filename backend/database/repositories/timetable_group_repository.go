@@ -20,7 +20,7 @@ type timetableActivityGroupRepository struct {
 
 func (r timetableActivityGroupRepository) Create(ctx context.Context, group *activitiesModels.Group) error {
 	if group == nil {
-		return errors.New("Group cannot be nil or zero value")
+		return errors.New("group cannot be nil or zero value")
 	}
 	if err := group.Validate(); err != nil {
 		return err
