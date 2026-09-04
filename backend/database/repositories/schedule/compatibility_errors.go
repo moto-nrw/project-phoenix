@@ -3,6 +3,7 @@ package schedule
 import (
 	"errors"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
@@ -10,6 +11,12 @@ import (
 // RecurrenceRuleQueryOptions keeps the legacy repository method signature
 // without making the composition adapter import the base model package.
 type RecurrenceRuleQueryOptions = modelBase.QueryOptions
+type ActivityExceptionQueryOptions = modelBase.QueryOptions
+type ActivityExceptionDate = timezone.Date
+
+func ParseActivityExceptionDate(value string) (ActivityExceptionDate, error) {
+	return timezone.ParseDate(value)
+}
 
 func WrapDatabaseError(operation string, err error) error {
 	return &modelBase.DatabaseError{Op: operation, Err: err}
@@ -122,4 +129,53 @@ func recurrenceRuleFrequencyCondition(condition modelBase.FilterCondition) (stri
 		}
 	}
 	return "", nil, errors.New("recurrence rule filter is unsupported")
+}
+
+func ActivityExceptionListOptions(options *ActivityExceptionQueryOptions) (*int64, int, int, error) {
+	if options == nil {
+		return nil, 0, 0, nil
+	}
+	limit, offset := 0, 0
+	if options.Pagination != nil {
+		limit, offset = options.Pagination.PageSize, options.Pagination.Offset()
+	}
+	if options.Sorting != nil && len(options.Sorting.Fields) > 0 {
+		return nil, 0, 0, errors.New("activity exception sorting is unsupported")
+	}
+	if options.Filter == nil {
+		return nil, limit, offset, nil
+	}
+	if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
+		return nil, 0, 0, errors.New("compound activity exception filters are unsupported")
+	}
+	conditions := options.Filter.Conditions()
+	if len(conditions) == 0 {
+		return nil, limit, offset, nil
+	}
+	if len(conditions) != 1 {
+		return nil, 0, 0, errors.New("multiple activity exception filters are unsupported")
+	}
+	condition := conditions[0]
+	groupID, ok := condition.Value.(int64)
+	if condition.Field != "activity_group_id" || condition.Operator != modelBase.OpEqual || !ok {
+		return nil, 0, 0, errors.New("activity exception filter is unsupported")
+	}
+	return &groupID, limit, offset, nil
+}
+
+func ActivityExceptionBefore(options *ActivityExceptionQueryOptions) (*string, error) {
+	if options == nil || options.Filter == nil || len(options.Filter.Conditions()) == 0 {
+		return nil, nil
+	}
+	if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 ||
+		len(options.Filter.Conditions()) != 1 {
+		return nil, errors.New("activity exception count filter is unsupported")
+	}
+	condition := options.Filter.Conditions()[0]
+	value, ok := condition.Value.(timezone.Date)
+	if condition.Field != "exception_date" || condition.Operator != modelBase.OpLessThan || !ok {
+		return nil, errors.New("activity exception count filter is unsupported")
+	}
+	date := value.String()
+	return &date, nil
 }

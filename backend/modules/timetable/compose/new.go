@@ -469,6 +469,56 @@ func (e engine) DeleteRecurrenceRule(ctx context.Context, id int64) error {
 	return mapError(e.service.DeleteRecurrenceRule(ctx, id))
 }
 
+func (e engine) FindActivityException(ctx context.Context, id int64) (timetable.ActivityException, error) {
+	value, err := e.service.FindActivityException(ctx, id)
+	return activityExceptionToPublic(value), mapError(err)
+}
+
+func (e engine) ListActivityExceptions(ctx context.Context, filter timetable.ActivityExceptionFilter) ([]timetable.ActivityException, error) {
+	values, err := e.service.ListActivityExceptions(ctx, domain.ActivityExceptionFilter{
+		ActivityGroupID: filter.ActivityGroupID, ExceptionDate: filter.ExceptionDate,
+		FromDate: filter.FromDate, ToDate: filter.ToDate, BeforeDate: filter.BeforeDate,
+		OrderByDate: filter.OrderByDate, Limit: filter.Limit, Offset: filter.Offset,
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.ActivityException, 0, len(values))
+	for _, value := range values {
+		result = append(result, activityExceptionToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) CountActivityExceptions(ctx context.Context, before *string) (int, error) {
+	result, err := e.service.CountActivityExceptions(ctx, before)
+	return result, mapError(err)
+}
+
+func (e engine) OldestActivityExceptionBefore(ctx context.Context, before *string) (*string, error) {
+	result, err := e.service.OldestActivityExceptionBefore(ctx, before)
+	return result, mapError(err)
+}
+
+func (e engine) CreateActivityException(ctx context.Context, input timetable.ActivityExceptionInput) (timetable.ActivityException, error) {
+	value, err := e.service.CreateActivityException(ctx, activityExceptionFields(input))
+	return activityExceptionToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateActivityException(ctx context.Context, id int64, input timetable.ActivityExceptionInput) (timetable.ActivityException, error) {
+	value, err := e.service.UpdateActivityException(ctx, id, activityExceptionFields(input))
+	return activityExceptionToPublic(value), mapError(err)
+}
+
+func (e engine) DeleteActivityException(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteActivityException(ctx, id))
+}
+
+func (e engine) DeleteActivityExceptionsBefore(ctx context.Context, before string) (int64, error) {
+	rows, err := e.service.DeleteActivityExceptionsBefore(ctx, before)
+	return rows, mapError(err)
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -729,6 +779,21 @@ func recurrenceRuleFields(value timetable.RecurrenceRuleInput) domain.Recurrence
 		Weekdays: value.Weekdays, MonthDays: value.MonthDays, EndDate: value.EndDate, Count: value.Count}
 }
 
+func activityExceptionToPublic(value domain.ActivityException) timetable.ActivityException {
+	return timetable.ActivityException{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		ActivityGroupID: value.ActivityGroupID, ExceptionDate: value.ExceptionDate, ExceptionType: value.ExceptionType,
+		StartTime: value.StartTime, EndTime: value.EndTime, RoomID: value.RoomID, Reason: value.Reason, CreatedBy: value.CreatedBy,
+	}
+}
+
+func activityExceptionFields(value timetable.ActivityExceptionInput) domain.ActivityExceptionFields {
+	return domain.ActivityExceptionFields{
+		ActivityGroupID: value.ActivityGroupID, ExceptionDate: value.ExceptionDate, ExceptionType: value.ExceptionType,
+		StartTime: value.StartTime, EndTime: value.EndTime, RoomID: value.RoomID, Reason: value.Reason, CreatedBy: value.CreatedBy,
+	}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -759,6 +824,8 @@ func mapError(err error) error {
 		return fmt.Errorf("%w: %w", timetable.ErrPlanningTrackNameExists, err)
 	case errors.Is(err, domain.ErrRecurrenceRuleNotFound):
 		return timetable.ErrRecurrenceRuleNotFound
+	case errors.Is(err, domain.ErrActivityExceptionNotFound):
+		return timetable.ErrActivityExceptionNotFound
 	default:
 		return err
 	}

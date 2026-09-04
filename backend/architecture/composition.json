@@ -5695,6 +5695,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/schedule/activity_exception_repo_test.go",
+      "declaration": "activityExceptionRepository",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        22
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/schedule/arrival_schedule_test.go",
       "declaration": "newArrivalExceptionRepository",
       "target": "database/repositories.NewFactory",

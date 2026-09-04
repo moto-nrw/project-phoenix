@@ -330,6 +330,46 @@ func (e *recordingEngine) DeleteRecurrenceRule(context.Context, int64) error {
 	return nil
 }
 
+func (e *recordingEngine) FindActivityException(context.Context, int64) (timetable.ActivityException, error) {
+	e.calls++
+	return timetable.ActivityException{}, nil
+}
+
+func (e *recordingEngine) ListActivityExceptions(context.Context, timetable.ActivityExceptionFilter) ([]timetable.ActivityException, error) {
+	e.calls++
+	return []timetable.ActivityException{}, nil
+}
+
+func (e *recordingEngine) CountActivityExceptions(context.Context, *string) (int, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) OldestActivityExceptionBefore(context.Context, *string) (*string, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) CreateActivityException(context.Context, timetable.ActivityExceptionInput) (timetable.ActivityException, error) {
+	e.calls++
+	return timetable.ActivityException{}, nil
+}
+
+func (e *recordingEngine) UpdateActivityException(context.Context, int64, timetable.ActivityExceptionInput) (timetable.ActivityException, error) {
+	e.calls++
+	return timetable.ActivityException{}, nil
+}
+
+func (e *recordingEngine) DeleteActivityException(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) DeleteActivityExceptionsBefore(context.Context, string) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
 	e.calls++
 	e.targets = targets
@@ -414,6 +454,39 @@ func (e *recordingEngine) RestoreStudentEnrollmentsForCareExit(context.Context, 
 
 func (e *recordingEngine) ObserveRejection(operation string, _ time.Duration, _ error) {
 	e.rejections = append(e.rejections, operation)
+}
+
+func TestActivityExceptionRejectsInvalidWrites(t *testing.T) {
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	override := "13:00:00"
+	cases := []timetable.ActivityExceptionInput{
+		{},
+		{ActivityGroupID: 1, ExceptionDate: "not-a-date", ExceptionType: timetable.ActivityExceptionCancelled},
+		{ActivityGroupID: 1, ExceptionDate: "2027-01-01", ExceptionType: timetable.ActivityExceptionCancelled, StartTime: &override},
+		{ActivityGroupID: 1, ExceptionDate: "2027-01-01", ExceptionType: timetable.ActivityExceptionModified},
+	}
+	for _, input := range cases {
+		_, err := module.CreateActivityException(context.Background(), input)
+		require.ErrorIs(t, err, timetable.ErrInvalidActivityException)
+	}
+	_, err := module.DeleteActivityExceptionsBefore(context.Background(), "not-a-date")
+	require.ErrorIs(t, err, timetable.ErrInvalidActivityException)
+	assert.Zero(t, engine.calls)
+}
+
+func TestActivityExceptionRejectsInvalidQueries(t *testing.T) {
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	_, err := module.FindActivityException(context.Background(), 0)
+	require.ErrorIs(t, err, timetable.ErrInvalidActivityExceptionQuery)
+	badGroupID := int64(-1)
+	_, err = module.ListActivityExceptions(context.Background(), timetable.ActivityExceptionFilter{ActivityGroupID: &badGroupID})
+	require.ErrorIs(t, err, timetable.ErrInvalidActivityExceptionQuery)
+	badDate := "not-a-date"
+	_, err = module.CountActivityExceptions(context.Background(), &badDate)
+	require.ErrorIs(t, err, timetable.ErrInvalidActivityExceptionQuery)
+	assert.Zero(t, engine.calls)
 }
 
 func TestModuleNormalizesCategoryWrites(t *testing.T) {

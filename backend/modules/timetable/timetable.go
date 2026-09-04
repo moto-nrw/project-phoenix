@@ -53,6 +53,9 @@ var (
 	ErrRecurrenceRuleNotFound        = errors.New("recurrence rule not found")
 	ErrInvalidRecurrenceRule         = errors.New("invalid recurrence rule")
 	ErrInvalidRecurrenceRuleQuery    = errors.New("invalid recurrence rule query")
+	ErrActivityExceptionNotFound     = errors.New("activity exception not found")
+	ErrInvalidActivityException      = errors.New("invalid activity exception")
+	ErrInvalidActivityExceptionQuery = errors.New("invalid activity exception query")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -156,6 +159,7 @@ type Query interface {
 	TimeframeQuery
 	PlanningTrackQuery
 	RecurrenceRuleQuery
+	ActivityExceptionQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
@@ -176,6 +180,7 @@ type Command interface {
 	TimeframeCommand
 	PlanningTrackCommand
 	RecurrenceRuleCommand
+	ActivityExceptionCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -641,6 +646,62 @@ func (m *Module) DeleteRecurrenceRule(ctx context.Context, id int64) error {
 	return m.engine.DeleteRecurrenceRule(ctx, id)
 }
 
+func (m *Module) FindActivityException(ctx context.Context, id int64) (ActivityException, error) {
+	if id <= 0 {
+		return ActivityException{}, m.reject("find_activity_exception", ErrInvalidActivityExceptionQuery)
+	}
+	return m.engine.FindActivityException(ctx, id)
+}
+
+func (m *Module) ListActivityExceptions(ctx context.Context, filter ActivityExceptionFilter) ([]ActivityException, error) {
+	if !validActivityExceptionFilter(filter) {
+		return nil, m.reject("list_activity_exceptions", ErrInvalidActivityExceptionQuery)
+	}
+	return m.engine.ListActivityExceptions(ctx, filter)
+}
+
+func (m *Module) CountActivityExceptions(ctx context.Context, before *string) (int, error) {
+	if !validOptionalDate(before) {
+		return 0, m.reject("count_activity_exceptions", ErrInvalidActivityExceptionQuery)
+	}
+	return m.engine.CountActivityExceptions(ctx, before)
+}
+
+func (m *Module) OldestActivityExceptionBefore(ctx context.Context, before *string) (*string, error) {
+	if !validOptionalDate(before) {
+		return nil, m.reject("oldest_activity_exception", ErrInvalidActivityExceptionQuery)
+	}
+	return m.engine.OldestActivityExceptionBefore(ctx, before)
+}
+
+func (m *Module) CreateActivityException(ctx context.Context, input ActivityExceptionInput) (ActivityException, error) {
+	if !validActivityException(input) {
+		return ActivityException{}, m.reject("create_activity_exception", ErrInvalidActivityException)
+	}
+	return m.engine.CreateActivityException(ctx, input)
+}
+
+func (m *Module) UpdateActivityException(ctx context.Context, id int64, input ActivityExceptionInput) (ActivityException, error) {
+	if id <= 0 || !validActivityException(input) {
+		return ActivityException{}, m.reject("update_activity_exception", ErrInvalidActivityException)
+	}
+	return m.engine.UpdateActivityException(ctx, id, input)
+}
+
+func (m *Module) DeleteActivityException(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_activity_exception", ErrInvalidActivityException)
+	}
+	return m.engine.DeleteActivityException(ctx, id)
+}
+
+func (m *Module) DeleteActivityExceptionsBefore(ctx context.Context, before string) (int64, error) {
+	if !validDate(before) {
+		return 0, m.reject("delete_activity_exceptions_before", ErrInvalidActivityException)
+	}
+	return m.engine.DeleteActivityExceptionsBefore(ctx, before)
+}
+
 func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {
 	normalized, err := normalizeGroupTargets(groupID, targets)
 	if err != nil {
@@ -876,6 +937,50 @@ func validTimeframe(input TimeframeInput) bool {
 func validClock(value string) bool {
 	_, err := time.Parse("15:04:05", value)
 	return err == nil
+}
+
+func validActivityExceptionFilter(filter ActivityExceptionFilter) bool {
+	return filter.Limit >= 0 && filter.Offset >= 0 &&
+		(filter.ActivityGroupID == nil || *filter.ActivityGroupID > 0) &&
+		validOptionalDate(filter.ExceptionDate) && validOptionalDate(filter.FromDate) &&
+		validOptionalDate(filter.ToDate) && validOptionalDate(filter.BeforeDate)
+}
+
+func validOptionalDate(value *string) bool {
+	return value == nil || validDate(*value)
+}
+
+func validActivityException(input ActivityExceptionInput) bool {
+	if input.ActivityGroupID <= 0 || !validDate(input.ExceptionDate) ||
+		(input.Reason != nil && len(*input.Reason) > ActivityExceptionReasonMaxLength) {
+		return false
+	}
+	switch input.ExceptionType {
+	case ActivityExceptionCancelled:
+		return input.StartTime == nil && input.EndTime == nil && input.RoomID == nil
+	case ActivityExceptionModified:
+		return validActivityExceptionOverride(input)
+	default:
+		return false
+	}
+}
+
+func validActivityExceptionOverride(input ActivityExceptionInput) bool {
+	if input.StartTime == nil && input.EndTime == nil && input.RoomID == nil {
+		return false
+	}
+	if input.StartTime != nil && !validClock(*input.StartTime) {
+		return false
+	}
+	if input.EndTime != nil && !validClock(*input.EndTime) {
+		return false
+	}
+	if input.StartTime == nil || input.EndTime == nil {
+		return true
+	}
+	start, _ := time.Parse("15:04:05", *input.StartTime)
+	end, _ := time.Parse("15:04:05", *input.EndTime)
+	return end.After(start)
 }
 
 func normalizePlanningTrack(input PlanningTrackInput) (PlanningTrackInput, bool) {

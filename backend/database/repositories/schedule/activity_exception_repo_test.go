@@ -6,14 +6,23 @@ import (
 	"testing"
 	"time"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+func activityExceptionRepository(t *testing.T, db *bun.DB) scheduleModels.ActivityExceptionRepository {
+	t.Helper()
+	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(t, db))
+	return factory.ActivityException
+}
 
 func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing.T) {
 	t.Parallel()
@@ -21,7 +30,7 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewActivityExceptionRepository(db)
+	repo := activityExceptionRepository(t, db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Tpl-%d", time.Now().UnixNano()))
 
@@ -101,7 +110,7 @@ func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewActivityExceptionRepository(db)
+	repo := activityExceptionRepository(t, db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-By-Date-%d", time.Now().UnixNano()))
 
@@ -136,7 +145,7 @@ func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewActivityExceptionRepository(db)
+	repo := activityExceptionRepository(t, db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Range-%d", time.Now().UnixNano()))
 
@@ -179,7 +188,7 @@ func TestActivityExceptionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewActivityExceptionRepository(db)
+	repo := activityExceptionRepository(t, db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Upd-%d", time.Now().UnixNano()))
 
@@ -229,7 +238,7 @@ func TestActivityExceptionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewActivityExceptionRepository(db)
+	repo := activityExceptionRepository(t, db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-FID-%d", time.Now().UnixNano()))
 
@@ -264,7 +273,7 @@ func TestActivityExceptionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewActivityExceptionRepository(db)
+	repo := activityExceptionRepository(t, db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-List-%d", time.Now().UnixNano()))
 
@@ -314,7 +323,7 @@ func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewActivityExceptionRepository(db)
+	repo := activityExceptionRepository(t, db)
 
 	cancelledCtx, cancel := context.WithCancel(ctx)
 	cancel()

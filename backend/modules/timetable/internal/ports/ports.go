@@ -77,6 +77,14 @@ type Store interface {
 	CreateRecurrenceRule(context.Context, domain.RecurrenceRuleFields) (domain.RecurrenceRule, domain.OperationStats, error)
 	UpdateRecurrenceRule(context.Context, int64, domain.RecurrenceRuleFields) (domain.RecurrenceRule, bool, domain.OperationStats, error)
 	DeleteRecurrenceRule(context.Context, int64) (domain.OperationStats, error)
+	FindActivityException(context.Context, int64) (domain.ActivityException, bool, domain.OperationStats, error)
+	ListActivityExceptions(context.Context, domain.ActivityExceptionFilter) ([]domain.ActivityException, domain.OperationStats, error)
+	CountActivityExceptions(context.Context, *string) (int, domain.OperationStats, error)
+	OldestActivityExceptionBefore(context.Context, *string) (*string, domain.OperationStats, error)
+	CreateActivityException(context.Context, domain.ActivityExceptionFields) (domain.ActivityException, domain.OperationStats, error)
+	UpdateActivityException(context.Context, int64, domain.ActivityExceptionFields) (domain.ActivityException, bool, domain.OperationStats, error)
+	DeleteActivityException(context.Context, int64) (domain.OperationStats, error)
+	DeleteActivityExceptionsBefore(context.Context, string) (int64, domain.OperationStats, error)
 }
 
 type Transaction interface {
