@@ -119,8 +119,10 @@ func firstClock(clocks []func() time.Time) func() time.Time {
 	return clocks[0]
 }
 
+const studentsTestToday timezone.Date = "2026-08-24"
+
 func fixedCalendarClock() time.Time {
-	return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	return studentsTestToday.BerlinMidnight().Add(12 * time.Hour)
 }
 
 // authExec signs a JWT carrying claims (narrowed to perms) and runs the request

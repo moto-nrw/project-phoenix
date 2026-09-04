@@ -67,7 +67,7 @@ func newCompleteWithdrawalFixture(t *testing.T) *completeWithdrawalFixture {
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	t.Cleanup(cleanup)
 	ctx := testpkg.Ctx(t)
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-10))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
 	requestID, childID := submitOneChild(t, env, "complete-withdrawal@example.com", "Lina", "Abmeldung")
 	care := createWithdrawalOffering(t, env, "Ganztag", true)
 	lunch := createWithdrawalOffering(t, env, "Mittagessen", false)
@@ -146,7 +146,7 @@ func (f *completeWithdrawalFixture) completeWithdrawal() *userModels.CareWithdra
 	pending, err := pendingWithdrawalForStudent(f.ctx, f.env.repos.CareWithdrawal, f.studentID)
 	require.NoError(f.t, err)
 	require.NotNil(f.t, pending)
-	assert.Equal(f.t, timezone.TodayDate(), pending.FirstBookinglessDay)
+	assert.Equal(f.t, decisionTestToday, pending.FirstBookinglessDay)
 	assert.Equal(f.t, "admin", pending.WithdrawalConfirmedRole)
 	require.NotNil(f.t, pending.SourceRequestChildID)
 	assert.Equal(f.t, f.childID, *pending.SourceRequestChildID)
@@ -162,7 +162,7 @@ func (f *completeWithdrawalFixture) assertCompletionAudit() {
 
 func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userModels.CareWithdrawalCompletion) {
 	lifecycle := newWithdrawalLifecycle(f.env)
-	input := usersService.CareExitInput{LastCareDay: timezone.TodayDate().AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed}
+	input := usersService.CareExitInput{LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed}
 	preview, err := lifecycle.PreviewWithdrawalCareEnd(f.ctx, pending.ID, input)
 	require.NoError(f.t, err)
 	require.Len(f.t, preview.Students, 1)
@@ -176,7 +176,7 @@ func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userM
 		WHERE tenant_id = ? AND request_child_id = ? AND care_offering_id = ?`,
 		testpkg.Tenant(f.t), f.childID, f.lunchID).Scan(f.ctx, &validUntil))
 	require.NotNil(f.t, validUntil)
-	assert.Equal(f.t, timezone.TodayDate(), *validUntil)
+	assert.Equal(f.t, decisionTestToday, *validUntil)
 }
 
 func newWithdrawalLifecycle(env *decisionTestEnv) usersService.CareLifecycleService {
@@ -225,7 +225,7 @@ func newNonAuthoritativeWithdrawalFixture(t *testing.T) *nonAuthoritativeWithdra
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	t.Cleanup(cleanup)
 	ctx := testpkg.Ctx(t)
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-10))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
 	email := fmt.Sprintf("non-authoritative-withdrawal-%d@example.com", testpkg.UniqueSuffix())
 	requestID, childID := submitOneChild(t, env, email, "Toni", "Optional")
 	care := createWithdrawalOffering(t, env, "Ganztag", true)
@@ -284,7 +284,7 @@ func newWithdrawalRaceFixture(t *testing.T) *withdrawalRaceFixture {
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	t.Cleanup(cleanup)
 	fixture := &withdrawalRaceFixture{t: t, env: env, ctx: testpkg.Ctx(t), completionWaiting: make(chan struct{})}
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-10))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
 	fixture.wireRaceServices(&authoritative)
 	fixture.seedRaceStudent()
 	return fixture
@@ -350,7 +350,7 @@ func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
 	require.NoError(f.t, err)
 	require.NotNil(f.t, pending)
 	exitInput := usersService.CareExitInput{
-		LastCareDay: timezone.TodayDate().AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed,
+		LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed,
 	}
 	preview, err := f.lifecycle.PreviewWithdrawalCareEnd(f.ctx, pending.ID, exitInput)
 	require.NoError(f.t, err)
