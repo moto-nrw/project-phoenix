@@ -268,7 +268,15 @@ describe("MobileBottomNav", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
       expect(
         screen.getByRole("link", { name: "Meine Gruppen" }),
-      ).toHaveAttribute("href", "/ogs-groups");
+      ).toHaveAttribute("href", "/test-tenant/ogs-groups");
+      expect(screen.getByText("Datenverwaltung").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/database",
+      );
+      expect(screen.getByText("Anmeldungen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/admin/enrollments",
+      );
     });
 
     it("hides groups from users without staff or admin access", () => {
@@ -290,7 +298,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
       expect(
         screen.getByRole("link", { name: "Meine Gruppen" }),
-      ).toHaveAttribute("href", "/ogs-groups");
+      ).toHaveAttribute("href", "/test-tenant/ogs-groups");
     });
 
     it("renders with custom className", () => {
