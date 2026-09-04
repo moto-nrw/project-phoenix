@@ -137,7 +137,7 @@ test.describe("Planung navigation", () => {
     await expect(main.getByText("Gruppenzugriff")).toHaveCount(0);
   });
 
-  test("mobile Mehr drawer lists the three planning areas", async ({
+  test("mobile Mehr drawer lists the Planung group and its pages", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -147,9 +147,9 @@ test.describe("Planung navigation", () => {
     await expect(page.getByText("Betreuungsplan")).toBeVisible();
     await expect(page.getByText("Dienstplan")).toBeVisible();
     await expect(
-      page.getByText("Terminvertretungen", { exact: true }),
+      page.getByText("Vertretungsplan", { exact: true }),
     ).toBeVisible();
     await expect(page.getByText("Vertretungen", { exact: true })).toBeVisible();
-    await expect(page.getByText("Planung", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Planung", { exact: true })).toBeVisible();
   });
 });
