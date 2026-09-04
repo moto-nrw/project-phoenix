@@ -108,6 +108,12 @@ func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
 	})
 }
 
+func TestStaffMessageCleanupSkipsMissingRuntime(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, staffMessageCleanup(nil))
+}
+
 func TestWithRuntimeBuildsCompleteWorker(t *testing.T) {
 	t.Parallel()
 

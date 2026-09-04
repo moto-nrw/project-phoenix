@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/staff"
+	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"

@@ -16,18 +16,17 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	service "github.com/moto-nrw/project-phoenix/services/staffmessaging"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // Resource is the internal messaging HTTP resource.
 type Resource struct {
-	Service *service.Service
+	Service communication.StaffMessagingCapability
 	db      *bun.DB
 }
 
 // NewResource wires the internal messaging resource.
-func NewResource(svc *service.Service, db *bun.DB) *Resource {
+func NewResource(svc communication.StaffMessagingCapability, db *bun.DB) *Resource {
 	return &Resource{Service: svc, db: db}
 }
 
@@ -107,7 +106,7 @@ type RecipientResponse struct {
 	RoleKind string `json:"role_kind"`
 }
 
-func toMessageResponses(messages []*usersModels.StaffMessage) []MessageResponse {
+func toMessageResponses(messages []communication.StaffMessage) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		out = append(out, MessageResponse{
@@ -121,7 +120,7 @@ func toMessageResponses(messages []*usersModels.StaffMessage) []MessageResponse 
 	return out
 }
 
-func toThreadDetail(d *service.ThreadDetail) ThreadDetailResponse {
+func toThreadDetail(d *communication.StaffMessageThread) ThreadDetailResponse {
 	return ThreadDetailResponse{
 		ThreadID:             strconv.FormatInt(d.ThreadID, 10),
 		CounterpartAccountID: strconv.FormatInt(d.CounterpartAccountID, 10),
@@ -136,7 +135,7 @@ func toThreadDetail(d *service.ThreadDetail) ThreadDetailResponse {
 // ---------------------------------------------------------------------------
 
 func (rs *Resource) listInbox(w http.ResponseWriter, r *http.Request) {
-	rows, err := rs.Service.ListInbox(r.Context(), r.URL.Query().Get("only_unread") == "true")
+	rows, err := rs.Service.ListStaffMessageInbox(r.Context(), r.URL.Query().Get("only_unread") == "true")
 	if err != nil {
 		renderStaffMessagingError(w, r, err)
 		return
@@ -163,7 +162,7 @@ func (rs *Resource) listInbox(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) unreadCount(w http.ResponseWriter, r *http.Request) {
-	count, err := rs.Service.UnreadMessageCount(r.Context())
+	count, err := rs.Service.CountUnreadStaffMessages(r.Context())
 	if err != nil {
 		renderStaffMessagingError(w, r, err)
 		return
@@ -202,7 +201,7 @@ func (rs *Resource) openThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	detail, err := rs.Service.OpenThread(r.Context(), accountID)
+	detail, err := rs.Service.OpenStaffMessageThread(r.Context(), accountID)
 	if err != nil {
 		renderStaffMessagingError(w, r, err)
 		return
@@ -215,7 +214,7 @@ func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	detail, err := rs.Service.GetThread(r.Context(), threadID)
+	detail, err := rs.Service.GetStaffMessageThread(r.Context(), threadID)
 	if err != nil {
 		renderStaffMessagingError(w, r, err)
 		return
@@ -236,10 +235,10 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := rs.Service.PostMessage(r.Context(), threadID, body.Body)
+	message, err := rs.Service.PostStaffMessage(r.Context(), threadID, body.Body)
 	if err != nil {
 		renderStaffMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toMessageResponses([]*usersModels.StaffMessage{message})[0], "Message sent")
+	common.Respond(w, r, http.StatusOK, toMessageResponses([]communication.StaffMessage{*message})[0], "Message sent")
 }

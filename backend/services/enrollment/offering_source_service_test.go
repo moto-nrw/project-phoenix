@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -97,20 +98,19 @@ func submitAndApproveOfferingChild(
 	})
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
-	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
-		RequestID:  submitted.Request.ID,
-		ChildID:    submitted.Children[0].ID,
-		Status:     enrollmentService.DecisionApproved,
-		ReviewedBy: env.creatorID,
+	var outcome *enrollmentService.DecideOutcome
+	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		var decideErr error
+		outcome, decideErr = env.decision.Decide(txCtx, enrollmentService.DecideInput{
+			RequestID:  submitted.Request.ID,
+			ChildID:    submitted.Children[0].ID,
+			Status:     enrollmentService.DecisionApproved,
+			ReviewedBy: env.creatorID,
+		})
+		return decideErr
 	})
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.student_enrollments").
-			Where("student_id = ?", *outcome.Child.CreatedStudentID).
-			Exec(context.Background())
-	})
 	return *outcome.Child.CreatedStudentID, submitted.Children[0].ID
 }
 

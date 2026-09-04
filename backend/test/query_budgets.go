@@ -93,6 +93,9 @@ var queryBudgets = map[string]queryBudget{
 	// modules/schoolmembership — assignment lists, 8 rows each.
 	"modules.schoolmembership.list_class_assignments": {max: 5},
 	"modules.schoolmembership.list_group_assignments": {max: 5},
+	// modules/communication — inbox reads remain fixed as thread count grows.
+	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
+	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
 	// services/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},

@@ -15,8 +15,8 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	"github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -399,6 +399,29 @@ func TestInboxShowsCounterpartAndPreview(t *testing.T) {
 	assert.Equal(t, 1, benInbox[0].UnreadCount)
 }
 
+func TestListInboxQueryBudgetStaysFlat(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	anna, ben := twoColleagues(t, db)
+	_, cara := testpkg.CreateTestStaffWithAccount(t, db, "Cara", "Drittel")
+	_, dan := testpkg.CreateTestStaffWithAccount(t, db, "Dan", "Viertel")
+
+	for _, counterpartID := range []int64{ben, cara.ID, dan.ID} {
+		thread, err := svc.OpenThread(asAccount(t, anna), counterpartID)
+		require.NoError(t, err)
+		_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Nachricht")
+		require.NoError(t, err)
+	}
+
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	ctx := counter.Context(asAccount(t, anna))
+	inbox, err := svc.ListInbox(ctx, false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 3)
+	testpkg.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox", counter.Queries())
+}
+
 func TestInboxCounterpartNameUsesThreadTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -414,12 +437,6 @@ func TestInboxCounterpartNameUsesThreadTenant(t *testing.T) {
 		 VALUES (?, ?, ?, ?)`,
 		schoolB, "Falscher", "Tenant", ben)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx,
-			`DELETE FROM users.persons
-			 WHERE tenant_id = ? AND account_id = ? AND first_name = ? AND last_name = ?`,
-			schoolB, ben, "Falscher", "Tenant")
-	})
 
 	thread, err := svc.OpenThread(asAccount(t, anna), ben)
 	require.NoError(t, err)

@@ -1,5 +1,5 @@
 // Package parentmessaging holds the small shared core of the parent-OGS
-// messaging feature used by BOTH the staff side (services/messaging) and the
+// messaging feature used by BOTH the staff-side Communication adapter and the
 // parent side (services/parent). It exists so the load-bearing rules — append a
 // message and advance the read cursor off the DB-stamped created_at (never the
 // app clock), and the SSE fan-out contract — live in ONE place instead of being
@@ -146,7 +146,7 @@ func AppendMessage(
 // reader needs to mark seen. Messages are ordered oldest-first, so the last
 // qualifying element is the newest counterpart. MarkReadUpTo itself is monotonic,
 // so a stale snapshot never rolls the cursor back. This rule used to be
-// hand-mirrored in services/messaging (staff) and services/parent (guardian);
+// hand-mirrored in Communication's staff adapter and services/parent;
 // keeping it here is what stops the two portals' unread counts from drifting.
 // It returns whether the cursor actually ADVANCED (false when there was nothing
 // to mark, or the snapshot was already read). The read-receipt SSE push gates on
