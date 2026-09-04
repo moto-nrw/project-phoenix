@@ -111,8 +111,14 @@ func (s *statusDayStore) ListStudentStatusDays(ctx context.Context, filter carep
 	rows := []studentStatusDayRow{}
 	query := withTenant(db.NewSelect().Model(&rows).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).ColumnExpr(`"student_status_day".*`), "student_status_day", tenantID)
+	if filter.LatestOnly {
+		// PostgreSQL requires DISTINCT ON expressions to lead the ORDER BY list.
+		query = orderStatusDays(query, filter)
+	}
 	query = filterStatusDays(query, filter)
-	query = orderStatusDays(query, filter)
+	if !filter.LatestOnly {
+		query = orderStatusDays(query, filter)
+	}
 	started := time.Now()
 	err = query.Scan(ctx)
 	stats := requestStats(started, int64(len(rows)))
