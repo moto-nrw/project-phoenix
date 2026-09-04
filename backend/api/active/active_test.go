@@ -333,6 +333,14 @@ func TestListVisits(t *testing.T) {
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
+	t.Run("rejects an invalid active group filter without a success response", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/visits?active_group_ids=invalid", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
+
+		testutil.AssertBadRequest(t, rr)
+		assert.NotContains(t, rr.Body.String(), "Visits retrieved successfully")
+	})
+
 	t.Run("forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/visits", nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{})

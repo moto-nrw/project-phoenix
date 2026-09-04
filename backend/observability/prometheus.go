@@ -365,6 +365,30 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_appointments_statement_duration_seconds", Help: "Cumulative Appointments database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	communicationOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_communication_operations_total", Help: "Communication operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	communicationDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_communication_operation_duration_seconds", Help: "Communication operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	communicationQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_communication_queries_total", Help: "Persistence queries issued by Communication operations."},
+		[]string{"operation"},
+	)
+	communicationRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_communication_rows_total", Help: "Rows returned or changed by Communication operations."},
+		[]string{"operation"},
+	)
+	communicationDuplicatePreventionConflicts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_communication_duplicate_prevention_conflicts_total", Help: "Idempotent Communication writes resolved by a database uniqueness conflict."},
+		[]string{"operation"},
+	)
+	communicationStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_communication_statement_duration_seconds", Help: "Cumulative Communication database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	carePlanOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_care_plan_operations_total", Help: "Care Plan operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -664,6 +688,12 @@ func init() {
 		appointmentsRows,
 		appointmentsDuplicatePreventionConflicts,
 		appointmentsStatementDuration,
+		communicationOperations,
+		communicationDuration,
+		communicationQueries,
+		communicationRows,
+		communicationDuplicatePreventionConflicts,
+		communicationStatementDuration,
 		carePlanOperations,
 		carePlanDuration,
 		carePlanQueries,
@@ -968,6 +998,30 @@ func ObserveAppointmentsOperation(operation string, duration time.Duration, quer
 	}
 	if statementDuration > 0 {
 		appointmentsStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveCommunicationOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	communicationOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	communicationDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		communicationQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		communicationRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if duplicatePreventionConflicts > 0 {
+		communicationDuplicatePreventionConflicts.WithLabelValues(operation).Add(float64(duplicatePreventionConflicts))
+	}
+	if statementDuration > 0 {
+		communicationStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 

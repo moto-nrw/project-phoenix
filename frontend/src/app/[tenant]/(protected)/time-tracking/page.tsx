@@ -8,17 +8,18 @@ import React, {
   Suspense,
   useRef,
 } from "react";
+import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { hasPermission } from "~/lib/auth-utils";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   SkeletonRegion,
   CardSkeleton,
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   Drawer,
   DrawerClose,
@@ -26,14 +27,6 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "~/components/ui/drawer";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "~/components/ui/chart";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -73,7 +66,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useToast } from "~/contexts/ToastContext";
 import {
   usePeriodMetrics,
@@ -118,6 +111,11 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
+const WeekChart = dynamic(() => import("./week-chart"), {
+  ssr: false,
+  loading: () => <Skeleton className="min-h-[280px] rounded-2xl" aria-hidden />,
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDateGerman(date: Date): string {
@@ -125,12 +123,6 @@ function formatDateGerman(date: Date): string {
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   const year = date.getFullYear();
   return `${day}.${month}.${year}`;
-}
-
-function formatDateShort(date: Date): string {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  return `${day}.${month}`;
 }
 
 // Extracts error message string from unknown error types
@@ -204,7 +196,6 @@ function friendlyError(err: unknown, fallback: string): string {
   return fallback;
 }
 
-const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const DAY_NAMES_LONG = [
   "Montag",
   "Dienstag",
@@ -2052,205 +2043,6 @@ function OwnZeiterfassungSection({
     </div>
   );
 }
-
-// ─── WeekChart ───────────────────────────────────────────────────────────────
-
-const weekChartConfig = {
-  netMinutes: {
-    label: "Arbeitszeit",
-    color: MOTO_COLOR_PALETTE.timeTracking.base,
-  },
-  breakMinutes: { label: "Pause", color: "#94a3b8" }, // slate-400 — muted secondary
-} satisfies ChartConfig;
-
-function WeekChartImpl({
-  history,
-  weekOffset,
-}: {
-  readonly history: WorkSessionHistory[];
-  readonly weekOffset: number;
-}) {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-
-  // The Berlin calendar day, not a fresh `new Date()` per render: the axis is
-  // built from it, so a per-render instant made the memo below lie about its
-  // inputs. As a day-granular value it also rolls the chart over at midnight
-  // without a reload (#2975).
-  const todayISO = useBerlinToday();
-
-  const chartData = useMemo(() => {
-    // Build last 10 workdays ending with today (or offset reference)
-    // Today is always on the right, past days to the left
-    // Anchored on the BERLIN calendar day, not the browser's: the minutes are
-    // indexed by Berlin date below, so deriving the axis from a local date
-    // would look up the wrong key — zero or misplaced bars around midnight for
-    // anybody outside the Berlin timezone.
-    const referenceDate = parseISODate(todayISO);
-    referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
-
-    const allDays: Date[] = [];
-    const d = new Date(referenceDate);
-    while (allDays.length < 10) {
-      // Skip weekends
-      if (d.getDay() !== 0 && d.getDay() !== 6) {
-        allDays.unshift(new Date(d)); // prepend so oldest is first
-      }
-      d.setDate(d.getDate() - 1);
-    }
-
-    const minutesByDate = indexWorkSessionMinutesByBerlinDate(history);
-
-    return allDays.map((day) => {
-      if (!day) {
-        return {
-          dayKey: "",
-          dayShort: "",
-          label: "",
-          netMinutes: 0,
-          breakMinutes: 0,
-        };
-      }
-
-      const dateKey = toISODate(day);
-      const dayMinutes = minutesByDate.get(dateKey);
-      const dayIndex = (day.getDay() + 6) % 7; // Mon=0..Sun=6
-
-      const dayShort = DAY_NAMES[dayIndex] ?? "";
-      return {
-        // dayKey is the unique X-axis category. Two weeks worth of bars
-        // would otherwise collide on day names like "Mo"/"Di" and Recharts
-        // would route every hover for that category to the first bar.
-        dayKey: dateKey,
-        dayShort,
-        label: `${dayShort} ${formatDateShort(day)}`,
-        netMinutes: dayMinutes?.netMinutes ?? 0,
-        breakMinutes: dayMinutes?.breakMinutes ?? 0,
-      };
-    });
-  }, [history, weekOffset, todayISO]);
-
-  const tooltipLabelFormatter = useCallback(
-    (
-      _value: unknown,
-      payload: ReadonlyArray<{ payload?: { label?: string } }>,
-    ) => {
-      const item = payload[0]?.payload;
-      return item?.label ?? "";
-    },
-    [],
-  );
-
-  const tooltipValueFormatter = useCallback(
-    (
-      value: number | string | ReadonlyArray<number | string> | undefined,
-      name: string | number | undefined,
-    ) => {
-      const totalMins = (value ?? 0) as number;
-      const hours = Math.floor(totalMins / 60);
-      const mins = totalMins % 60;
-      const label = name === "netMinutes" ? "Arbeitszeit" : "Pause";
-      return `${label}: ${hours}h ${mins}min`;
-    },
-    [],
-  );
-
-  return (
-    <div className="moto-content-surface relative flex min-h-[280px] flex-col overflow-hidden rounded-2xl border shadow-sm md:h-full md:min-h-0">
-      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
-        <div className="mb-3 flex items-baseline justify-between sm:mb-4">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-            Wochenübersicht
-          </h2>
-          {chartData.length > 0 && (
-            <span className="text-[10px] text-gray-400 sm:text-xs">
-              {chartData[0]?.label?.split(" ")[1] ?? ""} –{" "}
-              {chartData[chartData.length - 1]?.label?.split(" ")[1] ?? ""}
-            </span>
-          )}
-        </div>
-        <ChartContainer
-          config={weekChartConfig}
-          className="!aspect-auto min-h-0 flex-1"
-        >
-          <BarChart
-            accessibilityLayer
-            data={chartData}
-            margin={{
-              top: 4,
-              right: 4,
-              bottom: 0,
-              left: isMobile ? -24 : -20,
-            }}
-            barCategoryGap={isMobile ? 2 : 4}
-          >
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="dayKey"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              fontSize={isMobile ? 10 : 11}
-              interval={0}
-              tickFormatter={(value: string) => {
-                const found = chartData.find((entry) => entry.dayKey === value);
-                return found?.dayShort ?? "";
-              }}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              tickMargin={4}
-              fontSize={isMobile ? 10 : 12}
-              tickFormatter={(v: number) => `${Math.round(v / 60)}h`}
-              domain={[0, "auto"]}
-            />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  labelFormatter={tooltipLabelFormatter}
-                  formatter={tooltipValueFormatter}
-                />
-              }
-            />
-            <ChartLegend content={<ChartLegendContent />} />
-            {/* No grow animation: recharts re-renders every bar layer on each
-                animation frame, which was 900 renders per Balken-Schicht on a
-                week switch (#2975). The chart reads the same either way — the
-                Übersicht on /staff/[id] already renders it unanimated. */}
-            <Bar
-              dataKey="breakMinutes"
-              stackId="a"
-              fill="var(--color-breakMinutes)"
-              radius={[0, 0, 4, 4]}
-              isAnimationActive={false}
-            />
-            <Bar
-              dataKey="netMinutes"
-              stackId="a"
-              fill="var(--color-netMinutes)"
-              radius={[4, 4, 0, 0]}
-              isAnimationActive={false}
-            />
-          </BarChart>
-        </ChartContainer>
-      </div>
-    </div>
-  );
-}
-
-/**
- * The whole recharts tree is rebuilt on every render of the page around it, so
- * an unrelated state change (a week switch in the table below, a modal opening)
- * cost thousands of renders in here (#2975). `history` is a memoised SWR array
- * and `weekOffset` a number, so the default shallow comparison holds.
- */
-const WeekChart = React.memo(WeekChartImpl);
 
 // ─── ExportDropdown ───────────────────────────────────────────────────────────
 

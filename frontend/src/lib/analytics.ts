@@ -6,15 +6,13 @@
  * PII; student IDs are forbidden entirely (GDPR).
  */
 
-import posthog, { type Properties } from "posthog-js";
-import { env } from "~/env";
-import { createLogger } from "~/lib/logger";
+import type { Properties } from "posthog-js";
+import { clientEnv } from "~/env.client";
+import { capturePostHog, resetAndCapturePostHog } from "~/lib/posthog-client";
 import {
   isAnalyticsViewId,
   type AnalyticsViewId,
 } from "~/lib/analytics-routes";
-
-const logger = createLogger({ component: "Analytics" });
 
 export type AnalyticsEvent =
   | "login_success"
@@ -30,19 +28,7 @@ export type AnalyticsEvent =
   | "pwa_installed";
 
 function captureEvent(event: AnalyticsEvent, props?: Properties): void {
-  if (!env.NEXT_PUBLIC_POSTHOG_KEY) {
-    return;
-  }
-  try {
-    posthog.capture(event, props);
-  } catch (err) {
-    // Analytics must never break the calling flow — but a broken SDK
-    // should not go dark silently either.
-    logger.warn("analytics_capture_failed", {
-      event,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
+  capturePostHog(event, props);
 }
 
 export function trackEvent(
@@ -57,48 +43,35 @@ export function trackTenantEvent(
   schoolId: string,
   props?: Record<string, string | number | boolean>,
 ): void {
-  if (!env.NEXT_PUBLIC_POSTHOG_KEY || !/^\d+$/.test(schoolId)) return;
+  if (!/^\d+$/.test(schoolId)) return;
+
+  const eventProperties = {
+    ...props,
+    deployment: clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
+    school_id: schoolId,
+    $groups: { school: schoolId },
+  };
 
   // A completed tenant switch belongs to the target school and must not share
   // the previous school's anonymous runtime identity.
   if (event === "tenant_switched") {
-    try {
-      posthog.reset();
-    } catch (err) {
-      logger.warn("analytics_capture_failed", {
-        event,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return;
-    }
+    resetAndCapturePostHog(event, eventProperties);
+    return;
   }
 
-  captureEvent(event, {
-    ...props,
-    deployment: env.NEXT_PUBLIC_TENANT_DOMAIN,
-    school_id: schoolId,
-    $groups: { school: schoolId },
-  });
+  captureEvent(event, eventProperties);
 }
 
 export function trackPageView(viewId: AnalyticsViewId, schoolId: string): void {
-  if (!env.NEXT_PUBLIC_POSTHOG_KEY) return;
   if (!isAnalyticsViewId(viewId) || !/^\d+$/.test(schoolId)) return;
 
-  try {
-    posthog.capture("page_viewed", {
-      view_id: viewId,
-      portal: "tenant",
-      deployment: env.NEXT_PUBLIC_TENANT_DOMAIN,
-      school_id: schoolId,
-      $groups: { school: schoolId },
-      $geoip_disable: true,
-      $process_person_profile: false,
-    });
-  } catch (err) {
-    logger.warn("analytics_capture_failed", {
-      event: "page_viewed",
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
+  capturePostHog("page_viewed", {
+    view_id: viewId,
+    portal: "tenant",
+    deployment: clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
+    school_id: schoolId,
+    $groups: { school: schoolId },
+    $geoip_disable: true,
+    $process_person_profile: false,
+  });
 }

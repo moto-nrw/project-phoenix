@@ -346,6 +346,16 @@ func WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) er
 
 // WithinAdmin runs fn in the cross-tenant administrative transaction.
 func WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return withinAdmin(ctx, false, fn)
+}
+
+// WithinAdminRetry runs an explicitly retry-safe administrative command,
+// replaying its whole transaction after a deadlock or serialization failure.
+func WithinAdminRetry(ctx context.Context, fn func(context.Context) error) error {
+	return withinAdmin(ctx, true, fn)
+}
+
+func withinAdmin(ctx context.Context, retry bool, fn func(context.Context) error) error {
 	if fn == nil {
 		return errors.New("tenant: callback is required")
 	}
@@ -356,7 +366,7 @@ func WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
 	}
 
 	ctx = ContextWithoutTenant(ctx)
-	return runtime.execute(ctx, false, func(attemptCtx context.Context) error {
+	return runtime.execute(ctx, retry, func(attemptCtx context.Context) error {
 		return runtime.withinAdmin(attemptCtx, func(txCtx context.Context, tx any) error {
 			txCtx = withTransaction(txCtx, tx)
 			return fn(withAdminTxFlag(txCtx))

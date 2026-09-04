@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	staffMessagingSvc "github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -53,7 +52,7 @@ type WorkerDependencies struct {
 	TimeTrackingCleanup       active.TimeTrackingCleanupService
 	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService
 	PWAUsageCleanup           pwaSvc.UsageService
-	StaffMessageCleanup       staffMessagingSvc.CleanupService
+	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        auditModel.BookingConsistencyRepository
 	EnrollmentRejectedCleanup enrollmentSvc.RejectedEnrollmentCleaner
 	AutoStart                 scheduleSvc.AutoStartService

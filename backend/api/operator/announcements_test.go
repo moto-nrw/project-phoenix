@@ -17,8 +17,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	platform "github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // Test constants used in mock assertions (not DB-dependent)
@@ -627,7 +626,7 @@ func TestCreateAnnouncement_InvalidDataError(t *testing.T) {
 
 	mock := &mockAnnouncementService{
 		createFn: func(_ context.Context, _ *platform.Announcement, _ int64, _ net.IP) error {
-			return &platformSvc.InvalidDataError{Err: errors.New("severity must be one of: info, warning, critical")}
+			return &platform.InvalidDataError{Err: errors.New("severity must be one of: info, warning, critical")}
 		},
 	}
 	resource := operator.NewAnnouncementsResource(mock)
@@ -650,7 +649,7 @@ func TestUpdateAnnouncement_InvalidDataError(t *testing.T) {
 	mock := &mockAnnouncementService{
 		getAnnouncementFn: existingAnnouncement(),
 		updateFn: func(_ context.Context, _ *platform.Announcement, _ int64, _ net.IP) error {
-			return &platformSvc.InvalidDataError{Err: errors.New("title exceeds maximum length")}
+			return &platform.InvalidDataError{Err: errors.New("title exceeds maximum length")}
 		},
 	}
 	resource := operator.NewAnnouncementsResource(mock)
@@ -807,7 +806,7 @@ func TestDeleteAnnouncement_SuccessAndErrors(t *testing.T) {
 			name: "not found",
 			id:   "999",
 			deleteFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-				return &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+				return &platform.AnnouncementNotFoundError{AnnouncementID: 999}
 			},
 			wantStatus: http.StatusNotFound,
 		},
@@ -850,7 +849,7 @@ func TestPublishAnnouncement_SuccessAndErrors(t *testing.T) {
 			name: "not found",
 			id:   "999",
 			publishFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-				return &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+				return &platform.AnnouncementNotFoundError{AnnouncementID: 999}
 			},
 			wantStatus: http.StatusNotFound,
 		},
@@ -989,7 +988,7 @@ func TestGetAnnouncement_NotFound(t *testing.T) {
 
 	mock := &mockAnnouncementService{
 		getAnnouncementFn: func(_ context.Context, _ int64) (*platform.Announcement, error) {
-			return nil, &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+			return nil, &platform.AnnouncementNotFoundError{AnnouncementID: 999}
 		},
 	}
 	resource := operator.NewAnnouncementsResource(mock)

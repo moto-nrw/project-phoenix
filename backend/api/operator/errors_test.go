@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/operator"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/assert"
@@ -150,7 +151,7 @@ func TestAuthErrorRenderer_MFAStatusUnavailable(t *testing.T) {
 func TestAnnouncementErrorRenderer_NotFound(t *testing.T) {
 	t.Parallel()
 
-	err := &platformSvc.AnnouncementNotFoundError{AnnouncementID: 999}
+	err := &communication.AnnouncementNotFoundError{AnnouncementID: 999}
 	renderer := operator.AnnouncementErrorRenderer(err)
 
 	status, _, errorText := extractErrResponse(t, renderer)
@@ -162,7 +163,7 @@ func TestAnnouncementErrorRenderer_InvalidData(t *testing.T) {
 	t.Parallel()
 
 	innerErr := errors.New("title required")
-	err := &platformSvc.InvalidDataError{Err: innerErr}
+	err := &communication.InvalidDataError{Err: innerErr}
 	renderer := operator.AnnouncementErrorRenderer(err)
 
 	status, _, errorText := extractErrResponse(t, renderer)

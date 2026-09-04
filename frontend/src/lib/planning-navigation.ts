@@ -46,8 +46,11 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     showInMobileNav: true,
   },
   {
+    // „Vertretungsplan", nicht „Terminvertretungen": neben Betreuungsplan und
+    // Dienstplan die dritte Planung; die Endung zeigt die Grenze zur
+    // Tagesübersicht „Vertretungen" im Tagesbetrieb (#2826).
     href: "/vertretung",
-    label: "Terminvertretungen",
+    label: "Vertretungsplan",
     legacyPrefixes: ["/vertretungsplan"],
     showInMobileNav: true,
   },
@@ -60,8 +63,11 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     showInMobileNav: true,
   },
   {
+    // Die Seite verwaltet Schuljahr, Halbjahre, Ferien und Schließtage. Der
+    // Fachbegriff „Kalenderzeitraum" bleibt im Formularfeld, das einen davon
+    // auswählt; in der Navigation sagt der Name, was drin ist (#2826).
     href: "/calendar-periods",
-    label: "Kalenderzeiträume",
+    label: "Schuljahr und Ferien",
     legacyPrefixes: [],
     showInMobileNav: true,
   },

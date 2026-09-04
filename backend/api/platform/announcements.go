@@ -6,16 +6,16 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // AnnouncementsResource handles user-facing announcements endpoints
 type AnnouncementsResource struct {
-	announcementService platformSvc.AnnouncementService
+	announcementService communication.Capability
 }
 
 // NewAnnouncementsResource creates a new announcements resource
-func NewAnnouncementsResource(announcementService platformSvc.AnnouncementService) *AnnouncementsResource {
+func NewAnnouncementsResource(announcementService communication.Capability) *AnnouncementsResource {
 	return &AnnouncementsResource{
 		announcementService: announcementService,
 	}

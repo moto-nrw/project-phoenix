@@ -43,6 +43,10 @@
       "kind": "domain"
     },
     {
+      "id": "staff-announcement-audience",
+      "kind": "projection"
+    },
+    {
       "id": "data-import",
       "kind": "workflow"
     },
@@ -459,11 +463,25 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/announcement",
+      "path": "modules/communication/http/parentannouncements",
       "owner": "inbound-announcement",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/http/parentmessages",
+      "owner": "inbound-messaging",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/http/staffmessages",
+      "owner": "inbound-messaging",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "api/auth",
@@ -608,20 +626,6 @@
     {
       "path": "modules/mealplan/http",
       "owner": "inbound-mealplan",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "api/messaging",
-      "owner": "inbound-messaging",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "api/staffmessaging",
-      "owner": "inbound-messaging",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -1397,11 +1401,25 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/announcement",
+      "path": "modules/communication/internal/staffannouncements",
       "owner": "communication",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/communication/internal/parentmessages",
+      "owner": "communication",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/communication/internal/staffmessages",
+      "owner": "communication",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "services/audit",
@@ -1803,13 +1821,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/messaging",
-      "owner": "communication",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/delivery/application/notifications",
       "owner": "delivery-platform",
       "role": "application",
@@ -1832,13 +1843,6 @@
     },
     {
       "path": "services/parentmessaging",
-      "owner": "communication",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/staffmessaging",
       "owner": "communication",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1904,6 +1908,13 @@
       "path": "services/slotlists",
       "owner": "class-day-view",
       "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/slotlists/slotlisttest",
+      "owner": "class-day-view",
+      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2085,6 +2096,55 @@
     {
       "path": "modules/appointments/internal/ports",
       "owner": "appointments",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication",
+      "owner": "communication",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/composition",
+      "owner": "communication",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/adapters/audience",
+      "owner": "staff-announcement-audience",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/adapters/postgres",
+      "owner": "communication",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/application",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/domain",
+      "owner": "communication",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/ports",
+      "owner": "communication",
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -2989,7 +3049,22 @@
       "write_owner": "school-membership"
     }
   ],
-  "read_projections": [],
+  "read_projections": [
+    {
+      "id": "staff-announcement-audience",
+      "package": "modules/communication/internal/adapters/audience",
+      "data_objects": [
+        "auth.account_roles",
+        "auth.account_tenants",
+        "auth.accounts",
+        "auth.roles",
+        "platform.announcement_views",
+        "platform.announcements",
+        "platform.schools"
+      ],
+      "tenant_safe": true
+    }
+  ],
   "legacy_composition": [
     {
       "package": "api",
@@ -4578,6 +4653,310 @@
       "source_role": "http",
       "target_owner": "communication",
       "target_role": "public"
+    },
+    {
+      "id": "communication.messages.root-composition-http",
+      "description": "The API composition root mounts the Communication message HTTP adapters.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-messaging",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.messages.http-common",
+      "description": "The message HTTP adapters use shared authentication, transaction, and response middleware.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.messages.http-security-contract",
+      "description": "The parent-message HTTP adapter applies the established messaging permission.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "communication.messages.http-identity-adapter",
+      "description": "The staff-message HTTP adapter reads authenticated account claims.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.http-orm",
+      "description": "The message HTTP adapters bind the existing tenant transaction middleware.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.messages.compose-delivery-public",
+      "description": "Communication composition adapts the existing realtime broadcaster until its delivery port migrates.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.messages.compose-identity-application",
+      "description": "Communication composition adapts the existing user-context service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.compose-people-application",
+      "description": "Communication composition adapts the existing staff directory service pending #2727.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.adapter-orm",
+      "description": "The retained message implementation joins the ambient tenant transaction pending #2727.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.messages.adapter-security-application",
+      "description": "The retained parent-message implementation applies the existing authorization service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.adapter-identity-adapter",
+      "description": "The retained message implementation reads authenticated account claims.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.adapter-delivery-public",
+      "description": "The retained message implementation publishes realtime updates through Delivery.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.messages.adapter-communication-application",
+      "description": "The retained parent-message implementation shares guardian contracts pending their later migration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.adapter-identity-application",
+      "description": "The retained parent-message implementation uses the existing user-context service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.adapter-people-application",
+      "description": "The retained message implementation uses the existing staff directory service pending #2727.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.http-workflow-self",
+      "description": "The cross-portal workflow test exercises both staff-message HTTP mantles.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "workflow-integration-test",
+      "target_owner": "inbound-messaging",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.messages.http-workflow-identity",
+      "description": "The cross-portal workflow test supplies scoped JWT claims.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.http-workflow-settings",
+      "description": "The cross-portal workflow test enables the tenant-scoped staff-message setting.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.messages.http-workflow-router",
+      "description": "The cross-portal workflow test uses HTTP requests and recorders.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "communication.messages.http-adapter-test-router",
+      "description": "The parent-message adapter contract test uses HTTP requests and recorders.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "communication.messages.workflow-identity-adapter",
+      "description": "Message compatibility tests supply authenticated account claims.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.workflow-delivery-adapter",
+      "description": "Parent-message compatibility tests verify the retained mail renderer.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.workflow-organization-domain",
+      "description": "Parent-message compatibility tests inspect retained outbox values.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.messages.workflow-settings-application",
+      "description": "Parent-message compatibility tests configure the existing settings service.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.workflow-communication-application",
+      "description": "Parent-message compatibility tests exercise retained guardian contracts.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.workflow-people-application",
+      "description": "Message compatibility tests compose the existing staff directory service pending #2727.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.workflow-people-postgres",
+      "description": "Staff-message compatibility tests compose the retained repository pending #2727.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "postgres"
+    },
+    {
+      "id": "communication.messages.workflow-identity-domain",
+      "description": "Staff-message compatibility fixtures assign existing account roles.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "domain"
     },
     {
       "id": "inbound-notifications.to.delivery-platform",
@@ -8083,6 +8462,541 @@
       "same_owner": true
     },
     {
+      "id": "communication.parent-compatibility.behavior-test-composition",
+      "description": "Parent-announcement compatibility tests compose the retained users.parent_* repositories until #2675.",
+      "scopes": ["external_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "communication.parent-compatibility.behavior-test-settings-domain",
+      "description": "Parent-announcement compatibility fixtures name the retained settings keys until #2675.",
+      "scopes": ["external_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.parent-compatibility.behavior-test-people-domain",
+      "description": "Parent-announcement compatibility fixtures inspect retained users.parent_* rows until #2675.",
+      "scopes": ["external_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.parent-compatibility.behavior-test-application",
+      "description": "The external compatibility test exercises the internal parent-announcement implementation until #2675.",
+      "scopes": ["external_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "communication",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.parent-compatibility.behavior-test-orm",
+      "description": "Parent-announcement compatibility tests inspect retained users.parent_* fixtures until #2675.",
+      "scopes": ["external_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.parent-compatibility.behavior-test-delivery-application",
+      "description": "Parent-announcement compatibility tests fake push delivery until #2675.",
+      "scopes": ["external_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.internal-test-organization-domain",
+      "description": "Internal parent-announcement tests fake retained outbox domain values until #2675.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "adapter-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.parent-compatibility.internal-test-people-domain",
+      "description": "Internal parent-announcement tests exercise retained users.parent_* values until #2675.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.parent-compatibility.internal-test-settings-application",
+      "description": "Internal parent-announcement tests fake the retained settings service until #2675.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.internal-test-organization-application",
+      "description": "Internal parent-announcement tests fake retained outbox application requests until #2675.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "adapter-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.internal-test-delivery-application",
+      "description": "Internal parent-announcement tests fake push delivery until #2675.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.adapter-delivery-application",
+      "description": "The retained parent-announcement adapter uses existing Delivery application contracts until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.application-delivery-adapter",
+      "description": "The retained parent-announcement implementation renders mail through Delivery until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.parent-compatibility.application-settings-domain",
+      "description": "The retained parent-announcement implementation names tenant settings until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.parent-compatibility.application-organization-domain",
+      "description": "The retained parent-announcement implementation maps outbox values until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.parent-compatibility.application-people-domain",
+      "description": "The retained parent-announcement implementation owns users.parent_* behavior pending #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.parent-compatibility.application-settings-application",
+      "description": "The retained parent-announcement implementation resolves settings through the existing service until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.application-organization-application",
+      "description": "The retained parent-announcement implementation queues mail through the existing outbox service until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "organization-tenancy",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.application-tenant-runtime",
+      "description": "The retained parent-announcement implementation joins the ambient tenant transaction until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.parent-compatibility.compose-delivery-adapter",
+      "description": "Communication composition adapts the retained parent-announcement mail renderer until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.parent-compatibility.compose-organization-domain",
+      "description": "Communication composition maps retained outbox values until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.parent-compatibility.compose-people-domain",
+      "description": "Communication composition adapts the retained users.parent_* repository until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.parent-compatibility.compose-delivery-application",
+      "description": "Communication composition adapts parent push delivery until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.compose-settings-application",
+      "description": "Communication composition adapts the existing settings service until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.compose-organization-application",
+      "description": "Communication composition adapts the existing outbox service until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.parent-compatibility.compose-adapter",
+      "description": "Communication composition hides the retained parent-announcement implementation behind the public facade until #2675.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.parent-http.common",
+      "description": "The parent-announcement HTTP adapter uses shared tenant middleware and response rendering.",
+      "scopes": ["production"],
+      "source_owner": "inbound-announcement",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.parent-http.security-contract",
+      "description": "The parent-announcement HTTP adapter applies the established admin permission.",
+      "scopes": ["production"],
+      "source_owner": "inbound-announcement",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "communication.parent-http.identity-adapter",
+      "description": "The parent-announcement HTTP adapter reads authenticated claims.",
+      "scopes": ["production"],
+      "source_owner": "inbound-announcement",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.parent-http.orm",
+      "description": "The parent-announcement HTTP adapter binds the existing tenant transaction middleware.",
+      "scopes": ["production"],
+      "source_owner": "inbound-announcement",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.parent-http.adapter-test-router",
+      "description": "The parent-announcement adapter test uses net/http recorders.",
+      "scopes": ["internal_test"],
+      "source_owner": "inbound-announcement",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "root-composition.to.parent-announcement-http",
+      "description": "The production root mounts the Communication parent-announcement HTTP adapter.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-announcement",
+      "target_role": "http"
+    },
+    {
+      "id": "legacy-composition.to.communication-compose",
+      "description": "Legacy composition supplies retained parent-announcement dependencies at the Communication composition seam.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "compose"
+    },
+    {
+      "id": "timetable-activities.to.communication-public",
+      "description": "Timetable cancellation publishes family notices through the Communication public capability.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.behavior-test.communication-public",
+      "description": "Timetable cancellation integration tests fake the Communication public capability.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.port-domain",
+      "description": "Communication ports express announcement persistence and projection operations using owner domain values.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "port",
+      "target_owner": "communication",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.compose.application",
+      "description": "Communication composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.compose.audience",
+      "description": "Communication composition constructs the tenant-safe staff announcement audience projection.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "staff-announcement-audience",
+      "target_role": "postgres"
+    },
+    {
+      "id": "communication.compose.domain",
+      "description": "Communication composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.compose.organization-tenancy",
+      "description": "Communication composition validates announcement targets through Organization and Tenancy.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.compose.orm-sql",
+      "description": "Communication composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.compose.port",
+      "description": "Communication composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "port"
+    },
+    {
+      "id": "communication.compose.postgres",
+      "description": "Communication composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "postgres"
+    },
+    {
+      "id": "communication.compose.public",
+      "description": "Communication composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.compose.tenant-runtime",
+      "description": "Communication composition joins the shared administrative transaction runtime.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.compose.people-directory",
+      "description": "Communication resolves viewer display names through the People Directory facade.",
+      "scopes": ["production"],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-operator.to.communication",
+      "description": "Operator announcement HTTP handlers call the Communication facade.",
+      "scopes": ["production"],
+      "source_owner": "inbound-operator",
+      "source_role": "http",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-platform.to.communication",
+      "description": "Staff platform-announcement HTTP handlers call the Communication facade.",
+      "scopes": ["production"],
+      "source_owner": "inbound-platform",
+      "source_role": "http",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.communication-compose",
+      "description": "The production root constructs the Communication module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.communication-public",
+      "description": "The production root records Communication outcomes and shares its facade.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.communication-public",
+      "description": "Legacy composition passes the Communication facade to remaining service consumers.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-announcement-audience.domain",
+      "description": "The staff announcement audience projection returns Communication domain values.",
+      "scopes": ["production"],
+      "source_owner": "staff-announcement-audience",
+      "source_role": "postgres",
+      "target_owner": "communication",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.integration-test.public",
+      "description": "Communication integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.integration-test.organization-compose",
+      "description": "Communication integration tests compose target validation with Organization and Tenancy.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "compose"
+    },
+    {
+      "id": "communication.integration-test.people-compose",
+      "description": "Communication integration tests compose viewer names with People Directory.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "communication.integration-test.tenant-runtime",
+      "description": "Communication integration tests verify outer UnitOfWork rollback.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.integration-test.support",
+      "description": "Communication integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "communication.integration-test.orm-sql",
+      "description": "Communication integration tests inspect fixture and rollback state with Bun.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.integration-test.parent-compatibility-domain",
+      "description": "Communication facade tests verify mapping from retained users.parent_* values until #2675.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.integration-test.parent-compatibility-adapter",
+      "description": "Communication facade tests verify the retained parent-announcement adapter stays hidden until #2675.",
+      "scopes": ["internal_test"],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "communication",
+      "target_role": "adapter"
+    },
+    {
       "id": "appointments.compose.application",
       "description": "Appointments composition constructs its application service.",
       "scopes": ["production"],
@@ -8749,6 +9663,24 @@
       "source_role": "module-behavior-test",
       "target_owner": "care-plan",
       "target_role": "test-support"
+    },
+    {
+      "id": "class-day-test.to.slot-list-support",
+      "description": "Class-day integration tests compose their production adapters through local test support.",
+      "scopes": ["external_test"],
+      "source_owner": "class-day-view",
+      "source_role": "module-behavior-test",
+      "target_owner": "class-day-view",
+      "target_role": "test-support"
+    },
+    {
+      "id": "slot-list-support.to.legacy-composition",
+      "description": "Slot-list test support narrows the legacy factory to student schedule adapters.",
+      "scopes": ["production"],
+      "source_owner": "class-day-view",
+      "source_role": "test-support",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
     },
     {
       "id": "enrollment-test.to.care-plan-public",

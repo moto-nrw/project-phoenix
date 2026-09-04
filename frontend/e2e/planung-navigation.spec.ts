@@ -40,20 +40,27 @@ test.describe("Planung navigation", () => {
     await login(page, TEST_EMAIL, TEST_PASSWORD);
   });
 
-  test("sidebar shows the three flat planning entries and navigates each area", async ({
+  test("sidebar shows the planning pages inside the Planung group and navigates each area", async ({
     page,
   }) => {
     const sidebar = page.locator("aside");
 
-    // Kein Planung-Akkordeon mehr, keine Kalenderzeiträume in der Sidebar.
+    // Die Gruppe Planung (#2826) ist beim ersten Besuch zu; die Gruppenzeile
+    // klappt sie auf, ohne zu navigieren.
+    const planung = sidebar.getByRole("button", { name: "Planung" });
+    await expect(planung).toHaveAttribute("aria-expanded", "false");
+    await planung.click();
+    await expect(planung).toHaveAttribute("aria-expanded", "true");
+
     await expect(sidebar.getByText("Betreuungsplan")).toBeVisible();
     await expect(sidebar.getByText("Dienstplan")).toBeVisible();
     await expect(
-      sidebar.getByText("Terminvertretungen", { exact: true }),
+      sidebar.getByText("Vertretungsplan", { exact: true }),
     ).toBeVisible();
+    await expect(sidebar.getByText("Schuljahr und Ferien")).toBeVisible();
     await expect(sidebar.getByText("Planungsübersicht")).toHaveCount(0);
-    await expect(sidebar.getByText("Kalenderzeiträume")).toHaveCount(0);
-    // Der zentrale Einstieg bündelt alle Vertretungsvorgänge.
+    // Der zentrale Einstieg bündelt alle Vertretungsvorgänge; er steht im
+    // Tagesbetrieb, der standardmäßig offen ist.
     await expect(
       sidebar.getByText("Vertretungen", { exact: true }),
     ).toBeVisible();
@@ -65,7 +72,7 @@ test.describe("Planung navigation", () => {
     await sidebar.getByText("Dienstplan").click();
     await page.waitForURL((url) => url.pathname.endsWith("/dienstplan"));
 
-    await sidebar.getByText("Terminvertretungen", { exact: true }).click();
+    await sidebar.getByText("Vertretungsplan", { exact: true }).click();
     await page.waitForURL((url) => url.pathname.endsWith("/vertretung"));
   });
 
@@ -130,7 +137,7 @@ test.describe("Planung navigation", () => {
     await expect(main.getByText("Gruppenzugriff")).toHaveCount(0);
   });
 
-  test("mobile Mehr drawer lists the three planning areas", async ({
+  test("mobile Mehr drawer lists the Planung group and its pages", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -140,9 +147,9 @@ test.describe("Planung navigation", () => {
     await expect(page.getByText("Betreuungsplan")).toBeVisible();
     await expect(page.getByText("Dienstplan")).toBeVisible();
     await expect(
-      page.getByText("Terminvertretungen", { exact: true }),
+      page.getByText("Vertretungsplan", { exact: true }),
     ).toBeVisible();
     await expect(page.getByText("Vertretungen", { exact: true })).toBeVisible();
-    await expect(page.getByText("Planung", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Planung", { exact: true })).toBeVisible();
   });
 });

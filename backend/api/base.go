@@ -56,13 +56,13 @@ import (
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
-	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
-	messagingAPI "github.com/moto-nrw/project-phoenix/api/messaging"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
-	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
+	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
+	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
+	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -74,6 +74,8 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -152,11 +154,12 @@ func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntim
 }
 
 type moduleServices struct {
-	services *services.Factory
-	mealPlan *mealplanModule.Module
-	feedback *feedbackModule.Module
-	persons  *peopleModule.Module
-	rooms    *facilitiesModule.Module
+	services      *services.Factory
+	communication *communicationModule.Module
+	mealPlan      *mealplanModule.Module
+	feedback      *feedbackModule.Module
+	persons       *peopleModule.Module
+	rooms         *facilitiesModule.Module
 	// membership owns users.staff, users.teachers and users.guests (#2667).
 	membership *schoolMembershipModule.Module
 }
@@ -223,7 +226,28 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
-	carePlan, err := composeCarePlan(db, persons)
+	communicationCapability, err := communicationCompose.New(communicationCompose.Dependencies{
+		DB:            db,
+		Organizations: organizations,
+		People:        persons,
+		Audit:         communicationCompose.NewOperatorAnnouncementAudit(repoFactory.OperatorAuditLog.Create),
+		Observe: func(observation communicationCompose.Observation) {
+			observability.ObserveCommunicationOperation(
+				observation.Operation,
+				observation.Duration,
+				int64(observation.Stats.Queries),
+				observation.Stats.Rows,
+				int64(observation.Stats.DuplicatePreventionConflicts),
+				observation.Stats.StatementDuration,
+				communicationModule.ErrorCode(observation.Err),
+				observation.Err,
+			)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	carePlan, err := composeCarePlan(db, persons, repositories.CarePlanStatusSlots(repoFactory.InstanceStudent))
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -264,6 +288,19 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
 		organizations, persons, groups, rooms, membership, calendar, appointmentCapability,
+		communicationCapability,
+		func(observation communicationCompose.Observation) {
+			observability.ObserveCommunicationOperation(
+				observation.Operation,
+				observation.Duration,
+				int64(observation.Stats.Queries),
+				observation.Stats.Rows,
+				int64(observation.Stats.DuplicatePreventionConflicts),
+				observation.Stats.StatementDuration,
+				communicationModule.ErrorCode(observation.Err),
+				observation.Err,
+			)
+		},
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,
@@ -274,7 +311,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, membership: membership}, nil
+	return moduleServices{services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, membership: membership}, nil
 }
 
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
@@ -297,9 +334,14 @@ func composeFacilities(db *bun.DB, legacyFacilities *interface {
 	})
 }
 
-func composeCarePlan(db *bun.DB, persons *peopleModule.Module) (*carePlanModule.Module, error) {
+func composeCarePlan(db *bun.DB, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
+	statusStudents, err := repositories.CarePlanStatusStudents(persons)
+	if err != nil {
+		return nil, err
+	}
 	return carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		StatusStudents: statusStudents, StatusSlots: slots,
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := persons.ListStudentNamesByID(ctx, ids)
 			if err != nil {

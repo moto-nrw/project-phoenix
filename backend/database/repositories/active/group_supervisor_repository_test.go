@@ -322,6 +322,21 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, supervisions)
 	})
+
+	t.Run("excludes supervisions that start in the future", func(t *testing.T) {
+		data := createSupervisorTestData(t, db)
+		futureSupervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: timezone.TodayDate().AddDays(1),
+			Role:      "supervisor",
+		}
+		require.NoError(t, repo.Create(ctx, futureSupervisor))
+
+		supervisions, err := repo.FindActiveByStaffID(ctx, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Empty(t, supervisions)
+	})
 }
 
 func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
@@ -517,6 +532,37 @@ func TestGroupSupervisorRepository_UsesInjectedClockForActiveSupervisions(t *tes
 		require.NoError(t, err)
 		require.Len(t, found, 1)
 		assert.Equal(t, supervisor.ID, found[0].ID)
+	})
+
+	t.Run("excludes and does not end a future supervision", func(t *testing.T) {
+		data := createSupervisorTestData(t, db)
+		future := &active.GroupSupervisor{
+			GroupID: data.ActiveGroup.ID, StaffID: data.Staff1.ID,
+			StartDate: today.AddDays(1), Role: "future supervisor",
+		}
+		require.NoError(t, repo.Create(ctx, future))
+
+		found, err := repo.FindByActiveGroupID(ctx, data.ActiveGroup.ID, true)
+		require.NoError(t, err)
+		assert.Empty(t, found)
+
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("active_only", true).Equal("id", future.ID)
+		found, err = repo.List(ctx, options)
+		require.NoError(t, err)
+		assert.Empty(t, found)
+
+		require.NoError(t, repo.EndSupervision(ctx, future.ID))
+		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Zero(t, count)
+		countByGroup, err := repo.EndSupervisionsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID})
+		require.NoError(t, err)
+		assert.Zero(t, countByGroup)
+
+		reloaded, err := repo.FindByID(ctx, future.ID)
+		require.NoError(t, err)
+		assert.Nil(t, reloaded.EndDate)
 	})
 
 	t.Run("ends one supervision on the injected date", func(t *testing.T) {

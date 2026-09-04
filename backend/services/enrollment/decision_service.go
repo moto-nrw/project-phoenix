@@ -626,9 +626,10 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	onDate := BookingViewDate(s.todayDate(), phase.ServiceEndDate)
+	today := s.todayDate()
+	onDate := BookingViewDate(today, phase.ServiceEndDate)
 	// The date the WRITE path treats as "now".
-	selectionDate := currentOfferingSelectionDate(phase)
+	selectionDate := offeringSelectionDateOn(phase, today)
 	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list child offering history: %w", err)
