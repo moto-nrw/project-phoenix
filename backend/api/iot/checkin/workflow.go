@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // This file holds the thin HTTP shells for the RFID check-in flow. The
@@ -127,12 +128,19 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	rs.getLogger().DebugContext(ctx, "looking up RFID tag", slog.String("rfid", rfid))
 	person, err := rs.Checkin.ResolvePersonByRFID(ctx, rfid)
 	if err != nil {
-		shared.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), rfid)
-		rs.getLogger().WarnContext(ctx, "RFID tag not found",
+		if errors.Is(err, usersSvc.ErrPersonNotFound) {
+			shared.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), rfid)
+			rs.getLogger().WarnContext(ctx, "RFID tag not found",
+				slog.String("rfid", rfid),
+			)
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New(shared.ErrMsgRFIDTagNotFound), shared.ErrCodeRFIDTagNotFound))
+			return nil
+		}
+		rs.getLogger().ErrorContext(ctx, "failed to lookup RFID tag",
 			slog.String("rfid", rfid),
 			slog.String("error", err.Error()),
 		)
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New(shared.ErrMsgRFIDTagNotFound), shared.ErrCodeRFIDTagNotFound))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return nil
 	}
 

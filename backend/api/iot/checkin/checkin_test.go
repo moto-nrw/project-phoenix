@@ -686,6 +686,30 @@ func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
 	testutil.AssertNotFound(t, rr)
 }
 
+func TestDeviceCheckin_RFIDLookupFailureReturnsInternalServerError(t *testing.T) {
+	t.Parallel()
+	ctx := setupCheckinRoute(t)
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-rfid-failure")
+	ctx.injectFailingUsers(&failingPersonService{
+		PersonService:  ctx.resource.UsersService,
+		findByTagIDErr: errors.New("rfid lookup exploded"),
+	})
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Mount("/", ctx.resource.Router())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", map[string]interface{}{
+		"student_rfid": "BROKENRFID",
+		"action":       "checkin",
+	}, testutil.WithDeviceContext(createTestDeviceContext(device)))
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	assert.NotContains(t, response, "code")
+}
+
 // =============================================================================
 // ROOM TRANSFER TESTS
 // =============================================================================
