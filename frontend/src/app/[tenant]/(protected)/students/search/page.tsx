@@ -2520,38 +2520,46 @@ function SearchPageContent() {
   // fresh function identity per page render would re-render all 100 of them —
   // exactly what the memo is there to prevent. The ref always holds the current
   // closure, so the click still sees today's filters and check-in state.
-  const openStudentRef = useLatest((student: Student) => {
-    router.push(`/students/${student.id}?from=${fromParam}`);
-  });
+  const openStudent = useCallback(
+    (student: Student) => {
+      router.push(`/students/${student.id}?from=${fromParam}`);
+    },
+    [fromParam, router],
+  );
+  const openStudentRef = useLatest(openStudent);
   const handleOpenStudent = useCallback(
     (student: Student) => openStudentRef.current(student),
     [openStudentRef],
   );
 
-  const checkinClickRef = useLatest((student: Student) => {
-    const studentIdStr = student.id.toString();
-    // Selection sub-mode (#2359): a tap only marks the child; nothing is
-    // written until the bar's bulk action runs.
-    if (schoolCheckin.selectionActive) {
-      schoolCheckin.toggleSelected(studentIdStr);
-      return;
-    }
-    // Detailed-mode students sitting in a room get a confirmation step;
-    // everyone else toggles straight away (#2220).
-    const roomToConfirm = checkoutConfirmationRoom(student.current_location);
-    if (roomToConfirm) {
-      setPendingRoomCheckout({
-        studentId: studentIdStr,
-        studentName: `${student.first_name} ${student.second_name}`.trim(),
-        room: roomToConfirm,
-      });
-      return;
-    }
-    void schoolCheckin.toggle(
-      studentIdStr,
-      deriveCheckinState(student.current_location),
-    );
-  });
+  const checkinClick = useCallback(
+    (student: Student) => {
+      const studentIdStr = student.id.toString();
+      // Selection sub-mode (#2359): a tap only marks the child; nothing is
+      // written until the bar's bulk action runs.
+      if (schoolCheckin.selectionActive) {
+        schoolCheckin.toggleSelected(studentIdStr);
+        return;
+      }
+      // Detailed-mode students sitting in a room get a confirmation step;
+      // everyone else toggles straight away (#2220).
+      const roomToConfirm = checkoutConfirmationRoom(student.current_location);
+      if (roomToConfirm) {
+        setPendingRoomCheckout({
+          studentId: studentIdStr,
+          studentName: `${student.first_name} ${student.second_name}`.trim(),
+          room: roomToConfirm,
+        });
+        return;
+      }
+      void schoolCheckin.toggle(
+        studentIdStr,
+        deriveCheckinState(student.current_location),
+      );
+    },
+    [schoolCheckin],
+  );
+  const checkinClickRef = useLatest(checkinClick);
   const handleCheckinClick = useCallback(
     (student: Student) => checkinClickRef.current(student),
     [checkinClickRef],
