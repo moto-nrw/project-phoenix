@@ -362,6 +362,14 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 			return err
 		}
 
+		finalRoomID, err := s.determineRoomIDForForceStart(txCtx, activityID, roomID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		if err := s.lockForceStartRooms(txCtx, activityID, deviceID, finalRoomID); err != nil {
+			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
+		}
+
 		// Use simple cleanup (fullCleanup=false) to only mark the group as ended
 		// without ending visits, so TransferVisitsFromRecentSessions can move them
 		// to the new session. Using fullCleanup=true would set exit_time on all visits
@@ -377,14 +385,6 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		}
 		endedSessionIDs := appendActiveGroupID(nil, deviceEndedSessionID)
 		endedSessionIDs = appendActiveGroupIDs(endedSessionIDs, conflictingSessionIDs...)
-
-		finalRoomID, err := s.determineRoomIDForForceStart(txCtx, activityID, roomID)
-		if err != nil {
-			return &ActiveError{Op: operation, Err: err}
-		}
-		if err := s.GroupRepo.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
-			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
-		}
 
 		group, err := s.createSessionWithMultipleSupervisors(txCtx, activityID, deviceID, supervisorIDs, finalRoomID)
 		if err != nil {
@@ -617,14 +617,22 @@ func normalizeTransferredSupervisorRole(role string) string {
 
 // determineRoomIDForForceStart determines room ID for force start with conflict warning but no failure
 func (s *service) determineRoomIDForForceStart(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
-	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictWarn)
+	return s.determineRoomIDWithStrategyWithoutLock(ctx, activityID, roomID, RoomConflictWarn)
 }
 
 // determineRoomIDWithStrategy determines room ID with configurable conflict handling strategy
 func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy) (int64, error) {
+	return s.determineRoomIDWithStrategyWithLock(ctx, activityID, roomID, strategy, true)
+}
+
+func (s *service) determineRoomIDWithStrategyWithoutLock(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy) (int64, error) {
+	return s.determineRoomIDWithStrategyWithLock(ctx, activityID, roomID, strategy, false)
+}
+
+func (s *service) determineRoomIDWithStrategyWithLock(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy, lockRoom bool) (int64, error) {
 	// Manual room selection has highest priority
 	if roomID != nil && *roomID > 0 {
-		return s.validateManualRoomSelection(ctx, *roomID, strategy)
+		return s.validateManualRoomSelectionWithLock(ctx, *roomID, strategy, lockRoom)
 	}
 
 	// Try to get planned room from activity configuration.
@@ -642,7 +650,11 @@ func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID in
 
 // validateManualRoomSelection validates manually selected room based on conflict strategy
 func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64, strategy RoomConflictStrategy) (int64, error) {
-	if s.GroupRepo != nil {
+	return s.validateManualRoomSelectionWithLock(ctx, roomID, strategy, true)
+}
+
+func (s *service) validateManualRoomSelectionWithLock(ctx context.Context, roomID int64, strategy RoomConflictStrategy, lockRoom bool) (int64, error) {
+	if lockRoom && s.GroupRepo != nil {
 		if err := s.GroupRepo.LockRoomSessionWrites(ctx, roomID); err != nil {
 			return 0, err
 		}
@@ -666,6 +678,38 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 	}
 
 	return roomID, nil
+}
+
+func (s *service) lockForceStartRooms(ctx context.Context, activityID, deviceID, finalRoomID int64) error {
+	roomIDs := map[int64]struct{}{finalRoomID: {}}
+	activitySessions, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return err
+	}
+	for _, session := range activitySessions {
+		if session != nil && session.RoomID > 0 {
+			roomIDs[session.RoomID] = struct{}{}
+		}
+	}
+	deviceSession, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
+	if err != nil {
+		return err
+	}
+	if deviceSession != nil && deviceSession.RoomID > 0 {
+		roomIDs[deviceSession.RoomID] = struct{}{}
+	}
+
+	ids := make([]int64, 0, len(roomIDs))
+	for roomID := range roomIDs {
+		ids = append(ids, roomID)
+	}
+	slices.Sort(ids)
+	for _, roomID := range ids {
+		if err := s.GroupRepo.LockRoomSessionWrites(ctx, roomID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // getPlannedRoomID retrieves the planned room ID from activity configuration.

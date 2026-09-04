@@ -236,14 +236,14 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 	if lockedTargetRoomID > 0 && targetGroup.RoomID != lockedTargetRoomID {
 		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
+	refreshedVisits, err := s.VisitRepo.GetCurrentByStudentIDsForUpdate(ctx, uniqueIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	if refreshedVisits == nil {
+		refreshedVisits = map[int64]*active.Visit{}
+	}
 	if auth != nil && !auth.BypassResourceChecks {
-		refreshedVisits, err := s.VisitRepo.GetCurrentByStudentIDsForUpdate(ctx, uniqueIDs)
-		if err != nil {
-			return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
-		}
-		if refreshedVisits == nil {
-			refreshedVisits = map[int64]*active.Visit{}
-		}
 		moveIDs := make([]int64, 0, len(uniqueIDs))
 		for _, studentID := range uniqueIDs {
 			if currentVisits[studentID] != nil && refreshedVisits[studentID] == nil {
@@ -266,6 +266,8 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 			return nil, err
 		}
 		uniqueIDs = moveIDs
+	} else {
+		currentVisits = refreshedVisits
 	}
 	if s.GetPresenceMode(ctx) == "binary" {
 		result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
