@@ -133,6 +133,8 @@ type OperationStats struct {
 	StatementDuration time.Duration
 }
 
+type RequestStoreStats = OperationStats
+
 func (s *OperationStats) Add(other OperationStats) {
 	s.Queries += other.Queries
 	s.Rows += other.Rows

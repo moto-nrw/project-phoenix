@@ -325,6 +325,7 @@ func composeFacilities(db *bun.DB, legacyFacilities *interface {
 func composeCarePlan(db *bun.DB, persons *peopleModule.Module) (*carePlanModule.Module, error) {
 	return carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		StatusStudents: persons,
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := persons.ListStudentNamesByID(ctx, ids)
 			if err != nil {

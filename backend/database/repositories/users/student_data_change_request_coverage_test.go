@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -42,7 +42,7 @@ func TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches(t
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewStudentDataChangeRequestRepository(db)
+	repo := repositories.NewFactory(db).StudentDataChangeRequest
 	ctx := testpkg.TenantContext(chain.TenantID)
 
 	pending := coverageChangeRequest(chain.StudentID, chain.AccountID, chain.TenantID,
@@ -78,12 +78,12 @@ func TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches(t
 	assert.Nil(t, decided.AppliedAt)
 
 	err = repo.Decide(ctx, pending.ID, usersModels.DataChangeStatusApproved, nil, chain.AccountID, true)
-	assert.ErrorIs(t, err, usersRepo.ErrChangeRequestNotPending)
+	assert.ErrorIs(t, err, usersModels.ErrChangeRequestNotPending)
 
 	_, err = repo.FindPendingByIDForUpdate(ctx, pending.ID)
-	assert.ErrorIs(t, err, usersRepo.ErrChangeRequestNotPending)
+	assert.ErrorIs(t, err, usersModels.ErrChangeRequestNotPending)
 	_, err = repo.FindPendingByIDForUpdate(ctx, 999_999_999)
-	assert.ErrorIs(t, err, usersRepo.ErrChangeRequestNotFound)
+	assert.ErrorIs(t, err, usersModels.ErrChangeRequestNotFound)
 }
 
 func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(t *testing.T) {
@@ -91,7 +91,7 @@ func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := usersRepo.NewStudentDataChangeRequestRepository(db)
+	repo := repositories.NewFactory(db).StudentDataChangeRequest
 
 	chainA := testpkg.CreateTestParentGuardianChain(t, db)
 	ctxA := testpkg.TenantContext(chainA.TenantID)

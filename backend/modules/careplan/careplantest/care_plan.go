@@ -3,6 +3,7 @@ package careplantest
 import (
 	"context"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -23,8 +24,9 @@ func NewCarePlan(tb TB, db *bun.DB) careplan.Capability {
 	students := newStudentDirectory(tb, db)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
-		People:      studentNameFinder(students),
-		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
+		StatusStudents: students,
+		People:         studentNameFinder(students),
+		StudentLock:    students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
 	if err != nil {
 		tb.Fatalf("compose test Care Plan: %v", err)
@@ -44,6 +46,10 @@ func CareOfferingRepository(db *bun.DB) enrollmentModels.CareOfferingRepository 
 	return carePlanLegacy.NewCareOfferingRepository(carePlan(db))
 }
 
+func StudentStatusDayRepository(db *bun.DB) activeModels.StudentStatusDayRepository {
+	return carePlanLegacy.NewStudentStatusDayRepository(carePlan(db))
+}
+
 func carePlan(db *bun.DB) careplan.Capability {
 	students, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
 	if err != nil {
@@ -51,8 +57,9 @@ func carePlan(db *bun.DB) careplan.Capability {
 	}
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
-		People:      studentNameFinder(students),
-		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
+		StatusStudents: students,
+		People:         studentNameFinder(students),
+		StudentLock:    students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
 	if err != nil {
 		panic("compose test Care Plan: " + err.Error())
@@ -60,7 +67,7 @@ func carePlan(db *bun.DB) careplan.Capability {
 	return capability
 }
 
-func newStudentDirectory(tb TB, db *bun.DB) peopledirectory.Capability {
+func newStudentDirectory(tb TB, db *bun.DB) *peopledirectory.Module {
 	tb.Helper()
 	students, err := peopleCompose.New(peopleCompose.Dependencies{
 		DB: db, Observe: func(peopleCompose.Observation) {},

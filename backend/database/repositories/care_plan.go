@@ -23,9 +23,14 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability) (careplan.Capa
 	if students == nil {
 		return nil, errors.New("compose Care Plan: People Directory capability is required")
 	}
+	statusStudents, ok := students.(carePlanCompose.StatusStudentDirectory)
+	if !ok {
+		return nil, errors.New("compose Care Plan: People Directory status-flag capability is required")
+	}
 	studentLock, studentNotFound := CareStudentLock(students)
 	return carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		StatusStudents: statusStudents,
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := students.ListStudentNamesByID(ctx, ids)
 			if err != nil {
@@ -65,6 +70,10 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.StudentPickupSchedule = NewPickupScheduleRepository(capability)
 	f.StudentPickupException = NewPickupExceptionRepository(capability)
 	f.StudentPickupNote = NewPickupNoteRepository(capability)
+	f.ExcusedAbsenceRequest = carePlanLegacy.NewExcusedAbsenceRequestRepository(capability)
+	f.CareScheduleChangeRequest = carePlanLegacy.NewCareScheduleChangeRequestRepository(capability)
+	f.StudentDataChangeRequest = carePlanLegacy.NewStudentDataChangeRequestRepository(capability)
+	f.StudentStatusDay = carePlanLegacy.NewStudentStatusDayRepository(capability)
 	f.CareOffering = carePlanLegacy.NewCareOfferingRepository(capability)
 	f.OfferingChangeRequest = carePlanLegacy.NewOfferingChangeRepository(capability, f.students)
 	companion := carePlanLegacy.NewCompanionRepository(capability)
@@ -84,18 +93,55 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 		repository.BindCarePlan(careExitDirectory{capability: capability})
 	}
 	if repository, ok := f.StudentDeletion.(*usersRepo.StudentDeletionRepository); ok {
-		repository.BindCarePlan(capability)
+		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: capability})
 	}
 	if repository, ok := f.InstanceStudent.(*scheduleRepo.InstanceStudentRepository); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
-	if repository, ok := f.StudentStatusDay.(*activeRepo.StudentStatusDayRepository); ok {
-		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
+	if repository, ok := f.Statistics.(*activeRepo.StatisticsRepository); ok {
+		repository.BindCarePlan(statisticsCarePlanDirectory{query: capability})
 	}
 }
 
+type statisticsCarePlanDirectory struct {
+	query careplan.StudentStatusDaysQuery
+}
+
+func (d statisticsCarePlanDirectory) ListStatusDaySummaries(ctx context.Context, from, to string) ([]activeRepo.StatusDaySummary, error) {
+	values, err := d.query.ListStatusDaySummaries(ctx, careplan.Date(from), careplan.Date(to))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]activeRepo.StatusDaySummary, 0, len(values))
+	for _, value := range values {
+		result = append(result, activeRepo.StatusDaySummary{StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})
+	}
+	return result, nil
+}
+
+type studentDeletionCarePlanDirectory struct{ capability careplan.Capability }
+
+func (d studentDeletionCarePlanDirectory) CountCompanionLinks(ctx context.Context, studentID int64) (int, error) {
+	return d.capability.CountCompanionLinks(ctx, studentID)
+}
+
+func (d studentDeletionCarePlanDirectory) CountStudentScheduleRows(ctx context.Context, studentID int64) (int, error) {
+	return d.capability.CountStudentScheduleRows(ctx, studentID)
+}
+
+func (d studentDeletionCarePlanDirectory) CountCarePlanDeletionRecords(ctx context.Context, studentID int64) (usersRepo.CarePlanDeletionCounts, error) {
+	counts, err := d.capability.CountCarePlanDeletionRecords(ctx, studentID)
+	if err != nil {
+		return usersRepo.CarePlanDeletionCounts{}, err
+	}
+	return usersRepo.CarePlanDeletionCounts{
+		StatusDays: counts.StatusDays, ExcusedRequests: counts.ExcusedRequests,
+		CareRequests: counts.CareRequests, DataRequests: counts.DataRequests,
+	}, nil
+}
+
 type pickupExceptionDirectory struct {
-	query careplan.StudentSchedulesQuery
+	query careplan.Query
 }
 
 func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id int64) (*scheduleRepo.PickupExceptionProjection, error) {
@@ -124,6 +170,32 @@ func (d pickupExceptionDirectory) ListPickupExceptions(ctx context.Context, filt
 	result := make([]scheduleRepo.PickupExceptionProjection, 0, len(values))
 	for _, value := range values {
 		result = append(result, scheduleRepo.PickupExceptionProjection{ID: value.ID, StudentID: value.StudentID, ExceptionDate: value.ExceptionDate.String(), ExcusedFrom: value.ExcusedFrom, ExcusedAuto: value.ExcusedAuto})
+	}
+	return result, nil
+}
+
+func (d pickupExceptionDirectory) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (*scheduleRepo.StudentStatusDayProjection, error) {
+	value, err := d.query.FindStudentStatusDay(ctx, id, activeOnly)
+	if errors.Is(err, careplan.ErrStudentStatusDayNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &scheduleRepo.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status}, nil
+}
+
+func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, filter scheduleRepo.StudentStatusDayFilter) ([]scheduleRepo.StudentStatusDayProjection, error) {
+	values, err := d.query.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{
+		IDs: filter.IDs, StudentIDs: filter.StudentIDs, Date: careplan.Date(filter.Date),
+		From: careplan.Date(filter.From), ActiveOnly: filter.ActiveOnly, LatestOnly: filter.LatestOnly,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]scheduleRepo.StudentStatusDayProjection, 0, len(values))
+	for _, value := range values {
+		result = append(result, scheduleRepo.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})
 	}
 	return result, nil
 }
@@ -357,4 +429,20 @@ func (d careExitCarePlanDirectory) ExistingPickupExceptionIDs(ctx context.Contex
 		result = append(result, value.ID)
 	}
 	return result, nil
+}
+
+func (d careExitCarePlanDirectory) ExistingStudentStatusDayIDs(ctx context.Context, ids []int64) ([]int64, error) {
+	return d.capability.ExistingStudentStatusDayIDs(ctx, ids)
+}
+
+func (d careExitCarePlanDirectory) CountOpenCareRequests(ctx context.Context, studentIDs []int64) (map[int64]int, error) {
+	return d.capability.CountOpenCareRequests(ctx, studentIDs)
+}
+
+func (d careExitCarePlanDirectory) LockOpenCareRequests(ctx context.Context, studentIDs []int64) error {
+	return d.capability.LockOpenCareRequests(ctx, studentIDs)
+}
+
+func (d careExitCarePlanDirectory) CloseOpenCareRequests(ctx context.Context, studentIDs []int64, reason string, reviewedBy *int64, at time.Time) (int64, error) {
+	return d.capability.CloseOpenCareRequests(ctx, studentIDs, reason, reviewedBy, at)
 }

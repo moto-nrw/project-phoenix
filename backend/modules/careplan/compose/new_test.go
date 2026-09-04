@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,20 @@ func (emptyPeopleDirectory) ListStudentNamesByID(context.Context, []int64) ([]St
 	return nil, nil
 }
 
+func (emptyPeopleDirectory) ListEnrolledStudents(context.Context) ([]peopledirectory.Student, error) {
+	return nil, nil
+}
+
+func (emptyPeopleDirectory) ListStudentsWithStatusFlag(context.Context, string) ([]peopledirectory.Student, error) {
+	return nil, nil
+}
+
+func (emptyPeopleDirectory) ClearStudentStatusFlags(context.Context, []int64, string) (int64, error) {
+	return 0, nil
+}
+
+func (emptyPeopleDirectory) LockStudent(context.Context, int64) error { return nil }
+
 func (l *observationLog) record(observation Observation) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -41,7 +56,7 @@ func buildModule(t *testing.T, db *bun.DB, observe ...func(Observation)) *carepl
 	}
 	module, err := New(Dependencies{
 		DB: db, Observe: observer, AmbientDB: func(context.Context) bun.IDB { return db },
-		People:      emptyPeopleDirectory{},
+		People: emptyPeopleDirectory{}, StatusStudents: emptyPeopleDirectory{},
 		StudentLock: func(context.Context, int64) error { return nil }, StudentNotFound: errors.New("student not found"),
 	})
 	require.NoError(t, err)

@@ -376,7 +376,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.bindCarePlanAuditDirectory()
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
-		repository.BindCarePlan(f.carePlan)
+		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: f.carePlan})
 	}
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.appointments != nil {
 		repository.BindAppointments(f.appointments)
@@ -651,7 +651,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StudentArrivalSchedule:    nil, // bound to Care Plan below
 		StudentArrivalException:   nil, // bound to Care Plan below
 		StudentArrivalNote:        nil, // bound to Care Plan below
-		CareScheduleChangeRequest: schedule.NewCareScheduleChangeRequestRepository(db),
+		CareScheduleChangeRequest: nil, // bound to Care Plan below
 		StaffShift:                schedule.NewStaffShiftRepository(db),
 		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
@@ -679,10 +679,10 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		CombinedGroup:                   active.NewCombinedGroupRepository(db),
 		GroupMapping:                    active.NewGroupMappingRepository(db),
 		Attendance:                      attendance,
-		StudentStatusDay:                active.NewStudentStatusDayRepository(db),
+		StudentStatusDay:                nil, // bound to Care Plan below
 		Statistics:                      active.NewStatisticsRepository(db),
 		CourseStatistics:                schedule.NewCourseStatisticsRepository(db),
-		ExcusedAbsenceRequest:           active.NewExcusedAbsenceRequestRepository(db),
+		ExcusedAbsenceRequest:           nil, // bound to Care Plan below
 		WorkSession:                     active.NewWorkSessionRepository(db, now),
 		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),
 		StaffAbsence:                    active.NewStaffAbsenceRepository(db),
@@ -770,7 +770,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime),
 
 		// Parent Stammdaten direct-edit audit + change-request review
-		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
+		StudentDataChangeRequest: nil, // bound to Care Plan below
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),
