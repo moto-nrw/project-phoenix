@@ -77,8 +77,8 @@ vi.mock("~/lib/shell-seed", () => ({
   useShellSeed: mockUseShellSeed,
 }));
 
-vi.mock("~/env", () => ({
-  env: {
+vi.mock("~/env.client", () => ({
+  clientEnv: {
     NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
   },
 }));
