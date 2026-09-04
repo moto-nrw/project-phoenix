@@ -24,6 +24,16 @@ run_with_default_baseline() {
 case "${1:-}" in
   check)
     shift
+    has_check_options=false
+    for argument in "$@"; do
+      case "$argument" in
+        --base-ref|--base-ref=*|--project|--project=*|--baseline|--baseline=*) has_check_options=true ;;
+      esac
+    done
+    if ! "$has_check_options"; then
+      base_sha=$(git merge-base HEAD origin/development)
+      set -- --base-ref "$base_sha" "$@"
+    fi
     run_with_default_baseline check "$@"
     ;;
   explain)
