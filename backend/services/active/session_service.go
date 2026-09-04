@@ -382,6 +382,9 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		if err != nil {
 			return &ActiveError{Op: operation, Err: err}
 		}
+		if err := s.GroupRepo.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
+			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
+		}
 
 		group, err := s.createSessionWithMultipleSupervisors(txCtx, activityID, deviceID, supervisorIDs, finalRoomID)
 		if err != nil {
@@ -1219,6 +1222,9 @@ func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) 
 func (s *service) runInSessionTx(ctx context.Context, fn func(context.Context) error) error {
 	if s.DB == nil {
 		return fn(ctx)
+	}
+	if _, hasTransaction := tenant.TransactionFromContext(ctx); !hasTransaction && s.tenantRuntime != nil {
+		ctx = tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 	}
 	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		return fn(txCtx)

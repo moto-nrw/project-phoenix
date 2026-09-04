@@ -145,6 +145,7 @@ type ServiceDependencies struct {
 // Service implements the Active Service interface
 type service struct {
 	ServiceDependencies
+	tenantRuntime *tenant.UnitOfWork
 
 	// Optional: Tenant-scoped settings resolver for auto-clear logic.
 	// When nil, auto-clear falls back to the registry default behavior.
@@ -279,6 +280,13 @@ func NewService(deps ServiceDependencies) Service {
 	return &service{ServiceDependencies: deps}
 }
 
+// SetTenantRuntime supplies the transaction runtime bound to this service's
+// repository pool. It is used when a command needs to open its own tenant
+// transaction rather than joining a request transaction.
+func (s *service) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
+}
+
 // Active Group operations
 func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, error) {
 	group, err := s.GroupRepo.FindByID(ctx, id)
@@ -324,9 +332,6 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
 	}
-	if _, hasTransaction := tenant.TransactionFromContext(ctx); !hasTransaction {
-		return s.createActiveGroupLocked(ctx, group)
-	}
 	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		return s.createActiveGroupLocked(txCtx, group)
 	})
@@ -358,9 +363,6 @@ func (s *service) createActiveGroupLocked(ctx context.Context, group *active.Gro
 func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
-	}
-	if _, hasTransaction := tenant.TransactionFromContext(ctx); !hasTransaction {
-		return s.updateActiveGroupLocked(ctx, group)
 	}
 	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		return s.updateActiveGroupLocked(txCtx, group)
