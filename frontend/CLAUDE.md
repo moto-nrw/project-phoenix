@@ -1,68 +1,28 @@
 # Frontend — Agent Context
 
-Next.js frontend for Project Phoenix. Read the root `CLAUDE.md` first — it owns the multi-tenancy model, the three-portals table, and cross-stack rules. This file covers frontend-specific knowledge only.
+Next.js frontend for Project Phoenix. Before changing tenant scoping, portals,
+login/MFA, or enrollment, read `docs/agents/contracts.md`. This file covers
+frontend-specific knowledge only.
 
-**Stack:** Next.js 16+ (App Router), React 19+, TypeScript (strict), Tailwind CSS 4+, NextAuth v5 (beta), Zod env validation, Axios + SWR, Vitest + Testing Library, Playwright (E2E + guide PDFs), pnpm.
+## Commands and verification
 
-## Development Commands
+Read versions and scripts from `frontend/package.json`.
+Run `cd frontend && pnpm run check` with zero warnings and relevant behavior
+tests after code changes. Before push, run `scripts/test-changed.sh origin/development`
+without `--fast`. Service and screenshot workflows: `docs/agents/operations.md`.
 
-```bash
-pnpm run dev             # Dev server (http://localhost:3000) — prefer docker compose for full-stack work
-pnpm run check           # verify-locales + oxlint + tsc — MUST pass before committing (zero warnings)
-pnpm run lint:fix        # Auto-fix lint issues
-pnpm run test            # Vitest (test:run for CI mode)
-pnpm run format:write    # Prettier
-pnpm run generate:guides # Render /help guides to PDF (Playwright)
-pnpm run knip            # Detect unused dependencies/exports
-```
+## Server and API boundaries
 
-## Environment & API URLs — Fail Fast, No Defaults
-
-Core env vars are **required with no fallbacks** (root `CLAUDE.md` "No Fallbacks" rule; schemas in `src/env.js` + `src/lib/env-validation.js` crash the build when one is missing — only `NODE_ENV`/`NEXT_PUBLIC_LOG_LEVEL` have defaults, and PostHog/Sentry vars are optional). Copy `.env.example` to `.env.local`.
-
-| Variable | Scope | Purpose |
-|----------|-------|---------|
-| `NEXT_PUBLIC_API_URL` | Client + Server | Browser-accessible backend URL (axios `baseURL`) |
-| `API_URL` | Server only | Backend URL for route handlers (Docker: `http://server:8080`) |
-| `NEXTAUTH_URL` / `NEXTAUTH_SECRET` | Server | NextAuth base URL + JWT secret |
-| `SKIP_ENV_VALIDATION` | Build | `true` skips env validation (Docker builds) |
-
-**`getServerApiUrl()`** (`lib/server-api-url.ts`) returns the startup-validated `process.env.API_URL` — no fallback chain. Route handlers must use it; never `NEXT_PUBLIC_API_URL` on the server.
-
-### Server-Only Import Isolation (`.server.ts`)
-
-Server-only modules carry a `.server.ts` suffix (`route-wrapper.server.ts`, `api-helpers.server.ts`, `operator/route-wrapper.server.ts`, `parent/route-wrapper.server.ts`). Code that could land in a client bundle must import server-only helpers **dynamically**:
-
-```typescript
-// CORRECT — keeps server env out of the client bundle
-const { getServerApiUrl } = await import("~/lib/server-api-url");
-
-// WRONG — static import pulls server env into the client bundle
-import { getServerApiUrl } from "~/lib/server-api-url";
-```
-
-The same applies to `auth` and any other server-only import in mixed files.
+Server requests use `getServerApiUrl()` / `API_URL`, not the browser URL.
+Keep auth and server env imports out of client bundles; required values fail fast.
+Before changing clients, handlers, imports, URL resolution, or data mapping,
+read [frontend API and server boundaries](../docs/agents/frontend-api.md).
 
 ## Multi-Tenancy & Routing
 
-The proxy (`src/proxy.ts`) routes by hostname: operator host → `/operator/*`, parents host → `/parents/*`, `{slug}.TENANT_DOMAIN` → `/[tenant]/*`; reserved slugs (`src/lib/reserved-slugs.ts`) are blocked. Cross-host paths redirect (307) back to their canonical subdomain (defense-in-depth on top of cookie isolation). Portal/session/cookie details: root `CLAUDE.md` "Three Portals".
+The proxy (`src/proxy.ts`) routes by hostname: operator host → `/operator/*`, parents host → `/parents/*`, school host → `/school/*`, `{slug}.TENANT_DOMAIN` → `/[tenant]/*`; reserved slugs (`src/lib/reserved-slugs.ts`) are blocked. Cross-host paths redirect (307) back to their canonical subdomain (defense-in-depth on top of cookie isolation). Portal/session/cookie details: `docs/agents/contracts.md`.
 
-### App Directory Structure
-
-```
-src/app/
-├── [tenant]/              # Tenant app (slug resolved by proxy)
-│   ├── layout.tsx         # Validates slug via /auth/tenant/resolve, wraps in TenantProvider
-│   ├── (protected)/       # Auth-required (dashboard, students, rooms, invitations, settings, …)
-│   └── (public)/          # Pre-auth (invite, enroll, reset-password)
-├── operator/              # Operator portal: provisioning, schools, organizations, accounts,
-│                          #   devices, announcements, settings, invite, login, …
-├── parents/               # Parents portal: children/[id], enroll/[tenantSlug]/[phaseId],
-│                          #   accept-guardian-invite/[token], login, …
-├── help/                  # Public help guides (see .claude/rules/help-guide-sync.md)
-├── invite/, reset-password/  # Root-level public token flows
-└── api/                   # Route handlers (proxy to Go backend)
-```
+Inspect `src/app/` for the current page tree instead of copying a cached layout.
 
 ### Tenant Context & Navigation
 
@@ -71,55 +31,29 @@ src/app/
 - **`useTenantRouter()`** (`lib/tenant-router.ts`): subdomain-vs-path-aware navigation
 - **`TenantGuard`** (`components/tenant/tenant-guard.tsx`): detects session/URL tenant mismatch (multi-tab) and auto-switches
 - **`BinaryModeGuard` / `NfcModeGuard`** (`components/tenant/`): gate routes on the `presence_mode` / NFC tenant settings
-- **Error contract**: backend string `"account does not have access to this tenant"` is hardcoded in `lib/tenant-api.ts` — changing the backend string breaks tenant switching silently
 
 ## UI: Reuse the Kit (MANDATORY)
 
-Build all new UI from `src/components/ui/` (and `ui/page-header/`); never hand-roll buttons/cards/modals/tables. Brand colors come only from `LOCATION_COLORS` (`src/lib/location-helper.ts`) via arbitrary-value hex (`bg-[#83CD2D]`) — never generic Tailwind hues (`bg-green-500`), which are different colors. Component map, hex table, radius/spacing tokens, gotchas, and the design checklist: **`.claude/rules/frontend-ui-kit.md`**. Search `src/components/` and `src/lib/` for existing code before writing anything new.
+Build all new UI from `src/components/ui/` (and `ui/page-header/`); never hand-roll buttons/cards/modals/tables. Brand semantics come from `LOCATION_COLORS` (`src/lib/location-helper.ts`); use kit components or `moto-*` tokens, not generic Tailwind hues or copied hex literals. Component map, hex table, radius/spacing tokens, gotchas, and the design checklist: **`.claude/rules/frontend-ui-kit.md`**. Search `src/components/` and `src/lib/` for existing code before writing anything new.
 
-### Verständlichkeit: Missverständnis-Check (MANDATORY)
+### Verständlichkeit and help
 
-Any change a school user sees runs the checklist in **`.claude/rules/verstaendlichkeit.md`** and records the result in the PR description. Core points: every visible block explains its purpose in one sentence, read-only blocks carry no button/chevron/pointer affordance, a function with a precondition (installed app, activated device, released phase) states that precondition where it is switched on, and two labels sharing a word stem need a visible boundary. All user-facing German copy follows the `moto-einfache-sprache` skill (`.claude/skills/moto-einfache-sprache/SKILL.md`) — load it before writing labels, errors, empty states, or hints.
+Before user-visible changes, read `.claude/rules/verstaendlichkeit.md` and run
+its checklist against the real screen; record the result in the PR. Load
+`moto-einfache-sprache` before writing German copy. For changed tenant flows,
+read `.claude/rules/help-guide-sync.md` and update the guide/screenshots in the
+same PR when required.
 
 ### Before/After Screenshots for UI Changes (MANDATORY)
 
-When a change alters what a school user sees (new screen, migrated component, layout/styling change), produce paired before/after screenshots via the `ui-before-after` skill (`.claude/skills/ui-before-after/`): capture the identical interactions against the base ref and your branch, composite them into `pair-*.png` images, and at the end tell the user the local file paths so they can attach the images to the PR manually (GitHub has no API for native attachment uploads; never host screenshots via releases, tags, or Gists — see the PR-screenshots rule in the root `CLAUDE.md`). Backend-only changes and pure refactors with zero visual delta are exempt, but a consolidation refactor that claims "no visual change" should prove it with a pair.
+When a change alters what a school user sees (new screen, migrated component, layout/styling change), produce paired before/after screenshots via the `ui-before-after` skill (`frontend/.claude/skills/ui-before-after/SKILL.md`): capture the identical interactions against the base ref and your branch, composite them into `pair-*.png` images, and at the end tell the user the local file paths so they can attach the images to the PR manually (GitHub has no API for native attachment uploads; never host screenshots via releases, tags, or Gists — see `docs/agents/operations.md` PR screenshots and QA evidence). Backend-only changes and pure refactors with zero visual delta are exempt, but a consolidation refactor that claims "no visual change" should prove it with a pair.
 
-## Architecture Patterns
+## Data contracts
 
-### Route Handlers (Next.js 16)
-
-All `app/api/` handlers proxy to the Go backend through `route-wrapper.server.ts` for consistent auth + error handling (operator/parent portals have their own wrappers under `lib/operator/` and `lib/parent/`):
-
-```typescript
-// app/api/{resource}/route.ts
-export const GET = createGetHandler(async (request, token, params) => {
-  const response = await apiGet(`/api/resources`, token);
-  return response.data;
-});
-```
-
-Context params are async in Next.js 16: `params: Promise<...>` — always `await`.
-
-### API Clients & Data Mapping
-
-- `lib/{domain}-api.ts` — backend calls; `lib/{domain}-helpers.ts` — type mapping
-- Backend `int64` IDs → frontend `string` (`data.id.toString()`); `snake_case` → `camelCase`
-- Paginated lists arrive as `{ status, data, pagination: { current_page, page_size, total_pages, total_records } }` (`PaginatedResponse<T>` in `lib/api.ts`)
-
-```typescript
-export function mapResourceResponse(data: BackendResource): Resource {
-  return {
-    id: data.id.toString(),
-    createdAt: new Date(data.created_at),
-    teacher: data.teacher ? mapTeacherResponse(data.teacher) : undefined,
-  };
-}
-```
-
-### Auth Token Flow
-
-Login (per portal — see root `CLAUDE.md`) returns access (15min) + refresh tokens; NextAuth stores them in the session; route handlers extract the token and forward it as `Authorization: Bearer`; refresh happens automatically on expiry. MFA can insert a challenge step between credentials and session. Invitation/password-reset token flows live at `app/invite/`, `app/[tenant]/(public)/invite/`, `app/reset-password/`, with API clients in `lib/invitation-api.ts` / `lib/invitation-helpers.ts` — use these instead of hitting backend routes directly.
+Backend `int64` IDs become frontend strings; preserve nullable fields and
+map backend `snake_case` to frontend `camelCase` in existing domain helpers.
+Use the affected portal's route wrapper for authentication and error handling;
+SSE streaming is the explicit exception in the SSE contract below.
 
 ## Date Handling (MANDATORY)
 
@@ -129,38 +63,24 @@ Calendar dates travel as `"YYYY-MM-DD"` strings; never derive one via `.toISOStr
 
 Use `createLogger` from `~/lib/logger` — never bare `console.*`. Snake_case event names, extract `error.message` (never pass raw Error objects). Detailed patterns: the `frontend-structured-logging` skill.
 
-```typescript
-const logger = createLogger({ component: "MyComponentName" });
-logger.error("profile_save_failed", { error: err instanceof Error ? err.message : String(err) });
-```
-
 Only three files may use raw `console.*`: `src/lib/logger.ts`, `src/test/setup.ts`, `src/app/api/logs/route.ts`. The logger is globally mocked in tests (passes through to `console.*`, so tests spy on `console.error`).
 
-## Real-Time Updates (SSE)
+## Real-time updates
 
-```typescript
-const { status, isConnected, error, reconnectAttempts } = useSSE("/api/sse/events", {
-  onMessage: handleSSEEvent,          // events are TRIGGERS, not payloads — refetch on receipt
-  reconnectInterval: 1000,            // exponential backoff 1s→16s, max 5 attempts (defaults)
-  maxReconnectAttempts: 5,
-});
-```
-
-- Hook: `~/lib/hooks/use-sse` (`status`: `idle | connected | reconnecting | failed`); event types in `lib/sse-types.ts` mirror `backend/realtime/events.go` — keep in sync
-- Proxy route `app/api/sse/events/route.ts` bypasses the route wrapper (streaming) with `export const runtime = "nodejs"`, injecting the JWT server-side (EventSource can't set headers)
-- After an event for the current group, refetch in bulk: `GET /api/active/groups/{id}/visits/display` (O(1), not per-student)
-- Connection drops usually mean an expired JWT (15min) or no supervised active groups
+Events trigger bulk refetches; they are not data payloads. Read
+[the SSE contract](../docs/agents/realtime.md) for producer/consumer paths,
+retry behavior, and authentication when changing real-time updates.
 
 ## TypeScript & Linting
 
 - `tsconfig`: `strict`, `noUncheckedIndexedAccess`, paths `~/*` and `@/*` → `./src/*`, target ES2022
 - Linting: **oxlint** (`.oxlintrc.json` — plugins react/nextjs/jsx-a11y/import/promise; correctness+perf = error). Disabled rules and their rationale live in `.oxlintrc.json`; custom plugins live in `scripts/oxlint-plugin-date-safety.mjs` and `scripts/oxlint-plugin-ui-kit.mjs` (UI-kit drift ratchet — five hard-zero rules, see `.claude/rules/frontend-ui-kit.md`)
-- Conventions: `??` over `||` for defaults, `import type` for types, `_` prefix for unused vars, `useSearchParams` needs a Suspense boundary, only server components may be async
+- Conventions: `??` over `||` for ordinary data defaults (not required infrastructure configuration), `import type` for types, `_` prefix for unused vars, `useSearchParams` needs a Suspense boundary, only server components may be async
 
-## Performance guardrails (#2939)
+## Performance
 
-- **Bundle-size ratchet** (CI job `frontend-build`, blocking): `pnpm run perf:bundle-ratchet` runs `next experimental-analyze` and compares compressed client JS per route against `scripts/perf/bundle-baseline.json`. Tolerance per route is 2 % or 10 kB, whichever is larger. A route above the band fails; a route below it fails too (shrink-only) until the baseline is lowered. New routes need an entry, removed routes must leave. The analysis always compiles cold (chunk splits depend on the Turbopack cache state). The baseline holds runner numbers: chunking differs between macOS and the Linux runner (one route by 48 kB), so maintenance means downloading the `bundle-measured` artifact of the `frontend-build` job and committing it as `bundle-baseline.json`, then justifying any increase in the PR description. A local `--update` produces macOS numbers and is only for experiments. Never widen the tolerance to get green.
-- **Render budget** (Vitest, blocking): `expectIdleRenderBudget` from `src/test/render-budget.tsx` counts `<Profiler>` commits over 5 s of fake-timer idle and caps them at 20; `mobile-bottom-nav.test.tsx` and `sidebar.test.tsx` use it. A new effect loop in the shell trips this regardless of runner speed. Keep the cap; fix the loop. Reuse the helper for any new always-mounted component.
-- **Nightly counters** (`.github/workflows/perf-nightly.yml`, non-blocking): runs `pnpm run perf:trace` and `pnpm run perf:render` against a seeded backend on weeknights and via `workflow_dispatch`; the report lands in the job summary and as a 30-day artifact. Compare counters (requests per screen, duplicates, longest chain, renders per interaction) with `docs/perf/frontend-baseline-2026.md`; runner timings are not comparable across machines. Timing-based numbers (LCP, Lighthouse) are deliberately not gates.
+Keep bundle and render budgets intact. Before changing baselines, always-mounted
+components, or performance tooling, read
+[frontend performance guardrails](../docs/agents/frontend-performance.md).
 
 @AGENTS.md

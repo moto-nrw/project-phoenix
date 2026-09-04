@@ -1,96 +1,120 @@
-# Claude Code Configuration
+# Agent context and hooks
 
-Shared [Claude Code](https://claude.ai/code) configuration for this repo. Everything loads automatically when you start `claude` in the project root. (Codex users get the same rules/skills via the `.codex/` symlinks.)
+Shared guidance for Claude Code and Codex. Start with the root `CLAUDE.md`;
+load its references only when their task trigger matches.
 
-## What's in here
+## Entry points and canonical sources
 
-```
-.claude/
-├── settings.json               # Shared team config (env limits, permissions, hooks)
-├── settings.local.json.example # Template for personal overrides (gitignored copy)
-├── hooks/                      # Automation scripts wired in settings.json:
-│   ├── format-go.sh            #   gofmt + goimports after Go edits
-│   ├── format-typescript.sh    #   prettier after TS edits
-│   ├── check-commit-message.sh #   conventional-commit validation
-│   ├── check-env-files.sh      #   env file security check on session start
-│   ├── guard-absolute-rules.sh #   PreToolUse guard: blocks moto-app.de/moto.nrw
-│   │                           #   requests, hand-edits of *.sops.env, DISABLE
-│   │                           #   ROW LEVEL SECURITY in migrations, git commit
-│   │                           #   --no-verify, and script execution outside the
-│   │                           #   repo: only git-tracked scripts under this repo
-│   │                           #   may run; bash -c and eval stay blocked
-│   ├── guard-absolute-rules_test.sh # hermetic allow/deny table for the guard
-│   │                           #   (also run in CI next to the selector test)
-│   ├── skill-reminder.sh       #   nudges active skill usage, area-aware
-│   └── subagent-reminder.sh
-│                               # (the Stop hooks live outside:
-│                               #  ../scripts/quorum-rerequest.sh --stop-hook and
-│                               #  ../scripts/stop-quality-gate.sh --stop-hook,
-│                               #  which runs go build/vet + pnpm run check on
-│                               #  changed areas at turn end; opt-out per clone:
-│                               #  touch .git/quality-gate-off or QUALITY_GATE_OFF=1)
-├── scripts/                    # Helper scripts (context-monitor.py)
-├── skills/                     # Project skills: settings, help-guide-sync,
-│   │                           #   env-docker-sync, creating-team-skills, find-skills
-└── rules/                      # Always-on + path-scoped guidance (see below)
-```
+| Surface | Source / load path |
+|---|---|
+| Root | `AGENTS.md` is a symlink to `CLAUDE.md`; maintain the target only |
+| Backend | `backend/AGENTS.md` is a symlink to `backend/CLAUDE.md` |
+| Frontend | `frontend/AGENTS.md` contains the Next.js-managed block and routes to `frontend/CLAUDE.md`; preserve the generated block |
+| Cross-stack contracts | `docs/agents/contracts.md`: portals, tenant scoping, IoT, enrollment |
+| Operations | `docs/agents/operations.md`: commands, test DB, SOPS, PR screenshots |
+| Domain and decisions | `CONTEXT.md`, `docs/adr/`; conventions in `docs/agents/domain.md` |
+| Task workflows | Root `.agents/skills/` is canonical; `.claude/skills/` contains directory symlinks. Preserve area-local canonical directions |
+| Backend detail | `docs/agents/backend-testing.md` for fixtures; `docs/agents/backend-data.md` for BUN and migrations |
+| Frontend detail | `docs/agents/frontend-api.md` for server/API boundaries; `docs/agents/frontend-performance.md` for budgets |
+| Real-time contract | `docs/agents/realtime.md` for producers, streaming, and client refetches |
 
-Codex mirrors all of this: `.codex/hooks.json` wires the same scripts (every
-`.codex/hooks/*.sh` is a symlink into `.claude/hooks/`). One known gap: Codex
-intercepts only the shell tool in PreToolUse, so the Edit/Write halves of
-`guard-absolute-rules.sh` (sops files, RLS in migrations) fire on the Claude
-side only; lefthook remains the backstop there. The guard's tracked-script
-check resolves paths against the payload's `cwd` (Claude); Codex payloads
-without a `cwd` fall back to the hook process's working directory.
+Codex instruction discovery uses `AGENTS.md`; a `.codex/rules` symlink alone
+is not proof that a runtime loaded every rule. The entry points explicitly
+require relevant references, independently of automatic loading. Check the
+active session's catalog and loaded instructions when diagnosing discovery.
 
-## Skills are area-scoped
+In Claude Code, rules without `paths:` frontmatter are always-on; only
+production-request and credential guards remain unconditional. Other rules,
+including UI comprehension, test contracts, and guardian permissions, have
+path scopes. Semantic triggers in the root table cover tasks that need a rule
+before touching those paths (including kiosk changes in a sibling repo).
+Label and quorum workflows have no reliable source-file trigger: they live in
+`docs/agents/github-labels.md` and `docs/agents/quorum-review-loop.md`, loaded
+by the root task table. The quorum Stop hook remains unchanged.
 
-| Directory | Holds | Listed by the reminder |
-|---|---|---|
-| `.claude/skills/` | cross-cutting project skills | always |
-| `frontend/.claude/skills/` | frontend-only (UI kit, interface reviews, React) | when frontend/ looks active |
-| `backend/.claude/skills/` | backend-only (Postgres, logging) | when backend/ looks active |
+## Skills
 
-Claude Code loads an area's skills natively as soon as an agent touches a file
-under that directory, and prefixes any name that collides with a global skill
-(`frontend:agent-browser`). `skill-reminder.sh` mirrors that in its nudge: root
-skills always, an area's skills when the cwd is inside it, the working tree has
-changes under it, or the prompt mentions it. Keep area skills out of
-`.claude/skills/`, anything there costs context in every session, including
-pure backend work.
+Use the runtime skill catalog first. If a named skill cannot be invoked,
+read its `SKILL.md` directly. A skill is a directory containing `SKILL.md`;
+a loose Markdown file is reference material, not a discoverable skill.
+Frontend interface skills are indexed in `frontend/.claude/skills/README.md`.
+The UI-kit rule outranks generic UI skill advice.
 
-A skill is a directory with a `SKILL.md`. A loose `.md` file dropped into a
-skills directory is invisible to both the reminder and the agent.
+`skill-reminder.sh` emits a short pointer on UserPromptSubmit. It does not
+rescan personal directories, repeat the catalog, or infer task scope from
+unrelated dirty files. Root and area pointers remain available on every turn.
+Skill mirrors resolve to the same directory, not independently maintained
+copies. Env-sync entries also delegate to one canonical rule.
 
-## Rules
+## Hook wiring and limits
 
-Files in `.claude/rules/` without frontmatter are loaded into **every** session; files with `paths:` frontmatter attach when matching files are touched.
+`.claude/settings.json` and `.codex/hooks.json` wire shared scripts;
+`.codex/hooks/*.sh` points into `.claude/hooks/`. Codex's repo config enables
+hooks, but runtime tool matchers still determine which calls are intercepted.
 
-| Rule | Covers |
-|------|--------|
-| `backend-conventions.md` | Layer discipline, repository generics, the CI ratchet tests |
-| `calendar-dates.md` | `timezone.Date` for DATE columns — the UTC-shift bug class |
-| `settings-system.md` | Tenant-scoped settings registry and workflows |
-| `frontend-ui-kit.md` | UI kit components, brand colors, design checklist |
-| `help-guide-sync.md` | Keeping the in-app manual in sync with features |
-| `env-docker-sync.md` | Env var + docker-compose file sync checklists |
-| `github-labels.md` | Only existing labels; one Type + one Priority |
-| `quorum-review-loop.md` | Re-request the reviewer after fixing quorum findings |
-| `no-test-modifications.md` | Never change existing tests to make new code pass |
-| `no-production-requests.md` | Never hit moto-app.de / moto.nrw domains |
-| `security/hardcoded-credentials.md` | Never hardcode secrets |
-| `security/project-security.md` | Crypto, certificates, uploads, security invariant index (path-scoped) |
+| Hook | Responsibility |
+|---|---|
+| `format-go.sh`, `format-typescript.sh` | Formatting after matching edits |
+| `check-commit-message.sh` | Commit convention validation |
+| `check-env-files.sh` | Session-start env file check |
+| `guard-absolute-rules.sh` | Block moto staging/production requests, ciphertext hand-edits, RLS disabling in migrations, commit-hook bypass, and untracked/outside-repo script execution |
+| `skill-reminder.sh` | Task-relevant skill pointers |
+| `subagent-reminder.sh` | Delegation guidance subject to session instructions |
+| `scripts/quorum-rerequest.sh --stop-hook` | Re-request quorum after pushed review fixes |
+| `scripts/stop-quality-gate.sh --stop-hook` | Changed-area build/vet/frontend checks |
 
-## Personal customization
+The Codex config matches shell PreToolUse calls, not Edit/Write for the guard;
+Claude wires both. Keep lefthook and CI backstops. The guard resolves tracked
+scripts against payload `cwd`, falling back to the hook process working directory.
+Do not assume a hook ran merely because a config file exists.
 
-```bash
-cp .claude/settings.local.json.example .claude/settings.local.json   # gitignored
-```
+## Maintaining context
 
-A gitignored `CLAUDE.local.md` in the project root is included into the root context for personal notes.
+- Keep a rule in one canonical source. Entry points carry its trigger and a
+  short invariant, not a second tutorial. Keep security boundaries visible.
+- Put only cross-task information in the root. Put domain-specific examples
+  beside their domain; versions and script inventories come from manifests.
+- Temporary migration guidance names its issue and removal criteria.
+  Current #2580 guidance in `backend/CLAUDE.md` overrides legacy layer examples.
+- Keep user preferences out of team rules. Optional `CLAUDE.local.md` is read
+  if present; global Codex/Claude instruction files are outside this repo.
+- Run `node scripts/check-agent-context.mjs`, its fixture tests with
+  `node --test scripts/check-agent-context.test.mjs`, and `git diff --check`
+  through the Devbox environment. Lefthook runs both checks on context changes
+  before committing. The checker covers local Markdown links,
+  concrete inline document pointers, path casing, symlinks, and skill mirrors.
+  It does not prove instructions are correct or automatically loaded.
+- Check changed hook behavior separately. For reminder changes, check valid
+  JSON, empty input, non-repo cwd, and missing `jq`. Missing tooling must not
+  report a successful check.
 
-## Contributing to this config
+### Routing checks after a context change
 
-1. Keep hooks executable (`chmod +x .claude/hooks/*.sh`) and JSON valid (`jq . .claude/settings.json`)
-2. When a rule's facts drift from the code, fix the rule in the same PR
-3. PRs target `development`
+| Example task | Expected references / behavior |
+|---|---|
+| Fix a backend calendar-day bug | Backend migration policy, calendar-date rule, hermetic tests; fix implementation without asking to preserve an unchanged contract |
+| Change a tenant UI flow | Frontend entry points, UI kit, Verständlichkeit, German-copy skill, help-guide and screenshot rules |
+| Review a login/refresh change | Review skill, affected area rules, contracts and security; include MFA and wrong-portal rejection |
+
+These are routing checks, not a measured model-quality benchmark. To compare
+agent behavior, use the same base revision and tasks in fresh sessions and
+record loaded references, unnecessary questions, checks, and missed requirements.
+Do not claim a behavioral improvement from file size alone. The September 2026
+comparison and its limits are recorded in
+[context routing checks](../docs/agents/context-routing-check.md).
+
+### Context cleanup: disposition
+
+| Previous root content | Decision |
+|---|---|
+| Tenant/portal tables, IoT presence mode, enrollment details | Move to `docs/agents/contracts.md`; correct portal count and include school scope |
+| Service commands, test DB maintenance, SOPS, screenshot hosting | Move to `docs/agents/operations.md`; reconcile test-clone lifecycle with backend guidance |
+| Backend detail | Keep recurrence, tenant safety and #2580 precedence in `backend/CLAUDE.md`; disclose BUN/migration recipes and fixture lifecycle |
+| Frontend detail and SSE | Disclose API examples, performance maintenance, and cross-stack SSE; entry points name their task triggers |
+| UI, dates, env sync, settings, help details | Keep canonical rules; root provides explicit task triggers |
+| Versions, table counts, repeated examples | Remove caches where code/manifests provide the answer |
+| Blanket stop on failing tests | Replace with evidence-based contract handling; preserve assertion strength |
+| Full per-prompt skill catalog and unavailable-tool instruction | Replace with short, tool-neutral pointers |
+
+Personal review-persona instructions (such as the $100 approval wager) live
+outside this repository. They were not deleted or changed by this cleanup.
