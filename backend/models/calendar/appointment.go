@@ -15,13 +15,13 @@ const (
 	OverviewVisibilityStaff     = appointments.OverviewVisibilityStaff
 	OverviewVisibilityAll       = appointments.OverviewVisibilityAll
 
-	RecipientTypeStaff           = "staff"
-	RecipientTypeGuardianProfile = "guardian_profile"
+	RecipientTypeStaff           = appointments.RecipientTypeStaff
+	RecipientTypeGuardianProfile = appointments.RecipientTypeGuardianProfile
 
-	ResponseStatusPending  = "pending"
-	ResponseStatusAccepted = "accepted"
-	ResponseStatusDeclined = "declined"
-	ResponseStatusInfo     = "info"
+	ResponseStatusPending  = appointments.ResponseStatusPending
+	ResponseStatusAccepted = appointments.ResponseStatusAccepted
+	ResponseStatusDeclined = appointments.ResponseStatusDeclined
+	ResponseStatusInfo     = appointments.ResponseStatusInfo
 
 	EventSourceAppointment = "appointment"
 	EventSourceTimetable   = "timetable"
@@ -109,49 +109,11 @@ func (a *Appointment) Validate() error {
 // expansion logic. Appointments owns validation and persistence.
 type RecurrenceRule = appointments.RecurrenceRule
 
-type AppointmentRecipient struct {
-	Model `bun:"schema:calendar,table:appointment_recipients"`
-	TenantModel
-
-	AppointmentID     int64      `bun:"appointment_id,notnull" json:"appointment_id"`
-	RecipientType     string     `bun:"recipient_type,notnull" json:"recipient_type"`
-	StaffID           *int64     `bun:"staff_id" json:"staff_id,omitempty"`
-	GuardianProfileID *int64     `bun:"guardian_profile_id" json:"guardian_profile_id,omitempty"`
-	Status            string     `bun:"status,notnull" json:"status"`
-	RespondedAt       *time.Time `bun:"responded_at" json:"responded_at,omitempty"`
-}
-
-func (r *AppointmentRecipient) Validate() error {
-	if r.AppointmentID <= 0 {
-		return errors.New("appointment_id is required")
-	}
-	switch r.RecipientType {
-	case RecipientTypeStaff:
-		if r.StaffID == nil || *r.StaffID <= 0 || r.GuardianProfileID != nil {
-			return errors.New("staff recipient requires staff_id only")
-		}
-	case RecipientTypeGuardianProfile:
-		if r.GuardianProfileID == nil || *r.GuardianProfileID <= 0 || r.StaffID != nil {
-			return errors.New("guardian recipient requires guardian_profile_id only")
-		}
-	default:
-		return errors.New("invalid recipient_type")
-	}
-	switch r.Status {
-	case ResponseStatusPending, ResponseStatusAccepted, ResponseStatusDeclined, ResponseStatusInfo:
-		return nil
-	default:
-		return errors.New("invalid recipient status")
-	}
-}
-
-type AppointmentRecipientStudent struct {
-	Model `bun:"schema:calendar,table:appointment_recipient_students"`
-	TenantModel
-
-	RecipientID int64 `bun:"recipient_id,notnull" json:"recipient_id"`
-	StudentID   int64 `bun:"student_id,notnull" json:"student_id"`
-}
+// AppointmentRecipient and AppointmentRecipientStudent remain compatibility
+// aliases for the calendar HTTP contract. Appointments owns their validation
+// and persistence.
+type AppointmentRecipient = appointments.AppointmentRecipient
+type AppointmentRecipientStudent = appointments.AppointmentRecipientStudent
 
 type AppointmentTarget struct {
 	Model `bun:"schema:calendar,table:appointment_targets"`

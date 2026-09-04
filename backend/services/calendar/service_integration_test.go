@@ -55,8 +55,6 @@ func calendarTestConfig(db *bun.DB) calendarSvc.Config {
 
 	return calendarSvc.Config{
 		Appointments:         repos.Appointments(),
-		RecipientRepo:        repos.CalendarAppointmentRecipient,
-		RecipientStudentRepo: repos.CalendarAppointmentRecipientChild,
 		StaffRepo:            repos.Staff,
 		StudentRepo:          repos.Student,
 		GuardianProfileRepo:  repos.GuardianProfile,
@@ -2123,18 +2121,18 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
 
-	recipients, err := repos.CalendarAppointmentRecipient.FindByAppointmentID(ctx, detail.Appointment.ID)
+	recipients, err := repos.Appointments().FindAppointmentRecipients(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
 	recipientIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
 		recipientIDs = append(recipientIDs, recipient.ID)
 	}
-	links, err := repos.CalendarAppointmentRecipientChild.FindByRecipientIDs(ctx, recipientIDs)
+	links, err := repos.Appointments().FindAppointmentRecipientStudents(ctx, recipientIDs)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, parentChain.StudentID, links[0].StudentID)
 
-	emptyLinks, err := repos.CalendarAppointmentRecipientChild.FindByRecipientIDs(ctx, nil)
+	emptyLinks, err := repos.Appointments().FindAppointmentRecipientStudents(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, emptyLinks)
 
