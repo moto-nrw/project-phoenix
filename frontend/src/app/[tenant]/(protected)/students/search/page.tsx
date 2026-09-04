@@ -2726,7 +2726,10 @@ function SearchPageContent() {
 
   const fromParam = useMemo(() => {
     const qs = new URLSearchParams();
-    if (effectiveRoomId) qs.set("room_id", effectiveRoomId);
+    if (effectiveRoomId) {
+      qs.set("room_id", effectiveRoomId);
+      if (selectedRoomName) qs.set("room_name", selectedRoomName);
+    }
     if (selectedGroupIds.length > 0)
       qs.set("group_id", encodeMultiValueParam(selectedGroupIds));
     if (selectedSchoolClasses.length > 0)
@@ -2753,6 +2756,7 @@ function SearchPageContent() {
       : encodeURIComponent(`/students/search?${qs.toString()}`);
   }, [
     effectiveRoomId,
+    selectedRoomName,
     selectedGroupIds,
     selectedSchoolClasses,
     selectedYears,
