@@ -59,6 +59,28 @@ func TestAnnouncementPublicErrorCodesAreStable(t *testing.T) {
 	assert.Equal(t, "internal_error", ErrorCode(errors.New("database unavailable")))
 }
 
+func TestMessagePublicErrorCodesAreStable(t *testing.T) {
+	t.Parallel()
+	tests := map[string]error{
+		"message_thread_not_found":  ErrStaffMessageThreadNotFound,
+		"forbidden":                 ErrParentMessagingForbidden,
+		"messaging_disabled":        ErrStaffMessagingDisabled,
+		"empty_message":             ErrParentMessageEmptyBody,
+		"message_too_long":          ErrStaffMessageBodyTooLong,
+		"handled_boundary_required": ErrParentMessageHandledBoundaryRequired,
+		"invalid_guardian":          ErrParentMessageInvalidGuardian,
+		"guardian_access_revoked":   ErrParentMessageGuardianAccessRevoked,
+		"recipient_unavailable":     ErrStaffMessageRecipientNotAvailable,
+		"counterpart_unavailable":   ErrStaffMessageCounterpartUnavailable,
+		"self_conversation":         ErrStaffMessageSelfConversation,
+		"retention_unresolved":      ErrStaffMessageRetentionUnresolved,
+	}
+	for code, err := range tests {
+		assert.Equal(t, code, ErrorCode(err))
+	}
+	assert.Equal(t, "none", ErrorCode(nil))
+}
+
 func TestIsAnnouncementExpiredUsesStrictInstant(t *testing.T) {
 	t.Parallel()
 	now := time.Now()

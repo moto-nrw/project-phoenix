@@ -327,6 +327,10 @@ func (m *mockVisitRepository) GetCurrentByStudentIDs(ctx context.Context, studen
 	return nil, nil
 }
 
+func (m *mockVisitRepository) GetCurrentByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
+	return m.GetCurrentByStudentIDs(ctx, studentIDs)
+}
+
 func (m *mockVisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64) (int, error) {
 	if m.countActiveByRoomIDFunc != nil {
 		return m.countActiveByRoomIDFunc(ctx, roomID)
@@ -428,6 +432,10 @@ func (m *mockGroupSupervisorRepository) FindActiveByStaffID(ctx context.Context,
 	return nil, nil
 }
 
+func (m *mockGroupSupervisorRepository) FindActiveByStaffIDForUpdate(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
+	return m.FindActiveByStaffID(ctx, staffID)
+}
+
 func (m *mockGroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Context) ([]active.StaffRoomSupervision, error) {
 	return nil, nil
 }
@@ -437,6 +445,10 @@ func (m *mockGroupSupervisorRepository) FindByActiveGroupID(ctx context.Context,
 		return m.findByActiveGroupIDFunc(ctx, activeGroupID, activeOnly)
 	}
 	return []*active.GroupSupervisor{}, nil
+}
+
+func (m *mockGroupSupervisorRepository) FindByActiveGroupIDForUpdate(ctx context.Context, activeGroupID int64) ([]*active.GroupSupervisor, error) {
+	return m.FindByActiveGroupID(ctx, activeGroupID, true)
 }
 
 func (m *mockGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*active.GroupSupervisor, error) {

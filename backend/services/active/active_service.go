@@ -145,6 +145,7 @@ type ServiceDependencies struct {
 // Service implements the Active Service interface
 type service struct {
 	ServiceDependencies
+	tenantRuntime *tenant.UnitOfWork
 
 	// Optional: Tenant-scoped settings resolver for auto-clear logic.
 	// When nil, auto-clear falls back to the registry default behavior.
@@ -277,6 +278,13 @@ func attendanceMethod(ctx context.Context) string {
 // NewService creates a new active service instance
 func NewService(deps ServiceDependencies) Service {
 	return &service{ServiceDependencies: deps}
+}
+
+// SetTenantRuntime supplies the transaction runtime bound to this service's
+// repository pool. It is used when a command needs to open its own tenant
+// transaction rather than joining a request transaction.
+func (s *service) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
 }
 
 // Active Group operations

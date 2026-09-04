@@ -16,18 +16,17 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	messagingService "github.com/moto-nrw/project-phoenix/services/messaging"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // Resource is the staff messaging HTTP resource.
 type Resource struct {
-	Service *messagingService.Service
+	Service communication.ParentMessagingCapability
 	db      *bun.DB
 }
 
 // NewResource wires the staff messaging resource.
-func NewResource(service *messagingService.Service, db *bun.DB) *Resource {
+func NewResource(service communication.ParentMessagingCapability, db *bun.DB) *Resource {
 	return &Resource{Service: service, db: db}
 }
 
@@ -75,23 +74,23 @@ type InboxThreadResponse struct {
 }
 
 type MessageResponse struct {
-	ID             string         `json:"id"`
-	SenderKind     string         `json:"sender_kind"`
-	SenderName     string         `json:"sender_name"`
-	Body           string         `json:"body"`
-	CreatedAt      time.Time      `json:"created_at"`
-	Kind           string         `json:"kind"`
-	EventType      string         `json:"event_type,omitempty"`
-	RequestType    string         `json:"request_type,omitempty"`
-	RequestStatus  string         `json:"request_status,omitempty"`
-	Payload        map[string]any `json:"payload,omitempty"`
-	RefTable       string         `json:"ref_table,omitempty"`
-	RefID          string         `json:"ref_id,omitempty"`
-	AppliedAt      *time.Time     `json:"applied_at,omitempty"`
-	AppliedBy      string         `json:"applied_by,omitempty"`
-	DecisionReason string         `json:"decision_reason,omitempty"`
-	ReadByStaff    bool           `json:"read_by_staff,omitempty"`
-	ReadByGuardian bool           `json:"read_by_guardian,omitempty"`
+	ID             string          `json:"id"`
+	SenderKind     string          `json:"sender_kind"`
+	SenderName     string          `json:"sender_name"`
+	Body           string          `json:"body"`
+	CreatedAt      time.Time       `json:"created_at"`
+	Kind           string          `json:"kind"`
+	EventType      string          `json:"event_type,omitempty"`
+	RequestType    string          `json:"request_type,omitempty"`
+	RequestStatus  string          `json:"request_status,omitempty"`
+	Payload        json.RawMessage `json:"payload,omitempty"`
+	RefTable       string          `json:"ref_table,omitempty"`
+	RefID          string          `json:"ref_id,omitempty"`
+	AppliedAt      *time.Time      `json:"applied_at,omitempty"`
+	AppliedBy      string          `json:"applied_by,omitempty"`
+	DecisionReason string          `json:"decision_reason,omitempty"`
+	ReadByStaff    bool            `json:"read_by_staff,omitempty"`
+	ReadByGuardian bool            `json:"read_by_guardian,omitempty"`
 }
 
 type ThreadDetailResponse struct {
@@ -126,7 +125,7 @@ type OpenThreadRequest struct {
 	GuardianAccountID string `json:"guardian_account_id"`
 }
 
-func toMessageResponses(messages []*usersModels.ParentMessage) []MessageResponse {
+func toMessageResponses(messages []communication.ParentMessage) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		refID := ""
@@ -160,7 +159,7 @@ func toMessageResponses(messages []*usersModels.ParentMessage) []MessageResponse
 	return out
 }
 
-func toThreadDetail(d *messagingService.ThreadDetail) ThreadDetailResponse {
+func toThreadDetail(d *communication.ParentMessageThread) ThreadDetailResponse {
 	return ThreadDetailResponse{
 		ThreadID:         strconv.FormatInt(d.ThreadID, 10),
 		StudentID:        strconv.FormatInt(d.StudentID, 10),
@@ -172,7 +171,7 @@ func toThreadDetail(d *messagingService.ThreadDetail) ThreadDetailResponse {
 }
 
 func (rs *Resource) listInbox(w http.ResponseWriter, r *http.Request) {
-	rows, err := rs.Service.ListInbox(
+	rows, err := rs.Service.ListParentMessageInbox(
 		r.Context(),
 		r.URL.Query().Get("unread") == "true",
 	)
@@ -183,7 +182,7 @@ func (rs *Resource) listInbox(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, toInboxThreadResponses(rows), "Inbox retrieved")
 }
 
-func toInboxThreadResponses(rows []*usersModels.InboxThread) []InboxThreadResponse {
+func toInboxThreadResponses(rows []communication.ParentMessageInboxThread) []InboxThreadResponse {
 	out := make([]InboxThreadResponse, 0, len(rows))
 	for _, t := range rows {
 		out = append(out, InboxThreadResponse{
@@ -211,7 +210,7 @@ func (rs *Resource) listStudentThreads(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := rs.Service.ListStudentThreads(r.Context(), studentID)
+	rows, err := rs.Service.ListParentMessageThreadsForStudent(r.Context(), studentID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -220,7 +219,7 @@ func (rs *Resource) listStudentThreads(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) unreadCount(w http.ResponseWriter, r *http.Request) {
-	count, err := rs.Service.UnreadMessageCount(r.Context())
+	count, err := rs.Service.CountUnreadParentMessages(r.Context())
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -233,7 +232,7 @@ func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	detail, err := rs.Service.GetThread(r.Context(), threadID)
+	detail, err := rs.Service.GetParentMessageThread(r.Context(), threadID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -260,7 +259,7 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		}
 		handledUpToMessageID = parsed
 	}
-	messages, err := rs.Service.PostMessage(r.Context(), threadID, req.Body, handledUpToMessageID)
+	messages, err := rs.Service.PostParentMessage(r.Context(), threadID, req.Body, handledUpToMessageID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -284,7 +283,7 @@ func (rs *Resource) startThread(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
-	detail, err := rs.Service.StartThread(r.Context(), studentID, guardianID, req.Body)
+	detail, err := rs.Service.StartParentMessageThread(r.Context(), studentID, guardianID, req.Body)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -308,7 +307,7 @@ func (rs *Resource) openThread(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
-	detail, err := rs.Service.OpenThread(r.Context(), studentID, guardianID)
+	detail, err := rs.Service.OpenParentMessageThread(r.Context(), studentID, guardianID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -321,7 +320,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	guardians, err := rs.Service.ListGuardians(r.Context(), studentID)
+	guardians, err := rs.Service.ListMessageableGuardians(r.Context(), studentID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -345,17 +344,17 @@ func parseInt64Param(w http.ResponseWriter, r *http.Request, param, label string
 // renderMessagingError maps service sentinels to HTTP status codes.
 func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, messagingService.ErrThreadNotFound):
+	case errors.Is(err, communication.ErrParentMessageThreadNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, messagingService.ErrForbidden), errors.Is(err, messagingService.ErrMessagingDisabled):
+	case errors.Is(err, communication.ErrParentMessagingForbidden), errors.Is(err, communication.ErrParentMessagingDisabled):
 		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, messagingService.ErrEmptyBody),
-		errors.Is(err, messagingService.ErrBodyTooLong),
-		errors.Is(err, messagingService.ErrInvalidGuardian):
+	case errors.Is(err, communication.ErrParentMessageEmptyBody),
+		errors.Is(err, communication.ErrParentMessageBodyTooLong),
+		errors.Is(err, communication.ErrParentMessageInvalidGuardian):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, messagingService.ErrGuardianAccessRevoked):
+	case errors.Is(err, communication.ErrParentMessageGuardianAccessRevoked):
 		common.RenderError(w, r, common.ErrorConflictMessage("Der Empfänger hat keinen Zugriff mehr auf dieses Kind."))
-	case errors.Is(err, messagingService.ErrHandledBoundaryRequired):
+	case errors.Is(err, communication.ErrParentMessageHandledBoundaryRequired):
 		common.RenderError(w, r, common.ErrorConflictMessage("Der Nachrichtenverlauf hat sich geändert. Bitte laden Sie die Seite neu."))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("messaging request failed", err))

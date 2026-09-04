@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Service defines operations for managing active groups and visits
@@ -173,6 +174,11 @@ type Service interface {
 	// Injects the tenant-scoped settings resolver (optional).
 	// Called by the factory after the settings service is constructed.
 	SetSettingsService(resolver SettingsResolver)
+
+	// SetTenantRuntime injects the transaction runtime bound to this service's
+	// repository pool. The cleanup commands run without a request transaction
+	// and need it to open one of their own.
+	SetTenantRuntime(runtime tenant.UnitOfWork)
 }
 
 // TransitAssignSkipped describes a student that was not assigned during a

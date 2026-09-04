@@ -8,7 +8,7 @@ import {
 import { Button } from "~/components/ui/button";
 
 // Hard client cap mirroring the backend's 2000-rune message/note limit
-// (maxMessageLen in services/messaging, maxParentNoteLen on the parent side).
+// (maxMessageLen in modules/communication/internal/parentmessages, maxParentNoteLen on the parent side).
 // Without it, a >2000 paste sends and bounces back as a generic
 // "konnte nicht gesendet werden" 400; maxLength stops the over-long input at the
 // source and the counter near the limit tells the user why. Note: maxLength

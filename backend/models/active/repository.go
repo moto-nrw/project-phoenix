@@ -186,6 +186,10 @@ type VisitRepository interface {
 	// GetCurrentByStudentIDs finds the current active visit for multiple students
 	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
 
+	// GetCurrentByStudentIDsForUpdate finds and locks current active visits for
+	// multiple students.
+	GetCurrentByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
+
 	// CountActiveByRoomID counts currently active visits across all active groups in a room.
 	CountActiveByRoomID(ctx context.Context, roomID int64) (int, error)
 
@@ -234,6 +238,9 @@ type GroupSupervisorRepository interface {
 
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
+	// FindActiveByStaffIDForUpdate locks a staff member's current supervision
+	// rows for the lifetime of the transaction.
+	FindActiveByStaffIDForUpdate(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
 
 	// ListActiveSupervisedRooms returns one (staff_id, room_id) pair per
 	// currently supervised room in the tenant, for every staff member at once.
@@ -243,8 +250,11 @@ type GroupSupervisorRepository interface {
 	ListActiveSupervisedRooms(ctx context.Context) ([]StaffRoomSupervision, error)
 
 	// FindByActiveGroupID finds supervisors for a specific active group
-	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+	// If activeOnly is true, only returns supervisors whose date interval includes today.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*GroupSupervisor, error)
+	// FindByActiveGroupIDForUpdate locks a group's current supervision rows for
+	// the lifetime of the transaction.
+	FindByActiveGroupIDForUpdate(ctx context.Context, activeGroupID int64) ([]*GroupSupervisor, error)
 
 	// FindByActiveGroupIDs finds supervisors for multiple active groups in a single query
 	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)

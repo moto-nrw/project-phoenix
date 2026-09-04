@@ -93,7 +93,7 @@ interface ApiResponse<T> {
 }
 
 /**
- * Wire contract with api/staffmessaging: the school has the Team-Chat switched
+ * Wire contract with modules/communication/http/staffmessages: the school has the Team-Chat switched
  * off. Carried as a stable code rather than matched on the German sentence, so
  * polishing the wording cannot turn the read-only state back into a red
  * "loading failed" error with a dead-end compose button.
@@ -111,7 +111,7 @@ class StaffMessagesError extends Error {
 }
 
 /**
- * Wire contract with api/staffmessaging: the other side of this conversation is
+ * Wire contract with modules/communication/http/staffmessages: the other side of this conversation is
  * no longer a reachable colleague. Same reasoning as STAFF_MESSAGING_DISABLED -
  * a code, not a sentence, so the read-only branch survives a rewording.
  */

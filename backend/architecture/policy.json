@@ -470,6 +470,20 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/communication/http/parentmessages",
+      "owner": "inbound-messaging",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/http/staffmessages",
+      "owner": "inbound-messaging",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "api/auth",
       "owner": "inbound-auth",
       "role": "http",
@@ -612,20 +626,6 @@
     {
       "path": "modules/mealplan/http",
       "owner": "inbound-mealplan",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "api/messaging",
-      "owner": "inbound-messaging",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "api/staffmessaging",
-      "owner": "inbound-messaging",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -1401,7 +1401,21 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/staff",
+      "path": "modules/communication/internal/staffannouncements",
+      "owner": "communication",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/communication/internal/parentmessages",
+      "owner": "communication",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/communication/internal/staffmessages",
       "owner": "communication",
       "role": "adapter",
       "internal_test_role": "adapter-test",
@@ -1807,13 +1821,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/messaging",
-      "owner": "communication",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/delivery/application/notifications",
       "owner": "delivery-platform",
       "role": "application",
@@ -1836,13 +1843,6 @@
     },
     {
       "path": "services/parentmessaging",
-      "owner": "communication",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/staffmessaging",
       "owner": "communication",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -2108,7 +2108,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/compose",
+      "path": "modules/communication/composition",
       "owner": "communication",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -4653,6 +4653,310 @@
       "source_role": "http",
       "target_owner": "communication",
       "target_role": "public"
+    },
+    {
+      "id": "communication.messages.root-composition-http",
+      "description": "The API composition root mounts the Communication message HTTP adapters.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-messaging",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.messages.http-common",
+      "description": "The message HTTP adapters use shared authentication, transaction, and response middleware.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.messages.http-security-contract",
+      "description": "The parent-message HTTP adapter applies the established messaging permission.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "communication.messages.http-identity-adapter",
+      "description": "The staff-message HTTP adapter reads authenticated account claims.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.http-orm",
+      "description": "The message HTTP adapters bind the existing tenant transaction middleware.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.messages.compose-delivery-public",
+      "description": "Communication composition adapts the existing realtime broadcaster until its delivery port migrates.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.messages.compose-identity-application",
+      "description": "Communication composition adapts the existing user-context service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.compose-people-application",
+      "description": "Communication composition adapts the existing staff directory service pending #2727.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.adapter-orm",
+      "description": "The retained message implementation joins the ambient tenant transaction pending #2727.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.messages.adapter-security-application",
+      "description": "The retained parent-message implementation applies the existing authorization service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.adapter-identity-adapter",
+      "description": "The retained message implementation reads authenticated account claims.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.adapter-delivery-public",
+      "description": "The retained message implementation publishes realtime updates through Delivery.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.messages.adapter-communication-application",
+      "description": "The retained parent-message implementation shares guardian contracts pending their later migration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.adapter-identity-application",
+      "description": "The retained parent-message implementation uses the existing user-context service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.adapter-people-application",
+      "description": "The retained message implementation uses the existing staff directory service pending #2727.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.http-workflow-self",
+      "description": "The cross-portal workflow test exercises both staff-message HTTP mantles.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "workflow-integration-test",
+      "target_owner": "inbound-messaging",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.messages.http-workflow-identity",
+      "description": "The cross-portal workflow test supplies scoped JWT claims.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.http-workflow-settings",
+      "description": "The cross-portal workflow test enables the tenant-scoped staff-message setting.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.messages.http-workflow-router",
+      "description": "The cross-portal workflow test uses HTTP requests and recorders.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "communication.messages.http-adapter-test-router",
+      "description": "The parent-message adapter contract test uses HTTP requests and recorders.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "communication.messages.workflow-identity-adapter",
+      "description": "Message compatibility tests supply authenticated account claims.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.workflow-delivery-adapter",
+      "description": "Parent-message compatibility tests verify the retained mail renderer.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "communication.messages.workflow-organization-domain",
+      "description": "Parent-message compatibility tests inspect retained outbox values.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.messages.workflow-settings-application",
+      "description": "Parent-message compatibility tests configure the existing settings service.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.workflow-communication-application",
+      "description": "Parent-message compatibility tests exercise retained guardian contracts.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.workflow-people-application",
+      "description": "Message compatibility tests compose the existing staff directory service pending #2727.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.workflow-people-postgres",
+      "description": "Staff-message compatibility tests compose the retained repository pending #2727.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "postgres"
+    },
+    {
+      "id": "communication.messages.workflow-identity-domain",
+      "description": "Staff-message compatibility fixtures assign existing account roles.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "domain"
     },
     {
       "id": "inbound-notifications.to.delivery-platform",

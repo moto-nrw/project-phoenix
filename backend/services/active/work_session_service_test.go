@@ -601,6 +601,10 @@ func (m *wsMockGroupSupervisorRepository) FindActiveByStaffID(ctx context.Contex
 	return nil, nil
 }
 
+func (m *wsMockGroupSupervisorRepository) FindActiveByStaffIDForUpdate(ctx context.Context, staffID int64) ([]*activeModels.GroupSupervisor, error) {
+	return m.FindActiveByStaffID(ctx, staffID)
+}
+
 func (m *wsMockGroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Context) ([]activeModels.StaffRoomSupervision, error) {
 	return nil, nil
 }
@@ -610,6 +614,10 @@ func (m *wsMockGroupSupervisorRepository) FindByActiveGroupID(ctx context.Contex
 		return m.findByActiveGroupIDFunc(ctx, activeGroupID, activeOnly)
 	}
 	return nil, nil
+}
+
+func (m *wsMockGroupSupervisorRepository) FindByActiveGroupIDForUpdate(ctx context.Context, activeGroupID int64) ([]*activeModels.GroupSupervisor, error) {
+	return m.FindByActiveGroupID(ctx, activeGroupID, true)
 }
 
 func (m *wsMockGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*activeModels.GroupSupervisor, error) {

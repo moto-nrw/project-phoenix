@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
@@ -168,6 +169,19 @@ func (s *service) MoveStudentsToActiveGroupAuthorized(ctx context.Context, stude
 }
 
 func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization) (*StudentMoveResult, error) {
+	var result *StudentMoveResult
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		var moveErr error
+		result, moveErr = s.moveStudentsToActiveGroupLocked(txCtx, studentIDs, activeGroupID, auth)
+		return moveErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization) (*StudentMoveResult, error) {
 	const op = "MoveStudentsToActiveGroup"
 
 	if activeGroupID <= 0 || len(studentIDs) == 0 {
@@ -178,6 +192,7 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
+	requestedIDs := uniqueIDs
 	if s.StudentRepo != nil {
 		lockedStudents, err := s.StudentRepo.FindByIDsForUpdate(ctx, uniqueIDs)
 		if err != nil {
@@ -200,28 +215,67 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		}
 	}
 
-	targetGroup, err := s.lockActiveGroupForMove(ctx, activeGroupID, op)
+	var lockedTargetRoomID int64
+	staleVisitIDs := make(map[int64]struct{})
+	if auth != nil && !auth.BypassResourceChecks {
+		var err error
+		lockedTargetRoomID, err = s.lockMoveTargetRoom(ctx, activeGroupID, op)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	openAttendance, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
 	if err != nil {
 		return nil, err
 	}
-
-	var supervisedGroups map[int64]struct{}
+	targetGroup, err := s.lockMoveGroups(ctx, uniqueIDs, currentVisits, activeGroupID, op)
+	if err != nil {
+		return nil, err
+	}
+	if lockedTargetRoomID > 0 && targetGroup.RoomID != lockedTargetRoomID {
+		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	refreshedVisits, err := s.VisitRepo.GetCurrentByStudentIDsForUpdate(ctx, uniqueIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	if refreshedVisits == nil {
+		refreshedVisits = map[int64]*active.Visit{}
+	}
 	if auth != nil && !auth.BypassResourceChecks {
-		supervisedGroups, err = s.loadMoveSupervisedGroupIDs(ctx, auth.StaffID, op)
-		if err != nil {
+		moveIDs := make([]int64, 0, len(uniqueIDs))
+		for _, studentID := range uniqueIDs {
+			if currentVisits[studentID] != nil && refreshedVisits[studentID] == nil {
+				staleVisitIDs[studentID] = struct{}{}
+				continue
+			}
+			moveIDs = append(moveIDs, studentID)
+		}
+		currentVisits = refreshedVisits
+		if len(moveIDs) == 0 {
+			result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
+			for _, studentID := range requestedIDs {
+				if _, stale := staleVisitIDs[studentID]; stale {
+					result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
+				}
+			}
+			return result, nil
+		}
+		if err := s.authorizeStudentMove(ctx, auth.StaffID, targetGroup, moveIDs, openAttendance, currentVisits, op); err != nil {
 			return nil, err
 		}
-		if _, ok := supervisedGroups[targetGroup.ID]; !ok {
-			return nil, studentMoveForbidden(op)
-		}
+		uniqueIDs = moveIDs
+	} else {
+		currentVisits = refreshedVisits
 	}
 	if s.GetPresenceMode(ctx) == "binary" {
-		_, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
-		if err != nil {
-			return nil, err
-		}
 		result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
-		for _, studentID := range uniqueIDs {
+		for _, studentID := range requestedIDs {
+			if _, stale := staleVisitIDs[studentID]; stale {
+				result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
+				continue
+			}
 			if currentVisits[studentID] != nil {
 				result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipConflict})
 				continue
@@ -231,15 +285,16 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		return result, nil
 	}
 
-	openAttendance, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
-	if err != nil {
-		return nil, err
-	}
 	if err := s.ensureCapacityForStudentMove(ctx, targetGroup, uniqueIDs, openAttendance, currentVisits); err != nil {
 		return nil, err
 	}
 
 	result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
+	for _, studentID := range requestedIDs {
+		if _, stale := staleVisitIDs[studentID]; stale {
+			result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
+		}
+	}
 	for _, studentID := range uniqueIDs {
 		if !studentHasOpenAttendance(openAttendance, studentID) {
 			result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
@@ -444,24 +499,153 @@ func studentHasOpenAttendance(attendances map[int64]*active.Attendance, studentI
 	return attendance != nil && attendance.CheckOutTime == nil
 }
 
+// lockMoveGroups locks the target and every source session in ascending ID
+// order. This prevents opposing room moves from waiting on each other's group
+// row locks.
+func (s *service) lockMoveGroups(ctx context.Context, studentIDs []int64, currentVisits map[int64]*active.Visit, targetGroupID int64, op string) (*active.Group, error) {
+	groupIDs := make(map[int64]struct{})
+	groupIDs[targetGroupID] = struct{}{}
+	for _, studentID := range studentIDs {
+		visit := currentVisits[studentID]
+		if visit != nil && visit.ActiveGroupID != targetGroupID {
+			groupIDs[visit.ActiveGroupID] = struct{}{}
+		}
+	}
+	ids := make([]int64, 0, len(groupIDs))
+	for id := range groupIDs {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	var targetGroup *active.Group
+	for _, id := range ids {
+		group, err := s.GroupRepo.FindByIDForUpdate(ctx, id)
+		if err != nil {
+			return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+		}
+		if id == targetGroupID {
+			if group == nil {
+				return nil, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
+			}
+			if !group.IsActive() {
+				return nil, &ActiveError{Op: op, Err: ErrActiveGroupAlreadyEnded}
+			}
+			targetGroup = group
+			continue
+		}
+		if group == nil || !group.IsActive() {
+			return nil, studentMoveForbidden(op)
+		}
+	}
+	return targetGroup, nil
+}
+
+// lockMoveTargetRoom serializes a push move with session changes in its target
+// room. The target row is locked afterwards and checked again before visits are
+// created, so a concurrent room reassignment cannot use a stale room lock.
+func (s *service) lockMoveTargetRoom(ctx context.Context, activeGroupID int64, op string) (int64, error) {
+	group, err := s.GroupRepo.FindByID(ctx, activeGroupID)
+	if err != nil {
+		return 0, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	if group == nil || !group.IsActive() || group.RoomID <= 0 {
+		return 0, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
+	}
+	if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+		return 0, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	return group.RoomID, nil
+}
+
 func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64, op string) (map[int64]struct{}, error) {
 	if staffID <= 0 {
 		return nil, studentMoveForbidden(op)
 	}
 
-	supervisions, err := s.GetStaffActiveSupervisions(ctx, staffID)
+	supervisions, err := s.SupervisorRepo.FindActiveByStaffIDForUpdate(ctx, staffID)
 	if err != nil {
-		return nil, err
+		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
 
 	ids := make(map[int64]struct{}, len(supervisions))
 	for _, supervision := range supervisions {
-		if supervision == nil || supervision.GroupID <= 0 {
+		if supervision == nil || supervision.GroupID <= 0 || !IsSupervisorActive(supervision, time.Now()) {
 			continue
 		}
 		ids[supervision.GroupID] = struct{}{}
 	}
 	return ids, nil
+}
+
+// authorizeStudentMove implements the push-or-pull rule for staff-initiated
+// room changes (#2969). The caller may move the children when they supervise
+// the TARGET group (pull, unchanged since #2329), or when they supervise the
+// current group of every present child in the batch (push). On the push path
+// the target must additionally be the only running session in its room and
+// carry at least one running supervision, so no child is handed to a room
+// without a responsible adult and the assignment stays unambiguous. Admin
+// callers never reach this function (BypassResourceChecks).
+func (s *service) authorizeStudentMove(
+	ctx context.Context,
+	staffID int64,
+	targetGroup *active.Group,
+	studentIDs []int64,
+	openAttendance map[int64]*active.Attendance,
+	currentVisits map[int64]*active.Visit,
+	op string,
+) error {
+	supervisedGroups, err := s.loadMoveSupervisedGroupIDs(ctx, staffID, op)
+	if err != nil {
+		return err
+	}
+	if _, ok := supervisedGroups[targetGroup.ID]; ok {
+		return nil
+	}
+
+	for _, studentID := range studentIDs {
+		if !studentHasOpenAttendance(openAttendance, studentID) {
+			// Reported as not_present further down; nothing to authorize.
+			continue
+		}
+		currentVisit := currentVisits[studentID]
+		if currentVisit == nil {
+			// A child in transit has no source room the caller could supervise.
+			return studentMoveForbidden(op)
+		}
+		if currentVisit.ActiveGroupID == targetGroup.ID {
+			// Already there; reported as unchanged further down.
+			continue
+		}
+		if _, ok := supervisedGroups[currentVisit.ActiveGroupID]; !ok {
+			return studentMoveForbidden(op)
+		}
+	}
+
+	return s.ensureMoveTargetIsSupervised(ctx, targetGroup, op)
+}
+
+// ensureMoveTargetIsSupervised rejects push moves into a room with several
+// running sessions (ambiguous assignment) or into a session nobody supervises
+// right now.
+func (s *service) ensureMoveTargetIsSupervised(ctx context.Context, targetGroup *active.Group, op string) error {
+	groupsInRoom, err := s.GroupRepo.FindActiveByRoomID(ctx, targetGroup.RoomID)
+	if err != nil {
+		return &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	if len(groupsInRoom) != 1 {
+		return studentMoveForbidden(op)
+	}
+
+	supervisors, err := s.SupervisorRepo.FindByActiveGroupIDForUpdate(ctx, targetGroup.ID)
+	if err != nil {
+		return &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	now := time.Now()
+	for _, supervisor := range supervisors {
+		if supervisor != nil && IsSupervisorActive(supervisor, now) {
+			return nil
+		}
+	}
+	return studentMoveForbidden(op)
 }
 
 func studentMoveForbidden(op string) error {

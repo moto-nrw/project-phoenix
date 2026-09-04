@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import {
+  AppRouterContext,
+  type AppRouterInstance,
+} from "next/dist/shared/lib/app-router-context.shared-runtime";
 import {
   useContext,
   type ComponentProps,
@@ -43,7 +46,7 @@ export function NavLink({
   onFocus,
   ...rest
 }: NavLinkProps) {
-  const router = useContext(AppRouterContext);
+  const router = useContext<AppRouterInstance | null>(AppRouterContext);
   const prefetchRouter =
     router !== null &&
     process.env.NODE_ENV !== "development" &&

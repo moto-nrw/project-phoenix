@@ -7,10 +7,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/services/staffmessaging"
+	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -86,6 +87,69 @@ func TestCrossTenantIsolation(t *testing.T) {
 	for _, r := range recipients {
 		assert.NotEqual(t, outsiderB.ID, r.AccountID, "picker must stay inside the school")
 	}
+}
+
+func TestStaffMessageTablesEnforceTwoTenantRLS(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	schoolA := testpkg.Tenant(t)
+	schoolB, _ := testpkg.CreateTestTenant(t, db)
+	annaA, benA := twoColleagues(t, db)
+	_, annaB := testpkg.CreateTestStaffWithAccountForTenant(t, db, schoolB, "Anna", "Schule B")
+	_, benB := testpkg.CreateTestStaffWithAccountForTenant(t, db, schoolB, "Ben", "Schule B")
+	testpkg.EnsureAccountTenant(t, db, annaB.ID, schoolB)
+	testpkg.EnsureAccountTenant(t, db, benB.ID, schoolB)
+
+	createStaffConversation(t, db, svc, schoolA, annaA, benA)
+	createStaffConversation(t, db, svc, schoolB, annaB.ID, benB.ID)
+
+	assertStaffMessageTableIsolation(t, db, schoolA)
+	assertStaffMessageTableIsolation(t, db, schoolB)
+}
+
+func createStaffConversation(t *testing.T, db *bun.DB, svc *staffmessaging.Service, tenantID, senderID, readerID int64) {
+	t.Helper()
+	runtimeCtx := testpkg.WithTenantRuntime(t, context.Background(), db)
+	err := tenant.WithTenantTx(runtimeCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		senderCtx := context.WithValue(txCtx, jwt.CtxClaims, jwt.AppClaims{ID: int(senderID)})
+		thread, err := svc.OpenThread(senderCtx, readerID)
+		if err != nil {
+			return err
+		}
+		if _, err = svc.PostMessage(senderCtx, thread.ThreadID, "Interne Nachricht"); err != nil {
+			return err
+		}
+		readerCtx := context.WithValue(txCtx, jwt.CtxClaims, jwt.AppClaims{ID: int(readerID)})
+		_, err = svc.GetThread(readerCtx, thread.ThreadID)
+		return err
+	})
+	require.NoError(t, err)
+}
+
+func assertStaffMessageTableIsolation(t *testing.T, db *bun.DB, tenantID int64) {
+	t.Helper()
+	wantRows := map[string]int{
+		"users.staff_message_threads":      1,
+		"users.staff_message_participants": 2,
+		"users.staff_messages":             1,
+		"users.staff_message_reads":        1,
+	}
+	runtimeCtx := testpkg.WithTenantRuntime(t, context.Background(), db)
+	err := tenant.WithTenantTx(runtimeCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+		for table, want := range wantRows {
+			var tenantIDs []int64
+			if err := tx.NewSelect().TableExpr(table).Column("tenant_id").Scan(txCtx, &tenantIDs); err != nil {
+				return err
+			}
+			require.Len(t, tenantIDs, want, table)
+			for _, gotTenantID := range tenantIDs {
+				assert.Equal(t, tenantID, gotTenantID, table)
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 // TestRetentionSweep verifies the GDPR window actually deletes, and that a
