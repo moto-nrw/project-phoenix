@@ -49,7 +49,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        96
+        97
       ],
       "tables": []
     },
@@ -59,7 +59,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        163
+        164
       ],
       "tables": []
     },
@@ -606,7 +606,7 @@
       "declaration": "TestWithRuntimeBuildsCompleteWorker",
       "target": "api.WithRuntime",
       "lines": [
-        116
+        122
       ],
       "tables": []
     },
