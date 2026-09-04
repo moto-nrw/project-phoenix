@@ -33,6 +33,8 @@ func TestIsSupervisorActive(t *testing.T) {
 
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
+	assert.False(t, IsSupervisorActive(&activeModels.GroupSupervisor{StartDate: timezone.DateFromTime(now).AddDays(1)}, now),
+		"a future supervision has not started yet")
 	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: nil}, now),
 		"nil end date is open-ended and active")
 	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: ptrDate(timezone.DateFromTime(now).AddDays(1))}, now),

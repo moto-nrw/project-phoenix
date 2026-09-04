@@ -324,9 +324,17 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
 	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.createActiveGroupLocked(txCtx, group)
+	})
+}
 
+func (s *service) createActiveGroupLocked(ctx context.Context, group *active.Group) error {
 	// Check for room conflicts if room is assigned
 	if group.RoomID > 0 {
+		if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+			return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
+		}
 		hasConflict, _, err := s.GroupRepo.CheckRoomConflict(ctx, group.RoomID, 0)
 		if err != nil {
 			return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("check room conflict: %w", err)}
@@ -347,6 +355,17 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
+	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.updateActiveGroupLocked(txCtx, group)
+	})
+}
+
+func (s *service) updateActiveGroupLocked(ctx context.Context, group *active.Group) error {
+	if group.RoomID > 0 {
+		if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+		}
 	}
 	existing, err := s.GroupRepo.FindByIDForUpdate(ctx, group.ID)
 	if err != nil {
@@ -1001,7 +1020,10 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	}
 
 	studentRec := s.getStudentForSSE(ctx, endedVisit.StudentID)
-	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentRec, "")
+	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitVisitCheckout(broadcastCtx, endedVisit, snapshot, studentRec, "")
+	})
 }
 
 // emitVisitCheckout is broadcastVisitCheckout with the student routing data

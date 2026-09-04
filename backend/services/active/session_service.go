@@ -139,6 +139,9 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		if err != nil {
 			return err
 		}
+		if err := s.GroupRepo.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
+			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
+		}
 
 		_, err = createSession(txCtx, finalRoomID)
 		return err
@@ -378,6 +381,9 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		finalRoomID, err := s.determineRoomIDForForceStart(txCtx, activityID, roomID)
 		if err != nil {
 			return &ActiveError{Op: operation, Err: err}
+		}
+		if err := s.GroupRepo.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
+			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
 		}
 
 		group, err := s.createSessionWithMultipleSupervisors(txCtx, activityID, deviceID, supervisorIDs, finalRoomID)

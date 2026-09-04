@@ -70,6 +70,18 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	return groups, nil
 }
 
+// LockRoomSessionWrites serializes active session changes for one tenant room.
+func (r *GroupRepository) LockRoomSessionWrites(ctx context.Context, roomID int64) error {
+	if roomID <= 0 {
+		return &modelBase.DatabaseError{Op: "lock room session writes", Err: errors.New("invalid room ID")}
+	}
+	key := fmt.Sprintf("active-room-session:%d:%d", tenant.FromContext(ctx), roomID)
+	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
+		return &modelBase.DatabaseError{Op: "lock room session writes", Err: err}
+	}
+	return nil
+}
+
 // FindActiveByRoomIDAndDeviceID finds the active group in a room for a specific device.
 func (r *GroupRepository) FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
 	group := new(active.Group)

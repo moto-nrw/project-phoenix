@@ -80,6 +80,10 @@ func (m *mockGroupRepository) FindActiveByRoomID(ctx context.Context, roomID int
 	return nil, nil
 }
 
+func (m *mockGroupRepository) LockRoomSessionWrites(context.Context, int64) error {
+	return nil
+}
+
 func (m *mockGroupRepository) ListRoomOccupancy(context.Context, []int64) ([]active.RoomOccupancy, error) {
 	return nil, nil
 }
