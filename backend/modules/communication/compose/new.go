@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/audience"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/postgres"
@@ -35,6 +36,25 @@ type AuditFunc func(context.Context, AuditEntry) error
 
 func (f AuditFunc) AppendAnnouncementAudit(ctx context.Context, entry AuditEntry) error {
 	return f(ctx, entry)
+}
+
+// NewOperatorAnnouncementAudit adapts the retained operator audit repository
+// at Communication's composition seam.
+func NewOperatorAnnouncementAudit(create func(context.Context, *platformModels.OperatorAuditLog) error) AuditFunc {
+	return func(ctx context.Context, input AuditEntry) error {
+		resourceID := input.ResourceID
+		entry := &platformModels.OperatorAuditLog{
+			OperatorID: input.OperatorID, Action: input.Action,
+			ResourceType: platformModels.ResourceAnnouncement, ResourceID: &resourceID,
+			RequestIP: input.RequestIP,
+		}
+		if input.Changes != nil {
+			if err := entry.SetChanges(input.Changes); err != nil {
+				return err
+			}
+		}
+		return create(ctx, entry)
+	}
 }
 
 type Observation = ports.Observation

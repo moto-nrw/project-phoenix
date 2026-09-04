@@ -69,7 +69,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -165,23 +164,6 @@ type moduleServices struct {
 	membership *schoolMembershipModule.Module
 }
 
-func newCommunicationAudit(create func(context.Context, *platformModels.OperatorAuditLog) error) communicationCompose.AuditFunc {
-	return func(ctx context.Context, input communicationCompose.AuditEntry) error {
-		resourceID := input.ResourceID
-		entry := &platformModels.OperatorAuditLog{
-			OperatorID: input.OperatorID, Action: input.Action,
-			ResourceType: platformModels.ResourceAnnouncement, ResourceID: &resourceID,
-			RequestIP: input.RequestIP,
-		}
-		if input.Changes != nil {
-			if err := entry.SetChanges(input.Changes); err != nil {
-				return err
-			}
-		}
-		return create(ctx, entry)
-	}
-}
-
 func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
@@ -248,7 +230,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		DB:            db,
 		Organizations: organizations,
 		People:        persons,
-		Audit:         newCommunicationAudit(repoFactory.OperatorAuditLog.Create),
+		Audit:         communicationCompose.NewOperatorAnnouncementAudit(repoFactory.OperatorAuditLog.Create),
 		Observe: func(observation communicationCompose.Observation) {
 			observability.ObserveCommunicationOperation(
 				observation.Operation,

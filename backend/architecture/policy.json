@@ -8604,15 +8604,6 @@
       "target_role": "public"
     },
     {
-      "id": "root-composition.to.platform-domain",
-      "description": "The production root adapts operator audit records at the composition seam.",
-      "scopes": ["production"],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "domain"
-    },
-    {
       "id": "legacy-composition.to.communication-public",
       "description": "Legacy composition passes the Communication facade to remaining service consumers.",
       "scopes": ["production"],

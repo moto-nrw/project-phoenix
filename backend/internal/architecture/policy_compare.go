@@ -30,9 +30,9 @@ func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 
 func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, createdPackages, deletedLegacySymbols map[string]struct{}) error {
 	problems := modulePathLoosenings(base, candidate)
-	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects)...)
+	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, createdPackages)...)
 	problems = append(problems, classificationLoosenings(base, candidate, createdPackages)...)
-	problems = append(problems, readProjectionLoosenings(base, candidate)...)
+	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages)...)
 	problems = append(problems, compositionLoosenings(base, candidate, deletedLegacySymbols)...)
 	problems = append(problems, importLoosenings(base, candidate)...)
 	problems = append(problems, ruleLoosenings(base, candidate, candidateOnlyRolePoints(candidate, createdPackages))...)
@@ -50,13 +50,15 @@ func modulePathLoosenings(base, candidate *Policy) []string {
 	return []string{fmt.Sprintf("module_path changed from %s to %s", base.ModulePath, candidate.ModulePath)}
 }
 
-func ownershipLoosenings(base, candidate *Policy, createdDataObjects map[string]struct{}) []string {
+func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPackages map[string]struct{}) []string {
 	var problems []string
 	baseOwners := ownersByID(base)
 	candidateOwners := ownersByID(candidate)
 	for id, owner := range candidateOwners {
 		if _, exists := baseOwners[id]; !exists {
-			problems = append(problems, fmt.Sprintf("owner %s with kind %s was added", id, owner.Kind))
+			if owner.Kind != "projection" || !ownerPackagesAreCandidateCreated(candidate, id, createdPackages) {
+				problems = append(problems, fmt.Sprintf("owner %s with kind %s was added", id, owner.Kind))
+			}
 		}
 	}
 	for id, baseOwner := range baseOwners {
@@ -131,12 +133,36 @@ func semanticRoleLoosens(base, candidate string) bool {
 	return (baseContract && !candidateContract) || (baseRuntime && !candidateRuntime) || (!baseDirectDB && candidateDirectDB)
 }
 
-func readProjectionLoosenings(base, candidate *Policy) []string {
+func ownerPackagesAreCandidateCreated(candidate *Policy, owner string, createdPackages map[string]struct{}) bool {
+	found := false
+	for path, pkg := range candidate.packageMap() {
+		if pkg.Owner != owner {
+			continue
+		}
+		found = true
+		if _, created := createdPackages[path]; !created {
+			return false
+		}
+	}
+	return found
+}
+
+func readProjectionLoosenings(base, candidate *Policy, createdPackages map[string]struct{}) []string {
 	baseGrants := projectionGrants(base)
+	baseOwners := ownersByID(base)
+	candidatePackages := candidate.packageMap()
+	candidateOwners := ownersByID(candidate)
 	var problems []string
 	for grant := range projectionGrants(candidate) {
 		if _, exists := baseGrants[grant]; !exists {
-			problems = append(problems, "new tenant-safe read projection grant "+grant)
+			packagePath := strings.SplitN(grant, "|", 2)[0]
+			pkg, classified := candidatePackages[packagePath]
+			_, packageCreated := createdPackages[packagePath]
+			owner, ownerExists := candidateOwners[pkg.Owner]
+			_, ownerExisted := baseOwners[pkg.Owner]
+			if !classified || !packageCreated || !ownerExists || ownerExisted || owner.Kind != "projection" {
+				problems = append(problems, "new tenant-safe read projection grant "+grant)
+			}
 		}
 	}
 	return problems
