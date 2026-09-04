@@ -525,6 +525,59 @@ func TestRunFullDay_EndsStartedSessionsWhenLaterStartFails(t *testing.T) {
 	assert.Equal(t, 1, ends)
 }
 
+func TestRunFullDay_EndsStartedSessionsWhenLaterActionFails(t *testing.T) {
+	t.Parallel()
+
+	starts, ends := 0, 0
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(simulationHTTPStatusOK)
+			_, _ = fmt.Fprint(w, `"OK"`)
+		case "/auth/login":
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "test-jwt"})
+		case "/api/iot/session/start":
+			starts++
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		case "/api/timetable/periods/bootstrap":
+			w.WriteHeader(simulationHTTPStatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "injected failure"})
+		case "/api/iot/session/end":
+			ends++
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		default:
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		}
+	})
+	defer srv.Close()
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, WriteSeedState(&SeedState{
+		BaseURL:   srv.URL,
+		DevicePIN: "1234",
+		Bootstrap: SeedStateBootstrap{TenantSlug: "demo-school"},
+		Accounts: SeedStateAccounts{
+			Admin:    []AccountCredentials{{Email: "admin@test.de", Password: "pass"}},
+			Betreuer: []AccountCredentials{{StaffID: 10, Name: "Mara Muster"}},
+		},
+		Devices:    map[string]SeedDevice{"demo-device-001": {APIKey: "key", Name: "Scanner"}},
+		Students:   []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "Schneider"}},
+		Activities: map[string]int64{"Hausaufgaben": 50},
+		Rooms:      map[string]int64{"OGS-Raum 1": 1},
+	}, statePath))
+
+	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "seed staff feed tombstone")
+	assert.Equal(t, 1, starts)
+	assert.Equal(t, 1, ends)
+}
+
 func TestRunFullDay_ManyStudents(t *testing.T) {
 	t.Parallel()
 

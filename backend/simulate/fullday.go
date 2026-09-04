@@ -46,11 +46,17 @@ func RunFullDay(ctx context.Context, opts FullDayOptions) error {
 		if profile == "" {
 			profile = "legacy seed state"
 		}
+		var failure error
 		var actionErr *ActionError
 		if errors.As(err, &actionErr) {
-			return fmt.Errorf("demo school profile %q, workflow step %s failed: %w", profile, actionErr.Action, actionErr.Err)
+			failure = fmt.Errorf("demo school profile %q, workflow step %s failed: %w", profile, actionErr.Action, actionErr.Err)
+		} else {
+			failure = fmt.Errorf("demo school profile %q, workflow step %s failed: %w", profile, scenario.Name, err)
 		}
-		return fmt.Errorf("demo school profile %q, workflow step %s failed: %w", profile, scenario.Name, err)
+		if cleanupErr := endActiveSessions(runtime); cleanupErr != nil {
+			return errors.Join(failure, fmt.Errorf("end started sessions after workflow failure: %w", cleanupErr))
+		}
+		return failure
 	}
 	return nil
 }
@@ -153,11 +159,12 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 		_, err := rt.Client.DevicePost("/api/iot/session/start", body, device.APIKey, rt.State.DevicePIN)
 		if err != nil {
 			startErr := fmt.Errorf("start session for %s: %w", actName, err)
-			if cleanupErr := endSessions(rt, rt.DeviceKeys[:i]); cleanupErr != nil {
+			if cleanupErr := endActiveSessions(rt); cleanupErr != nil {
 				return errors.Join(startErr, fmt.Errorf("end previously started sessions: %w", cleanupErr))
 			}
 			return startErr
 		}
+		rt.ActiveSessionDeviceKeys = append(rt.ActiveSessionDeviceKeys, deviceKey)
 
 		if roomID != 0 {
 			rt.ActiveRoomIDs = append(rt.ActiveRoomIDs, roomID)
@@ -429,26 +436,35 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Printf("  %d daily checkouts, %d feedback submitted\n", rt.Counts.DailyCheckouts, rt.Counts.FeedbackSubmitted)
 
-	sessionsStarted := min(rt.Counts.SessionsStarted, len(rt.DeviceKeys))
-	if err := endSessions(rt, rt.DeviceKeys[:sessionsStarted]); err != nil {
+	if err := endActiveSessions(rt); err != nil {
 		return err
 	}
 	fmt.Printf("  %d sessions ended\n", rt.Counts.SessionsEnded)
 	return nil
 }
 
-func endSessions(rt *Runtime, deviceKeys []string) error {
+func endActiveSessions(rt *Runtime) error {
 	var errs []error
-	for _, deviceKey := range deviceKeys {
+	for _, deviceKey := range slices.Clone(rt.ActiveSessionDeviceKeys) {
 		device := rt.State.Devices[deviceKey]
 		_, err := rt.Client.DevicePost("/api/iot/session/end", nil, device.APIKey, rt.State.DevicePIN)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("end session on device %s: %w", deviceKey, err))
 			continue
 		}
+		rt.removeActiveSessionDevice(deviceKey)
 		rt.Counts.SessionsEnded++
 	}
 	return errors.Join(errs...)
+}
+
+func (rt *Runtime) removeActiveSessionDevice(deviceKey string) {
+	for i, activeDeviceKey := range rt.ActiveSessionDeviceKeys {
+		if activeDeviceKey == deviceKey {
+			rt.ActiveSessionDeviceKeys = append(rt.ActiveSessionDeviceKeys[:i], rt.ActiveSessionDeviceKeys[i+1:]...)
+			return
+		}
+	}
 }
 
 type printSummaryAction struct{}
