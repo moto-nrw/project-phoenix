@@ -278,15 +278,19 @@ func seedManualGroups(rt *Runtime) (map[string]SeedEntityRef, error) {
 }
 
 func seedManualStudents(rt *Runtime, groups map[string]SeedEntityRef) (map[string]SeedStudent, map[string]SeedEntityRef, error) {
-	if len(DemoStudents) < 12 || len(DemoGuardians) < 12 {
-		return nil, nil, fmt.Errorf("manual profile requires 12 demo students and contacts")
+	if len(DemoStudents) < 12 {
+		return nil, nil, fmt.Errorf("manual profile requires 12 demo students")
 	}
 	students := make(map[string]SeedStudent, 12)
 	guardians := make(map[string]SeedEntityRef, 12)
 	for index, source := range DemoStudents[:12] {
 		groupKey := fmt.Sprintf("bezugsgruppe-%d", 1+index/6)
 		group := groups[groupKey]
-		body := manualStudentPayload(index, source, group.ID)
+		contact, err := manualGuardianForStudent(index)
+		if err != nil {
+			return nil, nil, err
+		}
+		body := manualStudentPayload(index, source, group.ID, contact)
 		raw, err := rt.Client.Post("/api/students", body)
 		if err != nil {
 			return nil, nil, fmt.Errorf("create manual profile student %d: %w", index+1, err)
@@ -300,7 +304,7 @@ func seedManualStudents(rt *Runtime, groups map[string]SeedEntityRef) (map[strin
 			Key: key, ID: id, FirstName: source.FirstName, LastName: source.LastName,
 			GroupKey: groupKey, Class: source.Class,
 		}
-		guardian, err := readManualGuardian(rt, id, DemoGuardians[index])
+		guardian, err := readManualGuardian(rt, id, contact)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -309,9 +313,17 @@ func seedManualStudents(rt *Runtime, groups map[string]SeedEntityRef) (map[strin
 	return students, guardians, nil
 }
 
-func manualStudentPayload(index int, student DemoStudent, groupID int64) map[string]any {
+func manualGuardianForStudent(studentIndex int) (DemoGuardian, error) {
+	for _, guardian := range DemoGuardians {
+		if guardian.StudentIndex == studentIndex && guardian.IsPrimary {
+			return guardian, nil
+		}
+	}
+	return DemoGuardian{}, fmt.Errorf("manual profile primary contact missing for student index %d", studentIndex)
+}
+
+func manualStudentPayload(index int, student DemoStudent, groupID int64, contact DemoGuardian) map[string]any {
 	arrival, pickup := manualWeeklySchedules(index)
-	contact := DemoGuardians[index]
 	phone := contact.MobilePhone
 	if phone == "" {
 		phone = contact.Phone

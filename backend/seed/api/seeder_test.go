@@ -648,6 +648,24 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assertWithdrawalSeedTrace(t, trace)
 }
 
+func TestManualGuardianForStudentUsesStudentIndex(t *testing.T) {
+	t.Parallel()
+
+	for _, expected := range []struct {
+		studentIndex int
+		name         string
+	}{
+		{studentIndex: 0, name: "Sabine Schneider"},
+		{studentIndex: 4, name: "Thomas Richter"},
+		{studentIndex: 10, name: "Ralf Zimmermann"},
+		{studentIndex: 11, name: "Susanne Braun"},
+	} {
+		guardian, err := manualGuardianForStudent(expected.studentIndex)
+		require.NoError(t, err)
+		assert.Equal(t, expected.name, guardian.FirstName+" "+guardian.LastName)
+	}
+}
+
 type failingSeedAdapter struct {
 	Adapter
 	method string
