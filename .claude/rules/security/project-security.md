@@ -13,12 +13,12 @@ The project-specific security reference. The load-bearing rules live where they 
 
 | Invariant | Canonical source |
 |---|---|
-| Tenant isolation: RLS + `phoenix_tenant` role per request; a forgotten `WHERE tenant_id = ?` is a cross-tenant data leak — queries belong in repositories | `CLAUDE.md` Multi-Tenancy + `backend-conventions.md` Rule 11 (CI-ratcheted) |
-| Portal session isolation: per-portal cookies + JWT `scope` claim; middleware rejects out-of-scope tokens | `CLAUDE.md` Three Portals |
-| Device auth: API key + staff PIN; IoT error strings are a PyrePortal contract | `CLAUDE.md` Ecosystem |
-| GDPR logging: no student names at Info level; retention via `gdpr.*` settings; deletions audited | `CLAUDE.md` Critical Pattern 7 + `backend/CLAUDE.md` |
-| Secrets: never in source; SOPS for deployed envs; gitleaks/lefthook/CI guards | `security/hardcoded-credentials.md` + `CLAUDE.md` SOPS section |
-| Never hit production APIs | `no-production-requests.md` |
+| Tenant isolation: RLS + `phoenix_tenant` role per request; a forgotten `WHERE tenant_id = ?` is a cross-tenant data leak — queries belong in repositories | `docs/agents/contracts.md` Tenant boundary + `.claude/rules/backend-conventions.md` Rule 11 (CI-ratcheted) |
+| Portal session isolation: per-portal cookies + JWT `scope` claim; middleware rejects out-of-scope tokens | `docs/agents/contracts.md` Portal session isolation |
+| Device auth: API key + staff PIN; IoT error strings are a PyrePortal contract | `docs/agents/contracts.md` Ecosystem and IoT |
+| GDPR logging: no student names at Info level; retention via `gdpr.*` settings; deletions audited | `backend/CLAUDE.md` GDPR/Privacy Patterns |
+| Secrets: never in source; SOPS for deployed envs; gitleaks/lefthook/CI guards | `.claude/rules/security/hardcoded-credentials.md` + `docs/agents/operations.md` Environment Management (SOPS) |
+| Never hit production APIs | `.claude/rules/no-production-requests.md` |
 
 ## Cryptography — banned algorithms (NEVER use)
 

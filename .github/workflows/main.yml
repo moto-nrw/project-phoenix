@@ -356,19 +356,24 @@ jobs:
     needs: [detect-changes, lint, test, backend-architecture-ratchet, env-sync-check]
     runs-on: ubuntu-latest
     steps:
-      - name: Reject skipped mandatory architecture checks
-        if: needs.detect-changes.outputs.run-backend-architecture == 'true'
+      - name: Reject skipped mandatory checks
         env:
+          ARCHITECTURE_REQUIRED: ${{ needs.detect-changes.outputs.run-backend-architecture }}
+          BACKEND_LINT_REQUIRED: ${{ needs.detect-changes.outputs.run-backend-lint }}
+          FRONTEND_LINT_REQUIRED: ${{ needs.detect-changes.outputs.run-frontend-lint }}
+          BACKEND_TEST_REQUIRED: ${{ needs.detect-changes.outputs.run-backend }}
+          FRONTEND_TEST_REQUIRED: ${{ needs.detect-changes.outputs.run-frontend }}
+          SEED_SMOKE_REQUIRED: ${{ needs.detect-changes.outputs.run-seed-smoke }}
           ARCHITECTURE_RESULT: ${{ needs.backend-architecture-ratchet.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           TEST_RESULT: ${{ needs.test.result }}
         run: |
-          for result in "$LINT_RESULT" "$TEST_RESULT" "$ARCHITECTURE_RESULT"; do
-            if [[ "$result" == "skipped" ]]; then
-              echo "A mandatory architecture check was skipped"
-              exit 1
-            fi
-          done
+          if [[ "$ARCHITECTURE_REQUIRED" == true && "$ARCHITECTURE_RESULT" == skipped ]] ||
+             [[ ( "$BACKEND_LINT_REQUIRED" == true || "$FRONTEND_LINT_REQUIRED" == true ) && "$LINT_RESULT" == skipped ]] ||
+             [[ ( "$BACKEND_TEST_REQUIRED" == true || "$FRONTEND_TEST_REQUIRED" == true || "$SEED_SMOKE_REQUIRED" == true ) && "$TEST_RESULT" == skipped ]]; then
+            echo "A mandatory check was skipped (architecture=$ARCHITECTURE_RESULT, lint=$LINT_RESULT, test=$TEST_RESULT)"
+            exit 1
+          fi
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # release/v1
         with:
           jobs: ${{ toJSON(needs) }}

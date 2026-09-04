@@ -68,6 +68,7 @@ type Capability interface {
 }
 
 type engine interface {
+	RequireTenant(context.Context) error
 	FindRoom(context.Context, int64) (Room, error)
 	FindRoomForUpdate(context.Context, int64) (Room, error)
 	FindRoomByName(context.Context, string) (Room, error)
@@ -91,7 +92,18 @@ func NewModule(engine engine) *Module {
 	return &Module{engine: engine}
 }
 
+func (m *Module) requireTenant(ctx context.Context, operation string) error {
+	err := m.engine.RequireTenant(ctx)
+	if err != nil {
+		m.engine.ObserveRejection(operation, 0, err)
+	}
+	return err
+}
+
 func (m *Module) FindRoom(ctx context.Context, id int64) (Room, error) {
+	if err := m.requireTenant(ctx, "find_room"); err != nil {
+		return Room{}, err
+	}
 	if id <= 0 {
 		err := ErrInvalidRoom
 		m.engine.ObserveRejection("find_room", 0, err)
@@ -104,6 +116,9 @@ func (m *Module) FindRoom(ctx context.Context, id int64) (Room, error) {
 // caller's transaction ends. Callers use it when a state check and a
 // subsequent mutation must be atomic.
 func (m *Module) FindRoomForUpdate(ctx context.Context, id int64) (Room, error) {
+	if err := m.requireTenant(ctx, "find_room_for_update"); err != nil {
+		return Room{}, err
+	}
 	if id <= 0 {
 		err := ErrInvalidRoom
 		m.engine.ObserveRejection("find_room_for_update", 0, err)
@@ -113,6 +128,9 @@ func (m *Module) FindRoomForUpdate(ctx context.Context, id int64) (Room, error) 
 }
 
 func (m *Module) FindRoomByName(ctx context.Context, name string) (Room, error) {
+	if err := m.requireTenant(ctx, "find_room_by_name"); err != nil {
+		return Room{}, err
+	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		err := &InvalidRoomError{Reason: "room name is required"}
@@ -123,6 +141,9 @@ func (m *Module) FindRoomByName(ctx context.Context, name string) (Room, error) 
 }
 
 func (m *Module) FindToiletRoom(ctx context.Context, excludeRoomID int64) (Room, error) {
+	if err := m.requireTenant(ctx, "find_toilet_room"); err != nil {
+		return Room{}, err
+	}
 	if excludeRoomID < 0 {
 		err := &InvalidRoomError{Reason: "excluded room ID cannot be negative"}
 		m.engine.ObserveRejection("find_toilet_room", 0, err)
@@ -132,6 +153,9 @@ func (m *Module) FindToiletRoom(ctx context.Context, excludeRoomID int64) (Room,
 }
 
 func (m *Module) ListRooms(ctx context.Context, filter RoomFilter) ([]Room, error) {
+	if err := m.requireTenant(ctx, "list_rooms"); err != nil {
+		return nil, err
+	}
 	if filter.MinimumCapacity != nil && *filter.MinimumCapacity < 0 {
 		err := &InvalidRoomError{Reason: "minimum capacity cannot be negative"}
 		m.engine.ObserveRejection("list_rooms", 0, err)
@@ -148,6 +172,9 @@ func (m *Module) ListRooms(ctx context.Context, filter RoomFilter) ([]Room, erro
 // ListRoomsPage returns one bounded room-list result and its total record
 // count. Offset and limit are applied by the owner store.
 func (m *Module) ListRoomsPage(ctx context.Context, filter RoomFilter, offset, limit int) (RoomPage, error) {
+	if err := m.requireTenant(ctx, "list_rooms_page"); err != nil {
+		return RoomPage{}, err
+	}
 	if offset < 0 || limit <= 0 {
 		err := &InvalidRoomError{Reason: "room page is invalid"}
 		m.engine.ObserveRejection("list_rooms_page", 0, err)
@@ -160,6 +187,9 @@ func (m *Module) ListRoomsPage(ctx context.Context, filter RoomFilter, offset, l
 // the given IDs, sorted by name. Missing IDs are simply absent: consumers
 // rendering a room name treat absence like the former LEFT JOIN.
 func (m *Module) ListRoomsByID(ctx context.Context, ids []int64) ([]Room, error) {
+	if err := m.requireTenant(ctx, "list_rooms_by_id"); err != nil {
+		return nil, err
+	}
 	if len(ids) == 0 {
 		return []Room{}, nil
 	}
@@ -177,6 +207,9 @@ func (m *Module) ListRoomsByID(ctx context.Context, ids []int64) ([]Room, error)
 // the caller's transaction. It is for restore flows that must keep a checked
 // room reference valid until their dependent INSERT finishes.
 func (m *Module) LockRoomsByID(ctx context.Context, ids []int64) ([]Room, error) {
+	if err := m.requireTenant(ctx, "lock_rooms_by_id"); err != nil {
+		return nil, err
+	}
 	if len(ids) == 0 {
 		return []Room{}, nil
 	}
@@ -192,6 +225,9 @@ func (m *Module) LockRoomsByID(ctx context.Context, ids []int64) ([]Room, error)
 
 func (m *Module) CreateRoom(ctx context.Context, input CreateRoom) (Room, error) {
 	started := time.Now()
+	if err := m.requireTenant(ctx, "create_room"); err != nil {
+		return Room{}, err
+	}
 	if err := normalizeAndValidateCreateRoom(&input); err != nil {
 		m.engine.ObserveRejection("create_room", time.Since(started), err)
 		return Room{}, err
@@ -206,6 +242,9 @@ func (m *Module) CreateRoom(ctx context.Context, input CreateRoom) (Room, error)
 
 func (m *Module) UpdateRoom(ctx context.Context, input UpdateRoom) (Room, error) {
 	started := time.Now()
+	if err := m.requireTenant(ctx, "update_room"); err != nil {
+		return Room{}, err
+	}
 	if input.ID <= 0 {
 		err := &InvalidRoomError{Reason: "room ID is required"}
 		m.engine.ObserveRejection("update_room", time.Since(started), err)
@@ -219,6 +258,9 @@ func (m *Module) UpdateRoom(ctx context.Context, input UpdateRoom) (Room, error)
 }
 
 func (m *Module) DeleteRoom(ctx context.Context, id int64) error {
+	if err := m.requireTenant(ctx, "delete_room"); err != nil {
+		return err
+	}
 	if id <= 0 {
 		err := &InvalidRoomError{Reason: "room ID is required"}
 		m.engine.ObserveRejection("delete_room", 0, err)
