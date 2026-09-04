@@ -10,6 +10,7 @@ import (
 	"time"
 
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -109,6 +110,7 @@ func (s *stubActiveService) GetTrackingIndicators(_ context.Context, _ []int64, 
 	return map[int64][]bool{}, nil
 }
 func (s *stubActiveService) SetSettingsService(_ activeSvc.SettingsResolver) {}
+func (s *stubActiveService) SetTenantRuntime(_ tenant.UnitOfWork)            {}
 func (s *stubActiveService) GetPresenceMode(_ context.Context) string        { return "detailed" }
 func (s *stubActiveService) GetActiveGroup(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
