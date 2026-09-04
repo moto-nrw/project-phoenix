@@ -639,6 +639,8 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	require.Len(t, manual.Credentials.Accounts.Admin, 1)
 	assert.Equal(t, sharedDeveloperAdminKey, manual.Credentials.Accounts.Admin[0].Key)
 	assert.Equal(t, profile.Credentials.Accounts.Admin[0].Email, manual.Credentials.Accounts.Admin[0].Email)
+	assert.Equal(t, int64(5001), manual.Credentials.Accounts.Admin[0].StaffID)
+	assert.Zero(t, manual.Credentials.Accounts.Admin[0].TeacherID)
 	require.NotNil(t, state.CareWithdrawals)
 	assert.Equal(t, 3, state.Topology.Schools)
 	assert.Equal(t, []string{ManualProfileKey, DefaultProfileKey}, state.Organizations["demo-traeger-nord"].Profiles)
@@ -811,6 +813,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	manualStudents := make(map[int64]map[string]any)
 	manualAttendance := make(map[int64]string)
 	manualSettingWrites := make(map[string]json.RawMessage)
+	var manualSharedAccountID int64
 	var trace *fullSeedAPITrace
 	if len(traces) > 0 {
 		trace = traces[0]
@@ -839,6 +842,8 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			require.Len(t, manualSettingWrites, len(manualProfileDefinition().Settings))
 		}
 		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/operator/accounts/") && strings.HasSuffix(r.URL.Path, "/tenants") {
+			_, err := fmt.Sscanf(r.URL.Path, "/operator/accounts/%d/tenants", &manualSharedAccountID)
+			require.NoError(t, err)
 			var body map[string]any
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			require.Equal(t, float64(2), body["school_id"])
@@ -938,6 +943,13 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": []map[string]any{{"id": 1}, {"id": 2}},
+			})
+			return
+		}
+		if manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/by-role" {
+			require.Equal(t, "admin", r.URL.Query().Get("role"))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{"id": 5001, "account_id": manualSharedAccountID}},
 			})
 			return
 		}

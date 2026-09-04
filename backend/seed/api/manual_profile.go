@@ -120,7 +120,32 @@ func grantSharedDeveloperAdmin(rt *Runtime, manual *bootstrapSeedState) (Account
 	if _, err := rt.Client.PostWithAuth(rt.OperatorAuth, path, body); err != nil {
 		return AccountCredentials{}, fmt.Errorf("grant shared developer admin access: %w", err)
 	}
-	return credential, nil
+	return manualStaffCredential(rt, credential)
+}
+
+func manualStaffCredential(rt *Runtime, credential AccountCredentials) (AccountCredentials, error) {
+	raw, err := rt.Client.GetWithAuth(rt.TenantAuth, "/api/staff/by-role?role=admin")
+	if err != nil {
+		return AccountCredentials{}, fmt.Errorf("read manual shared developer admin identity: %w", err)
+	}
+	var envelope struct {
+		Data []struct {
+			ID        int64 `json:"id"`
+			AccountID int64 `json:"account_id"`
+			TeacherID int64 `json:"teacher_id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return AccountCredentials{}, fmt.Errorf("decode manual shared developer admin identity: %w", err)
+	}
+	for _, staff := range envelope.Data {
+		if staff.AccountID == credential.AccountID && staff.ID > 0 {
+			credential.StaffID = staff.ID
+			credential.TeacherID = staff.TeacherID
+			return credential, nil
+		}
+	}
+	return AccountCredentials{}, fmt.Errorf("manual shared developer admin identity missing")
 }
 
 func sharedDeveloperAdmin(fs *FixedSeeder) (AccountCredentials, DemoStaffMember, error) {
