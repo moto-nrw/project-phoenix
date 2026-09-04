@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useLatest } from "~/lib/hooks/use-latest";
 import type { SearchBarProps } from "./types";
 
 interface DebouncedSearchValue {
@@ -27,6 +28,7 @@ function useDebouncedSearchValue(
 ): DebouncedSearchValue {
   const [draft, setDraft] = React.useState(value);
   const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onChangeRef = useLatest(onChange);
 
   React.useEffect(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -43,16 +45,16 @@ function useDebouncedSearchValue(
   const handleChange = React.useCallback(
     (next: string) => {
       if (!debounceMs) {
-        onChange(next);
+        onChangeRef.current(next);
         return;
       }
       setDraft(next);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
-        onChange(next);
+        onChangeRef.current(next);
       }, debounceMs);
     },
-    [debounceMs, onChange],
+    [debounceMs, onChangeRef],
   );
 
   // The clear button is an explicit action, not typing: it reports at once so
@@ -61,9 +63,9 @@ function useDebouncedSearchValue(
     (next: string) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setDraft(next);
-      onChange(next);
+      onChangeRef.current(next);
     },
-    [onChange],
+    [onChangeRef],
   );
 
   return { shownValue: debounceMs ? draft : value, handleChange, commitNow };

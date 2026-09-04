@@ -180,6 +180,26 @@ describe("SearchBar", () => {
       expect(mockOnChange).not.toHaveBeenCalled();
     });
 
+    it("uses the current callback when it changes during a pending debounce", () => {
+      const initialOnChange = vi.fn();
+      const currentOnChange = vi.fn();
+      const { rerender } = render(
+        <SearchBar value="" onChange={initialOnChange} debounceMs={300} />,
+      );
+      const input = screen.getByPlaceholderText("Name suchen...");
+      fireEvent.change(input, { target: { value: "Maxi" } });
+
+      rerender(
+        <SearchBar value="" onChange={currentOnChange} debounceMs={300} />,
+      );
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(initialOnChange).not.toHaveBeenCalled();
+      expect(currentOnChange).toHaveBeenCalledWith("Maxi");
+    });
+
     it("cancels a pending draft when an external reset keeps the same value", () => {
       const { rerender } = render(
         <SearchBar
