@@ -101,6 +101,7 @@ func TestSeedCmd_Flags(t *testing.T) {
 	assert.NotNil(t, f.Lookup("tenant-slug"))
 	assert.NotNil(t, f.Lookup("staff-password"))
 	assert.NotNil(t, f.Lookup("admin-email"))
+	assert.NotNil(t, f.Lookup("randomize"))
 }
 
 func TestSeedCmd_FlagDefaults(t *testing.T) {
@@ -150,4 +151,8 @@ func TestSeedCmd_FlagTypes(t *testing.T) {
 	adminEmailFlag := f.Lookup("admin-email")
 	require.NotNil(t, adminEmailFlag)
 	assert.Equal(t, "", adminEmailFlag.DefValue)
+
+	randomizeFlag := f.Lookup("randomize")
+	require.NotNil(t, randomizeFlag)
+	assert.Equal(t, "false", randomizeFlag.DefValue)
 }

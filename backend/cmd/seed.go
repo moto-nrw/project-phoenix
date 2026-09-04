@@ -74,17 +74,18 @@ DEMO DATA:
 OUTPUT FILES:
 - .seed-state.json — all created IDs, credentials, and API keys
 
-OPTIONAL FLAGS (deterministic mode):
-By default, the seeder generates random suffixes and passwords for each run.
-Use optional flags to get deterministic, memorable credentials:
+PROFILE:
+The default profile is vollbetrieb. It has stable identities and credentials,
+so a repeated run fails with a clear conflict until the database is reset.
 
-  --tenant-slug demo-school    Fixed tenant slug (requires 'migrate reset' before re-seeding)
+  --tenant-slug vollbetrieb    Override the profile's tenant slug
   --staff-password 'Test1234%' Shared password for all 20 staff accounts
-  --admin-email admin@test.com Fixed email for the bootstrap school admin
+  --admin-email admin@test.com Override the bootstrap school admin email
+  --randomize                  Create a unique ad-hoc school instead
 
 Usage:
-  go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234
-  go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234 --tenant-slug demo-school --staff-password 'Test1234%' --admin-email school-admin@example.com`,
+  docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080
+  docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 --tenant-slug vollbetrieb --staff-password 'Test1234%' --admin-email vollbetrieb-admin@example.test`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		email, _ := cmd.Flags().GetString("email")
 		password, _ := cmd.Flags().GetString("password")
@@ -103,11 +104,13 @@ Usage:
 		tenantSlug, _ := cmd.Flags().GetString("tenant-slug")
 		staffPassword, _ := cmd.Flags().GetString("staff-password")
 		adminEmail, _ := cmd.Flags().GetString("admin-email")
+		randomize, _ := cmd.Flags().GetBool("randomize")
 
 		options := seedapi.SeedOptions{
 			TenantSlug:    tenantSlug,
 			StaffPassword: staffPassword,
 			AdminEmail:    adminEmail,
+			Randomize:     randomize,
 		}
 
 		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)
@@ -121,7 +124,8 @@ func init() {
 	seedCmd.Flags().String("pin", "", "Staff PIN for IoT authentication (required)")
 	seedCmd.Flags().String("url", "http://localhost:8080", "Backend API URL")
 	seedCmd.Flags().Bool("verbose", false, "Enable verbose logging")
-	seedCmd.Flags().String("tenant-slug", "", "Fixed tenant slug (deterministic mode, requires migrate reset before re-seeding)")
-	seedCmd.Flags().String("staff-password", "", "Shared password for all 20 staff accounts (deterministic mode)")
-	seedCmd.Flags().String("admin-email", "", "Fixed email for bootstrap school admin (deterministic mode)")
+	seedCmd.Flags().String("tenant-slug", "", "Override the default profile tenant slug")
+	seedCmd.Flags().String("staff-password", "", "Shared password for all 20 staff accounts")
+	seedCmd.Flags().String("admin-email", "", "Override the bootstrap school admin email")
+	seedCmd.Flags().Bool("randomize", false, "Create a unique ad-hoc school with generated admin credentials")
 }

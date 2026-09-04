@@ -17,3 +17,7 @@ func WriteSeedState(state *SeedState, path string) error {
 	}
 	return nil
 }
+
+func LoadSeedState(path string) (*SeedState, error) {
+	return LoadSeedStateProfile(path, "")
+}

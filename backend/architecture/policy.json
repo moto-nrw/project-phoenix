@@ -59,6 +59,10 @@
       "kind": "workflow"
     },
     {
+      "id": "demo-profile-contract",
+      "kind": "workflow"
+    },
+    {
       "id": "delivery-platform",
       "kind": "platform"
     },
@@ -1020,6 +1024,13 @@
       "path": "database/repositories/workforce",
       "owner": "workforce",
       "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "demoprofile",
+      "owner": "demo-profile-contract",
+      "role": "contract",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -4135,6 +4146,19 @@
       "source_role": "workflow-integration-test",
       "target_owner_kind": "workflow",
       "target_role": "public"
+    },
+    {
+      "id": "dev-tools.demo-profile-contract",
+      "description": "Demo seed and simulation CLIs share the versioned demo profile contract.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "cli",
+      "target_owner": "demo-profile-contract",
+      "target_role": "contract"
     },
     {
       "id": "external.cli-config.cli",

@@ -11,6 +11,7 @@ import (
 // LiveOptions configures the continuous live simulation.
 type LiveOptions struct {
 	StatePath string
+	Profile   string
 	Interval  time.Duration
 	Verbose   bool
 	Client    ClientFactory
@@ -68,7 +69,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 	if opts.Client == nil {
 		return fmt.Errorf("simulation client factory is required")
 	}
-	state, err := LoadSeedState(opts.StatePath)
+	state, err := LoadSeedStateProfile(opts.StatePath, opts.Profile)
 	if err != nil {
 		return fmt.Errorf("load seed state: %w", err)
 	}
