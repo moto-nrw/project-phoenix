@@ -437,12 +437,6 @@ func TestInboxCounterpartNameUsesThreadTenant(t *testing.T) {
 		 VALUES (?, ?, ?, ?)`,
 		schoolB, "Falscher", "Tenant", ben)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx,
-			`DELETE FROM users.persons
-			 WHERE tenant_id = ? AND account_id = ? AND first_name = ? AND last_name = ?`,
-			schoolB, ben, "Falscher", "Tenant")
-	})
 
 	thread, err := svc.OpenThread(asAccount(t, anna), ben)
 	require.NoError(t, err)
