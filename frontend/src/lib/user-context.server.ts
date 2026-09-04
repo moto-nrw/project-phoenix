@@ -86,11 +86,16 @@ export async function loadUserContext(
   token: string,
   options?: { signal?: AbortSignal },
 ): Promise<UserContextResponse> {
-  const result = await apiGet<{ data: BackendNavigationContext }>(
-    "/api/me/navigation",
-    token,
-    options,
-  );
+  const result = options
+    ? await apiGet<{ data: BackendNavigationContext }>(
+        "/api/me/navigation",
+        token,
+        options,
+      )
+    : await apiGet<{ data: BackendNavigationContext }>(
+        "/api/me/navigation",
+        token,
+      );
 
   // Transform backend data to frontend format
   const educationalGroups =
