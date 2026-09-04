@@ -1085,7 +1085,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei Bedarf `Raum suchen...` nutzen oder nach `Gebäude` und `Status` filtern.",
           "Eine Raumkarte öffnen, um die Kinderliste zu sehen.",
           "In der Kinderliste Kinder auswählen, einen `Zielraum` wählen und mit `In Raum setzen` verschieben. Das Kind steht sofort im neuen Raum; die Aufsicht dort muss nichts bestätigen.",
-          "Als Zielraum stehen Räume, in denen genau ein Angebot mit laufender Aufsicht läuft. Betreuungskräfte können verschieben, wenn sie den Ausgangsraum oder den Zielraum beaufsichtigen. Wer nur den Zielraum beaufsichtigt, sieht auch nur die eigenen Räume. Leitungen können in alle Räume verschieben.",
+          "Sie beaufsichtigen den Ausgangsraum? Dann wählen Sie einen Zielraum mit genau einem laufenden Angebot und Aufsicht.",
+          "Sie beaufsichtigen nur den Zielraum? Dann können Sie Kinder in Ihr eigenes Angebot holen. In diesem Raum dürfen auch mehrere Angebote laufen. Leitungen können in alle Räume verschieben.",
           "Bereich `Unterwegs` prüfen und ein Kind ohne Raum über `Zuweisen` zuordnen.",
         ],
         callout: {

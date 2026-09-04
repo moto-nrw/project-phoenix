@@ -229,6 +229,7 @@ let activeGroupsState: { data: MockActiveGroup[] };
 let roomsState: { data: MockRoom[] };
 let currentStaffState: { data?: { id: string }; error?: unknown };
 let activeSupervisionsState: { data: MockSupervisor[]; error?: unknown };
+let sourceVisitGroupIDs: Map<string, string> | undefined;
 
 const setSWR = (state: typeof roomStudentsState) => {
   roomStudentsState = state;
@@ -294,6 +295,7 @@ beforeEach(() => {
   mockUseTenantMutateMatching.mockReturnValue(vi.fn());
   setSWR({ data: { students: [] } });
   setBulkData();
+  sourceVisitGroupIDs = undefined;
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) {
       return { data: undefined, error: null, isLoading: false };
@@ -323,6 +325,26 @@ beforeEach(() => {
       return {
         data: activeSupervisionsState.data,
         error: activeSupervisionsState.error ?? null,
+        isLoading: false,
+      };
+    }
+    if (key.startsWith("room-bulk-source-visits-")) {
+      const supervisedSource = activeGroupsState.data.find(
+        (group) =>
+          group.roomId === "42" &&
+          activeSupervisionsState.data.some(
+            (supervision) => supervision.activeGroupId === group.id,
+          ),
+      );
+      return {
+        data: new Map(
+          (roomStudentsState.data?.students ?? []).flatMap((student) => {
+            const activeGroupId =
+              sourceVisitGroupIDs?.get(student.id) ?? supervisedSource?.id;
+            return activeGroupId ? [[student.id, { activeGroupId }]] : [];
+          }),
+        ),
+        error: null,
         isLoading: false,
       };
     }
@@ -823,6 +845,65 @@ describe("StudentsInRoomSection", () => {
       expect(
         screen.getByRole("option", { name: "Raum 6" }),
       ).toBeInTheDocument();
+    });
+
+    it("selects only children from supervised source sessions for a colleague target (#2969)", async () => {
+      mockMoveStudentsToActiveGroup.mockResolvedValue({
+        moved: ["7"],
+        unchanged: [],
+        skipped: [],
+      });
+      sourceVisitGroupIDs = new Map([
+        ["7", "supervised-source"],
+        ["8", "unsupervised-source"],
+      ]);
+      setSWR({
+        data: {
+          students: [
+            makeStudent({ id: "7" }),
+            makeStudent({ id: "8", first_name: "Ben" }),
+          ],
+        },
+      });
+      setBulkData({
+        activeGroups: [
+          {
+            id: "supervised-source",
+            roomId: "42",
+            isActive: true,
+            supervisorCount: 1,
+          },
+          { id: "unsupervised-source", roomId: "42", isActive: true },
+          {
+            id: "colleague",
+            roomId: "9001",
+            isActive: true,
+            supervisorCount: 1,
+          },
+        ],
+        rooms: [{ id: "9001", name: "Raum 6" }],
+        activeSupervisions: makeSupervisions([
+          { id: "supervised-source", roomId: "42", isActive: true },
+        ]),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
+      fireEvent.click(screen.getByRole("button", { name: "Alle auswählen" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("1 von 2 ausgewählt")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
+          ["7"],
+          "colleague",
+        );
+      });
     });
 
     it("lets a source supervisor push a child into a colleague's room (#2969)", async () => {

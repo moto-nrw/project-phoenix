@@ -34,7 +34,7 @@ import {
   activeService,
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
-import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
+import type { ActiveGroup, Supervisor, Visit } from "~/lib/active-helpers";
 import type { Room } from "~/lib/room-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
@@ -167,6 +167,28 @@ export function StudentsInRoomSection({
       activeGroups.filter((group) => group.isActive && group.roomId === roomId),
     [activeGroups, roomId],
   );
+  const sourceGroupIDs = useMemo(
+    () => sourceGroups.map((group) => group.id),
+    [sourceGroups],
+  );
+  const { data: sourceVisitsByStudentID } = useSWRAuth<Map<string, Visit>>(
+    !showAllTargets && sourceGroupIDs.length > 0
+      ? `room-bulk-source-visits-${sourceGroupIDs.join("-")}`
+      : null,
+    async () => {
+      const visits = await Promise.all(
+        sourceGroupIDs.map((groupID) =>
+          activeService.getVisitsByGroup(groupID),
+        ),
+      );
+      return new Map(
+        visits
+          .flat()
+          .filter((visit) => visit.isActive)
+          .map((visit) => [visit.studentId, visit]),
+      );
+    },
+  );
   const supervisesSourceRoom = sourceGroups.some((group) =>
     supervisedTargetGroupIds.has(group.id),
   );
@@ -198,6 +220,39 @@ export function StudentsInRoomSection({
   const selectedTarget = targetOptions.find(
     (option) => option.activeGroupId === targetActiveGroupId,
   );
+  const selectedTargetIsOwn =
+    selectedTarget !== undefined &&
+    supervisedTargetGroupIds.has(selectedTarget.activeGroupId);
+  // A supervised target authorizes a pull from every source group. For a
+  // colleague's target, however, the backend authorizes only children from
+  // groups supervised by the current staff member. Before a target is chosen
+  // we use that safer push rule too, so a later colleague target cannot turn
+  // an already selected mixed batch into a guaranteed 403.
+  const selectableStudentIds = useMemo(() => {
+    if (showAllTargets || selectedTargetIsOwn || targetScope === "own") {
+      return visibleStudentIds;
+    }
+    if (!sourceVisitsByStudentID) return new Set<string>();
+    return new Set(
+      students
+        .filter((student) => {
+          const visit = sourceVisitsByStudentID.get(String(student.id));
+          return (
+            visit !== undefined &&
+            supervisedTargetGroupIds.has(visit.activeGroupId)
+          );
+        })
+        .map((student) => String(student.id)),
+    );
+  }, [
+    selectedTargetIsOwn,
+    showAllTargets,
+    sourceVisitsByStudentID,
+    students,
+    supervisedTargetGroupIds,
+    targetScope,
+    visibleStudentIds,
+  ]);
   // Prefer the server's authoritative count so the badge stays honest even
   // if pagination ever truncates the response. Fall back to length only
   // when pagination metadata is missing.
@@ -230,6 +285,15 @@ export function StudentsInRoomSection({
     }
   }, [targetActiveGroupId, targetOptions]);
 
+  useEffect(() => {
+    setSelectedStudentIds((current) => {
+      const filtered = new Set(
+        [...current].filter((studentId) => selectableStudentIds.has(studentId)),
+      );
+      return filtered.size === current.size ? current : filtered;
+    });
+  }, [selectableStudentIds]);
+
   const openInSearch = () => {
     const qs = new URLSearchParams({
       room_id: roomId,
@@ -244,22 +308,31 @@ export function StudentsInRoomSection({
   };
 
   const toggleStudentSelection = (studentId: string) => {
+    if (selectedStudentIds.has(studentId)) {
+      setSelectedStudentIds((current) => {
+        const next = new Set(current);
+        next.delete(studentId);
+        return next;
+      });
+      setBulkMoveState({ type: "idle" });
+      return;
+    }
+
     setSelectedStudentIds((current) => {
       const next = new Set(current);
-      if (next.has(studentId)) {
-        next.delete(studentId);
-      } else {
-        next.add(studentId);
-      }
+      next.add(studentId);
       return next;
     });
     setBulkMoveState({ type: "idle" });
   };
 
   const selectAllVisible = () => {
-    setSelectedStudentIds(
-      new Set(students.map((student) => String(student.id))),
-    );
+    setSelectedStudentIds(new Set(selectableStudentIds));
+    setBulkMoveState({ type: "idle" });
+  };
+
+  const changeTarget = (activeGroupId: string) => {
+    setTargetActiveGroupId(activeGroupId);
     setBulkMoveState({ type: "idle" });
   };
 
@@ -386,10 +459,7 @@ export function StudentsInRoomSection({
             state={bulkMoveState}
             onSelectAll={selectAllVisible}
             onClearSelection={clearSelection}
-            onTargetChange={(value) => {
-              setTargetActiveGroupId(value);
-              setBulkMoveState({ type: "idle" });
-            }}
+            onTargetChange={changeTarget}
             onMoveSelected={moveSelectedStudents}
           />
         ) : null}
@@ -399,6 +469,7 @@ export function StudentsInRoomSection({
           hasError={!!error}
           students={students}
           selectable={canBulkMove}
+          selectableStudentIds={selectableStudentIds}
           selectedStudentIds={selectedStudentIds}
           onToggleStudentSelection={toggleStudentSelection}
           router={router}
@@ -533,6 +604,7 @@ function BulkMoveToolbar({
           variant="outline"
           size="sm"
           onClick={allSelected ? onClearSelection : onSelectAll}
+          disabled={isMoving}
           className="h-8 shrink-0 rounded-full px-3 py-0 text-xs shadow-none"
         >
           {allSelected ? "Aufheben" : "Alle auswählen"}
@@ -605,6 +677,7 @@ interface StudentsInRoomBodyProps {
   readonly hasError: boolean;
   readonly students: readonly Student[];
   readonly selectable: boolean;
+  readonly selectableStudentIds: ReadonlySet<string>;
   readonly selectedStudentIds: ReadonlySet<string>;
   readonly onToggleStudentSelection: (studentId: string) => void;
   readonly router: ReturnType<typeof useTenantRouter>;
@@ -616,6 +689,7 @@ function StudentsInRoomBody({
   hasError,
   students,
   selectable,
+  selectableStudentIds,
   selectedStudentIds,
   onToggleStudentSelection,
   router,
@@ -670,7 +744,9 @@ function StudentsInRoomBody({
         <SelectableStudentRow
           key={student.id}
           student={student}
-          selectable={selectable}
+          selectable={
+            selectable && selectableStudentIds.has(String(student.id))
+          }
           isSelected={selectedStudentIds.has(String(student.id))}
           onToggleSelection={() => onToggleStudentSelection(String(student.id))}
           onOpen={() =>
