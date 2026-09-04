@@ -179,7 +179,11 @@ type TemplateStartTime struct {
 
 // ScheduleRepository defines operations for managing activity schedules
 type ScheduleRepository interface {
-	base.Repository[*Schedule]
+	Create(context.Context, *Schedule) error
+	FindByID(context.Context, any) (*Schedule, error)
+	Update(context.Context, *Schedule) error
+	Delete(context.Context, any) error
+	FindByGroupIDs(context.Context, []int64) ([]*Schedule, error)
 
 	// FindByGroupID finds all schedules for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Schedule, error)
@@ -203,7 +207,7 @@ type ScheduleRepository interface {
 	// (valid_until IS NULL) or end later than validUntil are capped to
 	// validUntil. Returns the number of rows changed. Used by the template
 	// split ("Dieser und alle folgenden", WP-B3).
-	CapValidUntil(ctx context.Context, activityGroupID int64, validUntil timezone.Date) (int64, error)
+	CapValidUntil(ctx context.Context, activityGroupID int64, validUntil string) (int64, error)
 }
 
 // SupervisorPlannedRepository defines operations for managing activity supervisors

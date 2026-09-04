@@ -77,6 +77,46 @@ func (e *recordingEngine) ListTargetStudentIDs(context.Context, []int64) (map[in
 	return map[int64][]int64{}, nil
 }
 
+func (e *recordingEngine) FindSchedule(context.Context, int64) (timetable.Schedule, error) {
+	e.calls++
+	return timetable.Schedule{}, nil
+}
+
+func (e *recordingEngine) ListSchedules(context.Context, timetable.ScheduleFilter) ([]timetable.Schedule, error) {
+	e.calls++
+	return []timetable.Schedule{}, nil
+}
+
+func (e *recordingEngine) FindTemplateStartTimes(context.Context, []int64) ([]timetable.TemplateStartTime, error) {
+	e.calls++
+	return []timetable.TemplateStartTime{}, nil
+}
+
+func (e *recordingEngine) CreateSchedule(context.Context, timetable.ScheduleInput) (timetable.Schedule, error) {
+	e.calls++
+	return timetable.Schedule{}, nil
+}
+
+func (e *recordingEngine) UpdateSchedule(context.Context, int64, timetable.ScheduleInput) (timetable.Schedule, error) {
+	e.calls++
+	return timetable.Schedule{}, nil
+}
+
+func (e *recordingEngine) DeleteSchedule(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) DeleteSchedulesByGroup(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) CapScheduleValidUntil(context.Context, int64, string) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
 	e.calls++
 	e.targets = targets

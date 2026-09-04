@@ -2,6 +2,7 @@ package timetable
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -15,6 +16,7 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 )
@@ -49,6 +51,25 @@ func testTimetableDataWithOfferingCallbacks(
 	}
 	boundRepos := repositories.NewFactory(db)
 	boundRepos.BindSchoolStructure(groups)
+	students, err := repositories.NewPeopleDirectory(db)
+	if err != nil {
+		panic(err)
+	}
+	boundRepos.BindTimetable(timetabletest.NewWithStudentDirectory(panicTestTB{}, db,
+		func(ctx context.Context) ([]timetabletest.TargetStudent, error) {
+			values, err := students.ListEnrolledStudents(ctx)
+			if err != nil {
+				return nil, err
+			}
+			result := make([]timetabletest.TargetStudent, 0, len(values))
+			for _, value := range values {
+				result = append(result, timetabletest.TargetStudent{
+					ID: value.ID, SchoolClass: value.SchoolClass, EducationGroupID: value.GroupID,
+					EnrolledUntil: value.EnrolledUntil,
+				})
+			}
+			return result, nil
+		}))
 	activityInstanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	supervisorRepo := activeRepo.NewGroupSupervisorRepository(db)
 	var today func() timezone.Date
@@ -62,7 +83,7 @@ func testTimetableDataWithOfferingCallbacks(
 		InstanceStudentRepo:   boundRepos.InstanceStudent,
 		ActivityInstanceRepo:  activityInstanceRepo,
 		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(db),
-		ActivityScheduleRepo:  activitiesRepo.NewScheduleRepository(db),
+		ActivityScheduleRepo:  boundRepos.ActivitySchedule,
 		InstanceStaffRepo:     scheduleRepo.NewInstanceStaffRepository(db),
 		StaffShiftRepo:        scheduleRepo.NewStaffShiftRepository(db),
 		StaffRepo:             boundRepos.Staff,
@@ -106,3 +127,8 @@ func testTimetableDataWithOfferingCallbacks(
 	}
 	return scheduleSvc.NewTimetableDataService(deps)
 }
+
+type panicTestTB struct{}
+
+func (panicTestTB) Helper()                           {}
+func (panicTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }

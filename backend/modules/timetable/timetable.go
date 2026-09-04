@@ -34,6 +34,9 @@ var (
 	ErrInvalidGroup              = errors.New("invalid activity group")
 	ErrInvalidGroupQuery         = errors.New("invalid activity group query")
 	ErrInvalidGroupTarget        = errors.New("invalid activity group target")
+	ErrScheduleNotFound          = errors.New("activity schedule not found")
+	ErrInvalidSchedule           = errors.New("invalid activity schedule")
+	ErrInvalidScheduleQuery      = errors.New("invalid activity schedule query")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -110,7 +113,27 @@ type CareExitEnrollmentRemoval struct {
 	PreviousValidUntil *string
 }
 
+type ScheduleQuery interface {
+	FindSchedule(context.Context, int64) (Schedule, error)
+	ListSchedules(context.Context, ScheduleFilter) ([]Schedule, error)
+	FindTemplateStartTimes(context.Context, []int64) ([]TemplateStartTime, error)
+}
+
+type ScheduleCommand interface {
+	CreateSchedule(context.Context, ScheduleInput) (Schedule, error)
+	UpdateSchedule(context.Context, int64, ScheduleInput) (Schedule, error)
+	DeleteSchedule(context.Context, int64) error
+	DeleteSchedulesByGroup(context.Context, int64) error
+	CapScheduleValidUntil(context.Context, int64, string) (int64, error)
+}
+
+type ScheduleCapability interface {
+	ScheduleQuery
+	ScheduleCommand
+}
+
 type Query interface {
+	ScheduleQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
@@ -125,6 +148,7 @@ type Query interface {
 }
 
 type Command interface {
+	ScheduleCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -234,6 +258,56 @@ func (m *Module) ListTargetStudentIDs(ctx context.Context, groupIDs []int64) (ma
 		return nil, m.reject("list_target_student_ids", ErrInvalidGroupQuery)
 	}
 	return m.engine.ListTargetStudentIDs(ctx, groupIDs)
+}
+
+func (m *Module) FindSchedule(ctx context.Context, id int64) (Schedule, error) {
+	if id <= 0 {
+		return Schedule{}, m.reject("find_schedule", ErrInvalidScheduleQuery)
+	}
+	return m.engine.FindSchedule(ctx, id)
+}
+
+func (m *Module) ListSchedules(ctx context.Context, filter ScheduleFilter) ([]Schedule, error) {
+	return m.engine.ListSchedules(ctx, filter)
+}
+
+func (m *Module) FindTemplateStartTimes(ctx context.Context, groupIDs []int64) ([]TemplateStartTime, error) {
+	return m.engine.FindTemplateStartTimes(ctx, groupIDs)
+}
+
+func (m *Module) CreateSchedule(ctx context.Context, input ScheduleInput) (Schedule, error) {
+	if !normalizeSchedule(&input) {
+		return Schedule{}, m.reject("create_schedule", ErrInvalidSchedule)
+	}
+	return m.engine.CreateSchedule(ctx, input)
+}
+
+func (m *Module) UpdateSchedule(ctx context.Context, id int64, input ScheduleInput) (Schedule, error) {
+	if id <= 0 || !normalizeSchedule(&input) {
+		return Schedule{}, m.reject("update_schedule", ErrInvalidSchedule)
+	}
+	return m.engine.UpdateSchedule(ctx, id, input)
+}
+
+func (m *Module) DeleteSchedule(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_schedule", ErrInvalidSchedule)
+	}
+	return m.engine.DeleteSchedule(ctx, id)
+}
+
+func (m *Module) DeleteSchedulesByGroup(ctx context.Context, groupID int64) error {
+	if groupID <= 0 {
+		return m.reject("delete_schedules_by_group", ErrInvalidSchedule)
+	}
+	return m.engine.DeleteSchedulesByGroup(ctx, groupID)
+}
+
+func (m *Module) CapScheduleValidUntil(ctx context.Context, groupID int64, validUntil string) (int64, error) {
+	if groupID <= 0 || !validDate(validUntil) {
+		return 0, m.reject("cap_schedule_valid_until", ErrInvalidSchedule)
+	}
+	return m.engine.CapScheduleValidUntil(ctx, groupID, validUntil)
 }
 
 func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {
@@ -408,6 +482,16 @@ func hasInvalidID(ids []int64) bool {
 func validDate(value string) bool {
 	_, err := time.Parse(time.DateOnly, value)
 	return err == nil
+}
+
+func validWeekday(value int) bool { return value >= WeekdayMonday && value <= WeekdaySunday }
+
+func normalizeSchedule(input *ScheduleInput) bool {
+	if input.ActivityGroupID <= 0 || !validWeekday(input.Weekday) {
+		return false
+	}
+	return (input.ValidFrom == nil || validDate(*input.ValidFrom)) &&
+		(input.ValidUntil == nil || validDate(*input.ValidUntil))
 }
 
 func invalidCareExitRemovals(removals []CareExitEnrollmentRemoval) bool {
@@ -637,6 +721,12 @@ func ErrorCode(err error) string {
 		return "invalid_group_query"
 	case errors.Is(err, ErrInvalidGroupTarget):
 		return "invalid_group_target"
+	case errors.Is(err, ErrScheduleNotFound):
+		return "schedule_not_found"
+	case errors.Is(err, ErrInvalidSchedule):
+		return "invalid_schedule"
+	case errors.Is(err, ErrInvalidScheduleQuery):
+		return "invalid_schedule_query"
 	default:
 		return "internal_error"
 	}

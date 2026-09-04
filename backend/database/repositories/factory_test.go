@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,6 +71,8 @@ func TestNewFactory(t *testing.T) {
 	t.Run("activities repositories", func(t *testing.T) {
 		assert.NotNil(t, factory.ActivityGroup)
 		assert.NotNil(t, factory.ActivityCategory)
+		assert.Nil(t, factory.ActivitySchedule, "schedule persistence requires the timetable owner binding")
+		factory.BindTimetable(timetabletest.New(t, db))
 		assert.NotNil(t, factory.ActivitySchedule)
 		assert.NotNil(t, factory.ActivitySupervisor)
 		assert.NotNil(t, factory.StudentEnrollment)

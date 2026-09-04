@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -33,7 +32,7 @@ func timetableDataWithArrivalBaseline(
 		InstanceStudentRepo:   scheduleRepo.NewInstanceStudentRepository(env.db),
 		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(env.db),
 		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(env.db),
-		ActivityScheduleRepo:  activitiesRepo.NewScheduleRepository(env.db),
+		ActivityScheduleRepo:  env.repos.ActivitySchedule,
 		ArrivalScheduleRepo:   env.repos.StudentArrivalSchedule,
 		ArrivalBaselines:      bookingModeArrivalBaseline(t, env, authoritative),
 		ArrivalExceptionRepo:  env.repos.StudentArrivalException,

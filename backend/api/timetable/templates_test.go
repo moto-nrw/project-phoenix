@@ -25,6 +25,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -35,16 +36,18 @@ import (
 )
 
 type templateSetup struct {
-	res       *Resource
-	db        *bun.DB
-	ctx       context.Context
-	roomID    int64
-	category  *activitiesModel.Category
-	staffA    int64
-	staffB    int64
-	studentA  int64
-	studentB  int64
-	cleanupFn func()
+	res         *Resource
+	schedules   activitiesModel.ScheduleRepository
+	enrollments activitiesModel.StudentEnrollmentRepository
+	db          *bun.DB
+	ctx         context.Context
+	roomID      int64
+	category    *activitiesModel.Category
+	staffA      int64
+	staffB      int64
+	studentA    int64
+	studentB    int64
+	cleanupFn   func()
 }
 
 func listTimeframesByDescription(
@@ -126,6 +129,7 @@ func buildTemplateModule(t *testing.T, mat scheduleSvc.MaterializationService, c
 	studentA := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentA-%d", suffix), "3a")
 	studentB := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentB-%d", suffix), "3a")
 	repoFactory := repositories.NewFactory(db)
+	repoFactory.BindTimetable(timetabletest.New(t, db))
 
 	res := NewResource(Dependencies{
 		TimetableData: testTimetableData(db, clocks...),
@@ -151,16 +155,18 @@ func buildTemplateModule(t *testing.T, mat scheduleSvc.MaterializationService, c
 	}
 
 	return &templateSetup{
-		res:       res,
-		db:        db,
-		ctx:       ctx,
-		roomID:    room.ID,
-		category:  category,
-		staffA:    staffA.ID,
-		staffB:    staffB.ID,
-		studentA:  studentA.ID,
-		studentB:  studentB.ID,
-		cleanupFn: cleanup,
+		res:         res,
+		schedules:   repoFactory.ActivitySchedule,
+		enrollments: repoFactory.StudentEnrollment,
+		db:          db,
+		ctx:         ctx,
+		roomID:      room.ID,
+		category:    category,
+		staffA:      staffA.ID,
+		staffB:      staffB.ID,
+		studentA:    studentA.ID,
+		studentB:    studentB.ID,
+		cleanupFn:   cleanup,
 	}
 }
 

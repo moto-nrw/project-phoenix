@@ -33,7 +33,7 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := tenant.WithTenantID(testpkg.Ctx(t), tenantID)
-	repos := repositories.NewFactory(db)
+	repos := testRepositories(t, db)
 
 	phase := &enrollmentModels.Phase{
 		Name:             fmt.Sprintf("calendar-period-validation-%d", time.Now().UnixNano()),
@@ -113,7 +113,7 @@ func (f *calendarPeriodValidationFixture) createLinkedTemplate(
 		CalendarPeriodID: templatePeriodID,
 	}
 	group.SetTenantID(f.tenantID)
-	repos := repositories.NewFactory(f.db)
+	repos := testRepositories(t, f.db)
 	require.NoError(t, repos.ActivityGroup.Create(f.ctx, group))
 	timeframe := testpkg.CreateTestTimeframeForTenant(
 		t,
@@ -246,11 +246,11 @@ func TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap(t *tes
 	period := fixture.createPeriod(t, "care-period-cycle-change")
 	group, _ := fixture.createLinkedTemplate(t, &period.ID, nil)
 
-	schedules, err := repositories.NewFactory(fixture.db).ActivitySchedule.FindByGroupID(fixture.ctx, group.ID)
+	schedules, err := testActivityScheduleRepository(t, fixture.db).FindByGroupID(fixture.ctx, group.ID)
 	require.NoError(t, err)
 	require.Len(t, schedules, 1)
 	schedules[0].WeekPattern = 1
-	require.NoError(t, repositories.NewFactory(fixture.db).ActivitySchedule.Update(fixture.ctx, schedules[0]))
+	require.NoError(t, testActivityScheduleRepository(t, fixture.db).Update(fixture.ctx, schedules[0]))
 
 	replacement := *period
 	anchor := timezone.NewDate(2026, time.August, 31) // Monday, week A
@@ -286,7 +286,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDe
 	rootPeriod := fixture.createPeriod(t, "care-period-linked-root")
 	successorPeriod := fixture.createPeriod(t, "care-period-linked-successor")
 	root, _ := fixture.createLinkedTemplate(t, &rootPeriod.ID, nil)
-	repos := repositories.NewFactory(fixture.db)
+	repos := testRepositories(t, fixture.db)
 
 	rootSchedules, err := repos.ActivitySchedule.FindByGroupID(fixture.ctx, root.ID)
 	require.NoError(t, err)

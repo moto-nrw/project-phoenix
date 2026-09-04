@@ -30,6 +30,14 @@ type Store interface {
 	UpdateGroupOfferingSource(context.Context, int64, domain.OfferingSourceFields) (domain.OperationStats, error)
 	ListGroupTargets(context.Context, []int64) (map[int64][]domain.GroupTarget, domain.OperationStats, error)
 	ReplaceGroupTargets(context.Context, int64, []domain.GroupTargetFields) (domain.OperationStats, error)
+	FindSchedule(context.Context, int64) (domain.Schedule, bool, domain.OperationStats, error)
+	ListSchedules(context.Context, domain.ScheduleFilter) ([]domain.Schedule, domain.OperationStats, error)
+	FindTemplateStartTimes(context.Context, []int64) ([]domain.TemplateStartTime, domain.OperationStats, error)
+	CreateSchedule(context.Context, domain.ScheduleFields) (domain.Schedule, domain.OperationStats, error)
+	UpdateSchedule(context.Context, int64, domain.ScheduleFields) (domain.Schedule, bool, domain.OperationStats, error)
+	DeleteSchedule(context.Context, int64) (domain.OperationStats, error)
+	DeleteSchedulesByGroup(context.Context, int64) (domain.OperationStats, error)
+	CapScheduleValidUntil(context.Context, int64, string) (int64, domain.OperationStats, error)
 }
 
 type Transaction interface {

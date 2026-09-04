@@ -96,6 +96,7 @@ var queryBudgets = map[string]queryBudget{
 	// modules/timetable — group and target lookups stay one bulk query as IDs grow.
 	"modules.timetable.groups.list":          {max: 1, exact: true},
 	"modules.timetable.group_targets.list":   {max: 1, exact: true},
+	"modules.timetable.schedules.list":       {max: 1, exact: true},
 	"modules.timetable.target_students.list": {max: 1, exact: true},
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},

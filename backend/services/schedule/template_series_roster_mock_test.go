@@ -58,6 +58,17 @@ func (r *seriesMockScheduleRepo) FindByGroupID(_ context.Context, groupID int64)
 	return r.byGroup[groupID], nil
 }
 
+func (r *seriesMockScheduleRepo) FindByGroupIDs(_ context.Context, groupIDs []int64) ([]*activitiesModel.Schedule, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	var schedules []*activitiesModel.Schedule
+	for _, groupID := range groupIDs {
+		schedules = append(schedules, r.byGroup[groupID]...)
+	}
+	return schedules, nil
+}
+
 type seriesMockEnrollmentRepo struct {
 	activitiesModel.StudentEnrollmentRepository
 	rows      []*activitiesModel.StudentEnrollment

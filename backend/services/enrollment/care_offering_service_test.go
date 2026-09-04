@@ -12,6 +12,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,6 +20,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+func bindTestTimetable(t *testing.T, factory *repositories.Factory, db *bun.DB) {
+	t.Helper()
+	factory.BindTimetable(timetabletest.New(t, db))
+}
+
+func testRepositories(t *testing.T, db *bun.DB) *repositories.Factory {
+	t.Helper()
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
+	require.NoError(t, err)
+	return factory
+}
+
+func testActivityScheduleRepository(t *testing.T, db *bun.DB) activitiesModels.ScheduleRepository {
+	t.Helper()
+	return testRepositories(t, db).ActivitySchedule
+}
 
 // setupCareTest wires a real DB-backed CareOfferingService and creates a
 // phase the offerings can FK against. Phase model replaced calendar
@@ -31,6 +49,7 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 	// still open instead of leaking into subsequent package tests.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(db)
+	bindTestTimetable(t, repoFactory, db)
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
 		Repo:                     repoFactory.CareOffering,
 		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
@@ -121,7 +140,7 @@ func createCareOfferingTemplateSchedule(t *testing.T, db *bun.DB, groupID int64,
 		CalendarPeriodID: periodID,
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
+	require.NoError(t, testActivityScheduleRepository(t, db).Create(testpkg.Ctx(t), schedule))
 }
 
 func baseLinkedOffering(t *testing.T, phaseID int64, groupID int64) *enrollmentModels.CareOffering {
@@ -238,7 +257,7 @@ func TestCareOfferingService_MutationsAcquireTemplateRecurrenceGate(t *testing.T
 
 	db, _, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	repos := repositories.NewFactory(db)
+	repos := testRepositories(t, db)
 	lockCalls := 0
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
 		Repo:                     repos.CareOffering,
@@ -407,7 +426,7 @@ func TestCareOfferingService_Create_RejectsIncompatibleSplitSeriesSegment(t *tes
 		timezone.NewDate(2027, 8, 31))
 	root := createCareOfferingTemplateGroup(t, db, "care-series-root")
 	root.CalendarPeriodID = &rootPeriod.ID
-	repos := repositories.NewFactory(db)
+	repos := testRepositories(t, db)
 	require.NoError(t, repos.ActivityGroup.Update(ctx, root))
 	successor := createCareOfferingTemplateGroup(t, db, "care-series-successor")
 	successor.SeriesRootID = &root.ID
@@ -443,7 +462,7 @@ func TestCareOfferingService_Create_RejectsTemplateOutsidePhaseWindow(t *testing
 		timezone.NewDate(2028, 8, 31))
 	group := createCareOfferingTemplateGroup(t, db, "care-no-overlap-template")
 	group.CalendarPeriodID = &period.ID
-	repos := repositories.NewFactory(db)
+	repos := testRepositories(t, db)
 	require.NoError(t, repos.ActivityGroup.Update(ctx, group))
 	startsAfterPhase := phase.ServiceEndDate.AddDays(1)
 	schedule := &activitiesModels.Schedule{
@@ -502,7 +521,7 @@ func TestCareOfferingService_Create_RequiresEveryABWeekOccurrence(t *testing.T) 
 		WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
-	repos := repositories.NewFactory(db)
+	repos := testRepositories(t, db)
 	require.NoError(t, repos.CalendarPeriod.Create(testpkg.Ctx(t), period))
 	group := createCareOfferingTemplateGroup(t, db, "care-ab-template")
 	weekATimeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "Care AB A")
@@ -550,7 +569,7 @@ func TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries(t *testin
 		CalendarPeriodID: &period.ID, TimeframeID: &timeframe.ID, ValidFrom: &validFrom, ValidUntil: &validUntil,
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
+	require.NoError(t, testActivityScheduleRepository(t, db).Create(testpkg.Ctx(t), schedule))
 
 	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err)

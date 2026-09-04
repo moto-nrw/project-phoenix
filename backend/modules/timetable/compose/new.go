@@ -172,6 +172,58 @@ func (e engine) ListTargetStudentIDs(ctx context.Context, ids []int64) (map[int6
 	return result, mapError(err)
 }
 
+func (e engine) FindSchedule(ctx context.Context, id int64) (timetable.Schedule, error) {
+	value, err := e.service.FindSchedule(ctx, id)
+	return scheduleToPublic(value), mapError(err)
+}
+
+func (e engine) ListSchedules(ctx context.Context, filter timetable.ScheduleFilter) ([]timetable.Schedule, error) {
+	values, err := e.service.ListSchedules(ctx, domain.ScheduleFilter{GroupIDs: filter.GroupIDs, Weekday: filter.Weekday})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.Schedule, 0, len(values))
+	for _, value := range values {
+		result = append(result, scheduleToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) FindTemplateStartTimes(ctx context.Context, groupIDs []int64) ([]timetable.TemplateStartTime, error) {
+	values, err := e.service.FindTemplateStartTimes(ctx, groupIDs)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.TemplateStartTime, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.TemplateStartTime(value))
+	}
+	return result, nil
+}
+
+func (e engine) CreateSchedule(ctx context.Context, input timetable.ScheduleInput) (timetable.Schedule, error) {
+	value, err := e.service.CreateSchedule(ctx, scheduleFields(input))
+	return scheduleToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateSchedule(ctx context.Context, id int64, input timetable.ScheduleInput) (timetable.Schedule, error) {
+	value, err := e.service.UpdateSchedule(ctx, id, scheduleFields(input))
+	return scheduleToPublic(value), mapError(err)
+}
+
+func (e engine) DeleteSchedule(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteSchedule(ctx, id))
+}
+
+func (e engine) DeleteSchedulesByGroup(ctx context.Context, groupID int64) error {
+	return mapError(e.service.DeleteSchedulesByGroup(ctx, groupID))
+}
+
+func (e engine) CapScheduleValidUntil(ctx context.Context, groupID int64, validUntil string) (int64, error) {
+	rows, err := e.service.CapScheduleValidUntil(ctx, groupID, validUntil)
+	return rows, mapError(err)
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -360,6 +412,23 @@ func groupTargetToPublic(value domain.GroupTarget) timetable.GroupTarget {
 	}
 }
 
+func scheduleToPublic(value domain.Schedule) timetable.Schedule {
+	return timetable.Schedule{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Weekday: value.Weekday, TimeframeID: value.TimeframeID, ActivityGroupID: value.ActivityGroupID,
+		WeekPattern: value.WeekPattern, CalendarPeriodID: value.CalendarPeriodID,
+		ValidUntil: value.ValidUntil, ValidFrom: value.ValidFrom,
+	}
+}
+
+func scheduleFields(value timetable.ScheduleInput) domain.ScheduleFields {
+	return domain.ScheduleFields{
+		Weekday: value.Weekday, TimeframeID: value.TimeframeID, ActivityGroupID: value.ActivityGroupID,
+		WeekPattern: value.WeekPattern, CalendarPeriodID: value.CalendarPeriodID,
+		ValidUntil: value.ValidUntil, ValidFrom: value.ValidFrom,
+	}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -376,6 +445,8 @@ func mapError(err error) error {
 		return timetable.ErrCategoryArchived
 	case errors.Is(err, domain.ErrGroupNotFound):
 		return timetable.ErrGroupNotFound
+	case errors.Is(err, domain.ErrScheduleNotFound):
+		return timetable.ErrScheduleNotFound
 	default:
 		return err
 	}

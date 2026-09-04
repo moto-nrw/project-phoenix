@@ -304,9 +304,16 @@ func (r *templateEndUnitScheduleRepo) FindByGroupID(_ context.Context, _ int64) 
 	return r.schedules, nil
 }
 
-func (r *templateEndUnitScheduleRepo) CapValidUntil(_ context.Context, groupID int64, validUntil timezone.Date) (int64, error) {
+func (r *templateEndUnitScheduleRepo) FindByGroupIDs(_ context.Context, _ []int64) ([]*activitiesModel.Schedule, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	return r.schedules, nil
+}
+
+func (r *templateEndUnitScheduleRepo) CapValidUntil(_ context.Context, groupID int64, validUntil string) (int64, error) {
 	r.groupID = groupID
-	r.validUntil = validUntil
+	r.validUntil = timezone.Date(validUntil)
 	if r.err != nil {
 		return 0, r.err
 	}

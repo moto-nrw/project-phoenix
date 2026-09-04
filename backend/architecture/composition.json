@@ -1286,21 +1286,11 @@
     },
     {
       "scope": "test",
-      "file": "api/timetable/templates_split_test.go",
-      "declaration": "attachSplitServiceWithValidator",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        53
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/timetable/templates_test.go",
       "declaration": "TestGetTemplateExposesProtectedStudentWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1142
+        1148
       ],
       "tables": []
     },
@@ -1310,8 +1300,8 @@
       "declaration": "TestTemplateList_IncludesShiftTypeBadge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1939,
-        1940
+        1945,
+        1946
       ],
       "tables": []
     },
@@ -1321,8 +1311,8 @@
       "declaration": "TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        995,
-        1003
+        1001,
+        1009
       ],
       "tables": [
         "activities.student_enrollments",
@@ -1335,7 +1325,7 @@
       "declaration": "buildTemplateModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        118
+        121
       ],
       "tables": []
     },
@@ -1345,7 +1335,7 @@
       "declaration": "buildTemplateModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        128
+        131
       ],
       "tables": []
     },
@@ -1355,7 +1345,7 @@
       "declaration": "createCapacityEnrollment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1738
+        1744
       ],
       "tables": []
     },
@@ -1365,7 +1355,7 @@
       "declaration": "testTimetableDataWithOfferingCallbacks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        50
+        52
       ],
       "tables": []
     },
@@ -3261,140 +3251,10 @@
     {
       "scope": "test",
       "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_Create",
+      "declaration": "scheduleRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        51
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_Create_WithNil",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        90
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        168
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_Delete_NonExistent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        289
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_FindByGroupID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        212
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        105
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_FindByWeekday",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        249
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_FindTemplateStartTimesByGroupIDs_AmbiguousWeekday",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        393
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_FindTemplateStartTimesByGroupIDs_EmptyInput",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        380
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_FindTemplateStartTimesByGroupIDs_ReturnsTimes",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        332
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_FindTemplateStartTimesByGroupIDs_TenantScoped",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        421
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        193
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        130
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/schedule_repository_test.go",
-      "declaration": "TestScheduleRepository_Update_WithNil",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        153
+        45
       ],
       "tables": []
     },
@@ -5817,7 +5677,7 @@
       "declaration": "TestNewFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        17
+        18
       ],
       "tables": []
     },
@@ -10517,37 +10377,6 @@
     {
       "scope": "test",
       "file": "services/enrollment/care_offering_calendar_period_test.go",
-      "declaration": "TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDelete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        289
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_calendar_period_test.go",
-      "declaration": "TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        249,
-        253
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_calendar_period_test.go",
-      "declaration": "calendarPeriodValidationFixture.createLinkedTemplate",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        116
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_calendar_period_test.go",
       "declaration": "calendarPeriodValidationFixture.createPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -10570,61 +10399,10 @@
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_calendar_period_test.go",
-      "declaration": "newCalendarPeriodValidationFixture",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        36
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
-      "declaration": "TestCareOfferingMaterializability_CancellationCannotFabricateRecurrence",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        173
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
-      "declaration": "TestCareOfferingMaterializability_CancellationDoesNotRequireRoom",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        396
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
-      "declaration": "TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        133
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
-      "declaration": "TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        252
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/enrollment/care_offering_materializability_test.go",
       "declaration": "TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        85,
         112
       ],
       "tables": []
@@ -10642,30 +10420,10 @@
     {
       "scope": "test",
       "file": "services/enrollment/care_offering_materializability_test.go",
-      "declaration": "TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        203
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
       "declaration": "createCareMaterializationException",
       "target": "database/repositories.NewFactory",
       "lines": [
         68
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
-      "declaration": "createCareMaterializationSchedule",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        36
       ],
       "tables": []
     },
@@ -10685,7 +10443,7 @@
       "declaration": "TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        808
+        827
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -10698,7 +10456,7 @@
       "declaration": "TestCareOfferingService_Clone_RepointsToTargetPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        754
+        773
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -10711,7 +10469,7 @@
       "declaration": "TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        571
+        590
       ],
       "tables": []
     },
@@ -10721,8 +10479,7 @@
       "declaration": "TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        541,
-        553
+        560
       ],
       "tables": []
     },
@@ -10732,41 +10489,9 @@
       "declaration": "TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        482
+        501
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_Create_RejectsIncompatibleSplitSeriesSegment",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        410
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_Create_RejectsTemplateOutsidePhaseWindow",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        446
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_Create_RequiresEveryABWeekOccurrence",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        505
-      ],
-      "tables": [
-        "activities.schedules"
-      ]
     },
     {
       "scope": "test",
@@ -10774,17 +10499,7 @@
       "declaration": "TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        386
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_MutationsAcquireTemplateRecurrenceGate",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        241
+        405
       ],
       "tables": []
     },
@@ -10794,7 +10509,7 @@
       "declaration": "createCareOfferingTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        103
+        122
       ],
       "tables": [
         "activities.schedules"
@@ -10803,20 +10518,10 @@
     {
       "scope": "test",
       "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "createCareOfferingTemplateSchedule",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        124
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
       "declaration": "createCareOfferingTestPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        85
+        104
       ],
       "tables": []
     },
@@ -10826,7 +10531,7 @@
       "declaration": "setupCareTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        33
+        51
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -11015,31 +10720,11 @@
     },
     {
       "scope": "test",
-      "file": "services/enrollment/decision_companion_sync_test.go",
-      "declaration": "newCompanionSyncApplier",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        42
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/enrollment/decision_service_test.go",
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
         3883
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/decision_service_test.go",
-      "declaration": "newDecisionServiceForTestWithDependencies",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        132
       ],
       "tables": []
     },
@@ -11231,16 +10916,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         1324
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/offering_source_service_test.go",
-      "declaration": "createBoundedTemplateSchedule",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1466
       ],
       "tables": []
     },
@@ -11796,16 +11471,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         218
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/rollover_autoapprove_integration_test.go",
-      "declaration": "setupAutoApproveIntegrationEnvWithSettings",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        48
       ],
       "tables": []
     },
@@ -13804,8 +13469,8 @@
       "declaration": "TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        345,
-        435
+        347,
+        438
       ],
       "tables": []
     },
@@ -13815,8 +13480,8 @@
       "declaration": "TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead",
       "target": "database/repositories.NewFactory",
       "lines": [
-        88,
-        92
+        90,
+        94
       ],
       "tables": []
     },
@@ -13826,7 +13491,7 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport",
       "target": "database/repositories.NewFactory",
       "lines": [
-        294
+        296
       ],
       "tables": []
     },
@@ -13836,8 +13501,8 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        180,
-        210
+        182,
+        212
       ],
       "tables": [
         "users.staff"
@@ -13849,7 +13514,7 @@
       "declaration": "createOverviewShift",
       "target": "database/repositories.NewFactory",
       "lines": [
-        153
+        155
       ],
       "tables": []
     },
@@ -13859,7 +13524,7 @@
       "declaration": "createOverviewTenantFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        47
+        48
       ],
       "tables": []
     },

@@ -129,7 +129,7 @@ func newDecisionServiceForTestWithDependencies(
 	careWithdrawal enrollmentService.CareWithdrawalReconciler,
 	studentConsents enrollmentService.StudentConsentAuditor,
 ) enrollmentService.DecisionService {
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := env.repos
 	if careWithdrawal == nil {
 		careWithdrawal = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
 			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,

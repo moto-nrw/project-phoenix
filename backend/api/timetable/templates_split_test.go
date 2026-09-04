@@ -49,8 +49,8 @@ func attachSplitServiceWithValidator(
 	s.res.TemplateSplitService = scheduleSvc.NewTemplateSplitService(scheduleSvc.TemplateSplitDependencies{
 		GroupRepo:                  activitiesRepo.NewGroupRepository(s.db),
 		CategoryRepo:               activitiesRepo.NewCategoryRepository(s.db),
-		ScheduleRepo:               activitiesRepo.NewScheduleRepository(s.db),
-		EnrollmentRepo:             repositories.NewFactory(s.db).StudentEnrollment,
+		ScheduleRepo:               s.schedules,
+		EnrollmentRepo:             s.enrollments,
 		SupervisorRepo:             activitiesRepo.NewSupervisorPlannedRepository(s.db),
 		InstanceRepo:               scheduleRepo.NewActivityInstanceRepository(s.db),
 		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(s.db),
@@ -132,7 +132,7 @@ func createJahrgangSourceTemplate(
 
 func templateSchedules(t *testing.T, s *templateSetup, templateID int64) []*activitiesModel.Schedule {
 	t.Helper()
-	rows, err := activitiesRepo.NewScheduleRepository(s.db).FindByGroupID(s.ctx, templateID)
+	rows, err := s.schedules.FindByGroupID(s.ctx, templateID)
 	require.NoError(t, err)
 	return rows
 }

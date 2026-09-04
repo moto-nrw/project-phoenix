@@ -1463,7 +1463,7 @@ func createBoundedTemplateSchedule(
 		ValidUntil:       validUntil,
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(env.db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
+	require.NoError(t, testActivityScheduleRepository(t, env.db).Create(testpkg.Ctx(t), schedule))
 }
 
 // createSourcedTemplateSegment is createSourcedTemplate with an explicit

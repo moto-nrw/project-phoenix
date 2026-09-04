@@ -706,7 +706,7 @@ func (s *TemplateSplitService) capSplitSource(
 	supervisors []*activitiesModel.SupervisorPlanned,
 	sourceValidUntil *timezone.Date,
 ) error {
-	if _, err := s.deps.ScheduleRepo.CapValidUntil(ctx, groupID, effectiveDate); err != nil {
+	if _, err := s.deps.ScheduleRepo.CapValidUntil(ctx, groupID, effectiveDate.String()); err != nil {
 		return &ScheduleError{Op: "split template: cap schedules", Err: err}
 	}
 	if _, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, groupID, effectiveDate); err != nil {
@@ -817,7 +817,7 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 		return nil, err
 	}
 
-	cappedSchedules, err := s.deps.ScheduleRepo.CapValidUntil(ctx, old.ID, in.EffectiveDate)
+	cappedSchedules, err := s.deps.ScheduleRepo.CapValidUntil(ctx, old.ID, in.EffectiveDate.String())
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: cap schedules", Err: err}
 	}

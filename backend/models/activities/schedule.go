@@ -67,3 +67,27 @@ func (s *Schedule) Validate() error {
 func (s *Schedule) HasTimeframe() bool {
 	return s.TimeframeID != nil && *s.TimeframeID > 0
 }
+
+func (s *Schedule) ValidityDateStrings() (*string, *string) {
+	return scheduleDateString(s.ValidUntil), scheduleDateString(s.ValidFrom)
+}
+
+func (s *Schedule) SetValidityDateStrings(validUntil, validFrom *string) {
+	s.ValidUntil, s.ValidFrom = scheduleDate(validUntil), scheduleDate(validFrom)
+}
+
+func scheduleDateString(value *timezone.Date) *string {
+	if value == nil {
+		return nil
+	}
+	result := value.String()
+	return &result
+}
+
+func scheduleDate(value *string) *timezone.Date {
+	if value == nil {
+		return nil
+	}
+	result := timezone.Date(*value)
+	return &result
+}

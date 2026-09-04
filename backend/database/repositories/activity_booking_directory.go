@@ -82,4 +82,5 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 		timetable:            capability,
 		groups:               f.schoolStructure,
 	}
+	f.ActivitySchedule = timetableActivityScheduleRepository{timetable: capability}
 }
