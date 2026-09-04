@@ -24,7 +24,7 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -73,7 +73,7 @@ func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -103,7 +103,7 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -171,7 +171,7 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})

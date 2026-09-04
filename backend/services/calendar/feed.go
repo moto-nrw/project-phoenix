@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/ical"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
@@ -229,7 +228,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 		return "", "", ErrNotFound
 	}
 
-	var events []ical.Event
+	var events []CalendarEvent
 	err = tenant.WithTenantTx(ctx, s.cfg.DB, owner.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		person, err := s.cfg.PersonRepo.FindByAccountID(txCtx, owner.AccountID)
 		if err != nil {
@@ -258,7 +257,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 
 		from := timezone.TodayDate().AddDays(-feedPastDays)
 		to := timezone.TodayDate().AddDays(feedFutureDays)
-		appointments, err := s.cfg.AppointmentRepo.ListVisibleForStaff(txCtx, staff.ID, from, to)
+		appointments, err := s.listAppointmentsVisibleToStaff(txCtx, staff.ID, toCalendarDate(from), toCalendarDate(to))
 		if err != nil {
 			return err
 		}
@@ -266,7 +265,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 		for _, appointment := range appointments {
 			ids = append(ids, appointment.ID)
 		}
-		recurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, ids)
+		recurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, ids)
 		if err != nil {
 			return err
 		}
@@ -274,7 +273,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 		for _, recurrence := range recurrences {
 			recurrenceByID[recurrence.AppointmentID] = recurrence
 		}
-		cancelledOverrides, err := s.cfg.OverrideRepo.FindCancelledByAppointmentIDs(txCtx, ids)
+		cancelledOverrides, err := s.cfg.Appointments.FindCancelledOccurrenceOverrides(txCtx, ids)
 		if err != nil {
 			return err
 		}
@@ -295,7 +294,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 		}
 
 		tombstoneCutoff := timezone.TodayDate().AddDays(-feedTombstoneDays).BerlinMidnight()
-		tombstones, err := s.cfg.AppointmentRepo.ListCancellationTombstonesForStaff(txCtx, staff.ID, tombstoneCutoff)
+		tombstones, err := s.listStaffCancellationTombstones(txCtx, staff.ID, tombstoneCutoff)
 		if err != nil {
 			return err
 		}
@@ -305,7 +304,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 				tombstoneIDs = append(tombstoneIDs, appointment.ID)
 			}
 		}
-		tombstoneRecurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, tombstoneIDs)
+		tombstoneRecurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, tombstoneIDs)
 		if err != nil {
 			return err
 		}
@@ -363,7 +362,8 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 		}
 		return "", "", err
 	}
-	return "moto-kalender.ics", ical.Render("moto Termine", events), nil
+	content, err := s.renderCalendar(ctx, "moto Termine", events)
+	return "moto-kalender.ics", content, err
 }
 
 func staffFeedTombstoneEvent(tombstone *calModels.StaffFeedTombstone) Event {
@@ -380,33 +380,33 @@ func staffFeedTombstoneEvent(tombstone *calModels.StaffFeedTombstone) Event {
 	}
 }
 
-func staffCalendarICSEvent(tenantID int64, event Event) (ical.Event, error) {
+func staffCalendarICSEvent(tenantID int64, event Event) (CalendarEvent, error) {
 	startDate, err := timezone.ParseDate(event.StartDate)
 	if err != nil {
-		return ical.Event{}, fmt.Errorf("parse staff calendar start date: %w", err)
+		return CalendarEvent{}, fmt.Errorf("parse staff calendar start date: %w", err)
 	}
 	endDate, err := timezone.ParseDate(event.EndDate)
 	if err != nil {
-		return ical.Event{}, fmt.Errorf("parse staff calendar end date: %w", err)
+		return CalendarEvent{}, fmt.Errorf("parse staff calendar end date: %w", err)
 	}
 	startClock, err := staffCalendarClock(event.StartTime)
 	if err != nil {
-		return ical.Event{}, err
+		return CalendarEvent{}, err
 	}
 	endClock, err := staffCalendarClock(event.EndTime)
 	if err != nil {
-		return ical.Event{}, err
+		return CalendarEvent{}, err
 	}
 	location := ""
 	if event.Location != nil {
 		location = *event.Location
 	}
-	return ical.Event{
+	return CalendarEvent{
 		UID:          fmt.Sprintf("%s-%d@moto-app.de", strings.ReplaceAll(event.ID, ":", "-"), tenantID),
 		Summary:      event.Title,
 		Location:     location,
-		StartDate:    startDate,
-		EndDate:      endDate,
+		StartDate:    startDate.String(),
+		EndDate:      endDate.String(),
 		StartClock:   startClock,
 		EndClock:     endClock,
 		AllDay:       event.AllDay,
@@ -468,14 +468,14 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 	from := timezone.TodayDate().AddDays(-feedPastDays)
 	to := timezone.TodayDate().AddDays(feedFutureDays)
 
-	var events []ical.Event
+	var events []CalendarEvent
 	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
 		tenantID := tenantID
 		tenantChildren := tenantChildren
 		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
 			studentIDs := distinctChildStudentIDs(tenantChildren)
-			appointments, err := s.cfg.AppointmentRepo.ListVisibleForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, from, to)
+			appointments, err := s.listAppointmentsVisibleToGuardians(txCtx, guardianProfileIDs, studentIDs, toCalendarDate(from), toCalendarDate(to))
 			if err != nil {
 				return err
 			}
@@ -483,7 +483,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			for _, appointment := range appointments {
 				ids = append(ids, appointment.ID)
 			}
-			recurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, ids)
+			recurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, ids)
 			if err != nil {
 				return err
 			}
@@ -493,7 +493,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			}
 			// Cancelled single occurrences become EXDATEs so subscribers drop
 			// them from the RRULE expansion.
-			cancelledOverrides, err := s.cfg.OverrideRepo.FindCancelledByAppointmentIDs(txCtx, ids)
+			cancelledOverrides, err := s.cfg.Appointments.FindCancelledOccurrenceOverrides(txCtx, ids)
 			if err != nil {
 				return err
 			}
@@ -528,7 +528,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			// already emitted above (a recently-cancelled appointment still inside
 			// the date window) to avoid a duplicate UID in the feed.
 			tombstoneCutoff := timezone.TodayDate().AddDays(-feedTombstoneDays).BerlinMidnight()
-			tombstones, err := s.cfg.AppointmentRepo.ListCancellationTombstonesForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, tombstoneCutoff)
+			tombstones, err := s.listGuardianCancellationTombstones(txCtx, guardianProfileIDs, studentIDs, tombstoneCutoff)
 			if err != nil {
 				return err
 			}
@@ -539,7 +539,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 				}
 				tombstoneIDs = append(tombstoneIDs, appointment.ID)
 			}
-			tombstoneRecurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, tombstoneIDs)
+			tombstoneRecurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, tombstoneIDs)
 			if err != nil {
 				return err
 			}
@@ -559,7 +559,8 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 		}
 	}
 
-	return "moto-kalender.ics", ical.Render("moto Termine", events), nil
+	content, err := s.renderCalendar(ctx, "moto Termine", events)
+	return "moto-kalender.ics", content, err
 }
 
 func feedURLs(portalURL, token string) (string, string) {

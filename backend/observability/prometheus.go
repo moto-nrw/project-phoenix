@@ -277,6 +277,10 @@ var (
 		prometheus.CounterOpts{Name: "phoenix_people_directory_http_responses_total", Help: "People Directory HTTP responses by actual status class and stable code."},
 		[]string{"status_class", "code"},
 	)
+	guardianDirectoryHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_guardian_directory_http_responses_total", Help: "Guardian directory (/api/guardians) HTTP responses by actual status class and stable code."},
+		[]string{"status_class", "code"},
+	)
 	schoolStructureOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_school_structure_operations_total", Help: "School Structure operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -295,6 +299,94 @@ var (
 	)
 	schoolStructureStatementDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{Name: "phoenix_school_structure_statement_duration_seconds", Help: "Cumulative School Structure database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	facilitiesOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_facilities_operations_total", Help: "Facilities operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	facilitiesDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_facilities_operation_duration_seconds", Help: "Facilities operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	facilitiesQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_facilities_queries_total", Help: "Persistence queries issued by Facilities operations."},
+		[]string{"operation"},
+	)
+	facilitiesRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_facilities_rows_total", Help: "Rows returned or changed by Facilities operations."},
+		[]string{"operation"},
+	)
+	facilitiesStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_facilities_statement_duration_seconds", Help: "Cumulative Facilities database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	schoolCalendarOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_calendar_operations_total", Help: "School Calendar operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	schoolCalendarDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_calendar_operation_duration_seconds", Help: "School Calendar operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	schoolCalendarQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_calendar_queries_total", Help: "Persistence queries issued by School Calendar operations."},
+		[]string{"operation"},
+	)
+	schoolCalendarRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_calendar_rows_total", Help: "Rows returned or changed by School Calendar operations."},
+		[]string{"operation"},
+	)
+	schoolCalendarStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_calendar_statement_duration_seconds", Help: "Cumulative School Calendar database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	appointmentsOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_operations_total", Help: "Appointments operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	appointmentsDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_appointments_operation_duration_seconds", Help: "Appointments operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	appointmentsQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_queries_total", Help: "Persistence queries issued by Appointments operations."},
+		[]string{"operation"},
+	)
+	appointmentsRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_rows_total", Help: "Rows returned or changed by Appointments operations."},
+		[]string{"operation"},
+	)
+	appointmentsDuplicatePreventionConflicts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_duplicate_prevention_conflicts_total", Help: "Idempotent Appointments writes resolved by a database uniqueness conflict."},
+		[]string{"operation"},
+	)
+	appointmentsStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_appointments_statement_duration_seconds", Help: "Cumulative Appointments database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	carePlanOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_operations_total", Help: "Care Plan operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	carePlanDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_care_plan_operation_duration_seconds", Help: "Care Plan operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	carePlanQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_queries_total", Help: "Persistence queries issued by Care Plan operations."},
+		[]string{"operation"},
+	)
+	carePlanRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_rows_total", Help: "Rows returned or changed by Care Plan operations."},
+		[]string{"operation"},
+	)
+	carePlanDuplicateConflicts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_duplicate_conflicts_total", Help: "Duplicate writes prevented by Care Plan operations."},
+		[]string{"operation"},
+	)
+	carePlanStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_care_plan_statement_duration_seconds", Help: "Cumulative Care Plan database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
 	schoolMembershipOperations = prometheus.NewCounterVec(
@@ -550,11 +642,34 @@ func init() {
 		peopleDirectoryRowsChanged,
 		peopleDirectoryStatementDuration,
 		peopleDirectoryHTTPResponses,
+		guardianDirectoryHTTPResponses,
 		schoolStructureOperations,
 		schoolStructureDuration,
 		schoolStructureQueries,
 		schoolStructureRows,
 		schoolStructureStatementDuration,
+		facilitiesOperations,
+		facilitiesDuration,
+		facilitiesQueries,
+		facilitiesRows,
+		facilitiesStatementDuration,
+		schoolCalendarOperations,
+		schoolCalendarDuration,
+		schoolCalendarQueries,
+		schoolCalendarRows,
+		schoolCalendarStatementDuration,
+		appointmentsOperations,
+		appointmentsDuration,
+		appointmentsQueries,
+		appointmentsRows,
+		appointmentsDuplicatePreventionConflicts,
+		appointmentsStatementDuration,
+		carePlanOperations,
+		carePlanDuration,
+		carePlanQueries,
+		carePlanRows,
+		carePlanDuplicateConflicts,
+		carePlanStatementDuration,
 		schoolMembershipOperations,
 		schoolMembershipDuration,
 		schoolMembershipQueries,
@@ -730,6 +845,13 @@ func ObservePeopleDirectoryHTTPResponse(status int, code string) {
 	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
 }
 
+// ObserveGuardianDirectoryHTTPResponse counts one /api/guardians response by
+// the status class actually written and the stable outcome code (#2663).
+func ObserveGuardianDirectoryHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	guardianDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
 // ObserveSchoolMembershipOperation records the runtime evidence of one School
 // Membership capability call: outcome and stable code, duration, query
 // count, rows, and cumulative statement duration.
@@ -754,8 +876,9 @@ func ObserveSchoolMembershipOperation(operation string, duration time.Duration, 
 	}
 }
 
-// ObserveSchoolMembershipHTTPResponse counts one /api/staff membership
-// response by the status class actually written and the stable outcome code.
+// ObserveSchoolMembershipHTTPResponse counts one School Membership HTTP
+// adapter response (/api/staff membership routes, /api/class-list-entries)
+// by the status class actually written and the stable outcome code.
 func ObserveSchoolMembershipHTTPResponse(status int, code string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
 	schoolMembershipHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
@@ -779,6 +902,96 @@ func ObserveSchoolStructureOperation(operation string, duration time.Duration, q
 	}
 	if statementDuration > 0 {
 		schoolStructureStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveFacilitiesOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	facilitiesOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	facilitiesDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		facilitiesQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		facilitiesRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		facilitiesStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveSchoolCalendarOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	schoolCalendarOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolCalendarDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		schoolCalendarQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		schoolCalendarRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		schoolCalendarStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	appointmentsOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	appointmentsDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		appointmentsQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		appointmentsRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if duplicatePreventionConflicts > 0 {
+		appointmentsDuplicatePreventionConflicts.WithLabelValues(operation).Add(float64(duplicatePreventionConflicts))
+	}
+	if statementDuration > 0 {
+		appointmentsStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveCarePlanOperation(operation string, duration time.Duration, queries, rows, conflicts int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	carePlanOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	carePlanDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		carePlanQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		carePlanRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if conflicts > 0 {
+		carePlanDuplicateConflicts.WithLabelValues(operation).Add(float64(conflicts))
+	}
+	if statementDuration > 0 {
+		carePlanStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
 // systemSpace describes one lazily-bootstrapped system area (WC, Schulhof):

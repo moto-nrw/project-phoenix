@@ -36,9 +36,7 @@ func TestNewActiveGroupResponse_RoomColorPropagation(t *testing.T) {
 			RoomID:    10,
 			StartTime: now,
 			Room: &facilities.Room{
-				Model: modelBase.Model{ID: 10},
-				Name:  "Werkraum",
-				Color: &color,
+				ID: 10, Name: "Werkraum", Color: &color,
 			},
 		}
 
@@ -68,8 +66,7 @@ func TestNewActiveGroupResponse_RoomColorPropagation(t *testing.T) {
 			RoomID:    10,
 			StartTime: now,
 			Room: &facilities.Room{
-				Model: modelBase.Model{ID: 10},
-				Name:  "Bibliothek",
+				ID: 10, Name: "Bibliothek",
 			},
 		}
 

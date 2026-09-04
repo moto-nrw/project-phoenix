@@ -21,6 +21,27 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("ShellIntlProvider", () => {
+  it("stellt die Texte für die Küchenliste bereit", () => {
+    render(
+      <ShellIntlProvider>
+        <div>Inhalt</div>
+      </ShellIntlProvider>,
+    );
+
+    expect(intlProvider.messages).toMatchObject({
+      datePicker: {
+        previousMonth: "Vorheriger Monat",
+        nextMonth: "Nächster Monat",
+      },
+      mealParticipantList: {
+        title: "Tagesliste für die Küche",
+        child: "Kind",
+        class: "Klasse",
+        downloadPdf: "Tagesliste als PDF herunterladen",
+      },
+    });
+  });
+
   it("stellt die Texte für die Einwilligungen in den Schüler-Stammdaten bereit", () => {
     render(
       <ShellIntlProvider>

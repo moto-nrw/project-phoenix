@@ -666,6 +666,23 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 	return results, nil
 }
 
+// GetStudentsWithGroupsByTeacherStaffIDs retrieves the union of students
+// supervised by teachers belonging to any supplied staff ID.
+func (s *personService) GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]StudentWithGroup, error) {
+	if len(staffIDs) == 0 {
+		return []StudentWithGroup{}, nil
+	}
+	rows, err := s.StudentRepo.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)
+	if err != nil {
+		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
+	}
+	results := make([]StudentWithGroup, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, StudentWithGroup{Student: row.Student, GroupName: row.GroupName})
+	}
+	return results, nil
+}
+
 // ---------------------------------------------------------------------------
 // Staff write operations (issue #584: moved verbatim out of api/staff)
 // ---------------------------------------------------------------------------

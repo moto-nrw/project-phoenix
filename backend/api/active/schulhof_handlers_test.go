@@ -29,7 +29,7 @@ import (
 // mockSchulhofService implements facilities.SchulhofService for testing
 type mockSchulhofService struct {
 	getStatusFunc            func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error)
-	ensureInfrastructureFunc func(ctx context.Context, createdBy int64) (*activityModels.Group, error)
+	ensureInfrastructureFunc func(ctx context.Context, createdBy int64) (*facilities.SystemActivity, error)
 }
 
 func (m *mockSchulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
@@ -39,7 +39,7 @@ func (m *mockSchulhofService) GetSchulhofStatus(ctx context.Context, staffID int
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockSchulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*activityModels.Group, error) {
+func (m *mockSchulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*facilities.SystemActivity, error) {
 	if m.ensureInfrastructureFunc != nil {
 		return m.ensureInfrastructureFunc(ctx, createdBy)
 	}

@@ -35,21 +35,30 @@ type Resource struct {
 	UserContextService usercontextSvc.UserContextService
 	db                 *bun.DB
 	logger             *slog.Logger
+	// arrivalExceptions is the one write seam of moto schule (#2970); see
+	// arrival_exceptions.go. Nil leaves those routes answering 500.
+	arrivalExceptions enrollmentSvc.ClassDayArrivalExceptionService
 }
 
-// NewResource creates the class-day resource.
+// NewResource creates the class-day resource. Options add the optional
+// wiring (WithArrivalExceptions); without them those routes answer 500.
 func NewResource(
 	reportService enrollmentSvc.ReportService,
 	userContextService usercontextSvc.UserContextService,
 	db *bun.DB,
 	logger *slog.Logger,
+	opts ...Option,
 ) *Resource {
-	return &Resource{
+	rs := &Resource{
 		ReportService:      reportService,
 		UserContextService: userContextService,
 		db:                 db,
 		logger:             logger,
 	}
+	for _, opt := range opts {
+		opt(rs)
+	}
+	return rs
 }
 
 func (rs *Resource) getLogger() *slog.Logger {
@@ -72,13 +81,28 @@ func (rs *Resource) SchoolRouter() chi.Router {
 }
 
 func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
-	r.With(common.RequiresPermission(permissions.ClassDayRead), withTx).Get("/classes", rs.getMyClasses)
-	r.With(common.RequiresPermission(permissions.ClassDayRead), withTx).Get("/", rs.getClassDay)
+	read := common.RequiresPermission(permissions.ClassDayRead)
+	write := common.RequiresPermission(permissions.ClassDayArrivalExceptionWrite)
+
+	r.With(read, withTx).Get("/classes", rs.getMyClasses)
+	r.With(read, withTx).Get("/", rs.getClassDay)
+
+	// Class-wide arrival day exceptions (#2970): the list is readable with
+	// class_day:read, the writes and the preset lookup need the write
+	// permission plus the school's setting (checked in the handler).
+	r.With(read, withTx).Get("/arrival-exceptions", rs.getArrivalExceptions)
+	r.With(write, withTx).Get("/arrival-exceptions/block-start", rs.getArrivalExceptionBlockStart)
+	r.With(write, withTx).Put("/arrival-exceptions/{schoolClass}/{date}", rs.putArrivalException)
+	r.With(write, withTx).Delete("/arrival-exceptions/{schoolClass}/{date}", rs.deleteArrivalException)
 }
 
 // ClassesResponse lists the caller's assigned school classes.
 type ClassesResponse struct {
 	Classes []string `json:"classes"`
+	// CanWriteArrivalException is true when the caller holds
+	// class_day:arrival_exception_write AND the school opened moto schule
+	// for it (#2970); the class view shows its action only then.
+	CanWriteArrivalException bool `json:"can_write_arrival_exception"`
 }
 
 // getMyClasses returns the school classes assigned to the caller.
@@ -91,7 +115,15 @@ func (rs *Resource) getMyClasses(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, ClassesResponse{Classes: classes}, "Classes retrieved successfully")
+	resp := ClassesResponse{Classes: classes}
+	// Without the write seam the flag stays false instead of failing the
+	// list: the classes are the answer, the flag is an extra.
+	resp.CanWriteArrivalException, err = rs.canWriteArrivalException(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Classes retrieved successfully")
 }
 
 // resolveRequestedClass picks the class to show: the ?class= parameter when

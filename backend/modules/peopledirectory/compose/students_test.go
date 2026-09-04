@@ -42,6 +42,10 @@ func TestStudentDirectoryReadsClassesAndCohorts(t *testing.T) {
 	assert.Equal(t, first.PersonID, byID[0].PersonID)
 	assert.Equal(t, testpkg.Tenant(t), byID[0].TenantID)
 	assert.True(t, byID[1].IsAlumnus())
+	names, err := module.ListStudentNamesByID(ctx, []int64{first.ID, graduate.ID})
+	require.NoError(t, err)
+	require.Len(t, names, 2)
+	assert.Equal(t, peopledirectory.StudentName{StudentID: first.ID, FirstName: "Anna", LastName: "Directory"}, names[0])
 
 	classes, err := module.ListSchoolClasses(ctx)
 	require.NoError(t, err)
@@ -133,6 +137,9 @@ func TestStudentDirectoryTenantIsolation(t *testing.T) {
 	listed, err := module.ListStudentsByID(otherCtx, []int64{student.ID})
 	require.NoError(t, err)
 	assert.Empty(t, listed)
+	names, err := module.ListStudentNamesByID(otherCtx, []int64{student.ID})
+	require.NoError(t, err)
+	assert.Empty(t, names)
 
 	classes, err := module.ListSchoolClasses(otherCtx)
 	require.NoError(t, err)
@@ -156,6 +163,23 @@ func TestStudentDirectoryTenantIsolation(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+func TestStudentNamesExcludeSoftDeletedPeople(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Deleted", "Person", "2c")
+
+	_, err := db.NewUpdate().TableExpr(`users.persons`).
+		Set(`deleted_at = NOW()`).
+		Where(`id = ?`, student.PersonID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	names, err := module.ListStudentNamesByID(testpkg.Ctx(t), []int64{student.ID})
+	require.NoError(t, err)
+	assert.Empty(t, names)
 }
 
 func TestStudentDirectoryWritesRollBackWithOuterTransaction(t *testing.T) {

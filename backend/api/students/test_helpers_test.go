@@ -64,7 +64,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           svc.Users,
-		GuardianService:         svc.Guardian,
+		PeopleDirectory:         svc.PeopleDirectory,
 		GradeTransitionService:  svc.GradeTransition,
 		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
 		EducationService:        svc.Education,

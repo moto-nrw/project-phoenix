@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
@@ -68,9 +69,18 @@ type SessionCleanupRepositories struct {
 }
 
 func NewSessionCleanupRepositories(db *bun.DB) SessionCleanupRepositories {
+	group := activeRepo.NewGroupRepository(db)
+	visit := activeRepo.NewVisitRepository(db)
+	device := iotRepo.NewDeviceRepository(db)
+	rooms, err := NewFacilities(db)
+	if err != nil {
+		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
+	}
+	group.(*activeRepo.GroupRepository).BindRoomDirectory(activeRoomDirectory{rooms})
+	visit.(*activeRepo.VisitRepository).BindRoomDirectory(activeRoomDirectory{rooms})
+	device.(*iotRepo.DeviceRepository).BindRoomDirectory(iotRoomDirectory{rooms})
 	return SessionCleanupRepositories{
-		Group: activeRepo.NewGroupRepository(db), Visit: activeRepo.NewVisitRepository(db),
-		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Device: iotRepo.NewDeviceRepository(db),
+		Group: group, Visit: visit, Supervisor: activeRepo.NewGroupSupervisorRepository(db), Device: device,
 		TimetableBridge: scheduleRepo.NewActivityInstanceRepository(db),
 	}
 }

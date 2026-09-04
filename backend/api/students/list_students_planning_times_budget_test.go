@@ -1,16 +1,11 @@
 package students_test
 
 import (
-	"context"
 	"net/http"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,41 +25,6 @@ var planningTimesTables = []string{
 	"student_pickup_notes",
 }
 
-// planningTimesCounter buckets SELECTs by the schedule table they read.
-type planningTimesCounter struct {
-	mu      sync.Mutex
-	queries map[string][]string
-}
-
-func (c *planningTimesCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	query := strings.ToLower(event.Query)
-	if !strings.HasPrefix(strings.TrimSpace(query), "select") {
-		return ctx
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, table := range planningTimesTables {
-		if strings.Contains(query, table) {
-			c.queries[table] = append(c.queries[table], event.Query)
-		}
-	}
-	return ctx
-}
-
-func (*planningTimesCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
-
-func (c *planningTimesCounter) reset() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.queries = make(map[string][]string)
-}
-
-func (c *planningTimesCounter) captured(table string) []string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return append([]string(nil), c.queries[table]...)
-}
-
 // TestListStudentsPlanningTimesQueryBudget is the #2098 acceptance test: one
 // list request with include_pickup_times and include_arrival_times runs each
 // bulk effective-time SELECT exactly once. Before the fix the paginated
@@ -81,20 +41,16 @@ func TestListStudentsPlanningTimesQueryBudget(t *testing.T) {
 	testpkg.CreateTestStudent(t, tc.db, "TimesBudget", "KindA", "TB1")
 	testpkg.CreateTestStudent(t, tc.db, "TimesBudget", "KindB", "TB1")
 
-	counter := &planningTimesCounter{queries: make(map[string][]string)}
-	tc.db.AddQueryHook(counter)
-	counter.reset()
+	counter := testpkg.CaptureQueries(t, tc.db)
 
 	req := testutil.NewRequest("GET", "/?include_pickup_times=true&include_arrival_times=true&page_size=50", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
+	// Each bulk load must run exactly once per list request (#2098).
 	for _, table := range planningTimesTables {
-		queries := counter.captured(table)
+		queries := counter.Selects(table)
 		t.Logf("table %q: %d queries", table, len(queries))
-		for _, q := range queries {
-			t.Logf("  %s", q)
-		}
-		assert.Len(t, queries, 1, "bulk load of %s must run exactly once per list request (#2098)", table)
+		testpkg.AssertQueryBudget(t, "api.students.list.planning_times.per_table", queries)
 	}
 }

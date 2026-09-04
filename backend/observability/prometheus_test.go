@@ -134,6 +134,27 @@ func TestRecordUnitOfWorkEvidence(t *testing.T) {
 	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
 }
 
+func TestObserveCarePlanOperationRecordsDuplicateConflicts(t *testing.T) {
+	t.Parallel()
+	const operation = "record_care_exit_removals_test"
+	before := testutil.ToFloat64(carePlanDuplicateConflicts.WithLabelValues(operation))
+
+	ObserveCarePlanOperation(operation, time.Millisecond, 1, 0, 2, time.Millisecond, "none", nil)
+
+	assert.Equal(t, before+2, testutil.ToFloat64(carePlanDuplicateConflicts.WithLabelValues(operation)))
+}
+
+func TestObserveAppointmentsOperationRecordsDuplicatePreventionConflicts(t *testing.T) {
+	t.Parallel()
+	const operation = "cancel_appointment_occurrence"
+	before := testutil.ToFloat64(appointmentsDuplicatePreventionConflicts.WithLabelValues(operation))
+
+	ObserveAppointmentsOperation(operation, time.Millisecond, 1, 0, 1, time.Millisecond, "none", nil)
+
+	after := testutil.ToFloat64(appointmentsDuplicatePreventionConflicts.WithLabelValues(operation))
+	assert.Equal(t, before+1, after)
+}
+
 func TestFeedbackHTTPResponseUsesActualStatusClassAndStableCode(t *testing.T) {
 	t.Parallel()
 	badRequestBefore := testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("iot", "4xx", "invalid_parameters"))
@@ -211,6 +232,22 @@ func TestObserveSchoolStructureOperationRecordsRuntimeEvidence(t *testing.T) {
 	assert.Equal(t, successBefore+1, testutil.ToFloat64(schoolStructureOperations.WithLabelValues(operation, "success", "none")))
 	assert.Equal(t, errorBefore+1, testutil.ToFloat64(schoolStructureOperations.WithLabelValues(operation, "error", "internal_error")))
 	assert.Equal(t, statementBefore+1, testutil.CollectAndCount(schoolStructureStatementDuration))
+}
+
+func TestObserveFacilitiesOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const operation = "list_rooms_by_id"
+	successBefore := testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "success", "none"))
+	errorBefore := testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "error", "internal_error"))
+	statementBefore := testutil.CollectAndCount(facilitiesStatementDuration)
+
+	ObserveFacilitiesOperation(operation, time.Millisecond, 1, 4, 2*time.Millisecond, "none", nil)
+	ObserveFacilitiesOperation(operation, time.Millisecond, 1, 0, 0, "internal_error", assert.AnError)
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "error", "internal_error")))
+	assert.Equal(t, statementBefore+1, testutil.CollectAndCount(facilitiesStatementDuration))
 }
 
 func TestObserveAuditAppendRecordsRuntimeEvidence(t *testing.T) {
@@ -308,6 +345,15 @@ func TestObservePeopleDirectoryHTTPResponseUsesStatusClass(t *testing.T) {
 	ObservePeopleDirectoryHTTPResponse(404, "not_found")
 
 	assert.Equal(t, before+1, testutil.ToFloat64(peopleDirectoryHTTPResponses.WithLabelValues("4xx", "not_found")))
+}
+
+func TestObserveGuardianDirectoryHTTPResponseUsesStatusClass(t *testing.T) {
+	t.Parallel()
+	before := testutil.ToFloat64(guardianDirectoryHTTPResponses.WithLabelValues("4xx", "forbidden"))
+
+	ObserveGuardianDirectoryHTTPResponse(403, "forbidden")
+
+	assert.Equal(t, before+1, testutil.ToFloat64(guardianDirectoryHTTPResponses.WithLabelValues("4xx", "forbidden")))
 }
 
 func TestObserveSchoolMembershipOperationRecordsRuntimeEvidence(t *testing.T) {

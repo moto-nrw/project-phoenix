@@ -195,16 +195,16 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 	if err := s.validateDependencies(); err != nil {
 		return nil, err
 	}
+	ctx, err := s.prefetchSettings(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("resolve projection settings: %w", err)
+	}
 	groups, selected, err := s.resolveGroups(ctx, requestedGroupID, false)
 	if err != nil {
 		return nil, err
 	}
 	if selected == nil {
 		return EmptyProjection(), nil
-	}
-	ctx, err = s.prefetchSettings(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("resolve projection settings: %w", err)
 	}
 
 	state := &buildState{selected: selected, groups: groups, today: timezone.DateFromTime(s.deps.Now())}
@@ -251,6 +251,8 @@ func (s *service) prefetchSettings(ctx context.Context) (context.Context, error)
 		return ctx, nil
 	}
 	snapshot, err := batch.ResolveMany(ctx, []string{
+		configModel.KeyOperationalOverviewScope,
+		configModel.KeyPresenceMode,
 		configModel.KeyStudentPhotosEnabled,
 		configModel.KeyTrackingIndicatorsEnabled,
 		configModel.KeyTrackingIndicator1,

@@ -26,13 +26,17 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -172,6 +176,7 @@ type Factory struct {
 	StaffOffboarding          users.StaffOffboardingService
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
+	PeopleDirectory           peopledirectory.Capability
 	GuardianProfileLoader     *users.GuardianProfileLoader
 	UserContext               usercontext.UserContextService
 	Database                  database.DatabaseService
@@ -255,6 +260,7 @@ type Factory struct {
 	EnrollmentPhaseExpiry     enrollment.PhaseExpiryService
 	EnrollmentDecision        enrollment.DecisionService
 	EnrollmentReport          enrollment.ReportService
+	ClassDayArrivalExceptions enrollment.ClassDayArrivalExceptionService
 	EnrollmentRollover        enrollment.RolloverService
 	EnrollmentChangeRequest   enrollment.ChangeRequestService
 	EnrollmentDeletion        enrollment.EnrollmentDeletionService
@@ -312,7 +318,11 @@ func (f *Factory) SetSettingsObservers(
 	}
 }
 
-type MealPlanSettingsBinder func(func(context.Context) (bool, error))
+type MealPlanSettingsBinder func(
+	func(context.Context) (bool, error),
+	func(context.Context) (bool, error),
+	func(context.Context) (string, error),
+)
 
 type FeedbackSettingsBinder func(
 	func(context.Context) (bool, error),
@@ -421,7 +431,10 @@ func NewFactoryWithModules(
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
+	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
+	calendar schoolcalendar.Capability,
+	appointmentCapability appointments.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -431,10 +444,11 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || membership == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, school membership, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || appointmentCapability == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, appointments, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, membership, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	repos.BindAppointments(appointmentCapability)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -445,7 +459,9 @@ func newFactory(
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
+	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
+	calendar schoolcalendar.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -460,11 +476,11 @@ func newFactory(
 	today := timezone.CalendarDateClock(now)
 	// Persons first: the school projections sort by the names this binds.
 	repos.BindPeopleDirectory(persons)
-	careStudentLock, studentNotFound := repositories.CareStudentLock(persons)
-	schedule.BindCareStudentLockForDB(db, careStudentLock, studentNotFound)
 	repos.BindSchoolMembership(membership)
+	repos.BindSchoolCalendar(calendar)
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
+	repos.BindFacilities(rooms)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
 	settingsRuntime := newSettingsRuntime(db, nil).WithSchoolMembership(membership)
 	repos.SetConfigRuntime(settingsRuntime)
@@ -660,9 +676,17 @@ func newFactory(
 		logger,
 	)
 	if mealPlan != nil {
-		bindMealPlanSettings(func(ctx context.Context) (bool, error) {
-			return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
-		})
+		bindMealPlanSettings(
+			func(ctx context.Context) (bool, error) {
+				return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
+			},
+			func(ctx context.Context) (bool, error) {
+				return settingsService.ResolveBool(ctx, configModels.KeyMealRegistrationEnabled)
+			},
+			func(ctx context.Context) (string, error) {
+				return settingsService.ResolveString(ctx, configModels.KeyMealRegistrationCutoffTime)
+			},
+		)
 	}
 	if bindFeedbackSettings != nil {
 		bindFeedbackSettings(
@@ -815,7 +839,7 @@ func newFactory(
 
 	// Public holidays per Bundesland (#1418 3a): computed from the
 	// operations.federal_state setting, zero the Soll of their day.
-	holidayService := schedule.NewHolidayService(settingsService, logger.With("service", "holidays"))
+	holidayService := schedule.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: repos.SchoolCalendar()}, logger.With("service", "holidays"))
 	// Tenant closing days (#1418 3b) share the Soll=0 semantics of public
 	// holidays. The Soll consumers get the UNION of both via the composite
 	// reader; Factory.Holidays stays the plain holiday service so the
@@ -1155,27 +1179,39 @@ func newFactory(
 
 	// Initialize facilities service
 	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
-		RoomRepo:        repos.Room,
-		ActiveGroupRepo: repos.ActiveGroup,
-		PersonQuery:     newFacilitiesPersonQuery(persons),
-		LockTemplateRecurrence: func(ctx context.Context) error {
-			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		Rooms:     rooms,
+		Occupancy: facilitiesLegacy.OccupancyProjection(repos.ActiveGroup, repos.ActivityGroup, membership, persons),
+		History:   facilitiesLegacy.HistoryProjection(repos.ActiveGroup),
+		ValidateDeletion: func(ctx context.Context, roomID int64) error {
+			activeGroups, err := repos.ActiveGroup.FindActiveByRoomID(ctx, roomID)
+			if err != nil {
+				return err
+			}
+			if len(activeGroups) > 0 {
+				return facilitiesModule.ErrRoomInUse
+			}
+			if err := careOfferingResourceValidator.ValidateRoomDeletion(ctx, roomID); err != nil {
+				if errors.Is(err, enrollment.ErrCareOfferingInvalid) {
+					return facilitiesModule.ErrRoomRequiredByOffering
+				}
+				return err
+			}
+			return nil
 		},
-		ValidateCareOfferingRoomDeletion: careOfferingResourceValidator.ValidateRoomDeletion,
 	})
 
 	// Initialize Schulhof service (depends on facilities, activities, and active services)
 	schulhofService := facilities.NewSchulhofService(
 		facilitiesService,
-		activitiesService,
-		activeService,
+		facilitiesLegacy.ActivityCatalog(activitiesService),
+		facilitiesLegacy.OpenGroupCatalog(activeService),
 		facilitiesLogger,
 	)
 
 	// Initialize WC service (depends on facilities and activities services)
 	wcService := facilities.NewWCService(
 		facilitiesService,
-		activitiesService,
+		facilitiesLegacy.ActivityCatalog(activitiesService),
 		facilitiesLogger,
 	)
 
@@ -1306,7 +1342,7 @@ func newFactory(
 	displayService := display.NewService(display.Dependencies{
 		DisplayRepo:       repos.Display,
 		SchoolRepo:        repos.School,
-		Facilities:        facilitiesService,
+		Facilities:        rooms,
 		ActiveGroupRepo:   repos.ActiveGroup,
 		VisitRepo:         repos.ActiveVisit,
 		ActivityGroupRepo: repos.ActivityGroup,
@@ -2285,9 +2321,19 @@ func newFactory(
 		ClassListEntryRepo:       repos.ClassListEntry,
 		PickupScheduleSvc:        pickupScheduleService,
 		ArrivalScheduleSvc:       arrivalScheduleService,
+		ClassArrivalExceptions:   arrivalScheduleService,
 		CareDaySvc:               careDayService,
 		Settings:                 settingsService,
 		CareParticipation:        careLifecycleService,
+	})
+	// The class-day view's one write seam (#2970): a Lehrkraft sets the
+	// class-wide arrival day exception through moto schule.
+	classDayArrivalExceptionService := enrollment.NewClassDayArrivalExceptionService(enrollment.ClassDayArrivalExceptionConfig{
+		ArrivalSchedule: arrivalScheduleService,
+		Settings:        settingsService,
+		BlockStarts:     timetableOperationsService,
+		Broadcaster:     realtimeHub,
+		Logger:          logger.With("service", "class-day-arrival-exceptions"),
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
@@ -2566,12 +2612,7 @@ func newFactory(
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
-		AppointmentRepo:        repos.CalendarAppointment,
-		RecurrenceRepo:         repos.CalendarRecurrenceRule,
-		RecipientRepo:          repos.CalendarAppointmentRecipient,
-		RecipientStudentRepo:   repos.CalendarAppointmentRecipientChild,
-		TargetRepo:             repos.CalendarAppointmentTarget,
-		OverrideRepo:           repos.CalendarOccurrenceOverride,
+		Appointments:           repos.Appointments(),
 		StaffRepo:              repos.Staff,
 		StudentRepo:            repos.Student,
 		GuardianProfileRepo:    repos.GuardianProfile,
@@ -2585,6 +2626,7 @@ func newFactory(
 		ShiftTypeRepo:          repos.ShiftType,
 		UserContext:            userContextService,
 		DB:                     db,
+		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: repos.SchoolCalendar()},
 		Outbox:                 emailOutboxService,
 		PushOutbox:             durablePushAdapter{module: deliveryRuntime.Module},
 		SchoolRepo:             repos.School,
@@ -2800,13 +2842,13 @@ func newFactory(
 		Student:     repos.Student,
 		Person:      repos.Person,
 		Supervision: activeService,
+		Visits:      repos.ActiveVisit,
 		Logger:      logger.With("service", "reminders"),
 
 		// Bulk readers for ComputeBatch. They answer the three genuinely
 		// per-person facts for the whole tenant in one query each, which is what
 		// keeps the per-minute cost flat in the number of staff.
 		BulkSupervision:   repos.GroupSupervisor,
-		BulkVisits:        repos.ActiveVisit,
 		BulkInstanceStaff: repos.InstanceStaff,
 	})
 
@@ -3011,6 +3053,7 @@ func newFactory(
 		StaffOffboarding:        staffOffboardingService,
 		CaregiverCapability:     caregiverCapabilityService,
 		Guardian:                guardianService,
+		PeopleDirectory:         persons,
 		GuardianProfileLoader:   guardianProfileLoader,
 		UserContext:             userContextService,
 		Database:                databaseService,
@@ -3104,6 +3147,7 @@ func newFactory(
 		EnrollmentPhaseExpiry:     enrollmentPhaseExpiryService,
 		EnrollmentDecision:        enrollmentDecisionService,
 		EnrollmentReport:          enrollmentReportService,
+		ClassDayArrivalExceptions: classDayArrivalExceptionService,
 		EnrollmentRollover:        enrollmentRolloverService,
 		EnrollmentChangeRequest:   enrollmentChangeRequestService,
 		EnrollmentDeletion:        enrollmentDeletionService,
@@ -3120,7 +3164,7 @@ func newFactory(
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
-	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
+	facilitiesLegacy.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
 	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
 	tenantSettings := config.NewTenantOperations(
 		settingsService,
@@ -3148,6 +3192,9 @@ func newFactory(
 		logger.With("service", "shift_plan_sync"),
 		today,
 	))
+	// The People Directory serves guardians through the owner's legacy
+	// guardian service (#2663); bind it now that the service exists.
+	factory.bindGuardianDirectory(persons, db)
 	return factory, nil
 }
 

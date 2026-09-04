@@ -1,14 +1,15 @@
 // Package test: calendar-date enforcement. See .claude/rules/calendar-dates.md.
 //
-// TestDateColumnTypes guarantees that every PostgreSQL DATE column maps to a
-// timezone.Date model field, never time.Time. bun converts every time.Time
+// TestDateColumnTypes guarantees that every PostgreSQL DATE column maps to an
+// approved ISO date value, never time.Time. bun converts every time.Time
 // parameter to UTC before binding, so a Berlin-midnight value stored through
 // time.Time lands one day behind between 00:00 and 02:00 Berlin time — the
 // root cause of ~20 production fixes in H1 2026.
 //
 // Mechanism: DATE columns are DISCOVERED by scanning the SQL inside
 // database/migrations/*.go (never trust a hand-maintained list), then joined
-// against model struct fields parsed from models/**/*.go. The allowlists
+// against persistence struct fields parsed from models/**/*.go and
+// modules/**/*.go. The allowlists
 // below may only SHRINK — a stale entry fails the test and demands deletion.
 //
 // Known limitation: ad-hoc result structs inside database/repositories/
@@ -55,7 +56,10 @@ var unmappedDateColumns = map[string]string{
 	"users.student_care_exit_removals.previous_valid_until": "care-exit ledger, copied column-to-column in SQL — no model struct",
 	// Meal-plan persistence uses an adapter-local row with timezone.Date. The
 	// scanner intentionally only inspects models/, so it cannot discover it.
-	"schedule.meal_plan_entries.date": "meal-plan Postgres adapter-local row uses timezone.Date — no models/ struct",
+	"schedule.meal_plan_entries.date":                      "meal-plan Postgres adapter-local row uses timezone.Date — no models/ struct",
+	"schedule.meal_participation_schedules.effective_from": "meal-participation Postgres adapter-local row uses timezone.Date — no models/ struct",
+	"schedule.meal_participation_overrides.date":           "meal-participation Postgres adapter-local row uses timezone.Date — no models/ struct",
+	"schedule.meal_sickness_status_history.date":           "meal-participation sickness history is queried through adapter-local timezone.Date rows — no models/ struct",
 }
 
 // renamedDateColumns maps a DATE column declared under an old name in a
@@ -112,12 +116,19 @@ func TestDateColumnTypes(t *testing.T) {
 				switch f.goType {
 				case "timezone.Date", "*timezone.Date":
 					// migrated — ok
-				case "Date", "*Date":
-					// Audit owns the same ISO calendar-date value shape without
-					// importing the legacy shared timezone package.
-					if !strings.HasPrefix(f.file, "models/audit/") {
+				case "domain.Date", "*domain.Date":
+					// Appointments owns a string-backed calendar-date type and does
+					// not depend on the legacy shared/domain package.
+					if !strings.HasPrefix(f.file, "modules/appointments/") {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" uses Date outside models/audit — use timezone.Date"))
+							col+" uses domain.Date outside modules/appointments — use timezone.Date"))
+					}
+				case "Date", "*Date":
+					// Audit and Calendar own the same ISO calendar-date value shape
+					// without importing the legacy shared timezone package.
+					if !strings.HasPrefix(f.file, "models/audit/") && !strings.HasPrefix(f.file, "models/calendar/") {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" uses Date outside an approved owner package — use timezone.Date"))
 					}
 				case "CalendarDate", "*CalendarDate":
 					// models/config is being detached from the legacy timezone

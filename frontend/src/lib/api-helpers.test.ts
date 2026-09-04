@@ -1005,6 +1005,25 @@ describe("apiGet (server-side)", () => {
     );
   });
 
+  it("forwards an abort signal to the backend", async () => {
+    const controller = new AbortController();
+    mockNextHeaders.mockResolvedValueOnce(new Headers());
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ result: "ok" }),
+    } as Response);
+
+    await apiGet<{ result: string }>("/api/test", "token", {
+      signal: controller.signal,
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://backend.test/api/test",
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
   it("falls back to X-Real-IP when X-Forwarded-For is absent", async () => {
     mockNextHeaders.mockResolvedValueOnce(
       new Headers({

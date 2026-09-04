@@ -3,7 +3,6 @@ package schedule
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
@@ -28,7 +27,7 @@ func NewNonWorkingDayResolver(h HolidayService, c ClosingDayService) HolidayServ
 	return &nonWorkingDayResolver{holidays: h, closing: c}
 }
 
-func (r *nonWorkingDayResolver) HolidaysInRange(ctx context.Context, from, to timezone.Date) ([]holidays.Holiday, error) {
+func (r *nonWorkingDayResolver) HolidaysInRange(ctx context.Context, from, to timezone.Date) ([]Holiday, error) {
 	return r.holidays.HolidaysInRange(ctx, from, to)
 }
 

@@ -251,9 +251,13 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	// counts that quietly read every assigned child as expected again (#1747
 	// review).
 	var enriched enrichedInstance
+	var rows *scheduleSvc.InstanceRows
 	careDays, err := rs.careDaysForInstance(r.Context(), inst)
 	if err == nil {
-		enriched, _, _, err = rs.enrichInstance(r.Context(), inst, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
+		rows, err = rs.TimetableData.GetInstanceRows(r.Context(), []*scheduleModel.ActivityInstance{inst})
+	}
+	if err == nil {
+		enriched, _, _, err = rs.enrichInstance(r.Context(), inst, rows, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
 	}
 	if err == nil {
 		enriched.ConflictWarnings = rs.dayConflictWarningsFor(r.Context(), inst)

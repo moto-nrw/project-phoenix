@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +25,9 @@ type ClassArrivalExceptionInput struct {
 	// ArrivalTime is a wall-clock value; only hour and minute are used.
 	ArrivalTime time.Time
 	Reason      *string
+	// Origin is the portal the entry comes from (#2970); empty means the
+	// OGS portal.
+	Origin string
 }
 
 var (
@@ -97,6 +101,7 @@ func (s *arrivalScheduleService) UpsertClassArrivalException(
 		Date:        input.Date,
 		ArrivalTime: timezone.NormalizeWallClock(input.ArrivalTime),
 		Reason:      trimmedOptionalReason(input.Reason),
+		Origin:      cmp.Or(input.Origin, schedule.ClassArrivalExceptionOriginOGS),
 	}
 	if createdBy > 0 {
 		row.CreatedBy = &createdBy

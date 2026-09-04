@@ -285,6 +285,10 @@ type ReportServiceConfig struct {
 	// StudentStatusDayRepo); no other report path consumes them.
 	PickupScheduleSvc  scheduleService.PickupScheduleService
 	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
+	// ClassArrivalExceptions supplies the class-wide arrival day exception
+	// (#2962) the class day view shows as one line on top (#2970).
+	// Optional: nil serves the sheet without that line.
+	ClassArrivalExceptions ClassArrivalExceptionReader
 	// ClassListEntryRepo supplies the class-list-only entries (#2382) the
 	// class roster and the class day view append to the Klassenverband.
 	// Optional: nil (older tests, report paths that never show class lists)
@@ -562,22 +566,9 @@ func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *Care
 }
 
 func (s *reportService) loadCareUsageSchemas(ctx context.Context, requests []*enrollmentModels.Request) (map[int64]*enrollmentModels.FormSchema, error) {
-	schemas := make(map[int64]*enrollmentModels.FormSchema)
-	for _, req := range requests {
-		if req == nil || req.SchemaID == nil {
-			continue
-		}
-		if _, ok := schemas[*req.SchemaID]; ok {
-			continue
-		}
-		if s.FormSchemaRepo == nil {
-			return nil, fmt.Errorf("care usage report: form schema repo not configured")
-		}
-		schema, err := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
-		if err != nil {
-			return nil, fmt.Errorf("care usage report: load schema %d: %w", *req.SchemaID, err)
-		}
-		schemas[*req.SchemaID] = schema
+	schemas, err := loadFormSchemasByRequests(ctx, s.FormSchemaRepo, requests)
+	if err != nil {
+		return nil, fmt.Errorf("care usage report: load schemas: %w", err)
 	}
 	return schemas, nil
 }

@@ -15,16 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	repoActivities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	repoFacilities "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	repoSchedule "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -39,6 +40,29 @@ func isolationTenants(tb testing.TB, db *bun.DB) (tenantA, tenantB int64) {
 	EnsureTestTenant(tb, db, tenantA)
 	EnsureTestTenant(tb, db, tenantB)
 	return tenantA, tenantB
+}
+
+func testRoomRepository(t *testing.T, db *bun.DB) *facilitiesRepositoryAdapter.Repository {
+	t.Helper()
+	rooms, err := repositories.NewFacilities(db)
+	require.NoError(t, err)
+	repository := facilitiesRepositoryAdapter.New()
+	repository.Bind(rooms)
+	return repository
+}
+
+// deviceRoomRows is the test double for the Facilities directory: it reads
+// the room rows the fixtures inserted, exactly what the bound owner returns.
+type deviceRoomRows struct{ db *bun.DB }
+
+func (d deviceRoomRows) ListRoomsByID(ctx context.Context, ids []int64) ([]repoIot.DirectoryRoom, error) {
+	var rooms []repoIot.DirectoryRoom
+	err := d.db.NewSelect().
+		TableExpr(`facilities.rooms AS "room"`).
+		ColumnExpr(`"room".id, "room".tenant_id, "room".name`).
+		Where(`"room".id IN (?)`, bun.List(ids)).
+		Scan(ctx, &rooms)
+	return rooms, err
 }
 
 // ctxForTenant returns a background context with the given tenant ID set.
@@ -152,7 +176,7 @@ func TestTenantIsolation_RoomVisibility(t *testing.T) {
 	rA := CreateTestRoomForTenant(t, db, tenantA, "RoomA")
 	rB := CreateTestRoomForTenant(t, db, tenantB, "RoomB")
 
-	repo := repoFacilities.NewRoomRepository(db)
+	repo := testRoomRepository(t, db)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -245,6 +269,9 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 	dB := CreateTestDeviceForTenant(t, db, tenantB, "DEV-B")
 
 	repo := repoIot.NewDeviceRepository(db)
+	// Device reads resolve room names through the Facilities owner (#2665);
+	// the composition root binds it, a bare repository needs it bound here.
+	repo.(*repoIot.DeviceRepository).BindRoomDirectory(deviceRoomRows{db: db})
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -509,11 +536,9 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	})
 
 	t.Run("room update blocked", func(t *testing.T) {
-		repo := repoFacilities.NewRoomRepository(db)
+		repo := testRoomRepository(t, db)
 		err := repo.Update(ctxB, roomA)
 		require.Error(t, err, "cross-tenant room update must fail")
-		assert.Contains(t, err.Error(), "rows affected",
-			"error should mention rows affected guard")
 	})
 
 	t.Run("education group update blocked", func(t *testing.T) {
@@ -540,12 +565,12 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	// 5. Delete: silent no-op (no AssertRowsAffected in base.Delete)
 	// ------------------------------------------------------------------
 
-	t.Run("delete is silent no-op", func(t *testing.T) {
-		repo := repoFacilities.NewRoomRepository(db)
+	t.Run("room delete blocked", func(t *testing.T) {
+		repo := testRoomRepository(t, db)
 
 		// Attempt cross-tenant delete: ctxB tries to delete roomA (tenant A)
 		err := repo.Delete(ctxB, roomA.ID)
-		assert.NoError(t, err, "cross-tenant delete should not error (silent no-op)")
+		require.Error(t, err, "cross-tenant room delete must fail")
 
 		// Verify the room still exists from tenant A's perspective
 		found, err := repo.FindByID(ctxA, roomA.ID)

@@ -9,3 +9,9 @@ import "github.com/moto-nrw/project-phoenix/auth/authorize"
 func HasPermission(required string, granted []string) bool {
 	return authorize.HasPermission(required, granted)
 }
+
+// HasAdminWildcard reports whether granted carries the admin wildcard that
+// unlocks every resource; handlers use it for the admin fast path.
+func HasAdminWildcard(granted []string) bool {
+	return authorize.HasAdminWildcard(granted)
+}

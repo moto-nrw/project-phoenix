@@ -231,7 +231,10 @@ func TestAdminCreateStaffAbsence_RejectsVacationType(t *testing.T) {
 func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing.T) {
 	t.Parallel()
 
-	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
+	today := timezone.NewDate(2026, 8, 24)
+	tc, token, subjectID, _ := setupAbsenceAdminTest(t, func() time.Time {
+		return today.BerlinMidnight().Add(12 * time.Hour)
+	})
 	ctx := testpkg.Ctx(t)
 	absenceType := &activeModels.StaffAbsenceType{
 		Name:             "Sonderurlaub",
@@ -243,7 +246,7 @@ func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing
 	absenceType.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsenceType.Create(ctx, absenceType))
 
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := today.AddDays(1)
 	rec := postAbsence(t, tc, token, subjectID, map[string]any{
 		"absence_type":    "other",
 		"absence_type_id": absenceType.ID,

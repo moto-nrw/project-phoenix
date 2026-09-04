@@ -453,6 +453,8 @@ export interface ClassArrivalException {
   arrival_time: string;
   reason?: string | null;
   created_at: string;
+  /** Wer die Ausnahme eingetragen hat: die OGS oder die Schule (#2970). */
+  origin?: "ogs" | "school";
 }
 
 export interface ClassArrivalExceptionList {

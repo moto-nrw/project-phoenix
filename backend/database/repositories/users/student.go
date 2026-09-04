@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -73,6 +74,13 @@ const (
 )
 
 // StudentRepository implements users.StudentRepository interface
+type studentCompanionAccess interface {
+	ListForStudent(context.Context, int64) ([]*users.StudentCompanion, error)
+	CompanionDaysCoveredExcluding(context.Context, []int64, int64) (map[int64]map[string]bool, error)
+	CompanionWeekdays(context.Context, int64) ([]int, error)
+	DeleteEdges(context.Context, []int64) error
+}
+
 type StudentRepository struct {
 	*base.Repository[*users.Student]
 	db *bun.DB
@@ -81,7 +89,12 @@ type StudentRepository struct {
 	// must happen in the one write path EVERY caller passes through — the
 	// student service's HTTP flow, but also enrollment approval, imports, and
 	// any other direct repository writer (#1694).
-	companions *StudentCompanionRepository
+	companions studentCompanionAccess
+	// teacherGroupIDs resolves education.group_teacher through composition. This
+	// Postgres adapter stays independent of the School Membership owner and can
+	// resolve several teachers without one owner call per teacher.
+	teacherGroupIDs      func(context.Context, int64) ([]int64, error)
+	teacherStaffGroupIDs func(context.Context, []int64) ([]int64, error)
 }
 
 // NewStudentRepository creates a new StudentRepository
@@ -91,8 +104,30 @@ func NewStudentRepository(db *bun.DB) users.StudentRepository {
 	return &StudentRepository{
 		Repository: repo,
 		db:         db,
-		companions: newStudentCompanionRepository(db),
 	}
+}
+
+// BindCompanionRepository installs the Care Plan compatibility adapter used by
+// departure-plan reconciliation.
+func (r *StudentRepository) BindCompanionRepository(repository studentCompanionAccess) {
+	if repository == nil {
+		panic("student repository: companion capability is required")
+	}
+	r.companions = repository
+}
+
+func (r *StudentRepository) BindTeacherGroupIDs(query func(context.Context, int64) ([]int64, error)) {
+	if query == nil {
+		panic("student repository: school membership is required")
+	}
+	r.teacherGroupIDs = query
+}
+
+func (r *StudentRepository) BindTeacherStaffGroupIDs(query func(context.Context, []int64) ([]int64, error)) {
+	if query == nil {
+		panic("student repository: school membership is required")
+	}
+	r.teacherStaffGroupIDs = query
 }
 
 // FindByID retrieves a student by their ID.
@@ -640,6 +675,9 @@ func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student 
 		// Every weekday still allows "Anderes Kind" — no edge can lose its
 		// basis, so skip the edge query on this common widening path.
 		return nil, nil
+	}
+	if r.companions == nil {
+		return nil, errors.New("student repository: companion capability is not bound")
 	}
 
 	edges, err := r.companions.ListForStudent(ctx, student.ID)
@@ -1439,10 +1477,19 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 
 // FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
+	if r.teacherGroupIDs == nil {
+		return nil, errors.New("student repository resolves teacher assignments through School Membership")
+	}
+	groupIDs, err := r.teacherGroupIDs(ctx, teacherID)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by teacher ID with groups", Err: err}
+	}
+	if len(groupIDs) == 0 {
+		return []*users.StudentWithGroupInfo{}, nil
+	}
 	var results []*studentWithPersonAndGroup
-	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
-		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "student".group_id`).
-		Where(`"gt".teacher_id = ? AND "student".group_id IS NOT NULL`, teacherID).
+	err = activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
+		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
 		Distinct().
 		Scan(ctx)
 
@@ -1453,6 +1500,36 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 		}
 	}
 
+	infos := mapStudentGroupResults(results)
+	if err := r.hydrateBusDaysForGroupInfo(ctx, infos); err != nil {
+		return nil, err
+	}
+	return infos, nil
+}
+
+// FindByTeacherStaffIDsWithGroups retrieves the union of students supervised by
+// teachers belonging to any requested staff ID. A shared child appears once.
+func (r *StudentRepository) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*users.StudentWithGroupInfo, error) {
+	if len(staffIDs) == 0 {
+		return []*users.StudentWithGroupInfo{}, nil
+	}
+	if r.teacherStaffGroupIDs == nil {
+		return nil, errors.New("student repository resolves teacher assignments through School Membership")
+	}
+	groupIDs, err := r.teacherStaffGroupIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by teacher IDs with groups", Err: err}
+	}
+	if len(groupIDs) == 0 {
+		return []*users.StudentWithGroupInfo{}, nil
+	}
+	var results []*studentWithPersonAndGroup
+	if err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
+		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
+		Distinct().
+		Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by teacher IDs with groups", Err: base.TranslateNotFound(err)}
+	}
 	infos := mapStudentGroupResults(results)
 	if err := r.hydrateBusDaysForGroupInfo(ctx, infos); err != nil {
 		return nil, err
@@ -1528,6 +1605,18 @@ func (r *StudentRepository) FindOverlappingWithGroups(ctx context.Context, from,
 		return nil, &modelBase.DatabaseError{Op: "find students overlapping range with groups", Err: base.TranslateNotFound(err)}
 	}
 	return mapStudentGroupResults(results), nil
+}
+
+// FindOverlappingWithGroupsOnDate translates the meal-plan composition
+// boundary into the repository's calendar-date types. now is an instant so
+// the immediate-activation rule uses the actual current Berlin date rather
+// than applying the requested list date retroactively.
+func (r *StudentRepository) FindOverlappingWithGroupsOnDate(ctx context.Context, value string, now time.Time) ([]*users.StudentWithGroupInfo, error) {
+	date, err := timezone.ParseDate(value)
+	if err != nil {
+		return nil, fmt.Errorf("find students overlapping date: %w", err)
+	}
+	return r.FindOverlappingWithGroups(ctx, date, date, timezone.DateFromTime(now))
 }
 
 // LockPhotoFeature acquires the per-tenant pg_advisory_xact_lock that
@@ -1744,13 +1833,12 @@ func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student 
 		return nil
 	}
 
-	var weekdays []int
-	if err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT DISTINCT weekday
-		FROM users.student_companions
-		WHERE student_low_id = ? OR student_high_id = ?
-	`, student.ID, student.ID).Scan(ctx, &weekdays); err != nil {
-		return &modelBase.DatabaseError{Op: "check student companion links", Err: base.TranslateNotFound(err)}
+	if r.companions == nil {
+		return errors.New("student repository: companion capability is not bound")
+	}
+	weekdays, err := r.companions.CompanionWeekdays(ctx, student.ID)
+	if err != nil {
+		return err
 	}
 
 	for _, weekday := range weekdays {

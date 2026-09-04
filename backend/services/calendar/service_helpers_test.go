@@ -23,11 +23,11 @@ func helperClock(hour, minute int) time.Time {
 
 func helperAppointment() *calModels.Appointment {
 	return &calModels.Appointment{
-		Model:              base.Model{ID: 42},
+		Model:              calModels.Model{ID: 42},
 		OrganizerStaffID:   7,
 		Title:              "Planning",
-		StartDate:          timezone.NewDate(2026, 1, 5),
-		EndDate:            timezone.NewDate(2026, 1, 5),
+		StartDate:          calModels.NewDate(2026, 1, 5),
+		EndDate:            calModels.NewDate(2026, 1, 5),
 		StartTime:          helperClock(9, 0),
 		EndTime:            helperClock(10, 0),
 		DeliveryMode:       calModels.DeliveryModeRSVPRequired,
@@ -75,8 +75,8 @@ func TestAppointmentEventAndOverride(t *testing.T) {
 	title := "Changed"
 	description := "New details"
 	location := "Room 2"
-	startDate := timezone.NewDate(2026, 1, 7)
-	endDate := timezone.NewDate(2026, 1, 8)
+	startDate := calModels.NewDate(2026, 1, 7)
+	endDate := calModels.NewDate(2026, 1, 8)
 	startTime := helperClock(11, 30)
 	endTime := helperClock(12, 45)
 	allDay := true
@@ -160,7 +160,7 @@ func TestStaffRecipientStatus(t *testing.T) {
 
 	staffID := int64(10)
 	recipients := []*calModels.AppointmentRecipient{
-		{Model: base.Model{ID: 101}, RecipientType: calModels.RecipientTypeStaff, StaffID: &staffID, Status: calModels.ResponseStatusAccepted},
+		{ID: 101, RecipientType: calModels.RecipientTypeStaff, StaffID: &staffID, Status: calModels.ResponseStatusAccepted},
 	}
 
 	status, recipientID := staffRecipientStatus(recipients, staffID)
@@ -178,7 +178,7 @@ func TestCalendarRecurrenceExpansion(t *testing.T) {
 	t.Parallel()
 
 	appointment := helperAppointment()
-	endsOn := timezone.NewDate(2026, 1, 31)
+	endsOn := calModels.NewDate(2026, 1, 31)
 	count := 3
 
 	weekly := &calModels.RecurrenceRule{
@@ -210,23 +210,26 @@ func TestCalendarRecurrenceExpansion(t *testing.T) {
 	weeklyDefault := &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 1}
 	monthlyDefault := &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyMonthly, IntervalCount: 1}
 
-	assert.True(t, matchesRule(appointment.StartDate, timezone.NewDate(2026, 1, 7), daily))
-	assert.False(t, matchesRule(appointment.StartDate, timezone.NewDate(2026, 1, 6), daily))
-	assert.True(t, matchesRule(appointment.StartDate, timezone.NewDate(2026, 1, 12), weeklyDefault))
-	assert.True(t, matchesRule(appointment.StartDate, timezone.NewDate(2026, 2, 5), monthlyDefault))
-	assert.True(t, matchesRule(appointment.StartDate, timezone.NewDate(2027, 1, 5), yearly))
-	assert.False(t, matchesRule(appointment.StartDate, timezone.NewDate(2027, 1, 6), yearly))
-	assert.False(t, matchesRule(appointment.StartDate, timezone.NewDate(2026, 1, 4), yearly))
-	assert.False(t, matchesRule(appointment.StartDate, timezone.NewDate(2026, 1, 5), &calModels.RecurrenceRule{Frequency: "never", IntervalCount: 1}))
+	assert.True(t, matchesRule(toTimezoneDate(appointment.StartDate), timezone.NewDate(2026, 1, 7), daily))
+	assert.False(t, matchesRule(toTimezoneDate(appointment.StartDate), timezone.NewDate(2026, 1, 6), daily))
+	assert.True(t, matchesRule(toTimezoneDate(appointment.StartDate), timezone.NewDate(2026, 1, 12), weeklyDefault))
+	assert.True(t, matchesRule(toTimezoneDate(appointment.StartDate), timezone.NewDate(2026, 2, 5), monthlyDefault))
+	assert.True(t, matchesRule(toTimezoneDate(appointment.StartDate), timezone.NewDate(2027, 1, 5), yearly))
+	assert.False(t, matchesRule(toTimezoneDate(appointment.StartDate), timezone.NewDate(2027, 1, 6), yearly))
+	assert.False(t, matchesRule(toTimezoneDate(appointment.StartDate), timezone.NewDate(2026, 1, 4), yearly))
+	assert.False(t, matchesRule(toTimezoneDate(appointment.StartDate), timezone.NewDate(2026, 1, 5), &calModels.RecurrenceRule{Frequency: "never", IntervalCount: 1}))
 }
 
 func TestFirstRecurrenceOccurrence(t *testing.T) {
 	t.Parallel()
 
 	appt := func(d timezone.Date) *calModels.Appointment {
-		return &calModels.Appointment{StartDate: d, EndDate: d}
+		return &calModels.Appointment{StartDate: toCalendarDate(d), EndDate: toCalendarDate(d)}
 	}
-	ptr := func(d timezone.Date) *timezone.Date { return &d }
+	ptr := func(d timezone.Date) *calModels.Date {
+		converted := toCalendarDate(d)
+		return &converted
+	}
 
 	tuesday := timezone.NewDate(2026, 1, 6) // 2026-01-05 is a Monday
 	weeklyMondayInterval := func(n int) *calModels.RecurrenceRule {
@@ -318,7 +321,7 @@ func TestOccurrenceExists(t *testing.T) {
 	t.Parallel()
 
 	start := timezone.NewDate(2026, 1, 5) // Monday
-	appt := &calModels.Appointment{StartDate: start, EndDate: start}
+	appt := &calModels.Appointment{StartDate: toCalendarDate(start), EndDate: toCalendarDate(start)}
 	weeklyMonday := &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}}
 
 	assert.True(t, occurrenceExists(appt, weeklyMonday, timezone.NewDate(2026, 1, 12)))  // valid Monday
@@ -331,7 +334,7 @@ func TestOccurrenceExists(t *testing.T) {
 	assert.True(t, occurrenceExists(appt, daily, start.AddDays(100000)))
 
 	// EndsOn bound.
-	endsOn := timezone.NewDate(2026, 1, 19)
+	endsOn := calModels.NewDate(2026, 1, 19)
 	bounded := &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}, EndsOn: &endsOn}
 	assert.True(t, occurrenceExists(appt, bounded, timezone.NewDate(2026, 1, 19)))
 	assert.False(t, occurrenceExists(appt, bounded, timezone.NewDate(2026, 1, 26))) // after EndsOn
@@ -348,7 +351,7 @@ func TestHasOccurrenceInWindow(t *testing.T) {
 	t.Parallel()
 
 	oldStart := timezone.NewDate(2020, 1, 6) // an old Monday
-	appt := &calModels.Appointment{StartDate: oldStart, EndDate: oldStart}
+	appt := &calModels.Appointment{StartDate: toCalendarDate(oldStart), EndDate: toCalendarDate(oldStart)}
 	weeklyMonday := &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}}
 
 	from := timezone.NewDate(2026, 7, 1)
@@ -358,7 +361,7 @@ func TestHasOccurrenceInWindow(t *testing.T) {
 	assert.True(t, hasOccurrenceInWindow(appt, weeklyMonday, from, to))
 
 	// EndsOn in the past → no overlap now.
-	past := timezone.NewDate(2020, 3, 1)
+	past := calModels.NewDate(2020, 3, 1)
 	ended := &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}, EndsOn: &past}
 	assert.False(t, hasOccurrenceInWindow(appt, ended, from, to))
 
@@ -369,7 +372,7 @@ func TestHasOccurrenceInWindow(t *testing.T) {
 
 	// A multi-day occurrence starting just before the window but spanning into it
 	// is detected (window scan starts early enough to catch it).
-	multiDay := &calModels.Appointment{StartDate: timezone.NewDate(2020, 1, 1), EndDate: timezone.NewDate(2020, 1, 3)}
+	multiDay := &calModels.Appointment{StartDate: calModels.NewDate(2020, 1, 1), EndDate: calModels.NewDate(2020, 1, 3)}
 	daily := &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyDaily, IntervalCount: 1}
 	assert.True(t, hasOccurrenceInWindow(multiDay, daily, timezone.NewDate(2026, 7, 1), timezone.NewDate(2026, 7, 1)))
 }
@@ -378,10 +381,13 @@ func TestBoundedRecurrenceDates(t *testing.T) {
 	t.Parallel()
 
 	appt := func(start, end timezone.Date) *calModels.Appointment {
-		return &calModels.Appointment{StartDate: start, EndDate: end}
+		return &calModels.Appointment{StartDate: toCalendarDate(start), EndDate: toCalendarDate(end)}
 	}
 	same := func(d timezone.Date) *calModels.Appointment { return appt(d, d) }
-	ptr := func(d timezone.Date) *timezone.Date { return &d }
+	ptr := func(d timezone.Date) *calModels.Date {
+		converted := toCalendarDate(d)
+		return &converted
+	}
 
 	tests := []struct {
 		name  string
@@ -465,7 +471,7 @@ func TestBoundedRecurrenceDatesDeduplicates(t *testing.T) {
 	t.Parallel()
 
 	start := timezone.NewDate(2026, 1, 5) // Monday
-	appt := &calModels.Appointment{StartDate: start, EndDate: start}
+	appt := &calModels.Appointment{StartDate: toCalendarDate(start), EndDate: toCalendarDate(start)}
 
 	// A repeated weekday must not emit the same date twice (which would consume
 	// two of the occurrence_count slots for one real occurrence).
@@ -498,7 +504,7 @@ func TestOccurrenceExistsSparseCountBounded(t *testing.T) {
 	// first N months that actually have a 31st. Membership must be exact without
 	// scanning every day since the (possibly old) start.
 	start := timezone.NewDate(2026, 1, 31)
-	appt := &calModels.Appointment{StartDate: start, EndDate: start}
+	appt := &calModels.Appointment{StartDate: toCalendarDate(start), EndDate: toCalendarDate(start)}
 	count := 5
 	rule := &calModels.RecurrenceRule{
 		Frequency:       calModels.RecurrenceFrequencyMonthly,
@@ -519,7 +525,7 @@ func TestHasOccurrenceInWindowSparseCountBounded(t *testing.T) {
 	// decide overlap by enumerating the (few) occurrences per period, never by
 	// walking the ~decades of days between the start and the feed window.
 	start := timezone.NewDate(2000, 2, 29)
-	appt := &calModels.Appointment{StartDate: start, EndDate: start}
+	appt := &calModels.Appointment{StartDate: toCalendarDate(start), EndDate: toCalendarDate(start)}
 	count := 10 // 2000, 2004, 2008, ... 2036
 	rule := &calModels.RecurrenceRule{
 		Frequency:       calModels.RecurrenceFrequencyYearly,
@@ -539,11 +545,11 @@ func TestAppointmentICSEventUIDIncludesTenant(t *testing.T) {
 	// The parent feed aggregates appointments across schools, so the UID must be
 	// globally unique — appointment IDs repeat per tenant.
 	appt := &calModels.Appointment{
-		Model:       base.Model{ID: 5},
-		TenantModel: base.TenantModel{TenantID: 42},
+		Model:       calModels.Model{ID: 5},
+		TenantModel: calModels.TenantModel{TenantID: 42},
 		Title:       "Termin",
-		StartDate:   timezone.NewDate(2026, 1, 5),
-		EndDate:     timezone.NewDate(2026, 1, 5),
+		StartDate:   calModels.NewDate(2026, 1, 5),
+		EndDate:     calModels.NewDate(2026, 1, 5),
 	}
 	event := appointmentICSEvent(appt, nil, nil)
 	assert.Equal(t, "appointment-42-5@moto-app.de", event.UID)
@@ -560,11 +566,11 @@ func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
 	oldMonday := timezone.NewDate(2020, 1, 6)
 	tenantID := ptrtest.NewTenantID()
 	appt := &calModels.Appointment{
-		Model:       base.Model{ID: 9},
-		TenantModel: base.TenantModel{TenantID: tenantID},
+		Model:       calModels.Model{ID: 9},
+		TenantModel: calModels.TenantModel{TenantID: tenantID},
 		Title:       "Wöchentlich",
-		StartDate:   oldMonday,
-		EndDate:     oldMonday,
+		StartDate:   toCalendarDate(oldMonday),
+		EndDate:     toCalendarDate(oldMonday),
 		StartTime:   helperClock(9, 0),
 		EndTime:     helperClock(10, 0),
 	}
@@ -576,12 +582,12 @@ func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
 
 	event := appointmentICSEvent(appt, rule, nil)
 	require.NotNil(t, event.Recurrence)
-	assert.Equal(t, oldMonday, event.StartDate)
-	assert.Nil(t, event.Recurrence.Until, "open-ended series must export no UNTIL")
+	assert.Equal(t, oldMonday.String(), event.StartDate)
+	assert.Empty(t, event.Recurrence.Until, "open-ended series must export no UNTIL")
 	assert.Nil(t, event.Recurrence.Count)
 
 	// A real EndsOn is preserved verbatim (a stable horizon, safe to export).
-	endsOn := timezone.NewDate(2026, 3, 30)
+	endsOn := calModels.NewDate(2026, 3, 30)
 	bounded := &calModels.RecurrenceRule{
 		Frequency:     calModels.RecurrenceFrequencyWeekly,
 		IntervalCount: 1,
@@ -590,8 +596,7 @@ func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
 	}
 	boundedEvent := appointmentICSEvent(appt, bounded, nil)
 	require.NotNil(t, boundedEvent.Recurrence)
-	require.NotNil(t, boundedEvent.Recurrence.Until)
-	assert.Equal(t, endsOn, *boundedEvent.Recurrence.Until)
+	assert.Equal(t, endsOn.String(), boundedEvent.Recurrence.Until)
 }
 
 func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {
@@ -624,12 +629,6 @@ func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {
 
 	assert.Equal(t, "Kind 44", studentDisplayName(&userModels.Student{Model: base.Model{ID: 44}}))
 	assert.Equal(t, "Grace Hopper", studentDisplayName(&userModels.Student{Person: &userModels.Person{FirstName: "Grace", LastName: "Hopper"}}))
-
-	staffID := int64(50)
-	guardianID := int64(60)
-	assert.Equal(t, "staff:50", recipientKey(calModels.RecipientTypeStaff, &staffID, nil))
-	assert.Equal(t, "guardian:60", recipientKey(calModels.RecipientTypeGuardianProfile, nil, &guardianID))
-	assert.Equal(t, "staff:0", recipientKey(calModels.RecipientTypeStaff, nil, nil))
 }
 
 func TestCalendarSortEvents(t *testing.T) {

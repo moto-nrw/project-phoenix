@@ -3,8 +3,9 @@ package parent
 import (
 	"context"
 	"errors"
+	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // DirectoryStudent is the People Directory projection the parent-portal
@@ -33,14 +34,14 @@ var errStudentDirectoryRequired = errors.New("parent repositories: student direc
 
 // parseDirectoryDate turns the directory's YYYY-MM-DD calendar day into the
 // legacy model's timezone.Date; empty stays nil.
-func parseDirectoryDate(value string) *timezone.Date {
+func parseDirectoryDate(value string) *careplan.Date {
 	if value == "" {
 		return nil
 	}
-	date, err := timezone.ParseDate(value)
-	if err != nil {
+	if _, err := time.Parse(careplan.DateLayout, value); err != nil {
 		return nil
 	}
+	date := careplan.Date(value)
 	return &date
 }
 

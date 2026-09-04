@@ -20,6 +20,30 @@ type StudentDeletionRepository struct {
 	// countConsents is served by the privacy-consent owner (student-presence,
 	// #2662); the preview must not join users.privacy_consents itself.
 	countConsents func(context.Context, int64) (int, error)
+	carePlan      interface {
+		CountCompanionLinks(context.Context, int64) (int, error)
+	}
+	appointments interface {
+		CountAppointmentRecipientStudents(context.Context, int64) (int, error)
+	}
+}
+
+func (r *StudentDeletionRepository) BindCarePlan(capability interface {
+	CountCompanionLinks(context.Context, int64) (int, error)
+}) {
+	if capability == nil {
+		panic("student deletion repository: care plan capability is required")
+	}
+	r.carePlan = capability
+}
+
+func (r *StudentDeletionRepository) BindAppointments(capability interface {
+	CountAppointmentRecipientStudents(context.Context, int64) (int, error)
+}) {
+	if capability == nil {
+		panic("student deletion repository: appointments capability is required")
+	}
+	r.appointments = capability
 }
 
 func NewStudentDeletionRepository(
@@ -60,7 +84,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				(SELECT COUNT(*) FROM users.students_guardians WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM users.persons_guardians WHERE tenant_id = ? AND person_id = (SELECT person_id FROM users.students WHERE tenant_id = ? AND id = ?))
 			)::int AS guardian_links,
-			(SELECT COUNT(*) FROM users.student_companions WHERE tenant_id = ? AND (student_low_id = ? OR student_high_id = ?))::int AS companion_links,
+			0::int AS companion_links,
 			(
 				(SELECT COUNT(*) FROM users.parent_message_threads WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM users.parent_messages WHERE tenant_id = ? AND student_id = ?) +
@@ -78,7 +102,6 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 			)::int AS communications,
 			(SELECT COUNT(*) FROM enrollment.request_children WHERE tenant_id = ? AND (created_student_id = ? OR matched_student_id = ?))::int AS enrollment_references,
 			(
-				(SELECT COUNT(*) FROM calendar.appointment_recipient_students WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM schedule.grade_transition_roster_removals WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
 			)::int AS other_records
@@ -88,14 +111,28 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
-		tenantID, studentID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
 	}
+	if r.carePlan == nil {
+		return nil, fmt.Errorf("preview student deletion: care plan capability is required")
+	}
+	counts.CompanionLinks, err = r.carePlan.CountCompanionLinks(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count companion links: %w", err)
+	}
+	if r.appointments == nil {
+		return nil, fmt.Errorf("preview student deletion: appointments capability is required")
+	}
+	appointmentRecipients, err := r.appointments.CountAppointmentRecipientStudents(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count appointment recipient students: %w", err)
+	}
+	counts.OtherRecords += appointmentRecipients
 	if r.countAuditReferences == nil || r.countConsents == nil {
 		return nil, fmt.Errorf("preview student deletion: audit and consent count capabilities are required")
 	}

@@ -56,4 +56,13 @@ export interface ClassDayReport {
   enrollment_known: boolean;
   totals: ClassDayTotals;
   rows: ClassDayRow[];
+  // Tagesausnahme der ganzen Klasse an diesem Tag (#2962/#2970), egal ob
+  // OGS oder Schule sie eingetragen hat. Fehlt, wenn es keine gibt.
+  class_arrival_exception?: ClassDayArrivalException;
+}
+
+interface ClassDayArrivalException {
+  arrival_time: string; // HH:MM
+  reason?: string;
+  origin: "ogs" | "school";
 }

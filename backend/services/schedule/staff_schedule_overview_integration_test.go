@@ -3,7 +3,6 @@ package schedule_test
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -75,18 +74,6 @@ func createOverviewTenantFixture(
 	return fixture
 }
 
-type overviewQueryCounter struct {
-	count atomic.Int64
-}
-
-func (h *overviewQueryCounter) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
-	return ctx
-}
-
-func (h *overviewQueryCounter) AfterQuery(_ context.Context, _ *bun.QueryEvent) {
-	h.count.Add(1)
-}
-
 func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +87,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	secondLocalAssignment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(db).InstanceStaff.Create(testpkg.Ctx(t), secondLocalAssignment))
 
-	queryCounter := &overviewQueryCounter{}
+	queryCounter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(queryCounter)
 	repos := repositories.NewFactory(countedDB)
 	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
@@ -111,7 +98,8 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 
 	localOverview, err := service.GetOverview(testpkg.Ctx(t), date, date.AddDays(4))
 	require.NoError(t, err)
-	assert.Equal(t, int64(6), queryCounter.count.Load(), "overview query count must stay fixed as assignment volume grows")
+	// Overview query count must stay fixed as assignment volume grows.
+	testpkg.AssertQueryBudget(t, "services.schedule.staff_overview.week", queryCounter.Queries())
 	assert.False(t, localOverview.DienstplanInUse, "foreign tenant shift must not activate the local Dienstplan")
 	localAssignments := make(map[int64]scheduleSvc.StaffScheduleAssignment)
 	for _, assignment := range localOverview.Assignments {
@@ -133,7 +121,8 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	// 6 base reads for the shift-less local tenant plus 7 for the foreign
 	// tenant: a Dienstplan-active week adds exactly one batched
 	// staff-work-schedule read for the weekly Soll summaries (#1837).
-	assert.Equal(t, int64(13), queryCounter.count.Load(), "overview reads must stay fixed batches: 6 without shifts, 7 with an active Dienstplan week")
+	// Cumulative on the same counter: 6 without shifts plus 7 with an active Dienstplan week.
+	testpkg.AssertQueryBudget(t, "services.schedule.staff_overview.week_plus_dienstplan_week", queryCounter.Queries())
 	assert.True(t, foreignOverview.DienstplanInUse)
 	require.Len(t, foreignOverview.Assignments, 1)
 	assert.Equal(t, foreign.instanceID, foreignOverview.Assignments[0].InstanceID)
@@ -216,7 +205,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 		_ = modelRepo.Delete(testpkg.TenantContext(tenantID), workModel.ID)
 	})
 
-	queryCounter := &overviewQueryCounter{}
+	queryCounter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(queryCounter)
 	repos := repositories.NewFactory(countedDB)
 	repos.SetConfigRuntime(testpkg.ConfigRuntime(countedDB))
@@ -231,7 +220,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	// 6 base reads + 1 staff-work-schedule batch + 2 for the work-time-model
 	// fallback (models + entries). The fallback fires only because one staff
 	// member has a model and no schedule rows.
-	assert.Equal(t, int64(9), queryCounter.count.Load(), "summary reads must stay fixed batches regardless of staff volume")
+	testpkg.AssertQueryBudget(t, "services.schedule.staff_overview.weekly_summaries", queryCounter.Queries())
 
 	summaries := make(map[int64]scheduleSvc.StaffWeeklySummary, len(overview.WeeklySummaries))
 	for _, summary := range overview.WeeklySummaries {
@@ -442,7 +431,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	require.NoError(t, err)
 	assert.Empty(t, foreignSchedules, "foreign recurrence bounds must not cross the tenant boundary")
 
-	queryCounter := &overviewQueryCounter{}
+	queryCounter := testpkg.NewQueryCounter()
 	countedRepos := repositories.NewFactory(db.WithQueryHook(queryCounter))
 	countedInstances, ok := countedRepos.ActivityInstance.(scheduleSvc.ActivityGroupInstanceRangeReader)
 	require.True(t, ok)
@@ -462,7 +451,8 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	})
 	require.NoError(t, err)
 	warnings := coverage.Warnings
-	assert.Equal(t, int64(8), queryCounter.count.Load(), "series volume must use eight fixed batch reads")
+	// Series volume must use eight fixed batch reads.
+	testpkg.AssertQueryBudget(t, "services.schedule.shift_coverage.series", queryCounter.Queries())
 	require.Len(t, warnings, 1, "pre-valid_from candidates must not be projected")
 	assert.Equal(t, nextWednesday.String(), warnings[0].Date)
 	for _, warning := range warnings {

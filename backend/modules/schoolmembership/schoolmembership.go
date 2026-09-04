@@ -1,7 +1,8 @@
 // Package schoolmembership is the public School Membership capability. It
-// owns users.staff, users.teachers and users.guests: every read or write of
-// a staff, teacher or guest row by another owner goes through Query or
-// Command instead of a foreign SQL join.
+// owns users.staff, users.teachers, users.guests, users.class_list_entries,
+// education.class_teachers and education.group_teacher. Every read or write
+// of those rows by another owner goes through Query or Command instead of a
+// foreign SQL join.
 //
 // The capability stops at the membership rows themselves. Person names live
 // with the People Directory, login accounts and roles with Identity Access;
@@ -207,6 +208,16 @@ type Query interface {
 	FindGuest(context.Context, int64) (Guest, error)
 	FindGuestByStaff(context.Context, int64) (Guest, error)
 	ListGuests(context.Context, GuestFilter) ([]Guest, error)
+
+	FindClassListEntry(context.Context, int64) (ClassListEntry, error)
+	// FindClassListEntryForMutation locks the row for the caller's transaction.
+	FindClassListEntryForMutation(context.Context, int64) (ClassListEntry, error)
+	// ListClassListEntries returns the entries matching the filter, ordered
+	// by last name, first name (both case-folded) and ID.
+	ListClassListEntries(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
+
+	ListClassAssignments(context.Context, ClassAssignmentFilter) ([]ClassAssignment, error)
+	ListGroupAssignments(context.Context, GroupAssignmentFilter) ([]GroupAssignment, error)
 }
 
 type Command interface {
@@ -234,6 +245,21 @@ type Command interface {
 	UpdateGuest(context.Context, UpdateGuest) (Guest, error)
 	// DeleteGuest removes the guest profile; guests carry no tombstone.
 	DeleteGuest(context.Context, int64) error
+
+	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
+	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
+	// DeleteClassListEntry removes the entry; entries carry no tombstone.
+	DeleteClassListEntry(context.Context, int64) error
+
+	CreateClassAssignment(context.Context, CreateClassAssignment) (ClassAssignment, error)
+	UpdateClassAssignment(context.Context, UpdateClassAssignment) (ClassAssignment, error)
+	DeleteClassAssignment(context.Context, int64) error
+	DeleteClassAssignmentsByStaff(context.Context, int64) (int64, error)
+
+	CreateGroupAssignment(context.Context, CreateGroupAssignment) (GroupAssignment, error)
+	UpdateGroupAssignment(context.Context, UpdateGroupAssignment) (GroupAssignment, error)
+	DeleteGroupAssignment(context.Context, int64) error
+	DeleteGroupAssignmentsByTeacher(context.Context, int64) (int64, error)
 }
 
 type Capability interface {
@@ -266,15 +292,48 @@ type engine interface {
 	CreateGuest(context.Context, CreateGuest) (Guest, error)
 	UpdateGuest(context.Context, UpdateGuest) (Guest, error)
 	DeleteGuest(context.Context, int64) error
+
+	FindClassListEntry(ctx context.Context, id int64, lock string) (ClassListEntry, error)
+	ListClassListEntries(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
+	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
+	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
+	DeleteClassListEntry(context.Context, int64) error
 }
 
-type Module struct{ engine engine }
+type teachingAssignmentEngine interface {
+	ListClassAssignments(context.Context, ClassAssignmentFilter) ([]ClassAssignment, error)
+	CreateClassAssignment(context.Context, CreateClassAssignment) (ClassAssignment, error)
+	UpdateClassAssignment(context.Context, UpdateClassAssignment) (ClassAssignment, error)
+	DeleteClassAssignment(context.Context, int64) error
+	DeleteClassAssignmentsByStaff(context.Context, int64) (int64, error)
 
-func NewModule(engine engine) *Module {
+	ListGroupAssignments(context.Context, GroupAssignmentFilter) ([]GroupAssignment, error)
+	CreateGroupAssignment(context.Context, CreateGroupAssignment) (GroupAssignment, error)
+	UpdateGroupAssignment(context.Context, UpdateGroupAssignment) (GroupAssignment, error)
+	DeleteGroupAssignment(context.Context, int64) error
+	DeleteGroupAssignmentsByTeacher(context.Context, int64) (int64, error)
+}
+
+type Module struct {
+	engine              engine
+	teachingAssignments teachingAssignmentEngine
+}
+
+func NewModule(engine engine, teachingAssignments ...teachingAssignmentEngine) *Module {
 	if engine == nil {
 		panic("school membership: engine is required")
 	}
-	return &Module{engine: engine}
+	if len(teachingAssignments) > 1 {
+		panic("school membership: at most one teaching assignment engine is allowed")
+	}
+	module := &Module{engine: engine}
+	if len(teachingAssignments) == 1 {
+		if teachingAssignments[0] == nil {
+			panic("school membership: teaching assignment engine is required")
+		}
+		module.teachingAssignments = teachingAssignments[0]
+	}
+	return module
 }
 
 // --- staff ---
@@ -586,7 +645,8 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrGuestNotFound):
+	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrGuestNotFound),
+		errors.Is(err, ErrClassListEntryNotFound), errors.Is(err, ErrClassAssignmentNotFound), errors.Is(err, ErrGroupAssignmentNotFound):
 		return "not_found"
 	case errors.Is(err, ErrInvalidMembership):
 		return "invalid"
@@ -594,6 +654,12 @@ func ErrorCode(err error) string {
 		return "membership_conflict"
 	case errors.Is(err, ErrPersonnelNumberConflict):
 		return "personnel_number_conflict"
+	case errors.Is(err, ErrClassListEntryDuplicate):
+		return "class_list_entry_conflict"
+	case errors.Is(err, ErrClassAssignmentConflict):
+		return "class_assignment_conflict"
+	case errors.Is(err, ErrGroupAssignmentConflict):
+		return "group_assignment_conflict"
 	default:
 		return "internal_error"
 	}

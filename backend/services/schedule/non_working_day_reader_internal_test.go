@@ -5,19 +5,18 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type stubHolidayService struct {
-	list  []holidays.Holiday
+	list  []Holiday
 	dates map[timezone.Date]bool
 	err   error
 }
 
-func (s *stubHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]holidays.Holiday, error) {
+func (s *stubHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]Holiday, error) {
 	return s.list, s.err
 }
 
@@ -68,7 +67,7 @@ func TestNonWorkingDayResolverPassthroughKeepsHolidaysPure(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewNonWorkingDayResolver(
-		&stubHolidayService{list: []holidays.Holiday{{Date: timezone.NewDate(2026, 5, 1), Name: "Tag der Arbeit"}}},
+		&stubHolidayService{list: []Holiday{{Date: timezone.NewDate(2026, 5, 1), Name: "Tag der Arbeit"}}},
 		&stubClosingDayService{dates: map[timezone.Date]bool{timezone.NewDate(2026, 5, 4): true}},
 	)
 

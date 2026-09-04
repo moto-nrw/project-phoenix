@@ -3,8 +3,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -135,28 +133,29 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 		}
 	}
 
-	// Load ActiveGroup for each mapping separately (multi-schema)
+	groupIDs := make([]int64, 0, len(groupMappings))
 	for _, mapping := range groupMappings {
 		if mapping.ActiveGroupID > 0 {
-			activeGroup := new(active.Group)
-			agQuery := base.GetDB(ctx, r.db).NewSelect().
-				Model(activeGroup).
-				ModelTableExpr(`active.groups AS "group"`).
-				Where("id = ?", mapping.ActiveGroupID)
-
-			agQuery = base.WithTenantFilter(ctx, agQuery, "group")
-
-			agErr := agQuery.Scan(ctx)
-			if agErr == nil {
-				mapping.ActiveGroup = activeGroup
-			} else if !errors.Is(agErr, sql.ErrNoRows) {
-				// Return actual database errors, but allow "not found" to continue
-				return nil, &modelBase.DatabaseError{
-					Op:  "find active group relation",
-					Err: agErr,
-				}
-			}
+			groupIDs = append(groupIDs, mapping.ActiveGroupID)
 		}
+	}
+	activeGroupsByID := make(map[int64]*active.Group, len(groupIDs))
+	if len(groupIDs) > 0 {
+		var groups []*active.Group
+		groupQuery := base.GetDB(ctx, r.db).NewSelect().
+			Model(&groups).
+			ModelTableExpr(`active.groups AS "group"`).
+			Where(`"group".id IN (?)`, bun.List(groupIDs))
+		groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
+		if err := groupQuery.Scan(ctx); err != nil {
+			return nil, &modelBase.DatabaseError{Op: "find active group relations", Err: base.TranslateNotFound(err)}
+		}
+		for _, group := range groups {
+			activeGroupsByID[group.ID] = group
+		}
+	}
+	for _, mapping := range groupMappings {
+		mapping.ActiveGroup = activeGroupsByID[mapping.ActiveGroupID]
 	}
 
 	// Set mappings

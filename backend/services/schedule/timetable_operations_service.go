@@ -86,6 +86,10 @@ type TimetableOperationsService interface {
 	CheckInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	CheckOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch scheduleModel.AttendanceFieldPatch) (*OperationRosterRow, error)
+	// EarliestPlannedBlockStartForClass returns the "HH:MM" start of the
+	// first non-cancelled block of the date that addresses the school class,
+	// "" when there is none (#2970).
+	EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date timezone.Date) (string, error)
 }
 
 // PlannedNowScopePast flips PlannedNow to the complement of its default
@@ -348,7 +352,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	}
 	past := opts.Scope == PlannedNowScopePast
 	wholeDay := opts.Scope == PlannedNowScopeDay
-	candidates := make([]plannedNowCandidate, 0, len(instances))
+	eligible := make([]*scheduleModel.ActivityInstance, 0, len(instances))
 	for _, inst := range instances {
 		switch {
 		case wholeDay:
@@ -363,29 +367,42 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 				continue
 			}
 		}
-		roomName := roomNames[inst.RoomID]
-		staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
-		if err != nil {
-			return nil, err
-		}
-		assigned := staffAssigned(staffRows, staffID)
+		eligible = append(eligible, inst)
+	}
+
+	eligibleIDs := activityInstanceIDs(eligible)
+	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, eligibleIDs)
+	if err != nil {
+		return nil, err
+	}
+	staffByInstance := indexInstanceStaffRows(staffRows)
+
+	candidateInstances := make([]*scheduleModel.ActivityInstance, 0, len(eligible))
+	for _, inst := range eligible {
+		assigned := staffAssigned(staffByInstance[inst.ID], staffID)
 		if !allOperational && !assigned {
 			continue
 		}
-		studentRows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, inst.ID)
-		if err != nil {
-			return nil, err
-		}
-		candidates = append(candidates, plannedNowCandidate{
-			instance:    inst,
-			staffRows:   staffRows,
-			studentRows: studentRows,
-			roomName:    roomName,
-			canOperate:  hasStaff && (adminActions || assigned),
-		})
-		if opts.Limit > 0 && len(candidates) >= opts.Limit {
+		candidateInstances = append(candidateInstances, inst)
+		if opts.Limit > 0 && len(candidateInstances) >= opts.Limit {
 			break
 		}
+	}
+	studentRows, err := s.deps.InstanceStudents.FindByInstanceIDs(ctx, activityInstanceIDs(candidateInstances))
+	if err != nil {
+		return nil, err
+	}
+	studentsByInstance := indexInstanceStudentRows(studentRows)
+	candidates := make([]plannedNowCandidate, 0, len(candidateInstances))
+	for _, inst := range candidateInstances {
+		assigned := staffAssigned(staffByInstance[inst.ID], staffID)
+		candidates = append(candidates, plannedNowCandidate{
+			instance:    inst,
+			staffRows:   staffByInstance[inst.ID],
+			studentRows: studentsByInstance[inst.ID],
+			roomName:    roomNames[inst.RoomID],
+			canOperate:  hasStaff && (adminActions || assigned),
+		})
 	}
 
 	careDay, err := s.deps.CareDayService.ResolveForDate(ctx, plannedNowStudentIDs(candidates), date)
@@ -424,6 +441,30 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		}
 	}
 	return out, nil
+}
+
+func activityInstanceIDs(instances []*scheduleModel.ActivityInstance) []int64 {
+	ids := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		ids = append(ids, instance.ID)
+	}
+	return ids
+}
+
+func indexInstanceStaffRows(rows []*scheduleModel.InstanceStaff) map[int64][]*scheduleModel.InstanceStaff {
+	byInstance := make(map[int64][]*scheduleModel.InstanceStaff)
+	for _, row := range rows {
+		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
+	}
+	return byInstance
+}
+
+func indexInstanceStudentRows(rows []*scheduleModel.InstanceStudent) map[int64][]*scheduleModel.InstanceStudent {
+	byInstance := make(map[int64][]*scheduleModel.InstanceStudent)
+	for _, row := range rows {
+		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
+	}
+	return byInstance
 }
 
 // enrichDayPlan decorates whole-day-scope blocks (#2383) with what the

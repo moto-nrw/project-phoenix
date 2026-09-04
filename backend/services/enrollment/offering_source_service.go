@@ -578,21 +578,21 @@ func loadValidatedOfferingSources(
 			return nil, nil, nil, fmt.Errorf("offering roster resync: load calendar period: %w", err)
 		}
 	}
-	offerings = make([]*enrollmentModels.CareOffering, 0, len(offeringIDs))
 	seen := make(map[int64]bool, len(offeringIDs))
 	for _, offeringID := range offeringIDs {
 		if seen[offeringID] {
 			return nil, nil, nil, fmt.Errorf("%w: care offering %d is listed twice", scheduleService.ErrOfferingSourceInvalid, offeringID)
 		}
 		seen[offeringID] = true
-		offering, err := offeringRepo.FindByID(ctx, offeringID)
-		if err != nil {
-			if modelBase.IsNoRows(err) {
-				droppedIDs = append(droppedIDs, offeringID)
-				continue
-			}
-			return nil, nil, nil, fmt.Errorf("offering roster resync: load offering: %w", err)
-		}
+	}
+	loaded, err := offeringRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("offering roster resync: load offerings: %w", err)
+	}
+	byID := careOfferingMap(loaded)
+	offerings = make([]*enrollmentModels.CareOffering, 0, len(loaded))
+	for _, offeringID := range offeringIDs {
+		offering := byID[offeringID]
 		if offering == nil {
 			droppedIDs = append(droppedIDs, offeringID)
 			continue
@@ -1495,7 +1495,7 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 	}
 	// Same boundary rule as ListOfferingSourceOptions: mirror what a resync
 	// for the selected period would seed.
-	countedFrom := timezone.TodayDate()
+	countedFrom := s.todayDate()
 	if calendarPeriodID != nil {
 		period, err := s.CalendarPeriodRepo.FindByID(ctx, *calendarPeriodID)
 		if err != nil {
@@ -1570,7 +1570,7 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 	// period a link that ends before the period begins contributes nothing.
 	// For a running (or past) period today stays the boundary — links that
 	// already ended are no longer plannable either way.
-	countedFrom := timezone.TodayDate()
+	countedFrom := s.todayDate()
 	if period != nil && period.StartDate.After(countedFrom) {
 		countedFrom = period.StartDate
 	}
@@ -1579,6 +1579,11 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 		return nil, fmt.Errorf("offering source options: list approved children: %w", err)
 	}
 	counts := groupOfferingGradeCounts(children)
+	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOfferings(ctx, offeringIDs)
+	if err != nil {
+		return nil, fmt.Errorf("offering source options: list sourced templates: %w", err)
+	}
+	templatesByOffering := sourcedTemplatesByOffering(templates)
 
 	options := make([]OfferingSourceOption, 0, len(selected))
 	for _, offering := range selected {
@@ -1598,11 +1603,7 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 			option.TotalCount = c.total
 			option.GradeCounts = c.byGrade
 		}
-		templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOffering(ctx, offering.ID)
-		if err != nil {
-			return nil, fmt.Errorf("offering source options: list sourced templates: %w", err)
-		}
-		for _, tmpl := range templates {
+		for _, tmpl := range templatesByOffering[offering.ID] {
 			if tmpl == nil {
 				continue
 			}
@@ -1616,6 +1617,19 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 		options = append(options, option)
 	}
 	return options, nil
+}
+
+func sourcedTemplatesByOffering(templates []*activities.Group) map[int64][]*activities.Group {
+	result := make(map[int64][]*activities.Group)
+	for _, template := range templates {
+		if template == nil {
+			continue
+		}
+		for _, offeringID := range template.SourceCareOfferingIDs {
+			result[offeringID] = append(result[offeringID], template)
+		}
+	}
+	return result
 }
 
 // offeringSourcePhases returns the tenant's phases keyed by id, restricted to

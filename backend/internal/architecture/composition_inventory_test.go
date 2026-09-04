@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 var (
@@ -107,29 +109,11 @@ func decodeCompositionLegacyCallers(t *testing.T, content []byte) []compositionL
 
 func updateCompositionLegacyCallers(t *testing.T, path string, callers, evidence []compositionLegacyCaller) {
 	t.Helper()
-	content, err := os.ReadFile(path) // #nosec G304 -- fixed repository manifest
-	if err != nil {
-		t.Fatal(err)
-	}
-	var document map[string]json.RawMessage
-	if err := json.Unmarshal(content, &document); err != nil {
-		t.Fatal(err)
-	}
-	document["legacy_callers"], err = json.Marshal(callers)
-	if err != nil {
-		t.Fatal(err)
-	}
+	replacements := map[string]any{"legacy_callers": callers}
 	if evidence != nil {
-		document["evidence_legacy_callers"], err = json.Marshal(evidence)
-		if err != nil {
-			t.Fatal(err)
-		}
+		replacements["evidence_legacy_callers"] = evidence
 	}
-	encoded, err := json.MarshalIndent(document, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, append(encoded, '\n'), 0o644); err != nil {
+	if err := testpkg.ReplaceCompositionFields(path, replacements); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -32,6 +32,16 @@ func (s *StudentService) ListByIDs(ctx context.Context, ids []int64) (result []d
 	return result, err
 }
 
+func (s *StudentService) ListNamesByIDs(ctx context.Context, ids []int64) (result []domain.StudentName, err error) {
+	err = s.run(ctx, "list_student_names_by_id", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		result, queryStats, err = s.store.ListNamesByIDs(txCtx, ids)
+		stats.Add(queryStats)
+		return err
+	})
+	return result, err
+}
+
 // ListAcrossTenantsByIDs reads in a separate admin transaction so a hosting
 // tenant's row-level security does not hide visiting students.
 func (s *StudentService) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) (result []domain.Student, err error) {

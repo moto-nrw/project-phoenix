@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
@@ -29,18 +31,16 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
-	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
-	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
+
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
-	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	schoolAPI "github.com/moto-nrw/project-phoenix/api/school"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
@@ -69,6 +69,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
+	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
@@ -80,9 +88,12 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -145,6 +156,7 @@ type moduleServices struct {
 	mealPlan *mealplanModule.Module
 	feedback *feedbackModule.Module
 	persons  *peopleModule.Module
+	rooms    *facilitiesModule.Module
 	// membership owns users.staff, users.teachers and users.guests (#2667).
 	membership *schoolMembershipModule.Module
 }
@@ -177,6 +189,13 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	var legacyFacilities interface {
+		ValidateRoomDeletion(context.Context, int64) error
+	}
+	rooms, err := composeFacilities(db, &legacyFacilities)
+	if err != nil {
+		return moduleServices{}, err
+	}
 	membership, err := schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
 		DB: db,
 		Observe: func(observation schoolMembershipCompose.Observation) {
@@ -186,6 +205,29 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	calendar, err := schoolCalendarCompose.New(schoolCalendarCompose.Dependencies{
+		DB: db,
+		Observe: func(observation schoolCalendarCompose.Observation) {
+			observability.ObserveSchoolCalendarOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolCalendarModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
+		DB: db,
+		Observe: func(observation appointmentsCompose.Observation) {
+			observability.ObserveAppointmentsOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration, appointmentsModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	carePlan, err := composeCarePlan(db, persons)
+	if err != nil {
+		return moduleServices{}, err
+	}
+	repoFactory.BindCarePlan(carePlan)
 	mealPlanSettings := mealplanCompose.NewSettings()
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db,
@@ -193,6 +235,8 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		Observe: func(observation mealplanCompose.Observation) {
 			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
 		},
+		Now:          time.Now,
+		Participants: mealPlanParticipantFinder(repoFactory, time.Now),
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -219,7 +263,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
-		organizations, persons, groups, membership,
+		organizations, persons, groups, rooms, membership, calendar, appointmentCapability,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,
@@ -229,13 +273,108 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
-	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, membership: membership}, nil
+	legacyFacilities = factory.Facilities
+	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, membership: membership}, nil
+}
+
+func composeFacilities(db *bun.DB, legacyFacilities *interface {
+	ValidateRoomDeletion(context.Context, int64) error
+}) (*facilitiesModule.Module, error) {
+	return facilitiesCompose.New(facilitiesCompose.Dependencies{
+		DB: db,
+		DeletionLock: func(ctx context.Context) error {
+			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+		},
+		DeletionGuard: func(ctx context.Context, roomID int64) error {
+			if *legacyFacilities == nil {
+				return facilitiesModule.ErrRoomDeletionGuardUnavailable
+			}
+			return mapRoomDeletionError((*legacyFacilities).ValidateRoomDeletion(ctx, roomID))
+		},
+		Observe: func(observation facilitiesCompose.Observation) {
+			observability.ObserveFacilitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, facilitiesModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+}
+
+func composeCarePlan(db *bun.DB, persons *peopleModule.Module) (*carePlanModule.Module, error) {
+	return carePlanCompose.New(carePlanCompose.Dependencies{
+		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+			values, err := persons.ListStudentNamesByID(ctx, ids)
+			if err != nil {
+				return nil, err
+			}
+			result := make([]carePlanCompose.StudentName, 0, len(values))
+			for _, value := range values {
+				result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
+			}
+			return result, nil
+		}),
+		StudentLock: persons.LockStudent, StudentNotFound: peopleModule.ErrStudentNotFound,
+		Observe: func(observation carePlanCompose.Observation) {
+			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+}
+
+func mapRoomDeletionError(err error) error {
+	var coded interface{ Code() string }
+	if !errors.As(err, &coded) {
+		return err
+	}
+	switch coded.Code() {
+	case "room_in_use":
+		return facilitiesModule.ErrRoomInUse
+	case "room_required_by_offering":
+		return facilitiesModule.ErrRoomRequiredByOffering
+	default:
+		return err
+	}
+}
+
+func mealPlanParticipantFinder(repoFactory *repositories.Factory, now func() time.Time) mealplanCompose.ParticipantFinder {
+	return func(ctx context.Context, date string) ([]mealplanCompose.ParticipantCandidate, error) {
+		students, err := repoFactory.Student.FindOverlappingWithGroupsOnDate(ctx, date, now())
+		if err != nil {
+			return nil, err
+		}
+		candidates := make([]mealplanCompose.ParticipantCandidate, 0, len(students))
+		for _, row := range students {
+			if row == nil || row.Student == nil || row.Person == nil {
+				continue
+			}
+			candidates = append(candidates, mealplanCompose.ParticipantCandidate{
+				StudentID: row.ID, FirstName: row.Person.FirstName, LastName: row.Person.LastName, SchoolClass: row.SchoolClass,
+			})
+		}
+		sort.SliceStable(candidates, func(left, right int) bool {
+			return mealPlanParticipantLess(candidates[left], candidates[right])
+		})
+		return candidates, nil
+	}
+}
+
+func mealPlanParticipantLess(left, right mealplanCompose.ParticipantCandidate) bool {
+	if left.SchoolClass != right.SchoolClass {
+		return left.SchoolClass < right.SchoolClass
+	}
+	if left.LastName != right.LastName {
+		return left.LastName < right.LastName
+	}
+	if left.FirstName != right.FirstName {
+		return left.FirstName < right.FirstName
+	}
+	return left.StudentID < right.StudentID
 }
 
 var mealPlanErrorRules = []apiCommon.ErrorRule{
 	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("feature_disabled"))},
 	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
 	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
+	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("meal_registration_disabled"))},
+	{Target: mealplanModule.ErrInvalidParticipation, Render: apiCommon.ErrorInvalidRequest},
+	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedRenderer(apiCommon.ErrorConflict, errors.New("meal_participation_cutoff_passed"))},
 }
 
 func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
@@ -243,12 +382,15 @@ func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, in
 	apiCommon.RenderError(w, r, renderer(err))
 }
 
-func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI.Resource {
+func newMealPlanResource(module *mealplanModule.Module, db *bun.DB, renderer services.SimpleListRenderer) *mealplanAPI.Resource {
 	return mealplanAPI.NewResource(module, mealplanAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, mealplanAPI.Middleware)) {
 			apiCommon.ProtectedTenantGroup(router, db, register)
 		},
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
+			if access == mealplanAPI.AccessParticipants {
+				return apiCommon.RequireMealParticipantsRead()
+			}
 			if access == mealplanAPI.AccessRead {
 				return apiCommon.RequireConfigRead()
 			}
@@ -261,7 +403,37 @@ func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI
 		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
 			renderMealPlanFailure(w, r, err, internalMessage)
 		},
+		ExportDailyList: func(list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
+			return renderMealParticipationExport(renderer, list, format)
+		},
 	})
+}
+
+func renderMealParticipationExport(renderer services.SimpleListRenderer, list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
+	rows := make([][]string, 0, len(list.Participants))
+	for _, participant := range list.Participants {
+		rows = append(rows, []string{participant.LastName + ", " + participant.FirstName, participant.SchoolClass})
+	}
+	date, err := list.Date.German()
+	if err != nil {
+		return mealplanAPI.ExportFile{}, err
+	}
+	file, err := renderer(services.SimpleListDocument{
+		Title:       "Mittagessen – Tagesliste",
+		Subtitle:    "Tagesliste für den " + date,
+		GeneratedAt: time.Now(),
+		Filters:     []string{"Änderungsfrist: " + list.CutoffTime + " Uhr", fmt.Sprintf("%d Kinder", len(rows))},
+		Columns: []services.SimpleListColumn{
+			{ID: "student_name", Label: "Kind"},
+			{ID: "student_class", Label: "Klasse"},
+		},
+		Rows:   rows,
+		Footer: "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
+	}, format, "mittagessen-"+string(list.Date))
+	if err != nil {
+		return mealplanAPI.ExportFile{}, err
+	}
+	return mealplanAPI.ExportFile{Data: file.Data, ContentType: file.ContentType, Filename: file.Filename}, nil
 }
 
 func newUsersResource(module peopleModule.Capability, repoFactory *repositories.Factory, db *bun.DB) *usersAPI.Resource {
@@ -338,17 +510,18 @@ type API struct {
 	databaseLogger     *slog.Logger
 	feedback           *feedbackModule.Module
 	membership         *schoolMembershipModule.Module
+	rooms              *facilitiesModule.Module
 	securityLogging    bool
 	rateLimiting       bool
 	authRateLimit      string
 
 	// API Resources
 	Auth             *authAPI.Resource
-	Rooms            *roomsAPI.Resource
+	Rooms            *roomsHTTPAdapter.Resource
 	Students         *studentsAPI.Resource
 	Statistics       *statisticsAPI.Resource
 	Groups           *groupsAPI.Resource
-	Guardians        *guardiansAPI.Resource
+	Guardians        *usersAPI.GuardianResource
 	Import           *importAPI.Resource
 	Activities       *activitiesAPI.Resource
 	Staff            *staffHTTP.Resource
@@ -369,7 +542,7 @@ type API struct {
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
 	ClassDay         *classdayAPI.Resource
-	ClassListEntries *classlistentriesAPI.Resource
+	ClassListEntries *classListHTTP.Resource
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
@@ -514,6 +687,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		databaseLogger:     logger.With("handler", "database"),
 		feedback:           modules.feedback,
 		membership:         modules.membership,
+		rooms:              modules.rooms,
 	}
 
 	// Setup router middleware
@@ -547,7 +721,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
-	api.MealPlan = newMealPlanResource(modules.mealPlan, db)
+	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
 	api.Users = newUsersResource(modules.persons, repoFactory, db)
 
@@ -828,17 +1002,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth.SetMFAService(api.Services.MFA)
 	api.Auth.SetPasskeyService(api.Services.Passkey)
 	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
-	api.Rooms = roomsAPI.NewResource(roomsAPI.ResourceConfig{
-		FacilityService:    api.Services.Facilities,
-		SettingsService:    api.Services.Settings,
-		UserContextService: api.Services.UserContext,
-		Logger:             logger.With("handler", "rooms"),
-		DB:                 db,
-	})
-	api.Rooms.ActiveService = api.Services.Active
-	api.Rooms.PersonService = api.Services.Users
-	api.Rooms.EducationService = api.Services.Education
-	api.Rooms.ListExportService = api.Services.ListExport
+	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
+		Facilities: api.Services.Facilities, Settings: api.Services.Settings,
+		UserContext: api.Services.UserContext, Active: api.Services.Active,
+		Users: api.Services.Users, Education: api.Services.Education,
+		ListExport: api.Services.ListExport,
+	}, db, logger.With("handler", "rooms"))
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
 		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
 		StudentRepo: repoFactory.Student,
@@ -852,7 +1021,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:                api.Services.Users,
-		GuardianService:              api.Services.Guardian,
+		PeopleDirectory:              api.Services.PeopleDirectory,
 		StudentService:               api.Services.Students,
 		ClassListEntryService:        api.Services.ClassListEntries,
 		StudentDeletionService:       api.Services.StudentDeletion,
@@ -911,8 +1080,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffNotices = timeTrackingAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db, viper.GetString("app_env"))
-	api.Guardians.ListExportService = api.Services.ListExport
+	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services, db, viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
@@ -1043,8 +1211,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.SSE.SetSchoolAccess(api.Services.Auth)
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
-	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
-	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
+	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"),
+		classdayAPI.WithArrivalExceptions(api.Services.ClassDayArrivalExceptions))
+	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Substitution, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
@@ -1462,4 +1631,10 @@ func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
 	w.Header().Set("Cache-Control", "private, max-age=3600")
 	_, _ = w.Write([]byte(content))
+}
+
+// newMealPlanExportRenderer keeps the export adapter construction in the API
+// composition layer so both production and route tests receive a real renderer.
+func newMealPlanExportRenderer() services.SimpleListRenderer {
+	return services.NewSimpleListRenderer()
 }

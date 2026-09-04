@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -112,15 +111,15 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 	// StartDate — use the same first-occurrence anchor as the calendar/ICS export
 	// so the mail and the calendar never disagree.
 	whenAppointment := appointment
-	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	recurrence, err := s.cfg.Appointments.FindRecurrenceRule(ctx, appointment.ID)
 	if err != nil {
 		return err
 	}
 	if recurrence != nil {
-		if first, ok := firstRecurrenceOccurrence(appointment, recurrence); ok && first != appointment.StartDate {
+		if first, ok := firstRecurrenceOccurrence(appointment, recurrence); ok && first != toTimezoneDate(appointment.StartDate) {
 			adjusted := *appointment
-			adjusted.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
-			adjusted.StartDate = first
+			adjusted.EndDate = toCalendarDate(first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate)))
+			adjusted.StartDate = toCalendarDate(first)
 			whenAppointment = &adjusted
 		}
 	}
@@ -196,69 +195,8 @@ type guardianRecipients struct {
 // parents-portal profiles. Channel-specific reachability is handled by each
 // caller: e-mail requires an address, while push requires an opted-in account.
 func (s *service) reachableGuardianRecipients(ctx context.Context, appointmentID int64) (guardianRecipients, error) {
-	empty := guardianRecipients{}
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointmentID)
-	if err != nil {
-		return empty, err
-	}
-	guardianIDs := make([]int64, 0, len(recipients))
-	for _, recipient := range recipients {
-		if recipient.RecipientType == calModels.RecipientTypeGuardianProfile && recipient.GuardianProfileID != nil {
-			guardianIDs = append(guardianIDs, *recipient.GuardianProfileID)
-		}
-	}
-	if len(guardianIDs) == 0 {
-		return empty, nil
-	}
-	profiles, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, guardianIDs)
-	if err != nil {
-		return empty, err
-	}
-	if s.cfg.RecipientStudentRepo == nil || s.cfg.StudentGuardianRepo == nil {
-		return empty, errors.New("calendar: guardian permission repositories are required")
-	}
-	recipientIDs := make([]int64, 0, len(recipients))
-	for _, recipient := range recipients {
-		if recipient.GuardianProfileID != nil {
-			recipientIDs = append(recipientIDs, recipient.ID)
-		}
-	}
-	studentLinks, err := s.cfg.RecipientStudentRepo.FindByRecipientIDs(ctx, recipientIDs)
-	if err != nil {
-		return empty, err
-	}
-	studentsByRecipient := make(map[int64][]int64, len(recipientIDs))
-	for _, link := range studentLinks {
-		studentsByRecipient[link.RecipientID] = append(studentsByRecipient[link.RecipientID], link.StudentID)
-	}
-
-	reachable := make([]int64, 0, len(guardianIDs))
-	studentsByGuardian := make(map[int64][]int64, len(guardianIDs))
-	for _, recipient := range recipients {
-		if recipient.GuardianProfileID == nil {
-			continue
-		}
-		profile, ok := profiles[*recipient.GuardianProfileID]
-		if !ok || profile.AccountID == nil || *profile.AccountID <= 0 {
-			continue
-		}
-		allowedStudents := make([]int64, 0, len(studentsByRecipient[recipient.ID]))
-		for _, studentID := range studentsByRecipient[recipient.ID] {
-			allowed, err := s.cfg.StudentGuardianRepo.AccountHasStudentPermission(ctx, *profile.AccountID, studentID, profile.TenantID, authorize.GuardianPermissionPortalAccess)
-			if err != nil {
-				return empty, fmt.Errorf("calendar: check guardian appointment recipient permission: %w", err)
-			}
-			if allowed {
-				allowedStudents = append(allowedStudents, studentID)
-			}
-		}
-		if len(allowedStudents) == 0 {
-			continue
-		}
-		reachable = append(reachable, *recipient.GuardianProfileID)
-		studentsByGuardian[*recipient.GuardianProfileID] = append(studentsByGuardian[*recipient.GuardianProfileID], allowedStudents...)
-	}
-	return guardianRecipients{guardianIDs: reachable, profiles: profiles, studentsByGuardian: studentsByGuardian}, nil
+	byAppointment, err := s.reachableGuardianRecipientsByAppointment(ctx, []int64{appointmentID})
+	return byAppointment[appointmentID], err
 }
 
 // guardianAccountIDs reduces resolved profiles to their distinct account IDs —
@@ -422,7 +360,7 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calMod
 func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appointment *calModels.Appointment, kind string) {
 	var accountIDs []int64
 	err := tenant.WithTenantTx(ctx, s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		current, err := s.cfg.AppointmentRepo.FindByID(txCtx, appointment.ID)
+		current, err := s.findAppointment(txCtx, appointment.ID)
 		if err != nil {
 			return err
 		}

@@ -14,7 +14,6 @@ import (
 	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
-	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
@@ -23,8 +22,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
@@ -55,8 +61,21 @@ type Factory struct {
 	db                       *bun.DB
 	organizationTenancyBound bool
 	peopleDirectoryBound     bool
+	carePlanBound            bool
 	schoolStructureBound     bool
 	schoolMembershipBound    bool
+	facilitiesBound          bool
+	appointmentsBound        bool
+	// roomBinders hand a room owner to the raw repositories that used to
+	// join facilities.rooms; kept so BindFacilities reaches them after the
+	// projections wrapped the factory fields (#2665).
+	roomBinders         []func(facilitiesModule.Query)
+	schoolCalendarBound bool
+	// schoolCalendar is the bound capability behind the calendar period,
+	// closing day and dateframe adapters (#2666).
+	schoolCalendar schoolcalendar.Capability
+	appointments   appointments.Capability
+	carePlan       careplan.Capability
 
 	// students is the bound People Directory; audit adapters rebuilt by
 	// ConfigureAuditRuntime after the binding read it again (#2662).
@@ -304,13 +323,7 @@ type Factory struct {
 	StaffMessageRead   userModels.StaffMessageReadRepository
 
 	// Calendar domain
-	CalendarAppointment               calendarModels.AppointmentRepository
-	CalendarRecurrenceRule            calendarModels.RecurrenceRuleRepository
-	CalendarAppointmentRecipient      calendarModels.AppointmentRecipientRepository
-	CalendarAppointmentRecipientChild calendarModels.AppointmentRecipientStudentRepository
-	CalendarAppointmentTarget         calendarModels.AppointmentTargetRepository
-	CalendarOccurrenceOverride        calendarModels.AppointmentOccurrenceOverrideRepository
-	CalendarStaffFeedTombstone        calendarModels.StaffFeedTombstoneRepository
+	CalendarStaffFeedTombstone calendarModels.StaffFeedTombstoneRepository
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
@@ -363,8 +376,18 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.TimeTrackingAuditLog = audit.NewTimeTrackingAuditLogRepository(runtime)
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime)
 	f.bindAuditStudentDirectory()
+	f.bindCarePlanAuditDirectory()
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
+	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
+		repository.BindCarePlan(f.carePlan)
+	}
+	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.appointments != nil {
+		repository.BindAppointments(f.appointments)
+	}
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
+	if f.students != nil {
+		f.bindGuardianDirectories(f.students)
+	}
 }
 
 // BindOrganizationTenancy replaces school-owning and school-enriched legacy
@@ -430,7 +453,11 @@ func (f *Factory) BindPeopleDirectory(capability peopledirectory.Capability) {
 	// Students first: the observed directory replaces the default binding on
 	// the raw repositories before the person projections wrap them.
 	f.bindStudentDirectories(capability, capability)
+	f.bindGuardianDirectories(capability)
 	f.bindPersonProjections(capability)
+	if f.carePlan != nil {
+		f.bindCarePlanAdapters(f.carePlan)
+	}
 }
 
 // BindSchoolStructure replaces the group-enriched legacy adapters with
@@ -468,11 +495,12 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 	}
 }
 
-// BindSchoolMembership replaces the staff, teacher and guest adapters — and
-// every legacy repository that used to join users.staff itself — with
-// compositions over the observed School Membership capability (#2667). The
-// factory already works without it (NewFactory composes an unobserved module),
-// so this binding is about runtime evidence, not about correctness.
+// BindSchoolMembership replaces the staff, teacher, guest, class-list-entry
+// and teaching-assignment adapters — and every legacy repository that used to
+// join membership tables itself — with compositions over the observed School
+// Membership capability (#2667, #2668, #2669). The factory already works
+// without it (NewFactory composes an unobserved module), so this binding is
+// about runtime evidence, not about correctness.
 func (f *Factory) BindSchoolMembership(capability schoolmembership.Capability) {
 	if capability == nil {
 		panic("repository factory: school membership capability is required")
@@ -491,9 +519,12 @@ func (f *Factory) SchoolMembership() schoolmembership.Capability { return f.scho
 // given capability.
 func (f *Factory) bindStaffMembershipAdapters(capability schoolmembership.Capability) {
 	f.schoolMembership = capability
+	f.GroupTeacher = newGroupTeacherRepository(capability, f.Group)
+	f.ClassTeacher = newClassTeacherRepository(capability)
 	f.Staff = staffMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Teacher = teacherMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Guest = guestMembershipRepository{membership: capability}
+	f.ClassListEntry = classListEntryMembershipRepository{membership: capability}
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -520,6 +551,16 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		}
 		return db, tenantID
 	}
+	parentRuntime := carePlanLegacy.NewParentRuntime(db)
+	schoolCalendarRuntime := schoolCalendarCompose.PersistenceRuntimeFor(db)
+	calendarRuntime := calendarRepo.Runtime{
+		Database: schoolCalendarRuntime.Database,
+		TenantID: schoolCalendarRuntime.TenantID,
+	}
+	appointmentsModule, err := NewAppointments(db)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: compose appointments: %v", err))
+	}
 	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
 	accountRepo := auth.NewAccountRepository(db)
@@ -527,6 +568,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	roleRepo := auth.NewRoleRepository(db)
 	permissionRepo := auth.NewPermissionRepository(db)
 	personRepo := users.NewPersonRepository(db)
+	studentRepo := users.NewStudentRepository(db)
+	groupRepo := education.NewGroupRepository(db)
 	factory := &Factory{
 		db: db,
 		// Auth repositories
@@ -554,14 +597,13 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		// Users repositories
 		Person:              personRepo,
 		RFIDCard:            auth.NewRFIDCardRepository(db),
-		Student:             users.NewStudentRepository(db),
-		ClassListEntry:      users.NewClassListEntryRepository(db),
+		Student:             studentRepo,
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
-		StudentCompanion:    users.NewStudentCompanionRepository(db),
+		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      active.NewPrivacyConsentRepository(db),
@@ -581,7 +623,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 
 		// Staff documents (#1424) — StaffDocument is bound by
 		// bindStaffMembershipDecorators, it needs the membership owner.
-		StudentDocument: users.NewStudentDocumentRepository(db),
+		StudentDocument: nil, // bound to Care Plan below
 
 		// School file storage (#2596)
 		FileFolder:             filestore.NewFolderRepository(db),
@@ -593,19 +635,17 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
-		Room: facilities.NewRoomRepository(db),
+		Room: facilitiesRepositoryAdapter.New(),
 
 		// Education repositories
-		Group:                 education.NewGroupRepository(db),
-		GroupTeacher:          education.NewGroupTeacherRepository(db),
-		ClassTeacher:          education.NewClassTeacherRepository(db),
+		Group:                 groupRepo,
 		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
 		ClassArrivalException: schedule.NewClassArrivalExceptionRepository(db),
 		GroupSubstitution:     education.NewGroupSubstitutionRepository(db),
 		GradeTransition:       education.NewGradeTransitionRepository(db),
 
-		// Schedule repositories
-		Dateframe:                 schedule.NewDateframeRepository(db),
+		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
+		// belong to School Calendar and are bound below.
 		Timeframe:                 schedule.NewTimeframeRepository(db),
 		RecurrenceRule:            schedule.NewRecurrenceRuleRepository(db),
 		StudentPickupSchedule:     schedule.NewStudentPickupScheduleRepository(db),
@@ -621,8 +661,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
 		PlanningTrack:             schedule.NewPlanningTrackRepository(db),
 		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
-		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
-		ClosingDay:                schedule.NewClosingDayRepository(db),
 		ActivityInstance:          activityInstance,
 		InstanceIdempotency:       activityInstance,
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
@@ -715,29 +753,27 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
 
 		// Enrollment repositories
-		FormSchema:            enrollment.NewFormSchemaRepository(db),
-		Request:               enrollment.NewRequestRepository(db),
-		EnrollmentDeletion:    enrollment.NewDeletionRepository(db, enrollmentOfferingAdjustment.CountForDeletion),
-		RequestChild:          enrollment.NewRequestChildRepository(db),
-		RequestGuardian:       enrollment.NewRequestGuardianRepository(db),
-		LateInvite:            enrollment.NewLateInviteRepository(db),
-		CareOffering:          enrollment.NewCareOfferingRepository(db),
-		OfferingChangeImpact:  enrollment.NewOfferingChangeImpactRepository(db),
-		RequestChildOffering:  enrollment.NewRequestChildOfferingRepository(db),
-		OfferingChangeRequest: enrollment.NewOfferingChangeRequestRepository(db),
-		ChangeRequest:         enrollment.NewChangeRequestRepository(db),
-		ChangeRequestMessage:  enrollment.NewChangeRequestMessageRepository(db),
-		SubmissionRateLimit:   enrollment.NewSubmissionRateLimitRepository(db),
-		Phase:                 enrollment.NewPhaseRepository(db),
-		PhaseExpiry:           enrollment.NewPhaseExpiryRepository(db),
+		FormSchema:           enrollment.NewFormSchemaRepository(db),
+		Request:              enrollment.NewRequestRepository(db),
+		EnrollmentDeletion:   enrollment.NewDeletionRepository(db, enrollmentOfferingAdjustment.CountForDeletion),
+		RequestChild:         enrollment.NewRequestChildRepository(db),
+		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
+		LateInvite:           enrollment.NewLateInviteRepository(db),
+		OfferingChangeImpact: enrollment.NewOfferingChangeImpactRepository(db),
+		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
+		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
+		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
+		Phase:                enrollment.NewPhaseRepository(db),
+		PhaseExpiry:          enrollment.NewPhaseExpiryRepository(db),
 
 		// Display (info-point dashboards, issue #1325)
 		Display: displayRepo.NewDisplayRepository(db),
 
 		// Parent (cross-tenant guardian portal — PR 9+)
-		ParentChild:             parentRepo.NewChildRepository(db),
-		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(db),
-		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(db),
+		ParentChild:             parentRepo.NewChildRepository(parentRuntime),
+		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime),
+		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime),
 
 		// Parent Stammdaten direct-edit audit + change-request review
 		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
@@ -752,22 +788,60 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffMessage:       users.NewStaffMessageRepository(db),
 
 		// Calendar repositories
-		CalendarAppointment:               calendarRepo.NewAppointmentRepository(db),
-		CalendarRecurrenceRule:            calendarRepo.NewRecurrenceRuleRepository(db),
-		CalendarAppointmentRecipient:      calendarRepo.NewAppointmentRecipientRepository(db),
-		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(db),
-		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(db),
-		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
-		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
-		ParentAnnouncement:                parentAnnouncement,
-		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
+		CalendarStaffFeedTombstone: calendarRepo.NewStaffFeedTombstoneRepository(calendarRuntime),
+		ParentAnnouncement:         parentAnnouncement,
+		StaffNotice:                schedule.NewStaffNoticeRepository(db),
 	}
+	factory.appointments = appointmentsModule
+	studentRepo.(interface {
+		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
+	}).BindTeacherGroupIDs(func(ctx context.Context, teacherID int64) ([]int64, error) {
+		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{TeacherIDs: []int64{teacherID}})
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(assignments))
+		for _, assignment := range assignments {
+			ids = append(ids, assignment.GroupID)
+		}
+		return ids, nil
+	})
+	studentRepo.(interface {
+		BindTeacherStaffGroupIDs(func(context.Context, []int64) ([]int64, error))
+	}).BindTeacherStaffGroupIDs(func(ctx context.Context, staffIDs []int64) ([]int64, error) {
+		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{TeacherStaffIDs: staffIDs})
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(assignments))
+		for _, assignment := range assignments {
+			ids = append(ids, assignment.GroupID)
+		}
+		return ids, nil
+	})
+	groupRepo.(*education.GroupRepository).BindTeachingAssignments(func(ctx context.Context, groupIDs, teacherIDs []int64) ([]education.TeacherGroupID, error) {
+		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs, TeacherIDs: teacherIDs})
+		if err != nil {
+			return nil, err
+		}
+		result := make([]education.TeacherGroupID, 0, len(assignments))
+		for _, assignment := range assignments {
+			result = append(result, education.TeacherGroupID{TeacherID: assignment.TeacherID, GroupID: assignment.GroupID})
+		}
+		return result, nil
+	})
 	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents)
+	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)
+	factory.bindDefaultFacilities(db)
+	carePlan, err := NewCarePlan(db, factory.students)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: compose care plan: %v", err))
+	}
+	factory.bindCarePlanAdapters(carePlan)
 	factory.membershipDeps = newStaffMembershipDeps(personRepo, accountRepo, accountTenantRepo, permissionRepo, roleRepo)
-	factory.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return factory.GroupTeacher }
 	// Staff, teachers and guests belong to School Membership. Without an
 	// explicit binding the factory composes an unobserved module so every
 	// legacy consumer — repository tests and CLI roots included — reads the
@@ -776,7 +850,16 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose school membership: %v", err))
 	}
+	factory.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return factory.GroupTeacher }
 	factory.bindStaffMembershipAdapters(membership)
+	// Calendar periods, closing days and dateframes belong to School
+	// Calendar; the unobserved default keeps every legacy consumer on the
+	// owner until the production root binds the observed module (#2666).
+	calendar, err := NewSchoolCalendar(db)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: compose school calendar: %v", err))
+	}
+	factory.bindSchoolCalendarAdapters(calendar)
 	// The decorators are wired once, innermost: they read the capability
 	// lazily so a later BindSchoolMembership swap reaches them too, and they
 	// stay under the school/person/group wrappers bound afterwards.
