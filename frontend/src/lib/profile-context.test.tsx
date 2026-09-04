@@ -89,6 +89,23 @@ describe("ProfileContext", () => {
       expect(result.current.profile).toEqual(mockProfile);
     });
 
+    it("renders a server-preloaded profile without fetching (#2973)", async () => {
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <ProfileProvider initialProfile={mockProfile}>
+          {children}
+        </ProfileProvider>
+      );
+
+      const { result } = renderHook(() => useProfile(), { wrapper });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.profile).toEqual(mockProfile);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(profileApi.fetchProfile).not.toHaveBeenCalled();
+    });
+
     it("should not fetch profile when no session token", async () => {
       vi.mocked(nextAuthReact.useSession).mockReturnValue({
         data: null,
