@@ -14,8 +14,11 @@ const (
 	profileSettingCareOfferingsEnabled  = "enrollment.care_offerings_enabled"
 	profileSettingBookingsAuthoritative = "enrollment.bookings_authoritative"
 	profilePresenceDetailed             = "detailed"
+	profilePresenceBinary               = "binary"
 	profileGroupModeFixed               = "fixed_groups"
+	profileGroupModeOpenCare            = "open_care"
 	profileCareConceptFixedSchedule     = "fixed_schedule"
+	profileCareConceptOpenRooms         = "open_rooms"
 )
 
 type demoProfileDefinition struct {
@@ -87,6 +90,53 @@ func fullOperationExpectedState() SeedExpectedState {
 		HasHistory:      true,
 		ScheduledActivities: SeedScheduledActivityState{
 			Minimum: 1, Rooms: true, Students: true, Staff: true,
+		},
+	}
+}
+
+func manualProfileDefinition() demoProfileDefinition {
+	return demoProfileDefinition{
+		Key:                 ManualProfileKey,
+		OrganizationName:    "Demo-Träger Nord",
+		OrganizationSlug:    "demo-traeger-nord",
+		SchoolName:          "Demo-Schule Manuell",
+		SchoolSlug:          ManualProfileKey,
+		SchoolAdminEmail:    "manuell-admin@example.test",
+		SchoolAdminPassword: "Manuell1234%",
+		Settings:            manualProfileSettings(),
+		Expected: SeedExpectedState{
+			Students: 12, Groups: 2, Staff: 2, Contacts: 12,
+			PhysicalDevices: 0, HasAttendance: true, HasHistory: true,
+			PresentStudents: 4, CheckedOutStudents: 4, WeeklyPlans: 12,
+		},
+	}
+}
+
+func manualProfileSettings() map[string]SeedSetting {
+	return map[string]SeedSetting{
+		profileSettingPresenceMode: {
+			Value: json.RawMessage(`"` + profilePresenceBinary + `"`), ManagedBy: SettingManagedByOperator,
+		},
+		profileSettingAttendanceNFC: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator,
+		},
+		profileSettingAttendanceWeb: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
+		},
+		profileSettingGroupMode: {
+			Value: json.RawMessage(`"` + profileGroupModeOpenCare + `"`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingCareConcept: {
+			Value: json.RawMessage(`"` + profileCareConceptOpenRooms + `"`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingEnrollmentEnabled: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingCareOfferingsEnabled: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingBookingsAuthoritative: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator,
 		},
 	}
 }
