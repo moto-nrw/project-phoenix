@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -195,7 +196,7 @@ type seedStatisticsDemoStep struct{}
 
 func (seedStatisticsDemoStep) Name() string { return "Seeding statistics demo data" }
 
-func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
+func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) (err error) {
 	if rt.FixedSeeder == nil || len(rt.FixedSeeder.staffCredentials) == 0 {
 		return fmt.Errorf("fixed seeder data not available")
 	}
@@ -217,6 +218,17 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 	}, deviceKey, rt.StaffPIN); err != nil {
 		return fmt.Errorf("start statistics demo session: %w", err)
 	}
+	defer func() {
+		cleanupErr := cleanUpStatisticsDemoSession(rt, deviceKey)
+		if cleanupErr == nil {
+			return
+		}
+		if err == nil {
+			err = cleanupErr
+			return
+		}
+		err = errors.Join(err, cleanupErr)
+	}()
 	seeded := 0
 	for i := 0; i < 3 && i < len(DemoStudents); i++ {
 		studentID, ok := rt.FixedSeeder.studentIDByIndex[i]
@@ -236,14 +248,19 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 		}
 		seeded++
 	}
-	if _, err := rt.Client.DevicePost("/api/iot/session/end", nil, deviceKey, rt.StaffPIN); err != nil {
-		return fmt.Errorf("end statistics demo session: %w", err)
-	}
-	if err := checkOutStatisticsSupervisor(rt); err != nil {
-		return err
-	}
 	fmt.Printf("  %d attendance records and room visits seeded for Statistik\n", seeded)
 	return nil
+}
+
+func cleanUpStatisticsDemoSession(rt *Runtime, deviceKey string) error {
+	var errs []error
+	if _, err := rt.Client.DevicePost("/api/iot/session/end", nil, deviceKey, rt.StaffPIN); err != nil {
+		errs = append(errs, fmt.Errorf("end statistics demo session: %w", err))
+	}
+	if err := checkOutStatisticsSupervisor(rt); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 // checkOutStatisticsSupervisor bucht die Aufsicht wieder aus. Der

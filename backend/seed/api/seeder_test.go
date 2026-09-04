@@ -119,6 +119,52 @@ func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
 	}, paths)
 }
 
+func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/students/101/rfid", "/api/iot/session/end":
+			w.WriteHeader(seedHTTPStatusInternalServerError)
+			_, _ = fmt.Fprint(w, `{"status":"error","error":"injected failure"}`)
+		case "/auth/login":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"staff-token"}}`)
+		case "/api/time-tracking/current":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"77"}}`)
+		default:
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		}
+	})
+	defer srv.Close()
+
+	err := (seedStatisticsDemoStep{}).Run(context.Background(), &Runtime{
+		Client: newTestClient(srv.URL, false),
+		FixedSeeder: &FixedSeeder{
+			deviceKeys:       map[string]string{DemoDevices[0].DeviceID: "device-key"},
+			activityIDs:      map[string]int64{DemoActivities[0].Name: 11},
+			activityRoomIDs:  map[int64]int64{11: 12},
+			staffIDs:         map[string]int64{"Mara Muster": 13},
+			staffCredentials: []StaffCredentials{{Name: "Mara Muster", Email: "mara@example.com", Password: "Test1234%"}},
+			studentIDByIndex: map[int]int64{0: 101},
+		},
+		StaffPIN: "1234",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "assign statistics demo RFID")
+	assert.Contains(t, err.Error(), "end statistics demo session")
+	assert.Equal(t, []string{
+		"/api/iot/session/start",
+		"/api/students/101/rfid",
+		"/api/iot/session/end",
+		"/auth/login",
+		"/api/time-tracking/current",
+		"/api/time-tracking/check-out",
+	}, paths)
+}
+
 func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	t.Parallel()
 
