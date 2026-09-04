@@ -324,6 +324,9 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
 	}
+	if _, hasTransaction := tenant.TransactionFromContext(ctx); !hasTransaction {
+		return s.createActiveGroupLocked(ctx, group)
+	}
 	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		return s.createActiveGroupLocked(txCtx, group)
 	})
@@ -355,6 +358,9 @@ func (s *service) createActiveGroupLocked(ctx context.Context, group *active.Gro
 func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
+	}
+	if _, hasTransaction := tenant.TransactionFromContext(ctx); !hasTransaction {
+		return s.updateActiveGroupLocked(ctx, group)
 	}
 	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		return s.updateActiveGroupLocked(txCtx, group)
