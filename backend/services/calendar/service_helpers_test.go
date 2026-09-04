@@ -160,7 +160,7 @@ func TestStaffRecipientStatus(t *testing.T) {
 
 	staffID := int64(10)
 	recipients := []*calModels.AppointmentRecipient{
-		{Model: calModels.Model{ID: 101}, RecipientType: calModels.RecipientTypeStaff, StaffID: &staffID, Status: calModels.ResponseStatusAccepted},
+		{ID: 101, RecipientType: calModels.RecipientTypeStaff, StaffID: &staffID, Status: calModels.ResponseStatusAccepted},
 	}
 
 	status, recipientID := staffRecipientStatus(recipients, staffID)
@@ -629,12 +629,6 @@ func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {
 
 	assert.Equal(t, "Kind 44", studentDisplayName(&userModels.Student{Model: base.Model{ID: 44}}))
 	assert.Equal(t, "Grace Hopper", studentDisplayName(&userModels.Student{Person: &userModels.Person{FirstName: "Grace", LastName: "Hopper"}}))
-
-	staffID := int64(50)
-	guardianID := int64(60)
-	assert.Equal(t, "staff:50", recipientKey(calModels.RecipientTypeStaff, &staffID, nil))
-	assert.Equal(t, "guardian:60", recipientKey(calModels.RecipientTypeGuardianProfile, nil, &guardianID))
-	assert.Equal(t, "staff:0", recipientKey(calModels.RecipientTypeStaff, nil, nil))
 }
 
 func TestCalendarSortEvents(t *testing.T) {

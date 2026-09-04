@@ -29,7 +29,7 @@ func (s *service) reachableGuardianRecipientsByAppointment(ctx context.Context, 
 }
 
 func (s *service) loadGuardianRecipientReadSet(ctx context.Context, appointmentIDs []int64) (*guardianRecipientReadSet, error) {
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentIDs(ctx, appointmentIDs)
+	recipients, err := s.cfg.Appointments.FindAppointmentRecipientsByAppointmentIDs(ctx, appointmentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -41,10 +41,10 @@ func (s *service) loadGuardianRecipientReadSet(ctx context.Context, appointmentI
 	if err != nil {
 		return nil, err
 	}
-	if s.cfg.RecipientStudentRepo == nil || s.cfg.StudentGuardianRepo == nil {
+	if s.cfg.StudentGuardianRepo == nil {
 		return nil, errors.New("calendar: guardian permission repositories are required")
 	}
-	studentLinks, err := s.cfg.RecipientStudentRepo.FindByRecipientIDs(ctx, recipientIDs)
+	studentLinks, err := s.cfg.Appointments.FindAppointmentRecipientStudents(ctx, recipientIDs)
 	if err != nil {
 		return nil, err
 	}

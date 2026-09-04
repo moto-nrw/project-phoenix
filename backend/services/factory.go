@@ -2613,8 +2613,6 @@ func newFactory(
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
 		Appointments:           repos.Appointments(),
-		RecipientRepo:          repos.CalendarAppointmentRecipient,
-		RecipientStudentRepo:   repos.CalendarAppointmentRecipientChild,
 		StaffRepo:              repos.Staff,
 		StudentRepo:            repos.Student,
 		GuardianProfileRepo:    repos.GuardianProfile,

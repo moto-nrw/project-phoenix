@@ -10135,7 +10135,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        504
+        502
       ],
       "tables": []
     },
@@ -10145,7 +10145,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        458
+        456
       ],
       "tables": []
     },
@@ -10155,7 +10155,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1253
+        1251
       ],
       "tables": []
     },
@@ -10165,7 +10165,7 @@
       "declaration": "TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1037
+        1035
       ],
       "tables": [
         "calendar.appointments",
@@ -10179,7 +10179,7 @@
       "declaration": "TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1130
+        1128
       ],
       "tables": []
     },
@@ -10189,7 +10189,7 @@
       "declaration": "TestCalendarServiceIntegration_EditRacingCancellationConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1200
+        1198
       ],
       "tables": []
     },
@@ -10199,7 +10199,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedRejectsInactiveAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2256
+        2254
       ],
       "tables": [
         "auth.accounts"
@@ -10211,7 +10211,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2850
+        2848
       ],
       "tables": []
     },
@@ -10221,7 +10221,7 @@
       "declaration": "TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1949
+        1947
       ],
       "tables": []
     },
@@ -10231,7 +10231,7 @@
       "declaration": "TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2913
+        2911
       ],
       "tables": []
     },
@@ -10241,7 +10241,7 @@
       "declaration": "TestCalendarServiceIntegration_RepositoryReadAndReplacePaths",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2082
+        2080
       ],
       "tables": []
     },
@@ -10251,7 +10251,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        762
+        760
       ],
       "tables": []
     },
@@ -10261,7 +10261,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        710
+        708
       ],
       "tables": [
         "auth.account_tenants"
@@ -10273,7 +10273,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedIndependent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        784
+        782
       ],
       "tables": []
     },
@@ -10283,7 +10283,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWithoutPrivateDescriptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        831
+        829
       ],
       "tables": []
     },
@@ -10293,7 +10293,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDeletionCancellations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        987
+        985
       ],
       "tables": []
     },
@@ -10303,7 +10303,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEventsOutsideLookback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        935
+        933
       ],
       "tables": [
         "schedule.activity_instances"
@@ -10315,7 +10315,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        888
+        886
       ],
       "tables": []
     },
@@ -10325,7 +10325,7 @@
       "declaration": "TestCalendarServiceIntegration_SubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        608
+        606
       ],
       "tables": [
         "auth.accounts"

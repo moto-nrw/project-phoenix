@@ -858,7 +858,7 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 			// The claim released above has to be replaced before the push goes out,
 			// or a re-scan of this window could send the reminder a second time.
 			if revised {
-				claimed, err := s.cfg.RecipientRepo.ClaimReminderPush(txCtx, current.ID, current.Revision, toCalendarDate(delivery.occurrence), profileID)
+				claimed, err := s.cfg.Appointments.ClaimReminderPushDelivery(txCtx, current.ID, current.Revision, toCalendarDate(delivery.occurrence), profileID)
 				if err != nil {
 					return fmt.Errorf("claim revised reminder push delivery: %w", err)
 				}
@@ -899,14 +899,14 @@ func withoutReminderProfiles(claimed, reachable []int64) []int64 {
 // outbox row. The push is dispatched by an after-commit hook, so a durable
 // claim can never outlive a rolled-back reminder.
 func (s *service) claimReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) (bool, error) {
-	return s.cfg.RecipientRepo.ClaimReminderPush(ctx, appointment.ID, appointment.Revision, toCalendarDate(occurrence), profileID)
+	return s.cfg.Appointments.ClaimReminderPushDelivery(ctx, appointment.ID, appointment.Revision, toCalendarDate(occurrence), profileID)
 }
 
 func (s *service) releaseReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) error {
 	cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 	cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 	return tenant.WithTenantTx(cleanupCtx, s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return s.cfg.RecipientRepo.ReleaseReminderPush(txCtx, appointment.ID, appointment.Revision, toCalendarDate(occurrence), profileID)
+		return s.cfg.Appointments.ReleaseReminderPushDelivery(txCtx, appointment.ID, appointment.Revision, toCalendarDate(occurrence), profileID)
 	})
 }
 
@@ -916,7 +916,7 @@ func (s *service) releaseReminderPush(ctx context.Context, appointment *calModel
 // with whatever replaces it.
 func (s *service) releaseReminderPushProfiles(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileIDs []int64) error {
 	for _, profileID := range profileIDs {
-		if err := s.cfg.RecipientRepo.ReleaseReminderPush(ctx, appointment.ID, appointment.Revision, toCalendarDate(occurrence), profileID); err != nil {
+		if err := s.cfg.Appointments.ReleaseReminderPushDelivery(ctx, appointment.ID, appointment.Revision, toCalendarDate(occurrence), profileID); err != nil {
 			return fmt.Errorf("calendar: release superseded reminder push delivery: %w", err)
 		}
 	}
