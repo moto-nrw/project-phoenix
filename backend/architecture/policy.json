@@ -1401,7 +1401,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/staff",
+      "path": "modules/communication/internal/staffannouncements",
       "owner": "communication",
       "role": "adapter",
       "internal_test_role": "adapter-test",
@@ -2108,7 +2108,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/compose",
+      "path": "modules/communication/composition",
       "owner": "communication",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -4816,17 +4816,6 @@
       "source_role": "adapter",
       "target_owner": "people-directory",
       "target_role": "application"
-    },
-    {
-      "id": "communication.messages.scheduler-public",
-      "description": "The scheduler invokes staff-message retention through the public Communication cleanup capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "scheduler-runtime",
-      "source_role": "application",
-      "target_owner": "communication",
-      "target_role": "public"
     },
     {
       "id": "communication.messages.http-workflow-self",

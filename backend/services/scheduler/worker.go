@@ -10,7 +10,6 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -53,7 +52,7 @@ type WorkerDependencies struct {
 	TimeTrackingCleanup       active.TimeTrackingCleanupService
 	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService
 	PWAUsageCleanup           pwaSvc.UsageService
-	StaffMessageCleanup       communication.StaffMessageCleanup
+	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        auditModel.BookingConsistencyRepository
 	EnrollmentRejectedCleanup enrollmentSvc.RejectedEnrollmentCleaner
 	AutoStart                 scheduleSvc.AutoStartService

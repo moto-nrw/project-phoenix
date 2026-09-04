@@ -199,7 +199,14 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.TimeTrackingCleanup = services.TimeTrackingCleanup
 	deps.StudentChangeLogCleanup = services.StudentChangeLogCleanup
 	deps.PWAUsageCleanup = services.PWAUsage
-	deps.StaffMessageCleanup = services.StaffMessaging
+	deps.StaffMessageCleanup = func(ctx context.Context) (scheduler.StaffMessageCleanupResult, error) {
+		result, err := services.StaffMessaging.CleanupExpiredStaffMessages(ctx)
+		return scheduler.StaffMessageCleanupResult{
+			MessagesDeleted: result.MessagesDeleted,
+			ThreadsDeleted:  result.ThreadsDeleted,
+			RetentionDays:   result.RetentionDays,
+		}, err
+	}
 	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
 	deps.AutoStart = services.AutoStart
 	deps.AutoEnd = services.AutoEnd
