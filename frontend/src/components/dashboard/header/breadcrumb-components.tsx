@@ -3,7 +3,7 @@
 
 "use client";
 
-import Link from "next/link";
+import { NavLink } from "~/components/ui/nav-link";
 import { useTranslations } from "next-intl";
 
 import {
@@ -50,13 +50,13 @@ function BreadcrumbLink({ href, children, onClick }: BreadcrumbLinkProps) {
   const tenantPath = useTenantAwarePath();
 
   return (
-    <Link
+    <NavLink
       href={tenantPath(href)}
       onClick={onClick}
       className="font-medium text-gray-500 transition-colors hover:text-gray-900"
     >
       {children}
-    </Link>
+    </NavLink>
   );
 }
 
