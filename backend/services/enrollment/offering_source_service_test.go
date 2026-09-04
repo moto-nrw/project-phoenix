@@ -148,7 +148,7 @@ func offeringResyncer(t *testing.T, env *decisionTestEnv) enrollmentService.Offe
 // (2026-09-01) - sourcedRosterWindow clamps ValidFrom to max(phase start,
 // effective from), so every ValidFrom assertion silently depended on the
 // test running before September 2026 (backend-conventions.md, Rule 14).
-var offeringResyncToday = timezone.NewDate(2026, 8, 24)
+const offeringResyncToday = decisionTestToday
 
 // ---- decision fan-out ----------------------------------------------------
 

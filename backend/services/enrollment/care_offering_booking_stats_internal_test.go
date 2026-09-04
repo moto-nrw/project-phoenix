@@ -73,6 +73,8 @@ func (r *bookingStatsLinkRepo) CountMaxActiveByCareOfferingIDsInRange(
 
 func intPtr(v int) *int { return &v }
 
+const bookingStatsTestToday timezone.Date = "2026-08-24"
+
 func bookingStatsService(
 	phase *enrollmentModels.Phase,
 	offerings []*enrollmentModels.CareOffering,
@@ -82,11 +84,12 @@ func bookingStatsService(
 		Repo:                     bookingStatsOfferingRepo{offerings: offerings},
 		PhaseRepo:                bookingStatsPhaseRepo{phase: phase},
 		RequestChildOfferingRepo: links,
+		Today:                    func() timezone.Date { return bookingStatsTestToday },
 	}}
 }
 
 func runningPhase() *enrollmentModels.Phase {
-	today := timezone.TodayDate()
+	today := bookingStatsTestToday
 	return &enrollmentModels.Phase{
 		ServiceStartDate: today.AddDays(-30),
 		ServiceEndDate:   today.AddDays(60),
@@ -133,7 +136,7 @@ func TestListBookingStats_CountsInTheCapacityGatesWindow(t *testing.T) {
 
 	// The displayed occupancy must be the number the capacity gate will apply
 	// on save, so the window has to match applyCapacityOverflowCore's.
-	today := timezone.NewDate(2026, 8, 24)
+	today := bookingStatsTestToday
 	phase := &enrollmentModels.Phase{
 		ServiceStartDate: today.AddDays(-30),
 		ServiceEndDate:   today.AddDays(60),
@@ -155,7 +158,7 @@ func TestListBookingStats_CountsInTheCapacityGatesWindow(t *testing.T) {
 func TestListBookingStats_CountsFromTheStartOfAFuturePhase(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := bookingStatsTestToday
 	phase := &enrollmentModels.Phase{
 		ServiceStartDate: today.AddDays(30),
 		ServiceEndDate:   today.AddDays(200),
@@ -177,7 +180,7 @@ func TestListBookingStats_FallsBackToTheFinalDayOfACompletedPhase(t *testing.T) 
 	// [today, end+1) is empty once a phase has ended. Reporting zero would
 	// claim every offering is free; the final service day is the honest
 	// answer for a historical phase.
-	today := timezone.TodayDate()
+	today := bookingStatsTestToday
 	phase := &enrollmentModels.Phase{
 		ServiceStartDate: today.AddDays(-200),
 		ServiceEndDate:   today.AddDays(-30),
@@ -198,7 +201,7 @@ func TestListBookingStats_FallsBackToTheFinalDayOfACompletedPhase(t *testing.T) 
 func TestBookingStatsWindow_DefaultsToTodayWithoutPhaseDates(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := bookingStatsTestToday
 
 	from, until := bookingStatsWindowOn(nil, today)
 	assert.Equal(t, today, from)

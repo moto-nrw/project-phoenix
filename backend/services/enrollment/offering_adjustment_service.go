@@ -216,18 +216,19 @@ func (s *decisionService) loadOfferingAdjustmentSubject(ctx context.Context, wor
 	if err != nil || phase == nil {
 		return fmt.Errorf("decision: load adjustment phase: %w", err)
 	}
-	effectiveFrom, err := validateAdjustmentEffectiveFrom(work.input.EffectiveFrom, phase, s.todayDate())
+	today := s.todayDate()
+	effectiveFrom, err := validateAdjustmentEffectiveFrom(work.input.EffectiveFrom, phase, today)
 	if err != nil {
 		return err
 	}
 	work.student, work.phase = student, phase
 	work.effectiveFrom = effectiveFrom
-	work.selectionDate = adjustmentSelectionDate(phase, effectiveFrom)
+	work.selectionDate = adjustmentSelectionDate(phase, effectiveFrom, today)
 	return nil
 }
 
-func adjustmentSelectionDate(phase *enrollmentModels.Phase, effectiveFrom *timezone.Date) timezone.Date {
-	selectionDate := currentOfferingSelectionDate(phase)
+func adjustmentSelectionDate(phase *enrollmentModels.Phase, effectiveFrom *timezone.Date, today timezone.Date) timezone.Date {
+	selectionDate := offeringSelectionDateOn(phase, today)
 	if effectiveFrom != nil && effectiveFrom.After(selectionDate) {
 		selectionDate = *effectiveFrom
 	}
@@ -681,7 +682,10 @@ func validateAdjustmentEffectiveFrom(
 // answer meaningful outside the service period too: before it starts that is
 // the initial selection, after it ended the last one.
 func currentOfferingSelectionDate(phase *enrollmentModels.Phase) timezone.Date {
-	today := timezone.TodayDate()
+	return offeringSelectionDateOn(phase, timezone.TodayDate())
+}
+
+func offeringSelectionDateOn(phase *enrollmentModels.Phase, today timezone.Date) timezone.Date {
 	if phase == nil {
 		return today
 	}
