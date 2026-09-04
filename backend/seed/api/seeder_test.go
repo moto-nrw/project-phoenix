@@ -466,6 +466,73 @@ func TestNewSeeder_WithOptions(t *testing.T) {
 	assert.Equal(t, "admin@test.com", s.options.AdminEmail)
 }
 
+func TestBootstrapTenant_DefaultProfileIdentityIsStable(t *testing.T) {
+	t.Parallel()
+
+	requests := make(map[string]map[string]any)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		var body map[string]any
+		if r.Body != nil {
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			requests[r.URL.Path] = body
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/operator/organizations":
+			_, _ = fmt.Fprint(w, `{"data":{"id":1}}`)
+		case "/operator/schools":
+			_, _ = fmt.Fprint(w, `{"data":{"id":2,"subdomain":"vollbetrieb"}}`)
+		case "/operator/schools/2/invite-admin":
+			_, _ = fmt.Fprint(w, `{"data":{"token":"invite-token"}}`)
+		case "/auth/invitations/invite-token/accept":
+			_, _ = fmt.Fprint(w, `{"status":"success"}`)
+		default:
+			w.WriteHeader(seedHTTPStatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	seeder := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{})
+	seeder.client.BindAuth(AuthRef{Kind: AuthBearer, Token: "operator"})
+	bootstrap, err := seeder.bootstrapTenant(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, "Demo-Träger Nord", requests["/operator/organizations"]["name"])
+	assert.Equal(t, "demo-traeger-nord", requests["/operator/organizations"]["slug"])
+	assert.Equal(t, "Demo-Schule Vollbetrieb", requests["/operator/schools"]["name"])
+	assert.Equal(t, "vollbetrieb", requests["/operator/schools"]["subdomain"])
+	assert.Equal(t, "vollbetrieb-admin@example.test", requests["/operator/schools/2/invite-admin"]["email"])
+	assert.Equal(t, "Vollbetrieb1234%", requests["/auth/invitations/invite-token/accept"]["password"])
+	assert.Equal(t, "vollbetrieb", bootstrap.TenantSlug)
+}
+
+func TestSeeder_DefaultProfileRepeatReturnsClearConflict(t *testing.T) {
+	t.Parallel()
+
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/health":
+			_, _ = fmt.Fprint(w, `"OK"`)
+		case "/operator/auth/login":
+			_, _ = fmt.Fprint(w, `{"data":{"access_token":"operator-token"}}`)
+		case "/operator/organizations":
+			w.WriteHeader(seedHTTPStatusConflict)
+			_, _ = fmt.Fprint(w, `{"error":"slug already exists"}`)
+		default:
+			w.WriteHeader(seedHTTPStatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	seeder := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{})
+	_, err := seeder.Seed(context.Background(), "operator@example.test", "secret", "1234")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `demo school profile "vollbetrieb"`)
+	assert.Contains(t, err.Error(), "409 Conflict")
+	assert.Contains(t, err.Error(), "docker compose run server go run . migrate reset")
+}
+
 func TestSeedResult_ZeroValues(t *testing.T) {
 	t.Parallel()
 
@@ -543,6 +610,17 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.NoError(t, err)
 	state, err := LoadSeedState(statePath)
 	require.NoError(t, err)
+	profile, err := state.SelectProfile("")
+	require.NoError(t, err)
+	assert.Equal(t, DefaultProfileKey, state.DefaultProfile)
+	assert.Equal(t, DefaultProfileKey, profile.Key)
+	assert.Equal(t, "vollbetrieb", profile.School.TenantSlug)
+	assert.Equal(t, "vollbetrieb-admin@example.test", profile.Credentials.SchoolAdmin.Email)
+	assert.Equal(t, fullOperationProfileDefinition().Settings, profile.Settings)
+	assert.Equal(t, len(DemoStudents), profile.Expected.Students)
+	assert.Len(t, profile.Entities.Students, len(DemoStudents))
+	assert.Len(t, profile.Devices, len(DemoDevices)+1)
+	assert.True(t, profile.Devices[webManualDeviceID].Protected)
 	require.NotNil(t, state.CareWithdrawals)
 	assert.Equal(t, 2, state.Topology.Schools)
 	assert.NotEmpty(t, state.CareWithdrawals.SchoolAdmin.Email)
@@ -582,7 +660,7 @@ func TestSeeder_Seed_FailsWholeRunWhenAnnouncementWriteFails(t *testing.T) {
 
 	_, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `demo school profile "demo-school"`)
+	assert.Contains(t, err.Error(), `demo school profile "vollbetrieb"`)
 	assert.Contains(t, err.Error(), "Seeding announcements")
 	assert.Contains(t, err.Error(), "POST /operator/announcements")
 	assert.Contains(t, err.Error(), "500")
@@ -721,6 +799,37 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(seedHTTPStatusOK)
 
+		if r.Method == seedHTTPMethodGet && (r.URL.Path == "/api/settings/schema" || strings.HasSuffix(r.URL.Path, "/settings/schema")) {
+			items := make([]map[string]any, 0)
+			for key, setting := range fullOperationProfileDefinition().Settings {
+				items = append(items, map[string]any{"key": key, "value": setting.Value})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"tabs": []map[string]any{{"categories": []map[string]any{{"items": items}}}}},
+			})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/iot/" {
+			deviceType := r.URL.Query().Get("device_type")
+			devices := make([]map[string]any, 0)
+			if deviceType == "virtual" {
+				devices = append(devices, map[string]any{"device_id": webManualDeviceID, "device_type": "virtual", "name": "Web-Anwesenheit"})
+			} else {
+				for _, device := range DemoDevices {
+					devices = append(devices, map[string]any{"device_id": device.DeviceID, "device_type": "terminal", "name": device.Name})
+				}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": devices})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/students" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{"id": "1"}},
+				"pagination": map[string]any{"total_records": len(DemoStudents)},
+			})
+			return
+		}
+
 		if strings.HasPrefix(r.URL.Path, "/api/guardians/") && strings.HasSuffix(r.URL.Path, "/invite") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
@@ -838,7 +947,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if r.URL.Path == "/api/timetable/instances" && r.Method == seedHTTPMethodGet {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"instances": []map[string]any{
-					{"id": idCounter, "title": "Frühbetreuung", "activity_group_id": idCounter + 1, "staff": []map[string]any{{"staff_id": planningStaffID}}},
+					{"id": idCounter, "title": "Frühbetreuung", "status": "planned", "room_id": 1, "student_ids": []int64{1}, "activity_group_id": idCounter + 1, "staff": []map[string]any{{"staff_id": planningStaffID}}},
 					{"id": idCounter + 2, "title": "Frühbetreuung", "activity_group_id": idCounter + 1},
 					{"id": idCounter + 3, "title": "Frühbetreuung", "activity_group_id": idCounter + 1},
 				}},
@@ -929,8 +1038,8 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"status": "success",
 				"data": map[string]any{
 					"id":   1,
-					"name": "Demo Organization",
-					"slug": "demo-organization",
+					"name": "Demo-Träger Nord",
+					"slug": "demo-traeger-nord",
 				},
 			})
 
@@ -939,9 +1048,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"status": "success",
 				"data": map[string]any{
 					"id":              1,
-					"name":            "Demo School",
-					"slug":            "demo-school",
-					"subdomain":       "demo-school",
+					"name":            "Demo-Schule Vollbetrieb",
+					"slug":            "vollbetrieb",
+					"subdomain":       "vollbetrieb",
 					"active":          true,
 					"organization_id": 1,
 				},
@@ -953,7 +1062,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"data": map[string]any{
 					"id":    1,
 					"token": "seed-invite-token",
-					"email": "school-admin@example.com",
+					"email": "vollbetrieb-admin@example.test",
 				},
 			})
 
@@ -962,7 +1071,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"status": "success",
 				"data": map[string]any{
 					"account_id": 1,
-					"email":      "school-admin@example.com",
+					"email":      "vollbetrieb-admin@example.test",
 				},
 			})
 
@@ -1054,7 +1163,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				},
 			})
 
-		case "/api/enrollment/demo-school/submit", "/parent/enrollments/demo-school/submit":
+		case "/api/enrollment/vollbetrieb/submit", "/parent/enrollments/vollbetrieb/submit":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data": map[string]any{

@@ -455,7 +455,7 @@ func TestRunFullDay_FailsWholeRunWhenActivityStartFails(t *testing.T) {
 
 	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `demo school profile "demo-school"`)
+	assert.Contains(t, err.Error(), `demo school profile "vollbetrieb"`)
 	assert.Contains(t, err.Error(), "start sessions")
 	assert.Contains(t, err.Error(), "POST /api/iot/session/start")
 	assert.Contains(t, err.Error(), "500")
