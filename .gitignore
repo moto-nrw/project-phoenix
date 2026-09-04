@@ -512,3 +512,4 @@ backend/simulator/iot/simulator.yaml
 
 # Local Codex agent working directory (never tracked)
 .codex-work/
+/.wt.env
