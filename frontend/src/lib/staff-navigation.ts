@@ -1,7 +1,7 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
   BuildingOfficeIcon,
-  PencilRulerIcon,
+  CalendarBlankIcon,
   SunIcon,
   UsersFourIcon,
   UsersIcon,
@@ -138,7 +138,7 @@ export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
   {
     key: "planung",
     label: "Planung",
-    icon: PencilRulerIcon,
+    icon: CalendarBlankIcon,
     entries: PLANNING_SUB_PAGES.map((entry) => page(entry.href)),
   },
   {
