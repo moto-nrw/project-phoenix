@@ -17,6 +17,7 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
@@ -1033,10 +1034,11 @@ func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {
 
 	expectAdminTx(mock)
 	account, err := service.AcceptInvitation(ctx, "existing-account", UserRegistrationData{
-		FirstName:       "Alex",
-		LastName:        "Principal",
-		Password:        testStrongCredential,
-		ConfirmPassword: testStrongCredential,
+		OwnerAccessToken: invitationTestOwnerToken(t, service, 8, 5),
+		FirstName:        "Alex",
+		LastName:         "Principal",
+		Password:         testStrongCredential,
+		ConfirmPassword:  testStrongCredential,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, account)
@@ -1048,11 +1050,11 @@ func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {
 	updated, findErr := accounts.FindByEmail(ctx, "principal@example.com")
 	require.NoError(t, findErr)
 	require.NotNil(t, updated.PasswordHash)
-	require.NotEqual(t, existingHash, *updated.PasswordHash)
+	require.Equal(t, existingHash, *updated.PasswordHash)
 }
 
-// Acceptance against a previously-deactivated account must reactivate it.
-func TestAcceptInvitationReactivatesInactiveAccount(t *testing.T) {
+// Even independently authenticated ownership cannot reactivate a global account.
+func TestAcceptInvitationRejectsInactiveAccount(t *testing.T) {
 	t.Parallel()
 
 	service, invitations, accounts, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
@@ -1076,22 +1078,32 @@ func TestAcceptInvitationReactivatesInactiveAccount(t *testing.T) {
 	token.SetTenantID(5)
 	require.NoError(t, invitations.Create(ctx, token))
 
-	expectAdminTx(mock)
+	expectAdminTxRollback(mock)
 	account, err := service.AcceptInvitation(ctx, "reactivate-token", UserRegistrationData{
-		FirstName:       "Re",
-		LastName:        "Activated",
-		Password:        testStrongCredential,
-		ConfirmPassword: testStrongCredential,
+		OwnerAccessToken: invitationTestOwnerToken(t, service, 42, 5),
+		FirstName:        "Re",
+		LastName:         "Activated",
+		Password:         testStrongCredential,
+		ConfirmPassword:  testStrongCredential,
 	})
-	require.NoError(t, err)
-	require.NotNil(t, account)
-	require.Equal(t, int64(42), account.ID)
-	require.True(t, account.Active, "account must be activated after invitation acceptance")
+	require.ErrorIs(t, err, ErrAccountInactive)
+	require.Nil(t, account)
+	require.False(t, token.IsUsed())
 
 	stored, findErr := accounts.FindByEmail(ctx, "kontakt@example.com")
 	require.NoError(t, findErr)
-	require.True(t, stored.Active, "stored account must reflect activation")
-	require.NotEqual(t, existingHash, *stored.PasswordHash)
+	require.False(t, stored.Active)
+	require.Equal(t, existingHash, *stored.PasswordHash)
+}
+
+func invitationTestOwnerToken(t *testing.T, service InvitationService, accountID, tenantID int64) string {
+	t.Helper()
+	signer, err := authjwt.NewTokenAuthWithDurations("invitation-test-signing-key-not-a-real-secret", 15*time.Minute, 24*time.Hour)
+	require.NoError(t, err)
+	service.(*invitationService).tokenAuth = signer
+	token, err := signer.CreateJWT(authjwt.AppClaims{ID: int(accountID), Sub: "test-owner", Roles: []string{}, TenantID: tenantID})
+	require.NoError(t, err)
+	return token
 }
 
 func TestCreateInvitationRejectsInvalidRequests(t *testing.T) {
@@ -1566,7 +1578,7 @@ func TestEnsureInvitationTargetAllowedWrapsTenantLookupError(t *testing.T) {
 	require.Contains(t, err.Error(), "tenant lookup failed")
 }
 
-func TestCreateOrUpdateAccountErrorPaths(t *testing.T) {
+func TestRegistrationAccountErrorPaths(t *testing.T) {
 	t.Parallel()
 
 	t.Run("create account error", func(t *testing.T) {
@@ -1575,37 +1587,38 @@ func TestCreateOrUpdateAccountErrorPaths(t *testing.T) {
 		accounts.failCreate = true
 		svc := service.(*invitationService)
 
-		_, err := svc.createOrUpdateAccount(context.Background(), "create-error@example.com", "hash", nil)
+		_, err := svc.registrationAccount(context.Background(), "create-error@example.com", "hash", nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "account create failed")
 	})
 
-	t.Run("update password error", func(t *testing.T) {
+	t.Run("existing account is unchanged", func(t *testing.T) {
 		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 		t.Cleanup(cleanup)
 		svc := service.(*invitationService)
 
-		_, err := svc.createOrUpdateAccount(context.Background(), "missing@example.com", "hash", &authModel.Account{
+		account, err := svc.registrationAccount(context.Background(), "missing@example.com", "hash", &authModel.Account{
 			Model:  baseModel.Model{ID: 202},
 			Email:  "missing@example.com",
 			Active: true,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "update account password")
+		require.NoError(t, err)
+		require.Nil(t, account.PasswordHash)
 	})
 
-	t.Run("reactivate error", func(t *testing.T) {
+	t.Run("inactive account is unchanged", func(t *testing.T) {
 		service, _, accounts, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
 		t.Cleanup(cleanup)
 		svc := service.(*invitationService)
 
-		_, err := svc.createOrUpdateAccount(context.Background(), "inactive@example.com", "hash", &authModel.Account{
+		account, err := svc.registrationAccount(context.Background(), "inactive@example.com", "hash", &authModel.Account{
 			Model:  baseModel.Model{ID: 203},
 			Email:  "inactive@example.com",
 			Active: false,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "update account password")
+		require.NoError(t, err)
+		require.False(t, account.Active)
+		require.Nil(t, account.PasswordHash)
 
 		accounts.storeAccount(&authModel.Account{
 			Model:  baseModel.Model{ID: 204},
@@ -1613,13 +1626,14 @@ func TestCreateOrUpdateAccountErrorPaths(t *testing.T) {
 			Active: false,
 		})
 		svc.accountRepo = &failingSetActiveAccountRepository{stubAccountRepository: accounts}
-		_, err = svc.createOrUpdateAccount(context.Background(), "inactive@example.com", "hash", &authModel.Account{
+		account, err = svc.registrationAccount(context.Background(), "inactive@example.com", "hash", &authModel.Account{
 			Model:  baseModel.Model{ID: 204},
 			Email:  "inactive@example.com",
 			Active: false,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "reactivate account on invitation")
+		require.NoError(t, err)
+		require.False(t, account.Active)
+		require.Nil(t, account.PasswordHash)
 	})
 }
 
@@ -1756,6 +1770,13 @@ func (r *failingInvitationTokenRepository) Update(ctx context.Context, token *au
 		return r.updateErr
 	}
 	return r.stubInvitationTokenRepository.Update(ctx, token)
+}
+
+func (r *failingInvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
+	if r.updateErr != nil {
+		return r.updateErr
+	}
+	return r.stubInvitationTokenRepository.UpdateDeliveryResult(ctx, id, sentAt, emailError, retryCount)
 }
 
 func (r *failingInvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) error {

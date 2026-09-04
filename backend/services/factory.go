@@ -1610,6 +1610,7 @@ func newFactory(
 	}
 
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
+		TokenAuth:         authConfig.TokenAuth,
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
 		AccountTenantRepo: repos.AccountTenant,

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -52,6 +53,7 @@ func translateRoleNameToGerman(roleName string) string {
 
 // InvitationServiceConfig holds configuration for the invitation service
 type InvitationServiceConfig struct {
+	TokenAuth         *jwt.TokenAuth
 	InvitationRepo    authModels.InvitationTokenRepository
 	AccountRepo       authModels.AccountRepository
 	AccountTenantRepo authModels.AccountTenantRepository
@@ -82,6 +84,7 @@ type InvitationServiceConfig struct {
 }
 
 type invitationService struct {
+	tokenAuth         *jwt.TokenAuth
 	invitationRepo    authModels.InvitationTokenRepository
 	accountRepo       authModels.AccountRepository
 	accountTenantRepo authModels.AccountTenantRepository
@@ -121,6 +124,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		dispatcher = email.NewDispatcher(config.Mailer, logger.With("component", "email"))
 	}
 	return &invitationService{
+		tokenAuth:         config.TokenAuth,
 		invitationRepo:    config.InvitationRepo,
 		accountRepo:       config.AccountRepo,
 		accountTenantRepo: config.AccountTenantRepo,
@@ -332,19 +336,28 @@ func (s *invitationService) ValidateInvitation(ctx context.Context, token string
 			return fetchErr
 		}
 
-		roleName, roleErr := s.lookupRoleName(adminCtx, invitation.RoleID)
+		role, roleErr := s.lookupRole(adminCtx, invitation.RoleID)
 		if roleErr != nil {
 			return roleErr
 		}
 
+		account, accountErr := s.findExistingAccountByEmail(adminCtx, invitation.Email)
+		if accountErr != nil {
+			return &AuthError{Op: opFetchInvitation, Err: accountErr}
+		}
 		result = &InvitationValidationResult{
-			Email:            invitation.Email,
-			RoleName:         roleName,
-			FirstName:        invitation.FirstName,
-			LastName:         invitation.LastName,
-			Position:         invitation.Position,
-			CaregiverEnabled: invitation.CaregiverEnabled,
-			ExpiresAt:        invitation.ExpiresAt,
+			TargetPortal:         "tenant",
+			RequiresAccountLogin: account != nil,
+			Email:                invitation.Email,
+			RoleName:             role.Name,
+			FirstName:            invitation.FirstName,
+			LastName:             invitation.LastName,
+			Position:             invitation.Position,
+			CaregiverEnabled:     invitation.CaregiverEnabled,
+			ExpiresAt:            invitation.ExpiresAt,
+		}
+		if IsLehrkraftSystemRole(role) {
+			result.TargetPortal = "school"
 		}
 		return nil
 	})
@@ -380,16 +393,6 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 			}
 		}
 
-		passwordHash, hashErr := s.validateAndHashPassword(userData)
-		if hashErr != nil {
-			return hashErr
-		}
-
-		firstName, lastName, nameErr := s.resolveNames(userData, invitation)
-		if nameErr != nil {
-			return nameErr
-		}
-
 		invitationTenantID, tenantErr := tenant.NewTenantID(invitation.TenantID)
 		if tenantErr != nil {
 			return &AuthError{Op: opAcceptInvitation, Err: tenantErr}
@@ -398,6 +401,22 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		account, accountErr := s.findExistingAccountByEmail(invitationCtx, invitation.Email)
 		if accountErr != nil {
 			return &AuthError{Op: opAcceptInvitation, Err: accountErr}
+		}
+		var passwordHash string
+		if account != nil {
+			if ownerErr := s.verifyInvitationOwner(account, userData.OwnerAccessToken); ownerErr != nil {
+				return &AuthError{Op: opAcceptInvitation, Err: ownerErr}
+			}
+		} else {
+			var hashErr error
+			passwordHash, hashErr = s.validateAndHashPassword(userData)
+			if hashErr != nil {
+				return hashErr
+			}
+		}
+		firstName, lastName, nameErr := s.resolveNames(userData, invitation)
+		if nameErr != nil {
+			return nameErr
 		}
 		created, txErr := s.createAccountWithRole(invitationCtx, invitation, passwordHash, firstName, lastName, account)
 		if txErr != nil {
@@ -470,7 +489,7 @@ func (s *invitationService) createAccountWithRole(
 	passwordHash, firstName, lastName string,
 	existingAccount *authModels.Account,
 ) (*authModels.Account, error) {
-	account, err := s.createOrUpdateAccount(ctx, invitation.Email, passwordHash, existingAccount)
+	account, err := s.registrationAccount(ctx, invitation.Email, passwordHash, existingAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -502,23 +521,41 @@ func (s *invitationService) createAccountWithRole(
 	return account, nil
 }
 
-func (s *invitationService) createOrUpdateAccount(ctx context.Context, email, passwordHash string, existingAccount *authModels.Account) (*authModels.Account, error) {
+func (s *invitationService) registrationAccount(ctx context.Context, email, passwordHash string, existingAccount *authModels.Account) (*authModels.Account, error) {
 	if existingAccount == nil {
 		return s.createAccount(ctx, email, passwordHash)
 	}
-	if err := s.accountRepo.UpdatePassword(ctx, existingAccount.ID, passwordHash); err != nil {
-		return nil, &AuthError{Op: "update account password", Err: err}
-	}
-	// Reactivate the existing account so the invitee can log in. Targeted
-	// SetActive so the stale in-memory PasswordHash doesn't overwrite the
-	// just-written hash from UpdatePassword above.
-	if !existingAccount.Active {
-		if err := s.accountRepo.SetActive(ctx, existingAccount.ID, true); err != nil {
-			return nil, &AuthError{Op: "reactivate account on invitation", Err: err}
-		}
-		existingAccount.Active = true
-	}
+	// An invitation grants membership, never authority over global credentials.
 	return existingAccount, nil
+}
+
+func (s *invitationService) verifyInvitationOwner(account *authModels.Account, accessToken string) error {
+	if accessToken == "" || s.tokenAuth == nil {
+		return ErrInvitationOwnerRequired
+	}
+	claims, err := s.tokenAuth.ParseAccessJWT(accessToken)
+	if err != nil || claims.ID <= 0 || claims.ExpiresAt <= time.Now().Unix() ||
+		claims.ReadOnly || claims.ActingAdminID != 0 || claims.PreviewID != "" {
+		return ErrInvitationOwnerRequired
+	}
+	// Operators use a separate account namespace. Preview and unfinished MFA
+	// tokens are not proof that the invited account's owner authenticated.
+	switch claims.Scope {
+	case "", "tenant", "org", "school":
+		if claims.TenantID <= 0 {
+			return ErrInvitationOwnerRequired
+		}
+	case "parent":
+	default:
+		return ErrInvitationOwnerRequired
+	}
+	if int64(claims.ID) != account.ID {
+		return ErrInvitationOwnerMismatch
+	}
+	if !account.Active {
+		return ErrAccountInactive
+	}
+	return nil
 }
 
 // validateInvitationRequest validates all required fields and returns the normalized email.
@@ -760,8 +797,9 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil
-	invitation.UpdatedAt = time.Now()
-	if err := s.invitationRepo.Update(ctx, invitation); err != nil {
+	// Never write stale lifecycle fields: acceptance or revocation may have
+	// consumed this invitation after the read above.
+	if err := s.invitationRepo.UpdateDeliveryResult(ctx, invitation.ID, nil, nil, invitation.EmailRetryCount); err != nil {
 		return &AuthError{Op: opResendInvitation, Err: err}
 	}
 
