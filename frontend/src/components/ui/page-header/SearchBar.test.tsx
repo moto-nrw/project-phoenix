@@ -2,8 +2,8 @@
  * Tests for SearchBar Component
  * Tests rendering and functionality of search input with clear button
  */
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SearchBar } from "./SearchBar";
 
 describe("SearchBar", () => {
@@ -129,5 +129,71 @@ describe("SearchBar", () => {
     );
     const icon = container.querySelector("svg");
     expect(icon).toBeInTheDocument();
+  });
+
+  // #2975: without a debounce the owning page re-renders per keystroke — on the
+  // Kindersuche that meant all 100 Kinderkarten per character.
+  describe("debounceMs", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("shows every keystroke but reports the term only once", () => {
+      render(<SearchBar value="" onChange={mockOnChange} debounceMs={300} />);
+      const input = screen.getByPlaceholderText("Name suchen...");
+
+      for (const term of ["M", "Ma", "Max", "Maxi"]) {
+        fireEvent.change(input, { target: { value: term } });
+      }
+
+      expect(input).toHaveValue("Maxi");
+      expect(mockOnChange).not.toHaveBeenCalled();
+
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(mockOnChange).toHaveBeenCalledTimes(1);
+      expect(mockOnChange).toHaveBeenCalledWith("Maxi");
+    });
+
+    it("follows an external value change, e.g. a cleared filter chip", () => {
+      const { rerender } = render(
+        <SearchBar value="Maxi" onChange={mockOnChange} debounceMs={300} />,
+      );
+      const input = screen.getByPlaceholderText("Name suchen...");
+      fireEvent.change(input, { target: { value: "Maxim" } });
+
+      rerender(<SearchBar value="" onChange={mockOnChange} debounceMs={300} />);
+
+      expect(input).toHaveValue("");
+
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+
+      // The pending keystroke must not resurrect the cleared term.
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it("clears immediately instead of after the debounce window", () => {
+      render(
+        <SearchBar
+          value="Maxi"
+          onChange={mockOnChange}
+          onClear={mockOnClear}
+          debounceMs={300}
+        />,
+      );
+
+      fireEvent.click(screen.getByLabelText("Suche löschen"));
+
+      expect(mockOnChange).toHaveBeenCalledWith("");
+      expect(mockOnClear).toHaveBeenCalled();
+    });
   });
 });

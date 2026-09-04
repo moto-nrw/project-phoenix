@@ -39,6 +39,8 @@ export interface PageHeaderWithSearchProps {
     readonly className?: string;
     /** Forwarded to the underlying `<input>` (combobox role, ARIA wiring, disabled state, etc.). */
     readonly inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
+    /** See `SearchBarProps.debounceMs` — keeps typing out of the page's state. */
+    readonly debounceMs?: number;
   };
 
   // Filter configuration
@@ -233,6 +235,14 @@ export interface SearchBarProps {
   readonly size?: "sm" | "md" | "lg";
   /** Forwarded to the underlying `<input>` (combobox role, ARIA wiring, etc.). */
   readonly inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
+  /**
+   * Keep the typed text in the field and report it to `onChange` only after
+   * this many milliseconds without a keystroke (#2975). Without it every
+   * character re-renders the page that owns the term — on the Kindersuche that
+   * was all 100 Kinderkarten per keystroke. `value` stays the source of truth:
+   * an external change (a cleared filter chip) still overwrites the field.
+   */
+  readonly debounceMs?: number;
 }
 
 export interface FilterPanelProps {

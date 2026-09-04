@@ -3,6 +3,70 @@
 import React from "react";
 import type { SearchBarProps } from "./types";
 
+/**
+ * Local draft of the typed text, reported upwards only after `debounceMs` of
+ * silence (#2975). Without a debounce the owning page re-renders per keystroke;
+ * with one, only this input does. `value` keeps winning: whenever the owner
+ * reports a different term than the one this field last sent (a cleared chip,
+ * a reset filter), the field follows.
+ */
+function useDebouncedSearchValue(
+  value: string,
+  onChange: (next: string) => void,
+  debounceMs: number | undefined,
+) {
+  const [draft, setDraft] = React.useState(value);
+  // The last value this field pushed upwards. Comparing against it separates
+  // "the owner changed the term" from "the owner echoed our own change back".
+  const lastSentRef = React.useRef(value);
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    if (value === lastSentRef.current) return;
+    lastSentRef.current = value;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setDraft(value);
+  }, [value]);
+
+  React.useEffect(
+    () => () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    },
+    [],
+  );
+
+  const handleChange = React.useCallback(
+    (next: string) => {
+      if (!debounceMs) {
+        lastSentRef.current = next;
+        onChange(next);
+        return;
+      }
+      setDraft(next);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        lastSentRef.current = next;
+        onChange(next);
+      }, debounceMs);
+    },
+    [debounceMs, onChange],
+  );
+
+  // The clear button is an explicit action, not typing: it reports at once so
+  // the list is back immediately instead of after the debounce window.
+  const commitNow = React.useCallback(
+    (next: string) => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      setDraft(next);
+      lastSentRef.current = next;
+      onChange(next);
+    },
+    [onChange],
+  );
+
+  return { shownValue: debounceMs ? draft : value, handleChange, commitNow };
+}
+
 export function SearchBar({
   value,
   onChange,
@@ -11,7 +75,13 @@ export function SearchBar({
   className = "",
   size = "md",
   inputProps,
+  debounceMs,
 }: Readonly<SearchBarProps>) {
+  const { shownValue, handleChange, commitNow } = useDebouncedSearchValue(
+    value,
+    onChange,
+    debounceMs,
+  );
   const sizeClasses = {
     sm: "py-2 pl-9 pr-3 text-sm",
     md: "py-2.5 pl-9 pr-3 text-sm md:pl-10 md:pr-10",
@@ -44,17 +114,17 @@ export function SearchBar({
         {...inputProps}
         type="text"
         placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 transition-all duration-200 focus:border-gray-300 focus:ring-0 focus:outline-none ${sizeClasses[size]} ${value ? "pr-10" : ""} `}
+        value={shownValue}
+        onChange={(e) => handleChange(e.target.value)}
+        className={`w-full rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 transition-all duration-200 focus:border-gray-300 focus:ring-0 focus:outline-none ${sizeClasses[size]} ${shownValue ? "pr-10" : ""} `}
       />
 
-      {value && (
+      {shownValue && (
         <button
           type="button"
           aria-label="Suche löschen"
           onClick={() => {
-            onChange("");
+            commitNow("");
             onClear?.();
           }}
           className="absolute top-1/2 right-2 -translate-y-1/2 transform rounded-full p-1 transition-colors hover:bg-gray-100 md:right-3"

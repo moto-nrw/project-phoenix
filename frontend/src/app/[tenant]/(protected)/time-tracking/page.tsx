@@ -2063,7 +2063,7 @@ const weekChartConfig = {
   breakMinutes: { label: "Pause", color: "#94a3b8" }, // slate-400 — muted secondary
 } satisfies ChartConfig;
 
-function WeekChart({
+function WeekChartImpl({
   history,
   weekOffset,
 }: {
@@ -2078,7 +2078,11 @@ function WeekChart({
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  const today = new Date();
+  // The Berlin calendar day, not a fresh `new Date()` per render: the axis is
+  // built from it, so a per-render instant made the memo below lie about its
+  // inputs. As a day-granular value it also rolls the chart over at midnight
+  // without a reload (#2975).
+  const todayISO = useBerlinToday();
 
   const chartData = useMemo(() => {
     // Build last 10 workdays ending with today (or offset reference)
@@ -2087,7 +2091,7 @@ function WeekChart({
     // indexed by Berlin date below, so deriving the axis from a local date
     // would look up the wrong key — zero or misplaced bars around midnight for
     // anybody outside the Berlin timezone.
-    const referenceDate = parseISODate(berlinTodayISO(today));
+    const referenceDate = parseISODate(todayISO);
     referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
 
     const allDays: Date[] = [];
@@ -2129,8 +2133,7 @@ function WeekChart({
         breakMinutes: dayMinutes?.breakMinutes ?? 0,
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history, weekOffset]);
+  }, [history, weekOffset, todayISO]);
 
   const tooltipLabelFormatter = useCallback(
     (
@@ -2216,17 +2219,23 @@ function WeekChart({
               }
             />
             <ChartLegend content={<ChartLegendContent />} />
+            {/* No grow animation: recharts re-renders every bar layer on each
+                animation frame, which was 900 renders per Balken-Schicht on a
+                week switch (#2975). The chart reads the same either way — the
+                Übersicht on /staff/[id] already renders it unanimated. */}
             <Bar
               dataKey="breakMinutes"
               stackId="a"
               fill="var(--color-breakMinutes)"
               radius={[0, 0, 4, 4]}
+              isAnimationActive={false}
             />
             <Bar
               dataKey="netMinutes"
               stackId="a"
               fill="var(--color-netMinutes)"
               radius={[4, 4, 0, 0]}
+              isAnimationActive={false}
             />
           </BarChart>
         </ChartContainer>
@@ -2234,6 +2243,14 @@ function WeekChart({
     </div>
   );
 }
+
+/**
+ * The whole recharts tree is rebuilt on every render of the page around it, so
+ * an unrelated state change (a week switch in the table below, a modal opening)
+ * cost thousands of renders in here (#2975). `history` is a memoised SWR array
+ * and `weekOffset` a number, so the default shallow comparison holds.
+ */
+const WeekChart = React.memo(WeekChartImpl);
 
 // ─── ExportDropdown ───────────────────────────────────────────────────────────
 
