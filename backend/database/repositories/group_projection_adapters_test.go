@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,34 @@ func TestSupervisionBlockersResolveGroupNamesThroughTheOwner(t *testing.T) {
 		assert.Equal(t, supervision.ID, rows[0].ID)
 		assert.Equal(t, group.ID, rows[0].GroupID)
 		assert.NotEmpty(t, rows[0].GroupName, "resolved name or the fallback label, never blank")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestSupervisionBlockersExcludeFutureSupervisions(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+
+	staff := testpkg.CreateTestStaff(t, db, "Future", "Blocker")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Future Blocker Activity")
+	room := testpkg.CreateTestRoom(t, db, "Future Blocker Room")
+	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	supervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor")
+	future := timezone.TodayDate().AddDays(1)
+	_, err := db.NewUpdate().
+		TableExpr("active.group_supervisors").
+		Set("start_date = ?", future).
+		Where("id = ?", supervision.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	factory := repositories.NewFactory(db)
+	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
+		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID, tenantID)
+		require.NoError(t, err)
+		assert.Empty(t, rows)
 		return nil
 	})
 	require.NoError(t, err)

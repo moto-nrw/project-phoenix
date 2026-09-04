@@ -176,14 +176,12 @@ export function StudentsInRoomSection({
       ? `room-bulk-source-visits-${sourceGroupIDs.join("-")}`
       : null,
     async () => {
-      const visits = await Promise.all(
-        sourceGroupIDs.map((groupID) =>
-          activeService.getVisitsByGroup(groupID),
-        ),
-      );
+      const visits = await activeService.getVisits({
+        active: true,
+        activeGroupIds: sourceGroupIDs,
+      });
       return new Map(
         visits
-          .flat()
           .filter((visit) => visit.isActive)
           .map((visit) => [visit.studentId, visit]),
       );
@@ -452,7 +450,7 @@ export function StudentsInRoomSection({
         {canBulkMove && students.length > 0 ? (
           <BulkMoveToolbar
             selectedCount={selectedVisibleCount}
-            totalCount={students.length}
+            totalCount={selectableStudentIds.size}
             targetActiveGroupId={targetActiveGroupId}
             targetOptions={targetOptions}
             targetScope={targetScope}
@@ -576,7 +574,7 @@ function BulkMoveToolbar({
   const isMoving = state.type === "loading";
   const canMove =
     selectedCount > 0 && targetActiveGroupId.length > 0 && !isMoving;
-  const allSelected = selectedCount === totalCount;
+  const allSelected = totalCount > 0 && selectedCount === totalCount;
   const hasSelection = selectedCount > 0;
   const noTargets = targetOptions.length === 0;
 

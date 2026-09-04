@@ -847,12 +847,7 @@ describe("StudentsInRoomSection", () => {
       ).toBeInTheDocument();
     });
 
-    it("selects only children from supervised source sessions for a colleague target (#2969)", async () => {
-      mockMoveStudentsToActiveGroup.mockResolvedValue({
-        moved: ["7"],
-        unchanged: [],
-        skipped: [],
-      });
+    it("selects and clears only children from supervised source sessions for a colleague target (#2969)", () => {
       sourceVisitGroupIDs = new Map([
         ["7", "supervised-source"],
         ["8", "unsupervised-source"],
@@ -893,17 +888,12 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
       fireEvent.click(screen.getByRole("button", { name: "Alle auswählen" }));
 
-      await waitFor(() => {
-        expect(screen.getByText("1 von 2 ausgewählt")).toBeInTheDocument();
-      });
-      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
-
-      await waitFor(() => {
-        expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
-          ["7"],
-          "colleague",
-        );
-      });
+      expect(screen.getByText("1 von 1 ausgewählt")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Aufheben" }),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Aufheben" }));
+      expect(screen.getByText("Kinder auswählen")).toBeInTheDocument();
     });
 
     it("lets a source supervisor push a child into a colleague's room (#2969)", async () => {

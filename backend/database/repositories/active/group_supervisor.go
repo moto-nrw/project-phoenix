@@ -197,6 +197,7 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = ?", r.today()).
 		Where(`"group_supervisor".id = ?`, id).
+		Where(`"group_supervisor".start_date <= ?`, r.today()).
 		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -245,7 +246,7 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupSupervisor, error) {
 	if options != nil && options.Filter != nil {
-		rewriteActiveOnlyFilter(options.Filter, "end_date", r.today())
+		rewriteActiveOnlyFilter(options.Filter, "start_date", "end_date", r.today())
 	}
 
 	supervisions, err := r.ListWithOptions(ctx, options)
@@ -268,6 +269,7 @@ func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, s
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = ?", r.today()).
 		Where(`"group_supervisor".staff_id = ?`, staffID).
+		Where(`"group_supervisor".start_date <= ?`, r.today()).
 		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -301,6 +303,7 @@ func (r *GroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Conte
 		Set("end_date = now()").
 		Where(`"group_supervisor".group_id = ?`, activeGroupID).
 		Where(`"group_supervisor".staff_id = ?`, staffID).
+		Where(`"group_supervisor".start_date <= ?`, r.today()).
 		Where(`"group_supervisor".end_date IS NULL`)
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -336,6 +339,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = ?", r.today()).
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs)).
+		Where(`"group_supervisor".start_date <= ?`, r.today()).
 		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -407,9 +411,10 @@ func (r *GroupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Co
 		FROM active.group_supervisors AS gs
 		WHERE gs.tenant_id = ?
 		  AND gs.staff_id = ?
-		  AND (gs.end_date IS NULL OR gs.end_date > NOW())
+		  AND gs.start_date <= ?
+		  AND (gs.end_date IS NULL OR gs.end_date > ?)
 		ORDER BY gs.start_date DESC
-	`, tenantID, staffID).Scan(ctx, &results)
+	`, tenantID, staffID, r.today(), r.today()).Scan(ctx, &results)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list active supervision blockers",

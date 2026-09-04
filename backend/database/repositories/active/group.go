@@ -736,7 +736,7 @@ func (r *GroupRepository) queryUnclaimedGroups(ctx context.Context) ([]*active.G
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND ("sup"."end_date" IS NULL OR "sup"."end_date" > CURRENT_DATE)`).
+		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND "sup"."start_date" <= CURRENT_DATE AND ("sup"."end_date" IS NULL OR "sup"."end_date" > CURRENT_DATE)`).
 		Where(`"group"."end_time" IS NULL`).
 		Where(`"sup"."id" IS NULL`)
 
