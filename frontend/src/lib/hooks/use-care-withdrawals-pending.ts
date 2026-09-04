@@ -6,6 +6,7 @@ import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 import { canReviewCareWithdrawals } from "~/lib/change-request-access";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
 export function useCareWithdrawalsPending() {
@@ -23,5 +24,6 @@ export function useCareWithdrawalsPending() {
     eventNames: ["change-requests-refresh"],
     eventDebounceMs: 500,
     refetchOnFocus: true,
+    initialCount: useShellSeed()?.counts.careWithdrawalsPending,
   });
 }

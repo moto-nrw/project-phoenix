@@ -2,8 +2,6 @@ package calendar
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -30,21 +28,4 @@ func withTenantFilter[Q tenantQuery[Q]](runtime Runtime, ctx context.Context, qu
 		return query.Where("? = ?", bun.Ident(alias+".tenant_id"), tenantID)
 	}
 	return query
-}
-
-func ensureTenantID(runtime Runtime, ctx context.Context, tenantID *int64) {
-	if *tenantID == 0 {
-		*tenantID = runtime.TenantID(ctx)
-	}
-}
-
-func assertRowsAffected(result sql.Result, expected int64, operation string) error {
-	actual, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("%s: rows affected: %w", operation, err)
-	}
-	if actual != expected {
-		return fmt.Errorf("%s: expected %d rows affected, got %d", operation, expected, actual)
-	}
-	return nil
 }
