@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +12,7 @@ func TestHTTPAPIAdapterCheckHealthRejectsNonOKSuccessStatus(t *testing.T) {
 	t.Parallel()
 
 	server := NewHTTPTestServer(func(response HTTPResponseWriter, _ *HTTPRequest) {
-		response.WriteHeader(http.StatusNoContent)
+		response.WriteHeader(HTTPStatusNoContent)
 	})
 	defer server.Close()
 
