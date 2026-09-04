@@ -262,25 +262,10 @@ export function getActiveParentSubPage(pathname: string): ParentSubPage | null {
   return findActiveSubPage(PARENT_SUB_PAGES, pathname);
 }
 
-export function getActiveParentSubPageHref(pathname: string): string | null {
-  return getActiveParentSubPage(pathname)?.href ?? null;
-}
-
 export function getActiveCommunicationSubPage(
   pathname: string,
 ): CommunicationSubPage | null {
   return findActiveSubPage(COMMUNICATION_SUB_PAGES, pathname);
-}
-
-export function getActiveCommunicationSubPageHref(
-  pathname: string,
-): string | null {
-  return getActiveCommunicationSubPage(pathname)?.href ?? null;
-}
-
-/** Gehört der Pfad in den Kommunikation-Bereich (Team-Chat, Tagesinformationen)? */
-export function isCommunicationPath(pathname: string): boolean {
-  return getActiveCommunicationSubPage(pathname) !== null;
 }
 
 export function getActiveEnrollmentSubPage(
@@ -293,11 +278,6 @@ export function getActiveEnrollmentSubPageHref(
   pathname: string,
 ): string | null {
   return getActiveEnrollmentSubPage(pathname)?.href ?? null;
-}
-
-/** Gehört der Pfad in den Eltern-Bereich (Hub oder eine Unterseite)? */
-export function isElternPath(pathname: string): boolean {
-  return getActiveParentSubPage(pathname) !== null;
 }
 
 /** Gehört der Pfad in den Anmeldungen-Bereich (Hub oder eine Unterseite)? */
