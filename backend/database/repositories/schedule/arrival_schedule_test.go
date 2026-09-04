@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -366,6 +367,14 @@ func TestStudentArrivalScheduleRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		// At least our 2 schedules should be present
 		assert.GreaterOrEqual(t, len(results), 2)
+
+		options := modelBase.NewQueryOptions().WithPagination(1, 1)
+		options.Filter.Equal("student_id", student.ID)
+		options.Sorting = (&modelBase.Sorting{}).AddField("weekday", modelBase.SortDesc)
+		results, err = repo.List(ctx, options)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, scheduleModels.WeekdayTuesday, results[0].Weekday)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -775,6 +784,14 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		// At least our 3 exceptions should be present
 		assert.GreaterOrEqual(t, len(results), 3)
+
+		options := modelBase.NewQueryOptions().WithPagination(1, 1)
+		options.Filter.Equal("student_id", student.ID)
+		options.Sorting = (&modelBase.Sorting{}).AddField("exception_date", modelBase.SortDesc)
+		results, err = repo.List(ctx, options)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, timezone.TodayDate().AddDays(103), results[0].ExceptionDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -1172,6 +1189,14 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		// At least our 3 notes should be present
 		assert.GreaterOrEqual(t, len(results), 3)
+
+		options := modelBase.NewQueryOptions().WithPagination(1, 1)
+		options.Filter.Equal("student_id", student.ID)
+		options.Sorting = (&modelBase.Sorting{}).AddField("note_date", modelBase.SortDesc)
+		results, err = repo.List(ctx, options)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, timezone.TodayDate().AddDays(203), results[0].NoteDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {

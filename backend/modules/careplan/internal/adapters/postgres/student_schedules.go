@@ -97,6 +97,108 @@ type pickupNoteRow struct {
 	CreatedBy     int64        `bun:"created_by,notnull"`
 }
 
+func applyStudentScheduleOptions(query *bun.SelectQuery, options *careplan.StudentScheduleQueryOptions, alias string) *bun.SelectQuery {
+	if options == nil {
+		return query
+	}
+	query = applyStudentScheduleFilter(query, options.Filter, alias)
+	for _, field := range options.Sorting {
+		if field.Descending {
+			query = query.OrderExpr("? DESC", bun.Ident(field.Field))
+		} else {
+			query = query.OrderExpr("? ASC", bun.Ident(field.Field))
+		}
+	}
+	if options.Limit > 0 {
+		query = query.Limit(options.Limit).Offset(options.Offset)
+	}
+	return query
+}
+
+func applyStudentScheduleFilter(query *bun.SelectQuery, filter *careplan.StudentScheduleQueryFilter, alias string) *bun.SelectQuery {
+	if filter == nil {
+		return query
+	}
+	if len(filter.Or) > 0 {
+		query = query.WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
+			group = applyStudentScheduleConditions(group, filter.Conditions, alias)
+			for i := range filter.Or {
+				child := filter.Or[i]
+				group = group.WhereGroup(" OR ", func(orGroup *bun.SelectQuery) *bun.SelectQuery {
+					return applyStudentScheduleFilter(orGroup, &child, alias)
+				})
+			}
+			return group
+		})
+	} else {
+		query = applyStudentScheduleConditions(query, filter.Conditions, alias)
+	}
+	for i := range filter.And {
+		child := filter.And[i]
+		query = query.WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
+			return applyStudentScheduleFilter(group, &child, alias)
+		})
+	}
+	return query
+}
+
+func applyStudentScheduleConditions(query *bun.SelectQuery, conditions []careplan.StudentScheduleQueryCondition, alias string) *bun.SelectQuery {
+	for _, condition := range conditions {
+		field := bun.Ident(alias + "." + condition.Field)
+		switch condition.Operator {
+		case "=":
+			query = query.Where("? = ?", field, condition.Value)
+		case ">":
+			query = query.Where("? > ?", field, condition.Value)
+		case ">=":
+			query = query.Where("? >= ?", field, condition.Value)
+		case "<":
+			query = query.Where("? < ?", field, condition.Value)
+		case "<=":
+			query = query.Where("? <= ?", field, condition.Value)
+		case "LIKE":
+			query = query.Where("? LIKE ?", field, condition.Value)
+		case "ILIKE":
+			query = query.Where("? ILIKE ?", field, condition.Value)
+		case "TRIM_EQUALS":
+			query = query.Where("LOWER(TRIM(?)) = LOWER(TRIM(?))", field, condition.Value)
+		case "IS NULL":
+			query = query.Where("? IS NULL", field)
+		case "IS NOT NULL":
+			query = query.Where("? IS NOT NULL", field)
+		case "IN", "NOT IN", "TRIM_IN", "FIRST_NUMBER_IN":
+			query = applyStudentScheduleCollectionCondition(query, field, condition)
+		}
+	}
+	return query
+}
+
+func applyStudentScheduleCollectionCondition(query *bun.SelectQuery, field bun.Ident, condition careplan.StudentScheduleQueryCondition) *bun.SelectQuery {
+	values, ok := condition.Value.([]interface{})
+	if !ok {
+		return query
+	}
+	switch condition.Operator {
+	case "IN":
+		return query.Where("? IN (?)", field, bun.List(values))
+	case "NOT IN":
+		return query.Where("? NOT IN (?)", field, bun.List(values))
+	case "FIRST_NUMBER_IN":
+		return query.Where("substring(? from '[0-9]+') IN (?)", field, bun.List(values))
+	case "TRIM_IN":
+		if len(values) == 0 {
+			return query
+		}
+		return query.WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
+			for _, value := range values {
+				group = group.WhereOr("LOWER(TRIM(?)) = LOWER(TRIM(?))", field, value)
+			}
+			return group
+		})
+	}
+	return query
+}
+
 func finishStudentScheduleList[T any](ctx context.Context, query *bun.SelectQuery, rows *[]T, operation string) (domain.OperationStats, error) {
 	stats, err := scanAll(ctx, query, operation)
 	if err == nil {
@@ -158,7 +260,10 @@ func (s *Store) ListArrivalSchedules(ctx context.Context, f careplan.StudentSche
 	if f.Weekday > 0 {
 		query = query.Where(`"student_arrival_schedule".weekday = ?`, f.Weekday)
 	}
-	query = query.OrderExpr(`"student_arrival_schedule".student_id ASC, "student_arrival_schedule".weekday ASC`)
+	query = applyStudentScheduleOptions(query, f.Options, "student_arrival_schedule")
+	if f.Options == nil || len(f.Options.Sorting) == 0 {
+		query = query.OrderExpr(`"student_arrival_schedule".student_id ASC, "student_arrival_schedule".weekday ASC`)
+	}
 	if f.LockForUpdate {
 		query = query.For("UPDATE")
 	}
@@ -257,7 +362,10 @@ func (s *Store) ListArrivalExceptions(ctx context.Context, f careplan.StudentSch
 	if !f.UpcomingFrom.IsZero() {
 		query = query.Where(`"student_arrival_exception".exception_date >= ?`, calendarDate(f.UpcomingFrom))
 	}
-	query = query.OrderExpr(`"student_arrival_exception".exception_date ASC`)
+	query = applyStudentScheduleOptions(query, f.Options, "student_arrival_exception")
+	if f.Options == nil || len(f.Options.Sorting) == 0 {
+		query = query.OrderExpr(`"student_arrival_exception".exception_date ASC`)
+	}
 	if f.LockForUpdate {
 		query = query.For("UPDATE")
 	}
@@ -343,7 +451,10 @@ func (s *Store) ListArrivalNotes(ctx context.Context, f careplan.StudentSchedule
 	if !f.UpcomingFrom.IsZero() {
 		query = query.Where(`"student_arrival_note".note_date >= ?`, calendarDate(f.UpcomingFrom))
 	}
-	query = query.OrderExpr(`"student_arrival_note".note_date ASC, "student_arrival_note".created_at ASC`)
+	query = applyStudentScheduleOptions(query, f.Options, "student_arrival_note")
+	if f.Options == nil || len(f.Options.Sorting) == 0 {
+		query = query.OrderExpr(`"student_arrival_note".note_date ASC, "student_arrival_note".created_at ASC`)
+	}
 	if f.LockForUpdate {
 		query = query.For("UPDATE")
 	}
@@ -420,7 +531,10 @@ func (s *Store) ListPickupSchedules(ctx context.Context, f careplan.StudentSched
 	if f.Weekday > 0 {
 		query = query.Where(`"student_pickup_schedule".weekday = ?`, f.Weekday)
 	}
-	query = query.OrderExpr(`"student_pickup_schedule".student_id ASC, "student_pickup_schedule".weekday ASC`)
+	query = applyStudentScheduleOptions(query, f.Options, "student_pickup_schedule")
+	if f.Options == nil || len(f.Options.Sorting) == 0 {
+		query = query.OrderExpr(`"student_pickup_schedule".student_id ASC, "student_pickup_schedule".weekday ASC`)
+	}
 	if f.LockForUpdate {
 		query = query.For("UPDATE")
 	}
@@ -516,7 +630,10 @@ func (s *Store) ListPickupExceptions(ctx context.Context, f careplan.StudentSche
 	if !f.UpcomingFrom.IsZero() {
 		query = query.Where(`"student_pickup_exception".exception_date >= ?`, calendarDate(f.UpcomingFrom))
 	}
-	query = query.OrderExpr(`"student_pickup_exception".exception_date ASC`)
+	query = applyStudentScheduleOptions(query, f.Options, "student_pickup_exception")
+	if f.Options == nil || len(f.Options.Sorting) == 0 {
+		query = query.OrderExpr(`"student_pickup_exception".exception_date ASC`)
+	}
 	if f.LockForUpdate {
 		query = query.For("UPDATE")
 	}
@@ -602,7 +719,10 @@ func (s *Store) ListPickupNotes(ctx context.Context, f careplan.StudentScheduleF
 	if !f.UpcomingFrom.IsZero() {
 		query = query.Where(`"student_pickup_note".note_date >= ?`, calendarDate(f.UpcomingFrom))
 	}
-	query = query.OrderExpr(`"student_pickup_note".note_date ASC, "student_pickup_note".created_at ASC`)
+	query = applyStudentScheduleOptions(query, f.Options, "student_pickup_note")
+	if f.Options == nil || len(f.Options.Sorting) == 0 {
+		query = query.OrderExpr(`"student_pickup_note".note_date ASC, "student_pickup_note".created_at ASC`)
+	}
 	if f.LockForUpdate {
 		query = query.For("UPDATE")
 	}

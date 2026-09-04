@@ -31,6 +31,33 @@ type StudentScheduleFilter struct {
 	To            Date
 	UpcomingFrom  Date
 	LockForUpdate bool
+	Options       *StudentScheduleQueryOptions
+}
+
+// StudentScheduleQueryOptions preserves the legacy repository listing shape
+// without exposing persistence-layer query types through the Care Plan API.
+type StudentScheduleQueryOptions struct {
+	Filter  *StudentScheduleQueryFilter
+	Limit   int
+	Offset  int
+	Sorting []StudentScheduleSortField
+}
+
+type StudentScheduleQueryFilter struct {
+	Conditions []StudentScheduleQueryCondition
+	Or         []StudentScheduleQueryFilter
+	And        []StudentScheduleQueryFilter
+}
+
+type StudentScheduleQueryCondition struct {
+	Field    string
+	Operator string
+	Value    any
+}
+
+type StudentScheduleSortField struct {
+	Field      string
+	Descending bool
 }
 
 type ArrivalSchedule struct {

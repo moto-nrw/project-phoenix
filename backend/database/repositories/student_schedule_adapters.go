@@ -100,8 +100,8 @@ func (r arrivalScheduleRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeleteArrivalSchedule(ctx, id))
 }
-func (r arrivalScheduleRepository) List(ctx context.Context, _ *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentArrivalSchedule, error) {
-	values, err := r.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{})
+func (r arrivalScheduleRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentArrivalSchedule, error) {
+	values, err := r.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)})
 	if err != nil {
 		return nil, legacyScheduleError("list with options", err)
 	}
@@ -203,8 +203,8 @@ func (r arrivalExceptionRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeleteArrivalException(ctx, id))
 }
-func (r arrivalExceptionRepository) List(ctx context.Context, _ *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentArrivalException, error) {
-	values, err := r.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{})
+func (r arrivalExceptionRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentArrivalException, error) {
+	values, err := r.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)})
 	if err != nil {
 		return nil, legacyScheduleError("list with options", err)
 	}
@@ -288,8 +288,8 @@ func (r arrivalNoteRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeleteArrivalNote(ctx, id))
 }
-func (r arrivalNoteRepository) List(ctx context.Context, _ *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentArrivalNote, error) {
-	return r.list(ctx, careplan.StudentScheduleFilter{}, "list with options")
+func (r arrivalNoteRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentArrivalNote, error) {
+	return r.list(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)}, "list with options")
 }
 func (r arrivalNoteRepository) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentArrivalNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}}, "find by student id")
@@ -356,8 +356,8 @@ func (r pickupScheduleRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeletePickupSchedule(ctx, id))
 }
-func (r pickupScheduleRepository) List(ctx context.Context, _ *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentPickupSchedule, error) {
-	values, err := r.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{})
+func (r pickupScheduleRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentPickupSchedule, error) {
+	values, err := r.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)})
 	if err != nil {
 		return nil, legacyScheduleError("list with options", err)
 	}
@@ -460,8 +460,8 @@ func (r pickupExceptionRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeletePickupException(ctx, id))
 }
-func (r pickupExceptionRepository) List(ctx context.Context, _ *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentPickupException, error) {
-	values, err := r.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{})
+func (r pickupExceptionRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentPickupException, error) {
+	values, err := r.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)})
 	if err != nil {
 		return nil, legacyScheduleError("list with options", err)
 	}
@@ -545,8 +545,8 @@ func (r pickupNoteRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeletePickupNote(ctx, id))
 }
-func (r pickupNoteRepository) List(ctx context.Context, _ *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentPickupNote, error) {
-	return r.list(ctx, careplan.StudentScheduleFilter{}, "list with options")
+func (r pickupNoteRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentPickupNote, error) {
+	return r.list(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)}, "list with options")
 }
 func (r pickupNoteRepository) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}}, "find by student id")
