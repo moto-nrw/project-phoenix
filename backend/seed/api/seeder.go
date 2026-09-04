@@ -40,6 +40,7 @@ type Seeder struct {
 	verbose   bool
 	options   SeedOptions
 	statePath string
+	profile   string
 }
 
 // SeedResult contains counts of created entities
@@ -73,6 +74,7 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 		verbose:   verbose,
 		options:   options,
 		statePath: statePath,
+		profile:   options.TenantSlug,
 	}
 }
 
@@ -87,11 +89,18 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	runtime := newRuntime(s, email, password, staffPIN)
 	workflow := fullDemoWorkflow(s)
 	if err := workflow.Run(ctx, runtime); err != nil {
+		profile := s.profile
+		if runtime.Bootstrap != nil {
+			profile = runtime.Bootstrap.TenantSlug
+		}
+		if profile == "" {
+			profile = "pending demo school"
+		}
 		var stepErr *StepError
 		if errors.As(err, &stepErr) {
-			return nil, s.formatError(stepErr.Step, stepErr.Err)
+			return nil, s.formatProfileError(profile, stepErr.Step, stepErr.Err)
 		}
-		return nil, s.formatError(workflow.Name, err)
+		return nil, s.formatProfileError(profile, workflow.Name, err)
 	}
 	return runtime.Result, nil
 }
@@ -119,6 +128,7 @@ func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, erro
 		schoolSlug = fmt.Sprintf("%s-%s", defaultSeedSchoolSlug, suffix)
 		schoolSubdomain = truncateSeedSubdomain(fmt.Sprintf("%s-%s", defaultSeedSchoolSubdomain, suffix))
 	}
+	s.profile = schoolSubdomain
 
 	orgID, err := s.createSeedOrganization(orgName, orgSlug)
 	if err != nil {
@@ -409,12 +419,14 @@ func copySeedIDMap(dst map[string]int64, src map[string]int64) {
 	}
 }
 
-// formatError creates a user-friendly error message
-func (s *Seeder) formatError(stage string, err error) error {
+func (s *Seeder) formatProfileError(profile, stage string, err error) error {
 	fmt.Printf("\nFailed at: %s\n", stage)
 	fmt.Printf("  Error: %v\n\n", err)
-	fmt.Println("Run './main migrate reset' and try again.")
-	return fmt.Errorf("%s failed: %w", stage, err)
+	request := ""
+	if s.client != nil && s.client.lastMethod != "" && !strings.Contains(err.Error(), s.client.lastMethod+" "+s.client.lastPath) {
+		request = fmt.Sprintf(", last request %s %s returned status %d", s.client.lastMethod, s.client.lastPath, s.client.lastStatus)
+	}
+	return fmt.Errorf("demo school profile %q, workflow step %s failed%s: %w", profile, stage, request, err)
 }
 
 // printSuccessSummary prints the final demo-ready status with all created data

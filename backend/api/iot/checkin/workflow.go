@@ -132,7 +132,7 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 			slog.String("rfid", rfid),
 			slog.String("error", err.Error()),
 		)
-		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New(shared.ErrMsgRFIDTagNotFound), shared.ErrCodeRFIDTagNotFound))
 		return nil
 	}
 

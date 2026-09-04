@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -305,10 +306,19 @@ func TestRunFullDay_NoDevices(t *testing.T) {
 }
 
 // simulationAPIMock creates a mock API server for simulation tests.
-func simulationAPIMock(t *testing.T) *simulationHTTPTestServer {
+func simulationAPIMock(t *testing.T, failedPaths ...string) *simulationHTTPTestServer {
+	return simulationAPIMockWithUnknownCode(t, "rfid_tag_not_found", failedPaths...)
+}
+
+func simulationAPIMockWithUnknownCode(t *testing.T, unknownCode string, failedPaths ...string) *simulationHTTPTestServer {
 	t.Helper()
 	return newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
+		if slices.Contains(failedPaths, r.URL.Path) {
+			w.WriteHeader(simulationHTTPStatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "injected failure", "code": "injected_failure"})
+			return
+		}
 
 		switch r.URL.Path {
 		case "/health":
@@ -338,7 +348,7 @@ func simulationAPIMock(t *testing.T) *simulationHTTPTestServer {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			if body["student_rfid"] == "DEMO-UNREGISTERED-TAG" {
 				w.WriteHeader(404)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag"})
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag", "code": unknownCode})
 				return
 			}
 			w.WriteHeader(simulationHTTPStatusOK)
@@ -366,6 +376,63 @@ func simulationAPIMock(t *testing.T) *simulationHTTPTestServer {
 			})
 		}
 	})
+}
+
+func TestRunFullDay_RejectsUnexpectedUnknownRFIDCode(t *testing.T) {
+	t.Parallel()
+
+	srv := simulationAPIMockWithUnknownCode(t, "different_not_found")
+	defer srv.Close()
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, WriteSeedState(&SeedState{
+		BaseURL:   srv.URL,
+		DevicePIN: "1234",
+		Bootstrap: SeedStateBootstrap{TenantSlug: "demo-school"},
+		Accounts: SeedStateAccounts{
+			Admin:    []AccountCredentials{{Email: "admin@test.de", Password: "pass"}},
+			Betreuer: []AccountCredentials{{StaffID: 10, Name: "Mara Muster"}},
+		},
+		Devices:    map[string]SeedDevice{"demo-device-001": {APIKey: "key", Name: "Scanner"}},
+		Students:   []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "Schneider"}},
+		Activities: map[string]int64{"Hausaufgaben": 50},
+		Rooms:      map[string]int64{"OGS-Raum 1": 1},
+	}, statePath))
+
+	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "record attendance and checkins")
+	assert.Contains(t, err.Error(), "expected 404 (rfid_tag_not_found)")
+	assert.Contains(t, err.Error(), "different_not_found")
+}
+
+func TestRunFullDay_FailsWholeRunWhenActivityStartFails(t *testing.T) {
+	t.Parallel()
+
+	srv := simulationAPIMock(t, "/api/iot/session/start")
+	defer srv.Close()
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, WriteSeedState(&SeedState{
+		BaseURL:   srv.URL,
+		DevicePIN: "1234",
+		Bootstrap: SeedStateBootstrap{TenantSlug: "demo-school"},
+		Accounts: SeedStateAccounts{
+			Admin:    []AccountCredentials{{Email: "admin@test.de", Password: "pass"}},
+			Betreuer: []AccountCredentials{{StaffID: 10, Name: "Mara Muster"}},
+		},
+		Devices:    map[string]SeedDevice{"demo-device-001": {APIKey: "key", Name: "Scanner"}},
+		Students:   []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "Schneider"}},
+		Activities: map[string]int64{"Hausaufgaben": 50},
+		Rooms:      map[string]int64{"OGS-Raum 1": 1},
+	}, statePath))
+
+	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `demo school profile "demo-school"`)
+	assert.Contains(t, err.Error(), "start sessions")
+	assert.Contains(t, err.Error(), "POST /api/iot/session/start")
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "injected_failure")
 }
 
 func TestRunFullDay_ManyStudents(t *testing.T) {

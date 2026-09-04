@@ -74,18 +74,23 @@ type APIRequestError struct {
 	Method     string
 	Path       string
 	StatusCode int
+	Code       string
 	Message    string
 	Body       string
 }
 
 func (e *APIRequestError) Error() string {
 	if e.Message != "" {
+		if e.Code != "" {
+			return fmt.Sprintf("%s %s failed: %d (%s) - %s", e.Method, e.Path, e.StatusCode, e.Code, e.Message)
+		}
 		return fmt.Sprintf("%s %s failed: %d - %s", e.Method, e.Path, e.StatusCode, e.Message)
 	}
 	return fmt.Sprintf("%s %s failed: %d - %s", e.Method, e.Path, e.StatusCode, e.Body)
 }
 
-func (e *APIRequestError) HTTPStatusCode() int { return e.StatusCode }
+func (e *APIRequestError) HTTPStatusCode() int   { return e.StatusCode }
+func (e *APIRequestError) HTTPErrorCode() string { return e.Code }
 
 type HTTPAPIAdapter struct {
 	baseURL string
@@ -99,13 +104,13 @@ func NewHTTPAPIAdapter(baseURL string) *HTTPAPIAdapter {
 func (a *HTTPAPIAdapter) BaseURL() string { return a.baseURL }
 
 func (a *HTTPAPIAdapter) CheckHealth(ctx context.Context) error {
-	_, status, err := a.Raw(ctx, APIAuth{}, http.MethodGet, "/health", nil, nil)
+	_, _, err := a.Raw(ctx, APIAuth{}, http.MethodGet, "/health", nil, nil)
 	if err != nil {
 		var requestErr *APIRequestError
 		if !errors.As(err, &requestErr) {
 			return fmt.Errorf("server not reachable at %s: %w", a.baseURL, err)
 		}
-		return fmt.Errorf("server health check failed: status %d", status)
+		return fmt.Errorf("server health check failed: %w", err)
 	}
 	return nil
 }
@@ -115,7 +120,7 @@ func (a *HTTPAPIAdapter) Login(ctx context.Context, path, email, password, tenan
 	if tenantSlug != "" {
 		body["tenant_slug"] = tenantSlug
 	}
-	raw, _, err := a.Raw(ctx, APIAuth{}, http.MethodPost, path, body, nil)
+	raw, status, err := a.Raw(ctx, APIAuth{}, http.MethodPost, path, body, nil)
 	if err != nil {
 		label := apiLoginLabel(path)
 		return APIAuth{}, fmt.Errorf("%s request failed: %w", label, err)
@@ -127,14 +132,13 @@ func (a *HTTPAPIAdapter) Login(ctx context.Context, path, email, password, tenan
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &response); err != nil {
-		label := apiLoginLabel(path)
-		return APIAuth{}, fmt.Errorf("parse %s response: %w", label, err)
+		return APIAuth{}, fmt.Errorf("parse %s response from POST %s with status %d: %w", apiLoginLabel(path), path, status, err)
 	}
 	if response.Data.AccessToken != "" {
 		response.AccessToken = response.Data.AccessToken
 	}
 	if response.AccessToken == "" {
-		return APIAuth{}, fmt.Errorf("login returned no access token")
+		return APIAuth{}, fmt.Errorf("POST %s response with status %d has no access token", path, status)
 	}
 	return APIAuth{Kind: "bearer", Token: response.AccessToken}, nil
 }
@@ -169,7 +173,7 @@ func (a *HTTPAPIAdapter) RawUpload(ctx context.Context, auth APIAuth, method, pa
 func (a *HTTPAPIAdapter) do(ctx context.Context, auth APIAuth, method, path, contentType string, body io.Reader, headers map[string]string) ([]byte, int, error) {
 	request, err := http.NewRequestWithContext(ctx, method, a.baseURL+path, body)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("%s %s failed: %w", method, path, err)
 	}
 	if body != nil {
 		request.Header.Set("Content-Type", contentType)
@@ -186,19 +190,24 @@ func (a *HTTPAPIAdapter) do(ctx context.Context, auth APIAuth, method, path, con
 	}
 	response, err := a.client.Do(request)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("%s %s failed: %w", method, path, err)
 	}
 	defer func() { _ = response.Body.Close() }()
 	raw, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, response.StatusCode, err
+		return nil, response.StatusCode, fmt.Errorf("%s %s failed reading status %d response: %w", method, path, response.StatusCode, err)
 	}
 	if response.StatusCode >= http.StatusBadRequest {
 		var payload struct {
 			Message string `json:"message"`
+			Error   string `json:"error"`
+			Code    string `json:"code"`
 		}
 		_ = json.Unmarshal(raw, &payload)
-		return raw, response.StatusCode, &APIRequestError{Method: method, Path: path, StatusCode: response.StatusCode, Message: payload.Message, Body: string(raw)}
+		if payload.Message == "" {
+			payload.Message = payload.Error
+		}
+		return raw, response.StatusCode, &APIRequestError{Method: method, Path: path, StatusCode: response.StatusCode, Code: payload.Code, Message: payload.Message, Body: string(raw)}
 	}
 	return raw, response.StatusCode, nil
 }

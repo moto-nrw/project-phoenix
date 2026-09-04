@@ -38,7 +38,15 @@ func RunFullDay(ctx context.Context, opts FullDayOptions) error {
 	runtime := newRuntime(state, client, opts)
 	scenario := fullDayScenario(opts.Close)
 	if err := scenario.Run(ctx, runtime); err != nil {
-		return err
+		profile := state.Bootstrap.TenantSlug
+		if profile == "" {
+			profile = "legacy seed state"
+		}
+		var actionErr *ActionError
+		if errors.As(err, &actionErr) {
+			return fmt.Errorf("demo school profile %q, workflow step %s failed: %w", profile, actionErr.Action, actionErr.Err)
+		}
+		return fmt.Errorf("demo school profile %q, workflow step %s failed: %w", profile, scenario.Name, err)
 	}
 	return nil
 }
@@ -82,6 +90,9 @@ func (assignRFIDsAction) Run(_ context.Context, rt *Runtime) error {
 	if len(deviceKeysForRFID) == 0 {
 		return fmt.Errorf("no devices in seed state for RFID assignment")
 	}
+	if len(rt.State.Students) == 0 {
+		return fmt.Errorf("no students in seed state for RFID assignment")
+	}
 	rfidDevice := rt.State.Devices[deviceKeysForRFID[0]]
 
 	for _, student := range rt.State.Students {
@@ -91,9 +102,7 @@ func (assignRFIDsAction) Run(_ context.Context, rt *Runtime) error {
 		body := map[string]string{"rfid_tag": rfidTag}
 		_, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", student.ID), body, rfidDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			fmt.Printf("  WARNING: failed to assign RFID to student %d (%s %s): %v\n",
-				student.ID, student.FirstName, student.LastName, err)
-			continue
+			return fmt.Errorf("assign RFID to student %d: %w", student.ID, err)
 		}
 		rt.Counts.RFIDAssigned++
 	}
@@ -113,6 +122,9 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 	betreuer := rt.State.Accounts.Betreuer
 
 	sessionsToStart := min(len(betreuer), len(rt.DeviceKeys), len(rt.ActivityNames))
+	if sessionsToStart == 0 {
+		return fmt.Errorf("no sessions can start: %d staff accounts, %d devices, %d activities", len(betreuer), len(rt.DeviceKeys), len(rt.ActivityNames))
+	}
 	if sessionsToStart > 10 {
 		sessionsToStart = 10
 	}
@@ -136,8 +148,7 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 
 		_, err := rt.Client.DevicePost("/api/iot/session/start", body, device.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			fmt.Printf("  WARNING: failed to start session for %s: %v\n", actName, err)
-			continue
+			return fmt.Errorf("start session for %s: %w", actName, err)
 		}
 
 		if roomID != 0 {
@@ -191,7 +202,7 @@ func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(periodResponse, &periodEnvelope); err != nil {
-		return fmt.Errorf("decode calendar periods for demo cancellation: %w", err)
+		return fmt.Errorf("decode POST /api/timetable/periods/bootstrap response: %w", err)
 	}
 	today, err := time.ParseInLocation("2006-01-02", time.Now().In(berlin).Format("2006-01-02"), berlin)
 	if err != nil {
@@ -243,7 +254,7 @@ func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(created, &envelope); err != nil {
-		return fmt.Errorf("decode demo cancellation: %w", err)
+		return fmt.Errorf("decode POST /api/timetable/instances response: %w", err)
 	}
 	if envelope.Data.ID <= 0 {
 		return fmt.Errorf("decode demo cancellation: response has no instance id")
@@ -268,9 +279,12 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 	_, err = rt.Client.DevicePost("/api/iot/checkin", map[string]any{
 		"student_rfid": "DEMO-UNREGISTERED-TAG", "action": "checkin",
 	}, primaryDevice.APIKey, rt.State.DevicePIN)
-	var statusErr interface{ HTTPStatusCode() int }
-	if !errors.As(err, &statusErr) || statusErr.HTTPStatusCode() != 404 {
-		return fmt.Errorf("record unregistered tag scan: expected 404, got %w", err)
+	var expectedErr interface {
+		HTTPStatusCode() int
+		HTTPErrorCode() string
+	}
+	if !errors.As(err, &expectedErr) || expectedErr.HTTPStatusCode() != 404 || expectedErr.HTTPErrorCode() != "rfid_tag_not_found" {
+		return fmt.Errorf("record unregistered tag scan: expected 404 (rfid_tag_not_found), got %w", err)
 	}
 
 	studentsToProcess := len(rt.State.Students)
@@ -282,7 +296,7 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 		student := rt.State.Students[i]
 		rfidTag, ok := rt.RFIDTags[student.ID]
 		if !ok {
-			continue
+			return fmt.Errorf("RFID assignment missing for student %d", student.ID)
 		}
 
 		attendanceBody := map[string]string{
@@ -291,10 +305,7 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 		}
 		_, err := rt.Client.DevicePost("/api/iot/attendance/toggle", attendanceBody, primaryDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: attendance toggle failed for student %d: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("record attendance for student %d: %w", student.ID, err)
 		}
 		rt.Counts.AttendanceRecords++
 
@@ -307,10 +318,7 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 			}
 			_, err := rt.Client.DevicePost("/api/iot/checkin", checkinBody, primaryDevice.APIKey, rt.State.DevicePIN)
 			if err != nil {
-				if rt.Options.Verbose {
-					fmt.Printf("  WARNING: checkin failed for student %d: %v\n", student.ID, err)
-				}
-				continue
+				return fmt.Errorf("check in student %d: %w", student.ID, err)
 			}
 			rt.Counts.StudentsCheckedIn++
 		}
@@ -337,10 +345,7 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 		body := map[string]any{"sick": true}
 		_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d", student.ID), body)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: failed to mark student %d sick: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("mark student %d sick: %w", student.ID, err)
 		}
 		rt.Counts.StudentsSick++
 	}
@@ -349,7 +354,7 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 		student := rt.State.Students[i]
 		rfidTag, ok := rt.RFIDTags[student.ID]
 		if !ok {
-			continue
+			return fmt.Errorf("RFID assignment missing for student %d", student.ID)
 		}
 		body := map[string]any{
 			"student_rfid": rfidTag,
@@ -357,10 +362,7 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 		}
 		_, err := rt.Client.DevicePost("/api/iot/checkin", body, primaryDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: checkout failed for student %d: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("check out student %d: %w", student.ID, err)
 		}
 		rt.Counts.StudentsCheckedOut++
 	}
@@ -385,24 +387,24 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 		student := rt.State.Students[i]
 		rfidTag, ok := rt.RFIDTags[student.ID]
 		if !ok {
-			continue
+			return fmt.Errorf("RFID assignment missing for student %d", student.ID)
 		}
 		// Query pickup info first (mirrors PyrePortal flow)
-		_, _ = rt.Client.DevicePost("/api/iot/pickup-query", map[string]any{
+		_, err := rt.Client.DevicePost("/api/iot/pickup-query", map[string]any{
 			"student_rfid": rfidTag,
 		}, primaryDevice.APIKey, rt.State.DevicePIN)
+		if err != nil {
+			return fmt.Errorf("query pickup for student %d: %w", student.ID, err)
+		}
 
 		body := map[string]any{
 			"rfid":        rfidTag,
 			"action":      "confirm_daily_checkout",
 			"destination": "zuhause",
 		}
-		_, err := rt.Client.DevicePost("/api/iot/attendance/toggle", body, primaryDevice.APIKey, rt.State.DevicePIN)
+		_, err = rt.Client.DevicePost("/api/iot/attendance/toggle", body, primaryDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: daily checkout failed for student %d: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("record daily checkout for student %d: %w", student.ID, err)
 		}
 		rt.Counts.DailyCheckouts++
 
@@ -413,10 +415,7 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 		}
 		_, err = rt.Client.DevicePost("/api/iot/feedback", feedbackBody, primaryDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: feedback failed for student %d: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("submit feedback for student %d: %w", student.ID, err)
 		}
 		rt.Counts.FeedbackSubmitted++
 	}
@@ -426,10 +425,7 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 		device := rt.State.Devices[rt.DeviceKeys[i]]
 		_, err := rt.Client.DevicePost("/api/iot/session/end", nil, device.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: failed to end session on device %s: %v\n", rt.DeviceKeys[i], err)
-			}
-			continue
+			return fmt.Errorf("end session on device %s: %w", rt.DeviceKeys[i], err)
 		}
 		rt.Counts.SessionsEnded++
 	}

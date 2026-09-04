@@ -386,12 +386,13 @@ func TestCollectSeedState_EmptySeeder(t *testing.T) {
 	assert.Empty(t, state.Students)
 }
 
-func TestFormatError(t *testing.T) {
+func TestFormatProfileError(t *testing.T) {
 	t.Parallel()
 
 	s := &Seeder{verbose: false}
-	err := s.formatError("Login", assert.AnError)
+	err := s.formatProfileError("test-school", "Login", assert.AnError)
 	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `demo school profile "test-school"`)
 	assert.Contains(t, err.Error(), "Login failed")
 	assert.ErrorIs(t, err, assert.AnError)
 }
@@ -500,6 +501,46 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.Equal(t, 2, state.Topology.Schools)
 	assert.NotEmpty(t, state.CareWithdrawals.SchoolAdmin.Email)
 	assertWithdrawalSeedTrace(t, trace)
+}
+
+type failingSeedAdapter struct {
+	Adapter
+	method string
+	path   string
+}
+
+func (a failingSeedAdapter) Raw(ctx context.Context, auth AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {
+	if method == a.method && path == a.path {
+		return nil, seedHTTPStatusInternalServerError, &APIError{
+			Method: method, Path: path, StatusCode: seedHTTPStatusInternalServerError,
+			Code: "injected_failure", Message: "injected failure",
+		}
+	}
+	return a.Adapter.Raw(ctx, auth, method, path, body, headers)
+}
+
+func TestSeeder_Seed_FailsWholeRunWhenAnnouncementWriteFails(t *testing.T) {
+	t.Parallel()
+
+	srv := fullSeedAPIMock(t)
+	defer srv.Close()
+	adapter := failingSeedAdapter{
+		Adapter: newSeedTestAdapter(srv.URL),
+		method:  seedHTTPMethodPost,
+		path:    "/operator/announcements",
+	}
+	s := NewSeeder(adapter, newSeedTestRandom(), false, SeedOptions{
+		TenantSlug: "demo-school",
+		StatePath:  filepath.Join(t.TempDir(), "state.json"),
+	})
+
+	_, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `demo school profile "demo-school"`)
+	assert.Contains(t, err.Error(), "Seeding announcements")
+	assert.Contains(t, err.Error(), "POST /operator/announcements")
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "injected_failure")
 }
 
 func TestSeeder_Seed_HealthCheckFails(t *testing.T) {
@@ -697,6 +738,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.URL.Path == "/api/students/care-end/preview" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"token": "planned-care-exit-token", "blocked": false},
+			})
+			return
+		}
+		if r.URL.Path == "/api/students/care-end" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+			return
+		}
 		if strings.HasSuffix(r.URL.Path, "/care-end/preview") && strings.Contains(r.URL.Path, "/care-withdrawals/") {
 			if trace != nil {
 				trace.withdrawalPreviews++
@@ -774,6 +825,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					{"account_id": "7002", "name": "Sabine Weber"},
 					{"account_id": "7020", "name": "Uwe Lange"},
 				},
+			})
+			return
+		}
+		if r.URL.Path == "/api/staff-messages/threads/open" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"thread_id": fmt.Sprintf("%d", idCounter)},
 			})
 			return
 		}

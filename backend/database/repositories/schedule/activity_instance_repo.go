@@ -65,7 +65,7 @@ func (r *ActivityInstanceRepository) CreateTemplateBackedIfAbsent(ctx context.Co
 	res, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(i).
 		ModelTableExpr(tableActivityInstances).
-		On("CONFLICT (tenant_id, date, activity_group_id, start_time) WHERE activity_group_id IS NOT NULL DO NOTHING").
+		On("CONFLICT (tenant_id, date, activity_group_id, start_time) WHERE activity_group_id IS NOT NULL AND is_spontaneous = FALSE DO NOTHING").
 		Exec(ctx)
 	if err != nil {
 		return false, &modelBase.DatabaseError{
