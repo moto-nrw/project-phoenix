@@ -22,7 +22,14 @@ func GroupNames(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) (m
 		ID   int64  `bun:"id"`
 		Name string `bun:"name"`
 	}
-	if err := db.NewRaw(`SELECT id, name FROM activities.groups WHERE tenant_id = ? AND id IN (?)`, tenantID, bun.List(ids)).Scan(ctx, &rows); err != nil {
+	query := db.NewSelect().
+		TableExpr(`activities.groups AS "group"`).
+		ColumnExpr(`"group".id, "group".name`).
+		Where(`"group".id IN (?)`, bun.List(ids))
+	if tenantID > 0 {
+		query = query.Where(`"group".tenant_id = ?`, tenantID)
+	}
+	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("timetable projection: list group names: %w", err)
 	}
 	for _, row := range rows {
