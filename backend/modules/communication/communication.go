@@ -1,5 +1,5 @@
 // Package communication is the public Communication capability for platform
-// announcements shown to staff. It owns announcement targeting and read state.
+// announcements and staff-facing conversations.
 package communication
 
 import (
@@ -265,10 +265,36 @@ func (m *Module) GetViewDetails(ctx context.Context, announcementID int64) ([]*A
 
 func ErrorCode(err error) string {
 	switch {
+	case err == nil:
+		return "none"
 	case errors.Is(err, ErrAnnouncementNotFound):
 		return "announcement_not_found"
 	case errors.Is(err, ErrInvalidAnnouncement):
 		return "invalid_announcement"
+	case errors.Is(err, ErrParentMessageThreadNotFound), errors.Is(err, ErrStaffMessageThreadNotFound):
+		return "message_thread_not_found"
+	case errors.Is(err, ErrParentMessagingForbidden), errors.Is(err, ErrStaffMessagingNotParticipant), errors.Is(err, ErrStaffMessagingNoActor):
+		return "forbidden"
+	case errors.Is(err, ErrParentMessagingDisabled), errors.Is(err, ErrStaffMessagingDisabled):
+		return "messaging_disabled"
+	case errors.Is(err, ErrParentMessageEmptyBody), errors.Is(err, ErrStaffMessageEmptyBody):
+		return "empty_message"
+	case errors.Is(err, ErrParentMessageBodyTooLong), errors.Is(err, ErrStaffMessageBodyTooLong):
+		return "message_too_long"
+	case errors.Is(err, ErrParentMessageHandledBoundaryRequired):
+		return "handled_boundary_required"
+	case errors.Is(err, ErrParentMessageInvalidGuardian):
+		return "invalid_guardian"
+	case errors.Is(err, ErrParentMessageGuardianAccessRevoked):
+		return "guardian_access_revoked"
+	case errors.Is(err, ErrStaffMessageRecipientNotAvailable):
+		return "recipient_unavailable"
+	case errors.Is(err, ErrStaffMessageCounterpartUnavailable):
+		return "counterpart_unavailable"
+	case errors.Is(err, ErrStaffMessageSelfConversation):
+		return "self_conversation"
+	case errors.Is(err, ErrStaffMessageRetentionUnresolved):
+		return "retention_unresolved"
 	default:
 		return "internal_error"
 	}

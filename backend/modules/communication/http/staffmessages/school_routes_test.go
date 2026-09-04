@@ -2,7 +2,7 @@
 // Betreuungskraft with a tenant token read and write the SAME conversation
 // through their respective mounts, and each side sees which kind of colleague
 // the other is.
-package school_test
+package staffmessaging_test
 
 import (
 	"encoding/json"
@@ -13,13 +13,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -37,12 +38,15 @@ func decodeData[T any](t *testing.T, body []byte) T {
 
 func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	t.Parallel()
-	db, resource, tenantID, _ := setupSchoolRoute(t)
-	schoolRouter := newSchoolChiRouter(resource)
-	tenantRouter := staffmessaging.NewResource(resource.StaffMessaging.Service, db).Router()
+	db, serviceFactory := testutil.SetupAPITest(t)
+	staffMessages := staffmessaging.NewResource(serviceFactory.StaffMessaging, db)
+	schoolRouter := chi.NewRouter()
+	schoolRouter.Mount("/staff-messages", staffMessages.SchoolRouter())
+	tenantRouter := staffMessages.Router()
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
 
 	// The chat is off by default (#2598); the school switches it on.
-	require.NoError(t, resource.Timetable.SettingsService.SetValue(
+	require.NoError(t, serviceFactory.Settings.SetValue(
 		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, true, nil, nil,
 	))
 
@@ -141,8 +145,10 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 
 func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	t.Parallel()
-	db, resource, tenantID, _ := setupSchoolRoute(t)
-	schoolRouter := newSchoolChiRouter(resource)
+	db, serviceFactory := testutil.SetupAPITest(t)
+	schoolRouter := chi.NewRouter()
+	schoolRouter.Mount("/staff-messages", staffmessaging.NewResource(serviceFactory.StaffMessaging, db).SchoolRouter())
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
 
 	_, teacherAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Off", fmt.Sprintf("Lehrkraft-%d", time.Now().UnixNano()))
 	testpkg.EnsureAccountTenant(t, db, teacherAccount.ID, tenantID)

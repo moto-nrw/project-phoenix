@@ -8,7 +8,7 @@ import (
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staff"
+	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

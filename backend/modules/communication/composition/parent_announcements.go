@@ -9,7 +9,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staff"
+	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"

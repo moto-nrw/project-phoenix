@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        659
+        671
       ],
       "tables": []
     },
@@ -49,7 +49,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        96
+        97
       ],
       "tables": []
     },
@@ -59,7 +59,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        163
+        164
       ],
       "tables": []
     },
@@ -586,7 +586,7 @@
       "declaration": "setupSchoolRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        44
+        54
       ],
       "tables": []
     },
@@ -606,7 +606,7 @@
       "declaration": "TestWithRuntimeBuildsCompleteWorker",
       "target": "api.WithRuntime",
       "lines": [
-        116
+        122
       ],
       "tables": []
     },
@@ -11303,7 +11303,7 @@
       "declaration": "createSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        42
+        43
       ],
       "tables": []
     },
@@ -12108,71 +12108,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/messaging/message_email_test.go",
-      "declaration": "newEmailFixture",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        82
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/messaging/service_test.go",
-      "declaration": "TestMessaging_DisabledFeature",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        645
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/messaging/service_test.go",
-      "declaration": "TestPostMessage_ClearsTeamUnreadForColleagues",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        308,
-        310,
-        317
-      ],
-      "tables": [
-        "users.parent_message_reads"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/messaging/service_test.go",
-      "declaration": "TestPostMessage_RejectsLegacyReplyWithoutVisibleBoundary",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        337,
-        343
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/messaging/service_test.go",
-      "declaration": "buildMessagingWithSettings",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        109
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/messaging/service_test.go",
-      "declaration": "createGuardianMessage",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        164
       ],
       "tables": []
     },
@@ -31853,22 +31788,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 366,
+          "line": 378,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 469,
+          "line": 481,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 535,
+          "line": 547,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1027,
+          "line": 1039,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31878,7 +31813,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 659,
+          "line": 671,
           "declaration": "New"
         }
       ]
@@ -31893,7 +31828,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 532,
+          "line": 544,
           "declaration": "type API"
         },
         {
@@ -32003,7 +31938,7 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 429,
+          "line": 427,
           "declaration": "NewFactoryWithModules"
         },
         {

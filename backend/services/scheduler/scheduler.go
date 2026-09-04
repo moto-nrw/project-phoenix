@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	staffMessagingSvc "github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -42,6 +41,18 @@ type AuthCleanup interface {
 type InvitationCleaner interface {
 	CleanupExpiredInvitations(ctx context.Context) (int, error)
 }
+
+// StaffMessageCleanupResult reports the records removed by one tenant's
+// staff-message retention sweep.
+type StaffMessageCleanupResult struct {
+	MessagesDeleted int
+	ThreadsDeleted  int
+	RetentionDays   int
+}
+
+// StaffMessageCleanup is supplied by the composition root. The scheduler
+// owns when cleanup runs but remains independent of the Communication module.
+type StaffMessageCleanup func(context.Context) (StaffMessageCleanupResult, error)
 
 // CleanupJob represents a single cleanup task that can be executed.
 type CleanupJob struct {
@@ -159,7 +170,7 @@ type Scheduler struct {
 	timeTrackingCleanup        active.TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
 	pwaUsageCleanup            pwaSvc.UsageService
-	staffMessageCleanup        staffMessagingSvc.CleanupService
+	staffMessageCleanup        StaffMessageCleanup
 	bookingConsistency         auditModel.BookingConsistencyRepository
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
 	autoStart                  scheduleSvc.AutoStartService
@@ -2502,7 +2513,7 @@ func (s *Scheduler) checkAndRunPWAUsageCleanup(ctx context.Context, task *Schedu
 // Nil → no task.
 func (s *Scheduler) scheduleStaffMessageCleanupTask() {
 	if s.staffMessageCleanup == nil {
-		s.getLogger().Info("staff message GDPR cleanup not configured (no staffmessaging.CleanupService)")
+		s.getLogger().Info("staff message GDPR cleanup not configured (no cleanup capability)")
 		return
 	}
 
@@ -2534,7 +2545,7 @@ func (s *Scheduler) checkAndRunStaffMessageCleanup(ctx context.Context, task *Sc
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		result, err := s.staffMessageCleanup.CleanupExpiredMessages(cleanupCtx)
+		result, err := s.staffMessageCleanup(cleanupCtx)
 		if err != nil {
 			s.getLogger().Error("staff message cleanup failed for tenant",
 				slog.Int64("tenant_id", tenantID),

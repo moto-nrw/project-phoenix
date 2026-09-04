@@ -1,11 +1,11 @@
 // Package staffmessaging implements the OGS-internal colleague chat (#2598):
 // a 1:1 conversation between two staff accounts of the same school.
 //
-// It deliberately does NOT reuse services/messaging. That service carries the
-// parent-OGS rules — which child a staff member may see, whether the guardian
-// is still linked, whether a staff name may be shown to parents — none of which
-// exist here. The two share the schema SHAPE (thread / message / read cursor)
-// and the transport (SSE + Web Push), not the authorization model.
+// It deliberately does NOT reuse the parent-message adapter beside it. That
+// adapter carries the parent-OGS rules — which child a staff member may see,
+// whether the guardian is still linked, whether a staff name may be shown to
+// parents — none of which exist here. The two share the schema SHAPE (thread /
+// message / read cursor) and the transport, not the authorization model.
 //
 // Authorization here is membership and nothing else: you can read and write a
 // conversation exactly when you are one of its participants. No role, no
