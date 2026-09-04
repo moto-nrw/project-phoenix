@@ -5,6 +5,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { fetchTodaysNotices } from "~/lib/staff-notices-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
 /** Event, mit dem eine Kenntnisnahme das Badge sofort nachziehen lässt. */
@@ -34,5 +35,6 @@ export function useStaffNoticesPending() {
     cacheKey: `staff_notices_pending:${tenantSlug ?? ""}:${accountId}`,
     eventNames: [STAFF_NOTICES_REFRESH_EVENT],
     refetchOnFocus: true,
+    initialCount: useShellSeed()?.counts.staffNoticesPending,
   });
 }

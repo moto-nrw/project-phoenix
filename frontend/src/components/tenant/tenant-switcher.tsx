@@ -12,6 +12,7 @@ import {
 } from "~/lib/tenant-api";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
+import { useShellSeed } from "~/lib/shell-seed";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
 import { trackTenantEvent } from "~/lib/analytics";
@@ -51,7 +52,12 @@ export function BrandTenantSwitcher({
   href = "/dashboard",
   label,
 }: BrandTenantSwitcherProps) {
-  const [tenants, setTenants] = useState<TenantSummary[]>([]);
+  // The tenant layout preloads the list on the server (#2973); without a
+  // seed the list is fetched once the session is authenticated.
+  const seededTenants = useShellSeed()?.accountTenants;
+  const [tenants, setTenants] = useState<TenantSummary[]>(
+    () => seededTenants ?? [],
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const [switchError, setSwitchError] = useState("");
@@ -62,7 +68,7 @@ export function BrandTenantSwitcher({
 
   // Fetch available tenants once authenticated
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status !== "authenticated" || seededTenants) return;
     listAvailableTenants()
       .then(setTenants)
       .catch((err: unknown) => {
@@ -70,7 +76,7 @@ export function BrandTenantSwitcher({
           error: err instanceof Error ? err.message : String(err),
         });
       });
-  }, [status]);
+  }, [status, seededTenants]);
 
   // Close dropdown on outside click
   useEffect(() => {

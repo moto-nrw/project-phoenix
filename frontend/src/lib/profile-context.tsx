@@ -36,13 +36,19 @@ const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
  */
 export function ProfileProvider({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  initialProfile = null,
+}: Readonly<{
+  children: React.ReactNode;
+  /** Server-preloaded profile from the tenant layout (#2973); skips the mount fetch. */
+  initialProfile?: Profile | null;
+}>) {
   const { data: session } = useSession();
 
-  const [state, setState] = useState<ProfileState>({
-    profile: null,
-    isLoading: true,
-  });
+  const [state, setState] = useState<ProfileState>(() => ({
+    profile: initialProfile,
+    isLoading: initialProfile === null,
+  }));
+  const seededRef = React.useRef(initialProfile !== null);
 
   // Debounce mechanism to prevent rapid successive calls
   const isRefreshingRef = React.useRef<boolean>(false);
@@ -163,11 +169,19 @@ export function ProfileProvider({
   useEffect(() => {
     // Only refresh when token actually changes (not on every render)
     if (session?.user?.token) {
+      // The server snapshot IS the initial load; the debounce starts now, as
+      // it would after a fetched load.
+      if (seededRef.current) {
+        seededRef.current = false;
+        lastRefreshRef.current = Date.now();
+        return;
+      }
       refreshRef.current?.()?.catch(() => {
         // Errors already handled in fetchProfileData
       });
     } else {
       // Clear state when no session
+      seededRef.current = false;
       setState({
         profile: null,
         isLoading: false,

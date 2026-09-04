@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import { loadAccess, tenantBaseUrl } from "./scripts/perf/access";
+import { loadAccess, perfPort, tenantBaseUrl } from "./scripts/perf/access";
 import { perfServerEnv } from "./scripts/perf/env.mjs";
 
 // Perf-Baseline gegen einen PRODUKTIONS-Server (pnpm run perf:trace, #2938).
@@ -35,8 +35,8 @@ export default defineConfig({
     command: "pnpm run build && pnpm run start",
     // PORT explizit: eine Shell mit PORT=8080 (Backend-Konvention) würde den
     // Next-Server sonst auf den Backend-Port setzen.
-    env: { ...env, PORT: "3000" },
-    url: "http://localhost:3000/help",
+    env: { ...env, PORT: perfPort() },
+    url: `http://localhost:${perfPort()}/help`,
     reuseExistingServer: false,
     timeout: 600_000,
   },
