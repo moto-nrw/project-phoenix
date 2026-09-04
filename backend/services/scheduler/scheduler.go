@@ -1928,11 +1928,7 @@ func (s *Scheduler) checkAndRunAutoStart(ctx context.Context, task *ScheduledTas
 
 		result, err := s.autoStart.RunForTenant(tenantCtx, time.Now())
 		if err != nil {
-			s.getLogger().Warn("timetable auto-start failed for tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return nil
+			return err
 		}
 		if result.Started > 0 || result.SkippedConflict > 0 || result.Failed > 0 {
 			s.getLogger().Info("timetable auto-start completed for tenant",
