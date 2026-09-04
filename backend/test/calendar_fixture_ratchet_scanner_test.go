@@ -42,12 +42,13 @@ type calendarFunctionScan struct {
 }
 
 type calendarPackageHelpers struct {
-	dates      map[string]map[string]bool
-	instants   map[string]map[string]bool
-	scalars    map[string]map[string]bool
-	weekly     map[string]map[string]bool
-	weekdays   map[string]map[string]bool
-	candidates map[string]map[string][]calendarHelperCandidate
+	dates           map[string]map[string]bool
+	instants        map[string]map[string]bool
+	scalars         map[string]map[string]bool
+	weekly          map[string]map[string]bool
+	weekdays        map[string]map[string]bool
+	candidates      map[string]map[string][]calendarHelperCandidate
+	effectiveParams map[string]map[string]map[int]bool
 }
 
 //nolint:staticcheck // The scanner deliberately relies on parser-resolved local bindings.
@@ -164,6 +165,13 @@ func scanCalendarFixtureFunctions(rel string, fset *token.FileSet, file *ast.Fil
 			assertionPackages: assertionPackages,
 		}
 		findings = append(findings, scan.findings()...)
+	}
+	for _, fn := range declaredFunctions(file) {
+		dateVars := currentCalendarDateVariables(fn.Body, helpers.dates[key], timezonePackages)
+		findings = append(findings, findLiveEffectiveBoundaries(
+			fn, rel, fset, dateVars, helpers.dates[key], timezonePackages,
+			helpers.effectiveParams[key],
+		)...)
 	}
 	return findings
 }
@@ -389,7 +397,7 @@ func fieldListArity(fields *ast.FieldList) int {
 func discoverCalendarPackageHelpers(root string) (calendarPackageHelpers, error) {
 	result := calendarPackageHelpers{
 		dates: map[string]map[string]bool{}, instants: map[string]map[string]bool{}, scalars: map[string]map[string]bool{}, weekly: map[string]map[string]bool{}, weekdays: map[string]map[string]bool{},
-		candidates: map[string]map[string][]calendarHelperCandidate{},
+		candidates: map[string]map[string][]calendarHelperCandidate{}, effectiveParams: map[string]map[string]map[int]bool{},
 	}
 	candidates := map[string][]calendarHelperCandidate{}
 	fset := token.NewFileSet()
@@ -411,19 +419,24 @@ func discoverCalendarPackageHelpers(root string) (calendarPackageHelpers, error)
 	if err != nil {
 		return calendarPackageHelpers{}, err
 	}
+	indexCalendarHelperCandidates(candidates, result)
+	propagateCalendarHelpers(candidates, result)
+	return result, nil
+}
+
+func indexCalendarHelperCandidates(candidates map[string][]calendarHelperCandidate, helpers calendarPackageHelpers) {
 	for key, packageCandidates := range candidates {
-		result.candidates[key] = map[string][]calendarHelperCandidate{}
+		helpers.candidates[key] = map[string][]calendarHelperCandidate{}
 		for _, candidate := range packageCandidates {
 			identity := calendarHelperIdentity(candidate.receiver, candidate.name)
-			result.candidates[key][identity] = append(result.candidates[key][identity], candidate)
+			helpers.candidates[key][identity] = append(helpers.candidates[key][identity], candidate)
 		}
-		addCalendarMethodAliases(packageCandidates, result, key)
+		addCalendarMethodAliases(packageCandidates, helpers, key)
+		helpers.effectiveParams[key] = discoverEffectiveBoundaryParameters(helpers.candidates[key])
 	}
-	propagateCalendarHelpers(candidates, result)
 	for key, packageCandidates := range candidates {
-		syncCalendarMethodAliases(packageCandidates, result, key)
+		syncCalendarMethodAliases(packageCandidates, helpers, key)
 	}
-	return result, nil
 }
 
 func addCalendarHelperCandidates(path string, fset *token.FileSet, candidates map[string][]calendarHelperCandidate, helpers calendarPackageHelpers) error {
@@ -452,6 +465,97 @@ func addCalendarHelperCandidates(path string, fset *token.FileSet, candidates ma
 	helpers.weekly[key] = map[string]bool{}
 	helpers.weekdays[key] = map[string]bool{}
 	return nil
+}
+
+func effectiveStructFieldIndexes(structure *ast.StructType) map[int]bool {
+	indexes := map[int]bool{}
+	position := 0
+	for _, field := range structure.Fields.List {
+		names := field.Names
+		if len(names) == 0 {
+			names = []*ast.Ident{{}}
+		}
+		for _, name := range names {
+			if effectiveBoundaryName(name.Name) {
+				indexes[position] = true
+			}
+			position++
+		}
+	}
+	return indexes
+}
+
+func discoverEffectiveBoundaryParameters(candidates map[string][]calendarHelperCandidate) map[string]map[int]bool {
+	sinks := map[string]map[int]bool{}
+	for changed := true; changed; {
+		changed = false
+		for identity, matches := range candidates {
+			for _, candidate := range matches {
+				changed = markEffectiveBoundaryParameters(identity, candidate.fn, sinks) || changed
+			}
+		}
+	}
+	return sinks
+}
+
+func markEffectiveBoundaryParameters(identity string, fn *ast.FuncDecl, sinks map[string]map[int]bool) bool {
+	parameters := calendarParameterPositions(fn.Type.Params)
+	receiverTypes := calendarReceiverTypes(fn)
+	changed := false
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		for _, expr := range effectiveBoundaryExpressions(node, sinks, receiverTypes) {
+			for object, position := range parameters {
+				if expressionUsesCalendarObject(expr, object) {
+					changed = markEffectiveParameterSink(sinks, identity, position) || changed
+				}
+			}
+		}
+		return true
+	})
+	return changed
+}
+
+func calendarParameterPositions(fields *ast.FieldList) map[*calendarObject]int {
+	positions := map[*calendarObject]int{}
+	position := 0
+	if fields == nil {
+		return positions
+	}
+	for _, field := range fields.List {
+		count := len(field.Names)
+		if count == 0 {
+			position++
+			continue
+		}
+		for _, name := range field.Names {
+			positions[name.Obj] = position
+			position++
+		}
+	}
+	return positions
+}
+
+func markEffectiveParameterSink(sinks map[string]map[int]bool, identity string, position int) bool {
+	if sinks[identity] == nil {
+		sinks[identity] = map[int]bool{}
+	}
+	if sinks[identity][position] {
+		return false
+	}
+	sinks[identity][position] = true
+	return true
+}
+
+func expressionUsesCalendarObject(expr ast.Expr, object *calendarObject) bool {
+	used := false
+	ast.Inspect(expr, func(node ast.Node) bool {
+		identifier, ok := node.(*ast.Ident)
+		if ok && identifier.Obj == object {
+			used = true
+		}
+		return !used
+	})
+	return used
 }
 
 func addCalendarMethodAliases(candidates []calendarHelperCandidate, helpers calendarPackageHelpers, key string) {
@@ -827,6 +931,97 @@ func calendarRangeFieldName(name string) bool {
 	default:
 		return false
 	}
+}
+
+func findLiveEffectiveBoundaries(fn *ast.FuncDecl, rel string, fset *token.FileSet, dateVars calendarVariables, dateHelpers, timezonePackages map[string]bool, parameterSinks map[string]map[int]bool) []calendarClockFinding {
+	var findings []calendarClockFinding
+	receiverTypes := calendarReceiverTypes(fn)
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		for _, expr := range effectiveBoundaryExpressions(node, parameterSinks, receiverTypes) {
+			if !expressionContainsTodayDate(expr, dateVars, dateHelpers, timezonePackages) {
+				continue
+			}
+			findings = append(findings, newCalendarClockFinding(
+				rel, fn.Name.Name, fset.Position(expr.Pos()).Line,
+				"live calendar date used as an effective boundary",
+			))
+		}
+		return true
+	})
+	return findings
+}
+
+func effectiveBoundaryExpressions(node ast.Node, parameterSinks map[string]map[int]bool, receiverTypes map[*calendarObject]string) []ast.Expr {
+	switch value := node.(type) {
+	case *ast.AssignStmt:
+		var expressions []ast.Expr
+		for i, lhs := range value.Lhs {
+			if i < len(value.Rhs) && effectiveBoundaryName(expressionName(lhs)) {
+				expressions = append(expressions, value.Rhs[i])
+			}
+		}
+		return expressions
+	case *ast.ValueSpec:
+		var expressions []ast.Expr
+		for i, name := range value.Names {
+			if i < len(value.Values) && effectiveBoundaryName(name.Name) {
+				expressions = append(expressions, value.Values[i])
+			}
+		}
+		return expressions
+	case *ast.KeyValueExpr:
+		if effectiveBoundaryName(expressionName(value.Key)) {
+			return []ast.Expr{value.Value}
+		}
+	case *ast.CompositeLit:
+		return unkeyedEffectiveFieldExpressions(value)
+	case *ast.CallExpr:
+		return effectiveCallArguments(value, parameterSinks, receiverTypes)
+	}
+	return nil
+}
+
+func unkeyedEffectiveFieldExpressions(literal *ast.CompositeLit) []ast.Expr {
+	typeName, ok := literal.Type.(*ast.Ident)
+	if !ok || typeName.Obj == nil {
+		return nil
+	}
+	typeSpec, ok := typeName.Obj.Decl.(*ast.TypeSpec)
+	if !ok {
+		return nil
+	}
+	structure, ok := typeSpec.Type.(*ast.StructType)
+	if !ok {
+		return nil
+	}
+	var expressions []ast.Expr
+	for position := range effectiveStructFieldIndexes(structure) {
+		if position >= len(literal.Elts) {
+			continue
+		}
+		if _, keyed := literal.Elts[position].(*ast.KeyValueExpr); !keyed {
+			expressions = append(expressions, literal.Elts[position])
+		}
+	}
+	return expressions
+}
+
+func effectiveCallArguments(call *ast.CallExpr, sinks map[string]map[int]bool, receiverTypes map[*calendarObject]string) []ast.Expr {
+	name := expressionName(call.Fun)
+	if strings.HasPrefix(name, "Resync") || strings.HasPrefix(name, "Detach") {
+		return call.Args
+	}
+	var expressions []ast.Expr
+	for position := range sinks[calendarCalledHelper(call, receiverTypes)] {
+		if position < len(call.Args) {
+			expressions = append(expressions, call.Args[position])
+		}
+	}
+	return expressions
+}
+
+func effectiveBoundaryName(name string) bool {
+	return name == "EffectiveFrom" || name == "effectiveFrom"
 }
 
 func findInstantDateConversions(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars, scalarVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {

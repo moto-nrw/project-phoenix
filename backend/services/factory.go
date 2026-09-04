@@ -2481,6 +2481,7 @@ func newFactory(
 		Settings:                 settingsService,
 		Emitter:                  pillEmitter,
 		Logger:                   logger.With("service", "offering-change-requests"),
+		Today:                    today,
 		EventRecorder:            parentRequestEvents,
 	}, requestReviewPolicy)
 	pickupOfferingCoordinator, ok := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
@@ -2498,6 +2499,7 @@ func newFactory(
 		Audit:               studentAuditService,
 		Students:            repos.Student,
 		DB:                  db,
+		Today:               today,
 	})
 
 	// Excused-absence approval requests (#1845): the optional office-approval

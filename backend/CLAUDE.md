@@ -37,6 +37,10 @@ go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
 go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 
+The Go result cache can replay an earlier green test after the calendar day
+changes. When diagnosing date- or clock-dependent behavior, add `-count=1` to
+the focused `go test` command before trusting the result.
+
 ## Database Configuration
 
 DSN resolution is **fail-fast** (`database/database_config.go`) — there are no localhost fallbacks:

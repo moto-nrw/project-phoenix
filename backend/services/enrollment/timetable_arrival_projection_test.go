@@ -60,7 +60,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "wochenansicht", []string{"mon"})
@@ -74,7 +74,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Wochenansicht")
 	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
 
 	t.Run("with the booking mode on only the booked weekday plans", func(t *testing.T) {
@@ -111,7 +111,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "ohne-klassenzeit", []string{"mon"})
@@ -121,7 +121,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	setStudentClass(t, env, studentID, "4c")
 	setArrivalClassTimes(t, env, "4c", map[string]string{"tue": "12:45"})
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	data := timetableDataWithArrivalBaseline(t, env, true)
 	pre, err := data.PreloadStudentWeek(ctx, studentID, monday, monday)
 	require.NoError(t, err)
@@ -165,7 +165,7 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "konflikt", []string{"mon"})
@@ -179,7 +179,7 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Konflikt")
 	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
 
 	// Both days: the activity is moved to 10:00, before the 11:45 arrival.

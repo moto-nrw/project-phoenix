@@ -151,7 +151,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 	require.NotNil(t, newRow.EnrollmentRequestChildID)
 	assert.Equal(t, childID, *newRow.EnrollmentRequestChildID)
 
-	currentLinks, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, childID, timezone.TodayDate())
+	currentLinks, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, childID, decisionTestToday)
 	require.NoError(t, err)
 	require.Len(t, currentLinks, 1)
 	assert.Equal(t, oldOffering.ID, currentLinks[0].CareOfferingID,
@@ -433,8 +433,8 @@ func TestDecisionService_UpdateChildOfferings_RejectsEffectiveFromOutsideWindow(
 func startRunningCarePeriodForTest(t *testing.T, env *decisionTestEnv) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	env.sourcePhase.ServiceStartDate = timezone.TodayDate().AddDays(-60)
-	env.sourcePhase.ServiceEndDate = timezone.TodayDate().AddDays(240)
+	env.sourcePhase.ServiceStartDate = decisionTestToday.AddDays(-60)
+	env.sourcePhase.ServiceEndDate = decisionTestToday.AddDays(240)
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 }
 
@@ -466,7 +466,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 		[]*enrollmentModels.CareOffering{oldOffering},
 	)
 
-	switchDate := timezone.TodayDate()
+	switchDate := decisionTestToday
 	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 		RequestID:      requestID,
 		ChildID:        childID,
@@ -547,7 +547,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	currentLinks, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, childID, timezone.TodayDate())
+	currentLinks, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, childID, decisionTestToday)
 	require.NoError(t, err)
 	require.Len(t, currentLinks, 1)
 	assert.Equal(t, newOffering.ID, currentLinks[0].CareOfferingID,
