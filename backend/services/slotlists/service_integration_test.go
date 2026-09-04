@@ -36,6 +36,7 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
+	"github.com/moto-nrw/project-phoenix/services/slotlists/slotlisttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,6 +69,14 @@ var pickupNow = time.Date(2025, 9, 3, 12, 0, 0, 0, timezone.Berlin)
 // today satisfies both a pickup list and its reconciliation together. Pickup
 // weekdays are derived from it dynamically.
 var pickupDate = timezone.DateFromTime(pickupNow)
+
+func studentPickupScheduleRepository(db *bun.DB) scheduleModels.StudentPickupScheduleRepository {
+	return slotlisttest.NewStudentScheduleRepositories(db).PickupSchedule
+}
+
+func studentPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupExceptionRepository {
+	return slotlisttest.NewStudentScheduleRepositories(db).PickupException
+}
 
 // atOn returns the given Berlin wall-clock instant on calendar date d, so a
 // seeded visit/attendance lands on the same day as the list being built.
@@ -264,6 +273,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 	ResolveString(context.Context, string) (string, error)
 	LockSlotListCutoffPairShared(context.Context) error
 }, userCtx slotListUserContext, participation scheduleSvc.CareParticipationResolver) slotlists.Service {
+	scheduleRepos := slotlisttest.NewStudentScheduleRepositories(db)
 	return slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
 		InstanceStudentRepo: newBoundInstanceStudentRepository(db),
@@ -271,19 +281,19 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 		AttendanceRepo:      activeRepo.NewAttendanceRepository(db),
 		StatusDayRepo:       activeRepo.NewStudentStatusDayRepository(db),
 		CareDayService: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
-			ArrivalSchedules:  scheduleRepo.NewStudentArrivalScheduleRepository(db),
-			ArrivalExceptions: scheduleRepo.NewStudentArrivalExceptionRepository(db),
+			ArrivalSchedules:  scheduleRepos.ArrivalSchedule,
+			ArrivalExceptions: scheduleRepos.ArrivalException,
 			PickupBaselines: scheduletest.NewPickupBaselineService(
-				scheduleRepo.NewStudentPickupScheduleRepository(db),
+				scheduleRepos.PickupSchedule,
 				newBoundRequestChildOfferingRepository(db),
 				carePlanTest.CareOfferingRepository(db),
 			),
-			PickupExceptions:  scheduleRepo.NewStudentPickupExceptionRepository(db),
+			PickupExceptions:  scheduleRepos.PickupException,
 			CareParticipation: participation,
 		}),
-		PickupExceptionRepo: scheduleRepo.NewStudentPickupExceptionRepository(db),
+		PickupExceptionRepo: scheduleRepos.PickupException,
 		PickupBaselines: scheduletest.NewPickupBaselineService(
-			scheduleRepo.NewStudentPickupScheduleRepository(db),
+			scheduleRepos.PickupSchedule,
 			newBoundRequestChildOfferingRepository(db),
 			carePlanTest.CareOfferingRepository(db),
 		),
@@ -292,14 +302,14 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 		EducationGroupRepo: educationRepo.NewGroupRepository(db),
 		RoomRepo:           roomRepo,
 		PickupService: scheduleSvc.NewPickupScheduleServiceWithBulk(
-			scheduleRepo.NewStudentPickupScheduleRepository(db),
-			scheduleRepo.NewStudentPickupExceptionRepository(db),
-			scheduleRepo.NewStudentPickupNoteRepository(db),
+			scheduleRepos.PickupSchedule,
+			scheduleRepos.PickupException,
+			scheduleRepos.PickupNote,
 			usersRepo.NewStudentRepository(db),
 			usersRepo.NewPersonRepository(db),
 			nil,
 			scheduletest.NewPickupBaselineService(
-				scheduleRepo.NewStudentPickupScheduleRepository(db),
+				scheduleRepos.PickupSchedule,
 				newBoundRequestChildOfferingRepository(db),
 				carePlanTest.CareOfferingRepository(db),
 			),
@@ -307,9 +317,9 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			slog.Default(),
 		),
 		ArrivalService: scheduleSvc.NewArrivalScheduleServiceWithBaselines(
-			scheduleRepo.NewStudentArrivalScheduleRepository(db),
-			scheduleRepo.NewStudentArrivalExceptionRepository(db),
-			scheduleRepo.NewStudentArrivalNoteRepository(db),
+			scheduleRepos.ArrivalSchedule,
+			scheduleRepos.ArrivalException,
+			scheduleRepos.ArrivalNote,
 			usersRepo.NewStudentRepository(db),
 			usersRepo.NewPersonRepository(db),
 			nil,
@@ -1033,7 +1043,7 @@ func TestBuildList_FullDayPickupCohorts(t *testing.T) {
 	late := testpkg.CreateTestStudent(t, db, "SL-Late", fmt.Sprintf("L-%d", suffix), "2a")
 	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("S-%d", suffix))
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, row := range []*scheduleModels.StudentPickupSchedule{
 		{StudentID: early.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: late.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
@@ -1083,7 +1093,7 @@ func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
 	tooLate := testpkg.CreateTestStudent(t, db, "SL-CfgLate", fmt.Sprintf("CLA-%d", suffix), "2a")
 	staff := testpkg.CreateTestStaff(t, db, "SL-CfgStaff", fmt.Sprintf("CST-%d", suffix))
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, row := range []*scheduleModels.StudentPickupSchedule{
 		{StudentID: shortDay.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 14, 45, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: longDay.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC), CreatedBy: staff.ID},
@@ -1229,7 +1239,7 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-CohStaff", fmt.Sprintf("CS-%d", suffix))
 	device := testpkg.CreateTestDevice(t, db, fmt.Sprintf("sl-coh-%d", suffix))
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, p := range []*scheduleModels.StudentPickupSchedule{
 		{StudentID: early.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: late.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
@@ -1473,8 +1483,8 @@ func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T
 	missing := testpkg.CreateTestStudent(t, db, "SL-Missing", fmt.Sprintf("M-%d", suffix), "2b")
 	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("PA-%d", suffix))
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
-	exceptionRepo := scheduleRepo.NewStudentPickupExceptionRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
+	exceptionRepo := studentPickupExceptionRepository(db)
 	for _, row := range []*scheduleModels.StudentPickupSchedule{
 		{StudentID: partial.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: missing.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
@@ -1539,7 +1549,7 @@ func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 	missing := testpkg.CreateTestStudent(t, db, "SL-Missing", fmt.Sprintf("M-%d", suffix), "2b")
 	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("SD-%d", suffix))
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, row := range []*scheduleModels.StudentPickupSchedule{
 		{StudentID: sick.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: missing.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
@@ -1592,7 +1602,7 @@ func TestBuildList_PickupReconciliationDefersNotYetArrivedChild(t *testing.T) {
 	alreadyDue := testpkg.CreateTestStudent(t, db, "SL-Due", fmt.Sprintf("B-%d", suffix), "2b")
 	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("AR-%d", suffix))
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, row := range []*scheduleModels.StudentPickupSchedule{
 		{StudentID: notYetArrived.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: alreadyDue.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
@@ -1675,7 +1685,7 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 			child := testpkg.CreateTestStudent(t, db, "SL-Cxl", fmt.Sprintf("C-%d", suffix), "2c")
 			staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("SC-%d", suffix))
 
-			pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+			pickupRepo := studentPickupScheduleRepository(db)
 			sched := &scheduleModels.StudentPickupSchedule{
 				StudentID: child.ID, Weekday: weekday,
 				PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID,
@@ -1741,7 +1751,7 @@ func TestBuildList_PickupCohortExcludesExpiredStudents(t *testing.T) {
 		Where(`id = ?`, gone.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, id := range []int64{active.ID, gone.ID} {
 		row := &scheduleModels.StudentPickupSchedule{
 			StudentID: id, Weekday: weekday,
@@ -1846,7 +1856,7 @@ func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 	setEnrollment(started.ID, userModels.StudentStatusPending, &startedFrom, nil)
 	setEnrollment(notYet.ID, userModels.StudentStatusPending, &notYetFrom, nil)
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, id := range []int64{ended.ID, started.ID, notYet.ID} {
 		row := &scheduleModels.StudentPickupSchedule{
 			StudentID: id, Weekday: weekday,
@@ -1892,7 +1902,7 @@ func TestBuildList_PickupCohortKeepsExpiredActualAttendance(t *testing.T) {
 	pickup := &scheduleModels.StudentPickupSchedule{StudentID: student.ID, Weekday: int(pickupDate.Weekday()),
 		PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID}
 	pickup.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, scheduleRepo.NewStudentPickupScheduleRepository(db).Create(ctx, pickup))
+	require.NoError(t, studentPickupScheduleRepository(db).Create(ctx, pickup))
 	attendance := &activeModels.Attendance{StudentID: student.ID, Date: pickupDate,
 		CheckInTime: atOn(pickupDate, 8, 0), CheckedInBy: staff.ID, DeviceID: device.ID}
 	attendance.SetTenantID(testpkg.Tenant(t))
@@ -1922,7 +1932,7 @@ func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
 	child := testpkg.CreateTestStudent(t, db, "SL-CxlOpt", fmt.Sprintf("CO-%d", suffix), "2c")
 	staff := testpkg.CreateTestStaff(t, db, "SL-CxlStaff", fmt.Sprintf("CS-%d", suffix))
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	sched := &scheduleModels.StudentPickupSchedule{
 		StudentID: child.ID, Weekday: weekday,
 		PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID, // 16:00 → long cohort
@@ -2064,7 +2074,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 	// Both children have a care plan, so neither is "unknown" (which would stay
 	// expected). booked is scheduled on listDate's weekday (Wednesday, ISO 3);
 	// unbooked is only scheduled on Monday (ISO 1) → not_scheduled on Wednesday.
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, row := range []*scheduleModels.StudentPickupSchedule{
 		{StudentID: booked.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: unbooked.ID, Weekday: 1, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
@@ -2149,7 +2159,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 	// booked is scheduled on listDate's weekday (Wednesday, ISO 3); unbooked is
 	// only scheduled on Monday (ISO 1) → not_scheduled on Wednesday. Both have a
 	// care plan, so neither is "unknown" (which would stay expected).
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, row := range []*scheduleModels.StudentPickupSchedule{
 		{StudentID: booked.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: unbooked.ID, Weekday: 1, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
@@ -2449,7 +2459,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 
 	// booked is scheduled on listDate's weekday (Wednesday, ISO 3); sickUnbooked
 	// is only scheduled on Monday (ISO 1) → not booked into care on Wednesday.
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, row := range []*scheduleModels.StudentPickupSchedule{
 		{StudentID: booked.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
 		{StudentID: sickUnbooked.ID, Weekday: 1, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
@@ -2547,7 +2557,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 	sickUnbooked := testpkg.CreateTestStudent(t, db, "SL-DefSdSick", fmt.Sprintf("DS-%d", suffix), "5a")
 	cancelled := testpkg.CreateTestStudent(t, db, "SL-DefSdCxl", fmt.Sprintf("DC-%d", suffix), "5a")
 
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	for _, row := range []*scheduleModels.StudentPickupSchedule{
 		// sickUnbooked is only booked on Monday (ISO 1) → not_scheduled on
 		// Wednesday: a plan exists but does not cover today (CareDayNotScheduled,
@@ -2646,7 +2656,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 
 	// Booked on listDate's Wednesday, then signed off for the day with a timeless
 	// "Kommt heute nicht" pickup exception → a cancelled care day.
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	sched := &scheduleModels.StudentPickupSchedule{
 		StudentID: cancelled.ID, Weekday: 3,
 		PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID,
@@ -2901,7 +2911,7 @@ func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing
 	// Regular long-day pickup, then a timeless "Kommt heute nicht" pickup
 	// exception → cancelled care day whose cohort falls back to the regular
 	// 16:00 bucket.
-	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	pickupRepo := studentPickupScheduleRepository(db)
 	sched := &scheduleModels.StudentPickupSchedule{
 		StudentID: child.ID, Weekday: weekday,
 		PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID,

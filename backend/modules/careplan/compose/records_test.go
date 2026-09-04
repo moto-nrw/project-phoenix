@@ -78,19 +78,21 @@ func TestNamedCarePlanTablesEnforceTwoTenantRLS(t *testing.T) {
 	firstTenantID := tenant.FromContext(firstCtx)
 	first := testpkg.CreateTestStudent(t, db, "Isolated", "Care A", "1a")
 	firstCompanion := testpkg.CreateTestStudent(t, db, "Companion", "Care A", "1a")
-	seedNamedCarePlanTables(t, module, firstCtx, first.ID, firstCompanion.ID)
+	firstStaff := testpkg.CreateTestStaff(t, db, "Care", "Owner A")
+	seedNamedCarePlanTables(t, module, firstCtx, first.ID, firstCompanion.ID, firstStaff.ID)
 
 	secondTenantID := testpkg.UniqueTestTenantID(t)
 	secondCtx := tenantContext(t, db, secondTenantID)
 	second := testpkg.CreateTestStudentForTenant(t, db, secondTenantID, "Isolated", "Care B", "1b")
 	secondCompanion := testpkg.CreateTestStudentForTenant(t, db, secondTenantID, "Companion", "Care B", "1b")
-	seedNamedCarePlanTables(t, module, secondCtx, second.ID, secondCompanion.ID)
+	secondStaff := testpkg.CreateTestStaffForTenant(t, db, secondTenantID, "Care", "Owner B")
+	seedNamedCarePlanTables(t, module, secondCtx, second.ID, secondCompanion.ID, secondStaff.ID)
 
 	assertNamedCarePlanTableCounts(t, db, firstCtx, firstTenantID)
 	assertNamedCarePlanTableCounts(t, db, secondCtx, secondTenantID)
 }
 
-func seedNamedCarePlanTables(t *testing.T, module *careplan.Module, ctx context.Context, studentID, companionID int64) {
+func seedNamedCarePlanTables(t *testing.T, module *careplan.Module, ctx context.Context, studentID, companionID, staffID int64) {
 	t.Helper()
 	enrollmentID := studentID + 1_000_000
 	require.NoError(t, module.UpsertCareExit(ctx, careplan.CareExit{StudentID: studentID, Reason: careplan.CareExitReasonMovedAway}))
@@ -104,6 +106,19 @@ func seedNamedCarePlanTables(t *testing.T, module *careplan.Module, ctx context.
 	require.NoError(t, module.ReplaceCompanionEdges(ctx, studentID, []careplan.CompanionEdge{{
 		StudentLowID: studentID, StudentHighID: companionID, Weekday: 1,
 	}}))
+	date := careplan.Date("2031-02-03")
+	_, err := module.CreateArrivalSchedule(ctx, careplan.ArrivalSchedule{StudentID: studentID, Weekday: 1, CreatedBy: staffID})
+	require.NoError(t, err)
+	_, err = module.CreateArrivalException(ctx, careplan.ArrivalException{StudentID: studentID, ExceptionDate: date, CreatedBy: staffID})
+	require.NoError(t, err)
+	_, err = module.CreateArrivalNote(ctx, careplan.ArrivalNote{StudentID: studentID, NoteDate: date, Content: "Hinweis", CreatedBy: staffID})
+	require.NoError(t, err)
+	_, err = module.CreatePickupSchedule(ctx, careplan.PickupSchedule{StudentID: studentID, Weekday: 1, PickupTime: time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staffID})
+	require.NoError(t, err)
+	_, err = module.CreatePickupException(ctx, careplan.PickupException{StudentID: studentID, ExceptionDate: date, CreatedBy: staffID})
+	require.NoError(t, err)
+	_, err = module.CreatePickupNote(ctx, careplan.PickupNote{StudentID: studentID, NoteDate: date, Content: "Hinweis", CreatedBy: staffID})
+	require.NoError(t, err)
 }
 
 func assertNamedCarePlanTableCounts(t *testing.T, db *bun.DB, ctx context.Context, tenantID int64) {
@@ -117,6 +132,12 @@ func assertNamedCarePlanTableCounts(t *testing.T, db *bun.DB, ctx context.Contex
 			"users.student_care_exit_source_removals",
 			"users.student_care_exits",
 			"users.student_companions",
+			"schedule.student_arrival_schedules",
+			"schedule.student_arrival_exceptions",
+			"schedule.student_arrival_notes",
+			"schedule.student_pickup_schedules",
+			"schedule.student_pickup_exceptions",
+			"schedule.student_pickup_notes",
 		} {
 			count, countErr := scoped.NewSelect().TableExpr(table).Count(txCtx)
 			require.NoError(t, countErr)
@@ -174,12 +195,18 @@ func TestNamedCarePlanReadFailuresAreObservedAndNotSwallowed(t *testing.T) {
 	_, removalErr := module.ListCareExitRemovals(ctx, []int64{student.ID})
 	_, sourceErr := module.ListCareExitSourceRemovals(ctx, []int64{student.ID})
 	_, companionErr := module.ListCompanionEdges(ctx, student.ID)
+	_, arrivalScheduleErr := module.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{})
+	_, arrivalExceptionErr := module.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{})
+	_, arrivalNoteErr := module.ListArrivalNotes(ctx, careplan.StudentScheduleFilter{})
+	_, pickupScheduleErr := module.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{})
+	_, pickupExceptionErr := module.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{})
+	_, pickupNoteErr := module.ListPickupNotes(ctx, careplan.StudentScheduleFilter{})
 
-	for _, err := range []error{exitErr, removalErr, sourceErr, companionErr} {
+	for _, err := range []error{exitErr, removalErr, sourceErr, companionErr, arrivalScheduleErr, arrivalExceptionErr, arrivalNoteErr, pickupScheduleErr, pickupExceptionErr, pickupNoteErr} {
 		require.ErrorIs(t, err, context.Canceled)
 		assert.Equal(t, "internal_error", careplan.ErrorCode(err))
 	}
-	require.Len(t, observations, 4)
+	require.Len(t, observations, 10)
 	for _, observation := range observations {
 		require.ErrorIs(t, observation.Err, context.Canceled)
 	}

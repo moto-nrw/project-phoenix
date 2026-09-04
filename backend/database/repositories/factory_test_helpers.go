@@ -33,3 +33,17 @@ func NewCareStudentLock(db *bun.DB) (lock func(context.Context, int64) error, no
 	lock, notFound = CareStudentLock(persons)
 	return lock, notFound, nil
 }
+
+// NewStudentScheduleRepositories composes only the student schedule adapters
+// needed by legacy service integration tests.
+func NewStudentScheduleRepositories(db *bun.DB) StudentScheduleRepositories {
+	repositories := NewFactory(db)
+	return StudentScheduleRepositories{
+		ArrivalSchedule:  repositories.StudentArrivalSchedule,
+		ArrivalException: repositories.StudentArrivalException,
+		ArrivalNote:      repositories.StudentArrivalNote,
+		PickupSchedule:   repositories.StudentPickupSchedule,
+		PickupException:  repositories.StudentPickupException,
+		PickupNote:       repositories.StudentPickupNote,
+	}
+}

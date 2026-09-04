@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"time"
 
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -56,6 +59,12 @@ func (f *Factory) CarePlan() careplan.Capability { return f.carePlan }
 
 func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.carePlan = capability
+	f.StudentArrivalSchedule = NewArrivalScheduleRepository(capability)
+	f.StudentArrivalException = NewArrivalExceptionRepository(capability)
+	f.StudentArrivalNote = NewArrivalNoteRepository(capability)
+	f.StudentPickupSchedule = NewPickupScheduleRepository(capability)
+	f.StudentPickupException = NewPickupExceptionRepository(capability)
+	f.StudentPickupNote = NewPickupNoteRepository(capability)
 	f.CareOffering = carePlanLegacy.NewCareOfferingRepository(capability)
 	f.OfferingChangeRequest = carePlanLegacy.NewOfferingChangeRepository(capability, f.students)
 	companion := carePlanLegacy.NewCompanionRepository(capability)
@@ -77,6 +86,46 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	if repository, ok := f.StudentDeletion.(*usersRepo.StudentDeletionRepository); ok {
 		repository.BindCarePlan(capability)
 	}
+	if repository, ok := f.InstanceStudent.(*scheduleRepo.InstanceStudentRepository); ok {
+		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
+	}
+	if repository, ok := f.StudentStatusDay.(*activeRepo.StudentStatusDayRepository); ok {
+		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
+	}
+}
+
+type pickupExceptionDirectory struct {
+	query careplan.StudentSchedulesQuery
+}
+
+func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id int64) (*scheduleRepo.PickupExceptionProjection, error) {
+	value, err := d.query.FindPickupException(ctx, id, false)
+	if errors.Is(err, careplan.ErrStudentScheduleNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &scheduleRepo.PickupExceptionProjection{ID: value.ID, StudentID: value.StudentID, ExceptionDate: value.ExceptionDate.String(), ExcusedFrom: value.ExcusedFrom, ExcusedAuto: value.ExcusedAuto}, nil
+}
+
+func (d pickupExceptionDirectory) ListPickupExceptions(ctx context.Context, filter scheduleRepo.PickupExceptionFilter) ([]scheduleRepo.PickupExceptionProjection, error) {
+	ownerFilter := careplan.StudentScheduleFilter{IDs: filter.IDs, StudentIDs: filter.StudentIDs}
+	if filter.Date != "" {
+		ownerFilter.Date = careplan.Date(filter.Date)
+	}
+	if filter.From != "" {
+		ownerFilter.From = careplan.Date(filter.From)
+	}
+	values, err := d.query.ListPickupExceptions(ctx, ownerFilter)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]scheduleRepo.PickupExceptionProjection, 0, len(values))
+	for _, value := range values {
+		result = append(result, scheduleRepo.PickupExceptionProjection{ID: value.ID, StudentID: value.StudentID, ExceptionDate: value.ExceptionDate.String(), ExcusedFrom: value.ExcusedFrom, ExcusedAuto: value.ExcusedAuto})
+	}
+	return result, nil
 }
 
 type careExitDirectory struct{ capability careplan.Capability }
@@ -242,4 +291,70 @@ func convertCareExitRecords[From any, To any](values From, err error) (To, error
 
 func (d careExitCarePlanDirectory) DiscardCareExitRemovals(ctx context.Context, studentIDs []int64) error {
 	return d.capability.DiscardCareExitRemovals(ctx, studentIDs)
+}
+
+func (d careExitCarePlanDirectory) LockStudentSchedulesForCareExit(ctx context.Context, studentIDs []int64, from string) error {
+	filter := careplan.StudentScheduleFilter{StudentIDs: studentIDs, LockForUpdate: true}
+	if _, err := d.capability.ListPickupSchedules(ctx, filter); err != nil {
+		return err
+	}
+	if _, err := d.capability.ListArrivalSchedules(ctx, filter); err != nil {
+		return err
+	}
+	filter.From = careplan.Date(from)
+	if _, err := d.capability.ListPickupExceptions(ctx, filter); err != nil {
+		return err
+	}
+	_, err := d.capability.ListArrivalExceptions(ctx, filter)
+	return err
+}
+
+func (d careExitCarePlanDirectory) ListWeeklyPlanPatterns(ctx context.Context, studentIDs []int64) (map[int64][]string, error) {
+	arrivals, err := d.capability.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: studentIDs})
+	if err != nil {
+		return nil, err
+	}
+	pickups, err := d.capability.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: studentIDs})
+	if err != nil {
+		return nil, err
+	}
+	weekdays := [...]string{"", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"}
+	patterns := make(map[int64][]string, len(studentIDs))
+	for _, value := range arrivals {
+		pattern := "Ankunft am " + weekdays[value.Weekday]
+		if !value.ExpectedArrival.IsZero() {
+			pattern += ": " + value.ExpectedArrival.Format("15:04")
+		}
+		patterns[value.StudentID] = append(patterns[value.StudentID], pattern)
+	}
+	for _, value := range pickups {
+		patterns[value.StudentID] = append(patterns[value.StudentID], "Abholung am "+weekdays[value.Weekday]+": "+value.PickupTime.Format("15:04"))
+	}
+	for studentID := range patterns {
+		sort.Strings(patterns[studentID])
+	}
+	return patterns, nil
+}
+
+func (d careExitCarePlanDirectory) EndStudentSchedulesForCareExit(ctx context.Context, studentIDs []int64, validUntil string) (int64, error) {
+	return d.capability.EndStudentSchedulesForCareExit(ctx, studentIDs, careplan.Date(validUntil))
+}
+
+func (d careExitCarePlanDirectory) RestoreStudentSchedulesForCareExit(ctx context.Context, studentIDs []int64) (int64, error) {
+	return d.capability.RestoreStudentSchedulesForCareExit(ctx, studentIDs)
+}
+
+func (d careExitCarePlanDirectory) ExistingPickupExceptionIDs(ctx context.Context, ids []int64) ([]int64, error) {
+	if len(ids) == 0 {
+		return []int64{}, nil
+	}
+	values, err := d.capability.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{IDs: ids})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]int64, 0, len(values))
+	for _, value := range values {
+		result = append(result, value.ID)
+	}
+	return result, nil
 }

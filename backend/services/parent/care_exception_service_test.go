@@ -17,6 +17,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -304,7 +305,7 @@ func TestCareExceptionRequiresPickupManagePermission(t *testing.T) {
 
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	date := careFixtureToday().AddDays(1)
 
 	_, err := svc.SubmitCareExceptionWithReason(ctx, chain.AccountID, chain.StudentID, date, wallClock(15, 0), "Arzttermin")
@@ -348,7 +349,8 @@ func TestSubmitCareException_ConflictWithStaffException(t *testing.T) {
 	}
 	staffEx.SetTenantID(chain.TenantID)
 	repos := repositories.NewFactory(db)
-	require.NoError(t, repos.StudentPickupException.Create(testpkg.WithPackageTenantRuntime(context.Background()), staffEx))
+	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	require.NoError(t, repos.StudentPickupException.Create(tenantCtx, staffEx))
 
 	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		date, wallClock(14, 0), nil)
@@ -365,7 +367,7 @@ func TestSubmitCareException_ClearingLegRemovesIt(t *testing.T) {
 
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 
 	date := timezone.NewDate(2026, 8, 24).AddDays(1)
 
@@ -403,7 +405,7 @@ func TestDeleteCareExceptionPreservesArrival(t *testing.T) {
 
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 
 	date := timezone.NewDate(2026, 8, 24).AddDays(3)
 	guardianID := chain.AccountID
@@ -493,7 +495,7 @@ func TestDeleteCareException_PastDate(t *testing.T) {
 
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 
 	date := careFixtureToday().AddDays(-1)
 	guardianID := chain.AccountID
@@ -528,7 +530,7 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	repos := repositories.NewFactory(db)
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
@@ -612,7 +614,7 @@ func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	repos := repositories.NewFactory(db)
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
@@ -654,7 +656,7 @@ func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	repos := repositories.NewFactory(db)
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
@@ -692,7 +694,7 @@ func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
 
 	svc, bc, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 
 	date := timezone.NewDate(2026, 8, 24).AddDays(2)
 	guardianID := chain.AccountID
@@ -742,7 +744,7 @@ func TestSubmitCareException_RepoErrorSurfaces(t *testing.T) {
 		return stubPickupRepo{StudentPickupExceptionRepository: r, findErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID,
 		careFixtureToday().AddDays(1), wallClock(15, 0), nil)
@@ -818,7 +820,7 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	date := careFixtureToday().AddDays(1)
 
 	// Seed a guardian pickup row with the real service.
@@ -934,10 +936,11 @@ func TestSubmitCareExceptionWithReasonPreservesExistingArrival(t *testing.T) {
 		CreatedBy:       staff.ID,
 	}
 	arrival.SetTenantID(chain.TenantID)
-	require.NoError(t, repositories.NewFactory(db).StudentArrivalException.Create(testpkg.WithPackageTenantRuntime(context.Background()), arrival))
+	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	require.NoError(t, repositories.NewFactory(db).StudentArrivalException.Create(tenantCtx, arrival))
 
 	result, err := svc.SubmitCareExceptionWithReason(
-		testpkg.WithPackageTenantRuntime(context.Background()),
+		tenantCtx,
 		chain.AccountID,
 		chain.StudentID,
 		date,
