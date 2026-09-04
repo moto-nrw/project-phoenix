@@ -18,7 +18,7 @@ import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
-import { TenantPage } from "~/components/ui/tenant-page";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
   Drawer,
   DrawerClose,
@@ -3613,11 +3613,24 @@ function TimeTrackingContent() {
       loading={authStatus === "loading"}
       loadingLabel="Zeiterfassung wird geladen…"
       stats={
-        metricsPending
-          ? undefined
-          : `Diese Woche ${formatDuration(ownMetrics.week!.ist)} von ${formatDuration(
-              ownMetrics.week!.soll,
-            )} · Saldo ${formatSignedDuration(ownMetrics.accountBalanceMinutes!)}`
+        metricsPending ? undefined : (
+          <TenantPageStats
+            items={[
+              {
+                value: formatDuration(ownMetrics.week!.ist),
+                label: "Ist",
+              },
+              {
+                value: formatDuration(ownMetrics.week!.soll),
+                label: "Soll",
+              },
+              {
+                value: formatSignedDuration(ownMetrics.accountBalanceMinutes!),
+                label: "Saldo",
+              },
+            ]}
+          />
+        )
       }
       // Bauart 3, Regel 4: Exportieren steht im Kebab der Kopfkarte, nicht
       // mitten in einer Inhaltskarte.

@@ -849,7 +849,6 @@ function OGSGroupPageContent() {
     return (
       <TenantPage
         title="Meine Gruppen"
-        stats="Keine Gruppe zugeordnet"
         empty={{
           icon: <MotoConceptIcon concept="groups" size={48} />,
           title: "Keine OGS-Gruppe zugeordnet",
