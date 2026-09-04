@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +11,7 @@ import {
   DrawerTitle,
 } from "~/components/ui/drawer";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { NavLink } from "~/components/ui/nav-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { parentPath } from "~/lib/parent-url";
@@ -166,7 +166,7 @@ export function ParentBottomNav({
                     : t(item.tKey);
                 return (
                   <li key={item.key}>
-                    <Link
+                    <NavLink
                       href={parentPath(item.href)}
                       ref={(el: HTMLAnchorElement | null) => {
                         navRefs.current[index] = el;
@@ -198,7 +198,7 @@ export function ParentBottomNav({
                           {label}
                         </span>
                       )}
-                    </Link>
+                    </NavLink>
                   </li>
                 );
               })}
@@ -285,7 +285,7 @@ export function ParentBottomNav({
                         : undefined
                     }
                   >
-                    <Link
+                    <NavLink
                       href={parentPath(item.href)}
                       data-parent-nav-item={item.key}
                       data-active={active ? "true" : "false"}
@@ -316,7 +316,7 @@ export function ParentBottomNav({
                         className="h-5 w-5 shrink-0 text-gray-400"
                         aria-hidden="true"
                       />
-                    </Link>
+                    </NavLink>
                   </li>
                 );
               })}
