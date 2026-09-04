@@ -40,13 +40,13 @@ func (c failAfterOfferingWriteCoordinator) ApplyDirectOfferingAdjustment(
 func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(t *testing.T) {
 	t.Parallel()
 
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupAdjustment", "Child", "PA1")
 	staff, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupAdjustment", "Staff")
 	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModels.KeyRequirePickupOfferingReview, true, nil, nil,
 	))
-	effectiveFrom := timezone.TodayDate().String()
+	effectiveFrom := studentsTestToday.String()
 	body := map[string]any{
 		"schedules":      []map[string]any{{"weekday": 1, "pickup_time": "13:45"}},
 		"care_days":      []int{1},
@@ -153,7 +153,7 @@ func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(
 func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath(t *testing.T) {
 	t.Parallel()
 
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupOffer", "Child", "PO1")
 	staff, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupOffer", "Staff")
 	fixture := setupCorrectionFixture(t, tc, student.ID, student.TenantID, "Child")
@@ -188,7 +188,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	manual.SetTenantID(student.TenantID)
 	require.NoError(t, repositories.NewFactory(tc.db).StudentPickupSchedule.UpsertSchedule(testpkg.Ctx(t), manual))
 
-	effectiveFrom := timezone.TodayDate().String()
+	effectiveFrom := studentsTestToday.String()
 	schedules := make([]map[string]any, 0, 5)
 	careDays := make([]int, 0, 5)
 	for weekday := 1; weekday <= 5; weekday++ {
@@ -239,7 +239,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	assert.Equal(t, "Fährt mit dem Bus", confirmedPreview.RemovedManualNotes[0].Note)
 
 	futureBody := cloneMap(offeringBody)
-	futureDate := timezone.TodayDate().AddDays(7)
+	futureDate := studentsTestToday.AddDays(7)
 	futureBody["effective_from"] = futureDate.String()
 	futurePreviewReq := testutil.NewAuthenticatedRequest(
 		t, http.MethodPost, fmt.Sprintf("/%d/pickup-schedules/preview", student.ID), futureBody,
@@ -357,7 +357,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t *testing.T) {
 	t.Parallel()
 
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupRollback", "Child", "PR1")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupRollback", "Staff")
 	fixture := setupCorrectionFixture(t, tc, student.ID, student.TenantID, "Child")
@@ -410,7 +410,7 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 func TestBulkPickupAdjustmentRequiresAndAuditsExplicitExceptions(t *testing.T) {
 	t.Parallel()
 
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	first := testpkg.CreateTestStudent(t, tc.db, "BulkPickupReview1", "Child", "BPR1")
 	second := testpkg.CreateTestStudent(t, tc.db, "BulkPickupReview2", "Child", "BPR2")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkPickupReview", "Staff")
@@ -452,7 +452,7 @@ func pickupAdjustmentFiveDayBody(offeringID int64) map[string]any {
 		careDays = append(careDays, weekday)
 	}
 	return map[string]any{
-		"schedules": schedules, "care_days": careDays, "effective_from": timezone.TodayDate().String(),
+		"schedules": schedules, "care_days": careDays, "effective_from": studentsTestToday.String(),
 		"selections": []map[string]any{{"offering_id": fmt.Sprint(offeringID), "selected_days": []string{}}},
 	}
 }
@@ -483,6 +483,7 @@ func pickupAdjustmentServiceWithCoordinator(
 		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
 		PickupBaselines:     baselines, Offerings: coordinator, Settings: tc.resource.SettingsService,
 		Audit: tc.resource.StudentAuditService, Students: repos.Student, DB: tc.db,
+		Today: func() timezone.Date { return studentsTestToday },
 	})
 }
 

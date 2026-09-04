@@ -12,37 +12,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// personAnnouncementViewRepository shows the viewer's person name and falls
-// back to the account e-mail, as the previous join did.
-type personAnnouncementViewRepository struct {
-	platformModels.AnnouncementViewRepository
-	persons peopledirectory.Query
-}
-
-func (r personAnnouncementViewRepository) GetViewDetails(ctx context.Context, announcementID int64) ([]*platformModels.AnnouncementViewDetail, error) {
-	details, err := r.AnnouncementViewRepository.GetViewDetails(ctx, announcementID)
-	if err != nil || len(details) == 0 {
-		return details, err
-	}
-	ids := make([]int64, 0, len(details))
-	for _, detail := range details {
-		ids = append(ids, detail.UserID)
-	}
-	persons, err := personsByAccount(ctx, r.persons, ids)
-	if err != nil {
-		return nil, err
-	}
-	for _, detail := range details {
-		detail.UserName = detail.AccountEmail
-		if person, found := persons[detail.UserID]; found {
-			if name := person.FullName(); name != " " {
-				detail.UserName = name
-			}
-		}
-	}
-	return details, nil
-}
-
 // personOperatorSummariesRepository resolves operator person summaries and
 // listings through the People Directory.
 type personOperatorSummariesRepository struct {

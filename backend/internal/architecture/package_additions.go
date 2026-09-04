@@ -23,7 +23,7 @@ func candidateGoPackages(project, ref string, candidate *Policy) (map[string]str
 	if err != nil {
 		return nil, fmt.Errorf("resolve project directory: %w", err)
 	}
-	added, err := goPackageDirs(root, "diff", "--name-only", "--diff-filter=A", "-z", sha, "--", filepath.ToSlash(projectPath))
+	added, err := goPackageDirs(root, "diff", "--no-renames", "--name-only", "--diff-filter=A", "-z", sha, "--", filepath.ToSlash(projectPath))
 	if err != nil {
 		return nil, fmt.Errorf("list candidate package files: %w", err)
 	}

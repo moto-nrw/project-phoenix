@@ -91,8 +91,6 @@ type FullService interface {
 
 type Config struct {
 	Appointments         appointments.Capability
-	RecipientRepo        calModels.AppointmentRecipientRepository
-	RecipientStudentRepo calModels.AppointmentRecipientStudentRepository
 	StaffRepo            userModels.StaffRepository
 	StudentRepo          userModels.StudentRepository
 	GuardianProfileRepo  userModels.GuardianProfileRepository
@@ -464,7 +462,7 @@ func (s *service) createStaffAppointment(ctx context.Context, req CreateAppointm
 		recurrence.AppointmentID = 0
 	}
 
-	recipients, recipientStudents, targets, err := s.resolveTargets(ctx, appointment.DeliveryMode, req.Targets)
+	recipientFields, targets, err := s.resolveTargets(ctx, appointment.DeliveryMode, req.Targets)
 	if err != nil {
 		return nil, err
 	}
@@ -486,23 +484,8 @@ func (s *service) createStaffAppointment(ctx context.Context, req CreateAppointm
 		}
 	}
 
-	for _, recipient := range recipients {
-		recipient.AppointmentID = appointment.ID
-	}
-	if err := s.cfg.RecipientRepo.CreateMany(ctx, recipients); err != nil {
-		return nil, err
-	}
-	recipientIDByKey := make(map[string]int64, len(recipients))
-	for _, recipient := range recipients {
-		recipientIDByKey[recipientKey(recipient.RecipientType, recipient.StaffID, recipient.GuardianProfileID)] = recipient.ID
-	}
-	for _, link := range recipientStudents {
-		key := recipientKey(calModels.RecipientTypeGuardianProfile, nil, &link.RecipientID)
-		if recipientID, ok := recipientIDByKey[key]; ok {
-			link.RecipientID = recipientID
-		}
-	}
-	if err := s.cfg.RecipientStudentRepo.CreateMany(ctx, recipientStudents); err != nil {
+	recipients, _, err := s.cfg.Appointments.CreateAppointmentRecipients(ctx, appointment.ID, recipientFields)
+	if err != nil {
 		return nil, err
 	}
 
@@ -668,7 +651,7 @@ func (s *service) appointmentDetail(ctx context.Context, appointment *calModels.
 	if err != nil {
 		return nil, err
 	}
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+	recipients, err := s.cfg.Appointments.FindAppointmentRecipients(ctx, appointment.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -1012,7 +995,7 @@ func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID
 	if appointment == nil || appointment.DeletedAt != nil {
 		return nil, ErrNotFound
 	}
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+	recipients, err := s.cfg.Appointments.FindAppointmentRecipients(ctx, appointment.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -1052,7 +1035,7 @@ func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, a
 			if appointment == nil || appointment.DeletedAt != nil {
 				return nil
 			}
-			recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(txCtx, appointment.ID)
+			recipients, err := s.cfg.Appointments.FindAppointmentRecipients(txCtx, appointment.ID)
 			if err != nil {
 				return err
 			}
@@ -1094,7 +1077,7 @@ func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int6
 		return fmt.Errorf("%w: response status must be accepted or declined", ErrInvalidRequest)
 	}
 
-	recipient, err := s.cfg.RecipientRepo.FindByID(ctx, recipientID)
+	recipient, err := s.cfg.Appointments.FindAppointmentRecipient(ctx, recipientID)
 	if err != nil {
 		return err
 	}
@@ -1116,7 +1099,7 @@ func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int6
 	if appointment.CancelledAt != nil {
 		return fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
 	}
-	return s.cfg.RecipientRepo.UpdateResponse(ctx, recipientID, status)
+	return s.cfg.Appointments.UpdateAppointmentRecipientResponse(ctx, recipientID, status)
 }
 
 func (s *service) RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error {
@@ -1143,7 +1126,7 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 		allowedStudentIDs := int64Set(distinctChildStudentIDs(tenantChildren))
 		var updated bool
 		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			recipient, err := s.cfg.RecipientRepo.FindByID(txCtx, recipientID)
+			recipient, err := s.cfg.Appointments.FindAppointmentRecipient(txCtx, recipientID)
 			if err != nil {
 				return err
 			}
@@ -1174,7 +1157,7 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 			if appointment.CancelledAt != nil {
 				return fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
 			}
-			if err := s.cfg.RecipientRepo.UpdateResponse(txCtx, recipientID, status); err != nil {
+			if err := s.cfg.Appointments.UpdateAppointmentRecipientResponse(txCtx, recipientID, status); err != nil {
 				return err
 			}
 			updated = true
@@ -1333,7 +1316,7 @@ func validateWindow(from, to timezone.Date) error {
 // recipientsByAppointment loads the recipients of every listed appointment in
 // one read; the list views used to issue one read per appointment (#2940).
 func (s *service) recipientsByAppointment(ctx context.Context, appointmentIDs []int64) (map[int64][]*calModels.AppointmentRecipient, error) {
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentIDs(ctx, appointmentIDs)
+	recipients, err := s.cfg.Appointments.FindAppointmentRecipientsByAppointmentIDs(ctx, appointmentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -1685,14 +1668,14 @@ func (s *service) staffShiftEventsWithCancelled(ctx context.Context, staffID int
 	return events, nil
 }
 
-func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targets []AppointmentTarget) ([]*calModels.AppointmentRecipient, []*calModels.AppointmentRecipientStudent, []*calModels.AppointmentTarget, error) {
+func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targets []AppointmentTarget) ([]appointments.AppointmentRecipientFields, []*calModels.AppointmentTarget, error) {
 	status := calModels.ResponseStatusPending
 	if deliveryMode == calModels.DeliveryModeInformational {
 		status = calModels.ResponseStatusInfo
 	}
 	readSet, err := s.loadTargetResolutionReadSet(ctx, targets)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	staffIDs := map[int64]struct{}{}
@@ -1765,12 +1748,12 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			}
 		case calModels.TargetTypeStaff:
 			if !readSet.reachableStaff[*target.ID] {
-				return nil, nil, nil, fmt.Errorf("%w: staff target is not available", ErrInvalidRequest)
+				return nil, nil, fmt.Errorf("%w: staff target is not available", ErrInvalidRequest)
 			}
 			staffIDs[*target.ID] = struct{}{}
 		case calModels.TargetTypeGuardianProfile:
 			if !readSet.activeGuardians[*target.ID] {
-				return nil, nil, nil, fmt.Errorf("%w: guardian target is not available", ErrInvalidRequest)
+				return nil, nil, fmt.Errorf("%w: guardian target is not available", ErrInvalidRequest)
 			}
 			visible := false
 			for _, link := range readSet.linksByGuardian[*target.ID] {
@@ -1778,12 +1761,12 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 					visible = true
 					studentID := link.StudentID
 					if _, err := addGuardian(*target.ID, &studentID); err != nil {
-						return nil, nil, nil, err
+						return nil, nil, err
 					}
 				}
 			}
 			if !visible {
-				return nil, nil, nil, fmt.Errorf("%w: guardian target is not portal-visible", ErrInvalidRequest)
+				return nil, nil, fmt.Errorf("%w: guardian target is not portal-visible", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeAllSchoolParents:
 			// Every portal-active guardian of the school's ACTIVE students. Resolve
@@ -1793,18 +1776,18 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			studentIDs := activeStudentIDs(readSet.allSchoolStudents)
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, nil, err
 			}
 			if added == 0 {
-				return nil, nil, nil, fmt.Errorf("%w: no reachable guardians at this school", ErrInvalidRequest)
+				return nil, nil, fmt.Errorf("%w: no reachable guardians at this school", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeParentsByStudent:
 			added, err := addStudentGuardians(*target.ID)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, nil, err
 			}
 			if added == 0 {
-				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
+				return nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeParentsByGroup:
 			// Only active students' guardians — a former student still assigned to
@@ -1812,10 +1795,10 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			studentIDs := activeStudentIDs(readSet.studentsByGroup[*target.ID])
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, nil, err
 			}
 			if added == 0 {
-				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
+				return nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeParentsByClass:
 			// Only active students' guardians — a former student still tagged with
@@ -1823,39 +1806,37 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			studentIDs := activeStudentIDs(readSet.studentsByClass[normalizeCalendarClass(*target.Value)])
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, nil, err
 			}
 			if added == 0 {
-				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
+				return nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
 			}
 		}
 	}
 
-	recipients := make([]*calModels.AppointmentRecipient, 0, len(staffIDs)+len(guardianStudents))
+	recipients := make([]appointments.AppointmentRecipientFields, 0, len(staffIDs)+len(guardianStudents))
 	for staffID := range staffIDs {
 		id := staffID
-		recipients = append(recipients, &calModels.AppointmentRecipient{
+		recipients = append(recipients, appointments.AppointmentRecipientFields{
 			RecipientType: calModels.RecipientTypeStaff,
 			StaffID:       &id,
 			Status:        status,
 		})
 	}
-	recipientStudents := []*calModels.AppointmentRecipientStudent{}
 	for guardianProfileID, studentIDs := range guardianStudents {
 		id := guardianProfileID
-		recipients = append(recipients, &calModels.AppointmentRecipient{
+		studentList := make([]int64, 0, len(studentIDs))
+		for studentID := range studentIDs {
+			studentList = append(studentList, studentID)
+		}
+		recipients = append(recipients, appointments.AppointmentRecipientFields{
 			RecipientType:     calModels.RecipientTypeGuardianProfile,
 			GuardianProfileID: &id,
 			Status:            status,
+			StudentIDs:        studentList,
 		})
-		for studentID := range studentIDs {
-			recipientStudents = append(recipientStudents, &calModels.AppointmentRecipientStudent{
-				RecipientID: guardianProfileID,
-				StudentID:   studentID,
-			})
-		}
 	}
-	return recipients, recipientStudents, targetRows, nil
+	return recipients, targetRows, nil
 }
 
 // activeStudentIDs returns the IDs of the students that are currently active. A
@@ -2055,7 +2036,7 @@ func (s *service) guardianRecipientStatusForStudents(ctx context.Context, recipi
 			recipientIDs = append(recipientIDs, recipient.ID)
 		}
 	}
-	links, err := s.cfg.RecipientStudentRepo.FindByRecipientIDs(ctx, recipientIDs)
+	links, err := s.cfg.Appointments.FindAppointmentRecipientStudents(ctx, recipientIDs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2082,7 +2063,7 @@ func (s *service) guardianRecipientStatusForStudents(ctx context.Context, recipi
 }
 
 func (s *service) recipientHasVisibleStudent(ctx context.Context, recipientID int64, allowedStudentIDs map[int64]struct{}) (bool, error) {
-	links, err := s.cfg.RecipientStudentRepo.FindByRecipientIDs(ctx, []int64{recipientID})
+	links, err := s.cfg.Appointments.FindAppointmentRecipientStudents(ctx, []int64{recipientID})
 	if err != nil {
 		return false, err
 	}
@@ -2696,18 +2677,4 @@ func studentDisplayName(student *userModels.Student) string {
 		return fmt.Sprintf("Kind %d", student.ID)
 	}
 	return strings.TrimSpace(student.Person.FirstName + " " + student.Person.LastName)
-}
-
-func recipientKey(recipientType string, staffID, guardianProfileID *int64) string {
-	switch recipientType {
-	case calModels.RecipientTypeStaff:
-		if staffID != nil {
-			return fmt.Sprintf("staff:%d", *staffID)
-		}
-	case calModels.RecipientTypeGuardianProfile:
-		if guardianProfileID != nil {
-			return fmt.Sprintf("guardian:%d", *guardianProfileID)
-		}
-	}
-	return recipientType + ":0"
 }

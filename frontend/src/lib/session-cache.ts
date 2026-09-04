@@ -36,6 +36,24 @@ export function clearSessionCache() {
   clearRateLimitBackoff();
 }
 
+/**
+ * Seed the cache with a session the SessionProvider already holds (server
+ * session prop, poll refetch, update()). Every API client reads the token via
+ * getCachedSession(); without the seed the first fetcher of a page load pays
+ * its own /api/auth/session round trip although the provider was hydrated
+ * with the same session moments earlier (#2973).
+ */
+export function primeSessionCache(
+  session: Awaited<ReturnType<typeof getSession>>,
+) {
+  cachedTenantId = (session?.user as { tenantId?: number } | undefined)
+    ?.tenantId;
+  cached = { session, expiry: Date.now() + TTL_MS };
+  // A lookup still in flight predates this session; its result must not
+  // overwrite the fresher seed (see the invariant in getCachedSession).
+  inflight = null;
+}
+
 export async function getCachedSession() {
   const now = Date.now();
   if (cached && now < cached.expiry) {

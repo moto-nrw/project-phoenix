@@ -21,6 +21,9 @@ import (
 
 type Observation = ports.Observation
 type AmbientDatabase func(context.Context) bun.IDB
+type StatusStudentDirectory = postgres.StatusStudentDirectory
+type StatusStudent = postgres.StatusStudent
+type StatusSlotDirectory = postgres.StatusSlotDirectory
 
 // StudentName is the display projection Care Plan needs for companion links.
 // Composition translates the People Directory result at its boundary.
@@ -44,15 +47,17 @@ type Dependencies struct {
 	DB              *bun.DB
 	Observe         func(Observation)
 	AmbientDB       AmbientDatabase
+	StatusStudents  StatusStudentDirectory
+	StatusSlots     StatusSlotDirectory
 	People          StudentNameFinder
 	StudentLock     careplanning.StudentLock
 	StudentNotFound error
 }
 
 func New(dependencies Dependencies) (*careplan.Module, error) {
-	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.AmbientDB == nil ||
+	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.AmbientDB == nil || dependencies.StatusStudents == nil || dependencies.StatusSlots == nil ||
 		dependencies.People == nil || dependencies.StudentLock == nil || dependencies.StudentNotFound == nil {
-		return nil, errors.New("care plan compose: database, observer, ambient database resolver, people directory, and student lock are required")
+		return nil, errors.New("care plan compose: database, observer, ambient database resolver, people directory, status-student directory, status-slot directory, and student lock are required")
 	}
 	bindCareLocks(dependencies)
 	store := postgres.New(carePlanDatabase(dependencies.DB))
@@ -60,7 +65,9 @@ func New(dependencies Dependencies) (*careplan.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	return careplan.NewModule(engine{service: service, people: dependencies.People}), nil
+	statusDays := postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots)
+	module := careplan.NewModule(engine{service: service, requests: postgres.NewRequestStore(store), statusDays: statusDays, observe: dependencies.Observe, people: dependencies.People})
+	return module, nil
 }
 
 func bindCareLocks(dependencies Dependencies) {
@@ -99,8 +106,11 @@ func carePlanDatabase(db *bun.DB) postgres.Database {
 }
 
 type engine struct {
-	service *application.Service
-	people  StudentNameFinder
+	service    *application.Service
+	requests   RequestStore
+	statusDays StatusDayStore
+	observe    func(Observation)
+	people     StudentNameFinder
 }
 
 func (e engine) FindCareOffering(ctx context.Context, id int64) (careplan.CareOffering, error) {

@@ -2,7 +2,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
@@ -974,7 +974,7 @@ function SidebarContent({
             )}
           </div>
         ) : (
-          <Link
+          <NavLink
             href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
             className={getLinkClasses(item.href)}
             {...(collapsed
@@ -991,7 +991,7 @@ function SidebarContent({
               </span>
             )}
             {item.href === "/anfragen" && renderRequestsBadge()}
-          </Link>
+          </NavLink>
         )}
       </div>
     );
@@ -1286,7 +1286,7 @@ function SidebarContent({
   // Operator mode: sectioned navigation (static labels, no accordions)
   if (mode === "operator") {
     const renderOperatorItem = (item: NavItem) => (
-      <Link
+      <NavLink
         key={item.href}
         href={item.href}
         className={getLinkClasses(item.href)}
@@ -1298,7 +1298,7 @@ function SidebarContent({
             {item.label}
           </span>
         )}
-      </Link>
+      </NavLink>
     );
 
     return (

@@ -41,8 +41,29 @@ export function loadAccess(): SeedAccess {
   return { slug, email, password };
 }
 
+/**
+ * Port des gemessenen Next-Servers. Er muss explizit gesetzt sein, damit der
+ * Harness nicht unbemerkt einen Server aus einem anderen Worktree misst.
+ */
+export function perfPort(): string {
+  const port = process.env.PERF_PORT;
+  if (!port || !/^\d+$/.test(port)) {
+    throw new Error(
+      "PERF_PORT must be an integer between 1 and 65535 for the performance harness.",
+    );
+  }
+  const portNumber = Number(port);
+  if (portNumber < 1 || portNumber > 65_535) {
+    throw new Error(
+      "PERF_PORT must be an integer between 1 and 65535 for the performance harness.",
+    );
+  }
+
+  return port;
+}
+
 export function tenantBaseUrl(access: SeedAccess): string {
-  return `http://${access.slug}.localhost:3000`;
+  return `http://${access.slug}.localhost:${perfPort()}`;
 }
 
 /**

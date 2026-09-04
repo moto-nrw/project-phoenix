@@ -27,6 +27,8 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/compose"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
@@ -43,7 +45,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
-	"github.com/moto-nrw/project-phoenix/services/announcement"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
@@ -207,7 +208,7 @@ type Factory struct {
 	OperatorAuth         platform.OperatorAuthService
 	OperatorInvitation   platform.OperatorInvitationService
 	OperatorProvisioning platform.OperatorProvisioningService
-	Announcement         platform.AnnouncementService
+	Announcement         communication.Capability
 	Schools              platform.SchoolService
 	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
@@ -288,7 +289,7 @@ type Factory struct {
 	CalendarFeedCleanup calendarService.FeedCleanupService
 
 	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
-	ParentAnnouncement announcement.Service
+	ParentAnnouncement communication.ParentAnnouncementCapability
 
 	// SettingsSideEffects is the per-key handler registry the API binds to
 	// SettingsResource.OnValueSet. Domain packages register handlers here
@@ -435,6 +436,7 @@ func NewFactoryWithModules(
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
 	appointmentCapability appointments.Capability,
+	communicationCapability communication.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -444,11 +446,11 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || appointmentCapability == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, appointments, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || appointmentCapability == nil || communicationCapability == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, appointments, communication, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
 	repos.BindAppointments(appointmentCapability)
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, communicationCapability, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -462,6 +464,7 @@ func newFactory(
 	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
+	communicationCapability communication.Capability,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -1689,7 +1692,7 @@ func newFactory(
 	)
 	emailTemplateRegistry.Register(
 		platformModels.EmailKindParentAnnouncement,
-		platform.RendererFunc(announcement.NewAnnouncementRenderer(announcement.EmailConfig{
+		platform.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
 			DefaultFrom: defaultFrom,
 		})),
 	)
@@ -2036,16 +2039,6 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("init operator passkey service: %w", err)
 	}
-
-	announcementService := platform.NewAnnouncementService(platform.AnnouncementServiceConfig{
-		AnnouncementRepo:     repos.Announcement,
-		AnnouncementViewRepo: repos.AnnouncementView,
-		AuditLogRepo:         repos.OperatorAuditLog,
-		Organizations:        organizations,
-		SchoolRepo:           repos.School,
-		DB:                   db,
-		Logger:               platformLogger,
-	})
 
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
 		Repo:        repos.FormSchema,
@@ -2488,6 +2481,7 @@ func newFactory(
 		Settings:                 settingsService,
 		Emitter:                  pillEmitter,
 		Logger:                   logger.With("service", "offering-change-requests"),
+		Today:                    today,
 		EventRecorder:            parentRequestEvents,
 	}, requestReviewPolicy)
 	pickupOfferingCoordinator, ok := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
@@ -2505,6 +2499,7 @@ func newFactory(
 		Audit:               studentAuditService,
 		Students:            repos.Student,
 		DB:                  db,
+		Today:               today,
 	})
 
 	// Excused-absence approval requests (#1845): the optional office-approval
@@ -2613,8 +2608,6 @@ func newFactory(
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
 		Appointments:           repos.Appointments(),
-		RecipientRepo:          repos.CalendarAppointmentRecipient,
-		RecipientStudentRepo:   repos.CalendarAppointmentRecipientChild,
 		StaffRepo:              repos.Staff,
 		StudentRepo:            repos.Student,
 		GuardianProfileRepo:    repos.GuardianProfile,
@@ -2694,7 +2687,7 @@ func newFactory(
 		Now:                       now,
 	})
 
-	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
+	parentAnnouncementService := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
 		Repo:        repos.ParentAnnouncement,
 		Settings:    settingsService,
 		Outbox:      emailOutboxService,
@@ -3092,7 +3085,7 @@ func newFactory(
 		OperatorAuth:         operatorAuthService,
 		OperatorInvitation:   operatorAuthService,
 		OperatorProvisioning: operatorProvisioningService,
-		Announcement:         announcementService,
+		Announcement:         communicationCapability,
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       workTimeModelService,
 		Students:             studentService,

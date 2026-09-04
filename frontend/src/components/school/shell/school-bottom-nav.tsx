@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
+import { NavLink } from "~/components/ui/nav-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
@@ -75,7 +75,7 @@ export function SchoolBottomNav({
               const active = isSchoolNavActive(item.href, pathname);
               return (
                 <li key={item.key}>
-                  <Link
+                  <NavLink
                     href={item.portalPath ? schoolPath(item.href) : item.href}
                     data-school-nav-item={item.key}
                     data-active={active ? "true" : "false"}
@@ -106,7 +106,7 @@ export function SchoolBottomNav({
                     {active ? (
                       <span className={labelClass}>{item.label}</span>
                     ) : null}
-                  </Link>
+                  </NavLink>
                 </li>
               );
             })}

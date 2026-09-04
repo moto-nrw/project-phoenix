@@ -8,14 +8,27 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+func newArrivalScheduleRepository(db *bun.DB) scheduleModels.StudentArrivalScheduleRepository {
+	return repositories.NewFactory(db).StudentArrivalSchedule
+}
+
+func newArrivalExceptionRepository(db *bun.DB) scheduleModels.StudentArrivalExceptionRepository {
+	return repositories.NewFactory(db).StudentArrivalException
+}
+
+func newArrivalNoteRepository(db *bun.DB) scheduleModels.StudentArrivalNoteRepository {
+	return repositories.NewFactory(db).StudentArrivalNote
+}
 
 // =============================================================================
 // StudentArrivalScheduleRepository Tests
@@ -26,7 +39,7 @@ func TestStudentArrivalScheduleRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
+	repo := newArrivalScheduleRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates schedule successfully", func(t *testing.T) {
@@ -71,7 +84,7 @@ func TestStudentArrivalScheduleRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
+	repo := newArrivalScheduleRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedule by ID", func(t *testing.T) {
@@ -107,7 +120,7 @@ func TestStudentArrivalScheduleRepository_FindByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
+	repo := newArrivalScheduleRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all schedules for student", func(t *testing.T) {
@@ -146,7 +159,7 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDAndWeekday(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
+	repo := newArrivalScheduleRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedule for specific weekday", func(t *testing.T) {
@@ -182,7 +195,7 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDsAndWeekday(t *testing.
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
+	repo := newArrivalScheduleRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds schedules for multiple students", func(t *testing.T) {
@@ -219,7 +232,7 @@ func TestStudentArrivalScheduleRepository_UpsertSchedule(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
+	repo := newArrivalScheduleRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates new schedule when doesn't exist", func(t *testing.T) {
@@ -277,7 +290,7 @@ func TestStudentArrivalScheduleRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
+	repo := newArrivalScheduleRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates schedule successfully", func(t *testing.T) {
@@ -332,7 +345,7 @@ func TestStudentArrivalScheduleRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
+	repo := newArrivalScheduleRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all schedules", func(t *testing.T) {
@@ -354,6 +367,14 @@ func TestStudentArrivalScheduleRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		// At least our 2 schedules should be present
 		assert.GreaterOrEqual(t, len(results), 2)
+
+		options := modelBase.NewQueryOptions().WithPagination(1, 1)
+		options.Filter.Equal("student_id", student.ID)
+		options.Sorting = (&modelBase.Sorting{}).AddField("weekday", modelBase.SortDesc)
+		results, err = repo.List(ctx, options)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, scheduleModels.WeekdayTuesday, results[0].Weekday)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -369,7 +390,7 @@ func TestStudentArrivalScheduleRepository_DeleteByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalScheduleRepository(db)
+	repo := newArrivalScheduleRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
@@ -411,7 +432,7 @@ func TestStudentArrivalExceptionRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates exception successfully", func(t *testing.T) {
@@ -443,7 +464,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all exceptions for student", func(t *testing.T) {
@@ -478,7 +499,7 @@ func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only upcoming exceptions", func(t *testing.T) {
@@ -515,7 +536,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDAndDate(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds exception for specific date", func(t *testing.T) {
@@ -551,7 +572,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds exceptions for multiple students on same date", func(t *testing.T) {
@@ -591,7 +612,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate_MatchesDateIn
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "ArrStudent", "BerlinTZ", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "ArrStaff", "BerlinTZ")
@@ -649,7 +670,7 @@ func TestStudentArrivalExceptionRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds exception by ID", func(t *testing.T) {
@@ -684,7 +705,7 @@ func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates exception successfully", func(t *testing.T) {
@@ -741,7 +762,7 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all exceptions", func(t *testing.T) {
@@ -750,7 +771,7 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.TodayDate().AddDays(i + 100), // Far future to avoid conflicts
+				ExceptionDate: timezone.NewDate(2099, time.January, i),
 				Reason:        testpkg.StrPtr("Test exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -763,6 +784,14 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		// At least our 3 exceptions should be present
 		assert.GreaterOrEqual(t, len(results), 3)
+
+		options := modelBase.NewQueryOptions().WithPagination(1, 1)
+		options.Filter.Equal("student_id", student.ID)
+		options.Sorting = (&modelBase.Sorting{}).AddField("exception_date", modelBase.SortDesc)
+		results, err = repo.List(ctx, options)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, timezone.NewDate(2099, time.January, 3), results[0].ExceptionDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -778,7 +807,7 @@ func TestStudentArrivalExceptionRepository_DeleteByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
@@ -810,7 +839,7 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalExceptionRepository(db)
+	repo := newArrivalExceptionRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes only past exceptions", func(t *testing.T) {
@@ -870,7 +899,7 @@ func TestStudentArrivalNoteRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
+	repo := newArrivalNoteRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates note successfully", func(t *testing.T) {
@@ -915,7 +944,7 @@ func TestStudentArrivalNoteRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
+	repo := newArrivalNoteRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds note by ID", func(t *testing.T) {
@@ -950,7 +979,7 @@ func TestStudentArrivalNoteRepository_FindByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
+	repo := newArrivalNoteRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all notes for student", func(t *testing.T) {
@@ -994,7 +1023,7 @@ func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
+	repo := newArrivalNoteRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds notes for specific date", func(t *testing.T) {
@@ -1047,7 +1076,7 @@ func TestStudentArrivalNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
+	repo := newArrivalNoteRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds notes for multiple students on same date", func(t *testing.T) {
@@ -1086,7 +1115,7 @@ func TestStudentArrivalNoteRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
+	repo := newArrivalNoteRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates note successfully", func(t *testing.T) {
@@ -1138,7 +1167,7 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
+	repo := newArrivalNoteRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all notes", func(t *testing.T) {
@@ -1147,7 +1176,7 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.TodayDate().AddDays(i + 200), // Far future to avoid conflicts
+				NoteDate:  timezone.NewDate(2099, time.February, i),
 				Content:   "Test note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1160,6 +1189,14 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		// At least our 3 notes should be present
 		assert.GreaterOrEqual(t, len(results), 3)
+
+		options := modelBase.NewQueryOptions().WithPagination(1, 1)
+		options.Filter.Equal("student_id", student.ID)
+		options.Sorting = (&modelBase.Sorting{}).AddField("note_date", modelBase.SortDesc)
+		results, err = repo.List(ctx, options)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, timezone.NewDate(2099, time.February, 3), results[0].NoteDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -1175,7 +1212,7 @@ func TestStudentArrivalNoteRepository_DeleteByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
+	repo := newArrivalNoteRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
@@ -1213,7 +1250,7 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := scheduleRepo.NewStudentArrivalNoteRepository(db)
+	repo := newArrivalNoteRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes only past notes", func(t *testing.T) {

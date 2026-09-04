@@ -69,8 +69,16 @@ vi.mock("~/lib/analytics", () => ({
   trackTenantEvent: mockTrackTenantEvent,
 }));
 
-vi.mock("~/env", () => ({
-  env: {
+const { mockUseShellSeed } = vi.hoisted(() => ({
+  mockUseShellSeed: vi.fn(() => null as unknown),
+}));
+
+vi.mock("~/lib/shell-seed", () => ({
+  useShellSeed: mockUseShellSeed,
+}));
+
+vi.mock("~/env.client", () => ({
+  clientEnv: {
     NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
   },
 }));
@@ -523,5 +531,35 @@ describe("BrandTenantSwitcher", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("School A")).toBeInTheDocument();
     consoleError.mockRestore();
+  });
+});
+
+describe("BrandTenantSwitcher — server-preloaded tenants (#2973)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { token: "t" } },
+      update: vi.fn(),
+    });
+    mockUseTenantSlugSafe.mockReturnValue("school-a");
+    mockUseShellSeed.mockReturnValue({
+      accountId: "1",
+      accountTenants: [tenantA, tenantB],
+      counts: {},
+    });
+  });
+
+  afterEach(() => {
+    mockUseShellSeed.mockReturnValue(null);
+  });
+
+  it("renders the switcher from the seed without listing tenants again", async () => {
+    render(<BrandTenantSwitcher />);
+
+    expect(
+      await screen.findByRole("button", { name: TRIGGER_LABEL }),
+    ).toBeInTheDocument();
+    expect(mockListAvailableTenants).not.toHaveBeenCalled();
   });
 });

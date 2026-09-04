@@ -76,10 +76,10 @@ func (failingOccurrenceOverrides) FindOccurrenceOverrides(context.Context, []int
 }
 
 type failingRecipientLookup struct {
-	calModels.AppointmentRecipientRepository
+	appointments.Capability
 }
 
-func (failingRecipientLookup) FindByAppointmentID(context.Context, int64) ([]*calModels.AppointmentRecipient, error) {
+func (failingRecipientLookup) FindAppointmentRecipients(context.Context, int64) ([]*appointments.AppointmentRecipient, error) {
 	return nil, errReminderStore
 }
 
@@ -136,7 +136,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 			cfg.Appointments = failingOccurrenceOverrides{cfg.Appointments}
 		},
 		"resolving the recipients": func(cfg *calendarSvc.Config) {
-			cfg.RecipientRepo = failingRecipientLookup{cfg.RecipientRepo}
+			cfg.Appointments = failingRecipientLookup{cfg.Appointments}
 		},
 	}
 

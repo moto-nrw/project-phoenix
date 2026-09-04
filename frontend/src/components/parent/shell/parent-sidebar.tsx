@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { NavLink } from "~/components/ui/nav-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { parentPath } from "~/lib/parent-url";
 import { isParentNavActive } from "./parent-nav-active";
@@ -54,7 +54,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
         : t(item.tKey);
     return (
       <li key={item.key}>
-        <Link
+        <NavLink
           href={parentPath(item.href)}
           data-parent-nav-item={item.key}
           data-active={active ? "true" : "false"}
@@ -80,7 +80,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
               )}
             />
           )}
-        </Link>
+        </NavLink>
       </li>
     );
   };
@@ -106,7 +106,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
           >
             <ul className="space-y-1">
               <li>
-                <Link
+                <NavLink
                   href={parentPath("/parents/settings")}
                   data-parent-nav-item="settings"
                   data-active={settingsActive ? "true" : "false"}
@@ -119,10 +119,10 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
                     className={`${ICON} ${settingsActive ? "" : "text-gray-400"}`}
                   />
                   <span className="flex-1">{t("settings")}</span>
-                </Link>
+                </NavLink>
               </li>
               <li>
-                <Link
+                <NavLink
                   href={parentPath("/parents/enroll")}
                   data-parent-nav-item="enroll"
                   data-active={enrollActive ? "true" : "false"}
@@ -135,7 +135,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
                     className={`${ICON} ${enrollActive ? "" : "text-gray-400"}`}
                   />
                   <span className="flex-1">{t("enroll")}</span>
-                </Link>
+                </NavLink>
               </li>
               <li>
                 <button
