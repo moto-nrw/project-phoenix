@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -189,7 +190,7 @@ func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64
 			(SELECT COUNT(*) FROM enrollment.late_invites l WHERE l.used_request_id = ? AND l.tenant_id = ?)::int AS late_invites,
 			0::int AS email_outbox,
 			(SELECT COUNT(*) FROM enrollment.request_children c WHERE c.rollover_source_child_id IN (SELECT id FROM target_children) AND c.tenant_id = ?)::int AS rollover_links_cleared,
-			(SELECT COUNT(*) FROM activities.student_enrollments se WHERE se.enrollment_request_child_id IN (SELECT id FROM target_children) AND se.tenant_id = ?)::int AS student_source_links_cleared
+			0::int AS student_source_links_cleared
 	`,
 		requestID, tenantID,
 		requestID, tenantID,
@@ -198,8 +199,12 @@ func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64
 		requestID, tenantID,
 		tenantID,
 		requestID, tenantID,
-		tenantID, tenantID,
+		tenantID,
 	).Scan(ctx, row)
+	if err != nil {
+		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
+	}
+	row.StudentSourceLinksCleared, err = timetableprojection.CountRequestSourceEnrollments(ctx, base.GetDB(ctx, r.db), tenantID, requestID)
 	if err != nil {
 		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
 	}
@@ -282,8 +287,12 @@ func (r *DeletionRepository) PreviewChild(ctx context.Context, requestID, childI
 			(SELECT COUNT(*) FROM target_changes)::int AS change_requests,
 			(SELECT COUNT(*) FROM enrollment.change_request_messages m JOIN target_changes c ON c.id = m.change_request_id WHERE m.tenant_id = ?)::int AS change_request_messages,
 			(SELECT COUNT(*) FROM enrollment.request_children WHERE rollover_source_child_id = ? AND tenant_id = ?)::int AS rollover_links,
-			(SELECT COUNT(*) FROM activities.student_enrollments WHERE enrollment_request_child_id = ? AND tenant_id = ?)::int AS student_source_links
-	`, requestID, childID, tenantID, childID, tenantID, tenantID, childID, tenantID, childID, tenantID).Scan(ctx, &row)
+			0::int AS student_source_links
+	`, requestID, childID, tenantID, childID, tenantID, tenantID, childID, tenantID).Scan(ctx, &row)
+	if err != nil {
+		return nil, fmt.Errorf("preview enrollment child deletion: %w", err)
+	}
+	row.StudentSourceLinks, err = timetableprojection.CountChildSourceEnrollments(ctx, base.GetDB(ctx, r.db), tenantID, childID)
 	if err != nil {
 		return nil, fmt.Errorf("preview enrollment child deletion: %w", err)
 	}

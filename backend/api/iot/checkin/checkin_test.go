@@ -1184,7 +1184,7 @@ func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequestForTest(t, router, req)
 
 	// The Schulhof auto-create flow should succeed:
 	// 1. No active group in room → detect room name is "Schulhof"
@@ -1932,7 +1932,7 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequestForTest(t, router, req)
 
 	// The WC auto-create flow should succeed:
 	// 1. No active group in room → detect room name is "WC"
@@ -2002,7 +2002,7 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr1 := testutil.ExecuteRequest(router, req1)
+	rr1 := testutil.ExecuteRequestForTest(t, router, req1)
 	testutil.AssertSuccessResponse(t, rr1, http.StatusOK)
 
 	// Second checkin - should reuse the existing active group (not fail)
@@ -2017,7 +2017,7 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr2 := testutil.ExecuteRequest(router, req2)
+	rr2 := testutil.ExecuteRequestForTest(t, router, req2)
 	testutil.AssertSuccessResponse(t, rr2, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr2.Body.Bytes())
@@ -2061,7 +2061,7 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	checkinRR := testutil.ExecuteRequest(router, checkinReq)
+	checkinRR := testutil.ExecuteRequestForTest(t, router, checkinReq)
 	testutil.AssertSuccessResponse(t, checkinRR, http.StatusOK)
 
 	checkinResponse := testutil.ParseJSONResponse(t, checkinRR.Body.Bytes())
@@ -2079,7 +2079,7 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
-	checkoutRR := testutil.ExecuteRequest(router, checkoutReq)
+	checkoutRR := testutil.ExecuteRequestForTest(t, router, checkoutReq)
 	testutil.AssertSuccessResponse(t, checkoutRR, http.StatusOK)
 
 	checkoutResponse := testutil.ParseJSONResponse(t, checkoutRR.Body.Bytes())
@@ -2138,7 +2138,7 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequestForTest(t, router, req)
 
 	// The WC activity group is auto-created with created_by = NULL.
 	assert.Equal(t, http.StatusOK, rr.Code,
@@ -2194,7 +2194,7 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequestForTest(t, router, req)
 
 	// The Schulhof activity group is auto-created with created_by = NULL.
 	assert.Equal(t, http.StatusOK, rr.Code,
@@ -2241,7 +2241,7 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr1 := testutil.ExecuteRequest(router, req1)
+	rr1 := testutil.ExecuteRequestForTest(t, router, req1)
 	testutil.AssertSuccessResponse(t, rr1, http.StatusOK)
 
 	// Second checkin - should reuse the existing active group (not fail)
@@ -2256,7 +2256,7 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr2 := testutil.ExecuteRequest(router, req2)
+	rr2 := testutil.ExecuteRequestForTest(t, router, req2)
 	testutil.AssertSuccessResponse(t, rr2, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr2.Body.Bytes())
@@ -2326,7 +2326,7 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequestForTest(t, router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	// CRITICAL ASSERTION: The auto-created WC group must NOT have a device_id.
@@ -2387,7 +2387,7 @@ func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequestForTest(t, router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	schulhofGroup := new(active.Group)

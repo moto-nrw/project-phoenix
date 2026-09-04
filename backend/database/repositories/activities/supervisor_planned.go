@@ -206,13 +206,13 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 func (r *SupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activities.SupervisorPlanned, error) {
 	var results []supervisorResult
 
-	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect().Model(&results)).
+	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect()).
 		Where(`"supervisor".group_id = ?`, groupID).
 		Order("supervisor.is_primary DESC")
 
 	query = base.WithTenantFilter(ctx, query, "supervisor")
 
-	if err := query.Scan(ctx); err != nil {
+	if err := query.Scan(ctx, &results); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group ID",
 			Err: base.TranslateNotFound(err),
@@ -230,13 +230,13 @@ func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupI
 
 	var results []supervisorResult
 
-	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect().Model(&results)).
+	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect()).
 		Where(`"supervisor".group_id IN (?)`, bun.List(groupIDs)).
 		Order("supervisor.is_primary DESC")
 
 	query = base.WithTenantFilter(ctx, query, "supervisor")
 
-	if err := query.Scan(ctx); err != nil {
+	if err := query.Scan(ctx, &results); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group IDs",
 			Err: base.TranslateNotFound(err),

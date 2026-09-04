@@ -103,6 +103,7 @@ type RoomOccupancy struct {
 // the room occupancy history.
 type RoomSessionAggregate struct {
 	SessionID       int64      `bun:"session_id"`
+	ActivityGroupID *int64     `bun:"activity_group_id" json:"-"`
 	StartedAt       time.Time  `bun:"started_at"`
 	EndedAt         *time.Time `bun:"ended_at"`
 	DurationMinutes *int       `bun:"duration_minutes"`

@@ -1941,7 +1941,9 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 	st := &scheduleModel.ShiftType{Name: fmt.Sprintf("Betreuung-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
 	require.NoError(t, stRepo.Create(s.ctx, st))
 	t.Cleanup(func() { _ = stRepo.Delete(s.ctx, st.ID) })
-	require.NoError(t, catRepo.SetShiftTypeForCategories(s.ctx, st.ID, []int64{s.category.ID}))
+	s.category.ShiftTypeID = &st.ID
+	_, err := catRepo.UpdateColumns(s.ctx, s.category, "shift_type_id")
+	require.NoError(t, err)
 
 	body := createTemplateBody(s, "Tpl-ShiftBadge")
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)

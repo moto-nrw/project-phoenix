@@ -342,10 +342,6 @@ func (m *mockCategoryRepo) ListAll(context.Context) ([]*activityModels.Category,
 	return nil, nil
 }
 
-func (m *mockCategoryRepo) SetShiftTypeForCategories(context.Context, int64, []int64) error {
-	return nil
-}
-
 func (m *mockCategoryRepo) UpdateColumns(context.Context, *activityModels.Category, ...string) (int64, error) {
 	return 1, nil
 }
