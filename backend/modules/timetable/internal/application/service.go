@@ -9,16 +9,18 @@ import (
 )
 
 type Service struct {
-	store   ports.Store
-	tx      ports.Transaction
-	observe ports.Observer
+	store    ports.Store
+	tx       ports.Transaction
+	students ports.StudentDirectory
+	today    func() string
+	observe  ports.Observer
 }
 
-func New(store ports.Store, tx ports.Transaction, observe ports.Observer) *Service {
-	if store == nil || tx == nil || observe == nil {
+func New(store ports.Store, tx ports.Transaction, students ports.StudentDirectory, today func() string, observe ports.Observer) *Service {
+	if store == nil || tx == nil || students == nil || today == nil || observe == nil {
 		panic("timetable application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, observe: observe}
+	return &Service{store: store, tx: tx, students: students, today: today, observe: observe}
 }
 
 func (s *Service) FindCategory(ctx context.Context, id int64) (result domain.Category, err error) {
@@ -90,6 +92,135 @@ func (s *Service) CountCategoryUsage(ctx context.Context) (result map[int64]int,
 		return countErr
 	})
 	return result, err
+}
+
+func (s *Service) FindGroup(ctx context.Context, id int64) (result domain.Group, err error) {
+	err = s.run("find_group", func(stats *domain.OperationStats) error {
+		value, found, queryStats, findErr := s.store.FindGroup(ctx, id, "")
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return domain.ErrGroupNotFound
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) FindGroupForUpdate(ctx context.Context, id int64) (result domain.Group, err error) {
+	err = s.run("find_group_for_update", func(stats *domain.OperationStats) error {
+		value, found, queryStats, findErr := s.store.FindGroup(ctx, id, "UPDATE")
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return domain.ErrGroupNotFound
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) FindGroupByName(ctx context.Context, name string) (result domain.Group, err error) {
+	err = s.run("find_group_by_name", func(stats *domain.OperationStats) error {
+		value, found, queryStats, findErr := s.store.FindGroupByName(ctx, name)
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return domain.ErrGroupNotFound
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) ListGroups(ctx context.Context, filter domain.GroupFilter) (result []domain.Group, err error) {
+	err = s.run("list_groups", func(stats *domain.OperationStats) error {
+		values, queryStats, listErr := s.store.ListGroups(ctx, filter)
+		stats.Add(queryStats)
+		result = values
+		return listErr
+	})
+	return result, err
+}
+
+func (s *Service) ListGroupTargets(ctx context.Context, ids []int64) (result map[int64][]domain.GroupTarget, err error) {
+	err = s.run("list_group_targets", func(stats *domain.OperationStats) error {
+		values, queryStats, listErr := s.store.ListGroupTargets(ctx, ids)
+		stats.Add(queryStats)
+		result = values
+		return listErr
+	})
+	return result, err
+}
+
+func (s *Service) ListTargetStudentIDs(ctx context.Context, ids []int64) (result map[int64][]int64, err error) {
+	err = s.run("list_target_student_ids", func(stats *domain.OperationStats) error {
+		targets, targetStats, listErr := s.store.ListGroupTargets(ctx, ids)
+		stats.Add(targetStats)
+		if listErr != nil || len(targets) == 0 {
+			result = make(map[int64][]int64, len(ids))
+			return listErr
+		}
+		students, studentStats, studentErr := s.students.ListEnrolledStudents(ctx)
+		stats.Add(studentStats)
+		if studentErr != nil {
+			return studentErr
+		}
+		result = matchTargetStudents(targets, students, s.today())
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []domain.GroupTargetFields) error {
+	return s.runWrite(ctx, "replace_group_targets", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := s.store.ReplaceGroupTargets(txCtx, groupID, targets)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
+func (s *Service) CreateGroup(ctx context.Context, fields domain.GroupFields) (result domain.Group, err error) {
+	err = s.runWrite(ctx, "create_group", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		value, queryStats, createErr := s.store.CreateGroup(txCtx, fields)
+		stats.Add(queryStats)
+		result = value
+		return createErr
+	})
+	return result, err
+}
+
+func (s *Service) UpdateGroup(ctx context.Context, id int64, fields domain.GroupFields) (result domain.Group, err error) {
+	err = s.runWrite(ctx, "update_group", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		value, updated, queryStats, updateErr := s.store.UpdateGroup(txCtx, id, fields)
+		stats.Add(queryStats)
+		if updateErr != nil {
+			return updateErr
+		}
+		if !updated {
+			return domain.ErrGroupNotFound
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) DeleteGroup(ctx context.Context, id int64) error {
+	return s.runWrite(ctx, "delete_group", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := s.store.DeleteGroup(txCtx, id)
+		stats.Add(queryStats)
+		return err
+	})
 }
 
 func (s *Service) CreateCategory(ctx context.Context, fields domain.CategoryFields) (result domain.Category, err error) {

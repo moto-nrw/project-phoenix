@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +22,7 @@ func TestUpdateGroupWithDetails_RollsBackOnSupervisorFailure(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "rollback-original")
 
@@ -32,7 +31,7 @@ func TestUpdateGroupWithDetails_RollsBackOnSupervisorFailure(t *testing.T) {
 	group.Name = "rollback-renamed"
 	nonexistentStaffID := int64(999999999)
 
-	txErr := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, ctx, db), db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := testpkg.WithTenantTx(t, testpkg.WithTenantRuntime(t, ctx, db), db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, err := service.UpdateGroupWithDetails(txCtx, group, 0, true, []int64{nonexistentStaffID}, nil)
 		return err
 	})
@@ -52,9 +51,7 @@ func TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules(t *testing.
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
-	// Supervisor names resolve through the People Directory, which needs the
-	// tenant runtime on every read (#2661).
-	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
+	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "with-details-original")
 	staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
@@ -62,7 +59,7 @@ func TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules(t *testing.
 	group.Name = "with-details-renamed"
 
 	var updated *activitiesModels.Group
-	txErr := tenant.WithTenantTx(ctx, db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := testpkg.WithTenantTx(t, ctx, db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		updated, err = service.UpdateGroupWithDetails(txCtx, group, 0, true, []int64{staff.ID}, nil)
 		return err

@@ -3098,7 +3098,7 @@
       "declaration": "TestActivityGroupRepository_Create_WithNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        590
+        556
       ],
       "tables": []
     },
@@ -3118,7 +3118,7 @@
       "declaration": "TestActivityGroupRepository_Delete_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        620
+        586
       ],
       "tables": []
     },
@@ -3128,17 +3128,7 @@
       "declaration": "TestActivityGroupRepository_FindAllTemplates",
       "target": "database/repositories.NewFactory",
       "lines": [
-        392
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/group_repository_test.go",
-      "declaration": "TestActivityGroupRepository_FindByCategory",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        326
+        358
       ],
       "tables": []
     },
@@ -3158,7 +3148,7 @@
       "declaration": "TestActivityGroupRepository_FindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        634
+        600
       ],
       "tables": []
     },
@@ -3168,7 +3158,7 @@
       "declaration": "TestActivityGroupRepository_FindByStaffSupervisor",
       "target": "database/repositories.NewFactory",
       "lines": [
-        538
+        504
       ],
       "tables": [
         "activities.supervisors"
@@ -3180,7 +3170,7 @@
       "declaration": "TestActivityGroupRepository_FindOpenGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        360
+        326
       ],
       "tables": []
     },
@@ -3190,7 +3180,7 @@
       "declaration": "TestActivityGroupRepository_FindWithEnrollmentCounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        440
+        406
       ],
       "tables": [
         "activities.student_enrollments"
@@ -3202,7 +3192,7 @@
       "declaration": "TestActivityGroupRepository_FindWithSupervisors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        499
+        465
       ],
       "tables": [
         "activities.supervisors"
@@ -3234,7 +3224,7 @@
       "declaration": "TestActivityGroupRepository_Update_WithNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        605
+        571
       ],
       "tables": []
     },
@@ -9766,7 +9756,7 @@
       "declaration": "TestActivityService_EnrollStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        630
+        621
       ],
       "tables": []
     },
@@ -9776,8 +9766,8 @@
       "declaration": "TestActivityService_SetCategoryShiftTypeLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2995,
-        2996
+        2988,
+        2989
       ],
       "tables": []
     },
@@ -9787,7 +9777,7 @@
       "declaration": "setupActivityService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        27
       ],
       "tables": []
     },

@@ -14,6 +14,8 @@ import (
 type recordingEngine struct {
 	create     timetable.CreateCategory
 	update     timetable.UpdateCategory
+	group      timetable.GroupInput
+	targets    []timetable.GroupTargetInput
 	calls      int
 	rejections []string
 }
@@ -41,6 +43,59 @@ func (e *recordingEngine) ListCategories(context.Context) ([]timetable.Category,
 func (e *recordingEngine) CountCategoryUsage(context.Context) (map[int64]int, error) {
 	e.calls++
 	return map[int64]int{}, nil
+}
+
+func (e *recordingEngine) FindGroup(context.Context, int64) (timetable.Group, error) {
+	e.calls++
+	return timetable.Group{}, nil
+}
+
+func (e *recordingEngine) FindGroupForUpdate(context.Context, int64) (timetable.Group, error) {
+	e.calls++
+	return timetable.Group{}, nil
+}
+
+func (e *recordingEngine) FindGroupByName(context.Context, string) (timetable.Group, error) {
+	e.calls++
+	return timetable.Group{}, nil
+}
+
+func (e *recordingEngine) ListGroups(context.Context, timetable.GroupFilter) ([]timetable.Group, error) {
+	e.calls++
+	return []timetable.Group{}, nil
+}
+
+func (e *recordingEngine) ListGroupTargets(context.Context, []int64) (map[int64][]timetable.GroupTarget, error) {
+	e.calls++
+	return map[int64][]timetable.GroupTarget{}, nil
+}
+
+func (e *recordingEngine) ListTargetStudentIDs(context.Context, []int64) (map[int64][]int64, error) {
+	e.calls++
+	return map[int64][]int64{}, nil
+}
+
+func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
+	e.calls++
+	e.targets = targets
+	return nil
+}
+
+func (e *recordingEngine) CreateGroup(_ context.Context, input timetable.GroupInput) (timetable.Group, error) {
+	e.calls++
+	e.group = input
+	return timetable.Group{Name: input.Name, Type: input.Type, TargetGroupType: input.TargetGroupType}, nil
+}
+
+func (e *recordingEngine) UpdateGroup(_ context.Context, _ int64, input timetable.GroupInput) (timetable.Group, error) {
+	e.calls++
+	e.group = input
+	return timetable.Group{Name: input.Name, Type: input.Type, TargetGroupType: input.TargetGroupType}, nil
+}
+
+func (e *recordingEngine) DeleteGroup(context.Context, int64) error {
+	e.calls++
+	return nil
 }
 
 func (e *recordingEngine) CreateCategory(_ context.Context, input timetable.CreateCategory) (timetable.Category, error) {
@@ -111,6 +166,33 @@ func TestModuleNormalizesCategoryWrites(t *testing.T) {
 	assert.Equal(t, "Sport", engine.update.Name)
 }
 
+func TestSystemActivityNamesAreExact(t *testing.T) {
+	t.Parallel()
+	assert.True(t, timetable.IsSystemActivityName(timetable.SchulhofActivityName))
+	assert.True(t, timetable.IsSystemActivityName(timetable.WCActivityName))
+	assert.False(t, timetable.IsSystemActivityName("wc"))
+}
+
+func TestModuleNormalizesAndValidatesGroupWrites(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+
+	created, err := module.CreateGroup(ctx, timetable.GroupInput{Name: "Werkstatt", CategoryID: 7})
+	require.NoError(t, err)
+	assert.Equal(t, timetable.GroupTypeActivity, created.Type)
+	assert.Equal(t, timetable.TargetGroupTypeNone, created.TargetGroupType)
+
+	negative := -1
+	_, err = module.UpdateGroup(ctx, 12, timetable.GroupInput{
+		Name: "Werkstatt", CategoryID: 7, RequiredStaff: &negative,
+	})
+	require.ErrorIs(t, err, timetable.ErrInvalidGroup)
+	assert.Equal(t, 1, engine.calls, "invalid write must not reach the engine")
+	assert.Contains(t, engine.rejections, "update_group")
+}
+
 func TestModuleRejectsInvalidAndReservedCategoryWrites(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
@@ -141,6 +223,45 @@ func TestModuleRejectsInvalidAndReservedCategoryWrites(t *testing.T) {
 		"lock_student_enrollments_for_care_exit", "end_student_enrollments_for_care_exit",
 		"restore_student_enrollments_for_care_exit",
 	}, engine.rejections)
+}
+
+func TestModuleRejectsInvalidGroupQueries(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+
+	_, err := module.FindGroup(ctx, 0)
+	require.ErrorIs(t, err, timetable.ErrInvalidGroupQuery)
+	_, err = module.ListGroups(ctx, timetable.GroupFilter{IDs: []int64{1, 0}})
+	require.ErrorIs(t, err, timetable.ErrInvalidGroupQuery)
+	_, err = module.ListGroupTargets(ctx, []int64{-1})
+	require.ErrorIs(t, err, timetable.ErrInvalidGroupQuery)
+
+	assert.Zero(t, engine.calls)
+	assert.Equal(t, []string{"find_group", "list_groups", "list_group_targets"}, engine.rejections)
+}
+
+func TestModuleNormalizesAndRejectsGroupTargets(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+	class := " 2b "
+
+	require.NoError(t, module.ReplaceGroupTargets(ctx, 7, []timetable.GroupTargetInput{{
+		TargetGroupType: "klasse", TargetSchoolClass: &class,
+	}}))
+	require.Equal(t, 1, engine.calls)
+	require.Len(t, engine.targets, 1)
+	assert.Equal(t, "2b", *engine.targets[0].TargetSchoolClass)
+
+	grade := int16(14)
+	require.ErrorIs(t, module.ReplaceGroupTargets(ctx, 7, []timetable.GroupTargetInput{{
+		TargetGroupType: "jahrgang", TargetGradeLevel: &grade,
+	}}), timetable.ErrInvalidGroupTarget)
+	require.ErrorIs(t, module.ReplaceGroupTargets(ctx, 0, nil), timetable.ErrInvalidGroupTarget)
+	assert.Equal(t, 1, engine.calls, "invalid targets must not reach persistence")
 }
 
 func TestSystemProvisionerMayCreateReservedCategory(t *testing.T) {

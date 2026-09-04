@@ -11,9 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -231,23 +229,16 @@ func TestActivityService_ListGroupsWithOccupancy(t *testing.T) {
 		// Create an active session for group1 (making it occupied)
 		now := time.Now()
 		group1ID := group1.ID
-		activeGroup := &active.Group{
-			StartTime:      now,
-			LastActivity:   now,
-			TimeoutMinutes: 30,
-			GroupID:        &group1ID,
-			RoomID:         room.ID,
-		}
-		activeGroup.SetTenantID(testpkg.Tenant(t))
-		err := db.NewInsert().
-			Model(activeGroup).
-			ModelTableExpr(`active.groups AS "active_group"`).
-			Scan(ctx)
+		var activeGroupID int64
+		err := db.NewRaw(`INSERT INTO active.groups
+			(tenant_id, start_time, last_activity, timeout_minutes, group_id, room_id)
+			VALUES (?, ?, ?, 30, ?, ?) RETURNING id`,
+			testpkg.Tenant(t), now, now, group1ID, room.ID).Scan(ctx, &activeGroupID)
 		require.NoError(t, err)
 		defer func() {
 			_, _ = db.NewDelete().
 				TableExpr("active.groups").
-				Where("id = ?", activeGroup.ID).
+				Where("id = ?", activeGroupID).
 				Exec(ctx)
 		}()
 
@@ -767,8 +758,10 @@ func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
 	})
 
 	t.Run("groups active enrollments by student and de-duplicates groups", func(t *testing.T) {
-		groupA := &activitiesModels.Group{Model: base.Model{ID: 101}, Name: "A"}
-		groupB := &activitiesModels.Group{Model: base.Model{ID: 202}, Name: "B"}
+		groupA := &activitiesModels.Group{Name: "A"}
+		groupA.ID = 101
+		groupB := &activitiesModels.Group{Name: "B"}
+		groupB.ID = 202
 		repo := &fakeActiveEnrollmentRepo{
 			enrollments: []*activitiesModels.StudentEnrollment{
 				nil,

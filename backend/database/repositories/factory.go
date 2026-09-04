@@ -63,6 +63,7 @@ type Factory struct {
 	peopleDirectoryBound     bool
 	carePlanBound            bool
 	schoolStructureBound     bool
+	schoolStructure          schoolstructure.Query
 	schoolMembershipBound    bool
 	facilitiesBound          bool
 	appointmentsBound        bool
@@ -468,6 +469,7 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 		return
 	}
 	f.schoolStructureBound = true
+	f.schoolStructure = groups
 	if f.Student != nil {
 		f.Student = groupStudentRepository{StudentRepository: f.Student, groups: groups}
 	}

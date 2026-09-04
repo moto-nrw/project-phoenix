@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"sort"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -79,7 +79,7 @@ func (s *materializationService) DetectEditedInWindow(
 
 	tmpl, err := s.groupRepo.FindByID(ctx, activityGroupID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if modelBase.IsNoRows(err) {
 			// Template not visible to this tenant (or deleted) — nothing to
 			// compare against; report no edits rather than blocking the caller.
 			return nil, nil

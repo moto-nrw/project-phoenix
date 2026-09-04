@@ -102,6 +102,11 @@ type ActivityError struct {
 	Err error  // Original error
 }
 
+func isRepositoryNotFound(err error) bool {
+	var marker interface{ RepositoryNotFound() }
+	return errors.As(err, &marker)
+}
+
 // Error returns the error message
 func (e *ActivityError) Error() string {
 	if e.Err == nil {

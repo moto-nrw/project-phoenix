@@ -15,6 +15,8 @@ const (
 	DefaultCategoryColor         = "#CCCCCC"
 	SchulhofCategoryName         = "Schulhof"
 	WCCategoryName               = "WC"
+	SchulhofActivityName         = "Schulhof Freispiel"
+	WCActivityName               = "WC"
 	categoryNameMaxLength        = 60
 	categoryDescriptionMaxLength = 255
 )
@@ -28,6 +30,10 @@ var (
 	ErrSystemCategoryName        = errors.New("Dieser Name ist für eine Systemkategorie reserviert")          //nolint:staticcheck // ST1005: stable user-facing contract
 	ErrCategoryNameExists        = errors.New("Eine Kategorie mit diesem Namen existiert bereits")            //nolint:staticcheck // ST1005: stable user-facing contract
 	ErrCategoryArchived          = errors.New("Archivierte Kategorie muss zuerst wiederhergestellt werden")   //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrGroupNotFound             = errors.New("activity group not found")
+	ErrInvalidGroup              = errors.New("invalid activity group")
+	ErrInvalidGroupQuery         = errors.New("invalid activity group query")
+	ErrInvalidGroupTarget        = errors.New("invalid activity group target")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -110,6 +116,12 @@ type Query interface {
 	FindCategoryByName(context.Context, string) (Category, error)
 	ListCategories(context.Context) ([]Category, error)
 	CountCategoryUsage(context.Context) (map[int64]int, error)
+	FindGroup(context.Context, int64) (Group, error)
+	FindGroupForUpdate(context.Context, int64) (Group, error)
+	FindGroupByName(context.Context, string) (Group, error)
+	ListGroups(context.Context, GroupFilter) ([]Group, error)
+	ListGroupTargets(context.Context, []int64) (map[int64][]GroupTarget, error)
+	ListTargetStudentIDs(context.Context, []int64) (map[int64][]int64, error)
 }
 
 type Command interface {
@@ -121,6 +133,10 @@ type Command interface {
 	LockStudentEnrollmentsForCareExit(context.Context, []int64, string) error
 	EndStudentEnrollmentsForCareExit(context.Context, []int64, string) (CareExitEnrollmentChanges, error)
 	RestoreStudentEnrollmentsForCareExit(context.Context, []int64, []int64, []CareExitEnrollmentRemoval) (int, error)
+	CreateGroup(context.Context, GroupInput) (Group, error)
+	UpdateGroup(context.Context, int64, GroupInput) (Group, error)
+	DeleteGroup(context.Context, int64) error
+	ReplaceGroupTargets(context.Context, int64, []GroupTargetInput) error
 }
 
 type Capability interface {
@@ -170,6 +186,81 @@ func (m *Module) ListCategories(ctx context.Context) ([]Category, error) {
 
 func (m *Module) CountCategoryUsage(ctx context.Context) (map[int64]int, error) {
 	return m.engine.CountCategoryUsage(ctx)
+}
+
+func (m *Module) FindGroup(ctx context.Context, id int64) (Group, error) {
+	if id <= 0 {
+		return Group{}, m.reject("find_group", ErrInvalidGroupQuery)
+	}
+	return m.engine.FindGroup(ctx, id)
+}
+
+func (m *Module) FindGroupForUpdate(ctx context.Context, id int64) (Group, error) {
+	if id <= 0 {
+		return Group{}, m.reject("find_group_for_update", ErrInvalidGroupQuery)
+	}
+	return m.engine.FindGroupForUpdate(ctx, id)
+}
+
+func (m *Module) FindGroupByName(ctx context.Context, name string) (Group, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Group{}, m.reject("find_group_by_name", ErrInvalidGroupQuery)
+	}
+	return m.engine.FindGroupByName(ctx, name)
+}
+
+func (m *Module) ListGroups(ctx context.Context, filter GroupFilter) ([]Group, error) {
+	if hasInvalidID(filter.IDs) || (filter.CategoryID != nil && *filter.CategoryID <= 0) {
+		return nil, m.reject("list_groups", ErrInvalidGroupQuery)
+	}
+	return m.engine.ListGroups(ctx, filter)
+}
+
+func (m *Module) ListGroupTargets(ctx context.Context, groupIDs []int64) (map[int64][]GroupTarget, error) {
+	if hasInvalidID(groupIDs) {
+		return nil, m.reject("list_group_targets", ErrInvalidGroupQuery)
+	}
+	return m.engine.ListGroupTargets(ctx, groupIDs)
+}
+
+func (m *Module) ListTargetStudentIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	if hasInvalidID(groupIDs) {
+		return nil, m.reject("list_target_student_ids", ErrInvalidGroupQuery)
+	}
+	return m.engine.ListTargetStudentIDs(ctx, groupIDs)
+}
+
+func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {
+	normalized, err := normalizeGroupTargets(groupID, targets)
+	if err != nil {
+		return m.reject("replace_group_targets", err)
+	}
+	return m.engine.ReplaceGroupTargets(ctx, groupID, normalized)
+}
+
+func (m *Module) CreateGroup(ctx context.Context, input GroupInput) (Group, error) {
+	if err := normalizeGroup(&input); err != nil {
+		return Group{}, m.reject("create_group", err)
+	}
+	return m.engine.CreateGroup(ctx, input)
+}
+
+func (m *Module) UpdateGroup(ctx context.Context, id int64, input GroupInput) (Group, error) {
+	if id <= 0 {
+		return Group{}, m.reject("update_group", ErrInvalidGroup)
+	}
+	if err := normalizeGroup(&input); err != nil {
+		return Group{}, m.reject("update_group", err)
+	}
+	return m.engine.UpdateGroup(ctx, id, input)
+}
+
+func (m *Module) DeleteGroup(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_group", ErrInvalidGroup)
+	}
+	return m.engine.DeleteGroup(ctx, id)
 }
 
 func (m *Module) CreateCategory(ctx context.Context, input CreateCategory) (Category, error) {
@@ -269,6 +360,10 @@ func reservedCategoryName(name string) bool {
 	return strings.EqualFold(name, WCCategoryName) || strings.EqualFold(name, SchulhofCategoryName)
 }
 
+func IsSystemActivityName(name string) bool {
+	return name == SchulhofActivityName || name == WCActivityName
+}
+
 func hasInvalidID(ids []int64) bool {
 	for _, id := range ids {
 		if id <= 0 {
@@ -299,6 +394,169 @@ func invalidCareExitRemovals(removals []CareExitEnrollmentRemoval) bool {
 	return false
 }
 
+func normalizeGroup(input *GroupInput) error {
+	if input.Name == "" || input.MaxParticipants < 0 || input.CategoryID <= 0 ||
+		(input.RequiredStaff != nil && *input.RequiredStaff < 0) {
+		return ErrInvalidGroup
+	}
+	if input.Type == "" {
+		input.Type = GroupTypeActivity
+	}
+	if !validGroupType(input.Type) || !normalizeListKind(&input.ListKind) {
+		return ErrInvalidGroup
+	}
+	if input.TargetGroupType == "" {
+		input.TargetGroupType = TargetGroupTypeNone
+	}
+	if !validGroupTarget(input) || !normalizeOfferingSource(input) {
+		return ErrInvalidGroup
+	}
+	return nil
+}
+
+func validGroupType(value string) bool {
+	return value == GroupTypeActivity || value == GroupTypeCare || value == GroupTypeExternal
+}
+
+func normalizeListKind(value **string) bool {
+	if *value == nil {
+		return true
+	}
+	if **value == "" {
+		*value = nil
+		return true
+	}
+	switch **value {
+	case ListKindEdgeHours, ListKindLearningTime, ListKindActivity, ListKindMensa:
+		return true
+	default:
+		return false
+	}
+}
+
+func validGroupTarget(input *GroupInput) bool {
+	switch input.TargetGroupType {
+	case TargetGroupTypeGrade:
+		return input.TargetGradeLevel != nil && *input.TargetGradeLevel >= 1 && *input.TargetGradeLevel <= 13 && input.TargetSchoolClass == nil
+	case TargetGroupTypeSchoolClass:
+		if input.TargetSchoolClass == nil || strings.TrimSpace(*input.TargetSchoolClass) == "" || input.TargetGradeLevel != nil {
+			return false
+		}
+		trimmed := strings.TrimSpace(*input.TargetSchoolClass)
+		input.TargetSchoolClass = &trimmed
+		return true
+	case TargetGroupTypeEducationGroup:
+		return input.EducationGroupID != nil && input.TargetGradeLevel == nil && input.TargetSchoolClass == nil
+	case TargetGroupTypeOffering, TargetGroupTypeNone:
+		return input.TargetGradeLevel == nil && input.TargetSchoolClass == nil
+	default:
+		return false
+	}
+}
+
+func normalizeOfferingSource(input *GroupInput) bool {
+	if len(input.SourceCareOfferingIDs) == 0 {
+		input.SourceCareOfferingIDs = nil
+		if len(input.SourceGradeLevels) > 0 || len(input.SourceSchoolClasses) > 0 {
+			return false
+		}
+		input.SourceGradeLevels, input.SourceSchoolClasses = nil, nil
+		return true
+	}
+	if input.TargetGroupType != TargetGroupTypeOffering || hasInvalidOrDuplicateIDs(input.SourceCareOfferingIDs) ||
+		hasInvalidOrDuplicateGrades(input.SourceGradeLevels) {
+		return false
+	}
+	classes, ok := normalizedSourceClasses(input.SourceSchoolClasses)
+	if !ok || (len(input.SourceGradeLevels) > 0 && len(classes) > 0) {
+		return false
+	}
+	input.SourceSchoolClasses = classes
+	if len(input.SourceGradeLevels) == 0 {
+		input.SourceGradeLevels = nil
+	}
+	return true
+}
+
+func hasInvalidOrDuplicateIDs(ids []int64) bool {
+	seen := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		if id <= 0 || seen[id] {
+			return true
+		}
+		seen[id] = true
+	}
+	return false
+}
+
+func hasInvalidOrDuplicateGrades(grades []int) bool {
+	seen := make(map[int]bool, len(grades))
+	for _, grade := range grades {
+		if grade < 1 || grade > 13 || seen[grade] {
+			return true
+		}
+		seen[grade] = true
+	}
+	return false
+}
+
+func normalizedSourceClasses(classes []string) ([]string, bool) {
+	if len(classes) == 0 {
+		return nil, true
+	}
+	result := make([]string, 0, len(classes))
+	seen := make(map[string]bool, len(classes))
+	for _, class := range classes {
+		trimmed := strings.TrimSpace(class)
+		key := strings.ToLower(trimmed)
+		if trimmed == "" || seen[key] {
+			return nil, false
+		}
+		seen[key] = true
+		result = append(result, trimmed)
+	}
+	return result, true
+}
+
+func normalizeGroupTargets(groupID int64, targets []GroupTargetInput) ([]GroupTargetInput, error) {
+	if groupID <= 0 {
+		return nil, ErrInvalidGroupTarget
+	}
+	result := make([]GroupTargetInput, len(targets))
+	var targetType string
+	for index, target := range targets {
+		normalized, err := normalizeGroupTarget(target)
+		if err != nil || (targetType != "" && normalized.TargetGroupType != targetType) {
+			return nil, ErrInvalidGroupTarget
+		}
+		targetType = normalized.TargetGroupType
+		result[index] = normalized
+	}
+	return result, nil
+}
+
+func normalizeGroupTarget(target GroupTargetInput) (GroupTargetInput, error) {
+	switch target.TargetGroupType {
+	case TargetGroupTypeGrade:
+		if target.TargetGradeLevel == nil || *target.TargetGradeLevel < 1 || *target.TargetGradeLevel > 13 || target.TargetSchoolClass != nil || target.EducationGroupID != nil {
+			return GroupTargetInput{}, ErrInvalidGroupTarget
+		}
+	case TargetGroupTypeSchoolClass:
+		if target.TargetSchoolClass == nil || strings.TrimSpace(*target.TargetSchoolClass) == "" || target.TargetGradeLevel != nil || target.EducationGroupID != nil {
+			return GroupTargetInput{}, ErrInvalidGroupTarget
+		}
+		trimmed := strings.TrimSpace(*target.TargetSchoolClass)
+		target.TargetSchoolClass = &trimmed
+	case TargetGroupTypeEducationGroup:
+		if target.EducationGroupID == nil || *target.EducationGroupID <= 0 || target.TargetGradeLevel != nil || target.TargetSchoolClass != nil {
+			return GroupTargetInput{}, ErrInvalidGroupTarget
+		}
+	default:
+		return GroupTargetInput{}, ErrInvalidGroupTarget
+	}
+	return target, nil
+}
+
 func ErrorCode(err error) string {
 	switch {
 	case err == nil:
@@ -319,6 +577,14 @@ func ErrorCode(err error) string {
 		return "category_name_exists"
 	case errors.Is(err, ErrCategoryArchived):
 		return "category_archived"
+	case errors.Is(err, ErrGroupNotFound):
+		return "group_not_found"
+	case errors.Is(err, ErrInvalidGroup):
+		return "invalid_group"
+	case errors.Is(err, ErrInvalidGroupQuery):
+		return "invalid_group_query"
+	case errors.Is(err, ErrInvalidGroupTarget):
+		return "invalid_group_target"
 	default:
 		return "internal_error"
 	}

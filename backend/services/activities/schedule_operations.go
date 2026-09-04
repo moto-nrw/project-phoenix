@@ -2,25 +2,23 @@ package activities
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // ======== Schedule Methods ========
 
 // AddSchedule adds a schedule to an activity group
 func (s *Service) AddSchedule(ctx context.Context, groupID int64, schedule *activities.Schedule) (*activities.Schedule, error) {
-	_, err := s.findMutableActivityGroup(ctx, groupID)
+	group, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
 		return nil, &ActivityError{Op: opFindGroup, Err: err}
 	}
 
 	// Set group ID
 	schedule.ActivityGroupID = groupID
+	schedule.SetTenantID(group.GetTenantID())
 
 	// Validate the schedule
 	if err := schedule.Validate(); err != nil {
@@ -28,7 +26,6 @@ func (s *Service) AddSchedule(ctx context.Context, groupID int64, schedule *acti
 	}
 
 	// Create the schedule
-	schedule.SetTenantID(tenant.FromContext(ctx))
 	if err := s.scheduleRepo.Create(ctx, schedule); err != nil {
 		return nil, &ActivityError{Op: "create schedule", Err: err}
 	}
@@ -41,7 +38,7 @@ func (s *Service) GetSchedule(ctx context.Context, id int64) (*activities.Schedu
 	schedule, err := s.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
-		if base.IsNoRows(err) {
+		if isRepositoryNotFound(err) {
 			return nil, &ActivityError{Op: opGetSchedule, Err: ErrScheduleNotFound}
 		}
 		return nil, &ActivityError{Op: opGetSchedule, Err: err}
@@ -65,7 +62,7 @@ func (s *Service) DeleteSchedule(ctx context.Context, id int64) error {
 	// Check if schedule exists
 	schedule, err := s.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if isRepositoryNotFound(err) {
 			return &ActivityError{Op: "delete schedule", Err: ErrScheduleNotFound}
 		}
 		return &ActivityError{Op: "delete schedule", Err: err}
@@ -87,7 +84,7 @@ func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Sched
 	// Check if schedule exists
 	existingSchedule, err := s.scheduleRepo.FindByID(ctx, schedule.ID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if isRepositoryNotFound(err) {
 			return nil, &ActivityError{Op: opUpdateSchedule, Err: ErrScheduleNotFound}
 		}
 		return nil, &ActivityError{Op: opUpdateSchedule, Err: err}

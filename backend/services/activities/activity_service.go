@@ -2,17 +2,12 @@ package activities
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/constants"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Service implements the ActivityService interface
@@ -22,9 +17,13 @@ type Service struct {
 	scheduleRepo    activities.ScheduleRepository
 	supervisorRepo  activities.SupervisorPlannedRepository
 	enrollmentRepo  activities.StudentEnrollmentRepository
-	activeGroupRepo activeModels.GroupRepository
+	activeGroupRepo activityOccupancy
 	staffRepo       userModels.StaffRepository
 	studentRepo     userModels.StudentRepository
+}
+
+type activityOccupancy interface {
+	GetOccupiedActivityGroupIDs(context.Context, []int64) (map[int64]bool, error)
 }
 
 // NewService creates a new activity service
@@ -34,7 +33,7 @@ func NewService(
 	scheduleRepo activities.ScheduleRepository,
 	supervisorRepo activities.SupervisorPlannedRepository,
 	enrollmentRepo activities.StudentEnrollmentRepository,
-	activeGroupRepo activeModels.GroupRepository,
+	activeGroupRepo activityOccupancy,
 	staffRepo userModels.StaffRepository,
 	studentRepo userModels.StudentRepository,
 ) (*Service, error) {
@@ -142,8 +141,8 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 	if err := s.validateAndSetCategory(ctx, group); err != nil {
 		return nil, err
 	}
+	group.SetTenantID(group.Category.GetTenantID())
 
-	group.SetTenantID(tenant.FromContext(ctx))
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return nil, &ActivityError{Op: "create group", Err: err}
 	}
@@ -152,7 +151,7 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 		return nil, &ActivityError{Op: "create group", Err: err}
 	}
 
-	if err := s.createSchedulesInTx(ctx, s, group.ID, schedules); err != nil {
+	if err := s.createSchedulesInTx(ctx, s, group, schedules); err != nil {
 		return nil, &ActivityError{Op: "create group", Err: err}
 	}
 
@@ -191,7 +190,6 @@ func (s *Service) createSupervisorsInTx(ctx context.Context, txService ActivityS
 			return &ActivityError{Op: opValidateSupervisor, Err: err}
 		}
 
-		supervisor.SetTenantID(tenant.FromContext(ctx))
 		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
 			return &ActivityError{Op: opCreateSupervisor, Err: err}
 		}
@@ -200,15 +198,15 @@ func (s *Service) createSupervisorsInTx(ctx context.Context, txService ActivityS
 }
 
 // createSchedulesInTx creates schedules for a group within a transaction
-func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivityService, groupID int64, schedules []*activities.Schedule) error {
+func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivityService, group *activities.Group, schedules []*activities.Schedule) error {
 	for _, schedule := range schedules {
-		schedule.ActivityGroupID = groupID
+		schedule.ActivityGroupID = group.ID
+		schedule.SetTenantID(group.GetTenantID())
 
 		if err := schedule.Validate(); err != nil {
 			return &ActivityError{Op: opValidateSchedule, Err: err}
 		}
 
-		schedule.SetTenantID(tenant.FromContext(ctx))
 		if err := txService.(*Service).scheduleRepo.Create(ctx, schedule); err != nil {
 			return &ActivityError{Op: "create schedule", Err: err}
 		}
@@ -218,16 +216,15 @@ func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivitySer
 
 // GetGroup retrieves an activity group by ID
 func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, error) {
-	group, err := s.groupRepo.FindByID(ctx, id)
+	group, err := s.categories.FindGroup(ctx, id)
 	if err != nil {
-		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
-		if base.IsNoRows(err) {
+		if errors.Is(err, timetable.ErrGroupNotFound) {
 			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, &ActivityError{Op: opGetGroup, Err: err}
 	}
 
-	return group, nil
+	return groupFromOwner(group), nil
 }
 
 // findMutableActivityGroup resolves the persisted group and rejects timetable
@@ -237,7 +234,7 @@ func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, er
 func (s *Service) findMutableActivityGroup(ctx context.Context, id int64) (*activities.Group, error) {
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if isRepositoryNotFound(err) {
 			return nil, ErrGroupNotFound
 		}
 		return nil, err
@@ -274,7 +271,7 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 	if err != nil {
 		return nil, &ActivityError{Op: "update group", Err: err}
 	}
-	if constants.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
+	if timetable.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
 		return nil, &ActivityError{Op: "update group", Err: ErrSystemActivityProtected}
 	}
 	if group.CategoryID != existingGroup.CategoryID {
@@ -282,6 +279,7 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 			return nil, err
 		}
 	}
+	group.SetTenantID(existingGroup.GetTenantID())
 
 	if err := s.groupRepo.Update(ctx, group); err != nil {
 		return nil, &ActivityError{Op: "update group", Err: err}
@@ -300,15 +298,15 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID i
 	// are never treated as absence.
 	existingGroup, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		if base.IsNoRows(err) && hasManagePermission {
+		if isRepositoryNotFound(err) && hasManagePermission {
 			return nil
 		}
-		if base.IsNoRows(err) {
+		if isRepositoryNotFound(err) {
 			return &ActivityError{Op: "delete group", Err: ErrGroupNotFound}
 		}
 		return &ActivityError{Op: "delete group", Err: err}
 	}
-	if constants.IsSystemActivityName(existingGroup.Name) {
+	if timetable.IsSystemActivityName(existingGroup.Name) {
 		return &ActivityError{Op: "delete group", Err: ErrSystemActivityProtected}
 	}
 	if existingGroup.IsTemplate {
@@ -379,12 +377,17 @@ func deleteGroupSchedules(ctx context.Context, service *Service, groupID int64) 
 
 // ListGroups lists activity groups with optional filters
 func (s *Service) ListGroups(ctx context.Context, query *activities.GroupListQuery) ([]*activities.Group, error) {
-	groups, err := s.groupRepo.ListWithCategory(ctx, query)
+	filter := timetable.GroupFilter{}
+	if query != nil {
+		filter = timetable.GroupFilter{
+			Name: query.Name, CategoryID: query.CategoryID, IsSystem: query.IsSystem, IDs: query.IDs,
+		}
+	}
+	groups, err := s.categories.ListGroups(ctx, filter)
 	if err != nil {
 		return nil, &ActivityError{Op: "list groups", Err: err}
 	}
-
-	return groups, nil
+	return groupsFromOwner(groups), nil
 }
 
 // ListGroupsWithOccupancy returns all activity groups with their active session status
@@ -431,12 +434,12 @@ func (s *Service) FindByCategory(ctx context.Context, categoryID int64) ([]*acti
 	}
 
 	// Use the repository method
-	groups, err := s.groupRepo.FindByCategory(ctx, categoryID)
+	groups, err := s.categories.ListGroups(ctx, timetable.GroupFilter{CategoryID: &categoryID, OrderByName: true})
 	if err != nil {
 		return nil, &ActivityError{Op: opFindByCategory, Err: err}
 	}
 
-	return groups, nil
+	return groupsFromOwner(groups), nil
 }
 
 // GetGroupWithDetails retrieves a group with its supervisors and schedules
@@ -445,7 +448,7 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
-		if base.IsNoRows(err) {
+		if isRepositoryNotFound(err) {
 			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: err}
@@ -512,7 +515,7 @@ func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID 
 	// check and the subsequent write.
 	group, err := s.groupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if isRepositoryNotFound(err) {
 			return false, &ActivityError{Op: opCheckPermissions, Err: ErrGroupNotFound}
 		}
 		return false, &ActivityError{Op: opCheckPermissions, Err: err}

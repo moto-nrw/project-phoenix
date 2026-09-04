@@ -395,30 +395,6 @@ func (r *GroupRepository) FindTargetStudentIDsByGroupIDs(ctx context.Context, gr
 	return result, nil
 }
 
-// FindByCategory finds all groups in a specific category
-func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
-	var groups []*activities.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
-		Where("category_id = ?", categoryID)
-
-	query = base.WithTenantFilter(ctx, query, "group")
-
-	err := query.
-		Order(orderByNameAsc).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by category",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return groups, nil
-}
-
 // FindOpenGroups finds all groups that are open for enrollment
 func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Group, error) {
 	var groups []*activities.Group

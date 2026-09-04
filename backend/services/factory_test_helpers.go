@@ -88,7 +88,9 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{DB: db, Observe: func(timetableCompose.Observation) {}})
+	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
+		DB: db, Students: timetableStudents(persons), Observe: func(timetableCompose.Observation) {},
+	})
 	if err != nil {
 		return ownerCapabilities{}, err
 	}

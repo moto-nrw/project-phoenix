@@ -73,4 +73,13 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 		panic("repository factory: care exit cleanup adapter is unavailable")
 	}
 	repository.BindActivityBookings(activityBookingDirectory{capability: capability})
+	targets, ok := f.ActivityGroup.(activityGroupTargets)
+	if !ok {
+		panic("repository factory: activity group repository must serve group targets")
+	}
+	f.ActivityGroup = timetableActivityGroupRepository{
+		activityGroupTargets: targets,
+		timetable:            capability,
+		groups:               f.schoolStructure,
+	}
 }

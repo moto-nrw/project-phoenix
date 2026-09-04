@@ -107,9 +107,6 @@ type GroupRepository interface {
 	// ArchiveTemplate soft-deletes a non-archived template (sets archived_at).
 	ArchiveTemplate(ctx context.Context, id int64) (rowsAffected int64, err error)
 
-	// FindByCategory finds all groups in a specific category
-	FindByCategory(ctx context.Context, categoryID int64) ([]*Group, error)
-
 	// FindOpenGroups finds all groups that are open for enrollment
 	FindOpenGroups(ctx context.Context) ([]*Group, error)
 

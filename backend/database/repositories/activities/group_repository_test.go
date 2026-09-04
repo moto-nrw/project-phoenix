@@ -318,40 +318,6 @@ func TestActivityGroupRepository_List(t *testing.T) {
 	})
 }
 
-func TestActivityGroupRepository_FindByCategory(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds groups by category ID", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "ByCategory")
-
-		groups, err := repo.FindByCategory(ctx, group.CategoryID)
-		require.NoError(t, err)
-		assert.NotEmpty(t, groups)
-
-		var found bool
-		for _, g := range groups {
-			if g.ID == group.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found)
-	})
-
-	t.Run("returns empty for category with no groups", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "EmptyCategory")
-
-		groups, err := repo.FindByCategory(ctx, category.ID)
-		require.NoError(t, err)
-		assert.Empty(t, groups)
-	})
-}
-
 func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 	t.Parallel()
 

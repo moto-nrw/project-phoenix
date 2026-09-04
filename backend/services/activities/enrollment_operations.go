@@ -2,15 +2,12 @@ package activities
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // ======== Enrollment Methods ========
@@ -46,8 +43,6 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 		ActivityGroupID: groupID,
 		ValidFrom:       timezone.TodayDate(),
 	}
-	enrollment.SetTenantID(tenant.FromContext(ctx))
-
 	if err := s.enrollmentRepo.Create(ctx, enrollment); err != nil {
 		return &ActivityError{Op: "enroll student", Err: err}
 	}
@@ -306,7 +301,7 @@ func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (
 	for _, studentID := range ordered {
 		student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if isRepositoryNotFound(err) {
 				continue
 			}
 			return nil, err
@@ -353,7 +348,7 @@ func (s *Service) loadStudentForGate(ctx context.Context, studentID int64) (*use
 	}
 	student, err := s.studentRepo.FindByID(ctx, studentID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if isRepositoryNotFound(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -401,8 +396,6 @@ func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService ActivityS
 				ActivityGroupID: groupID,
 				ValidFrom:       timezone.TodayDate(),
 			}
-			enrollment.SetTenantID(tenant.FromContext(ctx))
-
 			if err := txService.(*Service).enrollmentRepo.Create(ctx, enrollment); err != nil {
 				return &ActivityError{Op: "create enrollment", Err: err}
 			}
@@ -510,7 +503,8 @@ func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, s
 		}
 		group := enrollment.ActivityGroup
 		if group == nil {
-			group = &activities.Group{Model: base.Model{ID: enrollment.ActivityGroupID}}
+			group = &activities.Group{}
+			group.ID = enrollment.ActivityGroupID
 		}
 		if seen[enrollment.StudentID] == nil {
 			seen[enrollment.StudentID] = map[int64]bool{}

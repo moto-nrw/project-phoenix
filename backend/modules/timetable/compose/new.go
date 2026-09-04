@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
@@ -20,12 +21,13 @@ import (
 type Observation = ports.Observation
 
 type Dependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
+	DB       *bun.DB
+	Students StudentDirectory
+	Observe  func(Observation)
 }
 
 func New(dependencies Dependencies) (*timetable.Module, error) {
-	if dependencies.DB == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Observe == nil {
 		return nil, errors.New("timetable compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
@@ -33,7 +35,8 @@ func New(dependencies Dependencies) (*timetable.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	}
-	service := application.New(store, transaction{}, observe)
+	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students},
+		func() string { return timezone.TodayDate().String() }, observe)
 	return timetable.NewModule(engine{service: service, observe: observe}), nil
 }
 
@@ -116,6 +119,80 @@ func (e engine) ListCategories(ctx context.Context) ([]timetable.Category, error
 func (e engine) CountCategoryUsage(ctx context.Context) (map[int64]int, error) {
 	result, err := e.service.CountCategoryUsage(ctx)
 	return result, mapError(err)
+}
+
+func (e engine) FindGroup(ctx context.Context, id int64) (timetable.Group, error) {
+	value, err := e.service.FindGroup(ctx, id)
+	return groupToPublic(value), mapError(err)
+}
+
+func (e engine) FindGroupForUpdate(ctx context.Context, id int64) (timetable.Group, error) {
+	value, err := e.service.FindGroupForUpdate(ctx, id)
+	return groupToPublic(value), mapError(err)
+}
+
+func (e engine) FindGroupByName(ctx context.Context, name string) (timetable.Group, error) {
+	value, err := e.service.FindGroupByName(ctx, name)
+	return groupToPublic(value), mapError(err)
+}
+
+func (e engine) ListGroups(ctx context.Context, filter timetable.GroupFilter) ([]timetable.Group, error) {
+	values, err := e.service.ListGroups(ctx, domain.GroupFilter{
+		Name: filter.Name, CategoryID: filter.CategoryID, IsSystem: filter.IsSystem,
+		IDs: filter.IDs, OrderByName: filter.OrderByName,
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.Group, 0, len(values))
+	for _, value := range values {
+		result = append(result, groupToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) ListGroupTargets(ctx context.Context, ids []int64) (map[int64][]timetable.GroupTarget, error) {
+	values, err := e.service.ListGroupTargets(ctx, ids)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make(map[int64][]timetable.GroupTarget, len(values))
+	for groupID, targets := range values {
+		for _, target := range targets {
+			result[groupID] = append(result[groupID], groupTargetToPublic(target))
+		}
+	}
+	return result, nil
+}
+
+func (e engine) ListTargetStudentIDs(ctx context.Context, ids []int64) (map[int64][]int64, error) {
+	result, err := e.service.ListTargetStudentIDs(ctx, ids)
+	return result, mapError(err)
+}
+
+func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
+	values := make([]domain.GroupTargetFields, 0, len(targets))
+	for _, target := range targets {
+		values = append(values, domain.GroupTargetFields{
+			TargetGroupType: target.TargetGroupType, TargetGradeLevel: target.TargetGradeLevel,
+			TargetSchoolClass: target.TargetSchoolClass, EducationGroupID: target.EducationGroupID,
+		})
+	}
+	return mapError(e.service.ReplaceGroupTargets(ctx, groupID, values))
+}
+
+func (e engine) CreateGroup(ctx context.Context, input timetable.GroupInput) (timetable.Group, error) {
+	value, err := e.service.CreateGroup(ctx, groupFields(input))
+	return groupToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateGroup(ctx context.Context, id int64, input timetable.GroupInput) (timetable.Group, error) {
+	value, err := e.service.UpdateGroup(ctx, id, groupFields(input))
+	return groupToPublic(value), mapError(err)
+}
+
+func (e engine) DeleteGroup(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteGroup(ctx, id))
 }
 
 func (e engine) CreateCategory(ctx context.Context, input timetable.CreateCategory) (timetable.Category, error) {
@@ -209,6 +286,48 @@ func categoryToPublic(value domain.Category) timetable.Category {
 	}
 }
 
+func groupToPublic(value domain.Group) timetable.Group {
+	result := timetable.Group{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Name: value.Name, MaxParticipants: value.MaxParticipants, RequiredStaff: value.RequiredStaff, IsOpen: value.IsOpen,
+		CategoryID: value.CategoryID, PlanningTrackID: value.PlanningTrackID, PlannedRoomID: value.PlannedRoomID,
+		CreatedBy: value.CreatedBy, Type: value.Type, EducationGroupID: value.EducationGroupID, ListKind: value.ListKind,
+		IsTemplate: value.IsTemplate, IsSystem: value.IsSystem, ArchivedAt: value.ArchivedAt, SeriesRootID: value.SeriesRootID,
+		CalendarPeriodID: value.CalendarPeriodID, TargetGroupType: value.TargetGroupType,
+		TargetGradeLevel: value.TargetGradeLevel, TargetSchoolClass: value.TargetSchoolClass,
+		SourceCareOfferingIDs: value.SourceCareOfferingIDs, SourceGradeLevels: value.SourceGradeLevels,
+		SourceSchoolClasses: value.SourceSchoolClasses, Notes: value.Notes,
+	}
+	if value.Category != nil {
+		category := categoryToPublic(*value.Category)
+		result.Category = &category
+	}
+	return result
+}
+
+func groupFields(value timetable.GroupInput) domain.GroupFields {
+	return domain.GroupFields{
+		Name: value.Name, MaxParticipants: value.MaxParticipants, RequiredStaff: value.RequiredStaff, IsOpen: value.IsOpen,
+		CategoryID: value.CategoryID, PlanningTrackID: value.PlanningTrackID, PlannedRoomID: value.PlannedRoomID,
+		CreatedBy: value.CreatedBy, Type: value.Type, EducationGroupID: value.EducationGroupID, ListKind: value.ListKind,
+		IsTemplate: value.IsTemplate, IsSystem: value.IsSystem, ArchivedAt: value.ArchivedAt, SeriesRootID: value.SeriesRootID,
+		CalendarPeriodID: value.CalendarPeriodID, TargetGroupType: value.TargetGroupType,
+		TargetGradeLevel: value.TargetGradeLevel, TargetSchoolClass: value.TargetSchoolClass,
+		SourceCareOfferingIDs: value.SourceCareOfferingIDs, SourceGradeLevels: value.SourceGradeLevels,
+		SourceSchoolClasses: value.SourceSchoolClasses, Notes: value.Notes,
+	}
+}
+
+func groupTargetToPublic(value domain.GroupTarget) timetable.GroupTarget {
+	return timetable.GroupTarget{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		ActivityGroupID: value.ActivityGroupID,
+		TargetGroupType: value.TargetGroupType, TargetGradeLevel: value.TargetGradeLevel,
+		TargetSchoolClass: value.TargetSchoolClass, EducationGroupID: value.EducationGroupID,
+		EducationGroupName: value.EducationGroupName,
+	}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -223,6 +342,8 @@ func mapError(err error) error {
 		return timetable.ErrSystemCategoryName
 	case errors.Is(err, domain.ErrCategoryArchived):
 		return timetable.ErrCategoryArchived
+	case errors.Is(err, domain.ErrGroupNotFound):
+		return timetable.ErrGroupNotFound
 	default:
 		return err
 	}

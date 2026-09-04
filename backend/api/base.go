@@ -221,7 +221,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		return moduleServices{}, err
 	}
 	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
-		DB: db,
+		DB: db, Students: timetableStudents(persons),
 		Observe: func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(
 				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,

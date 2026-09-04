@@ -145,18 +145,6 @@ func (r *Repository) FindByName(ctx context.Context, name string) (*facilitiesMo
 	return toLegacyPointer(room), nil
 }
 
-func (r *Repository) FindByCategory(ctx context.Context, category string) ([]*facilitiesModels.Room, error) {
-	rooms, err := r.capability()
-	if err != nil {
-		return nil, err
-	}
-	values, err := rooms.ListRooms(ctx, facilities.RoomFilter{Category: &category})
-	if err != nil {
-		return nil, err
-	}
-	return toLegacyPointers(values), nil
-}
-
 func roomID(value any) (int64, error) {
 	switch id := value.(type) {
 	case int64:
