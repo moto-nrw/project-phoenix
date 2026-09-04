@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction(t
 	}))
 
 	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
-		found, err := repo.FindActiveByDeviceIDWithNames(adminCtx, device.ID)
+		found, err := repo.FindActiveByDeviceIDWithNames(tenant.WithTenantID(adminCtx, testpkg.Tenant(t)), device.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		require.NotNil(t, found.ActualGroup)
