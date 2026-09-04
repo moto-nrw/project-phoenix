@@ -708,6 +708,8 @@ func TestDeviceCheckin_RFIDLookupFailureReturnsInternalServerError(t *testing.T)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	assert.NotContains(t, response, "code")
+	assert.Equal(t, "Internal server error", response["error"])
+	assert.NotContains(t, rr.Body.String(), "rfid lookup exploded")
 }
 
 // =============================================================================
@@ -2725,6 +2727,9 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	assert.Equal(t, "Internal server error", response["error"])
+	assert.NotContains(t, rr.Body.String(), "rfid lookup exploded")
 }
 
 func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testing.T) {

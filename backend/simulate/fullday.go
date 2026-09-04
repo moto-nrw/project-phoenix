@@ -152,7 +152,11 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 
 		_, err := rt.Client.DevicePost("/api/iot/session/start", body, device.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			return fmt.Errorf("start session for %s: %w", actName, err)
+			startErr := fmt.Errorf("start session for %s: %w", actName, err)
+			if cleanupErr := endSessions(rt, rt.DeviceKeys[:i]); cleanupErr != nil {
+				return errors.Join(startErr, fmt.Errorf("end previously started sessions: %w", cleanupErr))
+			}
+			return startErr
 		}
 
 		if roomID != 0 {
@@ -425,16 +429,26 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Printf("  %d daily checkouts, %d feedback submitted\n", rt.Counts.DailyCheckouts, rt.Counts.FeedbackSubmitted)
 
-	for i := 0; i < rt.Counts.SessionsStarted && i < len(rt.DeviceKeys); i++ {
-		device := rt.State.Devices[rt.DeviceKeys[i]]
-		_, err := rt.Client.DevicePost("/api/iot/session/end", nil, device.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			return fmt.Errorf("end session on device %s: %w", rt.DeviceKeys[i], err)
-		}
-		rt.Counts.SessionsEnded++
+	sessionsStarted := min(rt.Counts.SessionsStarted, len(rt.DeviceKeys))
+	if err := endSessions(rt, rt.DeviceKeys[:sessionsStarted]); err != nil {
+		return err
 	}
 	fmt.Printf("  %d sessions ended\n", rt.Counts.SessionsEnded)
 	return nil
+}
+
+func endSessions(rt *Runtime, deviceKeys []string) error {
+	var errs []error
+	for _, deviceKey := range deviceKeys {
+		device := rt.State.Devices[deviceKey]
+		_, err := rt.Client.DevicePost("/api/iot/session/end", nil, device.APIKey, rt.State.DevicePIN)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("end session on device %s: %w", deviceKey, err))
+			continue
+		}
+		rt.Counts.SessionsEnded++
+	}
+	return errors.Join(errs...)
 }
 
 type printSummaryAction struct{}

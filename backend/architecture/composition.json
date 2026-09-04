@@ -416,7 +416,7 @@
       "declaration": "TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2746
+        2751
       ],
       "tables": []
     },
@@ -426,7 +426,7 @@
       "declaration": "TestDevicePickupQuery_StaffLookupFailureReturnsServerError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2977
+        2982
       ],
       "tables": []
     },

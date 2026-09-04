@@ -140,7 +140,7 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 			slog.String("rfid", rfid),
 			slog.String("error", err.Error()),
 		)
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Internal server error", err))
 		return nil
 	}
 
