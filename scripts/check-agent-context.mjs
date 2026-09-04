@@ -102,6 +102,10 @@ function pointerTarget(pointer, document, root, line) {
 }
 
 function headingSlug(text) {
+  // Consume code spans first so their underscores stay literal; word-internal
+  // underscores are identifiers, not emphasis delimiters.
+  text = text.replace(/(`+)(.*?)\1|(?<![\p{L}\p{M}\p{N}_])(__?)(?=\S)(.*?\S)\3(?![\p{L}\p{M}\p{N}_])/gu,
+    (_match, ticks, code, _delimiter, content) => ticks ? code : content);
   return text.replace(/<[^>]*>/g, '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .trim().toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s_-]/gu, '').replace(/\s/g, '-');
 }

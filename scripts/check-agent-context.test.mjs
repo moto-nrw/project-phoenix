@@ -153,3 +153,22 @@ test('optional qualification applies only to its adjacent pointer', t => {
   assert.match(errors[0], /^CLAUDE\.md:1: required\.md:/);
   assert.match(errors[1], /^CLAUDE\.md:2: docs\/required\.md:/);
 });
+
+test('anchors strip underscore emphasis but retain identifiers and inline code', t => {
+  const root = fixture(t, {
+    'CLAUDE.md': [
+      '[Emphasis](#what-does-not-qualify)', '### What does _not_ qualify',
+      '[Strong](#keep-the-boundary)', '### Keep __the boundary__',
+      '[Identifier](#tenant_id-and-school_id)', '### tenant_id and school_id',
+      '[Code](#keep-_tenant_id_-and-__school_id__)', '### Keep `_tenant_id_` and ``__school_id__``',
+      '[Wrong emphasis](#what-does-_not_-qualify)',
+      '[Wrong identifier](#tenantid-and-schoolid)',
+      '[Wrong code](#keep-tenant_id-and-school_id)',
+    ].join('\n'),
+  });
+  const { errors } = checkContext(root);
+  assert.equal(errors.length, 3);
+  assert.match(errors[0], /^CLAUDE\.md:10:.*missing anchor: #tenantid-and-schoolid/);
+  assert.match(errors[1], /^CLAUDE\.md:11:.*missing anchor: #keep-tenant_id-and-school_id/);
+  assert.match(errors[2], /^CLAUDE\.md:9:.*missing anchor: #what-does-_not_-qualify/);
+});

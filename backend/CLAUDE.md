@@ -112,7 +112,7 @@ repoint both to the successor. Materialization/replans never touch dates
 ### GDPR/Privacy Patterns
 - Student data visibility is permission-scoped: admins and verified staff see full data for every child of the tenant (#2329 removed the per-group scope); guest/guardian accounts stay redacted. The wire keeps separate `has_full_access` (read) vs `has_write_access` (write) flags
 - Per-student retention: `DataRetentionDays int` (notnull) — 1-31 days, default 30 via the `DefaultDataRetentionDays` const (`models/users/privacy_consent.go`)
-- Automated cleanup is scheduled per tenant via the `gdpr.data_cleanup_*` settings; manual dry-run: `go run . cleanup preview|stats` (see Development Commands for the exact CLI shapes — they differ per domain)
+- Automated cleanup is scheduled per tenant via the `gdpr.data_cleanup_*` settings; manual dry-run: `go run . cleanup preview|stats` (see [Cleanup CLI](../docs/agents/operations.md#cleanup-cli) for the exact CLI shapes — they differ per domain)
 - All deletions logged in `audit.data_deletions`
 - **Logging: no student names at Info level or above** (IDs only; names at Debug) — CI-enforced by `TestGDPRLogPIIRatchet` (`test/gdpr_log_pii_ratchet_test.go`): no log call at Info+ may read `FirstName`/`LastName`/`GreetingMsg`
 
