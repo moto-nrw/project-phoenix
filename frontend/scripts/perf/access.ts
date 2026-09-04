@@ -41,8 +41,17 @@ export function loadAccess(): SeedAccess {
   return { slug, email, password };
 }
 
+/**
+ * Port des gemessenen Next-Servers. Standard 3000 wie bisher; PERF_PORT
+ * überschreibt ihn, damit der Lauf neben einem fremden Stack auf :3000
+ * (anderes Worktree) möglich bleibt.
+ */
+export function perfPort(): string {
+  return process.env.PERF_PORT ?? "3000";
+}
+
 export function tenantBaseUrl(access: SeedAccess): string {
-  return `http://${access.slug}.localhost:3000`;
+  return `http://${access.slug}.localhost:${perfPort()}`;
 }
 
 /**

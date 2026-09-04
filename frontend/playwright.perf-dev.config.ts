@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import { loadAccess, tenantBaseUrl } from "./scripts/perf/access";
+import { loadAccess, perfPort, tenantBaseUrl } from "./scripts/perf/access";
 import { perfServerEnv } from "./scripts/perf/env.mjs";
 
 // Render-Zählung mit react-scan gegen den DEV-Server (pnpm run perf:render,
@@ -25,8 +25,8 @@ export default defineConfig({
   },
   webServer: {
     command: "pnpm run dev",
-    env: { ...env, PORT: "3000" },
-    url: "http://localhost:3000/help",
+    env: { ...env, PORT: perfPort() },
+    url: `http://localhost:${perfPort()}/help`,
     reuseExistingServer: true,
     timeout: 180_000,
   },
