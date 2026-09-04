@@ -15,7 +15,7 @@ import type { LinkablePhase } from "~/components/timetable/calendar-period-modal
 import { useToast } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
-import { todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import {
   type Phase,
   listPhases,
@@ -152,7 +152,7 @@ export function useCalendarPeriods(): CalendarPeriodsState {
 
   const beginCreateSemester = useCallback(() => {
     setEditing(null);
-    setCreateDefaults(nextSemesterDefaults(todayISO()));
+    setCreateDefaults(nextSemesterDefaults(berlinTodayISO()));
     setModalOpen(true);
   }, []);
 
@@ -209,7 +209,7 @@ export function useCalendarPeriods(): CalendarPeriodsState {
 
   // Statuszeile: der heute laufende Zeitraum plus die Zahl der angelegten
   // Zeiträume, beides aus der bereits geladenen Liste.
-  const today = todayISO();
+  const today = berlinTodayISO();
   const currentPeriod = periods.find(
     (period) => period.startDate <= today && period.endDate >= today,
   );
