@@ -130,6 +130,9 @@ export const refreshTokenExpiry = parseDurationToMs(
   env.AUTH_JWT_REFRESH_EXPIRY,
 );
 
+/** Access tokens inside this window are refreshed by the JWT callback. */
+export const ACCESS_TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
 export function parseJwtPayload(tokenString: string): JwtPayload | null {
   const tokenParts = tokenString.split(".");
   if (tokenParts.length !== 3) {
@@ -1199,8 +1202,6 @@ export const sharedJwtCallback: NonNullable<
 
   // Refresh buffer: how far before access token expiry we proactively refresh.
   // Also used to force an immediate refresh after email change confirmation.
-  const REFRESH_BUFFER_MS = 5 * 60 * 1000;
-
   // Handle client-side session update (e.g. profile name or email change)
   if (trigger === "update" && session) {
     const update = session as Record<string, unknown>;
@@ -1212,12 +1213,13 @@ export const sharedJwtCallback: NonNullable<
     }
     if (update.emailChanged === true) {
       // Force proactive refresh on the next JWT callback by placing
-      // tokenExpiry just inside the REFRESH_BUFFER_MS window (1min margin).
+      // tokenExpiry just inside the refresh window (1min margin).
       // The refresh re-reads operator.Email from the DB, syncing the
       // session to the newly confirmed email. If refresh fails, the
       // token is still in the future (now < tokenExpiry), so
       // RefreshTokenError is NOT set and the user keeps their session.
-      token.tokenExpiry = Date.now() + (REFRESH_BUFFER_MS - 60_000);
+      token.tokenExpiry =
+        Date.now() + (ACCESS_TOKEN_REFRESH_BUFFER_MS - 60_000);
     }
     // Admin staff-view preview (#2893): enter with the freshly minted
     // read-only token, leave by restoring the parked admin state. A start
@@ -1285,7 +1287,7 @@ export const sharedJwtCallback: NonNullable<
     token.tokenExpiry &&
     token.refreshToken &&
     token.refreshTokenExpiry &&
-    now > tokenExpiry - REFRESH_BUFFER_MS &&
+    now > tokenExpiry - ACCESS_TOKEN_REFRESH_BUFFER_MS &&
     now < (token.refreshTokenExpiry as number)
   ) {
     const currentRefreshToken = token.refreshToken as string;

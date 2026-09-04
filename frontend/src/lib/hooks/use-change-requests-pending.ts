@@ -5,6 +5,7 @@ import { fetchPendingChangeRequestCount } from "~/lib/change-requests-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useChangeRequestAccess } from "./use-change-request-access";
+import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
 /**
@@ -49,5 +50,6 @@ export function useChangeRequestsPending() {
     eventNames: ["messages-unread-refresh", "change-requests-refresh"],
     eventDebounceMs: 500,
     refetchOnFocus: true,
+    initialCount: useShellSeed()?.counts.changeRequestsPending,
   });
 }

@@ -74,6 +74,35 @@ Duplikate: auf jedem Screen genau eines, `GET /api/auth/session` mit 4 Aufrufen 
 
 Sequenzielle Ketten: die längste Kette ist überall die Shell-Kette Session, User-Context, Settings-Schema, erste Seitendaten (3 bis 5 Glieder, 250 bis 802 ms). Die Seitendaten selbst laufen parallel; die Zeiterfassung holt ihre 20 Requests in einem Burst bei 1.417 ms, und alle antworten in 17 bis 80 ms.
 
+### Nachmessung nach #2973 (2026-09-04)
+
+Derselbe Harness, dieselbe Maschine, dieselbe Drosselung. Das Tenant-Layout
+lädt die Shell-Daten jetzt serverseitig und reicht sie als Startwerte in die
+Provider und die SWR-Caches. `SessionProvider` bekommt eine rein lesend aus
+dem Session-Cookie dekodierte Sitzung als Prop; Refresh-Callbacks laufen
+weiterhin nur in Route-Handlern, die ein neues Cookie setzen können.
+
+| Kennzahl (Zeiterfassung, kalt)  | vorher   | nachher  |
+| ------------------------------- | -------- | -------- |
+| Shell-Requests pro Seitenaufruf | 18       | 1        |
+| `GET /api/auth/session`         | 4        | 0        |
+| erster Seitendaten-Request      | 1.417 ms | 1.084 ms |
+| `GET /api/staff/2/schedule`     | 1.564 ms | 1.314 ms |
+| LCP                             | 1.208 ms | 772 ms   |
+
+Der eine verbliebene Shell-Request ist `GET /api/notifications/push/public-key`
+(404, weil Web Push lokal nicht eingerichtet ist). Er entfällt, sobald
+`syncExistingPushSubscription` erst die Browser-Registrierung liest und den
+Schlüssel nur holt, wenn es etwas zu binden gibt. Das ändert eine Zusicherung,
+die `push-api.test.ts` seit dem Web-Push-Fix festhält (ohne Registrierung wird
+die fehlende VAPID-Konfiguration gemeldet), und gehört deshalb in eine eigene,
+bewusst entschiedene Änderung.
+
+Die Requests für Erinnerungen und Ankündigungen sind nicht verschwunden,
+sondern serverseitig: sie laufen jetzt parallel, während das HTML gestreamt
+wird, statt nach dem Hydrieren im Browser. In den Proxy-Metriken tauchen sie
+weiterhin auf.
+
 Abgebrochene Requests: pro Aufruf 10 bis 28 `fetch`-Requests auf Seitenpfade (`/students/search`, `/rooms`, `/ogs-groups`, `/anfragen`, `/settings`, `/staff`, `/time-tracking`, …), die der Browser wieder abbricht. Das sind die Router-Prefetches der `next/link`-Einträge in Seitenleiste und Bottom-Nav. Folge-Issue #2976.
 
 ## Proxy-Metriken
@@ -187,7 +216,7 @@ Die Schleife ist weg (Faktor 20 bis 23 beim Aufruf, Leerlauf bei 0). Was bleibt:
 | Nr. | Maßnahme                                                                                                                            | Erwarteter Effekt                                                                                           | Aufwand          | Status                |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------- | --------------------- |
 | 1   | `MobileBottomNav`: Indikator-State nur bei Änderung setzen                                                                          | Leerlauf-Renders 21.588 in 10 s auf 0; Aufruf-Renders auf dem Dashboard 89.771 auf 3.905 (gemessen)         | 15 Zeilen        | **in diesem PR**      |
-| 2   | Shell-Daten bündeln (Bootstrap-Endpunkt oder Server-Layout), Session-Fetch auf einen reduzieren, Zähler nach dem ersten Paint laden | 18 Shell-Requests auf 1 bis 3, Kette um zwei Hops kürzer (150 bis 300 ms bei 4x Drosselung)                 | mittel           | #2973                 |
+| 2   | Shell-Daten bündeln (Bootstrap-Endpunkt oder Server-Layout), Session-Fetch auf einen reduzieren, Zähler nach dem ersten Paint laden | 18 Shell-Requests auf 1, Session-Fetches auf 0, Seitendaten 333 ms früher (gemessen, siehe Nachmessung)     | mittel           | #2973 **erledigt**    |
 | 3   | Client-Env ohne zod, Charts per `next/dynamic`, PostHog nach dem ersten Paint                                                       | minus 95 kB auf jeder Route, minus 121 bis 135 kB auf vier Routen, minus 75 kB auf dem kritischen Pfad      | klein bis mittel | #2974                 |
 | 4   | Kindersuche: Suchfeld-State isolieren, Karten memoisieren, `useMinuteClock` aus der Page ziehen; Zeiterfassung: Chart memoisieren   | Kindersuche unter 1.000 Renders pro Tastendruck (heute rund 6.300), Wochenwechsel unter 2.000 (heute 7.526) | mittel           | #2975                 |
 | 5   | Sidebar-Links ohne automatischen Prefetch                                                                                           | 10 bis 28 abgebrochene Requests pro Seitenaufruf weg                                                        | klein            | #2976                 |
