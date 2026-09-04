@@ -69,6 +69,8 @@ jobs:
               - 'backend/localization/locales.json'
               - 'backend/services/listexport/assets/**'
               - 'backend/templates/email/**'
+              - 'scripts/backend-architecture.sh'
+              - 'scripts/backend-architecture/**'
             backend-lint:
               - 'backend/**/*.go'
               - 'backend/go.mod'
@@ -82,6 +84,7 @@ jobs:
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/backend-architecture.sh'
+              - 'scripts/backend-architecture/**'
             backend-architecture:
               - 'backend/**/*.go'
               - 'backend/go.mod'
@@ -89,6 +92,7 @@ jobs:
               - 'backend/architecture/**'
               - 'backend/internal/architecture/**'
               - 'scripts/backend-architecture.sh'
+              - 'scripts/backend-architecture/**'
               - 'lefthook.yml'
             backend-lint-full:
               - 'backend/go.mod'
@@ -162,7 +166,9 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache: true
-          cache-dependency-path: backend/go.sum
+          cache-dependency-path: |
+            backend/go.sum
+            scripts/backend-architecture/go.sum
       - name: Check deterministic architecture ratchet
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -198,6 +204,37 @@ jobs:
           else
             scripts/backend-architecture.sh check
           fi
+      - name: Generate and validate current architecture projections
+        run: |
+          output_directory=$(mktemp -d)
+          cleanup() {
+            rm -rf -- "$output_directory"
+          }
+          trap cleanup EXIT
+
+          scripts/backend-architecture.sh diagram --output "$output_directory"
+          scripts/backend-architecture.sh dependencies \
+            --focus module:architecture-check \
+            --output "$output_directory"
+
+          for artifact in architecture.json go-arch-lint.yml dependencies.json dependencies.goda; do
+            test -s "$output_directory/$artifact"
+          done
+          python3 - \
+            "$output_directory/target.svg" \
+            "$output_directory/migration.svg" \
+            "$output_directory/dependencies.svg" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          svg_tag = "{http://www.w3.org/2000/svg}svg"
+          for filename in sys.argv[1:]:
+              root = ET.parse(filename).getroot()
+              if root.tag != svg_tag:
+                  raise SystemExit(
+                      f"{filename}: root element is {root.tag}, expected {svg_tag}"
+                  )
+          PY
       - name: Audit open migration issues
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -316,9 +353,27 @@ jobs:
     if: >-
       always()
       && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [lint, test, backend-architecture-ratchet, env-sync-check]
+    needs: [detect-changes, lint, test, backend-architecture-ratchet, env-sync-check]
     runs-on: ubuntu-latest
     steps:
+      - name: Reject skipped mandatory checks
+        env:
+          ARCHITECTURE_REQUIRED: ${{ needs.detect-changes.outputs.run-backend-architecture }}
+          BACKEND_LINT_REQUIRED: ${{ needs.detect-changes.outputs.run-backend-lint }}
+          FRONTEND_LINT_REQUIRED: ${{ needs.detect-changes.outputs.run-frontend-lint }}
+          BACKEND_TEST_REQUIRED: ${{ needs.detect-changes.outputs.run-backend }}
+          FRONTEND_TEST_REQUIRED: ${{ needs.detect-changes.outputs.run-frontend }}
+          SEED_SMOKE_REQUIRED: ${{ needs.detect-changes.outputs.run-seed-smoke }}
+          ARCHITECTURE_RESULT: ${{ needs.backend-architecture-ratchet.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          if [[ "$ARCHITECTURE_REQUIRED" == true && "$ARCHITECTURE_RESULT" == skipped ]] ||
+             [[ ( "$BACKEND_LINT_REQUIRED" == true || "$FRONTEND_LINT_REQUIRED" == true ) && "$LINT_RESULT" == skipped ]] ||
+             [[ ( "$BACKEND_TEST_REQUIRED" == true || "$FRONTEND_TEST_REQUIRED" == true || "$SEED_SMOKE_REQUIRED" == true ) && "$TEST_RESULT" == skipped ]]; then
+            echo "A mandatory check was skipped (architecture=$ARCHITECTURE_RESULT, lint=$LINT_RESULT, test=$TEST_RESULT)"
+            exit 1
+          fi
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # release/v1
         with:
           jobs: ${{ toJSON(needs) }}

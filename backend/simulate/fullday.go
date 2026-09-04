@@ -84,7 +84,7 @@ func (loginAdminAction) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("no admin accounts in seed state")
 	}
 	admin := rt.State.Accounts.Admin[0]
-	if err := rt.Client.Login(admin.Email, admin.Password); err != nil {
+	if err := rt.Client.Login(admin.Email, admin.Password, rt.State.Bootstrap.TenantSlug); err != nil {
 		return fmt.Errorf("admin login: %w", err)
 	}
 	fmt.Printf("  Logged in as %s\n", admin.Email)

@@ -156,17 +156,21 @@ func (s *Seeder) profileIdentity() seedProfileIdentity {
 }
 
 func (s *Seeder) profileAdminCredentials() (string, string, error) {
-	email := s.definition.SchoolAdminEmail
-	if s.options.AdminEmail != "" {
+	return s.profileAdminCredentialsFor(s.definition)
+}
+
+func (s *Seeder) profileAdminCredentialsFor(definition demoProfileDefinition) (string, string, error) {
+	email := definition.SchoolAdminEmail
+	if s.options.AdminEmail != "" && definition.Key == s.definition.Key {
 		email = s.options.AdminEmail
 	} else if s.options.Randomize {
-		email = fmt.Sprintf("school-admin-%d@example.com", time.Now().UnixNano())
+		email = fmt.Sprintf("%s-admin-%d@example.com", definition.Key, time.Now().UnixNano())
 	}
 	if s.options.StaffPassword != "" {
 		return email, s.options.StaffPassword, nil
 	}
 	if !s.options.Randomize {
-		return email, s.definition.SchoolAdminPassword, nil
+		return email, definition.SchoolAdminPassword, nil
 	}
 	password, err := generateSeedPassword(s.random)
 	if err != nil {
@@ -373,11 +377,15 @@ func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
 	for _, cred := range fs.staffCredentials {
 		staffKey := cred.Name
 		ac := AccountCredentials{
-			Email:    cred.Email,
-			Password: cred.Password,
-			PIN:      cred.PIN,
-			Name:     cred.Name,
-			StaffID:  fs.staffIDs[staffKey],
+			AccountID: cred.AccountID,
+			Email:     cred.Email,
+			Password:  cred.Password,
+			PIN:       cred.PIN,
+			Name:      cred.Name,
+			StaffID:   fs.staffIDs[staffKey],
+		}
+		if len(DemoStaff) > 0 && cred.Name == DemoStaff[0].FirstName+" "+DemoStaff[0].LastName {
+			ac.Key = sharedDeveloperAdminKey
 		}
 		if tid, ok := fs.teacherIDs[staffKey]; ok {
 			ac.TeacherID = tid
@@ -446,11 +454,14 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	fmt.Println("=== DEMO READY ===")
 	fmt.Println()
 
-	// Admin account used for seeding
-	fmt.Println("ADMIN ACCOUNT (used for seeding):")
-	fmt.Printf("  Email:    %s\n", email)
-	fmt.Printf("  Password: %s\n", adminPassword)
-	fmt.Println()
+	if state != nil && len(state.Profiles) > 0 {
+		printSeedProfiles(state)
+	} else {
+		fmt.Println("ADMIN ACCOUNT (used for seeding):")
+		fmt.Printf("  Email:    %s\n", email)
+		fmt.Printf("  Password: %s\n", adminPassword)
+		fmt.Println()
+	}
 
 	// Staff accounts with correct individual passwords
 	fmt.Println("STAFF ACCOUNTS:")
@@ -508,6 +519,46 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	fmt.Println("OUTPUT FILES:")
 	fmt.Printf("  %s   (seed state with credentials & IDs)\n", s.statePath)
 	fmt.Println()
+}
+
+func printSeedProfiles(state *SeedState) {
+	fmt.Println("DEMO SCHOOL PROFILES:")
+	for _, key := range slices.Sorted(maps.Keys(state.Profiles)) {
+		profile := state.Profiles[key]
+		if profile == nil {
+			continue
+		}
+		fmt.Printf("  %s: %s (slug: %s)\n", profile.Key, profile.Name, profile.School.TenantSlug)
+		fmt.Printf("    School admin: %s / %s\n", profile.Credentials.SchoolAdmin.Email, profile.Credentials.SchoolAdmin.Password)
+		fmt.Printf("    Account keys: %s\n", formatAccountKeys(profile.Credentials.Accounts))
+		fmt.Printf("    Student keys: %s\n", formatSortedKeys(profile.Entities.Students))
+		fmt.Printf("    Contact keys: %s\n", formatSortedKeys(profile.Entities.Guardians))
+		fmt.Printf("    Group keys: %s\n", formatSortedKeys(profile.Entities.Groups))
+		fmt.Printf("    Device keys: %s\n", formatSortedKeys(profile.Devices))
+	}
+	fmt.Println()
+}
+
+func formatAccountKeys(accounts SeedStateAccounts) string {
+	keys := make([]string, 0, len(accounts.Admin)+len(accounts.Betreuer))
+	for _, account := range accounts.Admin {
+		keys = append(keys, account.Key)
+	}
+	for _, account := range accounts.Betreuer {
+		keys = append(keys, account.Key)
+	}
+	if len(keys) == 0 {
+		return "-"
+	}
+	slices.Sort(keys)
+	return strings.Join(keys, ", ")
+}
+
+func formatSortedKeys[V any](values map[string]V) string {
+	if len(values) == 0 {
+		return "-"
+	}
+	return strings.Join(slices.Sorted(maps.Keys(values)), ", ")
 }
 
 func printCareWithdrawalDemo(state *SeedState) {

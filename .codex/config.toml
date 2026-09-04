@@ -4,7 +4,7 @@ hooks = true
 
 [skills]
 config = [
-  # Prefer native Codex skills over their Claude variants.
+  # Prefer .agents discovery paths over .claude aliases of the same skills.
   { path = ".claude/skills/creating-team-skills/SKILL.md", enabled = false },
   { path = ".claude/skills/env-docker-sync/SKILL.md", enabled = false },
   { path = ".claude/skills/find-skills/SKILL.md", enabled = false },

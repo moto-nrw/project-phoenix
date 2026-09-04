@@ -1857,6 +1857,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetableprojection/integration",
+      "owner": "timetable-legacy-view",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/timetableenrollmentprovenance",
       "owner": "timetable-enrollment-provenance",
       "role": "postgres",
@@ -6798,6 +6805,32 @@
       "source_role": "postgres",
       "target_owner": "timetable-legacy-view",
       "target_role": "postgres"
+    },
+    {
+      "id": "timetable-legacy-view.test.subject",
+      "description": "Projection regression tests call the exported SQL projection boundary.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "timetable-legacy-view.test.shared-date",
+      "description": "Projection regression tests supply fixed calendar dates to the existing read contracts.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-legacy-view.test.orm-sql",
+      "description": "Projection regression tests verify isolation in real elevated transactions and preserve SQL errors.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
     },
     {
       "id": "timetable-legacy-view.shared-date",

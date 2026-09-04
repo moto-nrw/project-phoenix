@@ -1,3 +1,8 @@
+---
+paths:
+  - "frontend/**"
+---
+
 # Frontend UI Kit — Default to the Shared Components
 
 **RULE: All new frontend UI MUST be built from the shared kit in `frontend/src/components/ui/` (and `frontend/src/components/ui/page-header/`). Do NOT hand-roll a button, card, tab bar, modal, input, badge, table, or menu when a kit component exists. Do NOT import React components from the `@moto-nrw/design-system` package — that package is consumed for CSS tokens only.**
@@ -6,7 +11,7 @@ This kit is the de-facto MOTO design system for project-phoenix — the visual l
 
 > The published `@moto-nrw/design-system` npm package ships components too, but project-phoenix is **not** on them yet — it only imports the package's CSS/tokens (`@import "@moto-nrw/design-system/tailwind"` in `globals.css`). Until the team explicitly migrates, the local `ui/` kit is the single source of truth. Don't import the package's components, and don't introduce a third component system.
 
-This rule reinforces the "Reuse Existing Components" sections in `CLAUDE.md` and `frontend/CLAUDE.md` and the reuse-before-rebuild principle.
+Read this rule before frontend UI changes; the root entry point and `frontend/CLAUDE.md` route here.
 
 ## Source of truth
 
@@ -167,7 +172,7 @@ failure this table exists to prevent: a `Record` or `switch` that maps one
 state to `SICK` and another to `DANGER` renders both identically. Check the
 resolved hex, not the constant name.
 
-Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use these hexes via arbitrary-value classes.
+Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use the corresponding `moto-*` utilities or `LOCATION_COLORS` / `GROUP_ROOM_SHADES`, not copied hex classes.
 
 **Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`, or you introduce a third, wrong green.
 
@@ -199,13 +204,13 @@ The UI skills live in `frontend/.claude/skills/` and load only when an agent wor
 
 The three places where following the vendored skill literally produces wrong output here (two of them fail `pnpm run check`):
 
-| Skill says                                                                  | Here instead                                                                                                                                                                                                     |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `better-ui/surfaces.md`: prefer a `box-shadow` ring over a border for depth | Keep the canonical card surface: `.moto-content-surface` / `rounded-2xl border border-gray-200 bg-white shadow-sm`. Do not strip borders off kit surfaces.                                                       |
-| `better-colors`: express colors as OKLCH tokens                             | Brand semantics come from `LOCATION_COLORS` hex only. New chromatic Tailwind utilities trip the `ui-kit/no-generic-brand-colors` ratchet. Convert notation only in an explicit, approved color-system migration. |
-| `better-writing`: title case vs sentence case, English phrasing             | All user-facing copy is German, with Umlauten. Take the structural advice (name the action in the label, errors next to the field, one clear action per empty state); match the wording of neighbouring screens. |
+| Skill says | Here instead |
+|---|---|
+| `frontend/.claude/skills/better-ui/surfaces.md`: prefer a `box-shadow` ring over a border for depth | Keep the canonical card surface: `.moto-content-surface` / `rounded-2xl border border-gray-200 bg-white shadow-sm`. Do not strip borders off kit surfaces. |
+| `better-colors`: express colors as OKLCH tokens | Brand semantics come from `LOCATION_COLORS` hex only. New chromatic Tailwind utilities trip the `ui-kit/no-generic-brand-colors` ratchet. Convert notation only in an explicit, approved color-system migration. |
+| `better-writing`: title case vs sentence case, English phrasing | All user-facing copy is German, with Umlauten. Take the structural advice (name the action in the label, errors next to the field, one clear action per empty state); match the wording of neighbouring screens. |
 
-On motion, `ui-skills` is stricter than `better-ui/animations.md` and wins: no animation unless it was asked for, compositor properties only.
+On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/animations.md` and wins: no animation unless it was asked for, compositor properties only.
 
 ## Detection
 

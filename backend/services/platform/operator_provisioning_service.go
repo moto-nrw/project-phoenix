@@ -926,10 +926,8 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 
 	var result *OperatorDeviceInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		// FindByID works cross-tenant in admin tx: applyTenantFilter (base.go:36-43)
-		// only adds WHERE when tenant.FromContext(ctx) > 0. WithAdminTx does not set
-		// tenant context (tenant/tx.go:63-75). Admin role bypasses RLS.
-		device, findErr := s.DeviceRepo.FindByID(adminCtx, id)
+		// Load and lock the device without its tenant-scoped room projection.
+		device, findErr := s.DeviceRepo.FindByIDForUpdate(adminCtx, id)
 		if findErr != nil {
 			if errors.Is(findErr, sql.ErrNoRows) {
 				return &OperatorDeviceNotFoundError{DeviceID: id}
@@ -1011,7 +1009,7 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 	}
 
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		device, findErr := s.DeviceRepo.FindByID(adminCtx, id)
+		device, findErr := s.DeviceRepo.FindByIDForUpdate(adminCtx, id)
 		if findErr != nil {
 			if errors.Is(findErr, sql.ErrNoRows) {
 				return &OperatorDeviceNotFoundError{DeviceID: id}
@@ -1085,7 +1083,10 @@ func (s *operatorProvisioningService) transferStatus(ctx, adminCtx context.Conte
 	if s.ActiveGroupRepo == nil {
 		return nil, fmt.Errorf("device transfer: active group repository is not configured")
 	}
-	group, err := s.ActiveGroupRepo.FindActiveByDeviceIDWithNames(adminCtx, device.ID)
+	group, err := s.ActiveGroupRepo.FindActiveByDeviceIDWithNames(
+		tenant.WithTenantID(adminCtx, device.TenantID),
+		device.ID,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("device transfer: find active session: %w", err)
 	}
@@ -1110,7 +1111,8 @@ func (s *operatorProvisioningService) GetDeviceTransferStatus(ctx context.Contex
 	}
 	var result *DeviceTransferStatus
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		device, findErr := s.DeviceRepo.FindByID(adminCtx, id)
+		// Keep the source stable while resolving its tenant-scoped session.
+		device, findErr := s.DeviceRepo.FindByIDForUpdate(adminCtx, id)
 		if findErr != nil {
 			if isLookupNotFound(findErr) {
 				return &OperatorDeviceNotFoundError{DeviceID: id}
