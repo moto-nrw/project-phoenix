@@ -104,13 +104,16 @@ func NewHTTPAPIAdapter(baseURL string) *HTTPAPIAdapter {
 func (a *HTTPAPIAdapter) BaseURL() string { return a.baseURL }
 
 func (a *HTTPAPIAdapter) CheckHealth(ctx context.Context) error {
-	_, _, err := a.Raw(ctx, APIAuth{}, http.MethodGet, "/health", nil, nil)
+	_, status, err := a.Raw(ctx, APIAuth{}, http.MethodGet, "/health", nil, nil)
 	if err != nil {
 		var requestErr *APIRequestError
 		if !errors.As(err, &requestErr) {
 			return fmt.Errorf("server not reachable at %s: %w", a.baseURL, err)
 		}
 		return fmt.Errorf("server health check failed: %w", err)
+	}
+	if status != http.StatusOK {
+		return fmt.Errorf("GET /health failed: status %d", status)
 	}
 	return nil
 }
