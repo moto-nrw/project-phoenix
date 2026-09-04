@@ -205,21 +205,16 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		return nil, err
 	}
 
-	var supervisedGroups map[int64]struct{}
+	openAttendance, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
+	if err != nil {
+		return nil, err
+	}
 	if auth != nil && !auth.BypassResourceChecks {
-		supervisedGroups, err = s.loadMoveSupervisedGroupIDs(ctx, auth.StaffID, op)
-		if err != nil {
+		if err := s.authorizeStudentMove(ctx, auth.StaffID, targetGroup, uniqueIDs, openAttendance, currentVisits, op); err != nil {
 			return nil, err
-		}
-		if _, ok := supervisedGroups[targetGroup.ID]; !ok {
-			return nil, studentMoveForbidden(op)
 		}
 	}
 	if s.GetPresenceMode(ctx) == "binary" {
-		_, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
-		if err != nil {
-			return nil, err
-		}
 		result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
 		for _, studentID := range uniqueIDs {
 			if currentVisits[studentID] != nil {
@@ -231,10 +226,6 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		return result, nil
 	}
 
-	openAttendance, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
-	if err != nil {
-		return nil, err
-	}
 	if err := s.ensureCapacityForStudentMove(ctx, targetGroup, uniqueIDs, openAttendance, currentVisits); err != nil {
 		return nil, err
 	}
@@ -462,6 +453,78 @@ func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64,
 		ids[supervision.GroupID] = struct{}{}
 	}
 	return ids, nil
+}
+
+// authorizeStudentMove implements the push-or-pull rule for staff-initiated
+// room changes (#2969). The caller may move the children when they supervise
+// the TARGET group (pull, unchanged since #2329), or when they supervise the
+// current group of every present child in the batch (push). On the push path
+// the target must additionally be the only running session in its room and
+// carry at least one running supervision, so no child is handed to a room
+// without a responsible adult and the assignment stays unambiguous. Admin
+// callers never reach this function (BypassResourceChecks).
+func (s *service) authorizeStudentMove(
+	ctx context.Context,
+	staffID int64,
+	targetGroup *active.Group,
+	studentIDs []int64,
+	openAttendance map[int64]*active.Attendance,
+	currentVisits map[int64]*active.Visit,
+	op string,
+) error {
+	supervisedGroups, err := s.loadMoveSupervisedGroupIDs(ctx, staffID, op)
+	if err != nil {
+		return err
+	}
+	if _, ok := supervisedGroups[targetGroup.ID]; ok {
+		return nil
+	}
+
+	for _, studentID := range studentIDs {
+		if !studentHasOpenAttendance(openAttendance, studentID) {
+			// Reported as not_present further down; nothing to authorize.
+			continue
+		}
+		currentVisit := currentVisits[studentID]
+		if currentVisit == nil {
+			// A child in transit has no source room the caller could supervise.
+			return studentMoveForbidden(op)
+		}
+		if currentVisit.ActiveGroupID == targetGroup.ID {
+			// Already there; reported as unchanged further down.
+			continue
+		}
+		if _, ok := supervisedGroups[currentVisit.ActiveGroupID]; !ok {
+			return studentMoveForbidden(op)
+		}
+	}
+
+	return s.ensureMoveTargetIsSupervised(ctx, targetGroup, op)
+}
+
+// ensureMoveTargetIsSupervised rejects push moves into a room with several
+// running sessions (ambiguous assignment) or into a session nobody supervises
+// right now.
+func (s *service) ensureMoveTargetIsSupervised(ctx context.Context, targetGroup *active.Group, op string) error {
+	groupsInRoom, err := s.GroupRepo.FindActiveByRoomID(ctx, targetGroup.RoomID)
+	if err != nil {
+		return &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	if len(groupsInRoom) != 1 {
+		return studentMoveForbidden(op)
+	}
+
+	supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, targetGroup.ID, true)
+	if err != nil {
+		return &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	now := time.Now()
+	for _, supervisor := range supervisors {
+		if supervisor != nil && IsSupervisorActive(supervisor, now) {
+			return nil
+		}
+	}
+	return studentMoveForbidden(op)
 }
 
 func studentMoveForbidden(op string) error {
