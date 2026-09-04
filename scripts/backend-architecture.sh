@@ -2,6 +2,11 @@
 set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
+# Hooks export repository-local Git variables. Clear them before child commands
+# change directory, so both the backend and isolated fixtures resolve correctly.
+while IFS= read -r git_variable; do
+  unset "$git_variable"
+done < <(git rev-parse --local-env-vars)
 cd "$repo_root/backend"
 export PHOENIX_ARCHITECTURE_PROJECT="$repo_root/backend"
 

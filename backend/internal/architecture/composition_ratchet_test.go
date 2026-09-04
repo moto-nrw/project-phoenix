@@ -162,3 +162,13 @@ func TestCompositionSurfaceResolvesCrossFileDependenciesAndTestScopes(t *testing
 		})
 	}
 }
+
+func TestCompositionRatchetWrapperFromGitHook(t *testing.T) {
+	t.Parallel()
+	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
+	gitDir := strings.TrimSpace(runGit(t, root, "rev-parse", "--absolute-git-dir"))
+	output, err := runArchitectureWithEnv(t, map[string]string{"GIT_DIR": gitDir, "GIT_WORK_TREE": "."}, "check")
+	if err != nil || !strings.Contains(output, "composition surface passed:") {
+		t.Fatalf("hook-local Git environment broke base comparison: %v\n%s", err, output)
+	}
+}
