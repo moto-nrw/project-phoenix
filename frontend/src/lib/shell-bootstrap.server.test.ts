@@ -234,7 +234,7 @@ describe("loadShellBootstrap", () => {
     expect(shell.accountTenants).toBeUndefined();
     expect(shell.reminders).toBeUndefined();
     expect(shell.announcements).toBeUndefined();
-    expect(shell.supervision).toBeNull();
+    expect(shell.supervision).toBeUndefined();
     expect(Object.values(shell.counts).every((v) => v === undefined)).toBe(
       true,
     );

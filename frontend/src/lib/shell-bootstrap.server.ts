@@ -366,7 +366,7 @@ export async function loadShellBootstrap(
     accountTenants,
     reminders,
     announcements,
-    supervision,
+    supervision: supervision ?? undefined,
     counts,
   };
 }
