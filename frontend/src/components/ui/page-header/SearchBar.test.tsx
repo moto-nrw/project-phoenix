@@ -4,7 +4,7 @@
  */
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { SearchBar } from "./SearchBar";
+import { SearchBar, SearchBarDraftProvider } from "./SearchBar";
 
 describe("SearchBar", () => {
   const mockOnChange = vi.fn();
@@ -178,6 +178,61 @@ describe("SearchBar", () => {
 
       // The pending keystroke must not resurrect the cleared term.
       expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it("cancels a pending draft when an external reset keeps the same value", () => {
+      const { rerender } = render(
+        <SearchBar
+          value=""
+          onChange={mockOnChange}
+          debounceMs={300}
+          resetKey={0}
+        />,
+      );
+      const input = screen.getByPlaceholderText("Name suchen...");
+      fireEvent.change(input, { target: { value: "Maxi" } });
+
+      rerender(
+        <SearchBar
+          value=""
+          onChange={mockOnChange}
+          debounceMs={300}
+          resetKey={1}
+        />,
+      );
+
+      expect(input).toHaveValue("");
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(mockOnChange).not.toHaveBeenCalled();
+    });
+
+    it("shares a pending draft between responsive copies of the same field", () => {
+      render(
+        <SearchBarDraftProvider
+          value=""
+          onChange={mockOnChange}
+          debounceMs={300}
+          resetKey={0}
+        >
+          <SearchBar value="" onChange={mockOnChange} placeholder="Mobil" />
+          <SearchBar value="" onChange={mockOnChange} placeholder="Desktop" />
+        </SearchBarDraftProvider>,
+      );
+
+      const mobileInput = screen.getByPlaceholderText("Mobil");
+      const desktopInput = screen.getByPlaceholderText("Desktop");
+      fireEvent.change(mobileInput, { target: { value: "Max" } });
+      expect(desktopInput).toHaveValue("Max");
+
+      fireEvent.change(desktopInput, { target: { value: "Maxi" } });
+      expect(mobileInput).toHaveValue("Maxi");
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(mockOnChange).toHaveBeenCalledTimes(1);
+      expect(mockOnChange).toHaveBeenCalledWith("Maxi");
     });
 
     it("clears immediately instead of after the debounce window", () => {

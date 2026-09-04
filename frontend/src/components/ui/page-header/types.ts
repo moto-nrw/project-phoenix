@@ -41,6 +41,8 @@ export interface PageHeaderWithSearchProps {
     readonly inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
     /** See `SearchBarProps.debounceMs` — keeps typing out of the page's state. */
     readonly debounceMs?: number;
+    /** See `SearchBarProps.resetKey` — cancels a draft when a filter reset keeps the same value. */
+    readonly resetKey?: string | number;
   };
 
   // Filter configuration
@@ -243,6 +245,12 @@ export interface SearchBarProps {
    * an external change (a cleared filter chip) still overwrites the field.
    */
   readonly debounceMs?: number;
+  /**
+   * Changes whenever an external reset must win over a pending draft, even if
+   * `value` already equals the last reported value. Without this signal a
+   * controlled input cannot distinguish that reset from an unrelated render.
+   */
+  readonly resetKey?: string | number;
 }
 
 export interface FilterPanelProps {

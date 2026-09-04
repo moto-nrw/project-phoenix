@@ -3,30 +3,35 @@
 import React from "react";
 import type { SearchBarProps } from "./types";
 
+interface DebouncedSearchValue {
+  readonly shownValue: string;
+  readonly handleChange: (next: string) => void;
+  readonly commitNow: (next: string) => void;
+}
+
+const DebouncedSearchValueContext =
+  React.createContext<DebouncedSearchValue | null>(null);
+
 /**
  * Local draft of the typed text, reported upwards only after `debounceMs` of
  * silence (#2975). Without a debounce the owning page re-renders per keystroke;
- * with one, only this input does. `value` keeps winning: whenever the owner
- * reports a different term than the one this field last sent (a cleared chip,
- * a reset filter), the field follows.
+ * with one, only this input does. `value` keeps winning when the owner reports
+ * a new term; `resetKey` makes an external reset explicit when that term is
+ * already the current controlled value.
  */
 function useDebouncedSearchValue(
   value: string,
   onChange: (next: string) => void,
   debounceMs: number | undefined,
-) {
+  resetKey: string | number | undefined,
+): DebouncedSearchValue {
   const [draft, setDraft] = React.useState(value);
-  // The last value this field pushed upwards. Comparing against it separates
-  // "the owner changed the term" from "the owner echoed our own change back".
-  const lastSentRef = React.useRef(value);
   const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
-    if (value === lastSentRef.current) return;
-    lastSentRef.current = value;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setDraft(value);
-  }, [value]);
+  }, [resetKey, value]);
 
   React.useEffect(
     () => () => {
@@ -38,14 +43,12 @@ function useDebouncedSearchValue(
   const handleChange = React.useCallback(
     (next: string) => {
       if (!debounceMs) {
-        lastSentRef.current = next;
         onChange(next);
         return;
       }
       setDraft(next);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
-        lastSentRef.current = next;
         onChange(next);
       }, debounceMs);
     },
@@ -58,7 +61,6 @@ function useDebouncedSearchValue(
     (next: string) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setDraft(next);
-      lastSentRef.current = next;
       onChange(next);
     },
     [onChange],
@@ -67,21 +69,45 @@ function useDebouncedSearchValue(
   return { shownValue: debounceMs ? draft : value, handleChange, commitNow };
 }
 
-export function SearchBar({
+interface SearchBarDraftProviderProps {
+  readonly value: string;
+  readonly onChange: (next: string) => void;
+  readonly debounceMs: number | undefined;
+  readonly resetKey: string | number | undefined;
+  readonly children: React.ReactNode;
+}
+
+/** Shares one typed draft between responsive copies of the same search field. */
+export function SearchBarDraftProvider({
   value,
   onChange,
+  debounceMs,
+  resetKey,
+  children,
+}: Readonly<SearchBarDraftProviderProps>) {
+  const draftState = useDebouncedSearchValue(
+    value,
+    onChange,
+    debounceMs,
+    resetKey,
+  );
+
+  return (
+    <DebouncedSearchValueContext.Provider value={draftState}>
+      {children}
+    </DebouncedSearchValueContext.Provider>
+  );
+}
+
+function SearchBarContent({
   placeholder = "Name suchen...",
   onClear,
   className = "",
   size = "md",
   inputProps,
-  debounceMs,
-}: Readonly<SearchBarProps>) {
-  const { shownValue, handleChange, commitNow } = useDebouncedSearchValue(
-    value,
-    onChange,
-    debounceMs,
-  );
+  draftState,
+}: Readonly<SearchBarProps & { readonly draftState: DebouncedSearchValue }>) {
+  const { shownValue, handleChange, commitNow } = draftState;
   const sizeClasses = {
     sm: "py-2 pl-9 pr-3 text-sm",
     md: "py-2.5 pl-9 pr-3 text-sm md:pl-10 md:pr-10",
@@ -146,4 +172,25 @@ export function SearchBar({
       )}
     </div>
   );
+}
+
+function SearchBarWithOwnDraft(props: Readonly<SearchBarProps>) {
+  const draftState = useDebouncedSearchValue(
+    props.value,
+    props.onChange,
+    props.debounceMs,
+    props.resetKey,
+  );
+
+  return <SearchBarContent {...props} draftState={draftState} />;
+}
+
+export function SearchBar(props: Readonly<SearchBarProps>) {
+  const sharedDraftState = React.useContext(DebouncedSearchValueContext);
+
+  if (sharedDraftState) {
+    return <SearchBarContent {...props} draftState={sharedDraftState} />;
+  }
+
+  return <SearchBarWithOwnDraft {...props} />;
 }

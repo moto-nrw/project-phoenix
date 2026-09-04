@@ -3,6 +3,7 @@
  * Tests rendering and functionality of the main page header with search and filters
  */
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import type React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PageHeaderWithSearch } from "./PageHeaderWithSearch";
 import type { PageHeaderWithSearchProps } from "./types";
@@ -17,6 +18,8 @@ vi.mock("./PageHeader", () => ({
 }));
 
 vi.mock("./SearchBar", () => ({
+  SearchBarDraftProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
   SearchBar: ({
     value,
     onChange,

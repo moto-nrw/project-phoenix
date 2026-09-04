@@ -965,6 +965,7 @@ function SearchPageContent() {
   // — and with it the whole page — only changes once per search, not once per
   // character.
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchResetKey, setSearchResetKey] = useState(0);
   // Class, group and school year are multi-selects (#2218): two groups working
   // together need both their cohorts in one list. An empty array means "alle".
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(() =>
@@ -1676,6 +1677,7 @@ function SearchPageContent() {
 
   const clearAllFilters = useCallback(() => {
     setSearchTerm("");
+    setSearchResetKey((key) => key + 1);
     setSelectedGroupIds([]);
     setSelectedSchoolClasses([]);
     setSelectedYears([]);
@@ -2807,6 +2809,7 @@ function SearchPageContent() {
             // Typing stays inside the field; the page (and its 100 Karten)
             // only hears the finished term (#2975).
             debounceMs: 300,
+            resetKey: searchResetKey,
           }}
           filters={filterConfigs}
           activeFilters={activeFilters}
