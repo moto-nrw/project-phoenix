@@ -380,6 +380,61 @@ func (e engine) DeleteTimeframe(ctx context.Context, id int64) error {
 	return mapError(e.service.DeleteTimeframe(ctx, id))
 }
 
+func (e engine) FindPlanningTrack(ctx context.Context, id int64) (timetable.PlanningTrack, error) {
+	value, err := e.service.FindPlanningTrack(ctx, id, "")
+	return planningTrackToPublic(value), mapError(err)
+}
+
+func (e engine) FindPlanningTrackForShare(ctx context.Context, id int64) (timetable.PlanningTrack, error) {
+	value, err := e.service.FindPlanningTrack(ctx, id, "SHARE")
+	return planningTrackToPublic(value), mapError(err)
+}
+
+func (e engine) ListPlanningTracks(ctx context.Context, filter timetable.PlanningTrackFilter) ([]timetable.PlanningTrack, error) {
+	values, err := e.service.ListPlanningTracks(ctx, domain.PlanningTrackFilter{IDs: filter.IDs, Ordered: filter.Ordered})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.PlanningTrack, 0, len(values))
+	for _, value := range values {
+		result = append(result, planningTrackToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) CreatePlanningTrack(ctx context.Context, input timetable.PlanningTrackInput) (timetable.PlanningTrack, error) {
+	value, err := e.service.CreatePlanningTrack(ctx, planningTrackFields(input))
+	return planningTrackToPublic(value), mapError(err)
+}
+
+func (e engine) UpdatePlanningTrack(ctx context.Context, id int64, input timetable.PlanningTrackInput) (timetable.PlanningTrack, error) {
+	value, _, err := e.service.UpdatePlanningTrack(ctx, id, planningTrackFields(input), false)
+	return planningTrackToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateActivePlanningTrack(ctx context.Context, id int64, input timetable.PlanningTrackInput) (timetable.PlanningTrack, bool, error) {
+	value, updated, err := e.service.UpdatePlanningTrack(ctx, id, planningTrackFields(input), true)
+	return planningTrackToPublic(value), updated, mapError(err)
+}
+
+func (e engine) DeletePlanningTrack(ctx context.Context, id int64) error {
+	return mapError(e.service.DeletePlanningTrack(ctx, id))
+}
+
+func (e engine) SetPlanningTrackArchivedAt(ctx context.Context, id int64, value *time.Time) (timetable.PlanningTrack, bool, error) {
+	track, updated, err := e.service.SetPlanningTrackArchivedAt(ctx, id, value)
+	return planningTrackToPublic(track), updated, mapError(err)
+}
+
+func (e engine) ReorderPlanningTracks(ctx context.Context, ids []int64) error {
+	return mapError(e.service.ReorderPlanningTracks(ctx, ids))
+}
+
+func (e engine) RestorePlanningTrackAtEnd(ctx context.Context, id int64) (timetable.PlanningTrack, bool, error) {
+	track, restored, err := e.service.RestorePlanningTrackAtEnd(ctx, id)
+	return planningTrackToPublic(track), restored, mapError(err)
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -620,6 +675,15 @@ func timeframeFields(value timetable.TimeframeInput) domain.TimeframeFields {
 		IsActive: value.IsActive, Description: value.Description}
 }
 
+func planningTrackToPublic(value domain.PlanningTrack) timetable.PlanningTrack {
+	return timetable.PlanningTrack{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Name: value.Name, Color: value.Color, SortOrder: value.SortOrder, ArchivedAt: value.ArchivedAt}
+}
+
+func planningTrackFields(value timetable.PlanningTrackInput) domain.PlanningTrackFields {
+	return domain.PlanningTrackFields{Name: value.Name, Color: value.Color, SortOrder: value.SortOrder, ArchivedAt: value.ArchivedAt}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -644,6 +708,10 @@ func mapError(err error) error {
 		return timetable.ErrStudentEnrollmentNotFound
 	case errors.Is(err, domain.ErrTimeframeNotFound):
 		return timetable.ErrTimeframeNotFound
+	case errors.Is(err, domain.ErrPlanningTrackNotFound):
+		return timetable.ErrPlanningTrackNotFound
+	case errors.Is(err, domain.ErrPlanningTrackNameConflict):
+		return fmt.Errorf("%w: %w", timetable.ErrPlanningTrackNameExists, err)
 	default:
 		return err
 	}

@@ -658,7 +658,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
-		PlanningTrack:             schedule.NewPlanningTrackRepository(db),
+		PlanningTrack:             nil, // bound to Timetable below
 		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
 		ActivityInstance:          activityInstance,
 		InstanceIdempotency:       activityInstance,

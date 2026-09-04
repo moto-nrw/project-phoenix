@@ -46,9 +46,14 @@ var (
 	ErrTimeframeNotFound             = errors.New("timeframe not found")
 	ErrInvalidTimeframe              = errors.New("invalid timeframe")
 	ErrInvalidTimeframeQuery         = errors.New("invalid timeframe query")
+	ErrPlanningTrackNotFound         = errors.New("planning track not found")
+	ErrInvalidPlanningTrack          = errors.New("invalid planning track")
+	ErrInvalidPlanningTrackQuery     = errors.New("invalid planning track query")
+	ErrPlanningTrackNameExists       = errors.New("planning track name already exists")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
+var planningTrackColorPattern = regexp.MustCompile(`^#[A-Fa-f0-9]{6}$`)
 
 // Category is the owner view of one activities.categories row.
 type Category struct {
@@ -146,6 +151,7 @@ type Query interface {
 	PlannedSupervisorQuery
 	StudentEnrollmentQuery
 	TimeframeQuery
+	PlanningTrackQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
@@ -164,6 +170,7 @@ type Command interface {
 	PlannedSupervisorCommand
 	StudentEnrollmentCommand
 	TimeframeCommand
+	PlanningTrackCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -510,6 +517,83 @@ func (m *Module) DeleteTimeframe(ctx context.Context, id int64) error {
 	return m.engine.DeleteTimeframe(ctx, id)
 }
 
+func (m *Module) FindPlanningTrack(ctx context.Context, id int64) (PlanningTrack, error) {
+	return m.findPlanningTrack(ctx, id, false)
+}
+
+func (m *Module) FindPlanningTrackForShare(ctx context.Context, id int64) (PlanningTrack, error) {
+	return m.findPlanningTrack(ctx, id, true)
+}
+
+func (m *Module) findPlanningTrack(ctx context.Context, id int64, forShare bool) (PlanningTrack, error) {
+	if id <= 0 {
+		return PlanningTrack{}, m.reject("find_planning_track", ErrInvalidPlanningTrackQuery)
+	}
+	if forShare {
+		return m.engine.FindPlanningTrackForShare(ctx, id)
+	}
+	return m.engine.FindPlanningTrack(ctx, id)
+}
+
+func (m *Module) ListPlanningTracks(ctx context.Context, filter PlanningTrackFilter) ([]PlanningTrack, error) {
+	if hasInvalidID(filter.IDs) {
+		return nil, m.reject("list_planning_tracks", ErrInvalidPlanningTrackQuery)
+	}
+	return m.engine.ListPlanningTracks(ctx, filter)
+}
+
+func (m *Module) CreatePlanningTrack(ctx context.Context, input PlanningTrackInput) (PlanningTrack, error) {
+	input, ok := normalizePlanningTrack(input)
+	if !ok {
+		return PlanningTrack{}, m.reject("create_planning_track", ErrInvalidPlanningTrack)
+	}
+	return m.engine.CreatePlanningTrack(ctx, input)
+}
+
+func (m *Module) UpdatePlanningTrack(ctx context.Context, id int64, input PlanningTrackInput) (PlanningTrack, error) {
+	input, ok := normalizePlanningTrack(input)
+	if id <= 0 || !ok {
+		return PlanningTrack{}, m.reject("update_planning_track", ErrInvalidPlanningTrack)
+	}
+	return m.engine.UpdatePlanningTrack(ctx, id, input)
+}
+
+func (m *Module) UpdateActivePlanningTrack(ctx context.Context, id int64, input PlanningTrackInput) (PlanningTrack, bool, error) {
+	input, ok := normalizePlanningTrack(input)
+	if id <= 0 || !ok {
+		return PlanningTrack{}, false, m.reject("update_planning_track", ErrInvalidPlanningTrack)
+	}
+	return m.engine.UpdateActivePlanningTrack(ctx, id, input)
+}
+
+func (m *Module) DeletePlanningTrack(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_planning_track", ErrInvalidPlanningTrack)
+	}
+	return m.engine.DeletePlanningTrack(ctx, id)
+}
+
+func (m *Module) SetPlanningTrackArchivedAt(ctx context.Context, id int64, value *time.Time) (PlanningTrack, bool, error) {
+	if id <= 0 {
+		return PlanningTrack{}, false, m.reject("archive_planning_track", ErrInvalidPlanningTrack)
+	}
+	return m.engine.SetPlanningTrackArchivedAt(ctx, id, value)
+}
+
+func (m *Module) ReorderPlanningTracks(ctx context.Context, ids []int64) error {
+	if hasInvalidID(ids) || hasDuplicateID(ids) {
+		return m.reject("reorder_planning_tracks", ErrInvalidPlanningTrack)
+	}
+	return m.engine.ReorderPlanningTracks(ctx, ids)
+}
+
+func (m *Module) RestorePlanningTrackAtEnd(ctx context.Context, id int64) (PlanningTrack, bool, error) {
+	if id <= 0 {
+		return PlanningTrack{}, false, m.reject("restore_planning_track", ErrInvalidPlanningTrack)
+	}
+	return m.engine.RestorePlanningTrackAtEnd(ctx, id)
+}
+
 func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {
 	normalized, err := normalizeGroupTargets(groupID, targets)
 	if err != nil {
@@ -745,6 +829,23 @@ func validTimeframe(input TimeframeInput) bool {
 func validClock(value string) bool {
 	_, err := time.Parse("15:04:05", value)
 	return err == nil
+}
+
+func normalizePlanningTrack(input PlanningTrackInput) (PlanningTrackInput, bool) {
+	input.Name = strings.TrimSpace(input.Name)
+	valid := input.Name != "" && len(input.Name) <= 100 && planningTrackColorPattern.MatchString(input.Color) && input.SortOrder >= 0
+	return input, valid
+}
+
+func hasDuplicateID(ids []int64) bool {
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if _, exists := seen[id]; exists {
+			return true
+		}
+		seen[id] = struct{}{}
+	}
+	return false
 }
 
 func invalidCareExitRemovals(removals []CareExitEnrollmentRemoval) bool {

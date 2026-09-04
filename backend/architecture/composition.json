@@ -1217,7 +1217,7 @@
       "declaration": "TestInstanceMetadataResolvesPlanningTrackThroughTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        44
+        45
       ],
       "tables": [
         "activities.groups"
@@ -3011,7 +3011,7 @@
       "declaration": "TestActivityGroupRepositoryUpdateTemplateFieldsPlanningTrackPresence",
       "target": "database/repositories.NewFactory",
       "lines": [
-        24
+        25
       ],
       "tables": [
         "activities.groups"
@@ -3023,7 +3023,7 @@
       "declaration": "TestActivityGroupRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        82
+        84
       ],
       "tables": []
     },
@@ -3033,7 +3033,7 @@
       "declaration": "TestActivityGroupRepository_Create_WithNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        556
+        558
       ],
       "tables": []
     },
@@ -3043,7 +3043,7 @@
       "declaration": "TestActivityGroupRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        272
+        274
       ],
       "tables": []
     },
@@ -3053,7 +3053,7 @@
       "declaration": "TestActivityGroupRepository_Delete_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        586
+        588
       ],
       "tables": []
     },
@@ -3063,7 +3063,7 @@
       "declaration": "TestActivityGroupRepository_FindAllTemplates",
       "target": "database/repositories.NewFactory",
       "lines": [
-        358
+        360
       ],
       "tables": []
     },
@@ -3073,7 +3073,7 @@
       "declaration": "TestActivityGroupRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        203
+        205
       ],
       "tables": []
     },
@@ -3083,7 +3083,7 @@
       "declaration": "TestActivityGroupRepository_FindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        600
+        602
       ],
       "tables": []
     },
@@ -3093,7 +3093,7 @@
       "declaration": "TestActivityGroupRepository_FindByStaffSupervisor",
       "target": "database/repositories.NewFactory",
       "lines": [
-        504
+        506
       ],
       "tables": [
         "activities.supervisors"
@@ -3105,7 +3105,7 @@
       "declaration": "TestActivityGroupRepository_FindOpenGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        326
+        328
       ],
       "tables": []
     },
@@ -3115,7 +3115,7 @@
       "declaration": "TestActivityGroupRepository_FindWithEnrollmentCounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        406
+        408
       ],
       "tables": [
         "activities.student_enrollments"
@@ -3127,7 +3127,7 @@
       "declaration": "TestActivityGroupRepository_FindWithSupervisors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        465
+        467
       ],
       "tables": [
         "activities.supervisors"
@@ -3139,7 +3139,7 @@
       "declaration": "TestActivityGroupRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        295
+        297
       ],
       "tables": []
     },
@@ -3149,7 +3149,7 @@
       "declaration": "TestActivityGroupRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        226
+        228
       ],
       "tables": []
     },
@@ -3159,7 +3159,7 @@
       "declaration": "TestActivityGroupRepository_Update_WithNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        571
+        573
       ],
       "tables": []
     },
@@ -3169,7 +3169,7 @@
       "declaration": "TestActivityGroupTargets_AreTenantScoped",
       "target": "database/repositories.NewFactory",
       "lines": [
-        140
+        142
       ],
       "tables": []
     },
@@ -3179,7 +3179,7 @@
       "declaration": "TestActivityGroupTargets_ReplaceIsAtomic",
       "target": "database/repositories.NewFactory",
       "lines": [
-        170
+        172
       ],
       "tables": []
     },
@@ -6178,40 +6178,10 @@
     {
       "scope": "test",
       "file": "database/repositories/schedule/planning_track_repo_test.go",
-      "declaration": "TestPlanningTrackRepositoryFindByIDs",
+      "declaration": "planningTrackRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        74
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/planning_track_repo_test.go",
-      "declaration": "TestPlanningTrackRepositoryRejectsPartialOrder",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        116
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/planning_track_repo_test.go",
-      "declaration": "TestPlanningTrackRepositoryTenantCRUDAndOrdering",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        22
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/planning_track_repo_test.go",
-      "declaration": "TestPlanningTrackServiceNameConflictAndArchiveLifecycle",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        148
+        20
       ],
       "tables": []
     },

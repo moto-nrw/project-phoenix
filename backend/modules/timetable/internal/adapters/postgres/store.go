@@ -546,6 +546,9 @@ func classifyWriteError(operation string, err error, stats *domain.OperationStat
 			return fmt.Errorf("%w: %w", domain.ErrCategoryNameConflict, err)
 		case domain.StudentEnrollmentActiveIndex:
 			stats.DuplicatePreventionConflicts++
+		case domain.PlanningTrackNameActiveIndex:
+			stats.DuplicatePreventionConflicts++
+			return fmt.Errorf("%w: %w", domain.ErrPlanningTrackNameConflict, err)
 		}
 	}
 	return fmt.Errorf("timetable postgres: %s: %w", operation, err)

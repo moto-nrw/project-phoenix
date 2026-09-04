@@ -64,6 +64,14 @@ type Store interface {
 	CreateTimeframe(context.Context, domain.TimeframeFields) (domain.Timeframe, domain.OperationStats, error)
 	UpdateTimeframe(context.Context, int64, domain.TimeframeFields) (domain.Timeframe, bool, domain.OperationStats, error)
 	DeleteTimeframe(context.Context, int64) (domain.OperationStats, error)
+	FindPlanningTrack(context.Context, int64, string) (domain.PlanningTrack, bool, domain.OperationStats, error)
+	ListPlanningTracks(context.Context, domain.PlanningTrackFilter) ([]domain.PlanningTrack, domain.OperationStats, error)
+	CreatePlanningTrack(context.Context, domain.PlanningTrackFields) (domain.PlanningTrack, domain.OperationStats, error)
+	UpdatePlanningTrack(context.Context, int64, domain.PlanningTrackFields, bool) (domain.PlanningTrack, bool, domain.OperationStats, error)
+	DeletePlanningTrack(context.Context, int64) (domain.OperationStats, error)
+	SetPlanningTrackArchivedAt(context.Context, int64, *time.Time) (domain.PlanningTrack, bool, domain.OperationStats, error)
+	ReorderPlanningTracks(context.Context, []int64) (domain.OperationStats, error)
+	RestorePlanningTrackAtEnd(context.Context, int64) (domain.PlanningTrack, bool, domain.OperationStats, error)
 }
 
 type Transaction interface {

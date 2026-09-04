@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,7 @@ func TestActivityGroupRepositoryUpdateTemplateFieldsPlanningTrackPresence(t *tes
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
 	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(t, db))
 
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "PlanningTrackPresence")
 	room := testpkg.CreateTestRoomForTenant(t, db, scope.TenantID, "PlanningTrackPresence")

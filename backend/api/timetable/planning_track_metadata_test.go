@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -42,6 +43,7 @@ func TestInstanceMetadataResolvesPlanningTrackThroughTemplate(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Track metadata")
 	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
 	track := &scheduleModel.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 3}
 	require.NoError(t, repos.PlanningTrack.Create(scope.Context(), track))
 	_, err := db.NewUpdate().Table("activities.groups").

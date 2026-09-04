@@ -20,6 +20,7 @@ type recordingEngine struct {
 	targets    []timetable.GroupTargetInput
 	supervisor timetable.PlannedSupervisorInput
 	timeframe  timetable.TimeframeInput
+	track      timetable.PlanningTrackInput
 	calls      int
 	rejections []string
 }
@@ -251,6 +252,57 @@ func (e *recordingEngine) DeleteTimeframe(context.Context, int64) error {
 	return nil
 }
 
+func (e *recordingEngine) FindPlanningTrack(context.Context, int64) (timetable.PlanningTrack, error) {
+	e.calls++
+	return timetable.PlanningTrack{}, nil
+}
+
+func (e *recordingEngine) FindPlanningTrackForShare(context.Context, int64) (timetable.PlanningTrack, error) {
+	e.calls++
+	return timetable.PlanningTrack{}, nil
+}
+
+func (e *recordingEngine) ListPlanningTracks(context.Context, timetable.PlanningTrackFilter) ([]timetable.PlanningTrack, error) {
+	e.calls++
+	return []timetable.PlanningTrack{}, nil
+}
+
+func (e *recordingEngine) CreatePlanningTrack(_ context.Context, input timetable.PlanningTrackInput) (timetable.PlanningTrack, error) {
+	e.calls++
+	e.track = input
+	return timetable.PlanningTrack{Name: input.Name, Color: input.Color, SortOrder: input.SortOrder}, nil
+}
+
+func (e *recordingEngine) UpdatePlanningTrack(context.Context, int64, timetable.PlanningTrackInput) (timetable.PlanningTrack, error) {
+	e.calls++
+	return timetable.PlanningTrack{}, nil
+}
+
+func (e *recordingEngine) UpdateActivePlanningTrack(context.Context, int64, timetable.PlanningTrackInput) (timetable.PlanningTrack, bool, error) {
+	e.calls++
+	return timetable.PlanningTrack{}, true, nil
+}
+
+func (e *recordingEngine) DeletePlanningTrack(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) SetPlanningTrackArchivedAt(context.Context, int64, *time.Time) (timetable.PlanningTrack, bool, error) {
+	e.calls++
+	return timetable.PlanningTrack{}, true, nil
+}
+
+func (e *recordingEngine) ReorderPlanningTracks(context.Context, []int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) RestorePlanningTrackAtEnd(context.Context, int64) (timetable.PlanningTrack, bool, error) {
+	e.calls++
+	return timetable.PlanningTrack{}, true, nil
+}
+
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
 	e.calls++
 	e.targets = targets
@@ -415,6 +467,26 @@ func TestModuleValidatesTimeframeBoundary(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "08:00:00", created.StartTime)
 	assert.Equal(t, "08:00:00", engine.timeframe.StartTime)
+}
+
+func TestModuleNormalizesAndValidatesPlanningTracks(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+
+	_, err := module.CreatePlanningTrack(ctx, timetable.PlanningTrackInput{Name: " ", Color: "#5080D8"})
+	require.ErrorIs(t, err, timetable.ErrInvalidPlanningTrack)
+	_, err = module.CreatePlanningTrack(ctx, timetable.PlanningTrackInput{Name: "Spur", Color: "blue"})
+	require.ErrorIs(t, err, timetable.ErrInvalidPlanningTrack)
+	err = module.ReorderPlanningTracks(ctx, []int64{1, 1})
+	require.ErrorIs(t, err, timetable.ErrInvalidPlanningTrack)
+	assert.Zero(t, engine.calls)
+
+	created, err := module.CreatePlanningTrack(ctx, timetable.PlanningTrackInput{Name: " Spur ", Color: "#5080D8"})
+	require.NoError(t, err)
+	assert.Equal(t, "Spur", created.Name)
+	assert.Equal(t, "Spur", engine.track.Name)
 }
 
 func ptr[T any](value T) *T { return &value }
