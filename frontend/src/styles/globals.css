@@ -791,3 +791,42 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Fortschrittsbalken für Seitenwechsel (#2828). Liegt fest über der
+   Kopfzeile, verschiebt nichts und erscheint erst nach 150 ms — schnelle
+   Wechsel bleiben dadurch unsichtbar. Nur Kompositor-Eigenschaften. */
+.moto-nav-progress {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  z-index: 60;
+  height: 3px;
+  background-color: var(--color-moto-green);
+  transform-origin: left center;
+  opacity: 0;
+  animation: moto-nav-progress 6s cubic-bezier(0, 0.65, 0.25, 1) 150ms forwards;
+}
+
+@keyframes moto-nav-progress {
+  0% {
+    opacity: 1;
+    transform: scaleX(0.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleX(0.92);
+  }
+}
+
+@keyframes moto-nav-progress-static {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moto-nav-progress {
+    transform: scaleX(1);
+    animation: moto-nav-progress-static 0s linear 150ms forwards;
+  }
+}

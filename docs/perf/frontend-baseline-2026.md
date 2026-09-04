@@ -107,6 +107,43 @@ Abgebrochene Requests: pro Aufruf 10 bis 28 `fetch`-Requests auf Seitenpfade (`/
 
 Nachmessung nach #2976 (Shell-Links über `NavLink`: kein Viewport-Prefetch, Prefetch erst bei Hover, Fokus oder Touch-Beginn; gleicher Harness, Stand 2026-09-04, frischer Seed): `cold.requests.failed` ist auf 17 von 18 kalten Aufrufen leer. Der eine Ausreißer (Dashboard, Lauf 3) zeigt 2 abgebrochene Prefetches, `/ogs-groups` und `/students/search`, und die kommen aus den Karten im Seiteninhalt des Dashboards (`InfoCard href`), nicht aus der Seitenleiste. Inhaltslinks nutzen weiter `next/link` mit Standard-Prefetch; das ist gewollt, weil sie wenige sind und auf den nächsten Klick zielen.
 
+## Seitenwechsel statt Seitenaufruf (#2828)
+
+Alles oben misst den **kalten Aufruf**. Die Beschwerde aus dem Testdurchlauf auf Staging galt etwas anderem: dem Wechsel von Seite zu Seite, der sich „wie ein kompletter Reload" anfühlte. Dafür gibt es einen eigenen Harness (`pnpm run perf:nav`, `scripts/perf/navigation.perf.ts`): Klick auf einen Seitenleisten-Link, fünf Ziele im Rundgang, drei Läufe, 4x CPU-Drosselung **und 150 ms Leitungslatenz bei 3 Mbit/s** — ohne Leitungsbremse ist gegen ein lokales Backend jeder Wechsel fertig, bevor überhaupt eine Ladehülle sichtbar wird, und man misst etwas, das keine Schule je erlebt.
+
+Vor dem Klick markiert der Harness die Hülle mit einem Attribut und hängt einen MutationObserver ein; danach steht fest, ob React die Hülle neu aufgebaut hat und welche Ladehüllen zwischendurch zu sehen waren.
+
+Stand `development` fc28be720 (2026-09-04), Median aus 3 Läufen:
+
+| Wechsel nach     | Klick bis Inhalt | Dokument-Requests | Hülle überlebt | API | davon Hüllen-Endpunkte | sichtbar dazwischen         |
+| ---------------- | ---------------- | ----------------- | -------------- | --- | ---------------------- | --------------------------- |
+| /students/search | 1.583 ms         | 0                 | ja             | 6   | 1                      | eigenes Skelett             |
+| /rooms           | 1.005 ms         | 0                 | ja             | 2   | 1                      | eigenes Skelett             |
+| /settings        | 910 ms           | 0                 | ja             | 2   | 2                      | **„Lädt…"-Kringel**         |
+| /statistics      | 924 ms           | 0                 | ja             | 2   | 1                      | **„Lädt…"-Kringel**, dann Skelett |
+| /dashboard       | 326 ms           | 0                 | ja             | 4   | 1                      | nichts                      |
+
+Damit sind die Fragen aus dem Issue beantwortet:
+
+1. **Kein Full-Reload.** Null Dokument-Requests pro Wechsel, in allen drei Läufen. Die App-Shell wird nicht neu aufgebaut: die Marke auf dem Hüllen-Knoten überlebt jeden Wechsel.
+2. **2 bis 6 API-Requests pro Wechsel**, praktisch alles Seitendaten. Der einzige Hüllen-Endpunkt, der bei jedem Wechsel erneut läuft, ist `GET /api/platform/announcements/unread`: `useAnnouncements` holt ihn bei jedem Pfadwechsel absichtlich neu, damit eine neue Ankündigung an einem ruhigen Moment erscheint und nicht mitten in einer Eingabe. Das bleibt so. (`/api/settings/schema` taucht einmalig beim ersten Aufruf von /settings auf.)
+3. **Layout-Daten werden bereits einmal geladen und behalten** — das ist #2973. Die 18 Hüllen-Requests des kalten Aufrufs wiederholen sich beim Wechsel nicht.
+4. **Prefetching ist in Ordnung** — das ist #2976. Der Link wird bei Hover, Fokus oder Touch-Beginn vorgeladen.
+
+Was blieb, war das Sichtbare: die geteilte Ladehülle `(protected)/loading.tsx` zeigte einen allgemeinen Kringel in Inhaltshöhe. Auf jeder Seite ohne eigenes Skelett — 59 der 76 geschützten Seiten — sprang das Layout beim Wechsel erst auf Kringelhöhe zusammen, dann auf das Skelett der Zielseite, dann auf den Inhalt. Drei Zustände für einen Wechsel.
+
+Nachmessung nach #2828 (geteilte Hülle entfernt, Fortschrittsbalken in der Hülle; gleicher Harness, gleiche Maschine, gleiche Drosselung):
+
+| Kennzahl                              | vorher                        | nachher                       |
+| ------------------------------------- | ----------------------------- | ----------------------------- |
+| „Lädt…"-Kringel je Rundgang           | 2 von 5 Wechseln              | 0                             |
+| Zustände zwischen zwei Seiten         | bis zu 3                      | 1 (Balken, dazu ggf. Skelett) |
+| Klick bis Inhalt (/settings)          | 910 ms                        | 936 ms                        |
+| Klick bis Inhalt (/students/search)   | 1.583 ms                      | 1.601 ms                      |
+| Dokument-Requests, Hülle überlebt     | 0 / ja                        | 0 / ja                        |
+
+Die Zeit bis zum Inhalt ändert sich nicht (12 bis 26 ms mehr, gleichmäßig über alle Wechsel — der Melder je Link und der Balken selbst). Was sich ändert, ist, was in dieser Zeit zu sehen ist: die aktuelle Seite bleibt stehen, bis die neue bereit ist, und ein 3 Pixel hoher Balken am oberen Rand zeigt, dass etwas läuft. Er erscheint erst nach 150 ms, sodass schnelle Wechsel ganz ohne Zwischenzustand ablaufen.
+
 ## Proxy-Metriken
 
 `/api/internal/metrics` wurde vor und nach dem Trace-Lauf abgezogen; die Tabelle zeigt die Differenz (744 Backend-Aufrufe über 36 Seitenaufrufe, 42 Endpunkte). p50 und p95 sind aus den Histogramm-Buckets interpoliert.
@@ -247,6 +284,10 @@ pnpm run perf:bundle-report  # Tabelle je Route nach perf-results/bundle.md
 # 3. Render-Zählung gegen den Dev-Server
 PERF_PORT=3000 pnpm run perf:render # react-scan per Init-Script, JSON nach perf-results/react-scan/
 
+# 3b. Seitenwechsel (#2828), eigener Port, eigener Server
+PERF_PORT=3828 pnpm run perf:nav    # JSON nach perf-results/navigation/
+PERF_NAV_SCREENSHOTS=1 PERF_PORT=3828 pnpm run perf:nav # zusätzlich ein Bild kurz nach jedem Klick
+
 # 4. Alles zu Markdown
 pnpm run perf:report         # perf-results/report.md
 ```
@@ -262,6 +303,8 @@ Traces öffnen: `pnpm exec playwright show-trace perf-results/traces/<screen>-<l
 | `scripts/perf/targets.ts`         | Die sechs Screens, ihre Ready-Selektoren und Interaktionen                                                                                                             |
 | `scripts/perf/recorder.ts`        | Request-Recorder, Ruhe-Kriterium, Vitals-Observer, Auswertung (Duplikate, Ketten, Bytes)                                                                               |
 | `scripts/perf/measure.perf.ts`    | Pro Screen kalt, Interaktion, warm; Metrik-Scrape vor und nach dem Lauf                                                                                                |
+| `playwright.perf-nav.config.ts`   | Prod-Runner für die Seitenwechsel-Messung (`pnpm run perf:nav`)                                                                                                       |
+| `scripts/perf/navigation.perf.ts` | Rundgang über Seitenleisten-Links mit Leitungsbremse; zählt Dokument-, RSC- und API-Requests je Wechsel, prüft, ob die Hülle überlebt, und hält fest, welche Ladehüllen sichtbar waren |
 | `scripts/perf/react-scan.perf.ts` | Render-Zählung: Aufruf, 10 s Leerlauf, Interaktion                                                                                                                     |
 | `scripts/perf/bundle-report.mjs`  | Per-Route-Tabelle aus der Turbopack-Analyse                                                                                                                            |
 | `scripts/perf/report.mjs`         | Median-Tabellen, Wasserfall-Details, Prometheus-Diff, Render-Tabellen                                                                                                  |

@@ -87,6 +87,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
 | Back navigation | `BackButton`, `MobileBackButton` | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
 | Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). Plain `next/link` stays right for links inside page content. | `~/components/ui/nav-link` |
+| Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink` meldet den ausstehenden Wechsel selbst (#2828). Nicht nachbauen und keine eigene Ladehülle über mehrere Seiten legen. | `~/components/ui/navigation-progress` |
 | Overlay / side panel | `Drawer`, slide-over | `~/components/ui/drawer`, `~/components/ui/slide-over` |
 | API error message text | `getApiErrorMessage` | `~/lib/api-error-message` |
 | List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |

@@ -1,4 +1,8 @@
 import type { ReactNode } from "react";
+import {
+  NavigationProgressBar,
+  NavigationProgressProvider,
+} from "~/components/ui/navigation-progress";
 
 /**
  * Das gemeinsame Gerüst aller vier Portale: gepunkteter Hintergrund,
@@ -35,25 +39,28 @@ export function PortalShell({
   children,
 }: PortalShellProps) {
   return (
-    <div className="relative min-h-screen">
-      <div
-        data-portal-background
-        className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0 ${backgroundClassName}`}
-        aria-hidden="true"
-      />
-      {topLayer}
+    <NavigationProgressProvider>
+      <div className="relative min-h-screen">
+        <NavigationProgressBar />
+        <div
+          data-portal-background
+          className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0 ${backgroundClassName}`}
+          aria-hidden="true"
+        />
+        {topLayer}
 
-      <div className={headerClassName}>{header}</div>
+        <div className={headerClassName}>{header}</div>
 
-      <div className="relative z-10 flex">
-        {sidebar}
+        <div className="relative z-10 flex">
+          {sidebar}
 
-        <main className="min-w-0 flex-1 p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
-          <div className="relative z-10">{children}</div>
-        </main>
+          <main className="min-w-0 flex-1 p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
+            <div className="relative z-10">{children}</div>
+          </main>
+        </div>
+
+        {bottomNav}
       </div>
-
-      {bottomNav}
-    </div>
+    </NavigationProgressProvider>
   );
 }

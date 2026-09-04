@@ -8,6 +8,7 @@ import { ProfileTrigger, ProfileDropdownMenu } from "./profile-dropdown";
 
 // Mock next/link
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     children,
     href,
