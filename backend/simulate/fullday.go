@@ -20,6 +20,7 @@ const fullDayCheckinLimit = 84
 // FullDayOptions configures a full-day simulation run.
 type FullDayOptions struct {
 	StatePath string
+	Profile   string
 	Close     bool // if true, do daily checkout + end sessions at the end
 	Verbose   bool
 	Client    ClientFactory
@@ -30,7 +31,7 @@ func RunFullDay(ctx context.Context, opts FullDayOptions) error {
 	if opts.Client == nil {
 		return fmt.Errorf("simulation client factory is required")
 	}
-	state, err := LoadSeedState(opts.StatePath)
+	state, err := LoadSeedStateProfile(opts.StatePath, opts.Profile)
 	if err != nil {
 		return fmt.Errorf("load seed state: %w", err)
 	}
@@ -42,9 +43,9 @@ func RunFullDay(ctx context.Context, opts FullDayOptions) error {
 	runtime := newRuntime(state, client, opts)
 	scenario := fullDayScenario(opts.Close)
 	if err := scenario.Run(ctx, runtime); err != nil {
-		profile := state.Bootstrap.TenantSlug
+		profile := state.ProfileKey
 		if profile == "" {
-			profile = "legacy seed state"
+			profile = state.Bootstrap.TenantSlug
 		}
 		var failure error
 		var actionErr *ActionError

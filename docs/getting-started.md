@@ -59,6 +59,41 @@ docker compose run server go run . seed \
 The server container must be running (`docker compose up -d`) before you seed.
 
 After seeding, you get 20 staff accounts, 100 students, rooms, groups, and activities.
+The default `vollbetrieb` profile has stable credentials and fails with a clear
+conflict if it already exists.
+
+### Demo school profile contract
+
+The seeder writes `backend/.seed-state.json`. Contract version 3 stores a
+`profiles` map and declares `default_profile: "vollbetrieb"`. Seeder,
+simulator, performance tests, and browser tests read this profile contract;
+unknown versions are rejected. Each profile records its organization, school,
+settings and owner, role-based credentials, physical and virtual devices,
+semantic entity maps, expected counts, and scenario metadata.
+
+The stable bootstrap identity is `Demo-Träger Nord` / `demo-traeger-nord` and
+`Demo-Schule Vollbetrieb` / `vollbetrieb`. Its school-admin login is
+`vollbetrieb-admin@example.test` / `Vollbetrieb1234%`. The profile explicitly
+enables detailed presence, NFC and web attendance, fixed groups, a fixed care
+schedule, online enrollment, and weekly-plan-driven care. The seeder reads
+these settings and the expected children, devices, and planned activities back
+through the API before it writes the state file.
+
+The simulator uses `vollbetrieb` without a flag. Select it explicitly with:
+
+```bash
+docker compose run server go run . simulate full-day --profile vollbetrieb
+```
+
+Reset the development database before recreating this deterministic profile:
+
+```bash
+docker compose run server go run . migrate reset
+```
+
+Use the seed command's `--randomize` flag only for an intentionally disposable,
+uniquely named school. The Go reader can migrate legacy version 2 state files;
+new consumers must use version 3 and select profiles through the shared reader.
 
 ## Logging In
 
