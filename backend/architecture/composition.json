@@ -89,7 +89,7 @@
       "declaration": "NewFactoryWithPeopleDirectory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        18
+        26
       ],
       "tables": []
     },
@@ -99,7 +99,7 @@
       "declaration": "NewStudentScheduleRepositories",
       "target": "database/repositories.NewFactory",
       "lines": [
-        40
+        49
       ],
       "tables": []
     },
@@ -1651,6 +1651,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         37
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/group_admin_projection_test.go",
+      "declaration": "TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        21
       ],
       "tables": []
     },
