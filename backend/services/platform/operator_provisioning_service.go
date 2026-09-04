@@ -1085,7 +1085,10 @@ func (s *operatorProvisioningService) transferStatus(ctx, adminCtx context.Conte
 	if s.ActiveGroupRepo == nil {
 		return nil, fmt.Errorf("device transfer: active group repository is not configured")
 	}
-	group, err := s.ActiveGroupRepo.FindActiveByDeviceIDWithNames(adminCtx, device.ID)
+	group, err := s.ActiveGroupRepo.FindActiveByDeviceIDWithNames(
+		tenant.WithTenantID(adminCtx, device.TenantID),
+		device.ID,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("device transfer: find active session: %w", err)
 	}

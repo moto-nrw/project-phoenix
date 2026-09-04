@@ -139,10 +139,10 @@ func TestModuleRejectsSharedConnectionWithoutTenant(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 
 	_, err := module.FindRoom(context.Background(), room.ID)
-	require.ErrorContains(t, err, "tenant is required")
+	require.ErrorIs(t, err, tenant.ErrTenantRequired)
 }
 
-func TestModuleUsesAmbientTransactionRLSWithoutTenantContext(t *testing.T) {
+func TestModuleRejectsAmbientTenantTransactionWithoutTenantContext(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db, func(Observation) {})
@@ -150,9 +150,8 @@ func TestModuleUsesAmbientTransactionRLSWithoutTenantContext(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 
 	err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(_ context.Context, tx bun.Tx) error {
-		found, err := module.FindRoom(tenant.WithTransactionForTest(context.Background(), tx), room.ID)
-		require.NoError(t, err)
-		assert.Equal(t, room.ID, found.ID)
+		_, err := module.FindRoom(tenant.WithTransactionForTest(context.Background(), tx), room.ID)
+		require.ErrorIs(t, err, tenant.ErrTenantRequired)
 		return nil
 	})
 	require.NoError(t, err)
