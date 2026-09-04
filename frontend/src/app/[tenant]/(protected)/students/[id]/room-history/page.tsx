@@ -7,19 +7,14 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChevronRight } from "lucide-react";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "~/components/ui/chart";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import {
   ConceptPageHeader,
@@ -29,7 +24,6 @@ import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
 import { todayISO } from "~/lib/date-helpers";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -41,6 +35,7 @@ import {
   mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
 import { RoomHistorySkeleton } from "./page-skeleton";
+import type { HistoryChartPoint } from "./history-charts";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
@@ -71,21 +66,15 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
   generic: "Fehler beim Laden des Anwesenheitsprotokolls.",
 };
 
-// ─── Chart config ────────────────────────────────────────────────────────────
-
-const durationChartConfig: ChartConfig = {
-  duration: {
-    label: "Stunden",
-    color: MOTO_COLOR_PALETTE.green.base,
-  },
-};
-
-const activityChartConfig: ChartConfig = {
-  visits: {
-    label: "Raumwechsel",
-    color: MOTO_COLOR_PALETTE.blue.base,
-  },
-};
+const LazyHistoryCharts = dynamic(() => import("./history-charts"), {
+  ssr: false,
+  loading: () => (
+    <Skeleton
+      className="h-[404px] w-full rounded-2xl md:h-[200px]"
+      aria-hidden
+    />
+  ),
+});
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -104,58 +93,10 @@ function formatWeekday(dateKey: string): string {
   });
 }
 
-// ─── Shared chart tick ───────────────────────────────────────────────────────
-
-function TodayTick({
-  chartData,
-  props,
-}: {
-  readonly chartData: ReadonlyArray<{ date: string; isToday: boolean }>;
-  readonly props: Record<string, unknown>;
-}) {
-  const x = Number(props.x);
-  const y = Number(props.y);
-  const idx = (props.payload as { index?: number })?.index ?? 0;
-  const item = chartData[idx];
-  const isToday = item?.isToday;
-  return (
-    <g>
-      <text
-        x={x}
-        y={y + 12}
-        textAnchor="middle"
-        fontSize={11}
-        fontWeight={isToday ? 700 : 400}
-        fill={
-          isToday
-            ? MOTO_COLOR_PALETTE.neutral.strong
-            : MOTO_COLOR_PALETTE.neutral.light
-        }
-      >
-        {item?.date}
-      </text>
-      {isToday && (
-        <text
-          x={x}
-          y={y + 24}
-          textAnchor="middle"
-          fontSize={9}
-          fontWeight={500}
-          fill={MOTO_COLOR_PALETTE.green.base}
-        >
-          heute
-        </text>
-      )}
-    </g>
-  );
-}
-
-// ─── Charts ─────────────────────────────────────────────────────────────────
-
 function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
   const todayKey = todayISO();
 
-  const chartData = useMemo(() => {
+  const chartData = useMemo<HistoryChartPoint[]>(() => {
     return days
       .filter((day) => day.attendance)
       .slice()
@@ -171,156 +112,8 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
       }));
   }, [days, todayKey]);
 
-  // Filter out days where room details are unavailable (retention cap),
-  // so the activity chart doesn't show misleading zero-height bars.
-  const activityChartData = useMemo(
-    () => chartData.filter((d) => d.roomDetailAvailable),
-    [chartData],
-  );
-  const renderDurationTick = useCallback(
-    (p: Record<string, unknown>) => (
-      <TodayTick chartData={chartData} props={p} />
-    ),
-    [chartData],
-  );
-  const renderActivityTick = useCallback(
-    (p: Record<string, unknown>) => (
-      <TodayTick chartData={activityChartData} props={p} />
-    ),
-    [activityChartData],
-  );
-  const renderDurationTooltipValue = useCallback(
-    (value: string | number) => (
-      <span className="font-medium">{value} Std</span>
-    ),
-    [],
-  );
-  const renderActivityTooltipValue = useCallback(
-    (value: string | number) => (
-      <span className="font-medium">{value} Wechsel</span>
-    ),
-    [],
-  );
-
   if (chartData.length === 0) return null;
-
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
-      {/* Anwesenheit */}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="p-4 sm:p-6">
-          <ConceptSectionHeader
-            className="mb-3"
-            title="Anwesenheit"
-            concept="present"
-            subtitle="Tägliche Aufenthaltsdauer in Stunden"
-          />
-          <ChartContainer
-            config={durationChartConfig}
-            className="h-[180px] w-full sm:h-[200px]"
-          >
-            <BarChart
-              data={chartData}
-              margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
-              barCategoryGap="20%"
-            >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                fontSize={11}
-                interval={0}
-                tick={renderDurationTick}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={4}
-                fontSize={12}
-                tickFormatter={(v: number) => `${v}h`}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(label) => `Tag: ${label}`}
-                    formatter={renderDurationTooltipValue}
-                  />
-                }
-              />
-              <Bar
-                dataKey="duration"
-                fill="var(--color-duration)"
-                radius={[6, 6, 6, 6]}
-              />
-            </BarChart>
-          </ChartContainer>
-        </div>
-      </div>
-
-      {/* Aktivität (Raumwechsel) */}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="p-4 sm:p-6">
-          <ConceptSectionHeader
-            className="mb-3"
-            title="Aktivität"
-            concept="rooms"
-            subtitle="Raumwechsel pro Tag"
-          />
-          {activityChartData.length === 0 ? (
-            <div className="flex h-[180px] items-center justify-center sm:h-[200px]">
-              <p className="text-sm text-gray-400">
-                Keine Raumdetails verfügbar (Aufbewahrungsfrist überschritten).
-              </p>
-            </div>
-          ) : (
-            <ChartContainer
-              config={activityChartConfig}
-              className="h-[180px] w-full sm:h-[200px]"
-            >
-              <BarChart
-                data={activityChartData}
-                margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
-                barCategoryGap="20%"
-              >
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  fontSize={11}
-                  interval={0}
-                  tick={renderActivityTick}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={4}
-                  fontSize={12}
-                  allowDecimals={false}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(label) => `Tag: ${label}`}
-                      formatter={renderActivityTooltipValue}
-                    />
-                  }
-                />
-                <Bar
-                  dataKey="visits"
-                  fill="var(--color-visits)"
-                  radius={[6, 6, 6, 6]}
-                />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  return <LazyHistoryCharts data={chartData} />;
 }
 
 // ─── DayCard (mobile) ────────────────────────────────────────────────────────

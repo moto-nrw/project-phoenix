@@ -1,5 +1,7 @@
 import { vi } from "vitest";
 
+process.env.API_URL = "http://server:8080";
+
 // Prevent ClientLogger from accessing the browser, starting timers, or making
 // requests. Pass through to console.* so existing spies keep working.
 vi.mock("~/lib/logger", () => {
@@ -31,6 +33,13 @@ vi.mock("~/env", () => ({
     AUTH_JWT_EXPIRY: "15m",
     AUTH_JWT_REFRESH_EXPIRY: "12h",
     NODE_ENV: "test",
+  },
+}));
+
+vi.mock("~/env.client", () => ({
+  clientEnv: {
+    NEXT_PUBLIC_API_URL: "http://localhost:8080",
+    NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
   },
 }));
 

@@ -5,9 +5,8 @@ import { TenantAuthWrapper } from "./tenant-auth-wrapper";
 const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
   useTenant: vi.fn(),
-  register: vi.fn(),
-  unregister: vi.fn(),
-  reset: vi.fn(),
+  setPostHogContext: vi.fn(),
+  clearPostHogContext: vi.fn(),
   trackPageView: vi.fn(),
 }));
 
@@ -15,15 +14,12 @@ vi.mock("next-auth/react", () => ({ useSession: mocks.useSession }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/school-b/dashboard",
 }));
-vi.mock("posthog-js", () => ({
-  default: {
-    register: mocks.register,
-    unregister: mocks.unregister,
-    reset: mocks.reset,
-  },
+vi.mock("~/lib/posthog-client", () => ({
+  setPostHogContext: mocks.setPostHogContext,
+  clearPostHogContext: mocks.clearPostHogContext,
 }));
-vi.mock("~/env", () => ({
-  env: { NEXT_PUBLIC_TENANT_DOMAIN: "moto-app.de" },
+vi.mock("~/env.client", () => ({
+  clientEnv: { NEXT_PUBLIC_TENANT_DOMAIN: "moto-app.de" },
 }));
 vi.mock("~/lib/hooks/use-user-context", () => ({
   useUserContext: () => ({ isReady: true }),
@@ -62,11 +58,14 @@ describe("TenantAuthWrapper analytics", () => {
 
     renderWrapper();
 
-    expect(mocks.register).toHaveBeenCalledWith({
-      school_id: "2",
-      $groups: { school: "2" },
-      deployment: "moto-app.de",
-    });
+    expect(mocks.setPostHogContext).toHaveBeenCalledWith(
+      {
+        school_id: "2",
+        $groups: { school: "2" },
+        deployment: "moto-app.de",
+      },
+      false,
+    );
     expect(mocks.trackPageView).toHaveBeenCalledWith("/dashboard", "2");
   });
 
@@ -78,12 +77,9 @@ describe("TenantAuthWrapper analytics", () => {
 
     const view = renderWrapper();
 
-    expect(mocks.register).not.toHaveBeenCalled();
+    expect(mocks.setPostHogContext).not.toHaveBeenCalled();
     expect(mocks.trackPageView).not.toHaveBeenCalled();
-    expect(mocks.unregister).toHaveBeenCalledWith("school_id");
-    expect(mocks.unregister).toHaveBeenCalledWith("$groups");
-    expect(mocks.unregister).toHaveBeenCalledWith("deployment");
-    expect(mocks.reset).toHaveBeenCalledOnce();
+    expect(mocks.clearPostHogContext).toHaveBeenCalledOnce();
 
     mocks.useSession.mockReturnValue({
       status: "authenticated",
@@ -95,11 +91,14 @@ describe("TenantAuthWrapper analytics", () => {
       </TenantAuthWrapper>,
     );
 
-    expect(mocks.register).toHaveBeenCalledWith({
-      school_id: "2",
-      $groups: { school: "2" },
-      deployment: "moto-app.de",
-    });
+    expect(mocks.setPostHogContext).toHaveBeenCalledWith(
+      {
+        school_id: "2",
+        $groups: { school: "2" },
+        deployment: "moto-app.de",
+      },
+      false,
+    );
     expect(mocks.trackPageView).toHaveBeenCalledWith("/dashboard", "2");
   });
 
@@ -116,12 +115,14 @@ describe("TenantAuthWrapper analytics", () => {
 
     const view = renderWrapper();
 
-    expect(mocks.reset).not.toHaveBeenCalled();
-    expect(mocks.register).toHaveBeenCalledWith({
-      school_id: "1",
-      $groups: { school: "1" },
-      deployment: "moto-app.de",
-    });
+    expect(mocks.setPostHogContext).toHaveBeenCalledWith(
+      {
+        school_id: "1",
+        $groups: { school: "1" },
+        deployment: "moto-app.de",
+      },
+      false,
+    );
 
     mocks.useTenant.mockReturnValue({
       tenantSlug: "school-b",
@@ -138,14 +139,14 @@ describe("TenantAuthWrapper analytics", () => {
       </TenantAuthWrapper>,
     );
 
-    expect(mocks.reset).toHaveBeenCalledOnce();
-    expect(mocks.register).toHaveBeenNthCalledWith(2, {
-      school_id: "2",
-      $groups: { school: "2" },
-      deployment: "moto-app.de",
-    });
-    expect(mocks.reset.mock.invocationCallOrder[0]!).toBeLessThan(
-      mocks.register.mock.invocationCallOrder[1]!,
+    expect(mocks.setPostHogContext).toHaveBeenNthCalledWith(
+      2,
+      {
+        school_id: "2",
+        $groups: { school: "2" },
+        deployment: "moto-app.de",
+      },
+      true,
     );
   });
 });

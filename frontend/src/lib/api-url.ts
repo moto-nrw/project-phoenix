@@ -1,12 +1,18 @@
-import { env } from "~/env";
-
 export function isBrowserContext(): boolean {
   return globalThis.window !== undefined;
 }
 
-export function resolveApiUrl(
+export async function resolveServerApiUrl(
+  backendPath: string,
+): Promise<string> {
+  const { getServerApiUrl } = await import("~/lib/server-api-url");
+  return `${getServerApiUrl()}${backendPath}`;
+}
+
+export async function resolveApiUrl(
   proxyPath: string,
   backendPath: string = proxyPath,
-): string {
-  return isBrowserContext() ? proxyPath : `${env.API_URL}${backendPath}`;
+): Promise<string> {
+  if (isBrowserContext()) return proxyPath;
+  return resolveServerApiUrl(backendPath);
 }
