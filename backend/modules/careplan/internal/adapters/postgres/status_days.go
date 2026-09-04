@@ -286,6 +286,9 @@ func (s *statusDayStore) UpsertStudentStatusDay(ctx context.Context, value carep
 	if row.Date == "" {
 		return careplan.StudentStatusDay{}, carePlanCompose.RequestStoreStats{}, errors.New("student status day date is required")
 	}
+	if err := s.lockStudentDates(ctx, db, tenantID, row.StudentID, []calendarDate{row.Date}); err != nil {
+		return careplan.StudentStatusDay{}, carePlanCompose.RequestStoreStats{}, err
+	}
 	query := db.NewInsert().Model(row).ModelTableExpr("active.student_status_days").
 		On("CONFLICT (tenant_id, student_id, date, status) DO UPDATE").
 		Set("reported_at = EXCLUDED.reported_at").Set("cleared_at = NULL").Set("source = EXCLUDED.source").
@@ -332,11 +335,14 @@ func (s *statusDayStore) ClearStudentStatusDays(ctx context.Context, studentID i
 			rowDates = append(rowDates, date)
 		}
 	}
-	ids, stats, err := s.activeStatusDayIDs(ctx, studentID, status, rowDates)
-	if err != nil {
-		return stats, err
-	}
 	db, tenantID, err := s.databaseForWrite(ctx, "clear student status days")
+	if err != nil {
+		return carePlanCompose.RequestStoreStats{}, err
+	}
+	if err := s.lockStudentDates(ctx, db, tenantID, studentID, rowDates); err != nil {
+		return carePlanCompose.RequestStoreStats{}, err
+	}
+	ids, stats, err := s.activeStatusDayIDs(ctx, studentID, status, rowDates)
 	if err != nil {
 		return stats, err
 	}
@@ -383,27 +389,51 @@ func (s *statusDayStore) activeStatusDayIDs(ctx context.Context, studentID int64
 }
 
 func (s *statusDayStore) ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string) (carePlanCompose.RequestStoreStats, error) {
+	row, found, stats, err := s.FindStudentStatusDay(ctx, id, false)
+	if err != nil || !found {
+		return stats, err
+	}
 	db, tenantID, err := s.databaseForWrite(ctx, "clear a student status day")
 	if err != nil {
-		return carePlanCompose.RequestStoreStats{}, err
+		return stats, err
+	}
+	if err := s.lockStudentDates(ctx, db, tenantID, row.StudentID, []calendarDate{calendarDate(row.Date)}); err != nil {
+		return stats, err
 	}
 	query := withTenant(db.NewUpdate().Model((*studentStatusDayRow)(nil)).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).Set("cleared_at = ?", clearedAt).Set("source = ?", source).
 		Where(`"student_status_day".id = ?`, id).Where(`"student_status_day".cleared_at IS NULL`), "student_status_day", tenantID)
 	started := time.Now()
 	result, err := query.Exec(ctx)
-	stats := requestStats(started, 0)
+	writeStats := requestStats(started, 0)
 	if err != nil {
 		return stats, requestDBError("mark student status day cleared by id", err)
 	}
-	stats.Rows, err = result.RowsAffected()
+	writeStats.Rows, err = result.RowsAffected()
 	if err != nil {
 		return stats, requestDBError("mark student status day cleared by id", err)
 	}
+	stats.Queries += writeStats.Queries
+	stats.Rows += writeStats.Rows
+	stats.StatementDuration += writeStats.StatementDuration
 	if _, err := s.slots.ReleaseStatusDay(ctx, id); err != nil {
 		return stats, err
 	}
 	return stats, nil
+}
+
+func (s *statusDayStore) lockStudentDates(ctx context.Context, db bun.IDB, tenantID, studentID int64, dates []calendarDate) error {
+	if err := s.students.LockStudent(ctx, studentID); err != nil {
+		return err
+	}
+	sortedDates := append([]calendarDate(nil), dates...)
+	slices.Sort(sortedDates)
+	for _, date := range slices.Compact(sortedDates) {
+		if err := LockExceptionDay(ctx, db, tenantID, studentID, string(date)); err != nil {
+			return fmt.Errorf("lock student status day: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value careplan.StatusFlagArchive) (int64, carePlanCompose.RequestStoreStats, error) {

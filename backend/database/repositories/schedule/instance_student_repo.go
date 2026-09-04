@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -700,6 +701,9 @@ func (r *InstanceStudentRepository) ApplyStatusDay(
 	if err := r.requireCarePlan(); err != nil {
 		return 0, err
 	}
+	if err := careplanning.LockStudentAndExceptionDay(ctx, r.db, studentID, date.String()); err != nil {
+		return 0, err
+	}
 	incoming, err := r.carePlan.FindStudentStatusDay(ctx, statusDayID, true)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "apply student status day to slots", Err: err}
@@ -737,6 +741,16 @@ func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, status
 		return 0, err
 	}
 	released, err := r.carePlan.FindStudentStatusDay(ctx, statusDayID, false)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "release student status day from slots", Err: err}
+	}
+	if released == nil {
+		return 0, nil
+	}
+	if err := careplanning.LockStudentAndExceptionDay(ctx, r.db, released.StudentID, released.Date); err != nil {
+		return 0, err
+	}
+	released, err = r.carePlan.FindStudentStatusDay(ctx, statusDayID, false)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "release student status day from slots", Err: err}
 	}
@@ -822,6 +836,20 @@ func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
 ) (int, error) {
 	if err := r.requireCarePlan(); err != nil {
 		return 0, err
+	}
+	attendance, err := r.FindByInstanceID(ctx, instanceID)
+	if err != nil {
+		return 0, err
+	}
+	studentIDs := make([]int64, 0, len(attendance))
+	for _, row := range attendance {
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+	slices.Sort(studentIDs)
+	for _, studentID := range slices.Compact(studentIDs) {
+		if err := careplanning.LockStudentAndExceptionDay(ctx, r.db, studentID, date.String()); err != nil {
+			return 0, err
+		}
 	}
 	statuses, err := r.carePlan.ListStudentStatusDays(ctx, StudentStatusDayFilter{Date: date.String(), ActiveOnly: true, LatestOnly: true})
 	if err != nil {
@@ -1043,6 +1071,16 @@ func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, p
 		return 0, err
 	}
 	exception, err := r.carePlan.FindPickupException(ctx, pickupExceptionID)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "release partial absence from slots", Err: err}
+	}
+	if exception == nil {
+		return 0, nil
+	}
+	if err := careplanning.LockStudentAndExceptionDay(ctx, r.db, exception.StudentID, exception.ExceptionDate); err != nil {
+		return 0, err
+	}
+	exception, err = r.carePlan.FindPickupException(ctx, pickupExceptionID)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "release partial absence from slots", Err: err}
 	}
