@@ -78,6 +78,7 @@ export function StudentsInRoomSection({
   const { success: toastSuccess } = useToast();
   const refreshRoomConsumers = useTenantMutateMatching([
     "room-students-",
+    "room-bulk-source-visits-",
     "room-detail-",
     ...ROOM_LIST_CACHE_KEYS,
     "search-students-",

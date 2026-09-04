@@ -488,6 +488,11 @@ export function useGlobalSSE(): SSEHookState {
             // with the tenant slug, so the real key is
             // "<tenant>:room-students-1" and startsWith would never match.
             key.includes("room-students-") ||
+            // The room-move toolbar derives push eligibility from the current
+            // visits of all active source sessions. Refresh it alongside the
+            // visible room list so a remote check-in, checkout, or move cannot
+            // leave selectable children based on an old source session.
+            key.includes("room-bulk-source-visits-") ||
             // Room header in the detail modal/subpage — supervisor,
             // groupName, studentCount, isOccupied. Without this, the
             // "Aktuell anwesend: X" InfoItem stays stale while the

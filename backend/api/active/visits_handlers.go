@@ -35,7 +35,11 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if activeGroupIDs, ok := parseActiveGroupIDs(w, r); ok && len(activeGroupIDs) > 0 {
+	activeGroupIDs, ok := parseActiveGroupIDs(w, r)
+	if !ok {
+		return
+	}
+	if len(activeGroupIDs) > 0 {
 		groupIDs := make([]any, len(activeGroupIDs))
 		for i, id := range activeGroupIDs {
 			groupIDs[i] = id

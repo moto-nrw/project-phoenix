@@ -592,7 +592,7 @@ describe("StudentsInRoomSection", () => {
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
       expect(mockUseTenantMutateMatching).toHaveBeenCalledWith(
-        expect.arrayContaining(["rooms-list"]),
+        expect.arrayContaining(["rooms-list", "room-bulk-source-visits-"]),
       );
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
