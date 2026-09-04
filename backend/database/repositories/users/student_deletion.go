@@ -23,6 +23,9 @@ type StudentDeletionRepository struct {
 	carePlan      interface {
 		CountCompanionLinks(context.Context, int64) (int, error)
 	}
+	appointments interface {
+		CountAppointmentRecipientStudents(context.Context, int64) (int, error)
+	}
 }
 
 func (r *StudentDeletionRepository) BindCarePlan(capability interface {
@@ -32,6 +35,15 @@ func (r *StudentDeletionRepository) BindCarePlan(capability interface {
 		panic("student deletion repository: care plan capability is required")
 	}
 	r.carePlan = capability
+}
+
+func (r *StudentDeletionRepository) BindAppointments(capability interface {
+	CountAppointmentRecipientStudents(context.Context, int64) (int, error)
+}) {
+	if capability == nil {
+		panic("student deletion repository: appointments capability is required")
+	}
+	r.appointments = capability
 }
 
 func NewStudentDeletionRepository(
@@ -90,7 +102,6 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 			)::int AS communications,
 			(SELECT COUNT(*) FROM enrollment.request_children WHERE tenant_id = ? AND (created_student_id = ? OR matched_student_id = ?))::int AS enrollment_references,
 			(
-				(SELECT COUNT(*) FROM calendar.appointment_recipient_students WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM schedule.grade_transition_roster_removals WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
 			)::int AS other_records
@@ -102,7 +113,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		tenantID, studentID, tenantID, tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
@@ -114,6 +125,14 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: count companion links: %w", err)
 	}
+	if r.appointments == nil {
+		return nil, fmt.Errorf("preview student deletion: appointments capability is required")
+	}
+	appointmentRecipients, err := r.appointments.CountAppointmentRecipientStudents(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count appointment recipient students: %w", err)
+	}
+	counts.OtherRecords += appointmentRecipients
 	if r.countAuditReferences == nil || r.countConsents == nil {
 		return nil, fmt.Errorf("preview student deletion: audit and consent count capabilities are required")
 	}
