@@ -26,7 +26,7 @@ import (
 
 // determineSessionRoomID determines the room for a session with conflict checking
 func (s *service) determineSessionRoomID(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
-	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictFail)
+	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictFail, true)
 }
 
 // broadcastActivityStartEvent broadcasts SSE event for activity start
@@ -617,22 +617,16 @@ func normalizeTransferredSupervisorRole(role string) string {
 
 // determineRoomIDForForceStart determines room ID for force start with conflict warning but no failure
 func (s *service) determineRoomIDForForceStart(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
-	return s.determineRoomIDWithStrategyWithoutLock(ctx, activityID, roomID, RoomConflictWarn)
+	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictWarn, false)
 }
 
-// determineRoomIDWithStrategy determines room ID with configurable conflict handling strategy
-func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy) (int64, error) {
-	return s.determineRoomIDWithStrategyWithLock(ctx, activityID, roomID, strategy, true)
-}
-
-func (s *service) determineRoomIDWithStrategyWithoutLock(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy) (int64, error) {
-	return s.determineRoomIDWithStrategyWithLock(ctx, activityID, roomID, strategy, false)
-}
-
-func (s *service) determineRoomIDWithStrategyWithLock(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy, lockRoom bool) (int64, error) {
+// determineRoomIDWithStrategy determines room ID with configurable conflict
+// handling strategy. lockRoom serializes the room against concurrent session
+// writes; a force start locks its rooms itself once the final room is known.
+func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID int64, roomID *int64, strategy RoomConflictStrategy, lockRoom bool) (int64, error) {
 	// Manual room selection has highest priority
 	if roomID != nil && *roomID > 0 {
-		return s.validateManualRoomSelectionWithLock(ctx, *roomID, strategy, lockRoom)
+		return s.validateManualRoomSelection(ctx, *roomID, strategy, lockRoom)
 	}
 
 	// Try to get planned room from activity configuration.
@@ -649,11 +643,7 @@ func (s *service) determineRoomIDWithStrategyWithLock(ctx context.Context, activ
 }
 
 // validateManualRoomSelection validates manually selected room based on conflict strategy
-func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64, strategy RoomConflictStrategy) (int64, error) {
-	return s.validateManualRoomSelectionWithLock(ctx, roomID, strategy, true)
-}
-
-func (s *service) validateManualRoomSelectionWithLock(ctx context.Context, roomID int64, strategy RoomConflictStrategy, lockRoom bool) (int64, error) {
+func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64, strategy RoomConflictStrategy, lockRoom bool) (int64, error) {
 	if lockRoom && s.GroupRepo != nil {
 		if err := s.GroupRepo.LockRoomSessionWrites(ctx, roomID); err != nil {
 			return 0, err
