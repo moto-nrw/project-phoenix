@@ -321,6 +321,30 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_facilities_statement_duration_seconds", Help: "Cumulative Facilities database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	timetableActivitiesOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_timetable_activities_operations_total", Help: "Timetable & Activities operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	timetableActivitiesDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_timetable_activities_operation_duration_seconds", Help: "Timetable & Activities operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	timetableActivitiesQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_timetable_activities_queries_total", Help: "Persistence queries issued by Timetable & Activities operations."},
+		[]string{"operation"},
+	)
+	timetableActivitiesRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_timetable_activities_rows_total", Help: "Rows returned or changed by Timetable & Activities operations."},
+		[]string{"operation"},
+	)
+	timetableActivitiesDuplicatePreventionConflicts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_timetable_activities_duplicate_prevention_conflicts_total", Help: "Timetable & Activities writes rejected by database uniqueness constraints."},
+		[]string{"operation"},
+	)
+	timetableActivitiesStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_timetable_activities_statement_duration_seconds", Help: "Cumulative Timetable & Activities database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	schoolCalendarOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_school_calendar_operations_total", Help: "School Calendar operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -677,6 +701,12 @@ func init() {
 		facilitiesQueries,
 		facilitiesRows,
 		facilitiesStatementDuration,
+		timetableActivitiesOperations,
+		timetableActivitiesDuration,
+		timetableActivitiesQueries,
+		timetableActivitiesRows,
+		timetableActivitiesDuplicatePreventionConflicts,
+		timetableActivitiesStatementDuration,
 		schoolCalendarOperations,
 		schoolCalendarDuration,
 		schoolCalendarQueries,
@@ -953,6 +983,30 @@ func ObserveFacilitiesOperation(operation string, duration time.Duration, querie
 	}
 	if statementDuration > 0 {
 		facilitiesStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveTimetableActivitiesOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	timetableActivitiesOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	timetableActivitiesDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		timetableActivitiesQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		timetableActivitiesRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if duplicatePreventionConflicts > 0 {
+		timetableActivitiesDuplicatePreventionConflicts.WithLabelValues(operation).Add(float64(duplicatePreventionConflicts))
+	}
+	if statementDuration > 0 {
+		timetableActivitiesStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 

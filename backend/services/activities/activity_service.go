@@ -5,19 +5,19 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Service implements the ActivityService interface
 type Service struct {
-	categoryRepo    activities.CategoryRepository
+	categories      timetable.Capability
 	groupRepo       activities.GroupRepository
 	scheduleRepo    activities.ScheduleRepository
 	supervisorRepo  activities.SupervisorPlannedRepository
@@ -29,7 +29,7 @@ type Service struct {
 
 // NewService creates a new activity service
 func NewService(
-	categoryRepo activities.CategoryRepository,
+	categories timetable.Capability,
 	groupRepo activities.GroupRepository,
 	scheduleRepo activities.ScheduleRepository,
 	supervisorRepo activities.SupervisorPlannedRepository,
@@ -39,7 +39,7 @@ func NewService(
 	studentRepo userModels.StudentRepository,
 ) (*Service, error) {
 	return &Service{
-		categoryRepo:    categoryRepo,
+		categories:      categories,
 		groupRepo:       groupRepo,
 		scheduleRepo:    scheduleRepo,
 		supervisorRepo:  supervisorRepo,
@@ -73,59 +73,44 @@ const (
 
 // CreateCategory creates a new activity category
 func (s *Service) CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error) {
-	if err := category.Validate(); err != nil {
-		return nil, &ActivityError{Op: "create category", Err: err}
+	if category == nil || s.categories == nil {
+		return nil, &ActivityError{Op: "create category", Err: timetable.ErrInvalidCategory}
 	}
-	if !category.IsSystem && isReservedSystemCategoryName(category.Name) {
-		return nil, &ActivityError{Op: "create category", Err: ErrSystemCategoryNameReserved}
+	created, err := s.categories.CreateCategory(ctx, timetable.CreateCategory{
+		Name: category.Name, Description: category.Description, Color: category.Color, IsSystem: category.IsSystem,
+	})
+	if err != nil {
+		return nil, categoryActivityError("create category", err)
 	}
-
-	// Set tenant ID from context
-	category.SetTenantID(tenant.FromContext(ctx))
-	if err := s.categoryRepo.Create(ctx, category); err != nil {
-		// Only active rows share the case-insensitive tenant/name unique index,
-		// so a violation always means another live category holds the name.
-		if base.IsUniqueViolation(err) {
-			return nil, &ActivityError{Op: "create category", Err: ErrCategoryNameExists}
-		}
-		return nil, &ActivityError{Op: "create category", Err: err}
-	}
-
-	return category, nil
-}
-
-// isReservedSystemCategoryName protects the case-insensitive namespace used
-// by the lazily provisioned WC and Schulhof infrastructure. Provisioners may
-// create those categories with IsSystem set; school-owned categories may not
-// claim either name before provisioning runs.
-func isReservedSystemCategoryName(name string) bool {
-	name = strings.TrimSpace(name)
-	return strings.EqualFold(name, constants.WCCategoryName) ||
-		strings.EqualFold(name, constants.SchulhofCategoryName)
+	return categoryFromOwner(created), nil
 }
 
 // GetCategory retrieves a category by ID
 func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Category, error) {
-	category, err := s.categoryRepo.FindByID(ctx, id)
-	if err != nil {
-		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
-		if base.IsNoRows(err) {
-			return nil, &ActivityError{Op: opGetCategory, Err: ErrCategoryNotFound}
-		}
-		return nil, &ActivityError{Op: opGetCategory, Err: err}
+	if s.categories == nil {
+		return nil, &ActivityError{Op: opGetCategory, Err: timetable.ErrCategoryNotFound}
 	}
-
-	return category, nil
+	category, err := s.categories.FindCategory(ctx, id)
+	if err != nil {
+		return nil, categoryActivityError(opGetCategory, err)
+	}
+	return categoryFromOwner(category), nil
 }
 
 // ListCategories lists all activity categories
 func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, error) {
-	categories, err := s.categoryRepo.ListAll(ctx)
+	if s.categories == nil {
+		return nil, &ActivityError{Op: "list categories", Err: errors.New("category capability is required")}
+	}
+	categories, err := s.categories.ListCategories(ctx)
 	if err != nil {
 		return nil, &ActivityError{Op: "list categories", Err: err}
 	}
-
-	return categories, nil
+	result := make([]*activities.Category, 0, len(categories))
+	for _, category := range categories {
+		result = append(result, categoryFromOwner(category))
+	}
+	return result, nil
 }
 
 // SetCategoryShiftTypeLinks maps the given categories to a Dienstplan shift type
@@ -134,8 +119,11 @@ func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, e
 // category side, so the write is owned here. Runs inside the caller's tenant
 // transaction (the shift-types router wires TenantTxMiddleware).
 func (s *Service) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {
-	if err := s.categoryRepo.SetShiftTypeForCategories(ctx, shiftTypeID, categoryIDs); err != nil {
-		return &ActivityError{Op: "set category shift type links", Err: err}
+	if s.categories == nil {
+		return &ActivityError{Op: "set category shift type links", Err: errors.New("category capability is required")}
+	}
+	if err := s.categories.SetCategoryShiftTypeLinks(ctx, shiftTypeID, categoryIDs); err != nil {
+		return categoryActivityError("set category shift type links", err)
 	}
 	return nil
 }
@@ -182,17 +170,11 @@ func (s *Service) validateAndSetCategory(ctx context.Context, group *activities.
 		return nil
 	}
 
-	category, err := s.categoryRepo.FindByIDForShare(ctx, group.CategoryID)
+	category, err := s.categories.FindCategoryForAssignment(ctx, group.CategoryID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &ActivityError{Op: "validate category", Err: ErrCategoryNotFound}
-		}
-		return &ActivityError{Op: "validate category", Err: err}
+		return categoryActivityError("validate category", err)
 	}
-	if category.IsArchived() {
-		return &ActivityError{Op: "validate category", Err: ErrCategoryArchived}
-	}
-	group.Category = category
+	group.Category = categoryFromOwner(category)
 	return nil
 }
 
@@ -443,12 +425,9 @@ func (s *Service) ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupW
 // FindByCategory finds all activity groups in a specific category
 func (s *Service) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
 	// First verify the category exists
-	_, err := s.categoryRepo.FindByID(ctx, categoryID)
+	_, err := s.categories.FindCategory(ctx, categoryID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opFindByCategory, Err: ErrCategoryNotFound}
-		}
-		return nil, &ActivityError{Op: opFindByCategory, Err: err}
+		return nil, categoryActivityError(opFindByCategory, err)
 	}
 
 	// Use the repository method
@@ -474,13 +453,13 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 
 	// Load the category if not already loaded
 	if group.Category == nil && group.CategoryID > 0 {
-		category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
+		category, err := s.categories.FindCategory(ctx, group.CategoryID)
 		if err != nil {
 			slog.Default().WarnContext(ctx, "failed to load category for group",
 				slog.Int64("group_id", id),
 				slog.String("error", err.Error()))
 		} else {
-			group.Category = category
+			group.Category = categoryFromOwner(category)
 		}
 	}
 

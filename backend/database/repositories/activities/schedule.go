@@ -106,20 +106,17 @@ func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Contex
 	// build a valid FROM clause without a registered model, so this query
 	// uses a raw SQL statement and manual row scanning. The belt-and-
 	// suspenders tenant filter (RLS + explicit WHERE) is kept intact.
-	q := `
+	const query = `
 		SELECT s.activity_group_id, s.weekday, TO_CHAR(t.start_time, 'HH24:MI:SS') AS start_time
 		FROM activities.schedules AS s
 		INNER JOIN schedule.timeframes AS t ON t.id = s.timeframe_id
 		WHERE s.activity_group_id IN (?)
-		  AND s.timeframe_id IS NOT NULL`
-	args := []any{bun.List(groupIDs)}
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		q += ` AND s.tenant_id = ? AND t.tenant_id = ?`
-		args = append(args, tenantID, tenantID)
-	}
-	q += ` ORDER BY s.activity_group_id ASC, s.weekday ASC, t.start_time ASC`
+		  AND s.timeframe_id IS NOT NULL
+		  AND s.tenant_id = ? AND t.tenant_id = ?
+		ORDER BY s.activity_group_id ASC, s.weekday ASC, t.start_time ASC`
+	tenantID := tenant.FromContext(ctx)
 
-	rows, err := base.GetDB(ctx, r.db).QueryContext(ctx, q, args...)
+	rows, err := base.GetDB(ctx, r.db).QueryContext(ctx, query, bun.List(groupIDs), tenantID, tenantID)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find template start times by group ids",

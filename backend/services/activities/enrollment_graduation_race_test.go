@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/activities"
+	activities "github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -72,7 +72,7 @@ func TestActivityService_UpdateGroupEnrollments_PreservesChildGraduatedAfterRost
 		},
 	}
 	racing, err := activities.NewService(
-		repos.ActivityCategory,
+		nil,
 		repos.ActivityGroup,
 		repos.ActivitySchedule,
 		repos.ActivitySupervisor,
