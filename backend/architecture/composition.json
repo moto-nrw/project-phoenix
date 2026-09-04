@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        629
+        672
       ],
       "tables": []
     },
@@ -9833,16 +9833,6 @@
       "tables": [
         "users.students"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "services/announcement/care_cancellation_test.go",
-      "declaration": "buildNoticeService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        43
-      ],
-      "tables": []
     },
     {
       "scope": "test",
@@ -31826,27 +31816,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 164,
+          "line": 185,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 336,
+          "line": 379,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 439,
+          "line": 482,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 505,
+          "line": 548,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 997,
+          "line": 1040,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31856,7 +31846,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 629,
+          "line": 672,
           "declaration": "New"
         }
       ]
@@ -31866,12 +31856,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 155,
+          "line": 158,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 502,
+          "line": 545,
           "declaration": "type API"
         },
         {
@@ -31981,12 +31971,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 428,
+          "line": 429,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 455,
+          "line": 457,
           "declaration": "newFactory"
         },
         {

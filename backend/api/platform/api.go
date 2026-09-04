@@ -5,7 +5,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // Resource defines the platform API resource (user-facing)
@@ -16,7 +16,7 @@ type Resource struct {
 
 // ResourceConfig holds dependencies for the platform resource
 type ResourceConfig struct {
-	AnnouncementsService platformSvc.AnnouncementService
+	AnnouncementsService communication.Capability
 	TokenAuth            *jwt.TokenAuth
 }
 

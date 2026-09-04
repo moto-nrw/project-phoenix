@@ -18,18 +18,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	announcementService "github.com/moto-nrw/project-phoenix/services/announcement"
+	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // Resource is the staff parent-announcement HTTP resource.
 type Resource struct {
-	Service announcementService.Service
+	Service announcementService.ParentAnnouncementCapability
 	db      *bun.DB
 }
 
 // NewResource wires the staff announcement resource.
-func NewResource(service announcementService.Service, db *bun.DB) *Resource {
+func NewResource(service announcementService.ParentAnnouncementCapability, db *bun.DB) *Resource {
 	return &Resource{Service: service, db: db}
 }
 
@@ -144,7 +143,7 @@ type statsResponse struct {
 	AcknowledgedCount int `json:"acknowledged_count"`
 }
 
-func announcementStatus(a *usersModels.ParentAnnouncement) string {
+func announcementStatus(a *announcementService.ParentAnnouncement) string {
 	if a.PublishedAt == nil {
 		return "draft"
 	}
@@ -154,12 +153,12 @@ func announcementStatus(a *usersModels.ParentAnnouncement) string {
 	return "published"
 }
 
-func toTargetResponses(targets []*usersModels.ParentAnnouncementTarget) []targetResponse {
+func toTargetResponses(targets []announcementService.ParentAnnouncementTarget) []targetResponse {
 	out := make([]targetResponse, 0, len(targets))
 	for _, t := range targets {
-		resp := targetResponse{TargetType: t.TargetType, RefText: t.TargetRefText}
-		if t.TargetRefID != nil {
-			id := strconv.FormatInt(*t.TargetRefID, 10)
+		resp := targetResponse{TargetType: t.TargetType, RefText: t.RefText}
+		if t.RefID != nil {
+			id := strconv.FormatInt(*t.RefID, 10)
 			resp.RefID = &id
 		}
 		out = append(out, resp)
@@ -167,7 +166,7 @@ func toTargetResponses(targets []*usersModels.ParentAnnouncementTarget) []target
 	return out
 }
 
-func toOptionResponses(options []*usersModels.ParentAnnouncementOption) []optionResponse {
+func toOptionResponses(options []announcementService.ParentAnnouncementOption) []optionResponse {
 	out := make([]optionResponse, 0, len(options))
 	for _, o := range options {
 		out = append(out, optionResponse{
@@ -178,7 +177,7 @@ func toOptionResponses(options []*usersModels.ParentAnnouncementOption) []option
 	return out
 }
 
-func toAnnouncementResponse(a *usersModels.ParentAnnouncement) announcementResponse {
+func toAnnouncementResponse(a *announcementService.ParentAnnouncement) announcementResponse {
 	return announcementResponse{
 		ID:                      strconv.FormatInt(a.ID, 10),
 		Title:                   a.Title,
@@ -205,8 +204,8 @@ func toAnnouncementResponse(a *usersModels.ParentAnnouncement) announcementRespo
 
 // toInput maps the wire request to the service input, parsing stringified
 // entity ids. An unparseable ref_id is a client error.
-func toInput(req announcementRequest) (announcementService.Input, error) {
-	in := announcementService.Input{
+func toInput(req announcementRequest) (announcementService.ParentAnnouncementInput, error) {
+	in := announcementService.ParentAnnouncementInput{
 		Title:                   req.Title,
 		Body:                    req.Body,
 		Priority:                req.Priority,
@@ -219,14 +218,14 @@ func toInput(req announcementRequest) (announcementService.Input, error) {
 		Options:                 req.Options,
 		DeliveryMode:            req.DeliveryMode,
 		EmailAudience:           req.EmailAudience,
-		Targets:                 make([]announcementService.TargetInput, 0, len(req.Targets)),
+		Targets:                 make([]announcementService.ParentAnnouncementTargetInput, 0, len(req.Targets)),
 	}
 	for _, t := range req.Targets {
-		target := announcementService.TargetInput{TargetType: t.TargetType, RefText: t.RefText}
+		target := announcementService.ParentAnnouncementTargetInput{TargetType: t.TargetType, RefText: t.RefText}
 		if t.RefID != nil && *t.RefID != "" {
 			id, err := strconv.ParseInt(*t.RefID, 10, 64)
 			if err != nil || id <= 0 {
-				return announcementService.Input{}, errors.New("invalid target ref_id")
+				return announcementService.ParentAnnouncementInput{}, errors.New("invalid target ref_id")
 			}
 			target.RefID = &id
 		}
@@ -237,14 +236,14 @@ func toInput(req announcementRequest) (announcementService.Input, error) {
 
 func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	includeInactive := r.URL.Query().Get("include_inactive") == "true"
-	rows, err := rs.Service.List(r.Context(), includeInactive)
+	rows, err := rs.Service.ListParentAnnouncements(r.Context(), includeInactive)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
 	}
 	out := make([]announcementResponse, 0, len(rows))
 	for _, a := range rows {
-		out = append(out, toAnnouncementResponse(a))
+		out = append(out, toAnnouncementResponse(&a))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Announcements retrieved")
 }
@@ -254,7 +253,7 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	a, err := rs.Service.Get(r.Context(), id)
+	a, err := rs.Service.GetParentAnnouncement(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -268,7 +267,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	a, err := rs.Service.Create(r.Context(), int64(claims.ID), in)
+	a, err := rs.Service.CreateParentAnnouncement(r.Context(), int64(claims.ID), in)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -285,7 +284,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	a, err := rs.Service.Update(r.Context(), id, in)
+	a, err := rs.Service.UpdateParentAnnouncement(r.Context(), id, in)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -298,7 +297,7 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := rs.Service.Delete(r.Context(), id); err != nil {
+	if err := rs.Service.DeleteParentAnnouncement(r.Context(), id); err != nil {
 		renderAnnouncementError(w, r, err)
 		return
 	}
@@ -310,7 +309,7 @@ func (rs *Resource) publish(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	a, err := rs.Service.Publish(r.Context(), id)
+	a, err := rs.Service.PublishParentAnnouncement(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -323,7 +322,7 @@ func (rs *Resource) unpublish(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	a, err := rs.Service.Unpublish(r.Context(), id)
+	a, err := rs.Service.UnpublishParentAnnouncement(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -336,7 +335,7 @@ func (rs *Resource) stats(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s, err := rs.Service.Stats(r.Context(), id)
+	s, err := rs.Service.ParentAnnouncementStats(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -365,7 +364,7 @@ func (rs *Resource) recipients(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	list, err := rs.Service.Recipients(r.Context(), id)
+	list, err := rs.Service.ParentAnnouncementRecipients(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -449,9 +448,9 @@ type letterChildResponse struct {
 }
 
 type letterStatusResponse struct {
-	Recipients []letterRecipientResponse         `json:"recipients"`
-	Children   []letterChildResponse             `json:"children"`
-	Summary    announcementService.LetterSummary `json:"summary"`
+	Recipients []letterRecipientResponse                           `json:"recipients"`
+	Children   []letterChildResponse                               `json:"children"`
+	Summary    announcementService.ParentAnnouncementLetterSummary `json:"summary"`
 }
 
 func (rs *Resource) letterStatus(w http.ResponseWriter, r *http.Request) {
@@ -459,7 +458,7 @@ func (rs *Resource) letterStatus(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	status, err := rs.Service.LetterStatus(r.Context(), id)
+	status, err := rs.Service.ParentAnnouncementLetterStatus(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -503,7 +502,7 @@ func (rs *Resource) pollResults(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	results, err := rs.Service.PollResults(r.Context(), id)
+	results, err := rs.Service.ParentAnnouncementPollResults(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -529,7 +528,7 @@ func (rs *Resource) pollChildren(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := rs.Service.PollChildren(r.Context(), id)
+	rows, err := rs.Service.ParentAnnouncementPollChildren(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -558,7 +557,7 @@ func (rs *Resource) remindUnanswered(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	count, err := rs.Service.RemindOutstanding(r.Context(), id)
+	count, err := rs.Service.RemindParentAnnouncement(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -575,7 +574,7 @@ func (rs *Resource) resendFailed(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	count, err := rs.Service.ResendFailedEmails(r.Context(), id)
+	count, err := rs.Service.ResendParentAnnouncementEmails(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
@@ -583,16 +582,16 @@ func (rs *Resource) resendFailed(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, map[string]int{"resent_count": count}, "Failed e-mails re-queued")
 }
 
-func decodeInput(w http.ResponseWriter, r *http.Request) (announcementService.Input, bool) {
+func decodeInput(w http.ResponseWriter, r *http.Request) (announcementService.ParentAnnouncementInput, bool) {
 	var req announcementRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return announcementService.Input{}, false
+		return announcementService.ParentAnnouncementInput{}, false
 	}
 	in, err := toInput(req)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return announcementService.Input{}, false
+		return announcementService.ParentAnnouncementInput{}, false
 	}
 	return in, true
 }
@@ -604,23 +603,23 @@ func parseAnnouncementID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 // renderAnnouncementError maps service sentinels to HTTP status codes.
 func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, announcementService.ErrNotFound):
+	case errors.Is(err, announcementService.ErrParentAnnouncementNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, announcementService.ErrNewsDisabled):
+	case errors.Is(err, announcementService.ErrParentNewsDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "parent_news_disabled"))
-	case errors.Is(err, announcementService.ErrPublishedImmutable):
+	case errors.Is(err, announcementService.ErrPublishedParentAnnouncement):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_published_immutable"))
-	case errors.Is(err, announcementService.ErrSystemAnnouncementImmutable):
+	case errors.Is(err, announcementService.ErrSystemParentAnnouncementImmutable):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "system_announcement_immutable"))
-	case errors.Is(err, announcementService.ErrNotAPoll):
+	case errors.Is(err, announcementService.ErrParentAnnouncementNotPoll):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, announcementService.ErrPollNotOpen):
+	case errors.Is(err, announcementService.ErrParentAnnouncementPollClosed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "poll_not_open"))
-	case errors.Is(err, announcementService.ErrNotPublished):
+	case errors.Is(err, announcementService.ErrParentAnnouncementNotPublished):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_not_published"))
-	case errors.Is(err, announcementService.ErrNothingOutstanding):
+	case errors.Is(err, announcementService.ErrParentAnnouncementNothingDue):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, announcementService.ErrValidation):
+	case errors.Is(err, announcementService.ErrParentAnnouncementValidation):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("announcement request failed", err))

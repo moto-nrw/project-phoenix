@@ -43,6 +43,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		func(_ string, _ time.Duration, _ int, _ error) { observedAppends++ },
 		func(string, string, string, time.Duration, error) {},
 		func(string, string, string, time.Duration, int, error) {},

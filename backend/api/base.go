@@ -56,24 +56,27 @@ import (
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
-	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
 	messagingAPI "github.com/moto-nrw/project-phoenix/api/messaging"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
+	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
 
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -152,13 +155,31 @@ func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntim
 }
 
 type moduleServices struct {
-	services *services.Factory
-	mealPlan *mealplanModule.Module
-	feedback *feedbackModule.Module
-	persons  *peopleModule.Module
-	rooms    *facilitiesModule.Module
+	services      *services.Factory
+	communication *communicationModule.Module
+	mealPlan      *mealplanModule.Module
+	feedback      *feedbackModule.Module
+	persons       *peopleModule.Module
+	rooms         *facilitiesModule.Module
 	// membership owns users.staff, users.teachers and users.guests (#2667).
 	membership *schoolMembershipModule.Module
+}
+
+func newCommunicationAudit(create func(context.Context, *platformModels.OperatorAuditLog) error) communicationCompose.AuditFunc {
+	return func(ctx context.Context, input communicationCompose.AuditEntry) error {
+		resourceID := input.ResourceID
+		entry := &platformModels.OperatorAuditLog{
+			OperatorID: input.OperatorID, Action: input.Action,
+			ResourceType: platformModels.ResourceAnnouncement, ResourceID: &resourceID,
+			RequestIP: input.RequestIP,
+		}
+		if input.Changes != nil {
+			if err := entry.SetChanges(input.Changes); err != nil {
+				return err
+			}
+		}
+		return create(ctx, entry)
+	}
 }
 
 func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (moduleServices, error) {
@@ -223,6 +244,27 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	communicationCapability, err := communicationCompose.New(communicationCompose.Dependencies{
+		DB:            db,
+		Organizations: organizations,
+		People:        persons,
+		Audit:         newCommunicationAudit(repoFactory.OperatorAuditLog.Create),
+		Observe: func(observation communicationCompose.Observation) {
+			observability.ObserveCommunicationOperation(
+				observation.Operation,
+				observation.Duration,
+				int64(observation.Stats.Queries),
+				observation.Stats.Rows,
+				int64(observation.Stats.DuplicatePreventionConflicts),
+				observation.Stats.StatementDuration,
+				communicationModule.ErrorCode(observation.Err),
+				observation.Err,
+			)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
 	carePlan, err := composeCarePlan(db, persons)
 	if err != nil {
 		return moduleServices{}, err
@@ -264,6 +306,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	factory, err := services.NewFactoryWithModules(
 		repoFactory, db, logger,
 		organizations, persons, groups, rooms, membership, calendar, appointmentCapability,
+		communicationCapability,
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,
@@ -274,7 +317,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, membership: membership}, nil
+	return moduleServices{services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, membership: membership}, nil
 }
 
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
