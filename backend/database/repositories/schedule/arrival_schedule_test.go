@@ -771,7 +771,7 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.TodayDate().AddDays(i + 100), // Far future to avoid conflicts
+				ExceptionDate: timezone.NewDate(2099, time.January, i),
 				Reason:        testpkg.StrPtr("Test exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -791,7 +791,7 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 		results, err = repo.List(ctx, options)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-		assert.Equal(t, timezone.TodayDate().AddDays(103), results[0].ExceptionDate)
+		assert.Equal(t, timezone.NewDate(2099, time.January, 3), results[0].ExceptionDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -1176,7 +1176,7 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.TodayDate().AddDays(i + 200), // Far future to avoid conflicts
+				NoteDate:  timezone.NewDate(2099, time.February, i),
 				Content:   "Test note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1196,7 +1196,7 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 		results, err = repo.List(ctx, options)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-		assert.Equal(t, timezone.TodayDate().AddDays(203), results[0].NoteDate)
+		assert.Equal(t, timezone.NewDate(2099, time.February, 3), results[0].NoteDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
