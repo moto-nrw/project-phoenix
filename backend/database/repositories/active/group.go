@@ -316,6 +316,7 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 // FindActiveByDeviceIDWithNames finds the current active session for a device with activity and room names using direct SQL
 func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*active.Group, error) {
 	type sessionQueryResult struct {
+		TenantID       int64      `bun:"tenant_id"`
 		ID             int64      `bun:"id"`
 		StartTime      time.Time  `bun:"start_time"`
 		EndTime        *time.Time `bun:"end_time"`
@@ -334,7 +335,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 	// This avoids BUN model hooks that cause "groups does not exist" errors
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
-		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
+		ColumnExpr("ag.id, ag.tenant_id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
 		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID)
 
@@ -372,7 +373,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 
 	activityNames := map[int64]string{}
 	if result.GroupID != nil {
-		activityNames, err = timetableprojection.GroupNames(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), []int64{*result.GroupID})
+		activityNames, err = timetableprojection.GroupNames(ctx, base.GetDB(ctx, r.db), result.TenantID, []int64{*result.GroupID})
 		if err != nil {
 			return nil, &modelBase.DatabaseError{Op: "find active by device ID with names", Err: err}
 		}
@@ -955,7 +956,10 @@ func (r *GroupRepository) AggregateRoomSessions(
 	start, end time.Time,
 	supervisorStaffID *int64,
 ) ([]*active.RoomSessionAggregate, error) {
-	var rows []*active.RoomSessionAggregate
+	var rows []struct {
+		active.RoomSessionAggregate
+		TenantID int64 `bun:"tenant_id"`
+	}
 
 	tenantID := tenant.FromContext(ctx)
 
@@ -993,6 +997,7 @@ func (r *GroupRepository) AggregateRoomSessions(
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("active.groups AS ag").
 		ColumnExpr("ag.id AS session_id").
+		ColumnExpr("ag.tenant_id").
 		ColumnExpr("ag.group_id AS activity_group_id").
 		ColumnExpr("ag.start_time AS started_at").
 		ColumnExpr("ag.end_time AS ended_at").
@@ -1042,21 +1047,28 @@ func (r *GroupRepository) AggregateRoomSessions(
 			Err: base.TranslateNotFound(err),
 		}
 	}
-	groupIDs := make([]int64, 0, len(rows))
+	groupIDsByTenant := make(map[int64][]int64)
 	for _, row := range rows {
 		if row.ActivityGroupID != nil {
-			groupIDs = append(groupIDs, *row.ActivityGroupID)
+			groupIDsByTenant[row.TenantID] = append(groupIDsByTenant[row.TenantID], *row.ActivityGroupID)
 		}
 	}
-	names, err := timetableprojection.GroupNames(ctx, base.GetDB(ctx, r.db), tenantID, groupIDs)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "aggregate room sessions", Err: err}
+	namesByTenant := make(map[int64]map[int64]string, len(groupIDsByTenant))
+	for rowTenantID, groupIDs := range groupIDsByTenant {
+		names, err := timetableprojection.GroupNames(ctx, base.GetDB(ctx, r.db), rowTenantID, groupIDs)
+		if err != nil {
+			return nil, &modelBase.DatabaseError{Op: "aggregate room sessions", Err: err}
+		}
+		namesByTenant[rowTenantID] = names
 	}
-	for _, row := range rows {
+	var result []*active.RoomSessionAggregate
+	for i := range rows {
+		row := &rows[i]
 		if row.ActivityGroupID != nil {
-			row.ActivityName = names[*row.ActivityGroupID]
+			row.ActivityName = namesByTenant[row.TenantID][*row.ActivityGroupID]
 		}
+		result = append(result, &row.RoomSessionAggregate)
 	}
 
-	return rows, nil
+	return result, nil
 }
