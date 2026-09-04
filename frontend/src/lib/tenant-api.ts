@@ -5,6 +5,7 @@
  */
 
 import { clearSessionCache, sessionFetch } from "./session-cache";
+import { mapAccountTenant, type AccountTenantBackend } from "./account-tenants";
 
 const TENANT_ACCESS_DENIED_MESSAGE =
   "account does not have access to this tenant";
@@ -338,15 +339,6 @@ function delay(ms: number): Promise<void> {
 }
 
 /** Backend response shape for account tenants (snake_case) */
-interface AccountTenantBackend {
-  tenant_id: number;
-  slug: string;
-  name: string;
-  subdomain: string;
-  organization_id: number;
-  organization_name: string;
-}
-
 /**
  * List tenants the current user has access to.
  * Requires an authenticated session.
@@ -357,15 +349,7 @@ export async function listAvailableTenants(): Promise<TenantSummary[]> {
     return [];
   }
   const json = (await response.json()) as { data?: AccountTenantBackend[] };
-  const items = json.data ?? [];
-  return items.map((t) => ({
-    tenantId: t.tenant_id,
-    slug: t.slug,
-    name: t.name,
-    subdomain: t.subdomain,
-    organizationId: t.organization_id,
-    organizationName: t.organization_name,
-  }));
+  return (json.data ?? []).map(mapAccountTenant);
 }
 
 /** Response shape from the switch-tenant endpoint */

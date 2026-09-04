@@ -6,7 +6,10 @@ import { usePathname } from "next/navigation";
 import useSWR from "swr";
 import { authFetch } from "~/lib/api-helpers";
 
-interface UnreadAnnouncement {
+/** Platform-scoped, so deliberately NOT tenant-prefixed. */
+export const ANNOUNCEMENTS_UNREAD_SWR_KEY = "user-announcements-unread";
+
+export interface UnreadAnnouncement {
   id: number;
   title: string;
   content: string;
@@ -38,7 +41,7 @@ export function useAnnouncements() {
   const previousPathname = useRef(pathname);
 
   const { data, mutate, isLoading } = useSWR(
-    "user-announcements-unread",
+    ANNOUNCEMENTS_UNREAD_SWR_KEY,
     fetchUnread,
     {
       refreshInterval: 60000, // Poll every 60s

@@ -17,51 +17,38 @@ import {
 import { createLogger } from "~/lib/logger";
 import { useLatest } from "~/lib/hooks/use-latest";
 import { useOperationalOverviewScope } from "~/lib/tenant-context";
+import {
+  deriveSupervision,
+  sameGroups,
+  sameSupervision,
+  sortNavigationGroups,
+  type DerivedSupervision,
+  type SchulhofStatus,
+  type SupervisedGroupPayload,
+  type SupervisedRoom,
+  type SupervisionSnapshot,
+} from "~/lib/supervision-derive";
 import type { NavigationEducationalGroup } from "~/lib/usercontext-helpers";
 
 const logger = createLogger({ component: "SupervisionContext" });
 
-interface SupervisedRoom {
-  id: string;
-  name: string;
-  groupId: string;
-  groupName?: string;
-  isSchulhof?: boolean; // Special flag for Schulhof permanent tab
-}
-
-// Schulhof status from API
-interface SchulhofStatus {
-  exists: boolean;
-  room_id?: number;
-  room_name: string;
-  active_group_id?: number;
-  is_user_supervising: boolean;
-}
-
-const SCHULHOF_ROOM_NAME = "Schulhof";
-const SCHULHOF_TAB_ID = "schulhof";
 const RESYNC_INTERVAL_MS = 5 * 60 * 1000;
 
-interface SupervisionState {
+interface SupervisionState extends DerivedSupervision {
   // Group supervision
   hasGroups: boolean;
   isLoadingGroups: boolean;
   groups: NavigationEducationalGroup[];
 
   // Room supervision (for active sessions)
-  isSupervising: boolean;
-  supervisedRoomId?: string;
-  supervisedRoomName?: string;
   supervisedRooms: SupervisedRoom[];
   isLoadingSupervision: boolean;
 
-  // True when the caller fetched supervision rooms via the school-wide
-  // overview endpoint (/api/active/supervisors/all), i.e. the server confirmed
-  // this person may see every running module (#2380). False when this caller
-  // stays on their own supervisions. Pages gate on this
-  // rather than on room count, so a synthetic Schulhof entry never counts as
-  // an enabled overview.
-  overviewEnabled: boolean;
+  // overviewEnabled (from DerivedSupervision): true when the caller fetched
+  // supervision rooms via the school-wide overview endpoint
+  // (/api/active/supervisors/all), i.e. the server confirmed this person may
+  // see every running module (#2380). Pages gate on this rather than on room
+  // count, so a synthetic Schulhof entry never counts as an enabled overview.
 }
 
 interface SupervisionContextType extends SupervisionState {
@@ -76,28 +63,59 @@ const SupervisionContext = createContext<SupervisionContextType | undefined>(
   undefined,
 );
 
+const EMPTY_SUPERVISION_STATE: DerivedSupervision = {
+  isSupervising: false,
+  supervisedRoomId: undefined,
+  supervisedRoomName: undefined,
+  supervisedRooms: [],
+  overviewEnabled: false,
+};
+
+function initialState(initial: SupervisionSnapshot | null): SupervisionState {
+  if (!initial) {
+    return {
+      hasGroups: false,
+      isLoadingGroups: true,
+      groups: [],
+      ...EMPTY_SUPERVISION_STATE,
+      isLoadingSupervision: true,
+    };
+  }
+  const groups = sortNavigationGroups(initial.groups ?? []);
+  return {
+    hasGroups: groups.length > 0,
+    isLoadingGroups: false,
+    groups,
+    ...deriveSupervision(
+      initial.supervised,
+      initial.schulhof,
+      initial.overviewOk,
+    ),
+    isLoadingSupervision: false,
+  };
+}
+
 /**
  * Provider that manages dynamic supervision states
  * Checks for group assignments and active room supervision
+ *
+ * `initial` is the server-preloaded snapshot from the tenant layout (#2973):
+ * when present, the first render already carries groups and rooms and the
+ * mount fetch is skipped; the 5-minute resync and SSE triggers stay in place.
  */
 export function SupervisionProvider({
   children,
+  initial = null,
 }: Readonly<{
   children: React.ReactNode;
+  initial?: SupervisionSnapshot | null;
 }>) {
   const { data: session } = useSession();
 
-  const [state, setState] = useState<SupervisionState>({
-    hasGroups: false,
-    isLoadingGroups: true,
-    groups: [],
-    isSupervising: false,
-    supervisedRoomId: undefined,
-    supervisedRoomName: undefined,
-    supervisedRooms: [],
-    isLoadingSupervision: true,
-    overviewEnabled: false,
-  });
+  const [state, setState] = useState<SupervisionState>(() =>
+    initialState(initial),
+  );
+  const seededRef = React.useRef(initial !== null);
 
   // Debounce mechanism to prevent rapid successive calls
   const isRefreshingRef = React.useRef(false);
@@ -148,6 +166,21 @@ export function SupervisionProvider({
     | null
   >(null);
 
+  const applyGroups = useCallback((groupList: NavigationEducationalGroup[]) => {
+    setState((prev) => {
+      // Only update if value actually changed
+      if (sameGroups(prev.groups, groupList) && !prev.isLoadingGroups) {
+        return prev;
+      }
+      return {
+        ...prev,
+        hasGroups: groupList.length > 0,
+        groups: groupList,
+        isLoadingGroups: false,
+      };
+    });
+  }, []);
+
   // Check if user has any groups (as teacher or representative)
   const checkGroups = useCallback(async () => {
     const token = tokenRef.current;
@@ -176,87 +209,32 @@ export function SupervisionProvider({
           groups?: NavigationEducationalGroup[];
         };
         // Route wrapper wraps response as { success, data: { groups } }
-        const groupList = (json.data?.groups ?? json.groups ?? []).sort(
-          (a, b) => a.name.localeCompare(b.name, "de"),
+        applyGroups(
+          sortNavigationGroups(json.data?.groups ?? json.groups ?? []),
         );
-        const newHasGroups = groupList.length > 0;
-        setState((prev) => {
-          // Only update if value actually changed
-          if (
-            prev.hasGroups === newHasGroups &&
-            prev.groups.length === groupList.length &&
-            prev.groups.every((group, index) => {
-              const next = groupList[index];
-              return (
-                group.id === next?.id &&
-                group.name === next.name &&
-                group.room_id === next.room_id &&
-                group.via_substitution === next.via_substitution &&
-                group.is_personal === next.is_personal
-              );
-            }) &&
-            !prev.isLoadingGroups
-          ) {
-            return prev;
-          }
-          return {
-            ...prev,
-            hasGroups: newHasGroups,
-            groups: groupList,
-            isLoadingGroups: false,
-          };
-        });
       } else {
-        setState((prev) => {
-          // Only update if value actually changed
-          if (
-            !prev.hasGroups &&
-            prev.groups.length === 0 &&
-            !prev.isLoadingGroups
-          ) {
-            return prev;
-          }
-          return {
-            ...prev,
-            hasGroups: false,
-            groups: [],
-            isLoadingGroups: false,
-          };
-        });
+        applyGroups([]);
       }
     } catch {
-      setState((prev) => {
-        // Only update if values actually changed
-        if (
-          !prev.hasGroups &&
-          prev.groups.length === 0 &&
-          !prev.isLoadingGroups
-        ) {
-          return prev;
-        }
-        return {
-          ...prev,
-          hasGroups: false,
-          groups: [],
-          isLoadingGroups: false,
-        };
-      });
+      applyGroups([]);
     }
-  }, [tokenRef]);
+  }, [applyGroups, tokenRef]);
+
+  const applySupervision = useCallback((next: DerivedSupervision) => {
+    setState((prev) => {
+      // Only update if values actually changed
+      if (sameSupervision(prev, next) && !prev.isLoadingSupervision) {
+        return prev;
+      }
+      return { ...prev, ...next, isLoadingSupervision: false };
+    });
+  }, []);
 
   // Check if user is supervising an active room (also fetches Schulhof status)
   const checkSupervision = useCallback(async () => {
     const token = tokenRef.current;
     if (!token) {
-      setState((prev) => ({
-        ...prev,
-        isSupervising: false,
-        supervisedRoomId: undefined,
-        supervisedRoomName: undefined,
-        supervisedRooms: [],
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-      }));
+      applySupervision(EMPTY_SUPERVISION_STATE);
       return;
     }
 
@@ -309,215 +287,31 @@ export function SupervisionProvider({
       ]);
 
       // Parse Schulhof status
-      let schulhofRoom: SupervisedRoom | null = null;
+      let schulhof: SchulhofStatus | null = null;
       if (schulhofResponse?.ok) {
         // Response is double-wrapped: { success, data: { status, data: SchulhofStatus } }
         const schulhofJson = (await schulhofResponse.json()) as {
           data?: { data?: SchulhofStatus };
         };
-        // Extract the actual Schulhof status from nested structure
-        const schulhofData = schulhofJson.data?.data;
-        // Intentionally check `exists` only, NOT `is_user_supervising`.
-        // The Schulhof tab must be visible to ALL staff so anyone can
-        // opt-in to supervise. Multiple supervisors are expected.
-        // `is_user_supervising` is available for UI hints (e.g. badge)
-        // but must not gate tab visibility.
-        if (schulhofData?.exists) {
-          schulhofRoom = {
-            id: SCHULHOF_TAB_ID,
-            name: SCHULHOF_ROOM_NAME,
-            groupId:
-              schulhofData.active_group_id?.toString() ?? SCHULHOF_TAB_ID,
-            isSchulhof: true,
-          };
-        }
+        schulhof = schulhofJson.data?.data ?? null;
       }
 
+      let supervised: SupervisedGroupPayload[] | null = null;
       if (response.ok) {
-        const response_data = (await response.json()) as {
+        const responseData = (await response.json()) as {
           success: boolean;
           message: string;
-          data: Array<{
-            id: number;
-            room_id?: number;
-            group_id: number;
-            room?: {
-              id: number;
-              name: string;
-            };
-            actual_group?: {
-              id: number;
-              name: string;
-            };
-          }>;
+          data: SupervisedGroupPayload[] | null;
         };
-
-        // Check if user has any supervised groups (indicating room supervision)
-        const supervisedGroups = response_data.data ?? [];
-        const hasSupervision = supervisedGroups.length > 0;
-
-        if (hasSupervision && supervisedGroups[0]) {
-          const firstGroup = supervisedGroups[0];
-          const newRoomId = firstGroup.room_id?.toString();
-          const newRoomName =
-            firstGroup.room?.name ??
-            (firstGroup.room_id ? `Room ${firstGroup.room_id}` : undefined);
-
-          // Map all supervised groups to rooms, sorted by name
-          // Filter out Schulhof from regular rooms (it's handled separately)
-          const eligibleGroups = supervisedGroups.filter(
-            (g) => g.room_id && g.room && g.room.name !== SCHULHOF_ROOM_NAME,
-          );
-          // Parallel sessions can share one room (#2265) — a room-name-only
-          // label would render indistinguishable entries, so suffix the
-          // activity name whenever a room appears more than once.
-          const roomUseCount = new Map<number, number>();
-          for (const g of eligibleGroups) {
-            roomUseCount.set(
-              g.room_id!,
-              (roomUseCount.get(g.room_id!) ?? 0) + 1,
-            );
-          }
-          let newSupervisedRooms: SupervisedRoom[] = eligibleGroups
-            .map((g) => {
-              const roomName = g.room?.name ?? `Room ${g.room_id}`;
-              const shared = (roomUseCount.get(g.room_id!) ?? 0) > 1;
-              return {
-                id: g.room_id!.toString(),
-                name:
-                  shared && g.actual_group?.name
-                    ? `${g.actual_group.name} · ${roomName}`
-                    : roomName,
-                groupId: g.id.toString(),
-                groupName: g.actual_group?.name,
-              };
-            })
-            .sort((a, b) => a.name.localeCompare(b.name, "de"));
-
-          // Always add Schulhof at the end if it exists
-          if (schulhofRoom) {
-            newSupervisedRooms = [...newSupervisedRooms, schulhofRoom];
-          }
-
-          setState((prev) => {
-            // Active groups can change while the physical room stays the same.
-            const prevRoomKeys = prev.supervisedRooms
-              .map((r) => `${r.id}:${r.groupId}`)
-              .join(",");
-            const newRoomKeys = newSupervisedRooms
-              .map((r) => `${r.id}:${r.groupId}`)
-              .join(",");
-            if (
-              prev.isSupervising &&
-              prev.supervisedRoomId === newRoomId &&
-              prev.supervisedRoomName === newRoomName &&
-              prevRoomKeys === newRoomKeys &&
-              !prev.isLoadingSupervision
-            ) {
-              return prev;
-            }
-            return {
-              ...prev,
-              isSupervising: true,
-              supervisedRoomId: newRoomId,
-              supervisedRoomName: newRoomName,
-              supervisedRooms: newSupervisedRooms,
-              isLoadingSupervision: false,
-              overviewEnabled: overviewOk,
-            };
-          });
-        } else {
-          // No regular supervision, but still include Schulhof if it exists
-          const roomsWithSchulhof = schulhofRoom ? [schulhofRoom] : [];
-          const isSchulhofSupervising = schulhofRoom !== null;
-
-          setState((prev) => {
-            const prevRoomIds = prev.supervisedRooms.map((r) => r.id).join(",");
-            const newRoomIds = roomsWithSchulhof.map((r) => r.id).join(",");
-            const newRoomId = isSchulhofSupervising
-              ? SCHULHOF_TAB_ID
-              : undefined;
-            const newRoomName = isSchulhofSupervising
-              ? SCHULHOF_ROOM_NAME
-              : undefined;
-            // Only update if values actually changed
-            if (
-              prev.isSupervising === isSchulhofSupervising &&
-              prev.supervisedRoomId === newRoomId &&
-              prev.supervisedRoomName === newRoomName &&
-              prevRoomIds === newRoomIds &&
-              !prev.isLoadingSupervision
-            ) {
-              return prev;
-            }
-            return {
-              ...prev,
-              isSupervising: isSchulhofSupervising,
-              supervisedRoomId: newRoomId,
-              supervisedRoomName: newRoomName,
-              supervisedRooms: roomsWithSchulhof,
-              isLoadingSupervision: false,
-              overviewEnabled: overviewOk,
-            };
-          });
-        }
-      } else {
-        // Response not OK, but still include Schulhof if it exists
-        const roomsOnError = schulhofRoom ? [schulhofRoom] : [];
-        const isSchulhofSupervising = schulhofRoom !== null;
-        setState((prev) => {
-          const prevRoomIds = prev.supervisedRooms.map((r) => r.id).join(",");
-          const newRoomIds = roomsOnError.map((r) => r.id).join(",");
-          const newRoomId = isSchulhofSupervising ? SCHULHOF_TAB_ID : undefined;
-          const newRoomName = isSchulhofSupervising
-            ? SCHULHOF_ROOM_NAME
-            : undefined;
-          // Only update if values actually changed
-          if (
-            prev.isSupervising === isSchulhofSupervising &&
-            prev.supervisedRoomId === newRoomId &&
-            prev.supervisedRoomName === newRoomName &&
-            prevRoomIds === newRoomIds &&
-            !prev.isLoadingSupervision
-          ) {
-            return prev;
-          }
-          return {
-            ...prev,
-            isSupervising: isSchulhofSupervising,
-            supervisedRoomId: newRoomId,
-            supervisedRoomName: newRoomName,
-            supervisedRooms: roomsOnError,
-            isLoadingSupervision: false,
-            overviewEnabled: false,
-          };
-        });
+        supervised = responseData.data ?? [];
       }
+
+      applySupervision(deriveSupervision(supervised, schulhof, overviewOk));
     } catch {
       // On error, we can't fetch Schulhof either, so just clear
-      setState((prev) => {
-        // Only update if values actually changed
-        if (
-          !prev.isSupervising &&
-          prev.supervisedRoomId === undefined &&
-          prev.supervisedRoomName === undefined &&
-          prev.supervisedRooms.length === 0 &&
-          !prev.isLoadingSupervision
-        ) {
-          return prev;
-        }
-        return {
-          ...prev,
-          isSupervising: false,
-          supervisedRoomId: undefined,
-          supervisedRoomName: undefined,
-          supervisedRooms: [],
-          isLoadingSupervision: false,
-          overviewEnabled: false,
-        };
-      });
+      applySupervision(EMPTY_SUPERVISION_STATE);
     }
-  }, [canReadGroupsRef, mayHaveOverviewRef, tokenRef]);
+  }, [applySupervision, canReadGroupsRef, mayHaveOverviewRef, tokenRef]);
 
   // Check Schulhof status and add to supervised rooms if exists
   // Refresh all supervision states with debouncing
@@ -597,6 +391,13 @@ export function SupervisionProvider({
   useEffect(() => {
     // Only refresh when session actually changes (not on every render)
     if (session?.user?.token) {
+      // The server snapshot IS the initial load; count it as one so the
+      // 5-second throttle applies exactly as after a fetched load.
+      if (seededRef.current) {
+        seededRef.current = false;
+        lastRefreshRef.current = Date.now();
+        return;
+      }
       refreshRef.current?.().catch((err: unknown) => {
         logger.error("failed to refresh supervision context", {
           error: String(err),
@@ -604,16 +405,13 @@ export function SupervisionProvider({
       });
     } else {
       // Clear state when no session
+      seededRef.current = false;
       setState({
         hasGroups: false,
         isLoadingGroups: false,
         groups: [],
-        isSupervising: false,
-        supervisedRoomId: undefined,
-        supervisedRoomName: undefined,
-        supervisedRooms: [],
+        ...EMPTY_SUPERVISION_STATE,
         isLoadingSupervision: false,
-        overviewEnabled: false,
       });
     }
   }, [session?.user?.token]); // Only depend on token

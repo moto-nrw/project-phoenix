@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { fetchUnreadCount } from "~/lib/parent-messages-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSafe, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
 export function useMessagesUnread() {
@@ -43,5 +44,6 @@ export function useMessagesUnread() {
     // the badge would stay stale until a full reload. A focus refetch heals it
     // when the staffer returns to the tab.
     refetchOnFocus: true,
+    initialCount: useShellSeed()?.counts.messagesUnread,
   });
 }

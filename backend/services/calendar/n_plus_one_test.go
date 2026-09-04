@@ -15,7 +15,7 @@ func (failingRecurrenceReload) FindByAppointmentIDs(context.Context, []int64) ([
 	return nil, errReminderStore
 }
 
-func (failingRecipientLookup) FindByAppointmentIDs(context.Context, []int64) ([]*calModels.AppointmentRecipient, error) {
+func (failingRecipientLookup) FindAppointmentRecipientsByAppointmentIDs(context.Context, []int64) ([]*appointments.AppointmentRecipient, error) {
 	return nil, errReminderStore
 }
 
