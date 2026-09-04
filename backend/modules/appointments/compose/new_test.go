@@ -304,6 +304,205 @@ func TestOccurrenceCancellationRollsBackWhenRevisionBumpFails(t *testing.T) {
 	require.Len(t, overrides, 1, "retry creates exactly one override")
 }
 
+func TestAppointmentRecipientsAreAtomicTenantScopedAndDeduplicateReminderPushes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	log := &observationLog{}
+	module := buildModule(t, db, log.record)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Rita", "Empfang")
+	student := testpkg.CreateTestStudent(t, db, "Mia", "Empfang", "1a")
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "recipient-owner")
+	created, _, err := module.CreateAppointment(ctx, appointments.CreateAppointment{
+		AppointmentFields: appointmentFields(staff.ID, "Empfängertest"),
+	})
+	require.NoError(t, err)
+
+	recipients, links, err := module.CreateAppointmentRecipients(ctx, created.ID, []appointments.AppointmentRecipientFields{
+		{RecipientType: appointments.RecipientTypeStaff, StaffID: &staff.ID, Status: appointments.ResponseStatusPending},
+		{RecipientType: appointments.RecipientTypeGuardianProfile, GuardianProfileID: &guardian.ID, Status: appointments.ResponseStatusPending, StudentIDs: []int64{student.ID, student.ID}},
+	})
+	require.NoError(t, err)
+	require.Len(t, recipients, 2)
+	require.Len(t, links, 1, "duplicate student IDs must not create duplicate links")
+	assert.Equal(t, testpkg.Tenant(t), recipients[0].TenantID)
+	assert.Equal(t, testpkg.Tenant(t), links[0].TenantID)
+	assert.Equal(t, student.ID, links[0].StudentID)
+	assertRecipientPersistenceAndResponse(t, module, ctx, created.ID, student.ID, recipients, links)
+	assertReminderClaimLifecycle(t, module, ctx, created, guardian.ID, log)
+}
+
+func assertRecipientPersistenceAndResponse(t *testing.T, module *appointments.Module, ctx context.Context, appointmentID, studentID int64, recipients []*appointments.AppointmentRecipient, links []*appointments.AppointmentRecipientStudent) {
+	t.Helper()
+	stored, err := module.FindAppointmentRecipients(ctx, appointmentID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, recipients, stored)
+	storedByIDs, err := module.FindAppointmentRecipientsByAppointmentIDs(ctx, []int64{appointmentID})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, recipients, storedByIDs)
+	storedLinks, err := module.FindAppointmentRecipientStudents(ctx, []int64{links[0].RecipientID})
+	require.NoError(t, err)
+	assert.Equal(t, links, storedLinks)
+	count, err := module.CountAppointmentRecipientStudents(ctx, studentID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	guardianRecipient := recipients[1]
+	if guardianRecipient.GuardianProfileID == nil {
+		guardianRecipient = recipients[0]
+	}
+	require.NotNil(t, guardianRecipient.GuardianProfileID)
+	require.NoError(t, module.UpdateAppointmentRecipientResponse(ctx, guardianRecipient.ID, appointments.ResponseStatusAccepted))
+	responded, err := module.FindAppointmentRecipient(ctx, guardianRecipient.ID)
+	require.NoError(t, err)
+	assert.Equal(t, appointments.ResponseStatusAccepted, responded.Status)
+	assert.NotNil(t, responded.RespondedAt)
+}
+
+func assertReminderClaimLifecycle(t *testing.T, module *appointments.Module, ctx context.Context, appointment *appointments.Appointment, guardianID int64, log *observationLog) {
+	t.Helper()
+	claimed, err := module.ClaimReminderPushDelivery(ctx, appointment.ID, appointment.Revision, appointment.StartDate, guardianID)
+	require.NoError(t, err)
+	assert.True(t, claimed)
+	claimed, err = module.ClaimReminderPushDelivery(ctx, appointment.ID, appointment.Revision, appointment.StartDate, guardianID)
+	require.NoError(t, err)
+	assert.False(t, claimed, "the same reminder delivery must be claimed once")
+	require.NoError(t, module.ReleaseReminderPushDelivery(ctx, appointment.ID, appointment.Revision, appointment.StartDate, guardianID))
+	claimed, err = module.ClaimReminderPushDelivery(ctx, appointment.ID, appointment.Revision, appointment.StartDate, guardianID)
+	require.NoError(t, err)
+	assert.True(t, claimed, "a released failed delivery must be retryable")
+
+	log.mu.Lock()
+	defer log.mu.Unlock()
+	var duplicateObserved bool
+	for _, observation := range log.seen {
+		if observation.Operation == "claim_reminder_push_delivery" && observation.Stats.DuplicatePreventionConflicts == 1 {
+			duplicateObserved = true
+		}
+	}
+	assert.True(t, duplicateObserved, "reminder duplicate prevention must be observable")
+}
+
+func TestNamedAppointmentRecipientTablesEnforceTwoTenantRLS(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	firstCtx := testpkg.Ctx(t)
+	firstTenantID := tenant.FromContext(firstCtx)
+	firstGuardianRecipientID := seedAppointmentRecipientTables(t, db, module, firstCtx, firstTenantID, "first")
+
+	secondCtx, secondTenantID := otherTenantContext(t, db)
+	seedAppointmentRecipientTables(t, db, module, secondCtx, secondTenantID, "second")
+
+	assertAppointmentRecipientTableCounts(t, db, firstCtx, firstTenantID)
+	assertAppointmentRecipientTableCounts(t, db, secondCtx, secondTenantID)
+	require.ErrorIs(t, module.UpdateAppointmentRecipientResponse(secondCtx, firstGuardianRecipientID, appointments.ResponseStatusDeclined), appointments.ErrAppointmentRecipientNotFound)
+	firstRecipient, err := module.FindAppointmentRecipient(firstCtx, firstGuardianRecipientID)
+	require.NoError(t, err)
+	assert.Equal(t, appointments.ResponseStatusPending, firstRecipient.Status)
+}
+
+func seedAppointmentRecipientTables(t *testing.T, db *bun.DB, module *appointments.Module, ctx context.Context, tenantID int64, label string) int64 {
+	t.Helper()
+	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "RLS", label)
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "RLS", label, "1a")
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "RLS", label, label+"@recipient-rls.example")
+	created, _, err := module.CreateAppointment(ctx, appointments.CreateAppointment{AppointmentFields: appointmentFields(staff.ID, "RLS "+label)})
+	require.NoError(t, err)
+	recipients, links, err := module.CreateAppointmentRecipients(ctx, created.ID, []appointments.AppointmentRecipientFields{
+		{RecipientType: appointments.RecipientTypeStaff, StaffID: &staff.ID, Status: appointments.ResponseStatusPending},
+		{RecipientType: appointments.RecipientTypeGuardianProfile, GuardianProfileID: &guardian.ID, Status: appointments.ResponseStatusPending, StudentIDs: []int64{student.ID}},
+	})
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	for _, recipient := range recipients {
+		if recipient.GuardianProfileID != nil {
+			return recipient.ID
+		}
+	}
+	t.Fatal("guardian recipient was not persisted")
+	return 0
+}
+
+func assertAppointmentRecipientTableCounts(t *testing.T, db *bun.DB, ctx context.Context, tenantID int64) {
+	t.Helper()
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		scoped, activeTenantID, databaseErr := database(db)(txCtx)
+		require.NoError(t, databaseErr)
+		assert.Equal(t, tenantID, activeTenantID)
+		for table, expected := range map[string]int{
+			"calendar.appointment_recipients":         2,
+			"calendar.appointment_recipient_students": 1,
+		} {
+			count, countErr := scoped.NewSelect().TableExpr(table).Count(txCtx)
+			require.NoError(t, countErr)
+			assert.Equal(t, expected, count, "%s must expose only the active tenant's rows", table)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestAppointmentRecipientWritesRollbackAfterEachAuthoritativeWriteAndRetry(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Rita", "Rollback")
+	student := testpkg.CreateTestStudent(t, db, "Mia", "Rollback", "1a")
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "recipient-rollback")
+	created, _, err := module.CreateAppointment(ctx, appointments.CreateAppointment{
+		AppointmentFields: appointmentFields(staff.ID, "Empfänger-Rollback"),
+	})
+	require.NoError(t, err)
+	fields := []appointments.AppointmentRecipientFields{{
+		RecipientType: appointments.RecipientTypeGuardianProfile, GuardianProfileID: &guardian.ID,
+		Status: appointments.ResponseStatusPending, StudentIDs: []int64{student.ID},
+	}}
+
+	_, err = db.ExecContext(context.Background(), `
+		CREATE FUNCTION fail_appointment_recipient_insert() RETURNS trigger AS $$
+		BEGIN RAISE EXCEPTION 'injected recipient failure'; END;
+		$$ LANGUAGE plpgsql;
+		CREATE TRIGGER fail_appointment_recipient_insert
+		BEFORE INSERT ON calendar.appointment_recipients
+		FOR EACH ROW EXECUTE FUNCTION fail_appointment_recipient_insert();
+	`)
+	require.NoError(t, err)
+	_, _, err = module.CreateAppointmentRecipients(ctx, created.ID, fields)
+	require.Error(t, err)
+	recipients, findErr := module.FindAppointmentRecipients(ctx, created.ID)
+	require.NoError(t, findErr)
+	assert.Empty(t, recipients)
+	_, err = db.ExecContext(context.Background(), `DROP TRIGGER fail_appointment_recipient_insert ON calendar.appointment_recipients`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(context.Background(), `
+		CREATE FUNCTION fail_appointment_recipient_student_insert() RETURNS trigger AS $$
+		BEGIN RAISE EXCEPTION 'injected recipient student failure'; END;
+		$$ LANGUAGE plpgsql;
+		CREATE TRIGGER fail_appointment_recipient_student_insert
+		BEFORE INSERT ON calendar.appointment_recipient_students
+		FOR EACH ROW EXECUTE FUNCTION fail_appointment_recipient_student_insert();
+	`)
+	require.NoError(t, err)
+	_, _, err = module.CreateAppointmentRecipients(ctx, created.ID, fields)
+	require.Error(t, err)
+	recipients, findErr = module.FindAppointmentRecipients(ctx, created.ID)
+	require.NoError(t, findErr)
+	assert.Empty(t, recipients, "a failed student-link insert must roll back the recipient insert")
+	_, err = db.ExecContext(context.Background(), `DROP TRIGGER fail_appointment_recipient_student_insert ON calendar.appointment_recipient_students`)
+	require.NoError(t, err)
+
+	recipients, links, err := module.CreateAppointmentRecipients(ctx, created.ID, fields)
+	require.NoError(t, err)
+	require.Len(t, recipients, 1, "retry must create one recipient")
+	require.Len(t, links, 1, "retry must create one student link")
+	stored, err := module.FindAppointmentRecipients(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Len(t, stored, 1)
+}
+
 func TestReadFailuresAreNotTurnedIntoNotFound(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -332,6 +531,14 @@ func TestReadFailuresAreNotTurnedIntoNotFound(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	_, err = module.FindOccurrenceOverrides(ctx, []int64{created.ID}, []appointments.Date{created.StartDate})
 	require.ErrorIs(t, err, context.Canceled)
+	_, err = module.FindAppointmentRecipients(ctx, created.ID)
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = module.FindAppointmentRecipient(ctx, created.ID)
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = module.FindAppointmentRecipientStudents(ctx, []int64{created.ID})
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = module.CountAppointmentRecipientStudents(ctx, created.ID)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestQueriesRejectMissingTenantContext(t *testing.T) {
@@ -343,6 +550,63 @@ func TestQueriesRejectMissingTenantContext(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tenant is required")
 	assert.NotErrorIs(t, err, appointments.ErrAppointmentNotFound)
+
+	validID := testpkg.Tenant(t)
+	_, err = module.FindAppointmentRecipients(context.Background(), validID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tenant is required")
+	_, _, err = module.CreateAppointmentRecipients(context.Background(), validID, []appointments.AppointmentRecipientFields{{
+		RecipientType: appointments.RecipientTypeStaff, StaffID: &validID, Status: appointments.ResponseStatusPending,
+	}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tenant")
+	_, err = module.ClaimReminderPushDelivery(context.Background(), validID, 0, appointments.NewDate(2030, time.January, 7), validID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tenant")
+}
+
+func TestRecipientCommandsRejectInvalidInputs(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	validID := testpkg.Tenant(t)
+	validDate := appointments.NewDate(2030, time.January, 7)
+
+	tests := map[string]func() error{
+		"missing appointment": func() error {
+			_, _, err := module.CreateAppointmentRecipients(context.Background(), 0, nil)
+			return err
+		},
+		"staff with student": func() error {
+			_, _, err := module.CreateAppointmentRecipients(context.Background(), validID, []appointments.AppointmentRecipientFields{{
+				RecipientType: appointments.RecipientTypeStaff, StaffID: &validID,
+				Status: appointments.ResponseStatusPending, StudentIDs: []int64{validID},
+			}})
+			return err
+		},
+		"invalid student ID": func() error {
+			_, _, err := module.CreateAppointmentRecipients(context.Background(), validID, []appointments.AppointmentRecipientFields{{
+				RecipientType: appointments.RecipientTypeGuardianProfile, GuardianProfileID: &validID,
+				Status: appointments.ResponseStatusPending, StudentIDs: []int64{-1},
+			}})
+			return err
+		},
+		"invalid response": func() error {
+			return module.UpdateAppointmentRecipientResponse(context.Background(), validID, "maybe")
+		},
+		"invalid claim": func() error {
+			_, err := module.ClaimReminderPushDelivery(context.Background(), validID, -1, validDate, validID)
+			return err
+		},
+		"invalid release": func() error {
+			return module.ReleaseReminderPushDelivery(context.Background(), validID, 0, appointments.Date(""), validID)
+		},
+	}
+	for name, run := range tests {
+		t.Run(name, func(t *testing.T) {
+			require.ErrorIs(t, run(), appointments.ErrInvalidAppointment)
+		})
+	}
 }
 
 func TestEmptyRecurrenceAndOverrideQueriesDoNotTouchTheDatabase(t *testing.T) {
@@ -368,6 +632,7 @@ func TestNewRejectsMissingDependencies(t *testing.T) {
 func TestAppointmentErrorsHaveStableCodes(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "not_found", appointments.ErrorCode(appointments.ErrAppointmentNotFound))
+	assert.Equal(t, "not_found", appointments.ErrorCode(appointments.ErrAppointmentRecipientNotFound))
 	assert.Equal(t, "invalid", appointments.ErrorCode(appointments.ErrInvalidAppointment))
 	assert.Equal(t, "lifecycle_conflict", appointments.ErrorCode(appointments.ErrAppointmentLifecycleConflict))
 	assert.Equal(t, "internal_error", appointments.ErrorCode(errors.New("database unavailable")))
