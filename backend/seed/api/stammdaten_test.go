@@ -768,12 +768,11 @@ func TestFixedSeeder_SeedGuardians_MissingStudentIndex(t *testing.T) {
 	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, true, "") // verbose to cover warning branch
+	fs := NewFixedSeeder(client, true, "")
 	// studentIDByIndex is empty, so no students can be linked
 	result := &FixedResult{}
 	err := fs.seedGuardians(context.TODO(), result)
-	require.NoError(t, err)
-	// Count should be 0 since no students were linkable
+	require.ErrorContains(t, err, "student index 0 not found")
 	assert.Equal(t, 0, result.GuardianCount)
 }
 
@@ -786,12 +785,12 @@ func TestFixedSeeder_EnrollStudents_MissingStudentID(t *testing.T) {
 	client := newTestClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, true, "") // verbose to cover warning branch
+	fs := NewFixedSeeder(client, true, "")
 	fs.activityIDs["Fußball"] = 100
 	// studentIDs is empty, so no students can be enrolled
 
 	err := fs.enrollStudents(context.TODO())
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "student ID not found")
 }
 
 func TestFixedSeeder_SwitchToStaffAccount_LoginError(t *testing.T) {
@@ -900,7 +899,7 @@ func TestFixedSeeder_SeedPickupSchedules_EmptyStudents(t *testing.T) {
 
 	result := &FixedResult{}
 	err := fs.seedPickupSchedules(context.TODO(), result)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "student ID not found for pickup schedule")
 	assert.Equal(t, 0, result.PickupScheduleCount)
 }
 

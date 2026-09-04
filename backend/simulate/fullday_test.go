@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -305,10 +306,28 @@ func TestRunFullDay_NoDevices(t *testing.T) {
 }
 
 // simulationAPIMock creates a mock API server for simulation tests.
-func simulationAPIMock(t *testing.T) *simulationHTTPTestServer {
+func simulationAPIMock(t *testing.T, failedPaths ...string) *simulationHTTPTestServer {
+	return simulationAPIMockWithOptions(t, "rfid_tag_not_found", 0, failedPaths...)
+}
+
+func simulationAPIMockWithUnknownCode(t *testing.T, unknownCode string, failedPaths ...string) *simulationHTTPTestServer {
+	return simulationAPIMockWithOptions(t, unknownCode, 0, failedPaths...)
+}
+
+func simulationAPIMockWithCheckinLimit(t *testing.T, checkinLimit int) *simulationHTTPTestServer {
+	return simulationAPIMockWithOptions(t, "rfid_tag_not_found", checkinLimit)
+}
+
+func simulationAPIMockWithOptions(t *testing.T, unknownCode string, checkinLimit int, failedPaths ...string) *simulationHTTPTestServer {
 	t.Helper()
+	checkedInRFIDs := make(map[string]bool)
 	return newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
+		if slices.Contains(failedPaths, r.URL.Path) {
+			w.WriteHeader(simulationHTTPStatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "injected failure", "code": "injected_failure"})
+			return
+		}
 
 		switch r.URL.Path {
 		case "/health":
@@ -338,8 +357,26 @@ func simulationAPIMock(t *testing.T) *simulationHTTPTestServer {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			if body["student_rfid"] == "DEMO-UNREGISTERED-TAG" {
 				w.WriteHeader(404)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag"})
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag", "code": unknownCode})
 				return
+			}
+			rfidTag, _ := body["student_rfid"].(string)
+			action, _ := body["action"].(string)
+			if checkinLimit > 0 && action == "checkout" {
+				if !checkedInRFIDs[rfidTag] {
+					w.WriteHeader(409)
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": "Student is not checked in", "code": "STUDENT_NOT_CHECKED_IN"})
+					return
+				}
+				delete(checkedInRFIDs, rfidTag)
+			}
+			if checkinLimit > 0 && action == "checkin" {
+				if len(checkedInRFIDs) >= checkinLimit {
+					w.WriteHeader(409)
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": "Room capacity exceeded", "code": "ROOM_CAPACITY_EXCEEDED"})
+					return
+				}
+				checkedInRFIDs[rfidTag] = true
 			}
 			w.WriteHeader(simulationHTTPStatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": 1}})
@@ -368,10 +405,185 @@ func simulationAPIMock(t *testing.T) *simulationHTTPTestServer {
 	})
 }
 
+func TestRunFullDay_RejectsUnexpectedUnknownRFIDCode(t *testing.T) {
+	t.Parallel()
+
+	srv := simulationAPIMockWithUnknownCode(t, "different_not_found")
+	defer srv.Close()
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, WriteSeedState(&SeedState{
+		BaseURL:   srv.URL,
+		DevicePIN: "1234",
+		Bootstrap: SeedStateBootstrap{TenantSlug: "demo-school"},
+		Accounts: SeedStateAccounts{
+			Admin:    []AccountCredentials{{Email: "admin@test.de", Password: "pass"}},
+			Betreuer: []AccountCredentials{{StaffID: 10, Name: "Mara Muster"}},
+		},
+		Devices:    map[string]SeedDevice{"demo-device-001": {APIKey: "key", Name: "Scanner"}},
+		Students:   []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "Schneider"}},
+		Activities: map[string]int64{"Hausaufgaben": 50},
+		Rooms:      map[string]int64{"OGS-Raum 1": 1},
+	}, statePath))
+
+	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "record attendance and checkins")
+	assert.Contains(t, err.Error(), "expected 404 (rfid_tag_not_found)")
+	assert.Contains(t, err.Error(), "different_not_found")
+}
+
+func TestRunFullDay_FailsWholeRunWhenActivityStartFails(t *testing.T) {
+	t.Parallel()
+
+	srv := simulationAPIMock(t, "/api/iot/session/start")
+	defer srv.Close()
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, WriteSeedState(&SeedState{
+		BaseURL:   srv.URL,
+		DevicePIN: "1234",
+		Bootstrap: SeedStateBootstrap{TenantSlug: "demo-school"},
+		Accounts: SeedStateAccounts{
+			Admin:    []AccountCredentials{{Email: "admin@test.de", Password: "pass"}},
+			Betreuer: []AccountCredentials{{StaffID: 10, Name: "Mara Muster"}},
+		},
+		Devices:    map[string]SeedDevice{"demo-device-001": {APIKey: "key", Name: "Scanner"}},
+		Students:   []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "Schneider"}},
+		Activities: map[string]int64{"Hausaufgaben": 50},
+		Rooms:      map[string]int64{"OGS-Raum 1": 1},
+	}, statePath))
+
+	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `demo school profile "demo-school"`)
+	assert.Contains(t, err.Error(), "start sessions")
+	assert.Contains(t, err.Error(), "POST /api/iot/session/start")
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "injected_failure")
+}
+
+func TestRunFullDay_EndsStartedSessionsWhenLaterStartFails(t *testing.T) {
+	t.Parallel()
+
+	starts, ends := 0, 0
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(simulationHTTPStatusOK)
+			_, _ = fmt.Fprint(w, `"OK"`)
+		case "/auth/login":
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "test-jwt"})
+		case "/api/iot/session/start":
+			starts++
+			if starts == 2 {
+				w.WriteHeader(simulationHTTPStatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "injected failure"})
+				return
+			}
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		case "/api/iot/session/end":
+			ends++
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		default:
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		}
+	})
+	defer srv.Close()
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, WriteSeedState(&SeedState{
+		BaseURL:   srv.URL,
+		DevicePIN: "1234",
+		Bootstrap: SeedStateBootstrap{TenantSlug: "demo-school"},
+		Accounts: SeedStateAccounts{
+			Admin: []AccountCredentials{{Email: "admin@test.de", Password: "pass"}},
+			Betreuer: []AccountCredentials{
+				{StaffID: 10, Name: "Mara Muster"},
+				{StaffID: 11, Name: "Nora Muster"},
+			},
+		},
+		Devices: map[string]SeedDevice{
+			"demo-device-001": {APIKey: "key-1", Name: "Scanner 1"},
+			"demo-device-002": {APIKey: "key-2", Name: "Scanner 2"},
+		},
+		Students: []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "Schneider"}},
+		Activities: map[string]int64{
+			"Basteln":      50,
+			"Hausaufgaben": 51,
+		},
+		Rooms: map[string]int64{"OGS-Raum 1": 1},
+	}, statePath))
+
+	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath})
+	require.Error(t, err)
+	assert.Equal(t, 2, starts)
+	assert.Equal(t, 1, ends)
+}
+
+func TestRunFullDay_EndsStartedSessionsWhenLaterActionFails(t *testing.T) {
+	t.Parallel()
+
+	starts, ends := 0, 0
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(simulationHTTPStatusOK)
+			_, _ = fmt.Fprint(w, `"OK"`)
+		case "/auth/login":
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "test-jwt"})
+		case "/api/iot/session/start":
+			starts++
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		case "/api/timetable/periods/bootstrap":
+			w.WriteHeader(simulationHTTPStatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "injected failure"})
+		case "/api/iot/session/end":
+			ends++
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		default:
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+		}
+	})
+	defer srv.Close()
+
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, WriteSeedState(&SeedState{
+		BaseURL:   srv.URL,
+		DevicePIN: "1234",
+		Bootstrap: SeedStateBootstrap{TenantSlug: "demo-school"},
+		Accounts: SeedStateAccounts{
+			Admin:    []AccountCredentials{{Email: "admin@test.de", Password: "pass"}},
+			Betreuer: []AccountCredentials{{StaffID: 10, Name: "Mara Muster"}},
+		},
+		Devices:    map[string]SeedDevice{"demo-device-001": {APIKey: "key", Name: "Scanner"}},
+		Students:   []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "Schneider"}},
+		Activities: map[string]int64{"Hausaufgaben": 50},
+		Rooms:      map[string]int64{"OGS-Raum 1": 1},
+	}, statePath))
+
+	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "seed staff feed tombstone")
+	assert.Equal(t, 1, starts)
+	assert.Equal(t, 1, ends)
+}
+
 func TestRunFullDay_ManyStudents(t *testing.T) {
 	t.Parallel()
 
-	srv := simulationAPIMock(t)
+	// The seeded room plan can admit 84 round-robin check-ins before its
+	// smallest room reaches capacity.
+	srv := simulationAPIMockWithCheckinLimit(t, 84)
 	defer srv.Close()
 
 	dir := t.TempDir()
