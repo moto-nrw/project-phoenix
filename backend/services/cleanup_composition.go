@@ -81,6 +81,7 @@ func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools org
 		GroupRepo: repos.Group, VisitRepo: repos.Visit, SupervisorRepo: repos.Supervisor,
 		DeviceRepo: repos.Device, TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
 	})
+	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(runtime)
 	service.SetSettingsService(NewCleanupSettingsService(db, runtime, schools, logger))
 	return service
 }
