@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterAll,
+} from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { ClassDayReport } from "~/lib/class-day-api";
@@ -121,6 +129,18 @@ describe("classArrivalExceptionLine", () => {
 });
 
 describe("ClassDayClass", () => {
+  // Die Ansicht zeigt am Wochenende „Kein Schultag“ statt der Klassenliste.
+  // Ohne feste Uhr sind diese Fälle samstags und sonntags rot, deshalb ein
+  // fester Montag.
+  beforeAll(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-09-07T09:00:00+02:00"));
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.delete("tag");
