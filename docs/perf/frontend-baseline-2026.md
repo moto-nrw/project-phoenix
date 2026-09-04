@@ -201,12 +201,14 @@ Bewusst nicht umgesetzt: ein globaler `SWRConfig` (kein Effekt messbar) und `nex
 
 Der Harness liegt unter `frontend/scripts/perf/`, die Configs daneben. Alle Artefakte landen in `frontend/perf-results/` (gitignored: Traces, Roh-JSON, Session-Cookies).
 
+`PERF_PORT` muss bei jedem Lauf gesetzt sein. Der gewählte Port muss frei sein.
+
 ```bash
 cd frontend
 
 # 1. Prod-Traces und Proxy-Metriken (Port 3000 muss frei sein)
 docker compose -f ../docker-compose.yml stop frontend
-pnpm run perf:trace          # next build && next start, 6 Screens x 3 Läufe, Traces nach perf-results/traces/
+PERF_PORT=3000 pnpm run perf:trace # next build && next start, 6 Screens x 3 Läufe, Traces nach perf-results/traces/
 docker compose -f ../docker-compose.yml start frontend
 
 # 2. Bundle
@@ -214,7 +216,7 @@ pnpm run perf:bundle         # next experimental-analyze --output  ->  .next/dia
 pnpm run perf:bundle-report  # Tabelle je Route nach perf-results/bundle.md
 
 # 3. Render-Zählung gegen den Dev-Server
-pnpm run perf:render         # react-scan per Init-Script, JSON nach perf-results/react-scan/
+PERF_PORT=3000 pnpm run perf:render # react-scan per Init-Script, JSON nach perf-results/react-scan/
 
 # 4. Alles zu Markdown
 pnpm run perf:report         # perf-results/report.md

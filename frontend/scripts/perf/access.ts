@@ -47,9 +47,18 @@ export function loadAccess(): SeedAccess {
  */
 export function perfPort(): string {
   const port = process.env.PERF_PORT;
-  if (!port) {
-    throw new Error("PERF_PORT must be set for the performance harness.");
+  if (!port || !/^\d+$/.test(port)) {
+    throw new Error(
+      "PERF_PORT must be an integer between 1 and 65535 for the performance harness.",
+    );
   }
+  const portNumber = Number(port);
+  if (portNumber < 1 || portNumber > 65_535) {
+    throw new Error(
+      "PERF_PORT must be an integer between 1 and 65535 for the performance harness.",
+    );
+  }
+
   return port;
 }
 
