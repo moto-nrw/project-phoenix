@@ -664,6 +664,24 @@ export function useGlobalSSE(): SSEHookState {
       hasPendingActivityEvent.current ||
       hasPendingActiveSupervisionEvent.current ||
       hasPendingDashboardEvent.current;
+    if (
+      hasPendingActivityEvent.current ||
+      hasPendingActiveSupervisionEvent.current
+    ) {
+      // The room-move toolbar reads supervisorCount from active groups to
+      // decide which push targets are safe. A supervision or session change
+      // rewrites that count, so its shared metadata must not outlive the
+      // supervision caches refreshed below.
+      mutate(
+        (key) =>
+          typeof key === "string" && key.includes("room-bulk-active-groups"),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "room_move_active_groups",
+        });
+      });
+    }
     if (refreshLiveSupervision) {
       const refreshRoster =
         hasPendingRemoteRosterEvent.current ||

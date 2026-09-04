@@ -413,6 +413,25 @@ describe("useGlobalSSE — SWR invalidation debounce", () => {
       matchers.some((matcher) => matcher("t1:room-bulk-source-visits-1-2")),
     ).toBe(true);
   });
+
+  it("refreshes room-move group metadata on supervision changes", () => {
+    renderHook(() => useGlobalSSE());
+
+    fireSSE(makeEvent("active_supervision_changed", {}, "grp1"));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    expect(
+      matchers.some((matcher) => matcher("t1:room-bulk-active-groups")),
+    ).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
