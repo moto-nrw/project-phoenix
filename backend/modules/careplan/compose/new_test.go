@@ -27,6 +27,28 @@ func (emptyPeopleDirectory) ListStudentNamesByID(context.Context, []int64) ([]St
 	return nil, nil
 }
 
+func (emptyPeopleDirectory) ListEnrolledStudents(context.Context) ([]StatusStudent, error) {
+	return nil, nil
+}
+
+func (emptyPeopleDirectory) ListStudentsWithStatusFlag(context.Context, string) ([]StatusStudent, error) {
+	return nil, nil
+}
+
+func (emptyPeopleDirectory) ClearStudentStatusFlags(context.Context, []int64, string) (int64, error) {
+	return 0, nil
+}
+
+func (emptyPeopleDirectory) LockStudent(context.Context, int64) error { return nil }
+
+type emptyStatusSlots struct{}
+
+func (emptyStatusSlots) ApplyStatusDay(context.Context, int64, careplan.Date, int64, string) (int, error) {
+	return 0, nil
+}
+
+func (emptyStatusSlots) ReleaseStatusDay(context.Context, int64) (int, error) { return 0, nil }
+
 func (l *observationLog) record(observation Observation) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -41,7 +63,7 @@ func buildModule(t *testing.T, db *bun.DB, observe ...func(Observation)) *carepl
 	}
 	module, err := New(Dependencies{
 		DB: db, Observe: observer, AmbientDB: func(context.Context) bun.IDB { return db },
-		People:      emptyPeopleDirectory{},
+		People: emptyPeopleDirectory{}, StatusStudents: emptyPeopleDirectory{}, StatusSlots: emptyStatusSlots{},
 		StudentLock: func(context.Context, int64) error { return nil }, StudentNotFound: errors.New("student not found"),
 	})
 	require.NoError(t, err)

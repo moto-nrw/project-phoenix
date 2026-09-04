@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
@@ -19,6 +20,7 @@ type StudentScheduleRepositories struct {
 	PickupSchedule   scheduleModels.StudentPickupScheduleRepository
 	PickupException  scheduleModels.StudentPickupExceptionRepository
 	PickupNote       scheduleModels.StudentPickupNoteRepository
+	StatusDay        activeModels.StudentStatusDayRepository
 }
 
 type arrivalScheduleRepository struct{ careplan.Capability }
@@ -51,6 +53,9 @@ func invalidLegacyEntity(name string) error {
 	return fmt.Errorf("%s cannot be nil or zero value", name)
 }
 func legacyScheduleID(raw any) (int64, error) { return carePlanLegacy.ScheduleID(raw) }
+func legacyScheduleQueryOptions(options *carePlanLegacy.ScheduleQueryOptions) *careplan.StudentScheduleQueryOptions {
+	return carePlanLegacy.CarePlanScheduleQueryOptions(options)
+}
 func legacyScheduleError(op string, err error) error {
 	return carePlanLegacy.ScheduleError(op, err)
 }

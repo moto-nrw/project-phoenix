@@ -247,7 +247,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
-	carePlan, err := composeCarePlan(db, persons)
+	carePlan, err := composeCarePlan(db, persons, repositories.CarePlanStatusSlots(repoFactory.InstanceStudent))
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -322,9 +322,14 @@ func composeFacilities(db *bun.DB, legacyFacilities *interface {
 	})
 }
 
-func composeCarePlan(db *bun.DB, persons *peopleModule.Module) (*carePlanModule.Module, error) {
+func composeCarePlan(db *bun.DB, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
+	statusStudents, err := repositories.CarePlanStatusStudents(persons)
+	if err != nil {
+		return nil, err
+	}
 	return carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		StatusStudents: statusStudents, StatusSlots: slots,
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := persons.ListStudentNamesByID(ctx, ids)
 			if err != nil {
