@@ -16,6 +16,8 @@ type directPickupCoordinatorStub struct {
 	extra   map[int64][]OfferingChangeSelection
 }
 
+const pickupAdjustmentTestToday timezone.Date = "2026-08-24"
+
 func (s directPickupCoordinatorStub) PrepareDirectOfferingAdjustment(context.Context, DirectOfferingAdjustmentInput) error {
 	return nil
 }
@@ -89,7 +91,7 @@ func TestMatchingPickupOfferings_ReturnsEveryOtherExactActiveCareProfile(t *test
 		Offerings: directPickupCoordinatorStub{catalog: catalog},
 	}}
 	matches, err := service.matchingPickupOfferings(context.Background(), PickupAdjustmentPreviewInput{
-		StudentID: 1, CareDays: []int{1, 2, 3, 4}, EffectiveFrom: timezone.TodayDate(),
+		StudentID: 1, CareDays: []int{1, 2, 3, 4}, EffectiveFrom: pickupAdjustmentTestToday,
 	}, catalog, proposed)
 	require.NoError(t, err)
 
@@ -114,7 +116,7 @@ func TestMatchingPickupOfferings_DoesNotGuessForIntermediateTimeOrDifferentCareD
 		Offerings: directPickupCoordinatorStub{catalog: catalog},
 	}}
 	matches, err := service.matchingPickupOfferings(context.Background(), PickupAdjustmentPreviewInput{
-		StudentID: 1, CareDays: []int{1, 2, 3, 4}, EffectiveFrom: timezone.TodayDate(),
+		StudentID: 1, CareDays: []int{1, 2, 3, 4}, EffectiveFrom: pickupAdjustmentTestToday,
 	}, catalog, map[int]PickupAdjustmentSchedule{
 		1: {Weekday: 1, PickupTime: "13:45"}, 2: {Weekday: 2, PickupTime: "13:45"},
 		3: {Weekday: 3, PickupTime: "13:45"}, 4: {Weekday: 4, PickupTime: "13:45"},
@@ -122,7 +124,7 @@ func TestMatchingPickupOfferings_DoesNotGuessForIntermediateTimeOrDifferentCareD
 	require.NoError(t, err)
 	assert.Empty(t, matches)
 	matches, err = service.matchingPickupOfferings(context.Background(), PickupAdjustmentPreviewInput{
-		StudentID: 1, CareDays: []int{1, 2, 3}, EffectiveFrom: timezone.TodayDate(),
+		StudentID: 1, CareDays: []int{1, 2, 3}, EffectiveFrom: pickupAdjustmentTestToday,
 	}, catalog, map[int]PickupAdjustmentSchedule{
 		1: {Weekday: 1, PickupTime: "14:30"}, 2: {Weekday: 2, PickupTime: "14:30"},
 		3: {Weekday: 3, PickupTime: "14:30"},
@@ -150,7 +152,7 @@ func TestMatchingPickupOfferings_UsesChosenCareDaysForParentChoiceOffering(t *te
 		Offerings: directPickupCoordinatorStub{catalog: catalog},
 	}}
 	matches, err := service.matchingPickupOfferings(context.Background(), PickupAdjustmentPreviewInput{
-		StudentID: 1, CareDays: []int{1, 4}, EffectiveFrom: timezone.TodayDate(),
+		StudentID: 1, CareDays: []int{1, 4}, EffectiveFrom: pickupAdjustmentTestToday,
 	}, catalog, proposed)
 	require.NoError(t, err)
 
@@ -174,7 +176,7 @@ func TestMatchingPickupOfferings_UsesMaterializedCoBookings(t *testing.T) {
 		},
 	}}
 	matches, err := service.matchingPickupOfferings(context.Background(), PickupAdjustmentPreviewInput{
-		StudentID: 1, CareDays: []int{1}, EffectiveFrom: timezone.TodayDate(),
+		StudentID: 1, CareDays: []int{1}, EffectiveFrom: pickupAdjustmentTestToday,
 	}, catalog, map[int]PickupAdjustmentSchedule{1: {Weekday: 1, PickupTime: "14:30"}})
 
 	require.NoError(t, err)

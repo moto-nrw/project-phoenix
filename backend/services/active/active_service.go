@@ -145,6 +145,7 @@ type ServiceDependencies struct {
 // Service implements the Active Service interface
 type service struct {
 	ServiceDependencies
+	tenantRuntime *tenant.UnitOfWork
 
 	// Optional: Tenant-scoped settings resolver for auto-clear logic.
 	// When nil, auto-clear falls back to the registry default behavior.
@@ -279,6 +280,13 @@ func NewService(deps ServiceDependencies) Service {
 	return &service{ServiceDependencies: deps}
 }
 
+// SetTenantRuntime supplies the transaction runtime bound to this service's
+// repository pool. It is used when a command needs to open its own tenant
+// transaction rather than joining a request transaction.
+func (s *service) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
+}
+
 // Active Group operations
 func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, error) {
 	group, err := s.GroupRepo.FindByID(ctx, id)
@@ -324,9 +332,17 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
 	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.createActiveGroupLocked(txCtx, group)
+	})
+}
 
+func (s *service) createActiveGroupLocked(ctx context.Context, group *active.Group) error {
 	// Check for room conflicts if room is assigned
 	if group.RoomID > 0 {
+		if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+			return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
+		}
 		hasConflict, _, err := s.GroupRepo.CheckRoomConflict(ctx, group.RoomID, 0)
 		if err != nil {
 			return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("check room conflict: %w", err)}
@@ -347,6 +363,17 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
+	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.updateActiveGroupLocked(txCtx, group)
+	})
+}
+
+func (s *service) updateActiveGroupLocked(ctx context.Context, group *active.Group) error {
+	if group.RoomID > 0 {
+		if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+		}
 	}
 	existing, err := s.GroupRepo.FindByIDForUpdate(ctx, group.ID)
 	if err != nil {
@@ -1001,7 +1028,10 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	}
 
 	studentRec := s.getStudentForSSE(ctx, endedVisit.StudentID)
-	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentRec, "")
+	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitVisitCheckout(broadcastCtx, endedVisit, snapshot, studentRec, "")
+	})
 }
 
 // emitVisitCheckout is broadcastVisitCheckout with the student routing data
@@ -1396,6 +1426,16 @@ func (s *service) ListStudentsPresentInRoom(ctx context.Context, roomID int64) (
 		return nil, &ActiveError{Op: "ListStudentsPresentInRoom", Err: fmt.Errorf("list active student IDs: %w", err)}
 	}
 	return ids, nil
+}
+
+// ListOpenVisitStudentIDsByRoom returns the current tenant's room presence in
+// one read for consumers rendering several rooms at once.
+func (s *service) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {
+	rows, err := s.VisitRepo.ListOpenVisitStudentIDsByRoom(ctx)
+	if err != nil {
+		return nil, &ActiveError{Op: "ListOpenVisitStudentIDsByRoom", Err: fmt.Errorf("list open visits by room: %w", err)}
+	}
+	return rows, nil
 }
 
 // Group Supervisor operations

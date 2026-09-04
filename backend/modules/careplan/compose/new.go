@@ -21,19 +21,43 @@ import (
 
 type Observation = ports.Observation
 type AmbientDatabase func(context.Context) bun.IDB
+type StatusStudentDirectory = postgres.StatusStudentDirectory
+type StatusStudent = postgres.StatusStudent
+type StatusSlotDirectory = postgres.StatusSlotDirectory
+
+// StudentName is the display projection Care Plan needs for companion links.
+// Composition translates the People Directory result at its boundary.
+type StudentName struct {
+	StudentID int64
+	FirstName string
+	LastName  string
+}
+
+type StudentNameFinder interface {
+	ListStudentNamesByID(context.Context, []int64) ([]StudentName, error)
+}
+
+type StudentNameFinderFunc func(context.Context, []int64) ([]StudentName, error)
+
+func (f StudentNameFinderFunc) ListStudentNamesByID(ctx context.Context, ids []int64) ([]StudentName, error) {
+	return f(ctx, ids)
+}
 
 type Dependencies struct {
 	DB              *bun.DB
 	Observe         func(Observation)
 	AmbientDB       AmbientDatabase
+	StatusStudents  StatusStudentDirectory
+	StatusSlots     StatusSlotDirectory
+	People          StudentNameFinder
 	StudentLock     careplanning.StudentLock
 	StudentNotFound error
 }
 
 func New(dependencies Dependencies) (*careplan.Module, error) {
-	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.AmbientDB == nil ||
-		dependencies.StudentLock == nil || dependencies.StudentNotFound == nil {
-		return nil, errors.New("care plan compose: database, observer, ambient database resolver, and student lock are required")
+	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.AmbientDB == nil || dependencies.StatusStudents == nil || dependencies.StatusSlots == nil ||
+		dependencies.People == nil || dependencies.StudentLock == nil || dependencies.StudentNotFound == nil {
+		return nil, errors.New("care plan compose: database, observer, ambient database resolver, people directory, status-student directory, status-slot directory, and student lock are required")
 	}
 	bindCareLocks(dependencies)
 	store := postgres.New(carePlanDatabase(dependencies.DB))
@@ -41,7 +65,9 @@ func New(dependencies Dependencies) (*careplan.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	return careplan.NewModule(engine{service: service}), nil
+	statusDays := postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots)
+	module := careplan.NewModule(engine{service: service, requests: postgres.NewRequestStore(store), statusDays: statusDays, observe: dependencies.Observe, people: dependencies.People})
+	return module, nil
 }
 
 func bindCareLocks(dependencies Dependencies) {
@@ -79,7 +105,13 @@ func carePlanDatabase(db *bun.DB) postgres.Database {
 	}
 }
 
-type engine struct{ service *application.Service }
+type engine struct {
+	service    *application.Service
+	requests   RequestStore
+	statusDays StatusDayStore
+	observe    func(Observation)
+	people     StudentNameFinder
+}
 
 func (e engine) FindCareOffering(ctx context.Context, id int64) (careplan.CareOffering, error) {
 	value, err := e.service.FindCareOffering(ctx, id)
@@ -286,6 +318,8 @@ func mapError(err error) error {
 		return fmt.Errorf("%w: %w", careplan.ErrOfferingChangeAlreadyOpen, err)
 	case errors.Is(err, domain.ErrCareOfferingTriggerInvalid):
 		return fmt.Errorf("%w: %w", careplan.ErrCareOfferingTriggerInvalid, err)
+	case errors.Is(err, domain.ErrCareDocumentNotFound):
+		return careplan.ErrCareDocumentNotFound
 	default:
 		return err
 	}

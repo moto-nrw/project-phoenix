@@ -38,40 +38,6 @@ type OperatorMFAAttemptResult struct {
 	LockedUntil *time.Time
 }
 
-// AnnouncementRepository defines operations for managing announcements
-type AnnouncementRepository interface {
-	// Core CRUD operations
-	Create(ctx context.Context, announcement *Announcement) error
-	FindByID(ctx context.Context, id int64) (*Announcement, error)
-	Update(ctx context.Context, announcement *Announcement) error
-	Delete(ctx context.Context, id int64) error
-
-	// Listing operations
-	List(ctx context.Context, includeInactive bool) ([]*Announcement, error)
-	// Publishing
-	Publish(ctx context.Context, id int64) error
-	Unpublish(ctx context.Context, id int64) error
-}
-
-// AnnouncementViewRepository defines operations for tracking announcement views
-type AnnouncementViewRepository interface {
-	// Mark as seen/dismissed
-	MarkSeen(ctx context.Context, userID, announcementID int64) error
-	MarkDismissed(ctx context.Context, userID, announcementID int64) error
-
-	// Query unread announcements for a user scoped to the current session tenant/org
-	GetUnreadForUser(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) ([]*Announcement, error)
-
-	// Count unread announcements for a user scoped to the current session tenant/org
-	CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error)
-
-	// Get view statistics for an announcement
-	GetStats(ctx context.Context, announcementID int64) (*AnnouncementStats, error)
-
-	// Get detailed view list for an announcement (who has seen/dismissed)
-	GetViewDetails(ctx context.Context, announcementID int64) ([]*AnnouncementViewDetail, error)
-}
-
 // SchoolRepository defines operations for school (tenant) records.
 type SchoolRepository interface {
 	Create(ctx context.Context, school *School) error

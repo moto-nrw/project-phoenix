@@ -1353,6 +1353,12 @@ func (s *fakeOperationsService) PatchAttendance(_ context.Context, accountID int
 	return s.patchRow, s.err
 }
 
+// EarliestPlannedBlockStartForClass exists only to satisfy the interface
+// (#2970); no handler in this package calls it.
+func (s *fakeOperationsService) EarliestPlannedBlockStartForClass(context.Context, string, timezone.Date) (string, error) {
+	return "", s.err
+}
+
 func operationRouter(method, path string, handler http.HandlerFunc) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))

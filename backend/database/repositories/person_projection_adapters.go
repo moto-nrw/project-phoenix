@@ -49,9 +49,6 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if f.ParentEnrollablePhase != nil {
 		f.ParentEnrollablePhase = personEnrollablePhaseRepository{EnrollablePhaseRepository: f.ParentEnrollablePhase, persons: persons}
 	}
-	if f.AnnouncementView != nil {
-		f.AnnouncementView = personAnnouncementViewRepository{AnnouncementViewRepository: f.AnnouncementView, persons: persons}
-	}
 	if f.OperatorSummaries != nil {
 		f.OperatorSummaries = personOperatorSummariesRepository{
 			OperatorSummariesRepository: f.OperatorSummaries, persons: persons,

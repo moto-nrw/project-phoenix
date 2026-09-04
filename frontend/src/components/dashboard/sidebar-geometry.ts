@@ -74,6 +74,16 @@ export function sidebarRowClasses(options?: {
   return `${ROW_BASE} ${options?.isActive ? ROW_ACTIVE : ROW_INACTIVE}`;
 }
 
+/**
+ * Kopfzeile einer Gruppe (#2826): dieselbe Breite, derselbe Innenabstand
+ * und dieselbe Icon-Spalte wie eine Navigationszeile, aber 32px hoch und
+ * ohne Aktiv-Markierung — sie ist ein Schalter für den Block darunter,
+ * keine Seite. Im Streifen bleibt nur ihr Icon übrig; weil px-3 gleich
+ * ist, sitzt es auf derselben Achse wie die Zeilen-Icons.
+ */
+export const SIDEBAR_GROUP_HEADING_CLASSES =
+  "group relative flex h-8 w-full items-center justify-start overflow-hidden rounded-lg px-3 text-left text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none";
+
 /** 20px-Icon, feste Größe in beiden Zuständen. */
 export const SIDEBAR_ICON_CLASSES = "h-5 w-5 shrink-0 transition-colors";
 

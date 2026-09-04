@@ -63,9 +63,10 @@ type UpdateGroupAssignment struct {
 }
 
 type GroupAssignmentFilter struct {
-	IDs        []int64
-	GroupIDs   []int64
-	TeacherIDs []int64
+	IDs             []int64
+	GroupIDs        []int64
+	TeacherIDs      []int64
+	TeacherStaffIDs []int64
 }
 
 func (m *Module) ListClassAssignments(ctx context.Context, filter ClassAssignmentFilter) ([]ClassAssignment, error) {
@@ -112,6 +113,7 @@ func (m *Module) ListGroupAssignments(ctx context.Context, filter GroupAssignmen
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.GroupIDs = uniquePositive(filter.GroupIDs)
 	filter.TeacherIDs = uniquePositive(filter.TeacherIDs)
+	filter.TeacherStaffIDs = uniquePositive(filter.TeacherStaffIDs)
 	return m.teachingAssignments.ListGroupAssignments(ctx, filter)
 }
 

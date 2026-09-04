@@ -38,7 +38,7 @@ export const userContextService = {
   // Get current user profile
   getCurrentUser: async (): Promise<UserProfile> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = resolveApiUrl("/api/me", "/me");
+    const url = await resolveApiUrl("/api/me", "/me");
 
     try {
       if (useProxyApi) {
@@ -75,7 +75,7 @@ export const userContextService = {
   // Get current user's staff profile
   getCurrentStaff: async (): Promise<Staff> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = resolveApiUrl("/api/me/staff", "/me/staff");
+    const url = await resolveApiUrl("/api/me/staff", "/me/staff");
 
     try {
       if (useProxyApi) {
@@ -122,7 +122,7 @@ export const userContextService = {
   // Get current user's teacher profile
   getCurrentTeacher: async (): Promise<Teacher> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = resolveApiUrl("/api/me/teacher", "/me/teacher");
+    const url = await resolveApiUrl("/api/me/teacher", "/me/teacher");
 
     try {
       if (useProxyApi) {
@@ -162,7 +162,7 @@ export const userContextService = {
     token?: string,
   ): Promise<EducationalGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = resolveApiUrl("/api/me/groups", "/me/groups");
+    const url = await resolveApiUrl("/api/me/groups", "/me/groups");
 
     try {
       if (useProxyApi) {
@@ -215,7 +215,10 @@ export const userContextService = {
   // Get activity groups for current user
   getMyActivityGroups: async (): Promise<ActivityGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = resolveApiUrl("/api/me/groups/activity", "/me/groups/activity");
+    const url = await resolveApiUrl(
+      "/api/me/groups/activity",
+      "/me/groups/activity",
+    );
 
     try {
       if (useProxyApi) {
@@ -254,7 +257,10 @@ export const userContextService = {
   // Get active groups for current user
   getMyActiveGroups: async (): Promise<ActiveGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = resolveApiUrl("/api/me/groups/active", "/me/groups/active");
+    const url = await resolveApiUrl(
+      "/api/me/groups/active",
+      "/me/groups/active",
+    );
 
     try {
       if (useProxyApi) {
@@ -299,7 +305,7 @@ export const userContextService = {
   // Get supervised groups for current user
   getMySupervisedGroups: async (): Promise<ActiveGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = resolveApiUrl(
+    const url = await resolveApiUrl(
       "/api/me/groups/supervised",
       "/me/groups/supervised",
     );

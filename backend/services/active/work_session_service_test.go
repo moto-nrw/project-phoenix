@@ -601,6 +601,10 @@ func (m *wsMockGroupSupervisorRepository) FindActiveByStaffID(ctx context.Contex
 	return nil, nil
 }
 
+func (m *wsMockGroupSupervisorRepository) FindActiveByStaffIDForUpdate(ctx context.Context, staffID int64) ([]*activeModels.GroupSupervisor, error) {
+	return m.FindActiveByStaffID(ctx, staffID)
+}
+
 func (m *wsMockGroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Context) ([]activeModels.StaffRoomSupervision, error) {
 	return nil, nil
 }
@@ -610,6 +614,10 @@ func (m *wsMockGroupSupervisorRepository) FindByActiveGroupID(ctx context.Contex
 		return m.findByActiveGroupIDFunc(ctx, activeGroupID, activeOnly)
 	}
 	return nil, nil
+}
+
+func (m *wsMockGroupSupervisorRepository) FindByActiveGroupIDForUpdate(ctx context.Context, activeGroupID int64) ([]*activeModels.GroupSupervisor, error) {
+	return m.FindByActiveGroupID(ctx, activeGroupID, true)
 }
 
 func (m *wsMockGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*activeModels.GroupSupervisor, error) {
@@ -1682,6 +1690,9 @@ func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *tes
 	sessionRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.WorkSession, error) {
 		assert.Equal(t, sessionID, id)
 		return &activeModels.WorkSession{StaffID: 100}, nil
+	}
+	sessionRepo.listFunc = func(_ context.Context, _ *base.QueryOptions) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{{Model: base.Model{ID: sessionID}, StaffID: 100}}, nil
 	}
 	breakRepo.endBreakFunc = func(_ context.Context, id int64, endedAt time.Time, durationMinutes int) error {
 		assert.Equal(t, breakID, id)
@@ -3664,8 +3675,16 @@ func (m *wsMockWorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, 
 	return nil, nil
 }
 
-func (m *wsMockWorkSessionBreakRepository) GetBySessionIDs(context.Context, []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
-	return nil, nil
+func (m *wsMockWorkSessionBreakRepository) GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	result := make(map[int64][]*activeModels.WorkSessionBreak, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		breaks, err := m.GetBySessionID(ctx, sessionID)
+		if err != nil {
+			return nil, err
+		}
+		result[sessionID] = breaks
+	}
+	return result, nil
 }
 
 // GetByStaffIDsAndDateRange satisfies the batched interface method (#1417); this mock

@@ -4,13 +4,13 @@ import { createLogger } from "~/lib/logger";
 import { isAxiosError } from "axios";
 
 const logger = createLogger({ component: "StudentAPI" });
-import { env } from "~/env";
 import api from "./api";
 import {
   handleDomainApiError,
   isBrowserContext,
   authFetch,
 } from "./api-helpers";
+import { resolveServerApiUrl } from "./api-url";
 import {
   mapStudentResponse,
   mapStudentsResponse,
@@ -102,13 +102,13 @@ function handleStudentApiError(error: unknown, context: string): never {
 
 // Helper: Build URL with optional query params
 // Note: Browser uses proxy path (/api/students), server uses direct backend path (/students)
-function buildStudentUrl(
+async function buildStudentUrl(
   proxyPath: string,
   backendPath: string,
   filters?: StudentFilters,
-): { url: string; useProxy: boolean } {
+): Promise<{ url: string; useProxy: boolean }> {
   const useProxy = isBrowserContext();
-  const baseUrl = useProxy ? proxyPath : `${env.API_URL}${backendPath}`;
+  const baseUrl = useProxy ? proxyPath : await resolveServerApiUrl(backendPath);
 
   if (!filters) return { url: baseUrl, useProxy };
 
@@ -141,7 +141,7 @@ export async function fetchStudents(filters?: StudentFilters): Promise<{
     total_records: number;
   };
 }> {
-  const { url, useProxy } = buildStudentUrl(
+  const { url, useProxy } = await buildStudentUrl(
     "/api/students",
     "/students",
     filters,
@@ -229,7 +229,7 @@ export async function fetchStudent(id: string): Promise<Student> {
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${id}`
-    : `${env.API_URL}/students/${id}`;
+    : await resolveServerApiUrl(`/students/${id}`);
 
   try {
     if (useProxy) {
@@ -256,7 +256,7 @@ export async function fetchStudentEnrollmentExtraFields(
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${id}/enrollment-extra-fields`
-    : `${env.API_URL}/api/students/${id}/enrollment-extra-fields`;
+    : await resolveServerApiUrl(`/api/students/${id}/enrollment-extra-fields`);
 
   try {
     if (useProxy) {
@@ -292,7 +292,9 @@ export async function createStudent(studentData: {
   guardian_phone?: string;
 }): Promise<Student> {
   const useProxy = isBrowserContext();
-  const url = useProxy ? "/api/students" : `${env.API_URL}/students`;
+  const url = useProxy
+    ? "/api/students"
+    : await resolveServerApiUrl("/students");
 
   try {
     if (useProxy) {
@@ -326,7 +328,7 @@ export async function updateStudent(
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${id}`
-    : `${env.API_URL}/students/${id}`;
+    : await resolveServerApiUrl(`/students/${id}`);
 
   try {
     if (useProxy) {
@@ -790,7 +792,7 @@ export async function deleteStudentPhoto(studentId: string): Promise<void> {
 // Fetch all groups (for filter dropdown)
 export async function fetchGroups(): Promise<Group[]> {
   const useProxy = isBrowserContext();
-  const url = useProxy ? "/api/groups" : `${env.API_URL}/groups`;
+  const url = useProxy ? "/api/groups" : await resolveServerApiUrl("/groups");
 
   try {
     if (useProxy) {
@@ -818,7 +820,7 @@ export async function fetchStudentPrivacyConsent(
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${studentId}/privacy-consent`
-    : `${env.API_URL}/students/${studentId}/privacy-consent`;
+    : await resolveServerApiUrl(`/students/${studentId}/privacy-consent`);
 
   try {
     if (useProxy) {
@@ -867,7 +869,7 @@ export async function updateStudentPrivacyConsent(
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${studentId}/privacy-consent`
-    : `${env.API_URL}/students/${studentId}/privacy-consent`;
+    : await resolveServerApiUrl(`/students/${studentId}/privacy-consent`);
 
   try {
     if (useProxy) {

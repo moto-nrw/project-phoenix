@@ -33,4 +33,10 @@ type Student struct {
 	PhotoPath     *string
 }
 
+type StudentName struct {
+	StudentID int64
+	FirstName string
+	LastName  string
+}
+
 func (s Student) IsAlumnus() bool { return s.Status == StudentStatusAlumnus }

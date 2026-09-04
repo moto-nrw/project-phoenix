@@ -202,6 +202,25 @@ func init() {
 		},
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeySchoolPortalWriteScope,
+		Label:           "Was Lehrkräfte in moto schule eintragen dürfen",
+		Description:     "Gilt für Lehrkräfte mit Zugang zu moto schule. Zurzeit geht nur eines: eine andere Ankunftszeit für eine ganze Klasse an einem Tag, zum Beispiel bei Unterrichtsausfall. Die OGS sieht die Eintragung sofort überall dort, wo Ankunftszeiten stehen.",
+		Type:            config.FieldSelect,
+		Default:         config.SchoolPortalWriteScopeNone,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "aufsicht",
+		SortOrder:       3,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Nichts. Die Schule sieht nur.", Value: config.SchoolPortalWriteScopeNone},
+				{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
+			},
+		},
+	})
+
 	// --- Zeiterfassung ---
 
 	config.Register(config.Definition{

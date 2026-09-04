@@ -12,6 +12,15 @@ func (e engine) ListStudentsByIDs(ctx context.Context, ids []int64) ([]peopledir
 	return toPublicStudents(values), mapError(err)
 }
 
+func (e engine) ListStudentNamesByIDs(ctx context.Context, ids []int64) ([]peopledirectory.StudentName, error) {
+	values, err := e.students.ListNamesByIDs(ctx, ids)
+	result := make([]peopledirectory.StudentName, 0, len(values))
+	for _, value := range values {
+		result = append(result, peopledirectory.StudentName(value))
+	}
+	return result, mapError(err)
+}
+
 func (e engine) ListStudentsAcrossTenantsByIDs(ctx context.Context, ids []int64) ([]peopledirectory.Student, error) {
 	values, err := e.students.ListAcrossTenantsByIDs(ctx, ids)
 	return toPublicStudents(values), mapError(err)

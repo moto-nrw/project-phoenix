@@ -15,6 +15,10 @@ type personGradeTransitionRepository struct {
 	persons peopledirectory.Capability
 }
 
+func (r personGradeTransitionRepository) GetStudentCountsByClasses(ctx context.Context, classes []string) (map[string]int, error) {
+	return r.GradeTransitionRepository.GetStudentCountsByClasses(ctx, classes)
+}
+
 func (r personGradeTransitionRepository) GetStudentsByClasses(ctx context.Context, classes []string) ([]*educationModels.StudentClassInfo, error) {
 	rows, err := r.GradeTransitionRepository.GetStudentsByClasses(ctx, classes)
 	if err != nil || len(rows) == 0 {

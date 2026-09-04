@@ -1,6 +1,7 @@
 package students
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -57,6 +58,9 @@ type ClassArrivalExceptionResponse struct {
 	ArrivalTime string  `json:"arrival_time"`
 	Reason      *string `json:"reason,omitempty"`
 	CreatedAt   string  `json:"created_at"`
+	// Origin is "ogs" or "school" (#2970): the OGS dialog says "eingetragen
+	// von der Schule" for rows a Lehrkraft entered through moto schule.
+	Origin string `json:"origin"`
 }
 
 // ClassArrivalExceptionListResponse is the GET payload.
@@ -86,6 +90,7 @@ func mapClassArrivalException(row *scheduleModel.ClassArrivalException) ClassArr
 		ArrivalTime: row.ArrivalTime.Format("15:04"),
 		Reason:      row.Reason,
 		CreatedAt:   row.CreatedAt.Format(time.RFC3339),
+		Origin:      cmp.Or(row.Origin, scheduleModel.ClassArrivalExceptionOriginOGS),
 	}
 }
 

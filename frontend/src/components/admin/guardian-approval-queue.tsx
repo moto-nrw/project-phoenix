@@ -127,7 +127,7 @@ function InviteModeDependentEmptyState({
     return (
       <Alert
         type="error"
-        message="Die Einladungs-Einstellung konnte nicht geladen werden. Der leere Zustand der Konto-Anfragen kann deshalb derzeit nicht zuverlässig eingeordnet werden."
+        message="Die Einladungs-Einstellung konnte nicht geladen werden. Der leere Zustand der Elternzugänge kann deshalb derzeit nicht zuverlässig eingeordnet werden."
         action={
           <Button
             type="button"

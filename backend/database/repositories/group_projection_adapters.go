@@ -266,6 +266,11 @@ func (r groupStudentRepository) FindByTeacherIDWithGroups(ctx context.Context, t
 	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
 }
 
+func (r groupStudentRepository) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*usersModels.StudentWithGroupInfo, error) {
+	rows, err := r.StudentRepository.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)
+	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
+}
+
 func (r groupStudentRepository) FindAllWithGroups(ctx context.Context) ([]*usersModels.StudentWithGroupInfo, error) {
 	rows, err := r.StudentRepository.FindAllWithGroups(ctx)
 	return EnrichStudentGroupNames(ctx, r.groups, rows, err)

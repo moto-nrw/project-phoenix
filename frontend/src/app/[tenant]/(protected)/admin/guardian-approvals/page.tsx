@@ -63,7 +63,7 @@ export default function GuardianApprovalsPage() {
 
   return (
     <TenantPage
-      title="Konto-Anfragen"
+      title="Elternzugänge"
       stats={pendingCount === null ? null : `${pendingCount} offen`}
       statsLoading={pendingCount === null}
       loading={!isReady}

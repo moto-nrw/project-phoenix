@@ -8,7 +8,8 @@
 //
 // Mechanism: DATE columns are DISCOVERED by scanning the SQL inside
 // database/migrations/*.go (never trust a hand-maintained list), then joined
-// against model struct fields parsed from models/**/*.go. The allowlists
+// against persistence struct fields parsed from models/**/*.go and
+// modules/**/*.go. The allowlists
 // below may only SHRINK — a stale entry fails the test and demands deletion.
 //
 // Known limitation: ad-hoc result structs inside database/repositories/
@@ -115,6 +116,13 @@ func TestDateColumnTypes(t *testing.T) {
 				switch f.goType {
 				case "timezone.Date", "*timezone.Date":
 					// migrated — ok
+				case "domain.Date", "*domain.Date":
+					// Appointments owns a string-backed calendar-date type and does
+					// not depend on the legacy shared/domain package.
+					if !strings.HasPrefix(f.file, "modules/appointments/") {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" uses domain.Date outside modules/appointments — use timezone.Date"))
+					}
 				case "Date", "*Date":
 					// Audit and Calendar own the same ISO calendar-date value shape
 					// without importing the legacy shared timezone package.

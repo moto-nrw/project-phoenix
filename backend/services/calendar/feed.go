@@ -265,7 +265,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 		for _, appointment := range appointments {
 			ids = append(ids, appointment.ID)
 		}
-		recurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, ids)
+		recurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, ids)
 		if err != nil {
 			return err
 		}
@@ -273,7 +273,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 		for _, recurrence := range recurrences {
 			recurrenceByID[recurrence.AppointmentID] = recurrence
 		}
-		cancelledOverrides, err := s.cfg.OverrideRepo.FindCancelledByAppointmentIDs(txCtx, ids)
+		cancelledOverrides, err := s.cfg.Appointments.FindCancelledOccurrenceOverrides(txCtx, ids)
 		if err != nil {
 			return err
 		}
@@ -304,7 +304,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 				tombstoneIDs = append(tombstoneIDs, appointment.ID)
 			}
 		}
-		tombstoneRecurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, tombstoneIDs)
+		tombstoneRecurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, tombstoneIDs)
 		if err != nil {
 			return err
 		}
@@ -483,7 +483,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			for _, appointment := range appointments {
 				ids = append(ids, appointment.ID)
 			}
-			recurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, ids)
+			recurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, ids)
 			if err != nil {
 				return err
 			}
@@ -493,7 +493,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			}
 			// Cancelled single occurrences become EXDATEs so subscribers drop
 			// them from the RRULE expansion.
-			cancelledOverrides, err := s.cfg.OverrideRepo.FindCancelledByAppointmentIDs(txCtx, ids)
+			cancelledOverrides, err := s.cfg.Appointments.FindCancelledOccurrenceOverrides(txCtx, ids)
 			if err != nil {
 				return err
 			}
@@ -539,7 +539,7 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 				}
 				tombstoneIDs = append(tombstoneIDs, appointment.ID)
 			}
-			tombstoneRecurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, tombstoneIDs)
+			tombstoneRecurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, tombstoneIDs)
 			if err != nil {
 				return err
 			}

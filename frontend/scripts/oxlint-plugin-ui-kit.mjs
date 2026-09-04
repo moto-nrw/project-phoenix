@@ -400,6 +400,7 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/day-log/page.tsx",
   "src/app/[tenant]/(protected)/meal-plan/page.tsx",
   "src/app/[tenant]/(protected)/time-tracking/page.tsx",
+  "src/app/[tenant]/(protected)/time-tracking/week-chart.tsx",
   "src/app/help/nfc/erste-schritte/page.tsx",
   "src/app/operator/provisioning/soft-delete-shared.tsx",
   "src/components/active-supervisions/planned-now-section.tsx",
@@ -465,7 +466,8 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx|text-[11px]@188 text-[11px]@225
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@164
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1343 text-[11px]@1343 text-[10px]@1347 text-[10px]@1356 text-[11px]@1356 text-[10px]@2020
+src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1334 text-[11px]@1334 text-[10px]@1338 text-[10px]@1347 text-[11px]@1347
+src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@235 text-[11px]@276
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@218
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@425
@@ -474,7 +476,7 @@ src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
-src/components/dashboard/sidebar.tsx|text-[10px]@1320
+src/components/dashboard/sidebar.tsx|text-[10px]@1306
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@915 text-[11px]@934
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1296 text-[11px]@2973 text-[11px]@3165 text-[11px]@3170 text-[11px]@3175 text-[11px]@3329 text-[11px]@3921 text-[10px]@4138 text-[11px]@4150 text-[11px]@4185 text-[10px]@4199 text-[10px]@4243
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2090

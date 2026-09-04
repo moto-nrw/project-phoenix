@@ -16,6 +16,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // OfferingRosterResyncer is the factory-facing view of the offering-source
@@ -74,9 +75,15 @@ type sourcedRosterTarget struct {
 //   - finally, the touched students' already-materialized future occurrences
 //     are reconciled (the materializer never revisits existing instances)
 //
-// Runs inside the template save's tenant transaction; the caller already
-// holds the tenant recurrence lock.
+// Runs atomically in a tenant transaction, joining the template save's
+// transaction when present. The caller holds the tenant recurrence lock.
 func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in scheduleService.OfferingRosterResyncInput) error {
+	return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		return s.resyncTemplateOfferingRoster(txCtx, in)
+	})
+}
+
+func (s *decisionService) resyncTemplateOfferingRoster(ctx context.Context, in scheduleService.OfferingRosterResyncInput) error {
 	if in.TemplateID <= 0 {
 		return fmt.Errorf("%w: template id is required", scheduleService.ErrOfferingSourceInvalid)
 	}
@@ -578,21 +585,21 @@ func loadValidatedOfferingSources(
 			return nil, nil, nil, fmt.Errorf("offering roster resync: load calendar period: %w", err)
 		}
 	}
-	offerings = make([]*enrollmentModels.CareOffering, 0, len(offeringIDs))
 	seen := make(map[int64]bool, len(offeringIDs))
 	for _, offeringID := range offeringIDs {
 		if seen[offeringID] {
 			return nil, nil, nil, fmt.Errorf("%w: care offering %d is listed twice", scheduleService.ErrOfferingSourceInvalid, offeringID)
 		}
 		seen[offeringID] = true
-		offering, err := offeringRepo.FindByID(ctx, offeringID)
-		if err != nil {
-			if modelBase.IsNoRows(err) {
-				droppedIDs = append(droppedIDs, offeringID)
-				continue
-			}
-			return nil, nil, nil, fmt.Errorf("offering roster resync: load offering: %w", err)
-		}
+	}
+	loaded, err := offeringRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("offering roster resync: load offerings: %w", err)
+	}
+	byID := careOfferingMap(loaded)
+	offerings = make([]*enrollmentModels.CareOffering, 0, len(loaded))
+	for _, offeringID := range offeringIDs {
+		offering := byID[offeringID]
 		if offering == nil {
 			droppedIDs = append(droppedIDs, offeringID)
 			continue
@@ -1579,6 +1586,11 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 		return nil, fmt.Errorf("offering source options: list approved children: %w", err)
 	}
 	counts := groupOfferingGradeCounts(children)
+	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOfferings(ctx, offeringIDs)
+	if err != nil {
+		return nil, fmt.Errorf("offering source options: list sourced templates: %w", err)
+	}
+	templatesByOffering := sourcedTemplatesByOffering(templates)
 
 	options := make([]OfferingSourceOption, 0, len(selected))
 	for _, offering := range selected {
@@ -1598,11 +1610,7 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 			option.TotalCount = c.total
 			option.GradeCounts = c.byGrade
 		}
-		templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOffering(ctx, offering.ID)
-		if err != nil {
-			return nil, fmt.Errorf("offering source options: list sourced templates: %w", err)
-		}
-		for _, tmpl := range templates {
+		for _, tmpl := range templatesByOffering[offering.ID] {
 			if tmpl == nil {
 				continue
 			}
@@ -1616,6 +1624,19 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 		options = append(options, option)
 	}
 	return options, nil
+}
+
+func sourcedTemplatesByOffering(templates []*activities.Group) map[int64][]*activities.Group {
+	result := make(map[int64][]*activities.Group)
+	for _, template := range templates {
+		if template == nil {
+			continue
+		}
+		for _, offeringID := range template.SourceCareOfferingIDs {
+			result[offeringID] = append(result[offeringID], template)
+		}
+	}
+	return result
 }
 
 // offeringSourcePhases returns the tenant's phases keyed by id, restricted to

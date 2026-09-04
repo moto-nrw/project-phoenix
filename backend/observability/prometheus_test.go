@@ -134,6 +134,47 @@ func TestRecordUnitOfWorkEvidence(t *testing.T) {
 	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
 }
 
+func TestObserveCarePlanOperationRecordsDuplicateConflicts(t *testing.T) {
+	t.Parallel()
+	const operation = "record_care_exit_removals_test"
+	before := testutil.ToFloat64(carePlanDuplicateConflicts.WithLabelValues(operation))
+
+	ObserveCarePlanOperation(operation, time.Millisecond, 1, 0, 2, time.Millisecond, "none", nil)
+
+	assert.Equal(t, before+2, testutil.ToFloat64(carePlanDuplicateConflicts.WithLabelValues(operation)))
+}
+
+func TestObserveAppointmentsOperationRecordsDuplicatePreventionConflicts(t *testing.T) {
+	t.Parallel()
+	const operation = "cancel_appointment_occurrence"
+	before := testutil.ToFloat64(appointmentsDuplicatePreventionConflicts.WithLabelValues(operation))
+
+	ObserveAppointmentsOperation(operation, time.Millisecond, 1, 0, 1, time.Millisecond, "none", nil)
+
+	after := testutil.ToFloat64(appointmentsDuplicatePreventionConflicts.WithLabelValues(operation))
+	assert.Equal(t, before+1, after)
+}
+
+func TestObserveCommunicationOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+	const operation = "mark_seen_contract_test"
+	operationsBefore := testutil.ToFloat64(communicationOperations.WithLabelValues(operation, "success", "none"))
+	queriesBefore := testutil.ToFloat64(communicationQueries.WithLabelValues(operation))
+	rowsBefore := testutil.ToFloat64(communicationRows.WithLabelValues(operation))
+	conflictsBefore := testutil.ToFloat64(communicationDuplicatePreventionConflicts.WithLabelValues(operation))
+	durationsBefore := testutil.CollectAndCount(communicationDuration)
+	statementsBefore := testutil.CollectAndCount(communicationStatementDuration)
+
+	ObserveCommunicationOperation(operation, 2*time.Millisecond, 3, 1, 1, time.Millisecond, "ignored_on_success", nil)
+
+	assert.Equal(t, operationsBefore+1, testutil.ToFloat64(communicationOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, queriesBefore+3, testutil.ToFloat64(communicationQueries.WithLabelValues(operation)))
+	assert.Equal(t, rowsBefore+1, testutil.ToFloat64(communicationRows.WithLabelValues(operation)))
+	assert.Equal(t, conflictsBefore+1, testutil.ToFloat64(communicationDuplicatePreventionConflicts.WithLabelValues(operation)))
+	assert.Equal(t, durationsBefore+1, testutil.CollectAndCount(communicationDuration))
+	assert.Equal(t, statementsBefore+1, testutil.CollectAndCount(communicationStatementDuration))
+}
+
 func TestFeedbackHTTPResponseUsesActualStatusClassAndStableCode(t *testing.T) {
 	t.Parallel()
 	badRequestBefore := testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("iot", "4xx", "invalid_parameters"))

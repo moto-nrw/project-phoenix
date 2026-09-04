@@ -39,42 +39,47 @@ func (failingCandidateLock) FindReminderCandidateForUpdate(context.Context, int6
 }
 
 type failingRecurrenceList struct {
-	calModels.RecurrenceRuleRepository
+	appointments.Capability
 }
 
-func (failingRecurrenceList) FindByAppointmentIDs(context.Context, []int64) ([]*calModels.RecurrenceRule, error) {
+func (failingRecurrenceList) FindRecurrenceRules(context.Context, []int64) ([]*appointments.RecurrenceRule, error) {
 	return nil, errReminderStore
 }
 
 type failingRecurrenceReload struct {
-	calModels.RecurrenceRuleRepository
+	appointments.Capability
+	calls int
 }
 
-func (failingRecurrenceReload) FindByAppointmentID(context.Context, int64) (*calModels.RecurrenceRule, error) {
-	return nil, errReminderStore
+func (f *failingRecurrenceReload) FindRecurrenceRules(ctx context.Context, ids []int64) ([]*appointments.RecurrenceRule, error) {
+	f.calls++
+	if f.calls > 1 {
+		return nil, errReminderStore
+	}
+	return f.Capability.FindRecurrenceRules(ctx, ids)
 }
 
 type failingMovedOverrides struct {
-	calModels.AppointmentOccurrenceOverrideRepository
+	appointments.Capability
 }
 
-func (failingMovedOverrides) FindByAppointmentIDsAndStartDates(context.Context, []int64, []calModels.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
+func (failingMovedOverrides) FindOccurrenceOverridesByStartDates(context.Context, []int64, []appointments.Date) ([]*appointments.AppointmentOccurrenceOverride, error) {
 	return nil, errReminderStore
 }
 
 type failingOccurrenceOverrides struct {
-	calModels.AppointmentOccurrenceOverrideRepository
+	appointments.Capability
 }
 
-func (failingOccurrenceOverrides) FindByAppointmentIDsAndOccurrenceDates(context.Context, []int64, []calModels.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
+func (failingOccurrenceOverrides) FindOccurrenceOverrides(context.Context, []int64, []appointments.Date) ([]*appointments.AppointmentOccurrenceOverride, error) {
 	return nil, errReminderStore
 }
 
 type failingRecipientLookup struct {
-	calModels.AppointmentRecipientRepository
+	appointments.Capability
 }
 
-func (failingRecipientLookup) FindByAppointmentID(context.Context, int64) ([]*calModels.AppointmentRecipient, error) {
+func (failingRecipientLookup) FindAppointmentRecipients(context.Context, int64) ([]*appointments.AppointmentRecipient, error) {
 	return nil, errReminderStore
 }
 
@@ -116,22 +121,22 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 			cfg.Appointments = failingCandidateScan{cfg.Appointments}
 		},
 		"loading the recurrence rules": func(cfg *calendarSvc.Config) {
-			cfg.RecurrenceRepo = failingRecurrenceList{cfg.RecurrenceRepo}
+			cfg.Appointments = failingRecurrenceList{cfg.Appointments}
 		},
 		"loading the moved occurrences": func(cfg *calendarSvc.Config) {
-			cfg.OverrideRepo = failingMovedOverrides{cfg.OverrideRepo}
+			cfg.Appointments = failingMovedOverrides{cfg.Appointments}
 		},
 		"re-locking the appointment": func(cfg *calendarSvc.Config) {
 			cfg.Appointments = failingCandidateLock{cfg.Appointments}
 		},
 		"re-reading the recurrence rule": func(cfg *calendarSvc.Config) {
-			cfg.RecurrenceRepo = failingRecurrenceReload{cfg.RecurrenceRepo}
+			cfg.Appointments = &failingRecurrenceReload{Capability: cfg.Appointments}
 		},
 		"re-reading the occurrence override": func(cfg *calendarSvc.Config) {
-			cfg.OverrideRepo = failingOccurrenceOverrides{cfg.OverrideRepo}
+			cfg.Appointments = failingOccurrenceOverrides{cfg.Appointments}
 		},
 		"resolving the recipients": func(cfg *calendarSvc.Config) {
-			cfg.RecipientRepo = failingRecipientLookup{cfg.RecipientRepo}
+			cfg.Appointments = failingRecipientLookup{cfg.Appointments}
 		},
 	}
 

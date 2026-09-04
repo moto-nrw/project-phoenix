@@ -172,7 +172,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
 
 	date := timezone.NewDate(2026, 8, 24).AddDays(6)
-	require.NoError(t, repo.UpsertReported(context.Background(), &active.StudentStatusDay{
+	require.NoError(t, repo.UpsertReported(testpkg.Ctx(t), &active.StudentStatusDay{
 		TenantModel: modelBase.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   student.ID,
 		Date:        date,

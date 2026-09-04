@@ -127,6 +127,8 @@ type StudentRepository interface {
 
 	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
+	// FindByTeacherStaffIDsWithGroups retrieves the distinct students supervised by teachers for any requested staff ID.
+	FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*StudentWithGroupInfo, error)
 
 	// FindAllWithGroups retrieves all students with their group names (LEFT JOIN for students without groups)
 	FindAllWithGroups(ctx context.Context) ([]*StudentWithGroupInfo, error)
@@ -444,6 +446,9 @@ type StudentGuardianRepository interface {
 
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
+	// FindByGuardianProfileIDs retrieves relationships for several guardian
+	// profiles in one query.
+	FindByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*StudentGuardian, error)
 
 	// AccountHasStudentPermission reports whether the guardian account holds the
 	// named parent_portal.* permission on its relationship to the given student
@@ -534,8 +539,6 @@ type StudentGuardianRepository interface {
 // consider both endpoint columns — that is why there is no generic
 // List(filters) usage here: a filter map cannot express the OR.
 type StudentCompanionRepository interface {
-	base.CRUDRepository[*StudentCompanion]
-
 	// ListForStudent returns every edge touching the student, all weekdays.
 	ListForStudent(ctx context.Context, studentID int64) ([]*StudentCompanion, error)
 
@@ -560,6 +563,7 @@ type StudentCompanionRepository interface {
 	// which they keep at least one edge to a child other than excludeID. The
 	// "mit wem" cover is per weekday, so removal checks need this per-day view.
 	CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
+	CompanionWeekdays(ctx context.Context, studentID int64) ([]int, error)
 }
 
 // StudentRetentionSetting is the projection used by the GDPR visit-cleanup

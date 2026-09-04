@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+// Tagesausnahme einer ganzen Klasse (#2962/#2970): ein Datum, an dem die
+// Klasse zu einer anderen Zeit kommt. Ein Baustein für beide Portale: die OGS
+// (Kindersuche) liest und schreibt über die Kinder-Routen, meldet per Toast
+// und holt den Blockbeginn für „Unterricht fällt aus“ aus dem Betreuungsplan
+// (Standard ohne weitere Props). moto schule bringt seit #2970 seine eigene
+// Datenquelle (`api`) und Rückmeldung (`notify`) mit, damit kein Portal die
+// Routen des anderen kennt.
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -11,6 +19,8 @@ import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type ClassArrivalException,
+  type ClassArrivalExceptionInput,
+  type ClassArrivalExceptionList,
   deleteClassArrivalException,
   fetchClassArrivalExceptions,
   upsertClassArrivalException,
@@ -23,40 +33,32 @@ const logger = createLogger({ component: "ClassArrivalExceptionPanel" });
 /** The preset reason the "Unterricht fällt aus" button writes. */
 const CLASS_ARRIVAL_CANCELLED_REASON = "Unterricht fällt aus";
 
-interface ClassArrivalExceptionPanelProps {
-  readonly schoolClass: string;
-  /** "Klasse 4a", used in the confirmation toast. */
-  readonly classLabel: string;
-  readonly onChanged?: () => void;
+/** Wie weit die Liste vorausschaut (Backend-Standard: 60 Tage). */
+const LIST_HORIZON_DAYS = 60;
+
+/** Die Datenquelle des Bausteins; jedes Portal bringt seine eigene mit. */
+export interface ClassArrivalExceptionApi {
+  readonly list: (schoolClass: string) => Promise<ClassArrivalExceptionList>;
+  readonly upsert: (
+    schoolClass: string,
+    date: string,
+    input: ClassArrivalExceptionInput,
+  ) => Promise<ClassArrivalException>;
+  readonly remove: (schoolClass: string, date: string) => Promise<void>;
+  /**
+   * Beginn des ersten geplanten Betreuungsblocks der Klasse an dem Tag
+   * ("HH:MM"), null wenn es keinen gibt.
+   */
+  readonly earliestBlockStart: (
+    schoolClass: string,
+    isoDate: string,
+  ) => Promise<string | null>;
 }
 
-const WEEKDAY_SHORT: Record<number, string> = {
-  0: "So",
-  1: "Mo",
-  2: "Di",
-  3: "Mi",
-  4: "Do",
-  5: "Fr",
-  6: "Sa",
-};
-
-function exceptionDateLabel(isoDate: string): string {
-  const weekday = WEEKDAY_SHORT[parseISODate(isoDate).getDay()] ?? "";
-  return `${weekday}, ${formatDate(isoDate)}`;
-}
-
-function isValidTime(value: string): boolean {
-  return /^\d{2}:\d{2}$/.test(value);
-}
-
-/**
- * Earliest planned block start of a date ("HH:MM") or null when the day has
- * no block. Cancelled blocks do not count: the class would arrive into
- * nothing.
- */
-function isWeekend(date: Date): boolean {
-  const weekday = date.getDay();
-  return weekday === 0 || weekday === 6;
+/** Wohin Erfolg und Fehler gehen (Toast in der OGS, Hinweis im Dialog). */
+interface ClassArrivalExceptionNotifier {
+  readonly success: (message: string) => void;
+  readonly error: (message: string) => void;
 }
 
 interface ClassTargetTemplate {
@@ -81,9 +83,15 @@ function appliesToSchoolClass(
   );
 }
 
+/**
+ * Earliest planned block start of a date ("HH:MM") or null when the day has
+ * no block. Cancelled blocks do not count: the class would arrive into
+ * nothing. The school portal answers the same question server-side
+ * (GET /school/class-day/arrival-exceptions/block-start).
+ */
 async function earliestBlockStart(
-  isoDate: string,
   schoolClass: string,
+  isoDate: string,
 ): Promise<string | null> {
   const [week, templates] = await Promise.all([
     timetableService.getWeek(isoDate, isoDate),
@@ -109,23 +117,141 @@ async function earliestBlockStart(
   return starts[0] ?? null;
 }
 
+const ogsApi: ClassArrivalExceptionApi = {
+  list: fetchClassArrivalExceptions,
+  upsert: upsertClassArrivalException,
+  remove: deleteClassArrivalException,
+  earliestBlockStart,
+};
+
+export interface ClassArrivalExceptionPanelProps {
+  readonly schoolClass: string;
+  /** "Klasse 4a", steht in der Bestätigung. */
+  readonly classLabel: string;
+  /** Datenquelle; ohne Angabe die Kinder-Routen des OGS-Portals. */
+  readonly api?: ClassArrivalExceptionApi;
+  /** Rückmeldung; ohne Angabe die Toast-Leiste des OGS-Portals. */
+  readonly notify?: ClassArrivalExceptionNotifier;
+  readonly onChanged?: () => void;
+  /** Vorbelegtes Datum, zum Beispiel der angezeigte Tag. */
+  readonly defaultDate?: Date | null;
+  /**
+   * Zeile für Personen, die nichts ändern dürfen. Ohne Angabe der Satz der
+   * OGS („Ändern kann das die Koordination.“).
+   */
+  readonly readOnlyHint?: string;
+  /**
+   * Zusatzzeile unter einem Eintrag, zum Beispiel wer ihn gemacht hat. Ohne
+   * Angabe nennt die OGS Einträge der Schule.
+   */
+  readonly originLabel?: (exception: ClassArrivalException) => string | null;
+}
+
+const WEEKDAY_SHORT: Record<number, string> = {
+  0: "So",
+  1: "Mo",
+  2: "Di",
+  3: "Mi",
+  4: "Do",
+  5: "Fr",
+  6: "Sa",
+};
+
+function exceptionDateLabel(isoDate: string): string {
+  const weekday = WEEKDAY_SHORT[parseISODate(isoDate).getDay()] ?? "";
+  return `${weekday}, ${formatDate(isoDate)}`;
+}
+
+function isValidTime(value: string): boolean {
+  return /^\d{2}:\d{2}$/.test(value);
+}
+
+function isWeekend(date: Date): boolean {
+  const weekday = date.getDay();
+  return weekday === 0 || weekday === 6;
+}
+
+function startOfToday(): Date {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+/** Nur ein Datum ab heute darf vorbelegt werden; Vergangenes bleibt leer. */
+function usableDefaultDate(candidate: Date | null | undefined): Date | null {
+  if (!candidate) return null;
+  const today = startOfToday();
+  return candidate.getTime() < today.getTime() ? null : candidate;
+}
+
+type ClassArrivalExceptionPanelBodyProps = ClassArrivalExceptionPanelProps & {
+  readonly api: ClassArrivalExceptionApi;
+  readonly notify: ClassArrivalExceptionNotifier;
+};
+
+/** Der OGS-Satz für alle, die nur lesen dürfen. */
+const OGS_READ_ONLY_HINT = "Ändern kann das die Koordination.";
+
+function ogsOriginLabel(exception: ClassArrivalException): string | null {
+  return exception.origin === "school" ? "Eingetragen von der Schule" : null;
+}
+
 /**
  * One date on which a whole class arrives at a different time (#2962).
  * Everybody sees the list; the form appears only for people the school lets
- * set one (operations.class_arrival_exception_editors).
+ * set one (operations.class_arrival_exception_editors), or — in moto schule —
+ * when the OGS opened the write for the school (#2970).
  */
-export function ClassArrivalExceptionPanel({
+export function ClassArrivalExceptionPanel(
+  props: ClassArrivalExceptionPanelProps,
+) {
+  // Ohne eigene Rückmeldung meldet der Baustein per Toast. Der Toast-Hook
+  // steht nur im OGS-Portal bereit, deshalb ruft ihn nur der Zweig, der ihn
+  // braucht; moto schule bringt `notify` mit und lässt ihn aus.
+  if (props.notify) {
+    return (
+      <ClassArrivalExceptionPanelBody
+        {...props}
+        api={props.api ?? ogsApi}
+        notify={props.notify}
+      />
+    );
+  }
+  return <ToastNotifiedClassArrivalExceptionPanel {...props} />;
+}
+
+function ToastNotifiedClassArrivalExceptionPanel(
+  props: ClassArrivalExceptionPanelProps,
+) {
+  const { success, error } = useToast();
+  const notify = useMemo(() => ({ success, error }), [success, error]);
+  return (
+    <ClassArrivalExceptionPanelBody
+      {...props}
+      api={props.api ?? ogsApi}
+      notify={notify}
+    />
+  );
+}
+
+function ClassArrivalExceptionPanelBody({
   schoolClass,
   classLabel,
+  api,
+  notify,
   onChanged,
-}: ClassArrivalExceptionPanelProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  defaultDate,
+  readOnlyHint = OGS_READ_ONLY_HINT,
+  originLabel = ogsOriginLabel,
+}: ClassArrivalExceptionPanelBodyProps) {
   const [exceptions, setExceptions] = useState<ClassArrivalException[]>([]);
   const [canEdit, setCanEdit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [date, setDate] = useState<Date | null>(null);
+  const [date, setDate] = useState<Date | null>(() =>
+    usableDefaultDate(defaultDate),
+  );
   const [time, setTime] = useState("");
   const [reason, setReason] = useState("");
   const [presetPending, setPresetPending] = useState(false);
@@ -133,16 +259,17 @@ export function ClassArrivalExceptionPanel({
   const [removing, setRemoving] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const list = await fetchClassArrivalExceptions(schoolClass);
+    const list = await api.list(schoolClass);
     setExceptions(list.exceptions);
     setCanEdit(list.can_edit);
-  }, [schoolClass]);
+  }, [api, schoolClass]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setLoadError(false);
-    fetchClassArrivalExceptions(schoolClass)
+    api
+      .list(schoolClass)
       .then((list) => {
         if (cancelled) return;
         setExceptions(list.exceptions);
@@ -161,12 +288,11 @@ export function ClassArrivalExceptionPanel({
     return () => {
       cancelled = true;
     };
-  }, [schoolClass, loadAttempt]);
+  }, [api, schoolClass, loadAttempt]);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfToday();
   const maxDate = new Date(today);
-  maxDate.setDate(maxDate.getDate() + 60);
+  maxDate.setDate(maxDate.getDate() + LIST_HORIZON_DAYS);
   const isoDate = date ? toISODate(date) : null;
   const canSave =
     isoDate !== null && isValidTime(time) && !presetPending && !saving;
@@ -174,16 +300,16 @@ export function ClassArrivalExceptionPanel({
   const applyCancelledPreset = async () => {
     setReason(CLASS_ARRIVAL_CANCELLED_REASON);
     if (!isoDate) {
-      toastError("Bitte zuerst ein Datum wählen.");
+      notify.error("Bitte zuerst ein Datum wählen.");
       return;
     }
     setPresetPending(true);
     try {
-      const start = await earliestBlockStart(isoDate, schoolClass);
+      const start = await api.earliestBlockStart(schoolClass, isoDate);
       if (start) {
         setTime(start);
       } else {
-        toastError(
+        notify.error(
           "Für diesen Tag ist kein Betreuungsblock geplant. Bitte die Uhrzeit selbst eintragen.",
         );
       }
@@ -191,7 +317,7 @@ export function ClassArrivalExceptionPanel({
       logger.warn("class_arrival_exception_preset_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      toastError(
+      notify.error(
         "Der Blockbeginn konnte nicht geladen werden. Bitte die Uhrzeit selbst eintragen.",
       );
     } finally {
@@ -203,11 +329,11 @@ export function ClassArrivalExceptionPanel({
     if (!isoDate || !canSave) return;
     setSaving(true);
     try {
-      await upsertClassArrivalException(schoolClass, isoDate, {
+      await api.upsert(schoolClass, isoDate, {
         arrival_time: time,
         reason: reason.trim() === "" ? null : reason.trim(),
       });
-      toastSuccess(
+      notify.success(
         `${classLabel} kommt am ${formatDate(isoDate)} um ${time} Uhr`,
       );
       setDate(null);
@@ -218,7 +344,7 @@ export function ClassArrivalExceptionPanel({
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("class_arrival_exception_save_failed", { error: message });
-      toastError(
+      notify.error(
         "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
       );
     } finally {
@@ -229,14 +355,14 @@ export function ClassArrivalExceptionPanel({
   const handleRemove = async (exception: ClassArrivalException) => {
     setRemoving(exception.date);
     try {
-      await deleteClassArrivalException(schoolClass, exception.date);
-      toastSuccess(`Abweichung am ${formatDate(exception.date)} entfernt`);
+      await api.remove(schoolClass, exception.date);
+      notify.success(`Abweichung am ${formatDate(exception.date)} entfernt`);
       await reload();
       onChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("class_arrival_exception_delete_failed", { error: message });
-      toastError(
+      notify.error(
         "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
       );
     } finally {
@@ -252,10 +378,8 @@ export function ClassArrivalExceptionPanel({
           Eine eigene Wochenzeit eines Kindes wird an diesem Tag ersetzt. Eine
           eigene Tagesausnahme eines Kindes bleibt bestehen.
         </p>
-        {!loading && !loadError && !canEdit ? (
-          <p className="font-medium text-gray-700">
-            Ändern kann das die Koordination.
-          </p>
+        {!loading && !loadError && !canEdit && readOnlyHint ? (
+          <p className="font-medium text-gray-700">{readOnlyHint}</p>
         ) : null}
       </div>
 
@@ -328,7 +452,7 @@ export function ClassArrivalExceptionPanel({
             >
               {presetPending
                 ? "Blockbeginn wird geladen..."
-                : "Unterricht fällt aus"}
+                : CLASS_ARRIVAL_CANCELLED_REASON}
             </Button>
             <Button
               type="button"
@@ -359,33 +483,39 @@ export function ClassArrivalExceptionPanel({
             />
           ) : (
             <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-              {exceptions.map((exception) => (
-                <li
-                  key={exception.date}
-                  className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
-                >
-                  <div className="min-w-0">
-                    <div className="font-medium text-gray-900">
-                      {exceptionDateLabel(exception.date)} ·{" "}
-                      {exception.arrival_time} Uhr
+              {exceptions.map((exception) => {
+                const origin = originLabel(exception);
+                return (
+                  <li
+                    key={exception.date}
+                    className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-900">
+                        {exceptionDateLabel(exception.date)} ·{" "}
+                        {exception.arrival_time} Uhr
+                      </div>
+                      {exception.reason ? (
+                        <div className="text-gray-600">{exception.reason}</div>
+                      ) : null}
+                      {origin ? (
+                        <div className="text-xs text-gray-500">{origin}</div>
+                      ) : null}
                     </div>
-                    {exception.reason ? (
-                      <div className="text-gray-600">{exception.reason}</div>
+                    {canEdit ? (
+                      <Button
+                        type="button"
+                        variant="outline_danger"
+                        size="compact"
+                        onClick={() => void handleRemove(exception)}
+                        disabled={removing === exception.date}
+                      >
+                        Entfernen
+                      </Button>
                     ) : null}
-                  </div>
-                  {canEdit ? (
-                    <Button
-                      type="button"
-                      variant="outline_danger"
-                      size="compact"
-                      onClick={() => void handleRemove(exception)}
-                      disabled={removing === exception.date}
-                    >
-                      Entfernen
-                    </Button>
-                  ) : null}
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

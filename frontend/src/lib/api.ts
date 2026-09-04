@@ -1,8 +1,8 @@
 import type { AxiosError } from "axios";
 import { clearSessionCache, getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
-import { env } from "~/env";
 import api from "./api-transport";
+import { resolveApiUrl } from "./api-url";
 import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
 import {
   mapSingleStudentResponse,
@@ -1043,9 +1043,7 @@ export const studentService = {
   }): Promise<StudentsResult> => {
     const params = buildStudentQueryParams(filters);
     const useProxyApi = globalThis.window !== undefined;
-    const baseUrl = useProxyApi
-      ? "/api/students"
-      : `${env.API_URL}/api/students`;
+    const baseUrl = await resolveApiUrl("/api/students");
     const queryString = params.toString();
     const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
@@ -1084,9 +1082,7 @@ export const studentService = {
 
   getSchoolClasses: async (filters?: { token?: string }): Promise<string[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/students/school-classes"
-      : `${env.API_URL}/api/students/school-classes`;
+    const url = await resolveApiUrl("/api/students/school-classes");
 
     try {
       if (useProxyApi) {
@@ -1118,9 +1114,7 @@ export const studentService = {
   getStudent: async (id: string): Promise<Student> => {
     // Use the nextjs api route which handles auth token properly
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/students/${id}`
-      : `${env.API_URL}/api/students/${id}`;
+    const url = await resolveApiUrl(`/api/students/${id}`);
 
     try {
       if (useProxyApi) {
@@ -1152,7 +1146,7 @@ export const studentService = {
     validateStudentForCreation(student);
 
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi ? `/api/students` : `${env.API_URL}/api/students`;
+    const url = await resolveApiUrl("/api/students");
 
     try {
       if (useProxyApi) {
@@ -1208,9 +1202,7 @@ export const studentService = {
     },
   ): Promise<Student> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/students/${id}`
-      : `${env.API_URL}/api/students/${id}`;
+    const url = await resolveApiUrl(`/api/students/${id}`);
 
     try {
       if (useProxyApi) {
@@ -1347,7 +1339,7 @@ export const groupService = {
 
     const useProxyApi = globalThis.window !== undefined;
     const queryString = params.toString();
-    const baseUrl = useProxyApi ? "/api/groups" : `${env.API_URL}/api/groups`;
+    const baseUrl = await resolveApiUrl("/api/groups");
     const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
@@ -1384,9 +1376,7 @@ export const groupService = {
   // Get a specific group by ID
   getGroup: async (id: string): Promise<Group> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/${id}`
-      : `${env.API_URL}/api/groups/${id}`;
+    const url = await resolveApiUrl(`/api/groups/${id}`);
 
     try {
       if (useProxyApi) {
@@ -1428,7 +1418,7 @@ export const groupService = {
     }
 
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi ? `/api/groups` : `${env.API_URL}/api/groups`;
+    const url = await resolveApiUrl("/api/groups");
 
     try {
       if (useProxyApi) {
@@ -1479,9 +1469,7 @@ export const groupService = {
     const backendUpdates = prepareGroupForBackend(group);
 
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/${id}`
-      : `${env.API_URL}/api/groups/${id}`;
+    const url = await resolveApiUrl(`/api/groups/${id}`);
 
     try {
       if (useProxyApi) {
@@ -1535,9 +1523,7 @@ export const groupService = {
   // Delete a group
   deleteGroup: async (id: string): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/${id}`
-      : `${env.API_URL}/api/groups/${id}`;
+    const url = await resolveApiUrl(`/api/groups/${id}`);
 
     const knownErrorPatterns = ["cannot delete group with students"];
 
@@ -1584,9 +1570,7 @@ export const groupService = {
   // Get students in a group
   getGroupStudents: async (id: string): Promise<Student[]> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/${id}/students`
-      : `${env.API_URL}/api/groups/${id}/students`;
+    const url = await resolveApiUrl(`/api/groups/${id}/students`);
 
     try {
       if (useProxyApi) {
@@ -1642,9 +1626,7 @@ export const groupService = {
     supervisorId: string,
   ): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/${groupId}/supervisors`
-      : `${env.API_URL}/api/groups/${groupId}/supervisors`;
+    const url = await resolveApiUrl(`/api/groups/${groupId}/supervisors`);
 
     try {
       if (useProxyApi) {
@@ -1691,9 +1673,9 @@ export const groupService = {
     supervisorId: string,
   ): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/${groupId}/supervisors/${supervisorId}`
-      : `${env.API_URL}/api/groups/${groupId}/supervisors/${supervisorId}`;
+    const url = await resolveApiUrl(
+      `/api/groups/${groupId}/supervisors/${supervisorId}`,
+    );
 
     try {
       if (useProxyApi) {
@@ -1735,9 +1717,7 @@ export const groupService = {
     representativeId: string,
   ): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/${groupId}/representative`
-      : `${env.API_URL}/api/groups/${groupId}/representative`;
+    const url = await resolveApiUrl(`/api/groups/${groupId}/representative`);
 
     try {
       if (useProxyApi) {
@@ -1795,7 +1775,7 @@ export const roomService = {
     const queryString = params.toString();
 
     const useProxyApi = globalThis.window !== undefined;
-    const baseUrl = useProxyApi ? "/api/rooms" : `${env.API_URL}/api/rooms`;
+    const baseUrl = await resolveApiUrl("/api/rooms");
     const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
@@ -1826,9 +1806,7 @@ export const roomService = {
   // Get a specific room by ID
   getRoom: async (id: string): Promise<Room> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/rooms/${id}`
-      : `${env.API_URL}/api/rooms/${id}`;
+    const url = await resolveApiUrl(`/api/rooms/${id}`);
 
     try {
       if (useProxyApi) {
@@ -1869,7 +1847,7 @@ export const roomService = {
     const backendRoom = prepareRoomForBackend(room);
 
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi ? `/api/rooms` : `${env.API_URL}/api/rooms`;
+    const url = await resolveApiUrl("/api/rooms");
 
     try {
       if (useProxyApi) {
@@ -1915,9 +1893,7 @@ export const roomService = {
     const backendUpdates = prepareRoomForBackend(room);
 
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/rooms/${id}`
-      : `${env.API_URL}/api/rooms/${id}`;
+    const url = await resolveApiUrl(`/api/rooms/${id}`);
 
     try {
       if (useProxyApi) {
@@ -1971,9 +1947,7 @@ export const roomService = {
   // Delete a room
   deleteRoom: async (id: string): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/rooms/${id}`
-      : `${env.API_URL}/api/rooms/${id}`;
+    const url = await resolveApiUrl(`/api/rooms/${id}`);
 
     try {
       if (useProxyApi) {
@@ -2011,9 +1985,7 @@ export const roomService = {
   // Get rooms grouped by category
   getRoomsByCategory: async (): Promise<Record<string, Room[]>> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/rooms/by-category"
-      : `${env.API_URL}/api/rooms/by-category`;
+    const url = await resolveApiUrl("/api/rooms/by-category");
 
     try {
       if (useProxyApi) {

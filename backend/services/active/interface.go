@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Service defines operations for managing active groups and visits
@@ -40,6 +41,7 @@ type Service interface {
 	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
 	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
+	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
 	ListStudentsInTransit(ctx context.Context) ([]int64, error)
 	ListStudentsPresentToday(ctx context.Context) ([]int64, error)
 	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)
@@ -172,6 +174,11 @@ type Service interface {
 	// Injects the tenant-scoped settings resolver (optional).
 	// Called by the factory after the settings service is constructed.
 	SetSettingsService(resolver SettingsResolver)
+
+	// SetTenantRuntime injects the transaction runtime bound to this service's
+	// repository pool. The cleanup commands run without a request transaction
+	// and need it to open one of their own.
+	SetTenantRuntime(runtime tenant.UnitOfWork)
 }
 
 // TransitAssignSkipped describes a student that was not assigned during a

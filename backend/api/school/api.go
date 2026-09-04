@@ -27,12 +27,18 @@ import (
 
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
+
+// StaffMessagingRouter is the school-portal mount supplied by the application
+// composition root. The school HTTP package must not depend on a sibling HTTP
+// adapter.
+type StaffMessagingRouter interface {
+	SchoolRouter() chi.Router
+}
 
 // Resource bundles the school-portal HTTP handlers + their deps.
 type Resource struct {
@@ -40,7 +46,7 @@ type Resource struct {
 	MFAService      authService.MFAService
 	ClassDay        *classdayAPI.Resource
 	Timetable       *timetableAPI.Resource
-	StaffMessaging  *staffMessagingAPI.Resource
+	StaffMessaging  StaffMessagingRouter
 	Notifications   *notificationsAPI.Resource
 	authRateLimiter func(http.Handler) http.Handler
 }
@@ -51,7 +57,7 @@ func NewResource(
 	mfa authService.MFAService,
 	classDay *classdayAPI.Resource,
 	timetable *timetableAPI.Resource,
-	staffMessaging *staffMessagingAPI.Resource,
+	staffMessaging StaffMessagingRouter,
 	notifications *notificationsAPI.Resource,
 ) *Resource {
 	return &Resource{

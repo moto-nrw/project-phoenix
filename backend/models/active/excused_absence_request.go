@@ -84,6 +84,7 @@ type ExcusedAbsenceRequestRepository interface {
 	LockStudentRequests(ctx context.Context, studentID int64) error
 	// FindByID takes `any` to match the embedded generic base.Repository.
 	FindByID(ctx context.Context, id any) (*ExcusedAbsenceRequest, error)
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*ExcusedAbsenceRequest, error)
 
 	// ListPendingForStudent returns the student's open requests, newest-first
 	// (there can be several — no one-pending-per-student constraint).

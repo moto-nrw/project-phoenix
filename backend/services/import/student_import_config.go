@@ -1416,12 +1416,13 @@ func (c *StudentImportConfig) loadLinkedGuardianProfiles(ctx context.Context, gu
 	if err != nil {
 		return nil, fmt.Errorf("Telefonnummern der Erziehungsberechtigten laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
 	}
+	profilesByID, err := c.GuardianRepo.FindByIDs(ctx, guardianIDs)
+	if err != nil {
+		return nil, fmt.Errorf("Erziehungsberechtigte konnten nicht geladen werden. Bitte versuchen Sie es noch einmal: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
 	linked := make([]linkedGuardianProfile, 0, len(guardianIDs))
 	for _, id := range guardianIDs {
-		profile, err := c.GuardianRepo.FindByID(ctx, id)
-		if err != nil {
-			return nil, fmt.Errorf("Erziehungsberechtigten %d laden: %w", id, err) //nolint:staticcheck // ST1005: user-facing German message
-		}
+		profile := profilesByID[id]
 		if profile == nil {
 			continue
 		}

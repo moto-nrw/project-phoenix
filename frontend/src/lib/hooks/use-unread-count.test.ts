@@ -499,3 +499,67 @@ describe("useUnreadCount — tenant/session isolation", () => {
     expect(JSON.parse(localStorage.getItem(cacheKey)!).count).toBe(5);
   });
 });
+
+// ---------------------------------------------------------------------------
+// initialCount (server-preloaded seed, #2973)
+// ---------------------------------------------------------------------------
+
+describe("useUnreadCount — initialCount", () => {
+  it("shows the seed, caches it, and skips the mount fetch", async () => {
+    const fetcher = vi.fn().mockResolvedValue(9);
+    const { result } = renderHook(() =>
+      useUnreadCount({
+        enabled: true,
+        fetcher,
+        cacheKey: CACHE_KEY,
+        initialCount: 4,
+      }),
+    );
+
+    expect(result.current.unreadCount).toBe(4);
+    expect(result.current.isLoading).toBe(false);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(CACHE_KEY) ?? "{}")).toMatchObject({
+      count: 4,
+    });
+  });
+
+  it("still refetches on a refresh event after being seeded", async () => {
+    const fetcher = vi.fn().mockResolvedValue(9);
+    const { result } = renderHook(() =>
+      useUnreadCount({
+        enabled: true,
+        fetcher,
+        cacheKey: CACHE_KEY,
+        eventNames: ["seed-refresh"],
+        initialCount: 4,
+      }),
+    );
+
+    act(() => {
+      window.dispatchEvent(new Event("seed-refresh"));
+    });
+
+    await waitFor(() => expect(result.current.unreadCount).toBe(9));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores the seed while disabled and fetches once enabled", async () => {
+    const fetcher = vi.fn().mockResolvedValue(9);
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useUnreadCount({ enabled, fetcher, initialCount: 4 }),
+      { initialProps: { enabled: false } },
+    );
+
+    await waitFor(() => expect(result.current.unreadCount).toBe(0));
+    expect(fetcher).not.toHaveBeenCalled();
+
+    rerender({ enabled: true });
+
+    await waitFor(() => expect(result.current.unreadCount).toBe(9));
+  });
+});

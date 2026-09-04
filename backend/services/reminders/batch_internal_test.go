@@ -181,8 +181,8 @@ func (w *world) service() *service {
 		Student:           w,
 		Person:            worldPersons{w},
 		Supervision:       w,
+		Visits:            w,
 		BulkSupervision:   w,
-		BulkVisits:        w,
 		BulkInstanceStaff: w,
 	}}
 }

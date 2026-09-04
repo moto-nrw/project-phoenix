@@ -4,6 +4,7 @@ import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 
 const logger = createLogger({ component: "DatabasePage" });
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -102,9 +103,11 @@ async function fetchDatabaseCounts(url: string): Promise<DatabaseCounts> {
 
 const baseDataSections: DataSection[] = [
   {
+    // „Kinderdaten", nicht „Kinder": hier wird der Datensatz gepflegt. Den
+    // laufenden Tag zeigt „Alle Kinder" im Tagesbetrieb (ADR 0008, #2826).
     id: "students",
-    title: "Kinder",
-    description: "Kinderdaten verwalten und bearbeiten",
+    title: "Kinderdaten",
+    description: "Kinder anlegen, importieren und ihre Daten pflegen",
     href: "/database/students",
     concept: "children",
   },
@@ -235,6 +238,21 @@ function DatabaseContent() {
       stats={statusLine}
       statsLoading={showSkeleton}
     >
+      {/* Die Grenze zu „Alle Kinder" steht auf der Seite selbst, nicht nur
+          in der Hilfe (ADR 0008, #2826): hier wird angelegt und gepflegt,
+          der laufende Tag liegt im Tagesbetrieb. */}
+      <p className="max-w-2xl text-sm leading-6 text-gray-600">
+        Hier legen Sie Kinder, Personal, Räume und Gruppen an und pflegen ihre
+        Daten. Wer heute da ist, sehen Sie unter{" "}
+        <Link
+          href={tenantPath("/students/search")}
+          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-900"
+        >
+          Alle Kinder
+        </Link>
+        .
+      </p>
+
       {showSkeleton ? (
         <DatabaseCardGridSkeleton />
       ) : (

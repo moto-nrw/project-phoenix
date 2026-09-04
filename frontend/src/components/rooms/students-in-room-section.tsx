@@ -34,7 +34,7 @@ import {
   activeService,
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
-import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
+import type { ActiveGroup, Supervisor, Visit } from "~/lib/active-helpers";
 import type { Room } from "~/lib/room-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
@@ -78,6 +78,7 @@ export function StudentsInRoomSection({
   const { success: toastSuccess } = useToast();
   const refreshRoomConsumers = useTenantMutateMatching([
     "room-students-",
+    "room-bulk-source-visits-",
     "room-detail-",
     ...ROOM_LIST_CACHE_KEYS,
     "search-students-",
@@ -155,41 +156,107 @@ export function StudentsInRoomSection({
       ),
     [activeSupervisions],
   );
-  // The backend (MoveStudentsToActiveGroupAuthorized) rejects the whole
-  // request with 403 unless the caller supervises each student's CURRENT
-  // active group too (admins bypass). Mirror that contract here: without
-  // supervision of every active group in this room, offering the bulk
-  // move would only produce a guaranteed error.
-  const canBulkMove = useMemo(() => {
-    if (!attendanceWebEnabled) return false;
-    if (showAllTargets) return true;
-    const sourceGroups = activeGroups.filter(
-      (group) => group.isActive && group.roomId === roomId,
-    );
-    return (
-      sourceGroups.length > 0 &&
-      sourceGroups.every((group) => supervisedTargetGroupIds.has(group.id))
-    );
-  }, [
-    attendanceWebEnabled,
-    showAllTargets,
-    activeGroups,
-    roomId,
-    supervisedTargetGroupIds,
-  ]);
+  // Push-or-pull (#2969), mirroring the backend's
+  // MoveStudentsToActiveGroupAuthorized: a staff member may move children
+  // when they supervise this room (push into any supervised, unambiguous
+  // room) or when they supervise the target (pull into their own room).
+  // Admins keep the school-wide view. The backend re-checks all of this
+  // against the live supervisions; this only avoids offering a guaranteed
+  // 403.
+  const sourceGroups = useMemo(
+    () =>
+      activeGroups.filter((group) => group.isActive && group.roomId === roomId),
+    [activeGroups, roomId],
+  );
+  const sourceGroupIDs = useMemo(
+    () => sourceGroups.map((group) => group.id).sort(),
+    [sourceGroups],
+  );
+  const sourceVisitsKey = useMemo(
+    () =>
+      !showAllTargets && sourceGroupIDs.length > 0
+        ? `room-bulk-source-visits-${JSON.stringify(sourceGroupIDs)}`
+        : null,
+    [showAllTargets, sourceGroupIDs],
+  );
+  const { data: sourceVisitsByStudentID } = useSWRAuth<Map<string, Visit>>(
+    sourceVisitsKey,
+    async () => {
+      const visits = await activeService.getVisits({
+        active: true,
+        activeGroupIds: sourceGroupIDs,
+      });
+      return new Map(
+        visits
+          .filter((visit) => visit.isActive)
+          .map((visit) => [visit.studentId, visit]),
+      );
+    },
+  );
+  const supervisesSourceRoom = sourceGroups.some((group) =>
+    supervisedTargetGroupIds.has(group.id),
+  );
+  const targetScope: TargetScope = showAllTargets
+    ? "all"
+    : supervisesSourceRoom
+      ? "supervised"
+      : "own";
   const targetOptions = useMemo(
     () =>
       buildTargetRoomOptions(
         activeGroups,
         rooms,
         roomId,
-        showAllTargets ? undefined : supervisedTargetGroupIds,
+        targetScope,
+        supervisedTargetGroupIds,
       ),
-    [activeGroups, rooms, roomId, showAllTargets, supervisedTargetGroupIds],
+    [activeGroups, rooms, roomId, targetScope, supervisedTargetGroupIds],
   );
+  // Source supervisors always get the toolbar (with an explanation when no
+  // room qualifies right now); pull-only staff get it as soon as one of
+  // their own rooms is a valid target AND this room has a running session
+  // to pull out of (children sit in sessions, so a list without one is
+  // stale); everyone else sees a plain list.
+  const canBulkMove =
+    attendanceWebEnabled &&
+    (targetScope !== "own" ||
+      (sourceGroups.length > 0 && targetOptions.length > 0));
   const selectedTarget = targetOptions.find(
     (option) => option.activeGroupId === targetActiveGroupId,
   );
+  const selectedTargetIsOwn =
+    selectedTarget !== undefined &&
+    supervisedTargetGroupIds.has(selectedTarget.activeGroupId);
+  // A supervised target authorizes a pull from every source group. For a
+  // colleague's target, however, the backend authorizes only children from
+  // groups supervised by the current staff member. Before a target is chosen
+  // we use that safer push rule too, so a later colleague target cannot turn
+  // an already selected mixed batch into a guaranteed 403.
+  const selectableStudentIds = useMemo(() => {
+    if (showAllTargets || selectedTargetIsOwn || targetScope === "own") {
+      return visibleStudentIds;
+    }
+    if (!sourceVisitsByStudentID) return new Set<string>();
+    return new Set(
+      students
+        .filter((student) => {
+          const visit = sourceVisitsByStudentID.get(String(student.id));
+          return (
+            visit !== undefined &&
+            supervisedTargetGroupIds.has(visit.activeGroupId)
+          );
+        })
+        .map((student) => String(student.id)),
+    );
+  }, [
+    selectedTargetIsOwn,
+    showAllTargets,
+    sourceVisitsByStudentID,
+    students,
+    supervisedTargetGroupIds,
+    targetScope,
+    visibleStudentIds,
+  ]);
   // Prefer the server's authoritative count so the badge stays honest even
   // if pagination ever truncates the response. Fall back to length only
   // when pagination metadata is missing.
@@ -222,6 +289,15 @@ export function StudentsInRoomSection({
     }
   }, [targetActiveGroupId, targetOptions]);
 
+  useEffect(() => {
+    setSelectedStudentIds((current) => {
+      const filtered = new Set(
+        [...current].filter((studentId) => selectableStudentIds.has(studentId)),
+      );
+      return filtered.size === current.size ? current : filtered;
+    });
+  }, [selectableStudentIds]);
+
   const openInSearch = () => {
     const qs = new URLSearchParams({
       room_id: roomId,
@@ -236,22 +312,31 @@ export function StudentsInRoomSection({
   };
 
   const toggleStudentSelection = (studentId: string) => {
+    if (selectedStudentIds.has(studentId)) {
+      setSelectedStudentIds((current) => {
+        const next = new Set(current);
+        next.delete(studentId);
+        return next;
+      });
+      setBulkMoveState({ type: "idle" });
+      return;
+    }
+
     setSelectedStudentIds((current) => {
       const next = new Set(current);
-      if (next.has(studentId)) {
-        next.delete(studentId);
-      } else {
-        next.add(studentId);
-      }
+      next.add(studentId);
       return next;
     });
     setBulkMoveState({ type: "idle" });
   };
 
   const selectAllVisible = () => {
-    setSelectedStudentIds(
-      new Set(students.map((student) => String(student.id))),
-    );
+    setSelectedStudentIds(new Set(selectableStudentIds));
+    setBulkMoveState({ type: "idle" });
+  };
+
+  const changeTarget = (activeGroupId: string) => {
+    setTargetActiveGroupId(activeGroupId);
     setBulkMoveState({ type: "idle" });
   };
 
@@ -371,16 +456,14 @@ export function StudentsInRoomSection({
         {canBulkMove && students.length > 0 ? (
           <BulkMoveToolbar
             selectedCount={selectedVisibleCount}
-            totalCount={students.length}
+            totalCount={selectableStudentIds.size}
             targetActiveGroupId={targetActiveGroupId}
             targetOptions={targetOptions}
+            targetScope={targetScope}
             state={bulkMoveState}
             onSelectAll={selectAllVisible}
             onClearSelection={clearSelection}
-            onTargetChange={(value) => {
-              setTargetActiveGroupId(value);
-              setBulkMoveState({ type: "idle" });
-            }}
+            onTargetChange={changeTarget}
             onMoveSelected={moveSelectedStudents}
           />
         ) : null}
@@ -390,6 +473,7 @@ export function StudentsInRoomSection({
           hasError={!!error}
           students={students}
           selectable={canBulkMove}
+          selectableStudentIds={selectableStudentIds}
           selectedStudentIds={selectedStudentIds}
           onToggleStudentSelection={toggleStudentSelection}
           router={router}
@@ -405,18 +489,30 @@ interface TargetRoomOption {
   readonly roomName: string;
 }
 
+/**
+ * Which rooms may be offered as move targets (#2969):
+ * - `all`: admins see every room with exactly one running session.
+ * - `supervised`: a supervisor of THIS room may push into every room whose
+ *   single running session has at least one supervisor (colleagues count),
+ *   or pull into their own running session.
+ * - `own`: everyone else may only pull into rooms they supervise themselves.
+ */
+type TargetScope = "all" | "supervised" | "own";
+
 function buildTargetRoomOptions(
   activeGroups: readonly ActiveGroup[],
   rooms: readonly Room[],
   currentRoomId: string,
-  allowedActiveGroupIds?: ReadonlySet<string>,
+  scope: TargetScope,
+  ownActiveGroupIds: ReadonlySet<string>,
 ): TargetRoomOption[] {
   const roomsById = new Map(rooms.map((room) => [room.id, room]));
   const groupsByRoomId = new Map<string, ActiveGroup[]>();
 
+  // Group BEFORE filtering by eligibility: a room with one supervised and
+  // one unsupervised session is still ambiguous and must not be offered.
   activeGroups.forEach((group) => {
     if (!group.isActive || group.roomId === currentRoomId) return;
-    if (allowedActiveGroupIds && !allowedActiveGroupIds.has(group.id)) return;
     const groupsInRoom = groupsByRoomId.get(group.roomId) ?? [];
     groupsInRoom.push(group);
     groupsByRoomId.set(group.roomId, groupsInRoom);
@@ -424,16 +520,33 @@ function buildTargetRoomOptions(
 
   return [...groupsByRoomId.entries()]
     .flatMap(([targetRoomId, groups]) => {
-      const activeGroup = groups.length === 1 ? groups[0] : undefined;
-      if (!activeGroup) return [];
       const room = roomsById.get(targetRoomId);
-      return [
-        {
-          activeGroupId: activeGroup.id,
-          roomId: targetRoomId,
-          roomName: room?.name ?? `Raum ${targetRoomId}`,
-        },
-      ];
+      const ownGroups = groups.filter((group) =>
+        ownActiveGroupIds.has(group.id),
+      );
+      const unambiguousGroup = groups.length === 1 ? groups[0] : undefined;
+
+      const eligibleGroups =
+        scope === "all"
+          ? unambiguousGroup
+            ? [unambiguousGroup]
+            : []
+          : scope === "own"
+            ? ownGroups
+            : [
+                ...ownGroups,
+                ...(unambiguousGroup &&
+                !ownActiveGroupIds.has(unambiguousGroup.id) &&
+                (unambiguousGroup.supervisorCount ?? 0) > 0
+                  ? [unambiguousGroup]
+                  : []),
+              ];
+
+      return eligibleGroups.map((activeGroup) => ({
+        activeGroupId: activeGroup.id,
+        roomId: targetRoomId,
+        roomName: room?.name ?? `Raum ${targetRoomId}`,
+      }));
     })
     .sort((a, b) => a.roomName.localeCompare(b.roomName, "de"));
 }
@@ -443,6 +556,7 @@ interface BulkMoveToolbarProps {
   readonly totalCount: number;
   readonly targetActiveGroupId: string;
   readonly targetOptions: readonly TargetRoomOption[];
+  readonly targetScope: TargetScope;
   readonly state:
     { type: "idle" } | { type: "loading" } | { type: "error"; message: string };
   readonly onSelectAll: () => void;
@@ -456,6 +570,7 @@ function BulkMoveToolbar({
   totalCount,
   targetActiveGroupId,
   targetOptions,
+  targetScope,
   state,
   onSelectAll,
   onClearSelection,
@@ -465,8 +580,9 @@ function BulkMoveToolbar({
   const isMoving = state.type === "loading";
   const canMove =
     selectedCount > 0 && targetActiveGroupId.length > 0 && !isMoving;
-  const allSelected = selectedCount === totalCount;
+  const allSelected = totalCount > 0 && selectedCount === totalCount;
   const hasSelection = selectedCount > 0;
+  const noTargets = targetOptions.length === 0;
 
   return (
     <div
@@ -484,7 +600,7 @@ function BulkMoveToolbar({
               : "Kinder auswählen"}
           </span>
           <span className="block text-xs font-medium text-gray-500">
-            Zielraum wählen und gemeinsam verschieben
+            {TARGET_SCOPE_HINT[targetScope]}
           </span>
         </p>
         <Button
@@ -492,6 +608,7 @@ function BulkMoveToolbar({
           variant="outline"
           size="sm"
           onClick={allSelected ? onClearSelection : onSelectAll}
+          disabled={isMoving}
           className="h-8 shrink-0 rounded-full px-3 py-0 text-xs shadow-none"
         >
           {allSelected ? "Aufheben" : "Alle auswählen"}
@@ -505,11 +622,9 @@ function BulkMoveToolbar({
           label="Zielraum"
           value={targetActiveGroupId}
           onChange={onTargetChange}
-          disabled={targetOptions.length === 0 || isMoving}
+          disabled={noTargets || isMoving}
           placeholder={
-            targetOptions.length === 0
-              ? "Kein aktiver Zielraum verfügbar"
-              : "Zielraum wählen"
+            noTargets ? "Kein Zielraum verfügbar" : "Zielraum wählen"
           }
           options={targetOptions.map((option) => ({
             value: option.activeGroupId,
@@ -531,6 +646,12 @@ function BulkMoveToolbar({
         </Button>
       </div>
 
+      {noTargets ? (
+        <p role="status" className="mt-2 text-sm text-gray-600">
+          {NO_TARGET_HINT[targetScope]}
+        </p>
+      ) : null}
+
       {state.type === "error" ? (
         <p role="alert" className="text-moto-red mt-2 text-sm">
           {state.message}
@@ -540,12 +661,27 @@ function BulkMoveToolbar({
   );
 }
 
+/** One line under the toolbar heading: what may be chosen as a target. */
+const TARGET_SCOPE_HINT: Record<TargetScope, string> = {
+  all: "Zielraum wählen und gemeinsam verschieben",
+  supervised: "Zur Auswahl stehen Räume mit laufender Aufsicht.",
+  own: "Zur Auswahl stehen nur Räume, die Sie selbst beaufsichtigen.",
+};
+
+/** Shown instead of a dead disabled select when no room qualifies. */
+const NO_TARGET_HINT: Record<TargetScope, string> = {
+  all: "Zurzeit läuft in keinem anderen Raum ein Angebot.",
+  supervised: "Zurzeit hat kein anderer Raum eine laufende Aufsicht.",
+  own: "Zurzeit beaufsichtigen Sie keinen anderen Raum.",
+};
+
 interface StudentsInRoomBodyProps {
   readonly fromReferrer: string;
   readonly loading: boolean;
   readonly hasError: boolean;
   readonly students: readonly Student[];
   readonly selectable: boolean;
+  readonly selectableStudentIds: ReadonlySet<string>;
   readonly selectedStudentIds: ReadonlySet<string>;
   readonly onToggleStudentSelection: (studentId: string) => void;
   readonly router: ReturnType<typeof useTenantRouter>;
@@ -557,6 +693,7 @@ function StudentsInRoomBody({
   hasError,
   students,
   selectable,
+  selectableStudentIds,
   selectedStudentIds,
   onToggleStudentSelection,
   router,
@@ -611,7 +748,9 @@ function StudentsInRoomBody({
         <SelectableStudentRow
           key={student.id}
           student={student}
-          selectable={selectable}
+          selectable={
+            selectable && selectableStudentIds.has(String(student.id))
+          }
           isSelected={selectedStudentIds.has(String(student.id))}
           onToggleSelection={() => onToggleStudentSelection(String(student.id))}
           onOpen={() =>

@@ -50,14 +50,6 @@ func TestOperatorInactiveError(t *testing.T) {
 	assert.Contains(t, err.Error(), "inactive")
 }
 
-func TestAnnouncementNotFoundError(t *testing.T) {
-	t.Parallel()
-
-	err := &platform.AnnouncementNotFoundError{AnnouncementID: 789}
-	assert.Contains(t, err.Error(), "789")
-	assert.Contains(t, err.Error(), "not found")
-}
-
 func TestInvalidDataError_WithError(t *testing.T) {
 	t.Parallel()
 

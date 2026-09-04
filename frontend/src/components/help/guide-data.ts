@@ -25,6 +25,7 @@ import {
   MessageSquare,
   MonitorPlay,
   Nfc,
+  PanelLeft,
   PlayCircle,
   PlugZap,
   Repeat,
@@ -136,7 +137,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     icon: LayoutDashboard,
     points: [
       "Alle Kinder, Aufsicht, Räume, Mitarbeiter",
-      "Planung: Betreuungsplan, Dienstplan und Terminvertretungen",
+      "Planung: Betreuungsplan, Dienstplan und Vertretungsplan",
       "Datenverwaltung, Anmeldungen, Einstellungen",
     ],
   },
@@ -417,7 +418,7 @@ export const setupChapters: readonly GuideChapter[] = [
         summary:
           "Nutzen Sie den Import, wenn Ihnen die Kinderdaten bereits als Excel- oder CSV-Liste vorliegen. So legen Sie alle Kinder auf einmal an. Ohne solche Liste überspringen Sie diesen Schritt und legen die Kinder im nächsten Schritt einzeln an.",
         steps: [
-          "`Datenverwaltung` öffnen und `Kinder` wählen.",
+          "`Datenverwaltung` öffnen und `Kinderdaten` wählen.",
           "Auf `Importieren` klicken.",
           "`Excel (.xlsx)` oder `CSV (Komma-getrennt)` wählen.",
           "`Vorlage herunterladen` und die Pflichtfelder vollständig ausfüllen. Die Vorlage hat Spalten für Adresse, RFID-Karte und bis zu vier Erziehungsberechtigte (mit Rolle, Abholhinweis und Notfallreihenfolge). Das Blatt `Hinweise` erklärt jede Spalte.",
@@ -442,7 +443,7 @@ export const setupChapters: readonly GuideChapter[] = [
         summary:
           "Der Weg hängt davon ab, woher die Betreuungstage kommen. Ohne Buchungen legen Sie das OGS-Kind direkt an. Mit Buchungen nutzen Sie die `Manuelle Anmeldung`.",
         steps: [
-          "`Datenverwaltung` öffnen und `Kinder` wählen.",
+          "`Datenverwaltung` öffnen und `Kinderdaten` wählen.",
           "Auf `Neues Kind` klicken.",
           "Wenn der Hinweis zu Buchungen erscheint: `Anmeldephasen öffnen` wählen. In der passenden Phase im Drei-Punkte-Menü `Manuelle Anmeldung` öffnen. Dort das Kind und seine Betreuungsangebote eintragen. Das Kind wird direkt angelegt und freigegeben. Danach sind Sie fertig.",
           "Die folgenden Schritte gelten nur, wenn kein Hinweis zu Buchungen erscheint: `Mit OGS-Betreuung` wählen und das Kind in diesem Formular anlegen.",
@@ -516,7 +517,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Den Unterrichtsschluss tragen Sie einmal je Klasse ein. Für andere Sammelaktionen wählen Sie die Kinder aus.",
         searchTerms: ["Sammelaktion", "Auswahlleiste", "Gruppieren"],
         steps: [
-          "`Datenverwaltung` öffnen und `Kinder` wählen.",
+          "`Datenverwaltung` öffnen und `Kinderdaten` wählen.",
           "Unter `Gruppieren` die Option `Klasse` wählen.",
           "Im Drei-Punkte-Menü `Ankunftszeit bearbeiten` öffnen.",
           "Den Unterrichtsschluss je Wochentag eintragen und `Speichern` klicken.",
@@ -526,6 +527,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Datum und Uhrzeit eintragen. `Unterricht fällt aus` setzt die Uhrzeit auf den Beginn des ersten Betreuungsblocks.",
           "Mit `Tag speichern` gilt die Zeit an diesem Tag für alle Kinder der Klasse. In der aktuellen Aufsicht steht sie am Kind.",
           "Wer das eintragen darf, legen Sie unter `Einstellungen` fest. Sehen können es alle.",
+          "Soll die Lehrkraft das selbst eintragen? Unter `Einstellungen` bei `Was Lehrkräfte in moto schule eintragen dürfen` die Ankunftszeit freigeben. Dann trägt die Lehrkraft die Zeit in ihrer Klassenansicht ein. Sie sehen sie sofort; im Dialog steht dann `Eingetragen von der Schule`.",
           "Betreuungstage ändern Sie im Wochenplan oder bei den Buchungen.",
           "Für eine OGS-Gruppe unter `Gruppieren` die Option `Gruppe` wählen.",
           "Dort setzt `Ankunftszeit bearbeiten` eigene Zeiten für die Kinder.",
@@ -583,6 +585,30 @@ export const appChapters: readonly GuideChapter[] = [
     icon: Eye,
     tone: "green",
     steps: [
+      {
+        id: "seitenleiste",
+        title: "Die Seitenleiste",
+        icon: PanelLeft,
+        summary:
+          "Alle Bereiche der App stehen links in fünf Gruppen: `Tagesbetrieb`, `Eltern`, `Team`, `Planung` und `Verwaltung`. Am Handy zeigt das `Mehr`-Menü dieselben Gruppen.",
+        steps: [
+          "Ganz oben steht Ihre Startseite: `Home` für Admins, `Tagesplan` für Betreuungskräfte.",
+          "`Tagesbetrieb` ist beim ersten Besuch geöffnet. Dort stehen `Meine Gruppen`, `Aktuelle Aufsicht`, `Alle Kinder`, `Räume`, `Aktivitäten`, `Vertretungen` und `Anfragen`.",
+          "Auf den Namen einer Gruppe tippen, um sie auf- oder zuzuklappen. moto merkt sich, welche Gruppen offen sind. Öffnen Sie eine Seite, klappt ihre Gruppe von selbst auf.",
+          "`Eltern` bündelt Nachrichten, Mitteilungen, Elternzugänge, Bankverbindungen, Essensplan und die Anmeldungen. `Team` enthält Zeiterfassung, Mein Kalender, Mitarbeiter, Team-Chat und Tagesinformationen.",
+          "`Planung` enthält je nach Ihren Rechten Betreuungsplan, Dienstplan, Vertretungsplan, Tageslisten, Schuljahr und Ferien sowie Abrechnung. `Verwaltung` enthält Datenverwaltung, Tagesauswertung, Statistik, Dateien und Info-Displays.",
+          "Welche Gruppen und Seiten Sie sehen, hängt von Ihrer Rolle und Ihren Rechten ab. Auch eingeschaltete Funktionen spielen eine Rolle. Unten stehen immer `Notfall` und `Hilfe`. Admins sehen außerdem `Einstellungen`. Mit dem Pfeil oben links wird die Leiste schmal; die Gruppen bleiben als Symbole erhalten.",
+        ],
+        callout: {
+          title: "Kinderdaten oder Alle Kinder?",
+          body: "`Alle Kinder` im Tagesbetrieb zeigt den laufenden Tag: wer da ist, An- und Abmelden, Filter. `Datenverwaltung` -> `Kinderdaten` ist der Datensatz: Kinder anlegen, importieren, Betreuung beenden.",
+          tone: "blue",
+        },
+        screenshot:
+          "Seitenleiste eines Admins mit geöffnetem Tagesbetrieb und den zugeklappten Gruppen Eltern, Team, Planung und Verwaltung.",
+        image: "/help/screens/seitenleiste.webp",
+        searchTerms: ["Navigation", "Menü", "Gruppen", "Mehr-Menü"],
+      },
       {
         id: "home",
         title: "Home",
@@ -741,12 +767,12 @@ export const appChapters: readonly GuideChapter[] = [
           "Antwortet eine Person auf die Einladung, geht die Antwort an die `Antwortadresse für Eltern-E-Mails` unter `Einstellungen` -> `Betrieb`. Ohne Eintrag gilt die Kontaktadresse Ihrer Einrichtung.",
         ],
         callout: {
-          title: "Konto-Anfragen freigeben",
-          body: "Ist `Mit Freigabe durch das Team` gewählt, landen von Eltern angestoßene Einladungen in der Seitenleiste unter `Eltern` > `Konto-Anfragen` (nur für Admins). Dort sehen Sie, wer für welches Kind angefragt wurde, und geben die Anfrage mit `Freigeben` frei oder lehnen sie mit `Ablehnen` ab. Erst nach der Freigabe wird der Zugang gewährt.",
+          title: "Elternzugänge freigeben",
+          body: "Ist `Mit Freigabe durch das Team` gewählt, landen von Eltern angestoßene Einladungen in der Seitenleiste unter `Eltern` > `Elternzugänge` (nur für Admins). Dort sehen Sie, wer für welches Kind angefragt wurde, und geben die Anfrage mit `Freigeben` frei oder lehnen sie mit `Ablehnen` ab. Erst nach der Freigabe wird der Zugang gewährt.",
           tone: "green",
         },
         screenshot:
-          "Tab Erziehungsberechtigte mit Kontostatus-Markierungen und Einladen-Schaltflächen sowie die Admin-Seite Konto-Anfragen mit Freigeben- und Ablehnen-Aktionen.",
+          "Tab Erziehungsberechtigte mit Kontostatus-Markierungen und Einladen-Schaltflächen sowie die Admin-Seite Elternzugänge mit Freigeben- und Ablehnen-Aktionen.",
         gallery: [
           {
             image: "/help/screens/erziehungsberechtigte-konten.webp",
@@ -756,7 +782,7 @@ export const appChapters: readonly GuideChapter[] = [
           {
             image: "/help/screens/konto-anfragen.webp",
             caption:
-              "Seite „Konto-Anfragen“: von Eltern angestoßene Einladungen mit „Freigeben“ bestätigen oder mit „Ablehnen“ abweisen.",
+              "Seite „Elternzugänge“: von Eltern angestoßene Einladungen mit „Freigeben“ bestätigen oder mit „Ablehnen“ abweisen.",
           },
         ],
       },
@@ -1083,6 +1109,9 @@ export const appChapters: readonly GuideChapter[] = [
           "`Räume` öffnen.",
           "Bei Bedarf `Raum suchen...` nutzen oder nach `Gebäude` und `Status` filtern.",
           "Eine Raumkarte öffnen, um die Kinderliste zu sehen.",
+          "In der Kinderliste Kinder auswählen, einen `Zielraum` wählen und mit `In Raum setzen` verschieben. Das Kind steht sofort im neuen Raum; die Aufsicht dort muss nichts bestätigen.",
+          "Sie beaufsichtigen den Ausgangsraum? Dann wählen Sie einen Zielraum mit genau einem laufenden Angebot und Aufsicht.",
+          "Sie beaufsichtigen nur den Zielraum? Dann können Sie Kinder in Ihr eigenes Angebot holen. In diesem Raum dürfen auch mehrere Angebote laufen. Leitungen können in alle Räume verschieben.",
           "Bereich `Unterwegs` prüfen und ein Kind ohne Raum über `Zuweisen` zuordnen.",
         ],
         callout: {
@@ -1148,16 +1177,16 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Tagesinformationen",
         icon: Megaphone,
         summary:
-          "Interne Hinweise der Leitung an das Team. Alle Mitarbeitenden lesen sie unter `Kommunikation` -> `Tagesinformationen` — einmalig, für einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.",
+          "Interne Hinweise der Leitung an das Team. Alle Mitarbeitenden lesen sie unter `Team` -> `Tagesinformationen` — einmalig, für einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.",
         steps: [
-          "In der Seitenleiste `Kommunikation` -> `Tagesinformationen` öffnen. Die Seite sehen alle Mitarbeitenden; die Schaltfläche `Neue Tagesinformation` gibt es nur für Admins.",
+          "In der Seitenleiste `Team` -> `Tagesinformationen` öffnen. Die Seite sehen alle Mitarbeitenden; die Schaltfläche `Neue Tagesinformation` gibt es nur für Admins.",
           "`Titel` und `Hinweis` eintragen. Der Titel ist das, was im Alltag gelesen wird; der Hinweis trägt die Einzelheiten.",
           "Unter `Wichtigkeit` zwischen `Information` und `Wichtig` wählen. `Wichtig` setzt auf der Startseite ein farbiges Kennzeichen — sparsam einsetzen, sonst verliert es seine Wirkung.",
           "Den Zeitraum festlegen: `Gilt ab` ist Pflicht, `Gilt bis` bleibt leer, wenn der Hinweis unbefristet gilt.",
           "Für einen wiederkehrenden Hinweis die `Wochentage` anhaken, zum Beispiel nur `Di` für „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“. Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.",
           "Arbeitet die Einrichtung mit einem Wochenrhythmus, unter `Woche` zwischen `Jede Woche`, `Nur Woche A` und `Nur Woche B` wählen. Die Wochen sind dieselben wie im Stundenplan und im Dienstplan.",
           "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben.",
-          "Über `Speichern` sichern. Der Hinweis erscheint ab sofort an den passenden Tagen unter `Kommunikation` -> `Tagesinformationen`; steht eine Kenntnisnahme aus, zeigt die Seitenleiste dort eine Zahl.",
+          "Über `Speichern` sichern. Der Hinweis erscheint ab sofort an den passenden Tagen unter `Team` -> `Tagesinformationen`; steht eine Kenntnisnahme aus, zeigt die Seitenleiste dort eine Zahl.",
           "Einen Hinweis, der vorübergehend nicht gelten soll, über das Stift-Symbol öffnen und den Haken bei `Aktiv` entfernen — so bleibt der Text erhalten und muss nicht neu getippt werden.",
         ],
         callout: {
@@ -1260,6 +1289,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen automatisch mitgeführt. Danach im Reiter `Klassen` prüfen, ob die Zuordnung stimmt.",
           "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Dort legt sie ihr Passwort fest und meldet sich bei moto schule an. Danach landet sie in der `Klassenansicht`: einer Tagesübersicht mit ihren Klassen und den Zahlen des Tages. Ein Tipp auf eine Klasse öffnet deren Liste: der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`). Über `Alle Klassen` geht es zurück zur Übersicht.",
           "Weicht bei einem Kind etwas vom üblichen Plan ab, steht das direkt an dem Kind: `Andere Abholzeit` mit beiden Zeiten (`bis 12:15`, darunter `sonst 15:30`) oder das Kennzeichen `Krank`, `Entschuldigt`, `Klassenfahrt`, `Heute abgemeldet`. Kam die Meldung am selben Tag herein, steht die Uhrzeit dabei: `Heute 09:24 gemeldet`. So sieht die Lehrkraft ohne Rückfrage, wer heute früher gehen darf. Geändert wird das im OGS-Team, nicht in moto schule.",
+          "Eine Ausnahme gibt es: Fällt Unterricht aus oder endet er früher, kann die Lehrkraft die neue Ankunftszeit ihrer Klasse selbst eintragen, wenn Sie das unter `Einstellungen` bei `Was Lehrkräfte in moto schule eintragen dürfen` freigeben. In der Klassenansicht erscheint dann `Ankunft heute ändern`. Die Zeit gilt an diesem Tag für alle Kinder der Klasse mit Betreuung und steht sofort in Ihrer Aufsicht am Kind. Ohne Freigabe sieht die Lehrkraft nur, was Sie eingetragen haben: `Heute kommt die Klasse um 12:45 Uhr`.",
           "Auf der Übersicht trägt jede Klasse eine Zeile wie `4 Kinder anders als sonst`, sobald es an dem Tag Abweichungen gibt. Damit ist ohne Öffnen jeder einzelnen Klasse erkennbar, wo heute etwas zu beachten ist.",
           "moto schule hat eine eigene Adresse. Der Link in der Einladungs-Mail führt schon dorthin. Über die Adresse Ihrer OGS kommen Lehrkräfte nicht mehr hinein. Die Anmeldung dort weist auf moto schule hin und leitet weiter.",
           "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt. Nur wenn Sie die Lehrkraft im Betreuungsplan für eine Aufsicht einteilen, sieht sie zu den Kindern dieser Aufsicht auch Abhol- und Notfallkontakte (siehe `Lehrkraft führt eine Aufsicht`).",
@@ -1377,12 +1407,12 @@ export const appChapters: readonly GuideChapter[] = [
     steps: [
       {
         id: "kalenderzeitraeume",
-        title: "Kalenderzeiträume",
+        title: "Schuljahr und Ferien",
         icon: CalendarDays,
         summary:
           "Legt Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan an (nur für Admins).",
         steps: [
-          "In der Seitenleiste den Bereich `Planung` aufklappen und `Kalenderzeiträume` öffnen. Alternativ führt der Zeitraum-Chip oben im Betreuungsplan oder Dienstplan über `Zeiträume verwalten` zur selben Seite.",
+          "In der Seitenleiste den Bereich `Planung` aufklappen und `Schuljahr und Ferien` öffnen. Alternativ führt der Zeitraum-Chip oben im Betreuungsplan oder Dienstplan über `Zeiträume verwalten` zur selben Seite.",
           "`Halbjahr anlegen` klicken: Name, Art und Start-/Enddatum des nächsten Halbjahres sind bereits vorausgefüllt und lassen sich anpassen.",
           "Für Ferien oder Sonderzeiträume `Zeitraum anlegen` nutzen und die Art entsprechend wählen.",
           "Nur aktive Zeiträume legen Termine aus Regelterminen des Betreuungsplans an.",
@@ -1448,7 +1478,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Betreuungsplan bei Bedarf abschalten",
-          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; Betreuungsplan, Dienstplan und Terminvertretungen verschwinden dann aus dem Bereich `Planung` in der Seitenleiste und zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist. Die `Kalenderzeiträume` bleiben erreichbar, weil die Anmeldephasen (Bereich `Anmeldungen`) damit verknüpft werden.",
+          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; Betreuungsplan, Dienstplan und Vertretungsplan verschwinden dann aus dem Bereich `Planung` in der Seitenleiste und zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist. `Schuljahr und Ferien` bleibt erreichbar, weil die Anmeldephasen (Bereich `Anmeldungen`) damit verknüpft werden.",
           tone: "blue",
         },
         screenshot:
@@ -1457,12 +1487,12 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungsplan",
-        title: "Terminvertretungen",
+        title: "Vertretungsplan",
         icon: Users,
         summary:
           "Zeigt Störungen im Betreuungsplan und erlaubt Abwesenheit und Vertretung für bestimmte Termine oder für alle noch offenen Termine eines Tages (nur für Admins).",
         steps: [
-          "Unter `Planung` den Bereich `Terminvertretungen` öffnen. Die Seite zeigt zunächst den heutigen Tag. Am Wochenende zeigt sie den nächsten Montag.",
+          "Unter `Planung` den Bereich `Vertretungsplan` öffnen. Die Seite zeigt zunächst den heutigen Tag. Am Wochenende zeigt sie den nächsten Montag.",
           "Links steht die Störungsliste des Tages: jede betroffene Position mit dem Soll/Ist/Abwesend-Tripel. Darunter steht je abwesender Person `Name abwesend` und blockweit die Zeile `Ersatzkräfte:` mit den Namen oder `keine`. Eine bewusst unbesetzte Position ist mit `bewusst unbesetzt` gekennzeichnet, ein abgesagter Termin mit `abgesagt` und Grund. Rechts zeigt der Tageskalender denselben Tag zur Orientierung; auf schmalen Bildschirmen entfällt die Kalenderspalte, die Liste bleibt allein bedienbar.",
           "Im Kopfbereich steht links die Zeitnavigation (`Zurück`, `Heute`, `Weiter`) und daneben die angezeigte Kalenderwoche. `Heute` ist ausgegraut, solange bereits der heutige Tag gezeigt wird. Darunter steht die Wochenleiste Montag bis Freitag: ein Klick wechselt den Tag, ein orangefarbener Punkt mit Zahl markiert Tage mit offenen Lücken. Rechts daneben zeigen zwei Zähler `Offen` und `Quittiert` die offenen bzw. bewusst unbesetzten Lücken des angezeigten Tages; für vergangene Tage oder bei einem Ladefehler erscheint ein Strich statt einer erfundenen Null.",
           "Mit dem Umschalter `Nur Störungen | Ganzer Tag` über der Liste zwischen der reinen Störungsliste und allen Terminen des Tages wechseln. Ein Tag ohne Störungen zeigt automatisch alle Termine mit dem Hinweis `Keine Störungen an diesem Tag`.",
@@ -1679,7 +1709,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Der Admin-Bereich für alle Stammdaten: Kinder, Personal, Räume, Gruppen, Rollen und Berechtigungen. `Aktivitäten` und `Geräte` werden zusätzlich angezeigt, wenn Ihre Einrichtung mit NFC oder Tablets arbeitet.",
         steps: [
           "`Datenverwaltung` öffnen.",
-          "Den gewünschten Bereich wählen: `Kinder`, `Personal`, `Räume`, `Gruppen`, `Rollen`, `Berechtigungen` oder `Jahrgangswechsel`.",
+          "Den gewünschten Bereich wählen: `Kinderdaten`, `Personal`, `Räume`, `Gruppen`, `Rollen`, `Berechtigungen` oder `Jahrgangswechsel`.",
           "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
           "Einträge anlegen, bearbeiten oder prüfen. `Berechtigungen` können Sie nur ansehen.",
           "Unter `Exporte` liegen alle Listen der Schule gebündelt, siehe nächster Abschnitt.",
@@ -1717,7 +1747,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Kinder, die nicht im Ganztag sind, fehlen sonst auf Klassenlisten. Ein Klassenlisteneintrag besteht nur aus Name und Klasse und vervollständigt den Klassenverband — ohne Betreuung, Anwesenheit oder Kontaktdaten.",
         steps: [
-          "`Datenverwaltung` -> `Kinder` -> `+ Kinder` wählen und oben im Fenster auf `Nur Klassenliste` umschalten. Vorname, Nachname und Klasse eintragen — die Klasse genauso schreiben wie bei den regulären Kindern, damit der Eintrag in derselben Klassenliste landet.",
+          "`Datenverwaltung` -> `Kinderdaten` -> `+ Kinder` wählen und oben im Fenster auf `Nur Klassenliste` umschalten. Vorname, Nachname und Klasse eintragen — die Klasse genauso schreiben wie bei den regulären Kindern, damit der Eintrag in derselben Klassenliste landet.",
           "Den Überblick gibt die Klassenlisten-Seite: auf der Kinder-Seite oben rechts im Menü mit den drei Punkten `Klassenliste` wählen. Sie zeigt den vollständigen Klassenverband — regulär angelegte Kinder (`In moto angelegt`) und Klassenlisteneinträge (`Keine Betreuung`) — und über den Klassenfilter ist sofort sichtbar, wer in einer Klasse noch fehlt.",
           "Für ganze Klassen dort den `Sammelimport` nutzen: Vorlage mit den Spalten `Vorname`, `Nachname`, `Klasse` herunterladen, ausfüllen und hochladen. Bereits angelegte Kinder werden übersprungen.",
           "Die Einträge erscheinen auf den Klassenlisten-Exporten und in der `Klassenansicht` der Lehrkräfte, deutlich gekennzeichnet als `Keine Betreuung`. In Kindersuche, Anwesenheit, Betreuungsplanung und Elternportal tauchen sie nicht auf.",
@@ -1726,7 +1756,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Kein zweiter Kinder-Datensatz",
-          body: "Ein Klassenlisteneintrag ist bewusst kein Kind-Datensatz: Er kann nicht eingecheckt, nicht verplant und nicht mit Sorgeberechtigten verknüpft werden. Braucht das Kind Betreuung, legen Sie es regulär unter `Kinder` an.",
+          body: "Ein Klassenlisteneintrag ist bewusst kein Kind-Datensatz: Er kann nicht eingecheckt, nicht verplant und nicht mit Sorgeberechtigten verknüpft werden. Braucht das Kind Betreuung, legen Sie es regulär unter `Kinderdaten` an.",
           tone: "blue",
         },
         screenshot:
@@ -1739,7 +1769,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Für Kinder, die außerhalb des Jahrgangswechsels gehen, zum Beispiel nach einem Umzug oder wenn keine Betreuung mehr gebraucht wird. Sie legen einen letzten Betreuungstag fest; die Daten des Kindes bleiben erhalten.",
         steps: [
-          "`Datenverwaltung` -> `Kinder` öffnen. Für ein einzelnes Kind: das Kind auswählen und oben `Betreuung beenden` klicken.",
+          "`Datenverwaltung` -> `Kinderdaten` öffnen. Für ein einzelnes Kind: das Kind auswählen und oben `Betreuung beenden` klicken.",
           "Für mehrere Kinder: oben `Auswählen` klicken, die Kinder antippen (oder `Alle N auswählen` für alle gerade angezeigten) und in der Leiste `Betreuung beenden` wählen. Suche und Filter bestimmen, wer angezeigt wird. Höchstens 500 Kinder auf einmal.",
           "Beim normalen Ende den letzten Betreuungstag wählen. Das Kind nimmt an diesem Tag noch teil. Ein Tag in der Vergangenheit ist hier nicht möglich.",
           "Grund wählen: `Umzug`, `Kein Betreuungsbedarf mehr` oder `Anderer Grund`. Nur bei `Anderer Grund` kommt eine kurze Erklärung dazu.",
@@ -1759,7 +1789,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Es ist dann keine Aktion mehr nötig.",
           "Soll das Kind sofort gelöscht werden, wählen Sie in derselben Aufgabe `Kind sofort löschen`. `Löschen prüfen` öffnet erst die ausführliche Vorschau mit allen betroffenen Daten. Die Löschung entfernt das Kind sofort, auch wenn ein späterer letzter Betreuungstag geplant war.",
           "Solange der letzte Betreuungstag noch nicht vorbei ist, steht das Kind in der Liste mit `Betreuung endet am ...`. Über `Ende ändern` verschieben Sie den Tag, über `Ende stornieren` nehmen Sie das Ende ganz zurück. In beiden Fällen kommen Termine und Angebote zurück, die durch das Ende weggefallen waren.",
-          "Nach dem letzten Betreuungstag finden Sie das Kind unter `Kinder` -> Menü oben rechts -> `Beendete Betreuungen`. Dort suchen Sie nach Name oder Klasse und blättern durch die Liste. Sie können die Betreuung wieder aufnehmen oder das Kind endgültig löschen.",
+          "Nach dem letzten Betreuungstag finden Sie das Kind unter `Kinderdaten` -> Menü oben rechts -> `Beendete Betreuungen`. Dort suchen Sie nach Name oder Klasse und blättern durch die Liste. Sie können die Betreuung wieder aufnehmen oder das Kind endgültig löschen.",
           "`Wieder aufnehmen` verlangt einen neuen Beginn. Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten schaltet moto nicht von selbst wieder ein. Sie bestätigen, dass Sie diese Angaben geprüft haben, und stellen sie danach neu ein.",
         ],
         callout: {
@@ -1776,7 +1806,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Entfernt einen Kind-Datensatz zusammen mit seinen kindbezogenen Verknüpfungen. Die App zeigt vorher genau, welche Daten betroffen sind, und verlangt mehrere Bestätigungen.",
         steps: [
-          "`Datenverwaltung` -> `Kinder` öffnen und das betreffende Kind auswählen. Kinder, deren Betreuung schon beendet ist, stehen unter `Beendete Betreuungen` im Menü oben rechts.",
+          "`Datenverwaltung` -> `Kinderdaten` öffnen und das betreffende Kind auswählen. Kinder, deren Betreuung schon beendet ist, stehen unter `Beendete Betreuungen` im Menü oben rechts.",
           "Oben in der Detailansicht `Löschen` wählen und warten, bis die Auswirkungs-Vorschau vollständig geladen ist.",
           "Die aufgeführten Datensätze prüfen. Stundenplan-Zuordnungen, Anwesenheitsdaten, Betreuungszeiten, Einwilligungen und weitere kindbezogene Verknüpfungen werden gelöscht oder vom Kind getrennt.",
           "Einen Löschgrund auswählen und bestätigen, dass die Daten geprüft wurden. Danach `Weiter` wählen. Bei Kindern, deren Betreuung beendet ist, steht zusätzlich `Aufbewahrungsfrist abgelaufen` zur Wahl.",
@@ -2107,7 +2137,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie in ihrer App unter `Elternbriefe`. Eine Mitteilung ist eine Einbahn-Information; wenn Sie eine Rückmeldung brauchen, nutzen Sie den Bereich `Umfragen` auf derselben Seite. Für individuelle Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
         steps: [
-          "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen und auf `Mitteilung` tippen.",
+          "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen` öffnen und auf `Mitteilung` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail einer Mitteilung enthält nur den Titel und einen Link ins Elternportal – soll der vollständige Text mitgeschickt werden, nutzen Sie stattdessen einen `Elternbrief`.",
           "Noch im Schritt `Inhalt`: unter `Dateien anhängen` mit `Datei auswählen` bis zu fünf Dateien anhängen (PDF, DOCX, XLSX, PPTX, PNG, JPEG, je bis 25 MB). Die Dateien sehen genau die Eltern, die auch die Mitteilung bekommen. Sie liegen im Elternportal zum Herunterladen bereit und gehen nicht per E-Mail mit; die E-Mail weist nur darauf hin.",
           "Schritt `Empfänger`: Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
@@ -2130,7 +2160,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Ein Elternbrief geht gleichzeitig über beide Wege raus: vollständig im Elternportal und als E-Mail mit dem kompletten Text. Eltern bestätigen ihn ausdrücklich in moto, und Sie sehen pro Kind, wer bestätigt hat und bei wem Sie nachfassen müssen. Für reine Informationen ohne Rückmeldung nutzen Sie weiterhin eine `Mitteilung`.",
         steps: [
-          "In der Seitenleiste `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen, oben auf `Elternbriefe` wechseln und auf `Elternbrief` tippen.",
+          "In der Seitenleiste `Eltern` aufklappen, `Mitteilungen` öffnen, oben auf `Elternbriefe` wechseln und auf `Elternbrief` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Der Kasten `Beim Veröffentlichen passiert automatisch` zeigt, was fest zum Elternbrief gehört: Portal, E-Mail mit vollem Text und Bestätigung durch die Eltern. Diese drei Punkte lassen sich nicht abwählen.",
           "Unter `Wer erhält die E-Mail?` wählen: `Nur mit Portalzugang` (Standard) schickt die E-Mail ausschließlich an Bezugspersonen mit Elternportal-Zugang. `Alle Bezugspersonen` schickt sie zusätzlich an hinterlegte Bezugspersonen ohne Portalzugang – praktisch für allgemeine Informationen, aber ungeeignet für sensible Angaben.",
           "Dateien anhängen geht wie bei einer Mitteilung, im Schritt `Inhalt` unter `Dateien anhängen`. Auch beim Elternbrief bleibt die Datei im Elternportal: Der Brieftext geht per E-Mail mit, die Datei nicht. Das gilt besonders bei `Alle Bezugspersonen` – Personen ohne Portalzugang können die Datei nicht öffnen.",
@@ -2158,7 +2188,7 @@ export const appChapters: readonly GuideChapter[] = [
           {
             image: "/help/screens/elternbriefe.webp",
             caption:
-              "Der Bereich `Mitteilungen und Umfragen` mit dem Reiter `Elternbriefe`.",
+              "Der Bereich `Mitteilungen` mit dem Reiter `Elternbriefe`.",
           },
           {
             image: "/help/screens/elternbrief-anlegen.webp",
@@ -2179,7 +2209,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Eine kurze Frage an ausgewählte Elterngruppen, die pro Kind beantwortet wird – zum Beispiel „Kommt Ihr Kind zur Murmelparty?“. Die Antworten laufen aggregiert in der App zusammen, sodass Sie mit einer verlässlichen Zahl planen können.",
         steps: [
-          "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen, oben auf `Umfragen` wechseln und auf `Umfrage` tippen.",
+          "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen` öffnen, oben auf `Umfragen` wechseln und auf `Umfrage` tippen.",
           "Schritt `Inhalt`: Unter `Frage` die Frage eingeben und im Text ergänzen, worum es geht. Die `Antwortmöglichkeiten` sind mit `Ja` und `Nein` vorbelegt; über `Antwort hinzufügen` kommen weitere dazu (bis zu zehn), das Papierkorb-Symbol entfernt eine. Zwei Antworten sind das Minimum.",
           "Sollen Eltern mehrere Antworten gleichzeitig auswählen dürfen (z. B. mehrere mögliche Termine), `Mehrfachauswahl erlauben` aktivieren.",
           "Optional eine `Antwortfrist` setzen. Nach Ablauf nimmt die Umfrage keine Antworten mehr an, bleibt für die Eltern aber lesbar.",

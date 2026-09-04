@@ -20,6 +20,41 @@ type StudentDeletionRepository struct {
 	// countConsents is served by the privacy-consent owner (student-presence,
 	// #2662); the preview must not join users.privacy_consents itself.
 	countConsents func(context.Context, int64) (int, error)
+	carePlan      interface {
+		CountCompanionLinks(context.Context, int64) (int, error)
+		CountStudentScheduleRows(context.Context, int64) (int, error)
+		CountCarePlanDeletionRecords(context.Context, int64) (CarePlanDeletionCounts, error)
+	}
+	appointments interface {
+		CountAppointmentRecipientStudents(context.Context, int64) (int, error)
+	}
+}
+
+type CarePlanDeletionCounts struct {
+	StatusDays      int
+	ExcusedRequests int
+	CareRequests    int
+	DataRequests    int
+}
+
+func (r *StudentDeletionRepository) BindCarePlan(capability interface {
+	CountCompanionLinks(context.Context, int64) (int, error)
+	CountStudentScheduleRows(context.Context, int64) (int, error)
+	CountCarePlanDeletionRecords(context.Context, int64) (CarePlanDeletionCounts, error)
+}) {
+	if capability == nil {
+		panic("student deletion repository: care plan capability is required")
+	}
+	r.carePlan = capability
+}
+
+func (r *StudentDeletionRepository) BindAppointments(capability interface {
+	CountAppointmentRecipientStudents(context.Context, int64) (int, error)
+}) {
+	if capability == nil {
+		panic("student deletion repository: appointments capability is required")
+	}
+	r.appointments = capability
 }
 
 func NewStudentDeletionRepository(
@@ -44,23 +79,14 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 			(
 				active.count_student_visits_for_deletion(?, ?) +
 				(SELECT COUNT(*) FROM active.attendance WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM active.student_status_days WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM active.scheduled_checkouts WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM active.excused_absence_requests WHERE tenant_id = ? AND student_id = ?)
+				(SELECT COUNT(*) FROM active.scheduled_checkouts WHERE tenant_id = ? AND student_id = ?)
 			)::int AS attendance_records,
-			(
-				(SELECT COUNT(*) FROM schedule.student_pickup_schedules WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_pickup_exceptions WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_pickup_notes WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_arrival_schedules WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_arrival_exceptions WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_arrival_notes WHERE tenant_id = ? AND student_id = ?)
-			)::int AS care_schedules,
+			0::int AS care_schedules,
 			(
 				(SELECT COUNT(*) FROM users.students_guardians WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM users.persons_guardians WHERE tenant_id = ? AND person_id = (SELECT person_id FROM users.students WHERE tenant_id = ? AND id = ?))
 			)::int AS guardian_links,
-			(SELECT COUNT(*) FROM users.student_companions WHERE tenant_id = ? AND (student_low_id = ? OR student_high_id = ?))::int AS companion_links,
+			0::int AS companion_links,
 			(
 				(SELECT COUNT(*) FROM users.parent_message_threads WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM users.parent_messages WHERE tenant_id = ? AND student_id = ?) +
@@ -72,30 +98,50 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 						AND "parent_message_thread".tenant_id = "parent_message_read".tenant_id
 					WHERE "parent_message_read".tenant_id = ? AND "parent_message_thread".student_id = ?
 				) +
-				(SELECT COUNT(*) FROM users.student_data_change_requests WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.care_schedule_change_requests WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM auth.guardian_invitations WHERE tenant_id = ? AND student_id = ?)
 			)::int AS communications,
 			(SELECT COUNT(*) FROM enrollment.request_children WHERE tenant_id = ? AND (created_student_id = ? OR matched_student_id = ?))::int AS enrollment_references,
 			(
-				(SELECT COUNT(*) FROM calendar.appointment_recipient_students WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM schedule.grade_transition_roster_removals WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
 			)::int AS other_records
 	`,
 		tenantID, studentID,
 		tenantID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
-		tenantID, studentID, tenantID, tenantID, studentID,
-		tenantID, studentID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
-		tenantID, studentID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, tenantID, tenantID, studentID,
+		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, studentID,
+		tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
 	}
+	if r.carePlan == nil {
+		return nil, fmt.Errorf("preview student deletion: care plan capability is required")
+	}
+	counts.CareSchedules, err = r.carePlan.CountStudentScheduleRows(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count care schedules: %w", err)
+	}
+	carePlanCounts, err := r.carePlan.CountCarePlanDeletionRecords(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count care plan records: %w", err)
+	}
+	counts.AttendanceRecords += carePlanCounts.StatusDays + carePlanCounts.ExcusedRequests
+	counts.Communications += carePlanCounts.CareRequests + carePlanCounts.DataRequests
+	counts.CompanionLinks, err = r.carePlan.CountCompanionLinks(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count companion links: %w", err)
+	}
+	if r.appointments == nil {
+		return nil, fmt.Errorf("preview student deletion: appointments capability is required")
+	}
+	appointmentRecipients, err := r.appointments.CountAppointmentRecipientStudents(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count appointment recipient students: %w", err)
+	}
+	counts.OtherRecords += appointmentRecipients
 	if r.countAuditReferences == nil || r.countConsents == nil {
 		return nil, fmt.Errorf("preview student deletion: audit and consent count capabilities are required")
 	}

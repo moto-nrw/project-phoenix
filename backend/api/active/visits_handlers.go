@@ -3,6 +3,8 @@ package active
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -33,6 +35,18 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	activeGroupIDs, ok := parseActiveGroupIDs(w, r)
+	if !ok {
+		return
+	}
+	if len(activeGroupIDs) > 0 {
+		groupIDs := make([]any, len(activeGroupIDs))
+		for i, id := range activeGroupIDs {
+			groupIDs[i] = id
+		}
+		queryOptions.Filter.In("active_group_id", groupIDs...)
+	}
+
 	// Get visits
 	visits, err := rs.ActiveService.ListVisits(r.Context(), queryOptions)
 	if err != nil {
@@ -47,6 +61,28 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Visits retrieved successfully")
+}
+
+// parseActiveGroupIDs parses the comma-separated active_group_ids query
+// parameter used by room moves to load visits for several source sessions in
+// one request. Invalid IDs are rejected rather than silently skipped.
+func parseActiveGroupIDs(w http.ResponseWriter, r *http.Request) ([]int64, bool) {
+	raw := r.URL.Query().Get("active_group_ids")
+	if raw == "" {
+		return nil, true
+	}
+
+	parts := strings.Split(raw, ",")
+	ids := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New(errMsgInvalidGroupID)))
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return ids, true
 }
 
 // getVisit handles getting a visit by ID

@@ -12,6 +12,7 @@ var (
 	ErrOfferingChangeNotPending   = errors.New("offering change request is not pending")
 	ErrOfferingChangeAlreadyOpen  = errors.New("offering change request already pending")
 	ErrCareOfferingTriggerInvalid = errors.New("care offering auto trigger is outside the tenant")
+	ErrCareDocumentNotFound       = errors.New("student care document not found")
 )
 
 type CareOffering struct {
@@ -128,11 +129,15 @@ type DecideOfferingChange struct {
 type OperationStats struct {
 	Queries           int64
 	Rows              int64
+	Conflicts         int64
 	StatementDuration time.Duration
 }
+
+type RequestStoreStats = OperationStats
 
 func (s *OperationStats) Add(other OperationStats) {
 	s.Queries += other.Queries
 	s.Rows += other.Rows
+	s.Conflicts += other.Conflicts
 	s.StatementDuration += other.StatementDuration
 }

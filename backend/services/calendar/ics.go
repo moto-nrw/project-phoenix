@@ -30,7 +30,7 @@ func (s *service) StaffAppointmentICS(ctx context.Context, appointmentID int64) 
 	if appointment == nil || appointment.DeletedAt != nil {
 		return "", "", ErrNotFound
 	}
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+	recipients, err := s.cfg.Appointments.FindAppointmentRecipients(ctx, appointment.ID)
 	if err != nil {
 		return "", "", err
 	}
@@ -68,7 +68,7 @@ func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointme
 			if appointment == nil || appointment.DeletedAt != nil {
 				return nil
 			}
-			recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(txCtx, appointment.ID)
+			recipients, err := s.cfg.Appointments.FindAppointmentRecipients(txCtx, appointment.ID)
 			if err != nil {
 				return err
 			}
@@ -94,13 +94,13 @@ func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointme
 }
 
 func (s *service) renderAppointmentICS(ctx context.Context, appointment *calModels.Appointment) (string, string, error) {
-	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	recurrence, err := s.cfg.Appointments.FindRecurrenceRule(ctx, appointment.ID)
 	if err != nil {
 		return "", "", err
 	}
 	var cancelled []*calModels.AppointmentOccurrenceOverride
 	if recurrence != nil {
-		cancelled, err = s.cfg.OverrideRepo.FindCancelledByAppointmentIDs(ctx, []int64{appointment.ID})
+		cancelled, err = s.cfg.Appointments.FindCancelledOccurrenceOverrides(ctx, []int64{appointment.ID})
 		if err != nil {
 			return "", "", err
 		}

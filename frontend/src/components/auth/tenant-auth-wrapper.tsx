@@ -12,13 +12,13 @@
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import posthog from "posthog-js";
-import { env } from "~/env";
+import { clientEnv } from "~/env.client";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGlobalSSE } from "~/lib/hooks/use-global-sse";
 import { createLogger } from "~/lib/logger";
 import { trackPageView } from "~/lib/analytics";
 import { resolveAnalyticsViewId } from "~/lib/analytics-routes";
+import { clearPostHogContext, setPostHogContext } from "~/lib/posthog-client";
 import { useTenant } from "~/lib/tenant-context";
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 
@@ -45,27 +45,22 @@ function TeacherSpecificHooks() {
 
   useEffect(() => {
     if (status === "authenticated" && tenantMatchesSession && schoolId) {
-      if (
-        registeredSchoolIdRef.current !== null &&
-        registeredSchoolIdRef.current !== schoolId
-      ) {
-        posthog.reset();
-      }
       // School-level context only. Never send an account/person identifier.
-      posthog.register({
-        school_id: schoolId,
-        $groups: { school: schoolId },
-        deployment: env.NEXT_PUBLIC_TENANT_DOMAIN,
-      });
+      setPostHogContext(
+        {
+          school_id: schoolId,
+          $groups: { school: schoolId },
+          deployment: clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
+        },
+        registeredSchoolIdRef.current !== null &&
+          registeredSchoolIdRef.current !== schoolId,
+      );
       registeredSchoolIdRef.current = schoolId;
     } else if (
       status === "unauthenticated" ||
       (status === "authenticated" && !tenantMatchesSession)
     ) {
-      posthog.unregister("school_id");
-      posthog.unregister("$groups");
-      posthog.unregister("deployment");
-      posthog.reset();
+      clearPostHogContext();
       registeredSchoolIdRef.current = null;
     }
   }, [status, schoolId, tenantMatchesSession]);

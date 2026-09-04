@@ -1,6 +1,7 @@
 package platform_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -9,7 +10,30 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+func createTestOperator(t *testing.T, db *bun.DB, email, displayName string) *platformModels.Operator {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
+	defer cancel()
+
+	_, err := db.ExecContext(ctx, `DELETE FROM platform.operators WHERE email = ?`, email)
+	require.NoError(t, err)
+	operator := &platformModels.Operator{
+		Email: email, DisplayName: displayName, PasswordHash: "dummy-hash", Active: true,
+	}
+	_, err = db.NewInsert().Model(operator).ModelTableExpr(`platform.operators`).Exec(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		background := context.Background()
+		_, _ = db.ExecContext(background, `DELETE FROM platform.announcements WHERE created_by = ?`, operator.ID)
+		_, _ = db.ExecContext(background, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operator.ID)
+		_, _ = db.ExecContext(background, `DELETE FROM platform.operators WHERE id = ?`, operator.ID)
+	})
+	return operator
+}
 
 func TestOperatorRepository_Create(t *testing.T) {
 	t.Parallel()

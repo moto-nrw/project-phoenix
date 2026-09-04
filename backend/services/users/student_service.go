@@ -336,15 +336,14 @@ func (s *studentService) VerifyCompanionStrandingBatch(ctx context.Context) erro
 // subjects, duplicates included — LockCompanionGraph folds them.
 func (s *studentService) companionIDsOfMany(ctx context.Context, subjectIDs []int64) ([]int64, error) {
 	out := make([]int64, 0, len(subjectIDs))
+	links, err := s.ListCompanionsForStudents(ctx, subjectIDs)
+	if err != nil {
+		return nil, err
+	}
 	for _, subjectID := range subjectIDs {
-		if subjectID <= 0 {
-			continue
+		for _, link := range links[subjectID] {
+			out = append(out, link.CompanionStudentID)
 		}
-		ids, err := s.ListCompanionIDs(ctx, subjectID)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, ids...)
 	}
 	return out, nil
 }

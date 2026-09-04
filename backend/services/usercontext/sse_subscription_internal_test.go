@@ -10,6 +10,7 @@ import (
 	"time"
 
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -84,6 +85,7 @@ func (m *mockActiveSvcForSSE) GetTrackingIndicators(_ context.Context, _ []int64
 }
 
 func (m *mockActiveSvcForSSE) SetSettingsService(_ activeSvc.SettingsResolver) {}
+func (m *mockActiveSvcForSSE) SetTenantRuntime(_ tenant.UnitOfWork)            {}
 func (m *mockActiveSvcForSSE) GetPresenceMode(_ context.Context) string        { return "detailed" }
 
 // Stubs for the rest of active.Service (never called by resolveSupervisions)
@@ -151,6 +153,9 @@ func (m *mockActiveSvcForSSE) CountActiveVisitsByActiveGroupID(_ context.Context
 	return 0, nil
 }
 func (m *mockActiveSvcForSSE) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) ListStudentsInTransit(_ context.Context) ([]int64, error) {

@@ -277,40 +277,16 @@ func (rs *Resource) parseTeacherIDs(w http.ResponseWriter, r *http.Request) ([]i
 }
 
 // fetchStudentsForTeachers fetches unique students for all given teacher IDs.
-// Uses batch lookup to resolve staff IDs → teachers in a single query.
+// The membership owner resolves staff IDs to teacher group assignments in one query.
 func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []int64) map[int64]usersSvc.StudentWithGroup {
 	uniqueStudents := make(map[int64]usersSvc.StudentWithGroup)
-	// Batch resolve all staff IDs → teachers in one query (WHERE staff_id IN (?))
-	teacherMap, err := rs.UsersService.GetTeachersByStaffIDs(ctx, teacherIDs)
+	students, err := rs.UsersService.GetStudentsWithGroupsByTeacherStaffIDs(ctx, teacherIDs)
 	if err != nil {
-		slog.Default().WarnContext(ctx, "failed to batch-find teachers by staff IDs",
-			slog.String("error", err.Error()),
-		)
+		slog.Default().WarnContext(ctx, "failed to batch-find students for teachers", slog.String("error", err.Error()))
 		return uniqueStudents
 	}
-
-	for _, staffID := range teacherIDs {
-		teacher, ok := teacherMap[staffID]
-		if !ok || teacher == nil {
-			slog.Default().WarnContext(ctx, "no teacher found for staff",
-				slog.Int64("staff_id", staffID),
-			)
-			continue
-		}
-
-		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(ctx, teacher.ID)
-		if err != nil {
-			slog.Default().WarnContext(ctx, "failed to fetch students for teacher",
-				slog.Int64("teacher_id", teacher.ID),
-				slog.Int64("staff_id", staffID),
-				slog.String("error", err.Error()),
-			)
-			continue
-		}
-
-		for _, student := range students {
-			uniqueStudents[student.Student.ID] = student
-		}
+	for _, student := range students {
+		uniqueStudents[student.Student.ID] = student
 	}
 
 	return uniqueStudents

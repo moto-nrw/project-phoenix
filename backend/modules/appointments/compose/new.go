@@ -77,6 +77,11 @@ func (e engine) FindReminderCandidateForUpdate(ctx context.Context, id int64) (*
 	return appointmentToPublic(value), nil
 }
 
+func (e engine) FindReminderCandidatesForUpdate(ctx context.Context, ids []int64) ([]*appointments.Appointment, error) {
+	values, err := e.service.FindReminderCandidatesForUpdate(ctx, ids)
+	return appointmentsToPublic(values), mapError(err)
+}
+
 func (e engine) ListAppointmentsVisibleToStaff(ctx context.Context, staffID int64, from, to appointments.Date) ([]*appointments.Appointment, error) {
 	values, err := e.service.ListAppointmentsVisibleToStaff(ctx, staffID, domain.Date(from), domain.Date(to))
 	return appointmentsToPublic(values), mapError(err)
@@ -107,6 +112,62 @@ func (e engine) FindAppointmentTargets(ctx context.Context, appointmentID int64)
 	return targetsToPublic(values), mapError(err)
 }
 
+func (e engine) FindRecurrenceRule(ctx context.Context, appointmentID int64) (*appointments.RecurrenceRule, error) {
+	value, found, err := e.service.FindRecurrenceRule(ctx, appointmentID)
+	if err != nil || !found {
+		return nil, mapError(err)
+	}
+	return recurrenceRuleToPublic(value), nil
+}
+
+func (e engine) FindRecurrenceRules(ctx context.Context, appointmentIDs []int64) ([]*appointments.RecurrenceRule, error) {
+	values, err := e.service.FindRecurrenceRules(ctx, appointmentIDs)
+	return recurrenceRulesToPublic(values), mapError(err)
+}
+
+func (e engine) FindOccurrenceOverrides(ctx context.Context, appointmentIDs []int64, dates []appointments.Date) ([]*appointments.AppointmentOccurrenceOverride, error) {
+	values, err := e.service.FindOccurrenceOverrides(ctx, appointmentIDs, datesToDomain(dates))
+	return occurrenceOverridesToPublic(values), mapError(err)
+}
+
+func (e engine) FindOccurrenceOverridesByStartDates(ctx context.Context, appointmentIDs []int64, dates []appointments.Date) ([]*appointments.AppointmentOccurrenceOverride, error) {
+	values, err := e.service.FindOccurrenceOverridesByStartDates(ctx, appointmentIDs, datesToDomain(dates))
+	return occurrenceOverridesToPublic(values), mapError(err)
+}
+
+func (e engine) FindCancelledOccurrenceOverrides(ctx context.Context, appointmentIDs []int64) ([]*appointments.AppointmentOccurrenceOverride, error) {
+	values, err := e.service.FindCancelledOccurrenceOverrides(ctx, appointmentIDs)
+	return occurrenceOverridesToPublic(values), mapError(err)
+}
+
+func (e engine) FindAppointmentRecipient(ctx context.Context, recipientID int64) (*appointments.AppointmentRecipient, error) {
+	value, found, err := e.service.FindAppointmentRecipient(ctx, recipientID)
+	if err != nil || !found {
+		return nil, mapError(err)
+	}
+	return appointmentRecipientToPublic(value), nil
+}
+
+func (e engine) FindAppointmentRecipients(ctx context.Context, appointmentID int64) ([]*appointments.AppointmentRecipient, error) {
+	values, err := e.service.FindAppointmentRecipients(ctx, []int64{appointmentID})
+	return appointmentRecipientsToPublic(values), mapError(err)
+}
+
+func (e engine) FindAppointmentRecipientsByAppointmentIDs(ctx context.Context, appointmentIDs []int64) ([]*appointments.AppointmentRecipient, error) {
+	values, err := e.service.FindAppointmentRecipients(ctx, appointmentIDs)
+	return appointmentRecipientsToPublic(values), mapError(err)
+}
+
+func (e engine) FindAppointmentRecipientStudents(ctx context.Context, recipientIDs []int64) ([]*appointments.AppointmentRecipientStudent, error) {
+	values, err := e.service.FindAppointmentRecipientStudents(ctx, recipientIDs)
+	return appointmentRecipientStudentsToPublic(values), mapError(err)
+}
+
+func (e engine) CountAppointmentRecipientStudents(ctx context.Context, studentID int64) (int, error) {
+	value, err := e.service.CountAppointmentRecipientStudents(ctx, studentID)
+	return value, mapError(err)
+}
+
 func (e engine) CreateAppointment(ctx context.Context, input appointments.CreateAppointment) (result *appointments.Appointment, targets []*appointments.AppointmentTarget, err error) {
 	err = e.withinTenant(ctx, func(txCtx context.Context) error {
 		value, targetValues, commandErr := e.service.CreateAppointment(txCtx, fieldsToDomain(input.AppointmentFields), targetFieldsToDomain(input.Targets))
@@ -135,12 +196,6 @@ func (e engine) UpdateAppointment(ctx context.Context, input appointments.Update
 func (e engine) DeleteAppointment(ctx context.Context, id int64) error {
 	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
 		return e.service.DeleteAppointment(txCtx, id)
-	}))
-}
-
-func (e engine) BumpAppointmentRevision(ctx context.Context, id int64) error {
-	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
-		return e.service.BumpAppointmentRevision(txCtx, id)
 	}))
 }
 
@@ -186,6 +241,89 @@ func (e engine) ReplaceAppointmentTargets(ctx context.Context, appointmentID int
 	return result, mapError(err)
 }
 
+func (e engine) CreateRecurrenceRule(ctx context.Context, rule *appointments.RecurrenceRule) error {
+	err := e.withinTenant(ctx, func(txCtx context.Context) error {
+		value, commandErr := e.service.CreateRecurrenceRule(txCtx, recurrenceRuleToDomain(rule))
+		if commandErr == nil {
+			*rule = *recurrenceRuleToPublic(value)
+		}
+		return commandErr
+	})
+	return mapError(err)
+}
+
+func (e engine) DeleteRecurrenceRule(ctx context.Context, appointmentID int64) error {
+	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
+		return e.service.DeleteRecurrenceRule(txCtx, appointmentID)
+	}))
+}
+
+func (e engine) CreateOccurrenceOverride(ctx context.Context, override *appointments.AppointmentOccurrenceOverride) error {
+	err := e.withinTenant(ctx, func(txCtx context.Context) error {
+		value, commandErr := e.service.CreateOccurrenceOverride(txCtx, occurrenceOverrideToDomain(override))
+		if commandErr == nil {
+			*override = *occurrenceOverrideToPublic(value)
+		}
+		return commandErr
+	})
+	return mapError(err)
+}
+
+func (e engine) DeleteOccurrenceOverrides(ctx context.Context, appointmentID int64) error {
+	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
+		return e.service.DeleteOccurrenceOverrides(txCtx, appointmentID)
+	}))
+}
+
+func (e engine) CancelAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate appointments.Date) (transitioned bool, err error) {
+	err = e.withinTenant(ctx, func(txCtx context.Context) error {
+		var commandErr error
+		transitioned, commandErr = e.service.CancelAppointmentOccurrence(txCtx, appointmentID, domain.Date(occurrenceDate))
+		return commandErr
+	})
+	if err != nil {
+		return false, mapError(err)
+	}
+	return transitioned, nil
+}
+
+func (e engine) CreateAppointmentRecipients(ctx context.Context, appointmentID int64, fields []appointments.AppointmentRecipientFields) (recipients []*appointments.AppointmentRecipient, links []*appointments.AppointmentRecipientStudent, err error) {
+	err = e.withinTenant(ctx, func(txCtx context.Context) error {
+		values, linkValues, commandErr := e.service.CreateAppointmentRecipients(txCtx, appointmentID, recipientFieldsToDomain(fields))
+		recipients = appointmentRecipientsToPublic(values)
+		links = appointmentRecipientStudentsToPublic(linkValues)
+		return commandErr
+	})
+	if err != nil {
+		return nil, nil, mapError(err)
+	}
+	return recipients, links, nil
+}
+
+func (e engine) UpdateAppointmentRecipientResponse(ctx context.Context, recipientID int64, status string) error {
+	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
+		return e.service.UpdateAppointmentRecipientResponse(txCtx, recipientID, status)
+	}))
+}
+
+func (e engine) ClaimReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, occurrenceDate appointments.Date, guardianProfileID int64) (claimed bool, err error) {
+	err = e.withinTenant(ctx, func(txCtx context.Context) error {
+		var commandErr error
+		claimed, commandErr = e.service.ClaimReminderPushDelivery(txCtx, appointmentID, revision, domain.Date(occurrenceDate), guardianProfileID)
+		return commandErr
+	})
+	if err != nil {
+		return false, mapError(err)
+	}
+	return claimed, nil
+}
+
+func (e engine) ReleaseReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, occurrenceDate appointments.Date, guardianProfileID int64) error {
+	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
+		return e.service.ReleaseReminderPushDelivery(txCtx, appointmentID, revision, domain.Date(occurrenceDate), guardianProfileID)
+	}))
+}
+
 func (e engine) withinTenant(ctx context.Context, command func(context.Context) error) error {
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return command(ctx)
@@ -215,6 +353,128 @@ func targetFieldsToDomain(values []appointments.AppointmentTargetFields) []domai
 		})
 	}
 	return result
+}
+
+func recipientFieldsToDomain(values []appointments.AppointmentRecipientFields) []domain.AppointmentRecipientFields {
+	result := make([]domain.AppointmentRecipientFields, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.AppointmentRecipientFields{
+			RecipientType: value.RecipientType, StaffID: value.StaffID,
+			GuardianProfileID: value.GuardianProfileID, Status: value.Status,
+			StudentIDs: value.StudentIDs,
+		})
+	}
+	return result
+}
+
+func datesToDomain(values []appointments.Date) []domain.Date {
+	result := make([]domain.Date, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.Date(value))
+	}
+	return result
+}
+
+func recurrenceRuleToDomain(value *appointments.RecurrenceRule) domain.RecurrenceRule {
+	return domain.RecurrenceRule{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		AppointmentID: value.AppointmentID, Frequency: value.Frequency, IntervalCount: value.IntervalCount,
+		Weekdays: value.Weekdays, MonthDays: value.MonthDays, EndsOn: publicDateToDomain(value.EndsOn),
+		OccurrenceCount: value.OccurrenceCount,
+	}
+}
+
+func recurrenceRuleToPublic(value domain.RecurrenceRule) *appointments.RecurrenceRule {
+	return &appointments.RecurrenceRule{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		AppointmentID: value.AppointmentID, Frequency: value.Frequency, IntervalCount: value.IntervalCount,
+		Weekdays: value.Weekdays, MonthDays: value.MonthDays, EndsOn: domainDateToPublic(value.EndsOn),
+		OccurrenceCount: value.OccurrenceCount,
+	}
+}
+
+func recurrenceRulesToPublic(values []domain.RecurrenceRule) []*appointments.RecurrenceRule {
+	result := make([]*appointments.RecurrenceRule, 0, len(values))
+	for _, value := range values {
+		result = append(result, recurrenceRuleToPublic(value))
+	}
+	return result
+}
+
+func occurrenceOverrideToDomain(value *appointments.AppointmentOccurrenceOverride) domain.AppointmentOccurrenceOverride {
+	return domain.AppointmentOccurrenceOverride{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		AppointmentID: value.AppointmentID, OccurrenceDate: domain.Date(value.OccurrenceDate), Cancelled: value.Cancelled,
+		Title: value.Title, Description: value.Description, Location: value.Location,
+		StartDate: publicDateToDomain(value.StartDate), EndDate: publicDateToDomain(value.EndDate),
+		StartTime: value.StartTime, EndTime: value.EndTime, AllDay: value.AllDay,
+	}
+}
+
+func occurrenceOverrideToPublic(value domain.AppointmentOccurrenceOverride) *appointments.AppointmentOccurrenceOverride {
+	return &appointments.AppointmentOccurrenceOverride{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		AppointmentID: value.AppointmentID, OccurrenceDate: appointments.Date(value.OccurrenceDate), Cancelled: value.Cancelled,
+		Title: value.Title, Description: value.Description, Location: value.Location,
+		StartDate: domainDateToPublic(value.StartDate), EndDate: domainDateToPublic(value.EndDate),
+		StartTime: value.StartTime, EndTime: value.EndTime, AllDay: value.AllDay,
+	}
+}
+
+func occurrenceOverridesToPublic(values []domain.AppointmentOccurrenceOverride) []*appointments.AppointmentOccurrenceOverride {
+	result := make([]*appointments.AppointmentOccurrenceOverride, 0, len(values))
+	for _, value := range values {
+		result = append(result, occurrenceOverrideToPublic(value))
+	}
+	return result
+}
+
+func appointmentRecipientToPublic(value domain.AppointmentRecipient) *appointments.AppointmentRecipient {
+	return &appointments.AppointmentRecipient{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		AppointmentID: value.AppointmentID, RecipientType: value.RecipientType,
+		StaffID: value.StaffID, GuardianProfileID: value.GuardianProfileID,
+		Status: value.Status, RespondedAt: value.RespondedAt,
+	}
+}
+
+func appointmentRecipientsToPublic(values []domain.AppointmentRecipient) []*appointments.AppointmentRecipient {
+	result := make([]*appointments.AppointmentRecipient, 0, len(values))
+	for _, value := range values {
+		result = append(result, appointmentRecipientToPublic(value))
+	}
+	return result
+}
+
+func appointmentRecipientStudentToPublic(value domain.AppointmentRecipientStudent) *appointments.AppointmentRecipientStudent {
+	return &appointments.AppointmentRecipientStudent{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		RecipientID: value.RecipientID, StudentID: value.StudentID,
+	}
+}
+
+func appointmentRecipientStudentsToPublic(values []domain.AppointmentRecipientStudent) []*appointments.AppointmentRecipientStudent {
+	result := make([]*appointments.AppointmentRecipientStudent, 0, len(values))
+	for _, value := range values {
+		result = append(result, appointmentRecipientStudentToPublic(value))
+	}
+	return result
+}
+
+func publicDateToDomain(value *appointments.Date) *domain.Date {
+	if value == nil {
+		return nil
+	}
+	converted := domain.Date(*value)
+	return &converted
+}
+
+func domainDateToPublic(value *domain.Date) *appointments.Date {
+	if value == nil {
+		return nil
+	}
+	converted := appointments.Date(*value)
+	return &converted
 }
 
 func appointmentToPublic(value domain.Appointment) *appointments.Appointment {
@@ -258,6 +518,8 @@ func mapError(err error) error {
 		return nil
 	case errors.Is(err, domain.ErrAppointmentNotFound):
 		return fmt.Errorf("%w: %w", appointments.ErrAppointmentNotFound, err)
+	case errors.Is(err, domain.ErrAppointmentRecipientNotFound):
+		return fmt.Errorf("%w: %w", appointments.ErrAppointmentRecipientNotFound, err)
 	case errors.Is(err, domain.ErrAppointmentLifecycleConflict):
 		return fmt.Errorf("%w: %w", appointments.ErrAppointmentLifecycleConflict, err)
 	default:

@@ -191,9 +191,6 @@ function BankverbindungenContent() {
       <TenantPage
         title="Bankverbindungen"
         stats="Kein Zugriff"
-        back
-        backHref="/eltern"
-        backLabel="Zurück zu Eltern"
         empty={{
           icon: <Lock className="h-12 w-12" />,
           title: "Kein Zugriff auf Bankverbindungen",
@@ -209,9 +206,6 @@ function BankverbindungenContent() {
       title="Bankverbindungen"
       stats={statusLine}
       statsLoading={isLoading}
-      back
-      backHref="/eltern"
-      backLabel="Zurück zu Eltern"
       search={{
         value: searchValue,
         onChange: setSearchValue,
