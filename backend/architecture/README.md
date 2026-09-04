@@ -153,23 +153,78 @@ appear as a green audit.
 
 ## Migration evidence
 
-`migration-ticket-template.json` is the executable contract for later
-migration tickets. Copy it, replace its guidance text with the ticket's facts,
-then run `validate-ticket`. The command rejects unknown fields and missing
-prerequisites, owner/capability, packages, tables, cutover, tests, runtime
-evidence, rollback/cleanup, or exit criteria. `exact_ratchet_keys` may be empty
-for an explicit prerequisite or acceptance node.
+Schema version 2 separates ordinary waves from runtime checkpoints. Convert
+version 1 tickets explicitly. Both kinds retain prerequisites, owner/capability,
+packages, tables, exact ratchet keys, atomic cutover, tests, rollback/cleanup,
+and measurable exit criteria. Unknown fields and blank required evidence fail.
 
-Runtime evidence records its raw source, workload, and agreed thresholds. It
-also records query count, latency p50/p95, errors, DB-pool waits, measured lock
-waits, deadlocks, and Worker duration/retries/backlog. A metric that does not
-apply still needs a reason; an empty field fails validation. Full SQL statement
-duration is not lock-wait evidence because it also includes execution time.
+### Ordinary waves
 
-Keep raw Prometheus exports and load-run output in the issue or pull-request
-review evidence, outside the repository. The committed template checks ticket
-completeness; it is not a second architecture policy and does not invent
-environment-independent latency limits.
+Copy `migration-ticket-template.json` and replace all example/guidance values.
+Set `ticket_kind` to `migration`. `checkpoint_reference` must be the canonical
+issue URL of the latest accepted checkpoint in `runtime-checkpoints.json`.
+Missing, malformed, future, unaccepted, and superseded references fail.
+
+Record only flow-specific evidence needed for the cutover: raw source,
+workload/environment/observation window, thresholds, query counts, stable
+errors, failure-path and transaction rollback results, and smoke results.
+Keep deployment rollback and cleanup in `rollback_and_cleanup`. Non-applicable
+evidence needs a concrete reason. Additional metrics are allowed when the flow
+needs them; a reference does not waive failure, rollback, query-budget, or smoke
+checks. Ordinary waves do not repeat the full benchmark suite independently.
+
+### Checkpoint measurements
+
+Copy `checkpoint-ticket-template.json` and set `ticket_kind` to `checkpoint`.
+Only these canonical checkpoint issue URLs are valid:
+
+1. #3019 establishes the one-third baseline across completed migrations.
+2. #3020 compares with #3019 after its blocking core migrations and before
+   session-end, device-scan, and enrollment-acceptance workflow cutovers.
+3. #3021 compares with both predecessors after contract/storage cutovers and
+   before #2751 removes the remaining legacy composition.
+
+The `checkpoint` object requires an exact commit, reproducible PostgreSQL 17
+and production composition environment, toolchain, versioned workload, data
+volume, concurrency, and warm-up. Cover successful and failing HTTP/module
+flows and applicable Worker paths. `runs` contains exactly three measured runs
+after warm-up; `median` and `worst` report every applicable metric. Each report
+records source, workload, thresholds, query count, p50/p95, stable errors,
+pool waits, measured lock waits, deadlocks/serialization retries, Worker
+duration/retries/backlog, and affected rows. Non-applicable metrics need reasons.
+Full statement duration is not lock-wait evidence.
+
+`comparison` explains every metric against the required predecessors (or
+establishes #3019's baseline). Keep workload/environment equivalent;
+`workload_bridge` confirms equivalence or links old/new workloads measured on
+the same commit. `regression_issues` links focused optimization issues for
+material regressions; unexplained regressions block acceptance. `decision`
+records completed blockers and acceptance/rejection; #3021 permits or blocks
+#2751. Raw output and interpretation stay in the checkpoint issue or review
+evidence, not the repository. Template values are examples, not measurements.
+
+### Recording acceptance
+
+`runtime-checkpoints.json` is a reviewed acceptance registry, not architecture
+policy. It starts empty because no checkpoint has been accepted. Ordinary
+waves cannot pass until #3019 is accepted; checkpoint measurements can be
+validated before acceptance. After explicit acceptance in the checkpoint issue,
+append an entry in a reviewed change, in order without gaps:
+
+```json
+{"issue": "https://github.com/moto-nrw/project-phoenix/issues/3019", "acceptance": "https://github.com/moto-nrw/project-phoenix/issues/3019#issuecomment-123"}
+```
+
+Replace the example comment ID with the actual acceptance comment. Validation
+checks issue order and comment-link shape, not comment truth or measurement
+accuracy. Review must verify acceptance, closed blockers, comparable runs,
+and explanations. A ticket-local `accepted` flag cannot grant acceptance.
+`--checkpoints path/to/registry.json` supports a reviewed registry snapshot
+and isolated test fixtures; paths resolve from the repository root. Do not
+use a self-authored registry to bypass acceptance.
+
+No ownership or ratchet entries change. This contract sets no
+machine-independent latency limits.
 
 ## Composition inventory
 
