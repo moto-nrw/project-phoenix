@@ -228,6 +228,45 @@ machine-independent latency limits.
 
 ## Composition inventory
 
+### Shrink-only fields and mutable wiring (#3030)
+
+The normal `scripts/backend-architecture.sh check` compares composition source
+with the merge-base of `HEAD` and `origin/development`. PR CI supplies the event's
+full base SHA through `--base-ref`. Fetch `origin/development` before a local
+check. Explicit project/baseline arguments remain available for isolated
+analyzer fixtures; CI always supplies the real base commit.
+
+The guard reads Go declarations directly from that Git object and the working
+tree. It rejects new named or embedded fields on `services.Factory`,
+`database/repositories.Factory`, and `api.API`, including local type aliases.
+There is no accepted field/setter manifest and no approve, regenerate,
+rebaseline, or wildcard option. Deletion spends the removed declaration's
+budget permanently once it reaches the base branch.
+
+Mutable wiring is identified by its destination, not by a `Set` prefix:
+assignments to interface/function dependencies, dependency-containing bundles,
+external pointer dependencies, and Worker/Scheduler scalar configuration are
+guarded. Receiver methods and pointer-parameter wiring functions are covered,
+including direct receiver aliases and whole-receiver replacement. The key
+includes the destination field, so an existing setter cannot acquire another
+dependency silently. Newly constructed local values are not mutable wiring.
+Domain/model receivers, ordinary result records, and scheduler task state are
+outside this guard. This is source analysis, not general interprocedural alias
+or reflection analysis; review still checks indirect wiring.
+
+Production, same-package tests, and external-package tests have separate keys.
+Test declarations cannot authorize production growth. Parsing includes
+build-tagged Go files, but excludes vendor, hidden directories, and fixture
+`testdata` trees. Fixtures cover both additions and permitted non-composition
+changes; the other architecture checks continue to enforce package boundaries.
+
+The existing Factory-removal and composition-contract tickets retain ownership
+of shrinking the current debt. This guard does not remove their work or change
+runtime composition. The historical inventory below is separate evidence:
+regenerating it cannot approve new fields or mutable wiring.
+
+### Typed-root migration evidence
+
 `composition.json` is the checked-in prerequisite inventory for the typed-root
 migration. It is pinned to evidence commit
 `8dc3a9ca8ac7cb8edbfa3c17760d92c02751bc3e` and records:
