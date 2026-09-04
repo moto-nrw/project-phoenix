@@ -41,8 +41,7 @@ const (
 
 func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	if rt.FixedSeeder == nil || len(rt.FixedSeeder.staffCredentials) == 0 {
-		fmt.Println("  skipping: no staff credentials available")
-		return nil
+		return fmt.Errorf("staff credentials not available")
 	}
 
 	// Restore the admin auth at the end so downstream steps don't inherit
@@ -51,9 +50,8 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	defer rt.Client.BindAuth(originalAuth)
 
 	staffOrder, staffIDByEmail := buildStaffOrder(rt.FixedSeeder)
-	if len(staffOrder) == 0 {
-		fmt.Println("  skipping: no staff IDs resolvable from credentials")
-		return nil
+	if len(staffOrder) != len(rt.FixedSeeder.staffCredentials) {
+		return fmt.Errorf("resolved %d of %d staff IDs from credentials", len(staffOrder), len(rt.FixedSeeder.staffCredentials))
 	}
 
 	scheduleCount, err := seedSchedulesViaAPI(rt, staffOrder, staffIDByEmail)

@@ -163,14 +163,14 @@ func (rs *Resource) resolvePickupQueryPerson(ctx context.Context, w http.Respons
 			rs.getLogger().WarnContext(ctx, "RFID tag not found during pickup query",
 				slog.String("rfid", rfid),
 			)
-			common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New(shared.ErrMsgRFIDTagNotFound), shared.ErrCodeRFIDTagNotFound))
 			return nil
 		}
 		rs.getLogger().ErrorContext(ctx, "failed to lookup RFID tag during pickup query",
 			slog.String("rfid", rfid),
 			slog.String("error", err.Error()),
 		)
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Internal server error", err))
 		return nil
 	}
 
