@@ -17,9 +17,9 @@ var (
 	linterCIPattern    = regexp.MustCompile(`(?m)^\s+version: v([0-9]+\.[0-9]+\.[0-9]+)\s*(?:#.*)?$`)
 )
 
-var supportedDevboxSystems = []string{"aarch64-darwin", "aarch64-linux", "x86_64-linux"}
+var supportedToolchainSystems = []string{"aarch64-darwin", "aarch64-linux", "x86_64-linux"}
 
-func TestGoToolchainPinsRatchet(t *testing.T) {
+func TestToolchainPinsRatchet(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := filepath.Clean(filepath.Join("..", ".."))
@@ -35,7 +35,12 @@ func TestGoToolchainPinsRatchet(t *testing.T) {
 	}
 
 	packages := readDevboxPackages(t, filepath.Join(repoRoot, "devbox.json"))
+	assertDevboxUsesDefaultGoCache(t, filepath.Join(repoRoot, "devbox.json"))
 	requireDevboxPin(t, packages, "go", goVersion)
+	pnpmVersion := requireDevboxPackageVersion(t, packages, "pnpm_10")
+	for _, manifestPath := range []string{"package.json", "frontend/package.json"} {
+		assertPnpmPackageManagerVersion(t, filepath.Join(repoRoot, manifestPath), pnpmVersion)
+	}
 	linterVersion := requireDevboxPackageVersion(t, packages, "golangci-lint")
 	airVersion := requireDevboxPackageVersion(t, packages, "air")
 	requireDevboxPackageVersion(t, packages, "govulncheck")
@@ -52,6 +57,39 @@ func TestGoToolchainPinsRatchet(t *testing.T) {
 	assertRunnerResolvesExactBinary(t, filepath.Join(repoRoot, "scripts/run-go-toolchain.sh"))
 }
 
+func assertPnpmPackageManagerVersion(t *testing.T, path, want string) {
+	t.Helper()
+	var manifest struct {
+		PackageManager string `json:"packageManager"`
+	}
+	if err := json.Unmarshal(readToolchainFile(t, path), &manifest); err != nil {
+		t.Fatalf("decode %s: %v", path, err)
+	}
+	version, ok := strings.CutPrefix(manifest.PackageManager, "pnpm@")
+	if !ok {
+		t.Fatalf("%s does not pin pnpm in packageManager", path)
+	}
+	version, _, _ = strings.Cut(version, "+")
+	if version != want {
+		t.Errorf("%s pins pnpm %s; want %s from devbox.json", path, version, want)
+	}
+}
+
+func assertDevboxUsesDefaultGoCache(t *testing.T, path string) {
+	t.Helper()
+	var config struct {
+		Env map[string]string `json:"env"`
+	}
+	if err := json.Unmarshal(readToolchainFile(t, path), &config); err != nil {
+		t.Fatalf("decode %s: %v", path, err)
+	}
+	for _, name := range []string{"GOPATH", "GOMODCACHE"} {
+		if value, ok := config.Env[name]; ok {
+			t.Errorf("devbox must not set %s=%q; use Go's shared default cache", name, value)
+		}
+	}
+}
+
 func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
 	t.Helper()
 	checks := map[string][]string{
@@ -59,7 +97,7 @@ func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
 			`DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d . 2>&1)`,
 			"run: cd backend && ../scripts/run-go-toolchain.sh go vet ./...",
 			"run: cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --timeout 5m",
-			"run: cd backend && ../scripts/run-go-toolchain.sh go test ./test -run '^TestGoToolchainPinsRatchet$' -count=1",
+			"run: cd backend && ../scripts/run-go-toolchain.sh go test ./test -run '^TestToolchainPinsRatchet$' -count=1",
 			"run: scripts/run-go-toolchain.sh scripts/backend-architecture.sh check",
 			"run: scripts/run-go-toolchain.sh scripts/check-deadcode.sh",
 			"run: cd backend && ../scripts/run-go-toolchain.sh govulncheck ./...",
@@ -152,14 +190,14 @@ func assertDevboxLock(t *testing.T, path string, declared map[string]string) {
 	if err := json.Unmarshal(readToolchainFile(t, path), &lock); err != nil {
 		t.Fatalf("decode %s: %v", path, err)
 	}
-	for _, name := range []string{"go", "golangci-lint", "govulncheck", "air"} {
+	for _, name := range []string{"go", "pnpm_10", "golangci-lint", "govulncheck", "air"} {
 		version := requireDevboxPackageVersion(t, declared, name)
 		entry, ok := lock.Packages[name+"@"+version]
 		if !ok || entry.Version != version {
 			t.Errorf("%s does not resolve %s@%s", path, name, version)
 			continue
 		}
-		for _, system := range supportedDevboxSystems {
+		for _, system := range supportedToolchainSystems {
 			if _, ok := entry.Systems[system]; !ok {
 				t.Errorf("%s has no %s resolution for %s@%s", path, system, name, version)
 			}
