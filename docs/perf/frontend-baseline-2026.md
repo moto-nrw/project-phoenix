@@ -76,6 +76,8 @@ Sequenzielle Ketten: die längste Kette ist überall die Shell-Kette Session, Us
 
 Abgebrochene Requests: pro Aufruf 10 bis 28 `fetch`-Requests auf Seitenpfade (`/students/search`, `/rooms`, `/ogs-groups`, `/anfragen`, `/settings`, `/staff`, `/time-tracking`, …), die der Browser wieder abbricht. Das sind die Router-Prefetches der `next/link`-Einträge in Seitenleiste und Bottom-Nav. Folge-Issue #2976.
 
+Nachmessung nach #2976 (Shell-Links über `NavLink`: kein Viewport-Prefetch, Prefetch erst bei Hover, Fokus oder Touch-Beginn; gleicher Harness, Stand 2026-09-04, frischer Seed): `cold.requests.failed` ist auf 17 von 18 kalten Aufrufen leer. Der eine Ausreißer (Dashboard, Lauf 3) zeigt 2 abgebrochene Prefetches, `/ogs-groups` und `/students/search`, und die kommen aus den Karten im Seiteninhalt des Dashboards (`InfoCard href`), nicht aus der Seitenleiste. Inhaltslinks nutzen weiter `next/link` mit Standard-Prefetch; das ist gewollt, weil sie wenige sind und auf den nächsten Klick zielen.
+
 ## Proxy-Metriken
 
 `/api/internal/metrics` wurde vor und nach dem Trace-Lauf abgezogen; die Tabelle zeigt die Differenz (744 Backend-Aufrufe über 36 Seitenaufrufe, 42 Endpunkte). p50 und p95 sind aus den Histogramm-Buckets interpoliert.
@@ -190,7 +192,7 @@ Die Schleife ist weg (Faktor 20 bis 23 beim Aufruf, Leerlauf bei 0). Was bleibt:
 | 2   | Shell-Daten bündeln (Bootstrap-Endpunkt oder Server-Layout), Session-Fetch auf einen reduzieren, Zähler nach dem ersten Paint laden | 18 Shell-Requests auf 1 bis 3, Kette um zwei Hops kürzer (150 bis 300 ms bei 4x Drosselung)                 | mittel           | #2973                 |
 | 3   | Client-Env ohne zod, Charts per `next/dynamic`, PostHog nach dem ersten Paint                                                       | minus 95 kB auf jeder Route, minus 121 bis 135 kB auf vier Routen, minus 75 kB auf dem kritischen Pfad      | klein bis mittel | #2974                 |
 | 4   | Kindersuche: Suchfeld-State isolieren, Karten memoisieren, `useMinuteClock` aus der Page ziehen; Zeiterfassung: Chart memoisieren   | Kindersuche unter 1.000 Renders pro Tastendruck (heute rund 6.300), Wochenwechsel unter 2.000 (heute 7.526) | mittel           | #2975                 |
-| 5   | Sidebar-Links ohne automatischen Prefetch                                                                                           | 10 bis 28 abgebrochene Requests pro Seitenaufruf weg                                                        | klein            | #2976                 |
+| 5   | Sidebar-Links ohne automatischen Prefetch                                                                                           | 10 bis 28 abgebrochene Requests pro Seitenaufruf weg (gemessen: 0 auf 17 von 18 kalten Aufrufen)            | klein            | **umgesetzt, #2976**  |
 | 6   | Bundle-Ratchet und Lighthouse-Report in CI                                                                                          | schützt 1 bis 5                                                                                             |                  | #2939 (bestand schon) |
 
 Bewusst nicht umgesetzt: ein globaler `SWRConfig` (kein Effekt messbar) und `next/dynamic` in diesem PR (das Chart in der Zeiterfassung liegt in einer 4.072-Zeilen-Page und gehört mit den anderen drei Konsumenten in einen Wurf, #2974).
