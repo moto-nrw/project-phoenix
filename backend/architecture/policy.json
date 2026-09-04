@@ -8751,6 +8751,15 @@
       "target_role": "test-support"
     },
     {
+      "id": "class-day-test.to.legacy-composition",
+      "description": "Class-day integration tests exercise the Care Plan adapters installed by legacy composition.",
+      "scopes": ["external_test"],
+      "source_owner": "class-day-view",
+      "source_role": "module-behavior-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
       "id": "enrollment-test.to.care-plan-public",
       "description": "Phase-expiry behavior tests bind the Care Plan projection port.",
       "scopes": ["external_test"],

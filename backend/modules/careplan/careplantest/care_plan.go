@@ -41,6 +41,10 @@ func NewCareOfferingRepository(tb TB, db *bun.DB) enrollmentModels.CareOfferingR
 
 // CareOfferingRepository is the no-TB variant for shared test builders.
 func CareOfferingRepository(db *bun.DB) enrollmentModels.CareOfferingRepository {
+	return carePlanLegacy.NewCareOfferingRepository(carePlan(db))
+}
+
+func carePlan(db *bun.DB) careplan.Capability {
 	students, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
 	if err != nil {
 		panic("compose test People Directory: " + err.Error())
@@ -53,7 +57,7 @@ func CareOfferingRepository(db *bun.DB) enrollmentModels.CareOfferingRepository 
 	if err != nil {
 		panic("compose test Care Plan: " + err.Error())
 	}
-	return carePlanLegacy.NewCareOfferingRepository(capability)
+	return capability
 }
 
 func newStudentDirectory(tb TB, db *bun.DB) peopledirectory.Capability {

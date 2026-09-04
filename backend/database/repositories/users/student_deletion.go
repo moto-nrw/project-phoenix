@@ -22,11 +22,13 @@ type StudentDeletionRepository struct {
 	countConsents func(context.Context, int64) (int, error)
 	carePlan      interface {
 		CountCompanionLinks(context.Context, int64) (int, error)
+		CountStudentScheduleRows(context.Context, int64) (int, error)
 	}
 }
 
 func (r *StudentDeletionRepository) BindCarePlan(capability interface {
 	CountCompanionLinks(context.Context, int64) (int, error)
+	CountStudentScheduleRows(context.Context, int64) (int, error)
 }) {
 	if capability == nil {
 		panic("student deletion repository: care plan capability is required")
@@ -60,14 +62,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				(SELECT COUNT(*) FROM active.scheduled_checkouts WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM active.excused_absence_requests WHERE tenant_id = ? AND student_id = ?)
 			)::int AS attendance_records,
-			(
-				(SELECT COUNT(*) FROM schedule.student_pickup_schedules WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_pickup_exceptions WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_pickup_notes WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_arrival_schedules WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_arrival_exceptions WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM schedule.student_arrival_notes WHERE tenant_id = ? AND student_id = ?)
-			)::int AS care_schedules,
+			0::int AS care_schedules,
 			(
 				(SELECT COUNT(*) FROM users.students_guardians WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM users.persons_guardians WHERE tenant_id = ? AND person_id = (SELECT person_id FROM users.students WHERE tenant_id = ? AND id = ?))
@@ -98,7 +93,6 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		tenantID, studentID,
 		tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, studentID,
@@ -109,6 +103,10 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 	}
 	if r.carePlan == nil {
 		return nil, fmt.Errorf("preview student deletion: care plan capability is required")
+	}
+	counts.CareSchedules, err = r.carePlan.CountStudentScheduleRows(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count care schedules: %w", err)
 	}
 	counts.CompanionLinks, err = r.carePlan.CountCompanionLinks(ctx, studentID)
 	if err != nil {
