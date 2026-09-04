@@ -2654,8 +2654,11 @@ function SearchPageContent() {
       }
       if (student.excused === true || student.class_trip === true) continue;
       const status = parseLocation(student.current_location).status;
+      if (status === LOCATION_STATUSES.SICK) {
+        sick += 1;
+        continue;
+      }
       if (
-        status === LOCATION_STATUSES.SICK ||
         status === LOCATION_STATUSES.EXCUSED ||
         status === LOCATION_STATUSES.CLASS_TRIP
       ) {

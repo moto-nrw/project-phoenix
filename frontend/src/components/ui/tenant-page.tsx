@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
+import type {
+  InputHTMLAttributes,
+  KeyboardEvent,
+  MouseEvent,
+  ReactNode,
+} from "react";
 import {
   useCallback,
   useEffect,
@@ -91,6 +96,8 @@ export interface TenantPageProps {
     readonly value: string;
     readonly onChange: (value: string) => void;
     readonly placeholder?: string;
+    /** Attribute des zugrunde liegenden Suchfelds, etwa `disabled`. */
+    readonly inputProps?: InputHTMLAttributes<HTMLInputElement>;
   };
   readonly filters?: readonly FilterConfig[];
   readonly activeFilters?: readonly ActiveFilter[];

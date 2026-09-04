@@ -10,7 +10,12 @@ export default function RoomsLoading() {
     <TenantPage
       title="Räume"
       statsLoading
-      search={{ value: "", onChange: () => {}, placeholder: "Raum suchen…" }}
+      search={{
+        value: "",
+        onChange: () => {},
+        placeholder: "Raum suchen…",
+        inputProps: { disabled: true },
+      }}
     >
       <RoomsGridSkeleton />
     </TenantPage>

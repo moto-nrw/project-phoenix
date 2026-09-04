@@ -66,6 +66,23 @@ describe("TenantPage", () => {
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 
+  it("reicht den deaktivierten Zustand an das Suchfeld weiter", () => {
+    render(
+      <TenantPage
+        title="Räume"
+        search={{
+          value: "",
+          onChange: vi.fn(),
+          inputProps: { disabled: true },
+        }}
+      />,
+    );
+
+    for (const searchField of screen.getAllByRole("textbox")) {
+      expect(searchField).toBeDisabled();
+    }
+  });
+
   it("rendert das Status-Skelett nicht innerhalb eines Absatzes", () => {
     const { container } = render(
       <TenantPage title="Kinder" statsLoading>

@@ -1044,6 +1044,31 @@ describe("StudentSearchPage", () => {
   });
 
   describe("Client-Side Filtering", () => {
+    it("counts a location-derived sick status in today's summary", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0],
+              current_location: "Krank",
+              sick: false,
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("1 Kind · 0 zuhause · 1 krank"),
+        ).toBeInTheDocument();
+      });
+    });
+
     it("shows all students when filter is 'all'", async () => {
       render(<StudentSearchPage />);
 

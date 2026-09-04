@@ -14,6 +14,7 @@ export default function StaffLoading() {
         value: "",
         onChange: () => {},
         placeholder: "Mitarbeiter suchen…",
+        inputProps: { disabled: true },
       }}
     >
       <StaffCardsSkeleton />
