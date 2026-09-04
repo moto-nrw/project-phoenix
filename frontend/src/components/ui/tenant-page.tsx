@@ -98,6 +98,10 @@ export interface TenantPageProps {
     readonly placeholder?: string;
     /** Attribute des zugrunde liegenden Suchfelds, etwa `disabled`. */
     readonly inputProps?: InputHTMLAttributes<HTMLInputElement>;
+    /** Verzögert die Übergabe der Eingabe an die Seite. */
+    readonly debounceMs?: number;
+    /** Setzt einen noch nicht übergebenen Suchentwurf zurück. */
+    readonly resetKey?: string | number;
   };
   readonly filters?: readonly FilterConfig[];
   readonly activeFilters?: readonly ActiveFilter[];

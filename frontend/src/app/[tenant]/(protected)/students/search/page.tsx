@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useRef,
-  Suspense,
-  useMemo,
-  useCallback,
-} from "react";
+import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { CalendarRange, Download, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
@@ -49,10 +42,7 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
-import {
-  SCHOOL_YEAR_FILTER_OPTIONS,
-  type DepartureMode,
-} from "~/lib/student-helpers";
+import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   StudentCard,
@@ -65,6 +55,7 @@ import {
   StudentAbsenceRow,
   StudentPendingExcusedRow,
 } from "~/components/students/student-card";
+import { dailyDepartureLabelForStudent } from "~/components/students/search-student-card";
 import { StudentExportModal } from "~/components/students/student-export-modal";
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
@@ -635,22 +626,6 @@ function pickupLabelForStudent(student: Student): string {
   return student.pickup_time ? `${student.pickup_time} Uhr` : "Keine Gehzeit";
 }
 
-const DAILY_DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
-  alone: "Geht alleine nach Hause",
-  bus: "Bus",
-  pickup: "Wird abgeholt",
-  accompanied: "Mit anderem Kind",
-};
-
-function dailyDepartureLabelForStudent(student: Student): string {
-  if (student.has_full_access === false) return "Nicht einsehbar";
-  const legacyLabel = student.departure_label?.trim();
-  if (legacyLabel) return legacyLabel;
-  const modes = student.departure_modes ?? [];
-  if (modes.length === 0) return "–";
-  return modes.map((mode) => DAILY_DEPARTURE_MODE_LABELS[mode]).join(", ");
-}
-
 function dailyDepartureGroupLabelForStudent(student: Student): string {
   const label = dailyDepartureLabelForStudent(student);
   return label === "–" ? "Keine Abholregelung" : label;
@@ -943,7 +918,6 @@ function SearchPageContent() {
     },
   });
   const searchParams = useSearchParams();
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const storageKey = useMemo(
     () => buildSearchFilterStorageKey(session?.user),
     [session?.user],
@@ -1000,8 +974,10 @@ function SearchPageContent() {
   const initialRoomName = initialFilterParams.get("room_name") ?? "";
 
   // Search and filter state
+  // The search field keeps an immediate local draft and only calls this setter
+  // after its debounce. This avoids rendering the full result grid per key.
   const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
+  const [searchResetKey, setSearchResetKey] = useState(0);
   // Class, group and school year are multi-selects (#2218): two groups working
   // together need both their cohorts in one list. An empty array means "alle".
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(() =>
@@ -1359,23 +1335,6 @@ function SearchPageContent() {
     isLoading: studentPhotosSettingLoading,
   } = useStudentPhotosEnabled();
 
-  // Debounce search term for SWR key (prevents excessive API calls while typing)
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    searchTimeoutRef.current = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchTerm]);
-
   // Fetch groups with SWR (immutable - only fetched once)
   const { data: groups = [] } = useImmutableSWR<Group[]>(
     "search-groups-list",
@@ -1453,7 +1412,7 @@ function SearchPageContent() {
   // check-in event names a group this view does not show. It has to sit BEFORE
   // the free-text term: the term may contain dashes ("Anna-Lena"), so no
   // segment after it can be located positionally. See lib/swr/search-students-key.
-  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${debouncedSearchTerm}-${encodeMultiValueParam(selectedSchoolClasses)}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${encodeMultiValueParam(selectedYears)}-${pickupStatusFilter}`;
+  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${searchTerm}-${encodeMultiValueParam(selectedSchoolClasses)}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${encodeMultiValueParam(selectedYears)}-${pickupStatusFilter}`;
 
   // Any change to the result query — the server-side cache key or one of the
   // client-only filters — replaces the visual context a selection was made
@@ -1495,7 +1454,7 @@ function SearchPageContent() {
     studentsCacheKey,
     async () => {
       const filters = {
-        search: debouncedSearchTerm,
+        search: searchTerm,
         groupId: selectedGroupIds,
         schoolClass: selectedSchoolClasses,
         // The school year is filtered server-side (#2218) so the reported
@@ -1730,6 +1689,7 @@ function SearchPageContent() {
 
   const clearAllFilters = useCallback(() => {
     setSearchTerm("");
+    setSearchResetKey((key) => key + 1);
     setSelectedGroupIds([]);
     setSelectedSchoolClasses([]);
     setSelectedYears([]);
@@ -2824,6 +2784,8 @@ function SearchPageContent() {
           value: searchTerm,
           onChange: setSearchTerm,
           placeholder: "Name suchen…",
+          debounceMs: 300,
+          resetKey: searchResetKey,
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}

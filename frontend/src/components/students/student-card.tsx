@@ -33,6 +33,7 @@ import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { useRowClock } from "~/components/students/student-card-clock";
 
 interface StudentCardProps {
   /** Unique student ID */
@@ -479,8 +480,11 @@ export function PickupTimeRow({
   actualTime?: string;
   isException: boolean;
   notes?: string;
-  now: Date;
+  /** Omit inside a `StudentCardClockProvider` — see `useRowClock` (#2975). */
+  now?: Date;
 }>) {
+  const rowNow = useRowClock(now);
+
   if (isException && !pickupTime && !actualTime) {
     return (
       <StudentInfoRow icon={<AbsenceIcon />}>
@@ -496,7 +500,7 @@ export function PickupTimeRow({
       actualTime={actualTime}
       isException={isException}
       notes={notes}
-      now={now}
+      now={rowNow}
       kind="pickup"
     />
   );
@@ -585,10 +589,13 @@ export function ArrivalTimeRow({
   isException: boolean;
   isAbsent: boolean;
   notes?: string;
-  now: Date;
+  /** Omit inside a `StudentCardClockProvider` — see `useRowClock` (#2975). */
+  now?: Date;
   /** See StudentAbsenceRow — date-neutral phrase for non-today views (#1939). */
   absentWording?: string;
 }>) {
+  const rowNow = useRowClock(now);
+
   if (isAbsent) {
     return (
       <StudentInfoRow icon={<AbsenceIcon />}>
@@ -612,7 +619,7 @@ export function ArrivalTimeRow({
       actualTime={actualTime}
       isException={isException}
       notes={notes}
-      now={now}
+      now={rowNow}
       kind="arrival"
     />
   );
