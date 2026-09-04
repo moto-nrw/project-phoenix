@@ -23,7 +23,7 @@ scripts/backend-architecture.sh dependencies \
 scripts/backend-architecture.sh dependencies \
   --focus package:services/mealplan
 scripts/backend-architecture.sh validate-ticket \
-  --ticket backend/architecture/migration-ticket-template.json
+  --ticket backend/architecture/checkpoint-ticket-template.json
 ```
 
 `check` loads packages with `GOOS=linux`, `GOARCH=amd64`, and `CGO_ENABLED=0`.
