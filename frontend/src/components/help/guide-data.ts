@@ -1753,7 +1753,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Kein zweiter Kinder-Datensatz",
-          body: "Ein Klassenlisteneintrag ist bewusst kein Kind-Datensatz: Er kann nicht eingecheckt, nicht verplant und nicht mit Sorgeberechtigten verknüpft werden. Braucht das Kind Betreuung, legen Sie es regulär unter `Kinder` an.",
+          body: "Ein Klassenlisteneintrag ist bewusst kein Kind-Datensatz: Er kann nicht eingecheckt, nicht verplant und nicht mit Sorgeberechtigten verknüpft werden. Braucht das Kind Betreuung, legen Sie es regulär unter `Kinderdaten` an.",
           tone: "blue",
         },
         screenshot:
