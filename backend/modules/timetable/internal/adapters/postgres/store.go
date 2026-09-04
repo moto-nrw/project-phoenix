@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/enrollmentprovenance"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	enrollmentprovenance "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"

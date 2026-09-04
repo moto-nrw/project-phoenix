@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
@@ -12,7 +13,6 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/modules/timetable/compose/repositoryadapter"
 	"github.com/uptrace/bun"
 )
 

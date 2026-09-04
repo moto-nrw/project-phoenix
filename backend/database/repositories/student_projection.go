@@ -5,13 +5,13 @@ import (
 	"errors"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/modules/timetable/compose/repositoryadapter"
 )
 
 // bindStudentDirectories hands the People Directory to every legacy

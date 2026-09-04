@@ -457,6 +457,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "api/activities",
+      "owner": "inbound-activities",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "api/admin",
       "owner": "inbound-admin",
       "role": "http",
@@ -984,6 +991,13 @@
     {
       "path": "database/repositories/platform",
       "owner": "organization-tenancy",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/activities",
+      "owner": "timetable-activities",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1829,27 +1843,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/timetable/compose/httpadapter",
-      "owner": "timetable-activities",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/timetable/compose/legacy",
-      "owner": "timetable-activities",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/timetable/compose/repositoryadapter",
-      "owner": "timetable-activities",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/timetableprojection",
       "owner": "timetable-legacy-view",
       "role": "postgres",
@@ -1857,7 +1850,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/timetable/internal/adapters/enrollmentprovenance",
+      "path": "modules/timetableenrollmentprovenance",
       "owner": "timetable-enrollment-provenance",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -3144,7 +3137,7 @@
     },
     {
       "id": "timetable-enrollment-provenance",
-      "package": "modules/timetable/internal/adapters/enrollmentprovenance",
+      "package": "modules/timetableenrollmentprovenance",
       "data_objects": [
         "activities.student_enrollments",
         "enrollment.phases",
@@ -6625,42 +6618,6 @@
       "target_role": "domain"
     },
     {
-      "id": "timetable-activities.postgres.transaction-postgres",
-      "description": "Timetable compatibility persistence reuses the tenant-aware repository base.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "postgres",
-      "target_owner": "transaction-runtime",
-      "target_role": "postgres"
-    },
-    {
-      "id": "timetable-activities.postgres.transaction-domain",
-      "description": "Timetable compatibility persistence preserves database error contracts.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "postgres",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.postgres.legacy-shared-domain",
-      "description": "Timetable compatibility persistence maps calendar values.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "postgres",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.postgres.people-domain",
-      "description": "Timetable compatibility persistence maps retained people rows.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "postgres",
-      "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
       "id": "timetable-activities.compatibility-application.compose",
       "description": "The retained activities service name delegates to owner composition.",
       "scopes": ["production"],
@@ -6705,59 +6662,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "timetable-activities.domain.legacy-shared",
-      "description": "Retained timetable ORM rows use established calendar value objects.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "domain",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.domain.transaction-domain",
-      "description": "Retained timetable ORM rows embed the common persistence identity fields.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "domain",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.domain.people-domain",
-      "description": "Retained timetable ORM relations expose established people rows.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "domain",
-      "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.domain.school-structure",
-      "description": "Template target validation uses the canonical school-class normalizer.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "domain",
-      "target_owner": "school-structure",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.domain.self",
-      "description": "Retained activity and schedule ORM rows reference each other within one owner.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "domain",
-      "target_owner": "timetable-activities",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.domain.orm-sql",
-      "description": "Retained database read DTOs use nullable SQL scalar wrappers.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "domain",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "timetable-activities.integration-test.domain",
       "description": "Timetable integration tests create retained owner rows.",
       "scopes": ["internal_test"],
@@ -6785,49 +6689,6 @@
       "target_role": "domain"
     },
     {
-      "id": "timetable-activities.module-test.legacy-shared",
-      "description": "Timetable model tests exercise calendar values.",
-      "scopes": ["internal_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-internal-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.module-test.transaction-domain",
-      "description": "Timetable model tests assert common entity contracts.",
-      "scopes": ["internal_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-internal-test",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.behavior-test.http-router",
-      "description": "Timetable HTTP behavior tests exercise the real router.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_class": "http-router"
-    },
-    {
-      "id": "timetable-activities.behavior-test.orm-sql",
-      "description": "Timetable behavior tests use the hermetic Bun database.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "timetable-activities.behavior-test.domain",
-      "description": "Timetable behavior tests create retained owner rows.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "timetable-activities",
-      "target_role": "domain"
-    },
-    {
       "id": "timetable-activities.behavior-test.compose",
       "description": "Timetable behavior tests exercise composition adapters.",
       "scopes": ["external_test"],
@@ -6835,114 +6696,6 @@
       "source_role": "module-behavior-test",
       "target_owner": "timetable-activities",
       "target_role": "compose"
-    },
-    {
-      "id": "timetable-activities.behavior-test.application",
-      "description": "Timetable behavior tests verify retained application contracts.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
-    },
-    {
-      "id": "timetable-activities.behavior-test.postgres",
-      "description": "Timetable behavior tests exercise the compatibility Postgres adapter.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "timetable-activities",
-      "target_role": "postgres"
-    },
-    {
-      "id": "timetable-activities.behavior-test.legacy-composition",
-      "description": "Timetable compatibility tests construct the production legacy graph.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
-    },
-    {
-      "id": "timetable-activities.behavior-test.legacy-shared",
-      "description": "Timetable behavior tests exercise calendar values.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.behavior-test.presence-domain",
-      "description": "Timetable behavior tests create active occupancy rows.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.behavior-test.transaction-domain",
-      "description": "Timetable behavior tests assert database errors.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.behavior-test.people-domain",
-      "description": "Timetable behavior tests create people rows.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.behavior-test.tenant-runtime",
-      "description": "Timetable behavior tests verify tenant isolation.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "timetable-activities.behavior-test.inbound-common",
-      "description": "Timetable HTTP behavior tests assert shared error rendering.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "timetable-activities.behavior-test.security-contract",
-      "description": "Timetable HTTP behavior tests mint permission claims.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "timetable-activities.behavior-test.identity-adapter",
-      "description": "Timetable HTTP behavior tests mint authenticated requests.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "identity-access",
-      "target_role": "adapter"
-    },
-    {
-      "id": "timetable-activities.behavior-test.identity-domain",
-      "description": "Timetable HTTP behavior tests create identity rows.",
-      "scopes": ["external_test"],
-      "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
     },
     {
       "id": "root-composition.to.timetable-activities-compose",
@@ -6979,15 +6732,6 @@
       "source_role": "compose",
       "target_owner": "timetable-activities",
       "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.to.timetable-activities-postgres",
-      "description": "The repository compatibility factory constructs retained Timetable persistence adapters.",
-      "scopes": ["production"],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "postgres"
     },
     {
       "id": "timetable-activities.postgres.enrollment-provenance",
@@ -7051,42 +6795,6 @@
       "source_role": "postgres",
       "target_owner": "enrollment",
       "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.postgres.tenant-runtime",
-      "description": "Retained Timetable repositories resolve their explicit tenant filter.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "postgres",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "enrollment.behavior-test.timetable-postgres",
-      "description": "Enrollment behavior tests construct the retained Timetable repository adapter.",
-      "scopes": ["external_test"],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "timetable-activities",
-      "target_role": "postgres"
-    },
-    {
-      "id": "inbound-timetable.adapter-test.timetable-postgres",
-      "description": "Timetable adapter tests construct retained owner repositories.",
-      "scopes": ["internal_test"],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter-test",
-      "target_owner": "timetable-activities",
-      "target_role": "postgres"
-    },
-    {
-      "id": "test-support.e2e-test.timetable-postgres",
-      "description": "Isolation tests enumerate the retained Timetable repositories.",
-      "scopes": ["internal_test"],
-      "source_owner": "test-support",
-      "source_role": "e2e-test",
-      "target_owner": "timetable-activities",
-      "target_role": "postgres"
     },
     {
       "id": "facilities.port-domain",

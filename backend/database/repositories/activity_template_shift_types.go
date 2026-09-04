@@ -3,8 +3,8 @@ package repositories
 import (
 	"context"
 
+	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/modules/timetable/compose/repositoryadapter"
 )
 
 type activityTemplateShiftTypeDirectory struct {

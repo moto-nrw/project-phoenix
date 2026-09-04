@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
+	activities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
@@ -32,7 +33,6 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	activities "github.com/moto-nrw/project-phoenix/modules/timetable/compose/repositoryadapter"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"

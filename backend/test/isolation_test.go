@@ -17,6 +17,7 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	repoActivities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
@@ -25,7 +26,6 @@ import (
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
-	repoActivities "github.com/moto-nrw/project-phoenix/modules/timetable/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

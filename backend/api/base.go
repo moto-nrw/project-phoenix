@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
+	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
@@ -36,7 +37,6 @@ import (
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
-	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
