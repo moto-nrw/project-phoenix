@@ -6179,7 +6179,7 @@
       "declaration": "newArrivalExceptionRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        26
       ],
       "tables": []
     },
@@ -6189,7 +6189,7 @@
       "declaration": "newArrivalNoteRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        30
       ],
       "tables": []
     },
@@ -6199,7 +6199,7 @@
       "declaration": "newArrivalScheduleRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        21
+        22
       ],
       "tables": []
     },
@@ -6631,7 +6631,7 @@
       "declaration": "newPickupExceptionRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        26
       ],
       "tables": []
     },
@@ -6641,7 +6641,7 @@
       "declaration": "newPickupNoteRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        30
       ],
       "tables": []
     },
@@ -6651,7 +6651,7 @@
       "declaration": "newPickupScheduleRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        21
+        22
       ],
       "tables": []
     },
