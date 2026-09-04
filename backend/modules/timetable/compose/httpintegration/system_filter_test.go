@@ -2,7 +2,7 @@
 // (issue #923): auto-provisioned system activities and categories
 // (Schulhof Freispiel, WC) are hidden from staff-facing lists by default
 // and only returned with ?include_system=true.
-package activities_test
+package httpintegration_test
 
 import (
 	"context"

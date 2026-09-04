@@ -20,6 +20,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -38,7 +39,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 	db := testpkg.SetupTestDB(t)
 	// Child names come from the People Directory composition (#2661); bind
 	// it before the school projections, as the service graph does.
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	organizationTenancy, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)

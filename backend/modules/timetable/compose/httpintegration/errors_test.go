@@ -1,12 +1,12 @@
-package activities_test
+package httpintegration_test
 
 import (
 	"errors"
 	"net/http"
 	"testing"
 
-	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/stretchr/testify/assert"
 )

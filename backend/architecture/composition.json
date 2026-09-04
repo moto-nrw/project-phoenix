@@ -89,7 +89,7 @@
       "declaration": "NewFactoryWithPeopleDirectory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        26
+        20
       ],
       "tables": []
     },
@@ -99,7 +99,7 @@
       "declaration": "NewStudentScheduleRepositories",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        43
       ],
       "tables": []
     },
@@ -130,26 +130,6 @@
       "target": "api/testutil.SetupAPITest",
       "lines": [
         223
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/activities/activities_test.go",
-      "declaration": "setupActivitiesRoute",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        47
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/activities/caregiver_supervisors_internal_test.go",
-      "declaration": "setupActivitiesInternalRoute",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        18
       ],
       "tables": []
     },
@@ -2430,7 +2410,7 @@
       "declaration": "TestVisitRepository_CountActiveByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1180
+        1181
       ],
       "tables": []
     },
@@ -2440,7 +2420,7 @@
       "declaration": "TestVisitRepository_CountActiveByRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1110
+        1111
       ],
       "tables": []
     },
@@ -2450,7 +2430,7 @@
       "declaration": "TestVisitRepository_CountExpiredVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        971
+        972
       ],
       "tables": [
         "active.visits",
@@ -2463,7 +2443,7 @@
       "declaration": "TestVisitRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        71
+        72
       ],
       "tables": []
     },
@@ -2473,7 +2453,7 @@
       "declaration": "TestVisitRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        180
+        181
       ],
       "tables": []
     },
@@ -2483,7 +2463,7 @@
       "declaration": "TestVisitRepository_DeleteExpiredVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        694
+        695
       ],
       "tables": [
         "active.visits"
@@ -2495,7 +2475,7 @@
       "declaration": "TestVisitRepository_EndVisit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        662
+        663
       ],
       "tables": []
     },
@@ -2505,8 +2485,8 @@
       "declaration": "TestVisitRepository_EndVisitsByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1242,
-        1243
+        1243,
+        1244
       ],
       "tables": []
     },
@@ -2516,7 +2496,7 @@
       "declaration": "TestVisitRepository_ExpiredVisitMonthlyCounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1580
+        1581
       ],
       "tables": []
     },
@@ -2526,7 +2506,7 @@
       "declaration": "TestVisitRepository_FindActiveByStudentID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        275
+        276
       ],
       "tables": []
     },
@@ -2536,7 +2516,7 @@
       "declaration": "TestVisitRepository_FindActiveVisits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        236
+        237
       ],
       "tables": []
     },
@@ -2546,7 +2526,7 @@
       "declaration": "TestVisitRepository_FindByActiveGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        314
+        315
       ],
       "tables": []
     },
@@ -2556,7 +2536,7 @@
       "declaration": "TestVisitRepository_FindByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        349
+        350
       ],
       "tables": []
     },
@@ -2566,7 +2546,7 @@
       "declaration": "TestVisitRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        119
+        120
       ],
       "tables": []
     },
@@ -2576,7 +2556,7 @@
       "declaration": "TestVisitRepository_FindByTimeRange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        394
+        395
       ],
       "tables": []
     },
@@ -2586,7 +2566,7 @@
       "declaration": "TestVisitRepository_GetCurrentByStudentID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        435
+        436
       ],
       "tables": []
     },
@@ -2596,7 +2576,7 @@
       "declaration": "TestVisitRepository_GetCurrentByStudentIDWithRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1020
+        1021
       ],
       "tables": [
         "active.groups"
@@ -2608,7 +2588,7 @@
       "declaration": "TestVisitRepository_GetCurrentRoomNamesForStudents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        542
+        543
       ],
       "tables": [
         "active.groups"
@@ -2620,7 +2600,7 @@
       "declaration": "TestVisitRepository_GetTodayVisitNamesForStudents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        508
+        509
       ],
       "tables": []
     },
@@ -2630,7 +2610,7 @@
       "declaration": "TestVisitRepository_GetVisitRetentionStats",
       "target": "database/repositories.NewFactory",
       "lines": [
-        921
+        922
       ],
       "tables": [
         "active.visits",
@@ -2643,7 +2623,7 @@
       "declaration": "TestVisitRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        211
+        212
       ],
       "tables": []
     },
@@ -2653,9 +2633,9 @@
       "declaration": "TestVisitRepository_ListActiveStudentIDsByRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1373,
-        1426,
-        1482
+        1374,
+        1427,
+        1483
       ],
       "tables": []
     },
@@ -2665,7 +2645,7 @@
       "declaration": "TestVisitRepository_OldestExpiredVisitDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1538
+        1539
       ],
       "tables": []
     },
@@ -2675,8 +2655,8 @@
       "declaration": "TestVisitRepository_TransferActiveVisitsBetweenGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        860,
-        861
+        861,
+        862
       ],
       "tables": []
     },
@@ -2686,8 +2666,8 @@
       "declaration": "TestVisitRepository_TransferVisitsFromRecentSessions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        753,
-        754
+        754,
+        755
       ],
       "tables": [
         "active.groups"
@@ -2699,7 +2679,7 @@
       "declaration": "TestVisitRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        150
+        151
       ],
       "tables": []
     },
@@ -2709,7 +2689,7 @@
       "declaration": "TestVisitsRepository_GetCurrentByStudentIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        467
+        468
       ],
       "tables": []
     },
@@ -2719,7 +2699,7 @@
       "declaration": "TestVisitsRepository_GetCurrentByStudentIDs_Deduplication",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1342
+        1343
       ],
       "tables": []
     },
@@ -2729,7 +2709,7 @@
       "declaration": "createVisitTestData",
       "target": "database/repositories.NewFactory",
       "lines": [
-        40
+        41
       ],
       "tables": []
     },
@@ -3444,7 +3424,7 @@
       "declaration": "TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        603
+        604
       ],
       "tables": [
         "enrollment.request_children"
@@ -3456,7 +3436,7 @@
       "declaration": "TestStudentEnrollmentRepository_CapActiveByGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        559
+        560
       ],
       "tables": []
     },
@@ -3466,7 +3446,7 @@
       "declaration": "TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        715
+        716
       ],
       "tables": []
     },
@@ -3476,7 +3456,7 @@
       "declaration": "TestStudentEnrollmentRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        108
+        109
       ],
       "tables": []
     },
@@ -3486,7 +3466,7 @@
       "declaration": "TestStudentEnrollmentRepository_Create_WithNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        205
+        206
       ],
       "tables": []
     },
@@ -3496,7 +3476,7 @@
       "declaration": "TestStudentEnrollmentRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        333
+        334
       ],
       "tables": []
     },
@@ -3506,7 +3486,7 @@
       "declaration": "TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        666
+        667
       ],
       "tables": []
     },
@@ -3516,7 +3496,7 @@
       "declaration": "TestStudentEnrollmentRepository_Delete_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        776
+        777
       ],
       "tables": []
     },
@@ -3526,7 +3506,7 @@
       "declaration": "TestStudentEnrollmentRepository_FindActiveByStudentIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        432
+        433
       ],
       "tables": []
     },
@@ -3536,7 +3516,7 @@
       "declaration": "TestStudentEnrollmentRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        220
+        221
       ],
       "tables": []
     },
@@ -3546,7 +3526,7 @@
       "declaration": "TestStudentEnrollmentRepository_FindByStudentID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        393
+        394
       ],
       "tables": []
     },
@@ -3556,7 +3536,7 @@
       "declaration": "TestStudentEnrollmentRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        359
+        360
       ],
       "tables": []
     },
@@ -3566,7 +3546,7 @@
       "declaration": "TestStudentEnrollmentRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        246
+        247
       ],
       "tables": []
     },
@@ -3576,7 +3556,7 @@
       "declaration": "TestStudentEnrollmentRepository_Update_WithNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        318
+        319
       ],
       "tables": []
     },
@@ -3598,7 +3578,7 @@
       "declaration": "TestSupervisorPlannedRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        48
+        49
       ],
       "tables": []
     },
@@ -3608,7 +3588,7 @@
       "declaration": "TestSupervisorPlannedRepository_Create_WithNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        89
+        90
       ],
       "tables": []
     },
@@ -3618,7 +3598,7 @@
       "declaration": "TestSupervisorPlannedRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        169
+        170
       ],
       "tables": []
     },
@@ -3628,7 +3608,7 @@
       "declaration": "TestSupervisorPlannedRepository_DeleteByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        191
+        192
       ],
       "tables": []
     },
@@ -3638,7 +3618,7 @@
       "declaration": "TestSupervisorPlannedRepository_Delete_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        420
+        421
       ],
       "tables": []
     },
@@ -3648,7 +3628,7 @@
       "declaration": "TestSupervisorPlannedRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        104
+        105
       ],
       "tables": []
     },
@@ -3658,7 +3638,7 @@
       "declaration": "TestSupervisorPlannedRepository_FindByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        247
+        248
       ],
       "tables": []
     },
@@ -3668,7 +3648,7 @@
       "declaration": "TestSupervisorPlannedRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        225
+        226
       ],
       "tables": []
     },
@@ -3678,7 +3658,7 @@
       "declaration": "TestSupervisorPlannedRepository_SetPrimary",
       "target": "database/repositories.NewFactory",
       "lines": [
-        393
+        394
       ],
       "tables": []
     },
@@ -3688,7 +3668,7 @@
       "declaration": "TestSupervisorPlannedRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        130
+        131
       ],
       "tables": []
     },
@@ -3698,7 +3678,7 @@
       "declaration": "TestSupervisorPlannedRepository_Update_WithNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        154
+        155
       ],
       "tables": []
     },
@@ -9403,7 +9383,7 @@
       "declaration": "createActiveServiceWithCrossTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        20
+        21
       ],
       "tables": []
     },
@@ -10402,7 +10382,7 @@
       "declaration": "setupGradeTransitionServiceTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        32
+        33
       ],
       "tables": []
     },
@@ -10412,7 +10392,7 @@
       "declaration": "TestAdditionalSupervisionAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        225
       ],
       "tables": []
     },
@@ -10422,7 +10402,7 @@
       "declaration": "TestAdditionalSupervisionAuthorizationMatrix",
       "target": "database/repositories.NewFactory",
       "lines": [
-        140
+        141
       ],
       "tables": [
         "active.groups"
@@ -10434,7 +10414,7 @@
       "declaration": "TestAdditionalSupervisionRejectsConcurrentSessionEnd",
       "target": "database/repositories.NewFactory",
       "lines": [
-        310
+        311
       ],
       "tables": [
         "active.groups"
@@ -10446,7 +10426,7 @@
       "declaration": "TestAdditionalSupervisionSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        281
+        282
       ],
       "tables": []
     },
@@ -10456,7 +10436,7 @@
       "declaration": "TestAdditionalSupervisionTreatsFutureEndDateAsActive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        250
+        251
       ],
       "tables": [
         "active.group_supervisors"
@@ -10468,7 +10448,7 @@
       "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        533
       ],
       "tables": []
     },
@@ -10478,7 +10458,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        581
+        582
       ],
       "tables": []
     },
@@ -10488,7 +10468,7 @@
       "declaration": "TestGroupHandoverExternalInterface",
       "target": "database/repositories.NewFactory",
       "lines": [
-        369
+        370
       ],
       "tables": [
         "audit.substitution_changes"
@@ -10500,7 +10480,7 @@
       "declaration": "TestGroupHandoverPermissionsAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        432
+        433
       ],
       "tables": []
     },
@@ -10510,7 +10490,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        659
+        660
       ],
       "tables": []
     },
@@ -10520,7 +10500,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        619
+        620
       ],
       "tables": []
     },
@@ -14331,8 +14311,8 @@
       "declaration": "TestBookingAuthorityImpactAndActivationUseTheSameEvaluation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        159,
-        169
+        160,
+        170
       ],
       "tables": []
     },
@@ -14342,7 +14322,7 @@
       "declaration": "TestBookingMutationPlansFutureNaturalEndImmediately",
       "target": "database/repositories.NewFactory",
       "lines": [
-        469
+        470
       ],
       "tables": []
     },
@@ -14352,7 +14332,7 @@
       "declaration": "TestBookingParticipationBoundaryKeepsActualPresenceVisible",
       "target": "database/repositories.NewFactory",
       "lines": [
-        260
+        261
       ],
       "tables": []
     },
@@ -14362,7 +14342,7 @@
       "declaration": "TestConcurrentBookingAuthorityActivationCreatesOneCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        555
+        556
       ],
       "tables": []
     },
@@ -14372,7 +14352,7 @@
       "declaration": "TestConfirmedWithdrawalCannotBypassBookingAuthority",
       "target": "database/repositories.NewFactory",
       "lines": [
-        491
+        492
       ],
       "tables": []
     },
@@ -14382,8 +14362,8 @@
       "declaration": "TestNaturalBookingEndSchedulerIsIdempotent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        338,
-        344
+        339,
+        345
       ],
       "tables": []
     },
@@ -14393,7 +14373,7 @@
       "declaration": "TestNaturalSchedulerPreservesConfirmedWithdrawalAudit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        365
+        366
       ],
       "tables": []
     },
@@ -14403,7 +14383,7 @@
       "declaration": "TestOverdueRebookingReplacesTheStaleCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        400
+        401
       ],
       "tables": []
     },
@@ -14413,7 +14393,7 @@
       "declaration": "assertFiniteRebookingHistory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        423
+        424
       ],
       "tables": [
         "enrollment.request_child_offerings",
@@ -14426,7 +14406,7 @@
       "declaration": "assertNonCareMutationKeepsConfirmedWithdrawal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        515
+        516
       ],
       "tables": []
     },

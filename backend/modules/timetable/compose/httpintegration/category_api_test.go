@@ -2,7 +2,7 @@
 //
 // Driven through Resource.Router() so the production middleware chain and the
 // activities:manage_categories permission gate are exercised, not bypassed.
-package activities_test
+package httpintegration_test
 
 import (
 	"fmt"

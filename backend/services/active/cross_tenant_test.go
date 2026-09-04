@@ -10,6 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -131,7 +132,7 @@ func TestCrossTenantRepository_Direct(t *testing.T) {
 
 	// Visitor names come from the People Directory composition (#2661), so
 	// the test drives the composed repository the service graph uses.
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	repo := factory.CrossTenant
 

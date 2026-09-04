@@ -1,4 +1,4 @@
-package activities
+package compose
 
 import (
 	"github.com/go-chi/render"

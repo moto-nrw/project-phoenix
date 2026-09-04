@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
 
@@ -12,20 +12,14 @@ import (
 // People Directory and Timetable capability already bound, so repository tests
 // read the same person-enriched rows and execute the same care-exit booking
 // writes as the service graph does.
-func NewFactoryWithPeopleDirectory(db *bun.DB, clocks ...func() time.Time) (*Factory, error) {
+func NewFactoryWithPeopleDirectory(db *bun.DB, timetableCapability timetable.Capability, clocks ...func() time.Time) (*Factory, error) {
 	persons, err := NewPeopleDirectory(db)
-	if err != nil {
-		return nil, err
-	}
-	timetable, err := timetableCompose.New(timetableCompose.Dependencies{
-		DB: db, Observe: func(timetableCompose.Observation) {},
-	})
 	if err != nil {
 		return nil, err
 	}
 	factory := NewFactory(db, clocks...)
 	factory.BindPeopleDirectory(persons)
-	factory.BindTimetable(timetable)
+	factory.BindTimetable(timetableCapability)
 	return factory, nil
 }
 

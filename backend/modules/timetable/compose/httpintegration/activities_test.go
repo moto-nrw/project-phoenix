@@ -1,10 +1,10 @@
-// Package activities_test tests the activities API handlers with hermetic test pattern.
+// Package httpintegration_test tests the activities HTTP handlers with hermetic test patterns.
 //
 // These tests verify HTTP request/response handling, status codes, and error responses.
 // They use real services with a test database (no mocks). Requests run through the
 // production middleware chain by mounting Resource.Router() (Verifier → Authenticator →
 // TenantMiddleware → TenantTxMiddleware) — the same code path the real server uses.
-package activities_test
+package httpintegration_test
 
 import (
 	"fmt"
@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -500,7 +500,7 @@ func TestGetAvailableSupervisors_Success(t *testing.T) {
 	t.Parallel()
 	ctx := setupActivitiesRoute(t)
 
-	_ = testpkg.CreateTestStaff(t, ctx.db, "Available", "Supervisor")
+	legacyTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Supervisor")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/supervisors/available", nil)
 
@@ -509,8 +509,45 @@ func TestGetAvailableSupervisors_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	_, ok := response["data"].([]interface{})
+	rows, ok := response["data"].([]interface{})
 	require.True(t, ok, "Expected data to be an array")
+	assert.Contains(t, supervisorIDs(t, rows), legacyTeacher.Staff.ID)
+}
+
+func TestGetAvailableSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
+	t.Parallel()
+	ctx := setupActivitiesRoute(t)
+	legacyTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Specialist")
+
+	_, err := ctx.db.NewUpdate().
+		Model(legacyTeacher).
+		ModelTableExpr(`users.teachers AS "teacher"`).
+		Set("specialization = ?", "Sport").
+		Where("id = ?", legacyTeacher.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/supervisors/available?specialization=Sport", nil)
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	rows, ok := response["data"].([]interface{})
+	require.True(t, ok, "Expected data to be an array")
+	assert.Contains(t, supervisorIDs(t, rows), legacyTeacher.Staff.ID)
+}
+
+func supervisorIDs(t *testing.T, rows []interface{}) []int64 {
+	t.Helper()
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		value, ok := row.(map[string]interface{})
+		require.True(t, ok)
+		staffID, ok := value["staff_id"].(float64)
+		require.True(t, ok)
+		ids = append(ids, int64(staffID))
+	}
+	return ids
 }
 
 // =============================================================================

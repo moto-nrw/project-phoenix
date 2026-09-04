@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -285,7 +286,7 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 
 	// Person relations come from the People Directory composition (#2661),
 	// so this test drives the composed repository the service graph uses.
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	repo := factory.ActivitySupervisor
 	ctx := testpkg.Ctx(t)
@@ -339,7 +340,7 @@ func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
 
 	// Person relations come from the People Directory composition (#2661),
 	// so this test drives the composed repository the service graph uses.
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	repo := factory.ActivitySupervisor
 	ctx := testpkg.Ctx(t)

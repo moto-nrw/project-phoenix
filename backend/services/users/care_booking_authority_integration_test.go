@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -24,7 +25,7 @@ import (
 func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userService.CareLifecycleService {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
@@ -40,7 +41,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userS
 func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLifecycleService {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
@@ -283,7 +284,7 @@ func TestDirectWithdrawalBoundaryDoesNotDependOnBookingAuthority(t *testing.T) {
 	studentID := student.ID
 	firstGap := timezone.TodayDate()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	require.NoError(t, repos.CareWithdrawal.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
@@ -592,7 +593,7 @@ func TestDisablingBookingAuthorityObsoletesOnlyOpenBookingCompletions(t *testing
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	today := timezone.TodayDate()
 

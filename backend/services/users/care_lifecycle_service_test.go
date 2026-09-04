@@ -52,7 +52,7 @@ func newCareLifecycleServiceWithLockAt(
 ) userService.CareLifecycleService {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	repos.BindTimetable(timetabletest.New(t, db))
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{

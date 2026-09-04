@@ -1,6 +1,6 @@
 // Package activities internal tests for pure helper functions.
 // These tests verify logic that doesn't require database access.
-package activities
+package compose
 
 import (
 	"testing"

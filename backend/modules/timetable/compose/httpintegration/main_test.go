@@ -1,4 +1,4 @@
-package activities_test
+package httpintegration_test
 
 import (
 	"testing"

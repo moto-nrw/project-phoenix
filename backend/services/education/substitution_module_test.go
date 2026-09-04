@@ -12,6 +12,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	substitution "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -50,7 +51,7 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	// Supervisor names come from the People Directory composition (#2661),
 	// so the module is built on the composed repositories the graph uses.
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 	now := fixedNow

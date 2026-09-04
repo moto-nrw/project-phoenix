@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -593,7 +594,7 @@ func TestVisitRepository_GetCurrentRoomNamesForStudents(t *testing.T) {
 // resolved the way the production graph resolves them.
 func newGroupProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
 	require.NoError(t, err)
 	groups, err := repositories.NewSchoolStructure(db)
 	require.NoError(t, err)
