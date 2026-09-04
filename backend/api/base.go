@@ -57,12 +57,12 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
 	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
-	messagingAPI "github.com/moto-nrw/project-phoenix/api/messaging"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
-	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
+	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
+	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -289,6 +289,18 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		repoFactory, db, logger,
 		organizations, persons, groups, rooms, membership, calendar, appointmentCapability,
 		communicationCapability,
+		func(observation communicationCompose.Observation) {
+			observability.ObserveCommunicationOperation(
+				observation.Operation,
+				observation.Duration,
+				int64(observation.Stats.Queries),
+				observation.Stats.Rows,
+				int64(observation.Stats.DuplicatePreventionConflicts),
+				observation.Stats.StatementDuration,
+				communicationModule.ErrorCode(observation.Err),
+				observation.Err,
+			)
+		},
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,

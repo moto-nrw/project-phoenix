@@ -25,9 +25,9 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -487,6 +487,25 @@ func TestListInbox_ShowsConversationWithUnread(t *testing.T) {
 	onlyUnread, err = f.svc.ListInbox(ctx, true)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread, "a fully-read conversation leaves the onlyUnread filter")
+}
+
+func TestListInboxQueryBudgetStaysFlat(t *testing.T) {
+	t.Parallel()
+	svc, _, _, db := buildMessagingWithSettings(t, stubSettings{messagingEnabled: true})
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	ctx := adminCtx(t, staffAccount.ID)
+
+	for range 3 {
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		_, err := svc.StartThread(ctx, chain.StudentID, chain.AccountID, "Hallo")
+		require.NoError(t, err)
+	}
+
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	inbox, err := svc.ListInbox(counter.Context(ctx), false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 3)
+	testpkg.AssertQueryBudget(t, "modules.communication.parent_messages.list_inbox", counter.Queries())
 }
 
 // TestListGuardians_ReturnsAccountHoldingGuardian: the staff recipient picker

@@ -63,7 +63,6 @@ import (
 	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -72,7 +71,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
-	"github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	"github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -271,10 +269,10 @@ type Factory struct {
 	Parent parent.Service
 
 	// Messaging (staff-side parent-OGS inbox / threads)
-	Messaging *messaging.Service
+	Messaging communication.ParentMessagingCapability
 
 	// StaffMessaging (OGS-internal colleague chat, #2598)
-	StaffMessaging *staffmessaging.Service
+	StaffMessaging communication.StaffMessagingRuntime
 	// StaffNotice (Tagesinformationen: interne Hinweise der Leitung, #2180)
 	StaffNotice schedule.StaffNoticeService
 
@@ -437,6 +435,7 @@ func NewFactoryWithModules(
 	calendar schoolcalendar.Capability,
 	appointmentCapability appointments.Capability,
 	communicationCapability communication.Capability,
+	observeCommunication func(communicationCompose.Observation),
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -446,11 +445,12 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || appointmentCapability == nil || communicationCapability == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
 		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, appointments, communication, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
+	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, communicationCapability, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -465,6 +465,7 @@ func newFactory(
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
 	communicationCapability communication.Capability,
+	observeCommunication func(communicationCompose.Observation),
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -1698,7 +1699,7 @@ func newFactory(
 	)
 	emailTemplateRegistry.Register(
 		platformModels.EmailKindParentMessage,
-		platform.RendererFunc(messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
+		platform.RendererFunc(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
 	)
 	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
 	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
@@ -2567,7 +2568,7 @@ func newFactory(
 	// emitter, which is where all three request flows already converge (#1671).
 	pillEmitter.WithDecisionNotifications(notificationsService, notificationPreferencesService)
 
-	messagingService := messaging.NewService(messaging.Config{
+	messagingService := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
 		ReadRepo:    repos.ParentMessageRead,
@@ -2586,12 +2587,13 @@ func newFactory(
 		Schools:          repos.School,
 		LoginImages:      settingsService,
 		ParentsURL:       parentsURL,
+		Observe:          observeCommunication,
 	})
 
 	// OGS-internal colleague chat (#2598). Shares the transport with the
 	// parent-OGS messenger (SSE hub + push) but none of its authorization:
 	// access here is thread membership, nothing else.
-	staffMessagingService := staffmessaging.NewService(staffmessaging.Config{
+	staffMessagingService := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  repos.StaffMessageThread,
 		MessageRepo: repos.StaffMessage,
 		ReadRepo:    repos.StaffMessageRead,
@@ -2602,6 +2604,7 @@ func newFactory(
 		Logger:      logger.With("service", "staffmessaging"),
 		Notifier:    notificationsService,
 		Preferences: notificationPreferencesService,
+		Observe:     observeCommunication,
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{

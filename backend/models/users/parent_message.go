@@ -116,7 +116,7 @@ func atOrBeforeCursor(msg *ParentMessage, cutoff *ReadCursor) bool {
 // staff read cursor with ReadByStaff=true (the "OGS hat gelesen" indicator).
 // cutoff is the furthest staff read cursor in the thread (nil = staff has not
 // read anything yet, so nothing is stamped). Pure presentation logic shared by
-// the parent side (services/parent) and the staff side (services/messaging) so
+// the parent side (services/parent) and the staff-side Communication adapter so
 // the receipt rule cannot drift between the two views of the same thread.
 func StampStaffReadReceipts(messages []*ParentMessage, cutoff *ReadCursor) {
 	if cutoff == nil {

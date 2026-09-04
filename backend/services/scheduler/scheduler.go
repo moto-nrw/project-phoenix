@@ -19,13 +19,13 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	staffMessagingSvc "github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -159,7 +159,7 @@ type Scheduler struct {
 	timeTrackingCleanup        active.TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
 	pwaUsageCleanup            pwaSvc.UsageService
-	staffMessageCleanup        staffMessagingSvc.CleanupService
+	staffMessageCleanup        communication.StaffMessageCleanup
 	bookingConsistency         auditModel.BookingConsistencyRepository
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
 	autoStart                  scheduleSvc.AutoStartService
@@ -2534,7 +2534,7 @@ func (s *Scheduler) checkAndRunStaffMessageCleanup(ctx context.Context, task *Sc
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		result, err := s.staffMessageCleanup.CleanupExpiredMessages(cleanupCtx)
+		result, err := s.staffMessageCleanup.CleanupExpiredStaffMessages(cleanupCtx)
 		if err != nil {
 			s.getLogger().Error("staff message cleanup failed for tenant",
 				slog.Int64("tenant_id", tenantID),

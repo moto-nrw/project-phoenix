@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/classday"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/school"
-	"github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -35,6 +34,17 @@ import (
 )
 
 const testPassword = "Test1234%" //nolint:gosec // test credential
+
+type responseEnvelope[T any] struct {
+	Data T `json:"data"`
+}
+
+func decodeData[T any](t *testing.T, body []byte) T {
+	t.Helper()
+	var envelope responseEnvelope[T]
+	require.NoError(t, json.Unmarshal(body, &envelope), string(body))
+	return envelope.Data
+}
 
 // setupSchoolRoute wires the school route and hands out a school nobody else in
 // the suite shares.
@@ -50,7 +60,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 	})
 	resource := school.NewResource(
 		services.Auth, services.MFA, classDayResource, timetableResource,
-		staffmessaging.NewResource(services.StaffMessaging, db),
+		emptySchoolMessagingRouter{},
 		notifications.NewResource(services.Notifications, services.PushSubscriptions, services.NotificationPreferences, db),
 	)
 
@@ -58,6 +68,10 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 
 	return db, resource, tenantID, subdomain
 }
+
+type emptySchoolMessagingRouter struct{}
+
+func (emptySchoolMessagingRouter) SchoolRouter() chi.Router { return chi.NewRouter() }
 
 // newSchoolRouter builds the school portal router, optionally with a stubbed
 // MFA service (pass nil for the real one from the resource).
@@ -130,7 +144,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	})
 
 	classDayResource := classday.NewResource(resource.ClassDay.ReportService, resource.ClassDay.UserContextService, db, nil)
-	schoolRouter := school.NewResource(resource.AuthService, resource.MFAService, classDayResource, newSchoolTimetableResource(db, resource), staffmessaging.NewResource(resource.StaffMessaging.Service, db), nil).Router()
+	schoolRouter := school.NewResource(resource.AuthService, resource.MFAService, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil).Router()
 
 	schoolClaims := jwt.AppClaims{
 		ID: int(account.ID), Sub: account.Email,

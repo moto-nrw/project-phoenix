@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/messaging"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
