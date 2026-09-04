@@ -14,6 +14,7 @@ type SeedState struct {
 	Version     string                `json:"version"`
 	CreatedAt   time.Time             `json:"created_at"`
 	BaseURL     string                `json:"base_url"`
+	Bootstrap   SeedStateBootstrap    `json:"bootstrap"`
 	DevicePIN   string                `json:"device_pin"`
 	Accounts    SeedStateAccounts     `json:"accounts"`
 	Devices     map[string]SeedDevice `json:"devices"`
@@ -34,6 +35,10 @@ type SeedState struct {
 		Activities map[string]int64 `json:"activities"`
 		Groups     map[string]int64 `json:"groups"`
 	} `json:"lookups"`
+}
+
+type SeedStateBootstrap struct {
+	TenantSlug string `json:"tenant_slug"`
 }
 
 type SeedStateAccounts struct {

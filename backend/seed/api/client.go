@@ -12,11 +12,14 @@ import (
 
 // Client handles HTTP communication with the backend API
 type Client struct {
-	baseURL string
-	adapter Adapter
-	auth    AuthRef
-	token   string
-	verbose bool
+	baseURL    string
+	adapter    Adapter
+	auth       AuthRef
+	token      string
+	verbose    bool
+	lastMethod string
+	lastPath   string
+	lastStatus int
 }
 
 // NewClientWithAdapter creates a client that reuses a shared adapter.
@@ -211,6 +214,7 @@ func (c *Client) authRef() AuthRef {
 
 func (c *Client) doRequestWithExplicitAuth(method, path string, body any, authRef AuthRef, headers map[string]string) ([]byte, error) {
 	respBody, statusCode, err := c.adapter.Raw(context.Background(), authRef, method, path, body, headers)
+	c.lastMethod, c.lastPath, c.lastStatus = method, path, statusCode
 	if err != nil {
 		return nil, err
 	}

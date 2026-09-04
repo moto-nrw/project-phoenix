@@ -28,6 +28,7 @@ type APIError struct {
 	Method     string
 	Path       string
 	StatusCode int
+	Code       string
 	Message    string
 	Body       string
 }
@@ -37,6 +38,9 @@ func (e *APIError) Error() string {
 		return ""
 	}
 	if e.Message != "" {
+		if e.Code != "" {
+			return fmt.Sprintf("%s %s failed: %d (%s) - %s", e.Method, e.Path, e.StatusCode, e.Code, e.Message)
+		}
 		return fmt.Sprintf("%s %s failed: %d - %s", e.Method, e.Path, e.StatusCode, e.Message)
 	}
 	if e.Body != "" {
@@ -45,7 +49,8 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("%s %s failed: %d", e.Method, e.Path, e.StatusCode)
 }
 
-func (e *APIError) HTTPStatusCode() int { return e.StatusCode }
+func (e *APIError) HTTPStatusCode() int   { return e.StatusCode }
+func (e *APIError) HTTPErrorCode() string { return e.Code }
 
 type Adapter interface {
 	BaseURL() string
