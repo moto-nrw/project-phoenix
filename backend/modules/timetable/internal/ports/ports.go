@@ -72,6 +72,11 @@ type Store interface {
 	SetPlanningTrackArchivedAt(context.Context, int64, *time.Time) (domain.PlanningTrack, bool, domain.OperationStats, error)
 	ReorderPlanningTracks(context.Context, []int64) (domain.OperationStats, error)
 	RestorePlanningTrackAtEnd(context.Context, int64) (domain.PlanningTrack, bool, domain.OperationStats, error)
+	FindRecurrenceRule(context.Context, int64) (domain.RecurrenceRule, bool, domain.OperationStats, error)
+	ListRecurrenceRules(context.Context, domain.RecurrenceRuleFilter) ([]domain.RecurrenceRule, domain.OperationStats, error)
+	CreateRecurrenceRule(context.Context, domain.RecurrenceRuleFields) (domain.RecurrenceRule, domain.OperationStats, error)
+	UpdateRecurrenceRule(context.Context, int64, domain.RecurrenceRuleFields) (domain.RecurrenceRule, bool, domain.OperationStats, error)
+	DeleteRecurrenceRule(context.Context, int64) (domain.OperationStats, error)
 }
 
 type Transaction interface {

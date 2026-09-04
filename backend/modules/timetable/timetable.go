@@ -50,6 +50,9 @@ var (
 	ErrInvalidPlanningTrack          = errors.New("invalid planning track")
 	ErrInvalidPlanningTrackQuery     = errors.New("invalid planning track query")
 	ErrPlanningTrackNameExists       = errors.New("planning track name already exists")
+	ErrRecurrenceRuleNotFound        = errors.New("recurrence rule not found")
+	ErrInvalidRecurrenceRule         = errors.New("invalid recurrence rule")
+	ErrInvalidRecurrenceRuleQuery    = errors.New("invalid recurrence rule query")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -152,6 +155,7 @@ type Query interface {
 	StudentEnrollmentQuery
 	TimeframeQuery
 	PlanningTrackQuery
+	RecurrenceRuleQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
@@ -171,6 +175,7 @@ type Command interface {
 	StudentEnrollmentCommand
 	TimeframeCommand
 	PlanningTrackCommand
+	RecurrenceRuleCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -594,6 +599,48 @@ func (m *Module) RestorePlanningTrackAtEnd(ctx context.Context, id int64) (Plann
 	return m.engine.RestorePlanningTrackAtEnd(ctx, id)
 }
 
+func (m *Module) FindRecurrenceRule(ctx context.Context, id int64) (RecurrenceRule, error) {
+	if id <= 0 {
+		return RecurrenceRule{}, m.reject("find_recurrence_rule", ErrInvalidRecurrenceRuleQuery)
+	}
+	return m.engine.FindRecurrenceRule(ctx, id)
+}
+
+func (m *Module) ListRecurrenceRules(ctx context.Context, filter RecurrenceRuleFilter) ([]RecurrenceRule, error) {
+	if filter.Limit < 0 || filter.Offset < 0 || !validRecurrenceRuleSort(filter.SortBy) {
+		return nil, m.reject("list_recurrence_rules", ErrInvalidRecurrenceRuleQuery)
+	}
+	return m.engine.ListRecurrenceRules(ctx, filter)
+}
+
+func validRecurrenceRuleSort(value string) bool {
+	return value == "" || value == "id" || value == "frequency" || value == "interval_count" ||
+		value == "end_date" || value == "count" || value == "created_at" || value == "updated_at"
+}
+
+func (m *Module) CreateRecurrenceRule(ctx context.Context, input RecurrenceRuleInput) (RecurrenceRule, error) {
+	input, ok := normalizeRecurrenceRule(input)
+	if !ok {
+		return RecurrenceRule{}, m.reject("create_recurrence_rule", ErrInvalidRecurrenceRule)
+	}
+	return m.engine.CreateRecurrenceRule(ctx, input)
+}
+
+func (m *Module) UpdateRecurrenceRule(ctx context.Context, id int64, input RecurrenceRuleInput) (RecurrenceRule, error) {
+	input, ok := normalizeRecurrenceRule(input)
+	if id <= 0 || !ok {
+		return RecurrenceRule{}, m.reject("update_recurrence_rule", ErrInvalidRecurrenceRule)
+	}
+	return m.engine.UpdateRecurrenceRule(ctx, id, input)
+}
+
+func (m *Module) DeleteRecurrenceRule(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_recurrence_rule", ErrInvalidRecurrenceRule)
+	}
+	return m.engine.DeleteRecurrenceRule(ctx, id)
+}
+
 func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {
 	normalized, err := normalizeGroupTargets(groupID, targets)
 	if err != nil {
@@ -835,6 +882,38 @@ func normalizePlanningTrack(input PlanningTrackInput) (PlanningTrackInput, bool)
 	input.Name = strings.TrimSpace(input.Name)
 	valid := input.Name != "" && len(input.Name) <= 100 && planningTrackColorPattern.MatchString(input.Color) && input.SortOrder >= 0
 	return input, valid
+}
+
+func normalizeRecurrenceRule(input RecurrenceRuleInput) (RecurrenceRuleInput, bool) {
+	input.Frequency = strings.ToLower(input.Frequency)
+	if !validRecurrenceFrequency(input.Frequency) || input.IntervalCount < 1 {
+		return input, false
+	}
+	for index, weekday := range input.Weekdays {
+		input.Weekdays[index] = strings.ToUpper(weekday)
+		if !validRecurrenceWeekday(input.Weekdays[index]) {
+			return input, false
+		}
+	}
+	for _, day := range input.MonthDays {
+		if day < 1 || day > 31 {
+			return input, false
+		}
+	}
+	return input, (input.Count == nil || *input.Count > 0) && (input.EndDate == nil || input.Count == nil)
+}
+
+func validRecurrenceFrequency(value string) bool {
+	return value == "daily" || value == "weekly" || value == "monthly" || value == "yearly"
+}
+
+func validRecurrenceWeekday(value string) bool {
+	switch value {
+	case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
+		return true
+	default:
+		return false
+	}
 }
 
 func hasDuplicateID(ids []int64) bool {

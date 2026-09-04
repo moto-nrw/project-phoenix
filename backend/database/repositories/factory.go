@@ -646,7 +646,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
 		// belong to School Calendar and are bound below.
 		Timeframe:                 nil, // bound to Timetable below
-		RecurrenceRule:            schedule.NewRecurrenceRuleRepository(db),
+		RecurrenceRule:            nil, // bound to Timetable below
 		StudentPickupSchedule:     nil, // bound to Care Plan below
 		StudentPickupException:    nil, // bound to Care Plan below
 		StudentPickupNote:         nil, // bound to Care Plan below

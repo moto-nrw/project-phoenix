@@ -99,4 +99,5 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 	f.StudentEnrollment = enrollments
 	f.Timeframe = timetableTimeframeRepository{timetable: capability}
 	f.PlanningTrack = timetablePlanningTrackRepository{timetable: capability}
+	f.RecurrenceRule = timetableRecurrenceRuleRepository{timetable: capability}
 }

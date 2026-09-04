@@ -6,10 +6,19 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+func recurrenceRuleRepository(t *testing.T, db *bun.DB) schedule.RecurrenceRuleRepository {
+	t.Helper()
+	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(t, db))
+	return factory.RecurrenceRule
+}
 
 // ============================================================================
 // CRUD Tests
@@ -20,7 +29,7 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RecurrenceRule
+	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates daily recurrence rule", func(t *testing.T) {
@@ -131,7 +140,7 @@ func TestRecurrenceRuleRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RecurrenceRule
+	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing recurrence rule", func(t *testing.T) {
@@ -161,7 +170,7 @@ func TestRecurrenceRuleRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RecurrenceRule
+	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates recurrence rule", func(t *testing.T) {
@@ -196,7 +205,7 @@ func TestRecurrenceRuleRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RecurrenceRule
+	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing recurrence rule", func(t *testing.T) {
@@ -224,7 +233,7 @@ func TestRecurrenceRuleRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RecurrenceRule
+	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all recurrence rules", func(t *testing.T) {
@@ -252,7 +261,7 @@ func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RecurrenceRule
+	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules by frequency", func(t *testing.T) {
@@ -325,7 +334,7 @@ func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RecurrenceRule
+	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules by weekday", func(t *testing.T) {
@@ -378,7 +387,7 @@ func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RecurrenceRule
+	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules with no end date", func(t *testing.T) {

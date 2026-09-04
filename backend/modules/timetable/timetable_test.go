@@ -21,6 +21,7 @@ type recordingEngine struct {
 	supervisor timetable.PlannedSupervisorInput
 	timeframe  timetable.TimeframeInput
 	track      timetable.PlanningTrackInput
+	recurrence timetable.RecurrenceRuleInput
 	calls      int
 	rejections []string
 }
@@ -303,6 +304,32 @@ func (e *recordingEngine) RestorePlanningTrackAtEnd(context.Context, int64) (tim
 	return timetable.PlanningTrack{}, true, nil
 }
 
+func (e *recordingEngine) FindRecurrenceRule(context.Context, int64) (timetable.RecurrenceRule, error) {
+	e.calls++
+	return timetable.RecurrenceRule{}, nil
+}
+
+func (e *recordingEngine) ListRecurrenceRules(context.Context, timetable.RecurrenceRuleFilter) ([]timetable.RecurrenceRule, error) {
+	e.calls++
+	return []timetable.RecurrenceRule{}, nil
+}
+
+func (e *recordingEngine) CreateRecurrenceRule(_ context.Context, input timetable.RecurrenceRuleInput) (timetable.RecurrenceRule, error) {
+	e.calls++
+	e.recurrence = input
+	return timetable.RecurrenceRule{Frequency: input.Frequency, Weekdays: input.Weekdays}, nil
+}
+
+func (e *recordingEngine) UpdateRecurrenceRule(context.Context, int64, timetable.RecurrenceRuleInput) (timetable.RecurrenceRule, error) {
+	e.calls++
+	return timetable.RecurrenceRule{}, nil
+}
+
+func (e *recordingEngine) DeleteRecurrenceRule(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
 	e.calls++
 	e.targets = targets
@@ -487,6 +514,28 @@ func TestModuleNormalizesAndValidatesPlanningTracks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Spur", created.Name)
 	assert.Equal(t, "Spur", engine.track.Name)
+}
+
+func TestModuleNormalizesAndValidatesRecurrenceRules(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+
+	_, err := module.CreateRecurrenceRule(ctx, timetable.RecurrenceRuleInput{Frequency: "never", IntervalCount: 1})
+	require.ErrorIs(t, err, timetable.ErrInvalidRecurrenceRule)
+	_, err = module.CreateRecurrenceRule(ctx, timetable.RecurrenceRuleInput{Frequency: "weekly", IntervalCount: 1, Weekdays: []string{"NOPE"}})
+	require.ErrorIs(t, err, timetable.ErrInvalidRecurrenceRule)
+	_, err = module.ListRecurrenceRules(ctx, timetable.RecurrenceRuleFilter{Limit: -1})
+	require.ErrorIs(t, err, timetable.ErrInvalidRecurrenceRuleQuery)
+	assert.Zero(t, engine.calls)
+
+	created, err := module.CreateRecurrenceRule(ctx, timetable.RecurrenceRuleInput{
+		Frequency: "WEEKLY", IntervalCount: 1, Weekdays: []string{"mon"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "weekly", created.Frequency)
+	assert.Equal(t, []string{"MON"}, engine.recurrence.Weekdays)
 }
 
 func ptr[T any](value T) *T { return &value }

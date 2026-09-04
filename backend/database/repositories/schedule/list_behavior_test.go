@@ -53,7 +53,7 @@ func TestRecurrenceRuleRepositoryListPreservesQueryOptionsBehavior(t *testing.T)
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).RecurrenceRule
+	repo := recurrenceRuleRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	daily := &schedule.RecurrenceRule{Frequency: schedule.FrequencyDaily, IntervalCount: 1}
@@ -75,7 +75,7 @@ func TestRecurrenceRuleRepositoryListPreservesQueryOptionsBehavior(t *testing.T)
 func TestRecurrenceRuleRepositoryListPreservesEmptySlice(t *testing.T) {
 	t.Parallel()
 
-	repo := repositories.NewFactory(testpkg.SetupTestDB(t)).RecurrenceRule
+	repo := recurrenceRuleRepository(t, testpkg.SetupTestDB(t))
 	options := modelBase.NewQueryOptions()
 	options.Filter.Equal("frequency", schedule.FrequencyMonthly)
 	empty, err := repo.List(testpkg.Ctx(t), options)

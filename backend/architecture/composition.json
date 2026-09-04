@@ -6127,26 +6127,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/schedule/list_behavior_test.go",
-      "declaration": "TestRecurrenceRuleRepositoryListPreservesEmptySlice",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        78
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/list_behavior_test.go",
-      "declaration": "TestRecurrenceRuleRepositoryListPreservesQueryOptionsBehavior",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        56
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/schedule/pickup_schedule_test.go",
       "declaration": "newPickupExceptionRepository",
       "target": "database/repositories.NewFactory",
@@ -6188,80 +6168,10 @@
     {
       "scope": "test",
       "file": "database/repositories/schedule/recurrence_rule_repository_test.go",
-      "declaration": "TestRecurrenceRuleRepository_Create",
+      "declaration": "recurrenceRuleRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/recurrence_rule_repository_test.go",
-      "declaration": "TestRecurrenceRuleRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        199
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/recurrence_rule_repository_test.go",
-      "declaration": "TestRecurrenceRuleRepository_FindByDateRange",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        381
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/recurrence_rule_repository_test.go",
-      "declaration": "TestRecurrenceRuleRepository_FindByFrequency",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        255
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/recurrence_rule_repository_test.go",
-      "declaration": "TestRecurrenceRuleRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        134
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/recurrence_rule_repository_test.go",
-      "declaration": "TestRecurrenceRuleRepository_FindByWeekday",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        328
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/recurrence_rule_repository_test.go",
-      "declaration": "TestRecurrenceRuleRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        227
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/recurrence_rule_repository_test.go",
-      "declaration": "TestRecurrenceRuleRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        164
+        18
       ],
       "tables": []
     },

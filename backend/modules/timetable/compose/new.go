@@ -435,6 +435,40 @@ func (e engine) RestorePlanningTrackAtEnd(ctx context.Context, id int64) (timeta
 	return planningTrackToPublic(track), restored, mapError(err)
 }
 
+func (e engine) FindRecurrenceRule(ctx context.Context, id int64) (timetable.RecurrenceRule, error) {
+	value, err := e.service.FindRecurrenceRule(ctx, id)
+	return recurrenceRuleToPublic(value), mapError(err)
+}
+
+func (e engine) ListRecurrenceRules(ctx context.Context, filter timetable.RecurrenceRuleFilter) ([]timetable.RecurrenceRule, error) {
+	values, err := e.service.ListRecurrenceRules(ctx, domain.RecurrenceRuleFilter{
+		Frequency: filter.Frequency, Frequencies: filter.Frequencies, Weekday: filter.Weekday, ActiveAt: filter.ActiveAt,
+		SortBy: filter.SortBy, SortDescending: filter.SortDescending, Limit: filter.Limit, Offset: filter.Offset,
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.RecurrenceRule, 0, len(values))
+	for _, value := range values {
+		result = append(result, recurrenceRuleToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) CreateRecurrenceRule(ctx context.Context, input timetable.RecurrenceRuleInput) (timetable.RecurrenceRule, error) {
+	value, err := e.service.CreateRecurrenceRule(ctx, recurrenceRuleFields(input))
+	return recurrenceRuleToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateRecurrenceRule(ctx context.Context, id int64, input timetable.RecurrenceRuleInput) (timetable.RecurrenceRule, error) {
+	value, err := e.service.UpdateRecurrenceRule(ctx, id, recurrenceRuleFields(input))
+	return recurrenceRuleToPublic(value), mapError(err)
+}
+
+func (e engine) DeleteRecurrenceRule(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteRecurrenceRule(ctx, id))
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -684,6 +718,17 @@ func planningTrackFields(value timetable.PlanningTrackInput) domain.PlanningTrac
 	return domain.PlanningTrackFields{Name: value.Name, Color: value.Color, SortOrder: value.SortOrder, ArchivedAt: value.ArchivedAt}
 }
 
+func recurrenceRuleToPublic(value domain.RecurrenceRule) timetable.RecurrenceRule {
+	return timetable.RecurrenceRule{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Frequency: value.Frequency, IntervalCount: value.IntervalCount, Weekdays: value.Weekdays, MonthDays: value.MonthDays,
+		EndDate: value.EndDate, Count: value.Count}
+}
+
+func recurrenceRuleFields(value timetable.RecurrenceRuleInput) domain.RecurrenceRuleFields {
+	return domain.RecurrenceRuleFields{Frequency: value.Frequency, IntervalCount: value.IntervalCount,
+		Weekdays: value.Weekdays, MonthDays: value.MonthDays, EndDate: value.EndDate, Count: value.Count}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -712,6 +757,8 @@ func mapError(err error) error {
 		return timetable.ErrPlanningTrackNotFound
 	case errors.Is(err, domain.ErrPlanningTrackNameConflict):
 		return fmt.Errorf("%w: %w", timetable.ErrPlanningTrackNameExists, err)
+	case errors.Is(err, domain.ErrRecurrenceRuleNotFound):
+		return timetable.ErrRecurrenceRuleNotFound
 	default:
 		return err
 	}

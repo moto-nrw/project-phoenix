@@ -65,7 +65,7 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.Dateframe)
 		assert.Nil(t, factory.Timeframe, "timeframe persistence requires the timetable owner binding")
 		assert.Nil(t, factory.PlanningTrack, "planning-track persistence requires the timetable owner binding")
-		assert.NotNil(t, factory.RecurrenceRule)
+		assert.Nil(t, factory.RecurrenceRule, "recurrence-rule persistence requires the timetable owner binding")
 	})
 
 	// Verify activities repositories are initialized
@@ -80,6 +80,7 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.StudentEnrollment)
 		assert.NotNil(t, factory.Timeframe)
 		assert.NotNil(t, factory.PlanningTrack)
+		assert.NotNil(t, factory.RecurrenceRule)
 	})
 
 	// Verify active repositories are initialized

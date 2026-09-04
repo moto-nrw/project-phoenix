@@ -7,6 +7,10 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
+// RecurrenceRuleQueryOptions keeps the legacy repository method signature
+// without making the composition adapter import the base model package.
+type RecurrenceRuleQueryOptions = modelBase.QueryOptions
+
 func WrapDatabaseError(operation string, err error) error {
 	return &modelBase.DatabaseError{Op: operation, Err: err}
 }
@@ -45,4 +49,77 @@ func TimeframeListOptions(options *scheduleModels.TimeframeQueryOptions) (string
 		description = value
 	}
 	return description, limit, offset, nil
+}
+
+func RecurrenceRuleListOptions(options *modelBase.QueryOptions) (string, []string, string, bool, int, int, error) {
+	if options == nil {
+		return "", nil, "", false, 0, 0, nil
+	}
+	limit, offset := 0, 0
+	if options.Pagination != nil {
+		limit, offset = options.Pagination.PageSize, options.Pagination.Offset()
+	}
+	sortBy, descending, err := recurrenceRuleSort(options.Sorting)
+	if err != nil {
+		return "", nil, "", false, 0, 0, err
+	}
+	frequency, frequencies, err := recurrenceRuleFilter(options.Filter)
+	if err != nil {
+		return "", nil, "", false, 0, 0, err
+	}
+	return frequency, frequencies, sortBy, descending, limit, offset, nil
+}
+
+func recurrenceRuleSort(sorting *modelBase.Sorting) (string, bool, error) {
+	if sorting == nil || len(sorting.Fields) == 0 {
+		return "", false, nil
+	}
+	if len(sorting.Fields) > 1 {
+		return "", false, errors.New("multiple recurrence rule sort fields are unsupported")
+	}
+	return sorting.Fields[0].Field, sorting.Fields[0].Direction == modelBase.SortDesc, nil
+}
+
+func recurrenceRuleFilter(filter *modelBase.Filter) (string, []string, error) {
+	if filter == nil {
+		return "", nil, nil
+	}
+	if len(filter.OrFilters()) > 0 || len(filter.AndFilters()) > 0 {
+		return "", nil, errors.New("compound recurrence rule filters are unsupported")
+	}
+	conditions := filter.Conditions()
+	if len(conditions) > 1 {
+		return "", nil, errors.New("multiple recurrence rule filters are unsupported")
+	}
+	if len(conditions) == 0 {
+		return "", nil, nil
+	}
+	return recurrenceRuleFrequencyCondition(conditions[0])
+}
+
+func recurrenceRuleFrequencyCondition(condition modelBase.FilterCondition) (string, []string, error) {
+	if condition.Field != "frequency" {
+		return "", nil, errors.New("recurrence rule filter is unsupported")
+	}
+	if condition.Operator == modelBase.OpEqual {
+		value, ok := condition.Value.(string)
+		if ok {
+			return value, nil, nil
+		}
+	}
+	if condition.Operator == modelBase.OpIn {
+		values, ok := condition.Value.([]interface{})
+		if ok {
+			result := make([]string, 0, len(values))
+			for _, value := range values {
+				text, stringOK := value.(string)
+				if !stringOK {
+					return "", nil, errors.New("recurrence rule filter is unsupported")
+				}
+				result = append(result, text)
+			}
+			return "", result, nil
+		}
+	}
+	return "", nil, errors.New("recurrence rule filter is unsupported")
 }
