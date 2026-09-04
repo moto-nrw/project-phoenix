@@ -1001,7 +1001,10 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	}
 
 	studentRec := s.getStudentForSSE(ctx, endedVisit.StudentID)
-	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentRec, "")
+	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitVisitCheckout(broadcastCtx, endedVisit, snapshot, studentRec, "")
+	})
 }
 
 // emitVisitCheckout is broadcastVisitCheckout with the student routing data

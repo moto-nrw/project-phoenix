@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
@@ -213,6 +214,15 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 		}
 	}
 
+	if auth != nil && !auth.BypassResourceChecks {
+		// Take the table-level write gate before any active-group row lock. This
+		// order matches PostgreSQL's own UPDATE lock acquisition and prevents a
+		// session writer from waiting on this move while this move waits on it.
+		if err := s.GroupRepo.LockActiveGroupWrites(ctx); err != nil {
+			return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+		}
+	}
+
 	targetGroup, err := s.lockActiveGroupForMove(ctx, activeGroupID, op)
 	if err != nil {
 		return nil, err
@@ -223,6 +233,9 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 		return nil, err
 	}
 	if auth != nil && !auth.BypassResourceChecks {
+		if err := s.lockMoveSourceGroups(ctx, uniqueIDs, currentVisits, targetGroup.ID, op); err != nil {
+			return nil, err
+		}
 		if err := s.authorizeStudentMove(ctx, auth.StaffID, targetGroup, uniqueIDs, openAttendance, currentVisits, op); err != nil {
 			return nil, err
 		}
@@ -448,19 +461,47 @@ func studentHasOpenAttendance(attendances map[int64]*active.Attendance, studentI
 	return attendance != nil && attendance.CheckOutTime == nil
 }
 
+// lockMoveSourceGroups locks every source session that can authorize a push.
+// The active-groups write gate is already held, so these locks recheck the
+// source state against the same transaction that will create the new visits.
+func (s *service) lockMoveSourceGroups(ctx context.Context, studentIDs []int64, currentVisits map[int64]*active.Visit, targetGroupID int64, op string) error {
+	groupIDs := make(map[int64]struct{})
+	for _, studentID := range studentIDs {
+		visit := currentVisits[studentID]
+		if visit != nil && visit.ActiveGroupID != targetGroupID {
+			groupIDs[visit.ActiveGroupID] = struct{}{}
+		}
+	}
+	ids := make([]int64, 0, len(groupIDs))
+	for id := range groupIDs {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	for _, id := range ids {
+		group, err := s.GroupRepo.FindByIDForUpdate(ctx, id)
+		if err != nil {
+			return &ActiveError{Op: op, Err: ErrDatabaseOperation}
+		}
+		if group == nil || !group.IsActive() {
+			return studentMoveForbidden(op)
+		}
+	}
+	return nil
+}
+
 func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64, op string) (map[int64]struct{}, error) {
 	if staffID <= 0 {
 		return nil, studentMoveForbidden(op)
 	}
 
-	supervisions, err := s.GetStaffActiveSupervisions(ctx, staffID)
+	supervisions, err := s.SupervisorRepo.FindActiveByStaffIDForUpdate(ctx, staffID)
 	if err != nil {
-		return nil, err
+		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
 
 	ids := make(map[int64]struct{}, len(supervisions))
 	for _, supervision := range supervisions {
-		if supervision == nil || supervision.GroupID <= 0 {
+		if supervision == nil || supervision.GroupID <= 0 || !IsSupervisorActive(supervision, time.Now()) {
 			continue
 		}
 		ids[supervision.GroupID] = struct{}{}
@@ -519,13 +560,6 @@ func (s *service) authorizeStudentMove(
 // running sessions (ambiguous assignment) or into a session nobody supervises
 // right now.
 func (s *service) ensureMoveTargetIsSupervised(ctx context.Context, targetGroup *active.Group, op string) error {
-	// The target group row is already locked, but that does not protect this
-	// room-wide cardinality check from a concurrent session creation in another
-	// group row. Hold the write-conflicting table lock until the request
-	// transaction commits, including the visit writes below.
-	if err := s.GroupRepo.LockActiveGroupWrites(ctx); err != nil {
-		return &ActiveError{Op: op, Err: ErrDatabaseOperation}
-	}
 	groupsInRoom, err := s.GroupRepo.FindActiveByRoomID(ctx, targetGroup.RoomID)
 	if err != nil {
 		return &ActiveError{Op: op, Err: ErrDatabaseOperation}
@@ -534,7 +568,7 @@ func (s *service) ensureMoveTargetIsSupervised(ctx context.Context, targetGroup 
 		return studentMoveForbidden(op)
 	}
 
-	supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, targetGroup.ID, true)
+	supervisors, err := s.SupervisorRepo.FindByActiveGroupIDForUpdate(ctx, targetGroup.ID)
 	if err != nil {
 		return &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}

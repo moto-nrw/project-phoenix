@@ -34,6 +34,16 @@ func NewGroupSupervisorRepository(db *bun.DB, clocks ...func() time.Time) active
 
 // FindActiveByStaffID finds all active supervisions for a specific staff member
 func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
+	return r.findActiveByStaffID(ctx, staffID, false)
+}
+
+// FindActiveByStaffIDForUpdate locks current supervision rows so a caller can
+// make an authorization decision that remains valid through its write.
+func (r *GroupSupervisorRepository) FindActiveByStaffIDForUpdate(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
+	return r.findActiveByStaffID(ctx, staffID, true)
+}
+
+func (r *GroupSupervisorRepository) findActiveByStaffID(ctx context.Context, staffID int64, forUpdate bool) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisions).
@@ -43,6 +53,9 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 		Where("end_date IS NULL OR end_date > ?", r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
+	if forUpdate {
+		query = query.For("UPDATE")
+	}
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -126,6 +139,16 @@ func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before ti
 // Includes the Staff relation; the composition layer attaches Staff.Person
 // through the People Directory for name display.
 func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
+	return r.findByActiveGroupID(ctx, activeGroupID, activeOnly, false)
+}
+
+// FindByActiveGroupIDForUpdate locks current supervision rows so a caller can
+// rely on target coverage through its write.
+func (r *GroupSupervisorRepository) FindByActiveGroupIDForUpdate(ctx context.Context, activeGroupID int64) ([]*active.GroupSupervisor, error) {
+	return r.findByActiveGroupID(ctx, activeGroupID, true, true)
+}
+
+func (r *GroupSupervisorRepository) findByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly, forUpdate bool) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisions).
@@ -141,6 +164,9 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 	}
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
+	if forUpdate {
+		query = query.For("UPDATE")
+	}
 
 	err := query.Scan(ctx)
 	if err != nil {
