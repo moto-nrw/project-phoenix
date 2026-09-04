@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        666
+        671
       ],
       "tables": []
     },
@@ -8436,6 +8436,26 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/users/student_data_change_request_coverage_test.go",
+      "declaration": "TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        45
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/student_data_change_request_coverage_test.go",
+      "declaration": "TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        94
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/users/student_deletion_test.go",
       "declaration": "TestStudentDeletionRepository_DeletesOnlyTargetAssignments",
       "target": "database/repositories.NewFactory",
@@ -12780,7 +12800,7 @@
       "declaration": "TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares",
       "target": "database/repositories.NewFactory",
       "lines": [
-        22
+        23
       ],
       "tables": [
         "users.students",
@@ -12793,7 +12813,7 @@
       "declaration": "TestRequestSharingRejectsUnlinkedRecipientAndNonOwner",
       "target": "database/repositories.NewFactory",
       "lines": [
-        108
+        109
       ],
       "tables": []
     },
@@ -14770,7 +14790,7 @@
       "declaration": "TestMasterDataReview_ListHistoryScopedToWritableChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        119
+        124
       ],
       "tables": []
     },
@@ -31756,22 +31776,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 373,
+          "line": 378,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 476,
+          "line": 481,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 542,
+          "line": 547,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1034,
+          "line": 1039,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31781,7 +31801,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 666,
+          "line": 671,
           "declaration": "New"
         }
       ]
@@ -31796,7 +31816,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 539,
+          "line": 544,
           "declaration": "type API"
         },
         {

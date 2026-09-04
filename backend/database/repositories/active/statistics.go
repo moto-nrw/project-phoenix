@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,7 +20,22 @@ import (
 // not fit the generic Repository[T] filter surface: they group across
 // students / rooms and clamp visit durations to the report window.
 type StatisticsRepository struct {
-	db *bun.DB
+	db         *bun.DB
+	statusDays interface {
+		ListStatusDaySummaries(context.Context, string, string) ([]StatusDaySummary, error)
+	}
+}
+
+type StatusDaySummary struct {
+	StudentID int64
+	Date      string
+	Status    string
+}
+
+func (r *StatisticsRepository) BindCarePlan(query interface {
+	ListStatusDaySummaries(context.Context, string, string) ([]StatusDaySummary, error)
+}) {
+	r.statusDays = query
 }
 
 // NewStatisticsRepository creates a statistics repository.
@@ -46,17 +62,16 @@ func (r *StatisticsRepository) AttendanceDays(ctx context.Context, from, to time
 
 // StatusDays returns every uncleared status day in [from, to].
 func (r *StatisticsRepository) StatusDays(ctx context.Context, from, to timezone.Date) ([]active.StatusDayRow, error) {
-	var rows []active.StatusDayRow
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`active.student_status_days AS "status_day"`).
-		ColumnExpr(`"status_day".student_id`).
-		ColumnExpr(`"status_day".date`).
-		ColumnExpr(`"status_day".status`).
-		Where(`"status_day".date >= ? AND "status_day".date <= ?`, from, to).
-		Where(`("status_day".cleared_at IS NULL OR "status_day".source = ?)`, active.StudentStatusSourceEndOfDay)
-	query = base.WithTenantFilter(ctx, query, "status_day")
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "statistics status days", Err: base.TranslateNotFound(err)}
+	if r.statusDays == nil {
+		return nil, errors.New("statistics status days: care plan capability is required")
+	}
+	values, err := r.statusDays.ListStatusDaySummaries(ctx, from.String(), to.String())
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]active.StatusDayRow, 0, len(values))
+	for _, value := range values {
+		rows = append(rows, active.StatusDayRow{StudentID: value.StudentID, Date: timezone.Date(value.Date), Status: value.Status})
 	}
 	return rows, nil
 }

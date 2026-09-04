@@ -279,7 +279,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 		InstanceStudentRepo: newBoundInstanceStudentRepository(db),
 		VisitRepo:           activeRepo.NewVisitRepository(db),
 		AttendanceRepo:      activeRepo.NewAttendanceRepository(db),
-		StatusDayRepo:       activeRepo.NewStudentStatusDayRepository(db),
+		StatusDayRepo:       scheduleRepos.StatusDay,
 		CareDayService: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
 			ArrivalSchedules:  scheduleRepos.ArrivalSchedule,
 			ArrivalExceptions: scheduleRepos.ArrivalException,

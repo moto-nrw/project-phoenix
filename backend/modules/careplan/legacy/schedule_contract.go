@@ -12,6 +12,7 @@ import (
 
 type ScheduleDate = timezone.Date
 type ScheduleQueryOptions = modelBase.QueryOptions
+type RequestQueueFilters = modelBase.RequestQueueFilters
 
 func CarePlanScheduleQueryOptions(options *ScheduleQueryOptions) *careplan.StudentScheduleQueryOptions {
 	if options == nil {
@@ -70,6 +71,12 @@ func ScheduleError(op string, err error) error {
 	}
 	return nil
 }
+
+func NotFoundError(op string) error {
+	return &modelBase.DatabaseError{Op: op, Err: errors.Join(modelBase.ErrNotFound, sql.ErrNoRows)}
+}
+
+func NoRowsError() error { return sql.ErrNoRows }
 
 func TodayScheduleDate() careplan.Date { return careplan.Date(timezone.TodayDate().String()) }
 func PublicScheduleDate(value ScheduleDate) careplan.Date {
