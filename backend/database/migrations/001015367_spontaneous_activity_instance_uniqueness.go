@@ -37,14 +37,35 @@ func spontaneousActivityInstanceUniquenessUp(ctx context.Context, db *bun.DB) er
 
 func spontaneousActivityInstanceUniquenessDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.367: Restoring activity-linked instance uniqueness...")
-	_, err := db.ExecContext(ctx, `
-		DROP INDEX IF EXISTS schedule.idx_activity_instances_template_unique;
-		CREATE UNIQUE INDEX idx_activity_instances_template_unique
-			ON schedule.activity_instances (tenant_id, date, activity_group_id, start_time)
-			WHERE activity_group_id IS NOT NULL;
-	`)
-	if err != nil {
-		return fmt.Errorf("restore activity instance template uniqueness index: %w", err)
-	}
-	return nil
+
+	// The newer index permits a spontaneous and a planned session to share a
+	// template/date/start-time. That state cannot be represented by the old
+	// index, so refuse the rollback before changing the active guard.
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		var duplicateActivityLinkedInstances bool
+		if err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				FROM schedule.activity_instances
+				WHERE activity_group_id IS NOT NULL
+				GROUP BY tenant_id, date, activity_group_id, start_time
+				HAVING COUNT(*) > 1
+			)
+		`).Scan(&duplicateActivityLinkedInstances); err != nil {
+			return fmt.Errorf("check activity instance uniqueness before rollback: %w", err)
+		}
+		if duplicateActivityLinkedInstances {
+			return fmt.Errorf("cannot restore activity instance template uniqueness: duplicate activity-linked instances exist")
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+			DROP INDEX IF EXISTS schedule.idx_activity_instances_template_unique;
+			CREATE UNIQUE INDEX idx_activity_instances_template_unique
+				ON schedule.activity_instances (tenant_id, date, activity_group_id, start_time)
+				WHERE activity_group_id IS NOT NULL;
+		`); err != nil {
+			return fmt.Errorf("restore activity instance template uniqueness index: %w", err)
+		}
+		return nil
+	})
 }
