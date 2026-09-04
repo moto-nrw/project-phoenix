@@ -1,6 +1,6 @@
 /**
  * Deep-links in Team-Chat notifications are written for the OGS portal
- * (`/team-chat/{id}`, see services/staffmessaging/notify.go). The same
+ * (`/team-chat/{id}`, see modules/communication/internal/staffmessages/notify.go). The same
  * notification reaches a Lehrkraft's school-portal tab over /school-sse, where
  * that path does not exist (#2208). This maps it onto the school inbox before
  * the toast is shown; every other link is passed through unchanged.

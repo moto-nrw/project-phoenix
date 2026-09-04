@@ -24,8 +24,9 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
+	today := timezone.NewDate(2026, 8, 24)
 	repo := activeRepo.NewGroupSupervisorRepository(db, func() time.Time {
-		return timezone.NewDate(2026, 8, 24).BerlinMidnight()
+		return today.BerlinMidnight()
 	})
 	ctx := testpkg.Ctx(t)
 
@@ -48,7 +49,13 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	require.NoError(t, err)
 
 	openSupervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, openGroup.ID, "primary")
-	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
+	closedSupervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
+	// The repository clock is fixed above, so make the fixture interval include
+	// that date rather than the machine's current date.
+	openSupervision.StartDate = today
+	closedSupervision.StartDate = today
+	require.NoError(t, repo.Update(ctx, openSupervision))
+	require.NoError(t, repo.Update(ctx, closedSupervision))
 
 	t.Run("returns the room of an open supervised session", func(t *testing.T) {
 		rows, err := repo.ListActiveSupervisedRooms(ctx)
@@ -73,7 +80,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 
 	t.Run("excludes a supervision that ended before today", func(t *testing.T) {
 		// end_date in the past mirrors IsSupervisorActive returning false.
-		yesterday := timezone.NewDate(2026, 8, 24).AddDays(-1)
+		yesterday := today.AddDays(-1)
 		_, err := db.NewUpdate().
 			TableExpr("active.group_supervisors").
 			Set("end_date = ?", yesterday).
@@ -100,7 +107,6 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	})
 
 	t.Run("uses the Berlin date independently of the database timezone", func(t *testing.T) {
-		today := timezone.NewDate(2026, 8, 24)
 		err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 			var databaseDate string
 			for _, zone := range []string{"Pacific/Kiritimati", "Etc/GMT+12"} {

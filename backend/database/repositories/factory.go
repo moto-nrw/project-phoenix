@@ -266,8 +266,6 @@ type Factory struct {
 
 	// Platform domain (operator dashboard)
 	Operator                 platformModels.OperatorRepository
-	Announcement             platformModels.AnnouncementRepository
-	AnnouncementView         platformModels.AnnouncementViewRepository
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
 	OperatorRefreshToken     platformModels.OperatorRefreshTokenRepository
@@ -379,7 +377,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.bindCarePlanAuditDirectory()
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
-		repository.BindCarePlan(f.carePlan)
+		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: f.carePlan})
 	}
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.appointments != nil {
 		repository.BindAppointments(f.appointments)
@@ -648,13 +646,13 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		// belong to School Calendar and are bound below.
 		Timeframe:                 schedule.NewTimeframeRepository(db),
 		RecurrenceRule:            schedule.NewRecurrenceRuleRepository(db),
-		StudentPickupSchedule:     schedule.NewStudentPickupScheduleRepository(db),
-		StudentPickupException:    schedule.NewStudentPickupExceptionRepository(db),
-		StudentPickupNote:         schedule.NewStudentPickupNoteRepository(db),
-		StudentArrivalSchedule:    schedule.NewStudentArrivalScheduleRepository(db),
-		StudentArrivalException:   schedule.NewStudentArrivalExceptionRepository(db),
-		StudentArrivalNote:        schedule.NewStudentArrivalNoteRepository(db),
-		CareScheduleChangeRequest: schedule.NewCareScheduleChangeRequestRepository(db),
+		StudentPickupSchedule:     nil, // bound to Care Plan below
+		StudentPickupException:    nil, // bound to Care Plan below
+		StudentPickupNote:         nil, // bound to Care Plan below
+		StudentArrivalSchedule:    nil, // bound to Care Plan below
+		StudentArrivalException:   nil, // bound to Care Plan below
+		StudentArrivalNote:        nil, // bound to Care Plan below
+		CareScheduleChangeRequest: nil, // bound to Care Plan below
 		StaffShift:                schedule.NewStaffShiftRepository(db),
 		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
@@ -682,10 +680,10 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		CombinedGroup:                   active.NewCombinedGroupRepository(db),
 		GroupMapping:                    active.NewGroupMappingRepository(db),
 		Attendance:                      attendance,
-		StudentStatusDay:                active.NewStudentStatusDayRepository(db),
+		StudentStatusDay:                nil, // bound to Care Plan below
 		Statistics:                      active.NewStatisticsRepository(db),
 		CourseStatistics:                schedule.NewCourseStatisticsRepository(db),
-		ExcusedAbsenceRequest:           active.NewExcusedAbsenceRequestRepository(db),
+		ExcusedAbsenceRequest:           nil, // bound to Care Plan below
 		WorkSession:                     active.NewWorkSessionRepository(db, now),
 		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),
 		StaffAbsence:                    active.NewStaffAbsenceRepository(db),
@@ -737,8 +735,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 
 		// Platform repositories
 		Operator:                 platformRepo.NewOperatorRepository(db),
-		Announcement:             platformRepo.NewAnnouncementRepository(db),
-		AnnouncementView:         platformRepo.NewAnnouncementViewRepository(db),
 		OperatorAuditLog:         platformRepo.NewOperatorAuditLogRepository(db),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
 		OperatorRefreshToken:     platformRepo.NewOperatorRefreshTokenRepository(db),
@@ -776,7 +772,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime),
 
 		// Parent Stammdaten direct-edit audit + change-request review
-		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
+		StudentDataChangeRequest: nil, // bound to Care Plan below
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),
@@ -836,7 +832,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)
 	factory.bindDefaultFacilities(db)
-	carePlan, err := NewCarePlan(db, factory.students)
+	carePlan, err := NewCarePlan(db, factory.students, factory.InstanceStudent)
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose care plan: %v", err))
 	}

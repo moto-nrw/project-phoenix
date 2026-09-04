@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
@@ -199,7 +200,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.TimeTrackingCleanup = services.TimeTrackingCleanup
 	deps.StudentChangeLogCleanup = services.StudentChangeLogCleanup
 	deps.PWAUsageCleanup = services.PWAUsage
-	deps.StaffMessageCleanup = services.StaffMessaging
+	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)
 	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
 	deps.AutoStart = services.AutoStart
 	deps.AutoEnd = services.AutoEnd
@@ -215,6 +216,20 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 		})
 	}
 	deps.RolloverDeadlineRunner = rollover
+}
+
+func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.StaffMessageCleanup {
+	if service == nil {
+		return nil
+	}
+	return func(ctx context.Context) (scheduler.StaffMessageCleanupResult, error) {
+		result, err := service.CleanupExpiredStaffMessages(ctx)
+		return scheduler.StaffMessageCleanupResult{
+			MessagesDeleted: result.MessagesDeleted,
+			ThreadsDeleted:  result.ThreadsDeleted,
+			RetentionDays:   result.RetentionDays,
+		}, err
+	}
 }
 
 func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, api *API) {

@@ -1,7 +1,7 @@
 // Package careplan is the public Care Plan capability. It owns care offerings,
-// offering-change requests, exits, companions, care documents, and the
-// reversible removal ledger. Other owners use Query or Command; the Postgres
-// tables stay hidden behind the module.
+// student statuses, family requests, exits, companions, care documents, and
+// the reversible removal ledger. Other owners use Query or Command; the
+// Postgres tables stay hidden behind the module.
 package careplan
 
 import (
@@ -206,6 +206,9 @@ type DecideOfferingChange struct {
 
 type Query interface {
 	CareRecordsQuery
+	StudentSchedulesQuery
+	CareRequestsQuery
+	StudentStatusDaysQuery
 	FindCareOffering(context.Context, int64) (CareOffering, error)
 	ListCareOfferings(context.Context, CareOfferingFilter) ([]CareOffering, error)
 	CountCareOfferingsByPhase(context.Context, int64) (int, error)
@@ -216,6 +219,9 @@ type Query interface {
 
 type Command interface {
 	CareRecordsCommand
+	StudentSchedulesCommand
+	CareRequestsCommand
+	StudentStatusDaysCommand
 	CreateCareOffering(context.Context, CreateCareOffering) (CareOffering, error)
 	UpdateCareOffering(context.Context, UpdateCareOffering) (CareOffering, error)
 	DeleteCareOffering(context.Context, int64) error
@@ -653,16 +659,20 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrCareOfferingNotFound), errors.Is(err, ErrOfferingChangeNotFound), errors.Is(err, ErrCareDocumentNotFound):
+	case errors.Is(err, ErrCareOfferingNotFound), errors.Is(err, ErrOfferingChangeNotFound), errors.Is(err, ErrCareDocumentNotFound), errors.Is(err, ErrStudentScheduleNotFound), errors.Is(err, ErrStudentStatusDayNotFound),
+		errors.Is(err, ErrExcusedRequestNotFound), errors.Is(err, ErrCareScheduleRequestNotFound), errors.Is(err, ErrStudentDataRequestNotFound):
 		return "not_found"
-	case errors.Is(err, ErrOfferingChangeNotPending):
+	case errors.Is(err, ErrOfferingChangeNotPending), errors.Is(err, ErrExcusedRequestNotPending),
+		errors.Is(err, ErrCareScheduleRequestNotPending), errors.Is(err, ErrStudentDataRequestNotPending):
 		return "not_pending"
+	case errors.Is(err, ErrExcusedRequestNotDecided), errors.Is(err, ErrCareScheduleRequestNotDecided), errors.Is(err, ErrStudentDataRequestNotDecided):
+		return "not_decided"
 	case errors.Is(err, ErrOfferingChangeAlreadyOpen):
 		return "already_pending"
 	case errors.Is(err, ErrInvalidCareOffering), errors.Is(err, ErrInvalidOfferingChange),
 		errors.Is(err, ErrInvalidCareExit), errors.Is(err, ErrInvalidCompanion), errors.Is(err, ErrInvalidCareDocument),
 		errors.Is(err, ErrCareExitInvalidReason), errors.Is(err, ErrCareExitNoteRequired),
-		errors.Is(err, ErrCareExitNoteNotAllowed), errors.Is(err, ErrCareExitNoteTooLong):
+		errors.Is(err, ErrCareExitNoteNotAllowed), errors.Is(err, ErrCareExitNoteTooLong), errors.Is(err, ErrInvalidStudentSchedule):
 		return "invalid"
 	case errors.Is(err, ErrCareOfferingTriggerInvalid):
 		return "invalid_trigger"

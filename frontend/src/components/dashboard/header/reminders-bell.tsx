@@ -8,7 +8,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { NavLink } from "~/components/ui/nav-link";
 import { Bell } from "lucide-react";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import type { Reminder } from "~/lib/reminders-api";
@@ -134,13 +134,13 @@ export function RemindersBell() {
         )}
 
         <div className="p-2">
-          <Link
+          <NavLink
             href={tenantPath("/reminders")}
             onClick={() => setIsOpen(false)}
             className="flex items-center justify-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-900"
           >
             Alle ansehen
-          </Link>
+          </NavLink>
         </div>
       </div>
     </div>

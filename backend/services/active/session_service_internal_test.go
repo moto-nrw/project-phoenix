@@ -1059,7 +1059,7 @@ func TestManualRoomSelectionStrategies(t *testing.T) {
 
 	t.Run("ignore strategy skips conflict check", func(t *testing.T) {
 		svc := &service{}
-		roomID, err := svc.validateManualRoomSelection(ctx, 10, RoomConflictIgnore)
+		roomID, err := svc.validateManualRoomSelection(ctx, 10, RoomConflictIgnore, true)
 		require.NoError(t, err)
 		assert.Equal(t, int64(10), roomID)
 	})
@@ -1072,7 +1072,7 @@ func TestManualRoomSelectionStrategies(t *testing.T) {
 		}},
 		}
 
-		roomID, err := svc.validateManualRoomSelection(ctx, 10, RoomConflictFail)
+		roomID, err := svc.validateManualRoomSelection(ctx, 10, RoomConflictFail, true)
 
 		require.Error(t, err)
 		assert.Zero(t, roomID)
@@ -1087,7 +1087,7 @@ func TestManualRoomSelectionStrategies(t *testing.T) {
 		}},
 		}
 
-		roomID, err := svc.validateManualRoomSelection(ctx, 10, RoomConflictWarn)
+		roomID, err := svc.validateManualRoomSelection(ctx, 10, RoomConflictWarn, true)
 
 		require.NoError(t, err)
 		assert.Equal(t, int64(10), roomID)
@@ -1120,7 +1120,7 @@ func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
 			},
 		}}
 
-		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail)
+		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail, true)
 
 		require.NoError(t, err)
 		assert.Equal(t, plannedRoom, roomID)
@@ -1135,7 +1135,7 @@ func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
 			},
 		}}
 
-		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail)
+		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail, true)
 
 		require.ErrorIs(t, err, ErrNoRoomAvailable)
 		assert.Zero(t, roomID)
@@ -1147,7 +1147,7 @@ func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
 			ActivityGroupRepo: &activityGroupRepoForRoomUnitTest{findErr: lookupErr},
 		}}
 
-		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail)
+		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail, true)
 
 		require.ErrorIs(t, err, lookupErr)
 		assert.Zero(t, roomID)

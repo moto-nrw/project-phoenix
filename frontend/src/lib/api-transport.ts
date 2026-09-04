@@ -1,6 +1,6 @@
 import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
-import { env } from "~/env";
+import { clientEnv } from "~/env.client";
 import { sanitizeEndpoint } from "~/lib/log-sanitize";
 import { createLogger } from "~/lib/logger";
 import {
@@ -24,7 +24,7 @@ const logger = createLogger({ component: "ApiClient" });
 // oxlint-disable-next-line import/no-named-as-default-member -- Axios exposes create on the default export at runtime, but not as a TypeScript named export.
 const createAxios = axios["create"];
 const api = createAxios({
-  baseURL: env.NEXT_PUBLIC_API_URL,
+  baseURL: clientEnv.NEXT_PUBLIC_API_URL,
   headers: {
     "Content-Type": "application/json",
   },

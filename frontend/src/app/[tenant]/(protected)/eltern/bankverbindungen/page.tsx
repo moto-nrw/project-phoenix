@@ -4,7 +4,6 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Download, Landmark, Lock } from "lucide-react";
 
-import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -213,8 +212,6 @@ function BankverbindungenContent() {
       />
 
       <div className="space-y-4 px-4 sm:px-6">
-        <BackButton referrer="/eltern" />
-
         <p className="max-w-3xl text-sm text-gray-600">
           Von welchem Konto der Beitrag je Kind eingezogen wird. Die IBAN tragen
           Sie beim Kind ein, im Reiter „Erziehungsberechtigte“.

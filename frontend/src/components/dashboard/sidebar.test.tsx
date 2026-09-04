@@ -325,12 +325,12 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       // Die Planungsbereiche sind Unterpunkte des Planung-Akkordeons (#1946),
-      // inklusive Kalenderzeiträume.
+      // inklusive Schuljahr und Ferien.
       expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Terminvertretungen")).toBeInTheDocument();
-      expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungsplan")).toBeInTheDocument();
+      expect(screen.getByText("Schuljahr und Ferien")).toBeInTheDocument();
     });
 
     it("labels the personal calendar entry 'Mein Kalender'", () => {
@@ -481,12 +481,17 @@ describe("Sidebar", () => {
       );
     });
 
-    it("hides Kommunikation when no child page is accessible", () => {
+    it("keeps the Team group without its internal pages when none is accessible", () => {
       mockHasPermission.mockReturnValue(false);
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Kommunikation")).not.toBeInTheDocument();
+      // Team-Chat ist aus, Tagesinformationen brauchen users:read — die
+      // Gruppe bleibt wegen Zeiterfassung und Mitarbeiter trotzdem da.
+      expect(screen.queryByText("Team-Chat")).not.toBeInTheDocument();
+      expect(screen.queryByText("Tagesinformationen")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Team" })).toBeInTheDocument();
+      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
     });
 
     it("hides admin-only items for staff", () => {
@@ -497,7 +502,7 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
     });
 
     it("shows student search when staff has groups", () => {
@@ -616,7 +621,7 @@ describe("Sidebar", () => {
       );
     });
 
-    it("highlights Kalenderzeiträume on /calendar-periods", () => {
+    it("highlights Schuljahr und Ferien on /calendar-periods", () => {
       // Die Zeitraum-Verwaltung ist eigener Unterpunkt im Planung-Akkordeon
       // (#1946) und leuchtet dort selbst, nicht mehr im Betreuungsplan.
       mockUsePathname.mockReturnValue("/calendar-periods");
@@ -625,7 +630,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const periodsLink = screen.getByText("Kalenderzeiträume").closest("a");
+      const periodsLink = screen.getByText("Schuljahr und Ferien").closest("a");
       const betreuungsplanLink = screen
         .getByText("Betreuungsplan")
         .closest("a");
@@ -1058,7 +1063,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.getByText("Personal")).toBeInTheDocument();
       expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
@@ -1908,7 +1913,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.queryByText("Geräte")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
     });
@@ -1932,7 +1937,7 @@ describe("Sidebar", () => {
       } as unknown as ReturnType<typeof useSWR>);
     });
 
-    it("keeps Kalenderzeiträume and Abrechnung when timetable.enabled is false", () => {
+    it("keeps Schuljahr und Ferien and Abrechnung when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {
           tabs: [
@@ -1951,13 +1956,13 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      // Kalenderzeiträume bleiben erreichbar — die Anmeldephasen hängen
+      // Schuljahr und Ferien bleiben erreichbar — die Anmeldephasen hängen
       // daran; nur die timetable-spezifischen Seiten verschwinden.
       expect(screen.getByText("Planung")).toBeInTheDocument();
-      expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
+      expect(screen.getByText("Schuljahr und Ferien")).toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
     });
 
@@ -1979,45 +1984,36 @@ describe("Sidebar", () => {
       expect(screen.getByText("Planung")).toBeInTheDocument();
     });
 
-    it("navigates the header to Betreuungsplan when planning is enabled", () => {
+    it("only toggles the Planung group on a header click, without navigating (#2826)", () => {
+      // Die Gruppenzeile ist ein Schalter, keine Seite: das frühere
+      // Navigate-on-expand des Planung-Akkordeons entfällt.
       mockRouterPush.mockClear();
       mockUsePathname.mockReturnValue("/dashboard");
 
       render(<Sidebar />);
-      fireEvent.click(screen.getByText("Planung"));
+      const header = screen.getByRole("button", { name: "Planung" });
+      expect(header).toHaveAttribute("aria-expanded", "false");
 
-      expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/betreuungsplan",
-      );
+      fireEvent.click(header);
+
+      expect(header).toHaveAttribute("aria-expanded", "true");
+      expect(mockRouterPush).not.toHaveBeenCalled();
     });
 
-    it("navigates the header to Kalenderzeiträume when timetable.enabled is false", () => {
-      // Hub folgt der ersten sichtbaren Unterseite — sonst landete der
-      // Header-Klick auf der "Betreuungsplan ist deaktiviert"-Hinweisseite.
-      mockRouterPush.mockClear();
-      mockUsePathname.mockReturnValue("/dashboard");
-      mockUseSWRDefault.mockReturnValue({
-        data: {
-          tabs: [
-            {
-              categories: [
-                { items: [{ key: "timetable.enabled", value: false }] },
-              ],
-            },
-          ],
-        },
-        error: undefined,
-        isLoading: false,
-        isValidating: false,
-        mutate: vi.fn(),
-      } as unknown as ReturnType<typeof useSWR>);
+    it("opens the Planung group by itself on a planning page", () => {
+      mockUsePathname.mockReturnValue("/dienstplan");
 
       render(<Sidebar />);
-      fireEvent.click(screen.getByText("Planung"));
 
-      expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/calendar-periods",
+      expect(screen.getByRole("button", { name: "Planung" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
       );
+      // Der Tagesbetrieb bleibt daneben offen — ein Seitenwechsel schließt
+      // nichts.
+      expect(
+        screen.getByRole("button", { name: "Tagesbetrieb" }),
+      ).toHaveAttribute("aria-expanded", "true");
     });
   });
 
@@ -2035,21 +2031,23 @@ describe("Sidebar", () => {
       restoreDefaultHasPermission();
     });
 
-    it("renders Abrechnung as a Planung sub-item, not as a flat entry", () => {
+    it("renders Abrechnung as a row of the Planung group, not as a top-level entry", () => {
       render(<Sidebar />);
 
       const abrechnungLink = screen.getByText("Abrechnung").closest("a");
       expect(abrechnungLink).toHaveAttribute("href", "/test-tenant/payroll");
 
-      // Der Eintrag steckt im Planung-Akkordeon (gemeinsamer Container mit
-      // dem Bereichs-Header), nicht als eigener Top-Level-Eintrag daneben.
-      const planningSection = screen.getByText("Planung").closest("div");
-      expect(planningSection).toContainElement(abrechnungLink);
+      // Der Eintrag steckt in der Gruppe Planung (gemeinsamer Container mit
+      // der Gruppenzeile), nicht als eigener Eintrag daneben (#2826).
+      const planningGroup = screen
+        .getByRole("button", { name: "Planung" })
+        .closest("div");
+      expect(planningGroup).toContainElement(abrechnungLink);
 
-      // Unterpunkte tragen die Einrückung und kein eigenes Icon; flache
-      // NAV_ITEMS rendern beides genau umgekehrt.
-      expect(abrechnungLink).toHaveClass("pl-11");
-      expect(abrechnungLink?.querySelector("svg")).toBeNull();
+      // Zeilen einer Gruppe tragen ein Icon und stehen im Zeilenraster;
+      // nur die Unterpunkte der Akkordeons sind eingerückt.
+      expect(abrechnungLink).not.toHaveClass("pl-11");
+      expect(abrechnungLink?.querySelector("svg")).not.toBeNull();
     });
 
     it("highlights Abrechnung on /payroll", () => {
@@ -2224,16 +2222,48 @@ describe("Sidebar", () => {
     });
 
     it("expands the sidebar and opens the section when a rail accordion icon is clicked", () => {
+      // Betreuungskraft mit Aufsicht: der Aufsicht-Bereich ist im Streifen
+      // zu (nur "Meine Gruppen" steht standardmäßig offen).
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "7", name: "Raum 1", groupId: "g1", isSchulhof: false },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
       localStorage.setItem("sidebar-collapsed", "true");
       const { container } = render(<Sidebar />);
 
-      fireEvent.click(screen.getByRole("button", { name: "Eltern" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Aktuelle Aufsicht" }),
+      );
 
-      // Aufklappen + Navigate-on-expand wie im ausgeklappten Zustand
-      // (Path-Routing-Modus prefixt den Tenant-Slug).
+      // Aufklappen + Navigate-on-expand wie im ausgeklappten Zustand.
       expect(container.querySelector("aside")).toHaveClass("w-64");
-      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/eltern");
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?session=g1",
+      );
       expect(localStorage.getItem("sidebar-collapsed")).toBe("false");
+    });
+
+    it("toggles a group in the rail without expanding the sidebar (#2826)", () => {
+      // Die Zeilen einer Gruppe haben Icons und passen in den Streifen; die
+      // Gruppenzeile klappt dort nur, statt die Leiste zu öffnen.
+      localStorage.setItem("sidebar-collapsed", "true");
+      const { container } = render(<Sidebar />);
+
+      const team = screen.getByRole("button", { name: "Team" });
+      expect(team).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(team);
+
+      expect(team).toHaveAttribute("aria-expanded", "true");
+      expect(container.querySelector("aside")).toHaveClass("w-16");
+      expect(screen.getByLabelText("Zeiterfassung")).toBeInTheDocument();
     });
 
     it("keeps the bottom-pinned items reachable as icons in the rail", () => {
@@ -2289,23 +2319,35 @@ describe("Sidebar", () => {
       // Zeilenraster der Seitenleiste. Die Grundklassen des Buttons dürfen
       // dabei nicht durchschlagen: keine zentrierte Ausrichtung, keine
       // eigene Innenbreite, kein transparenter Grund über dem Aktiv-Zustand.
-      const header = screen.getByRole("button", { name: "Eltern" });
+      const header = screen.getByRole("button", { name: "Meine Gruppen" });
       for (const token of ["h-10", "px-3", "rounded-lg", "justify-start"]) {
         expect(header.className).toContain(token);
       }
       for (const token of ["px-4", "justify-center"]) {
         expect(header.className).not.toContain(token);
       }
+
+      // Die Gruppenzeile (#2826) teilt Innenabstand und Icon-Spalte, ist
+      // aber flacher — sie ist ein Schalter, keine Seite.
+      const group = screen.getByRole("button", { name: "Team" });
+      for (const token of ["h-8", "px-3", "rounded-lg", "justify-start"]) {
+        expect(group.className).toContain(token);
+      }
+      for (const token of ["px-4", "justify-center"]) {
+        expect(group.className).not.toContain(token);
+      }
     });
 
     it("hält den Aktiv-Zustand über den Grundklassen des Buttons", () => {
-      mockUsePathname.mockReturnValue("/eltern");
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUsePathname.mockReturnValue("/database");
 
       render(<Sidebar />);
 
       // Der graue Grund des aktiven Bereichs darf nicht vom bg-transparent
       // der Ghost-Variante überschrieben werden.
-      const header = screen.getByRole("button", { name: "Eltern" });
+      const header = screen.getByRole("button", { name: "Datenverwaltung" });
       expect(header.className).toContain("bg-gray-100");
       expect(header.className).not.toContain("bg-transparent");
     });

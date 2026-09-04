@@ -11,6 +11,7 @@ import (
 	"time"
 
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -90,6 +91,7 @@ func (m *trackingMockActiveService) GetTrackingIndicators(ctx context.Context, s
 	return nil, nil
 }
 func (m *trackingMockActiveService) SetSettingsService(_ activeSvc.SettingsResolver) {}
+func (m *trackingMockActiveService) SetTenantRuntime(_ tenant.UnitOfWork)            {}
 func (m *trackingMockActiveService) GetPresenceMode(_ context.Context) string {
 	return "detailed"
 }

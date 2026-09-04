@@ -32,7 +32,7 @@ func NewFactoryForTests(repos *repositories.Factory, db *bun.DB, logger *slog.Lo
 	if err != nil {
 		return nil, err
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
 }
 
 func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
@@ -40,7 +40,7 @@ func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logge
 	if err != nil {
 		return nil, err
 	}
-	return newFactory(repos, db, logger, cfg, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
+	return newFactory(repos, db, logger, cfg, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
 }
 
 // NewFactoryForTestsWithFeedback keeps API integration tests on the real
@@ -57,7 +57,7 @@ func NewFactoryForTestsWithFeedback(
 	if err != nil {
 		return nil, err
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, nil, nil, feedback, bindFeedbackSettings, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, nil, nil, nil, nil, feedback, bindFeedbackSettings, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
 }
 
 func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {

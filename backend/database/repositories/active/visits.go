@@ -628,6 +628,16 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 
 // GetCurrentByStudentIDs finds current active visits for multiple students in a single query
 func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
+	return r.getCurrentByStudentIDs(ctx, studentIDs, false)
+}
+
+// GetCurrentByStudentIDsForUpdate finds and locks current active visits for
+// multiple students in a single query.
+func (r *VisitRepository) GetCurrentByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
+	return r.getCurrentByStudentIDs(ctx, studentIDs, true)
+}
+
+func (r *VisitRepository) getCurrentByStudentIDs(ctx context.Context, studentIDs []int64, forUpdate bool) (map[int64]*active.Visit, error) {
 	result := make(map[int64]*active.Visit, len(studentIDs))
 
 	if len(studentIDs) == 0 {
@@ -654,6 +664,9 @@ func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs
 		OrderExpr(`"visit".entry_time DESC`)
 
 	query = base.WithTenantFilter(ctx, query, "visit")
+	if forUpdate {
+		query = query.For("UPDATE")
+	}
 
 	err := query.Scan(ctx)
 	if err != nil {

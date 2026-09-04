@@ -388,6 +388,24 @@ describe("active-service", () => {
           expect.any(Object),
         );
       });
+
+      it("filters active visits by several active groups in one request", async () => {
+        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: [sampleBackendVisit] }),
+        } as Response);
+
+        await activeService.getVisits({
+          active: true,
+          activeGroupIds: ["17", "23"],
+        });
+
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/active/visits?active=true&active_group_ids=17%2C23",
+          expect.any(Object),
+        );
+      });
     });
 
     describe("getVisit", () => {

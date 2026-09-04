@@ -10,9 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services/announcement"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -195,7 +195,7 @@ func (a durableEmailAdapter) CancelEmail(ctx context.Context, tenantID int64, re
 	return a.module.Cancel(ctx, tenantID, delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
 }
 
-func (a announcementDeliveryAdapter) ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []announcement.EmailDelivery) error {
+func (a announcementDeliveryAdapter) ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []announcement.ParentAnnouncementEmailDelivery) error {
 	values := make([]delivery.EmailDelivery, 0, len(rows))
 	for _, row := range rows {
 		values = append(values, delivery.EmailDelivery{
@@ -210,14 +210,14 @@ func (a announcementDeliveryAdapter) DeleteForEntity(ctx context.Context, tenant
 	return a.module.DeleteEmailDeliveries(ctx, tenantID, delivery.RelatedEntity{Type: relatedType, ID: relatedID})
 }
 
-func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]announcement.EmailDeliveryStatus, error) {
+func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]announcement.ParentAnnouncementEmailDeliveryStatus, error) {
 	rows, err := a.module.EmailDeliveryStatuses(ctx, tenantID, delivery.RelatedEntity{Type: relatedType, ID: relatedID})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]announcement.EmailDeliveryStatus, 0, len(rows))
+	result := make([]announcement.ParentAnnouncementEmailDeliveryStatus, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, announcement.EmailDeliveryStatus{
+		result = append(result, announcement.ParentAnnouncementEmailDeliveryStatus{
 			DeliveryID: row.DeliveryID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
 			FirstName: row.FirstName, LastName: row.LastName, RecipientEmail: row.RecipientEmail,
 			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,

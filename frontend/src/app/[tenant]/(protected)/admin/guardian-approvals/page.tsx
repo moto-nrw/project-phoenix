@@ -47,7 +47,7 @@ export default function GuardianApprovalsPage() {
 
   if (!isReady)
     return (
-      <SkeletonRegion label="Konto-Anfragen werden geladen">
+      <SkeletonRegion label="Elternzugänge werden geladen">
         <ListSkeleton rows={5} />
       </SkeletonRegion>
     );
@@ -66,7 +66,7 @@ export default function GuardianApprovalsPage() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Konto-Anfragen" />
+      <PageHeaderWithSearch title="Elternzugänge" />
       <div className="mt-4">
         <GuardianApprovalQueue inviteModeState={inviteModeState} />
       </div>

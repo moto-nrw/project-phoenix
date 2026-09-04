@@ -16,6 +16,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // OfferingRosterResyncer is the factory-facing view of the offering-source
@@ -74,9 +75,15 @@ type sourcedRosterTarget struct {
 //   - finally, the touched students' already-materialized future occurrences
 //     are reconciled (the materializer never revisits existing instances)
 //
-// Runs inside the template save's tenant transaction; the caller already
-// holds the tenant recurrence lock.
+// Runs atomically in a tenant transaction, joining the template save's
+// transaction when present. The caller holds the tenant recurrence lock.
 func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in scheduleService.OfferingRosterResyncInput) error {
+	return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		return s.resyncTemplateOfferingRoster(txCtx, in)
+	})
+}
+
+func (s *decisionService) resyncTemplateOfferingRoster(ctx context.Context, in scheduleService.OfferingRosterResyncInput) error {
 	if in.TemplateID <= 0 {
 		return fmt.Errorf("%w: template id is required", scheduleService.ErrOfferingSourceInvalid)
 	}

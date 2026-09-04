@@ -44,6 +44,7 @@ type attendanceSyncSetup struct {
 	syncer      *scheduleSvc.AttendanceSyncService
 	instRepo    scheduleModels.ActivityInstanceRepository
 	isRepo      scheduleModels.InstanceStudentRepository
+	statusRepo  activeModels.StudentStatusDayRepository
 	groupRepo   activeModels.GroupRepository
 	db          *bun.DB
 	ctx         context.Context
@@ -81,6 +82,8 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
+	repoFactory := repositories.NewFactory(db)
+	instanceStudentRepo := repoFactory.InstanceStudent
 
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
 	// instance callback registered below must run before its room/group parents.
@@ -91,11 +94,12 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	return &attendanceSyncSetup{
 		syncer: scheduleSvc.NewAttendanceSyncService(
 			scheduleRepo.NewActivityInstanceRepository(db),
-			scheduleRepo.NewInstanceStudentRepository(db),
+			instanceStudentRepo,
 			slog.Default(),
 		),
 		instRepo:    scheduleRepo.NewActivityInstanceRepository(db),
-		isRepo:      scheduleRepo.NewInstanceStudentRepository(db),
+		isRepo:      instanceStudentRepo,
+		statusRepo:  repoFactory.StudentStatusDay,
 		groupRepo:   activeRepo.NewGroupRepository(db),
 		db:          db,
 		ctx:         ctx,
@@ -292,7 +296,7 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	afternoon.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.isRepo.Create(s.ctx, afternoon))
 
-	statusRepo := activeRepo.NewStudentStatusDayRepository(s.db)
+	statusRepo := s.statusRepo
 	statusDay := &activeModels.StudentStatusDay{
 		StudentID: student.ID, Date: afternoonInstance.Date,
 		Status: activeModels.StudentStatusDaySick, ReportedAt: morningCheckOut,
