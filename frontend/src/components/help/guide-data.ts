@@ -1241,7 +1241,8 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Zeigt Admins moto so, wie eine bestimmte Person Ihrer Schule es sieht — mit deren Menü, Seiten und Daten. In der Vorschau ist nur Lesen möglich.",
         steps: [
-          "Oben rechts auf Ihr Profil tippen und `Ansicht eines Mitarbeitenden` wählen.",
+          "Am Computer oben rechts Ihr Profil öffnen und `Ansicht eines Mitarbeitenden` wählen.",
+          "Auf dem Handy unten `Mehr` und dann `Ansicht eines Mitarbeitenden` tippen.",
           "Die Person auswählen und `Vorschau starten` tippen.",
           "moto zeigt jetzt die Ansicht dieser Person. Ein orangefarbener Streifen oben nennt die Person und bleibt auf jeder Seite sichtbar.",
           "In der Vorschau können Sie nichts ändern, anlegen oder löschen. Seiten, die die Person nicht sieht, sehen auch Sie in der Vorschau nicht.",
@@ -1253,7 +1254,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Vorschau-Modus mit orangefarbenem Hinweisstreifen oben, der die gewählte Person nennt und die Schaltfläche Vorschau beenden trägt.",
+          "Vorschau-Modus mit orangefarbenem Hinweisstreifen oben. Er nennt die gewählte Person und zeigt `Vorschau beenden` auf allen Geräten.",
       },
       {
         id: "eroeffnungssalden-import",
