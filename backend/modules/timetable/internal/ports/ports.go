@@ -25,6 +25,9 @@ type Store interface {
 	CreateGroup(context.Context, domain.GroupFields) (domain.Group, domain.OperationStats, error)
 	UpdateGroup(context.Context, int64, domain.GroupFields) (domain.Group, bool, domain.OperationStats, error)
 	DeleteGroup(context.Context, int64) (domain.OperationStats, error)
+	UpdateTemplate(context.Context, int64, domain.TemplateFields) (int64, domain.OperationStats, error)
+	ArchiveTemplate(context.Context, int64) (int64, domain.OperationStats, error)
+	UpdateGroupOfferingSource(context.Context, int64, domain.OfferingSourceFields) (domain.OperationStats, error)
 	ListGroupTargets(context.Context, []int64) (map[int64][]domain.GroupTarget, domain.OperationStats, error)
 	ReplaceGroupTargets(context.Context, int64, []domain.GroupTargetFields) (domain.OperationStats, error)
 }

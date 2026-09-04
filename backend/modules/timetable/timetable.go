@@ -136,6 +136,9 @@ type Command interface {
 	CreateGroup(context.Context, GroupInput) (Group, error)
 	UpdateGroup(context.Context, int64, GroupInput) (Group, error)
 	DeleteGroup(context.Context, int64) error
+	UpdateTemplate(context.Context, int64, TemplateUpdate) (int64, error)
+	ArchiveTemplate(context.Context, int64) (int64, error)
+	UpdateGroupOfferingSource(context.Context, int64, OfferingSourceInput) error
 	ReplaceGroupTargets(context.Context, int64, []GroupTargetInput) error
 }
 
@@ -211,7 +214,9 @@ func (m *Module) FindGroupByName(ctx context.Context, name string) (Group, error
 }
 
 func (m *Module) ListGroups(ctx context.Context, filter GroupFilter) ([]Group, error) {
-	if hasInvalidID(filter.IDs) || (filter.CategoryID != nil && *filter.CategoryID <= 0) {
+	if hasInvalidID(filter.IDs) || hasInvalidID(filter.SourceOfferingIDs) ||
+		(filter.CategoryID != nil && *filter.CategoryID <= 0) ||
+		(filter.SeriesForGroupID != nil && *filter.SeriesForGroupID <= 0) {
 		return nil, m.reject("list_groups", ErrInvalidGroupQuery)
 	}
 	return m.engine.ListGroups(ctx, filter)
@@ -261,6 +266,33 @@ func (m *Module) DeleteGroup(ctx context.Context, id int64) error {
 		return m.reject("delete_group", ErrInvalidGroup)
 	}
 	return m.engine.DeleteGroup(ctx, id)
+}
+
+func (m *Module) UpdateTemplate(ctx context.Context, id int64, input TemplateUpdate) (int64, error) {
+	if id <= 0 || !normalizeTemplateUpdate(&input) {
+		return 0, m.reject("update_template", ErrInvalidGroup)
+	}
+	return m.engine.UpdateTemplate(ctx, id, input)
+}
+
+func (m *Module) ArchiveTemplate(ctx context.Context, id int64) (int64, error) {
+	if id <= 0 {
+		return 0, m.reject("archive_template", ErrInvalidGroup)
+	}
+	return m.engine.ArchiveTemplate(ctx, id)
+}
+
+func (m *Module) UpdateGroupOfferingSource(ctx context.Context, id int64, input OfferingSourceInput) error {
+	fields := GroupInput{TargetGroupType: TargetGroupTypeOffering,
+		SourceCareOfferingIDs: input.CareOfferingIDs, SourceGradeLevels: input.GradeLevels,
+		SourceSchoolClasses: input.SchoolClasses}
+	if id <= 0 || !normalizeOfferingSource(&fields) {
+		return m.reject("update_group_offering_source", ErrInvalidGroup)
+	}
+	input.CareOfferingIDs = fields.SourceCareOfferingIDs
+	input.GradeLevels = fields.SourceGradeLevels
+	input.SchoolClasses = fields.SourceSchoolClasses
+	return m.engine.UpdateGroupOfferingSource(ctx, id, input)
 }
 
 func (m *Module) CreateCategory(ctx context.Context, input CreateCategory) (Category, error) {
@@ -412,6 +444,26 @@ func normalizeGroup(input *GroupInput) error {
 		return ErrInvalidGroup
 	}
 	return nil
+}
+
+func normalizeTemplateUpdate(input *TemplateUpdate) bool {
+	group := GroupInput{
+		Name: input.Name, Type: input.Type, CategoryID: input.CategoryID,
+		EducationGroupID: input.EducationGroupID, MaxParticipants: input.MaxParticipants,
+		RequiredStaff: input.RequiredStaff, ListKind: input.ListKind, IsTemplate: true,
+		CalendarPeriodID: input.CalendarPeriodID, TargetGroupType: input.TargetGroupType,
+		TargetGradeLevel: input.TargetGradeLevel, TargetSchoolClass: input.TargetSchoolClass,
+		SourceCareOfferingIDs: input.SourceCareOfferingIDs, SourceGradeLevels: input.SourceGradeLevels,
+		SourceSchoolClasses: input.SourceSchoolClasses, Notes: input.Notes,
+	}
+	if normalizeGroup(&group) != nil {
+		return false
+	}
+	input.Type, input.ListKind, input.TargetGroupType = group.Type, group.ListKind, group.TargetGroupType
+	input.TargetSchoolClass = group.TargetSchoolClass
+	input.SourceCareOfferingIDs, input.SourceGradeLevels = group.SourceCareOfferingIDs, group.SourceGradeLevels
+	input.SourceSchoolClasses = group.SourceSchoolClasses
+	return true
 }
 
 func validGroupType(value string) bool {

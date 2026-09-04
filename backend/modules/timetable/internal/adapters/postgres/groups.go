@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -167,6 +168,126 @@ func (s *Store) DeleteGroup(ctx context.Context, id int64) (domain.OperationStat
 	return stats, err
 }
 
+func (s *Store) UpdateTemplate(ctx context.Context, id int64, fields domain.TemplateFields) (int64, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	offeringIDs, grades, classes, err := templateSourceValues(fields)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	query := templateUpdateQuery(db, tenantID, id, fields, offeringIDs, grades, classes)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := query.Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return 0, stats, classifyWriteError("update template", err, &stats)
+	}
+	rows, err := rowsAffected(result, "updated templates", &stats)
+	return rows, stats, err
+}
+
+func (s *Store) ArchiveTemplate(ctx context.Context, id int64) (int64, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	now := time.Now()
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := db.NewUpdate().Table("activities.groups").Set("archived_at = ?", now).
+		Set("updated_at = ?", now).Where("tenant_id = ?", tenantID).Where("id = ?", id).
+		Where("is_template = TRUE").Where("archived_at IS NULL").Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return 0, stats, classifyWriteError("archive template", err, &stats)
+	}
+	rows, err := rowsAffected(result, "archived templates", &stats)
+	return rows, stats, err
+}
+
+func (s *Store) UpdateGroupOfferingSource(ctx context.Context, id int64, fields domain.OfferingSourceFields) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	offeringIDs, err := jsonText(fields.CareOfferingIDs)
+	if err != nil {
+		return domain.OperationStats{}, fmt.Errorf("timetable postgres: encode source care offering IDs: %w", err)
+	}
+	grades, err := jsonText(fields.GradeLevels)
+	if err != nil {
+		return domain.OperationStats{}, fmt.Errorf("timetable postgres: encode source grade levels: %w", err)
+	}
+	classes, err := jsonText(fields.SchoolClasses)
+	if err != nil {
+		return domain.OperationStats{}, fmt.Errorf("timetable postgres: encode source school classes: %w", err)
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := db.NewUpdate().Table("activities.groups").Set("source_care_offering_ids = ?", offeringIDs).
+		Set("source_grade_levels = ?", grades).Set("source_school_classes = ?", classes).
+		Set("updated_at = ?", time.Now()).Where("tenant_id = ?", tenantID).Where("id = ?", id).Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, classifyWriteError("update group offering source", err, &stats)
+	}
+	_, err = rowsAffected(result, "updated group offering sources", &stats)
+	return stats, err
+}
+
+func templateUpdateQuery(db bun.IDB, tenantID, id int64, fields domain.TemplateFields, offeringIDs, grades, classes any) *bun.UpdateQuery {
+	query := db.NewUpdate().Table("activities.groups").Set("name = ?", fields.Name).Set("type = ?", fields.Type).
+		Set("category_id = ?", fields.CategoryID).Set("planned_room_id = ?", fields.RoomID).
+		Set("education_group_id = ?", fields.EducationGroupID).Set("required_staff = ?", fields.RequiredStaff).
+		Set("calendar_period_id = ?", fields.CalendarPeriodID).Set("target_group_type = ?", fields.TargetGroupType).
+		Set("target_grade_level = ?", fields.TargetGradeLevel).Set("target_school_class = ?", fields.TargetSchoolClass).
+		Set("source_care_offering_ids = ?", offeringIDs).Set("source_grade_levels = ?", grades).
+		Set("source_school_classes = ?", classes).Set("list_kind = ?", fields.ListKind).
+		Set("notes = ?", fields.Notes).Set("updated_at = ?", time.Now()).
+		Where("tenant_id = ?", tenantID).Where("id = ?", id).Where("is_template = TRUE").Where("archived_at IS NULL")
+	if fields.PlanningTrackIDProvided {
+		query = query.Set("planning_track_id = ?", fields.PlanningTrackID)
+	}
+	if fields.MaxParticipantsProvided || fields.MaxParticipants > 0 {
+		var limit any
+		if fields.MaxParticipants > 0 {
+			limit = fields.MaxParticipants
+		}
+		query = query.Set("max_participants = ?", limit)
+	}
+	return query
+}
+
+func templateSourceValues(fields domain.TemplateFields) (any, any, any, error) {
+	offeringIDs, err := jsonText(fields.SourceCareOfferingIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("timetable postgres: encode source care offering IDs: %w", err)
+	}
+	grades, err := jsonText(fields.SourceGradeLevels)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("timetable postgres: encode source grade levels: %w", err)
+	}
+	classes, err := jsonText(fields.SourceSchoolClasses)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("timetable postgres: encode source school classes: %w", err)
+	}
+	return offeringIDs, grades, classes, nil
+}
+
+func jsonText[T any](values []T) (any, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return nil, err
+	}
+	return string(encoded), nil
+}
+
 func groupListQuery(db bun.IDB, rows *[]groupRow, tenantID int64, filter domain.GroupFilter) *bun.SelectQuery {
 	query := db.NewSelect().Model(rows).ModelTableExpr(`activities.groups AS "group"`).
 		ColumnExpr(`"group".*`).
@@ -182,14 +303,46 @@ func groupListQuery(db bun.IDB, rows *[]groupRow, tenantID int64, filter domain.
 	if filter.CategoryID != nil {
 		query = query.Where(`"group".category_id = ?`, *filter.CategoryID)
 	}
+	if filter.IsOpen != nil {
+		query = query.Where(`"group".is_open = ?`, *filter.IsOpen)
+	}
 	if filter.IsSystem != nil {
 		query = query.Where(`"group".is_system = ?`, *filter.IsSystem)
+	}
+	if filter.IsTemplate != nil {
+		query = query.Where(`"group".is_template = ?`, *filter.IsTemplate)
 	}
 	if len(filter.IDs) > 0 {
 		query = query.Where(`"group".id IN (?)`, bun.List(filter.IDs))
 	}
+	query = applyGroupSourceFilter(query, tenantID, filter)
+	if filter.ActiveOnly {
+		query = query.Where(`"group".archived_at IS NULL`)
+	}
 	if filter.OrderByName {
 		query = query.OrderExpr(`"group".name ASC`)
+	}
+	if filter.OrderByID {
+		query = query.OrderExpr(`"group".id ASC`)
+	}
+	return query
+}
+
+func applyGroupSourceFilter(query *bun.SelectQuery, tenantID int64, filter domain.GroupFilter) *bun.SelectQuery {
+	if filter.SeriesForGroupID != nil {
+		query = query.Where(`COALESCE("group".series_root_id, "group".id) = (
+			SELECT COALESCE(selected.series_root_id, selected.id) FROM activities.groups AS selected
+			WHERE selected.tenant_id = ? AND selected.id = ?)`, tenantID, *filter.SeriesForGroupID)
+	}
+	if len(filter.SourceOfferingIDs) == 1 {
+		query = query.Where(`"group".source_care_offering_ids @> to_jsonb(?::BIGINT)`, filter.SourceOfferingIDs[0])
+	} else if len(filter.SourceOfferingIDs) > 1 {
+		query = query.Where(`EXISTS (
+			SELECT 1 FROM jsonb_array_elements_text("group".source_care_offering_ids) AS source(id)
+			WHERE source.id::BIGINT IN (?))`, bun.List(filter.SourceOfferingIDs))
+	}
+	if filter.HasOfferingSource {
+		query = query.Where(`"group".source_care_offering_ids IS NOT NULL`)
 	}
 	return query
 }

@@ -207,6 +207,123 @@ func TestModuleOwnsGroupLifecycle(t *testing.T) {
 	require.ErrorIs(t, err, timetable.ErrGroupNotFound)
 }
 
+func TestModuleOwnsTemplateFilters(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	category := createCategory(t, ctx, module, "Template filters")
+	root := createTemplate(t, ctx, module, category.ID, "Root", []int64{101})
+	segment := createTemplate(t, ctx, module, category.ID, "Segment", []int64{102})
+	archived := createTemplate(t, ctx, module, category.ID, "Archived", []int64{102})
+	_, err := module.ArchiveTemplate(ctx, archived.ID)
+	require.NoError(t, err)
+	_, err = module.CreateGroup(ctx, timetable.GroupInput{
+		Name: "Non-template", CategoryID: category.ID, TargetGroupType: timetable.TargetGroupTypeOffering,
+		SourceCareOfferingIDs: []int64{102},
+	})
+	require.NoError(t, err)
+	_, err = db.NewUpdate().Table("activities.groups").Set("series_root_id = ?", root.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).Where("id = ?", segment.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	isTemplate := true
+	bySource, err := module.ListGroups(ctx, timetable.GroupFilter{
+		IsTemplate: &isTemplate, SourceOfferingIDs: []int64{102}, ActiveOnly: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, bySource, 1)
+	assert.Equal(t, segment.ID, bySource[0].ID)
+	series, err := module.ListGroups(ctx, timetable.GroupFilter{
+		IsTemplate: &isTemplate, SeriesForGroupID: &segment.ID, ActiveOnly: true, OrderByID: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{root.ID, segment.ID}, groupIDs(series))
+}
+
+func TestModuleOwnsTemplateWrites(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	category := createCategory(t, ctx, module, "Template writes")
+	template := createTemplate(t, ctx, module, category.ID, "Before", []int64{201})
+	room := testpkg.CreateTestRoom(t, db, "Template write room")
+
+	rows, err := module.UpdateTemplate(ctx, template.ID, validTemplateUpdate(category.ID, room.ID, "After", []int64{202}))
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+	require.NoError(t, module.UpdateGroupOfferingSource(ctx, template.ID, timetable.OfferingSourceInput{
+		CareOfferingIDs: []int64{203}, GradeLevels: []int{3},
+	}))
+	updated, err := module.FindGroup(ctx, template.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "After", updated.Name)
+	assert.Equal(t, []int64{203}, updated.SourceCareOfferingIDs)
+	assert.Equal(t, []int{3}, updated.SourceGradeLevels)
+	rows, err = module.ArchiveTemplate(ctx, template.ID)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+}
+
+func TestTemplateWritesRespectTenantAndOuterRollback(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	category := createCategory(t, ctx, module, "Template isolation")
+	template := createTemplate(t, ctx, module, category.ID, "Original", nil)
+	room := testpkg.CreateTestRoom(t, db, "Template isolation room")
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, foreignTenantID)
+	foreignCategory := testpkg.CreateTestActivityCategoryForTenant(t, db, foreignTenantID, "Foreign category")
+	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenantID, "Foreign room")
+	foreignCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), foreignTenantID)
+
+	rows, err := module.UpdateTemplate(foreignCtx, template.ID, validTemplateUpdate(foreignCategory.ID, foreignRoom.ID, "Foreign", nil))
+	require.NoError(t, err)
+	assert.Zero(t, rows)
+	wantErr := errors.New("abort template update")
+	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		_, updateErr := module.UpdateTemplate(txCtx, template.ID, validTemplateUpdate(category.ID, room.ID, "Rolled back", nil))
+		if updateErr != nil {
+			return updateErr
+		}
+		return wantErr
+	})
+	require.ErrorIs(t, err, wantErr)
+	unchanged, err := module.FindGroup(ctx, template.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Original", unchanged.Name)
+}
+
+func createTemplate(t *testing.T, ctx context.Context, module *timetable.Module, categoryID int64, name string, sourceIDs []int64) timetable.Group {
+	t.Helper()
+	input := timetable.GroupInput{Name: name, CategoryID: categoryID, IsTemplate: true}
+	if len(sourceIDs) > 0 {
+		input.TargetGroupType = timetable.TargetGroupTypeOffering
+		input.SourceCareOfferingIDs = sourceIDs
+	}
+	created, err := module.CreateGroup(ctx, input)
+	require.NoError(t, err)
+	return created
+}
+
+func validTemplateUpdate(categoryID, roomID int64, name string, sourceIDs []int64) timetable.TemplateUpdate {
+	return timetable.TemplateUpdate{
+		Name: name, Type: timetable.GroupTypeActivity, CategoryID: categoryID, RoomID: roomID,
+		TargetGroupType: timetable.TargetGroupTypeOffering, SourceCareOfferingIDs: sourceIDs,
+	}
+}
+
+func groupIDs(groups []timetable.Group) []int64 {
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		ids = append(ids, group.ID)
+	}
+	return ids
+}
+
 func TestModuleGroupWritesCannotCrossTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

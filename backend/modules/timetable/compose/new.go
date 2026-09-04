@@ -138,8 +138,10 @@ func (e engine) FindGroupByName(ctx context.Context, name string) (timetable.Gro
 
 func (e engine) ListGroups(ctx context.Context, filter timetable.GroupFilter) ([]timetable.Group, error) {
 	values, err := e.service.ListGroups(ctx, domain.GroupFilter{
-		Name: filter.Name, CategoryID: filter.CategoryID, IsSystem: filter.IsSystem,
-		IDs: filter.IDs, OrderByName: filter.OrderByName,
+		Name: filter.Name, CategoryID: filter.CategoryID, IsOpen: filter.IsOpen, IsSystem: filter.IsSystem,
+		IsTemplate: filter.IsTemplate, IDs: filter.IDs, SeriesForGroupID: filter.SeriesForGroupID,
+		SourceOfferingIDs: filter.SourceOfferingIDs, HasOfferingSource: filter.HasOfferingSource,
+		ActiveOnly: filter.ActiveOnly, OrderByName: filter.OrderByName, OrderByID: filter.OrderByID,
 	})
 	if err != nil {
 		return nil, mapError(err)
@@ -193,6 +195,22 @@ func (e engine) UpdateGroup(ctx context.Context, id int64, input timetable.Group
 
 func (e engine) DeleteGroup(ctx context.Context, id int64) error {
 	return mapError(e.service.DeleteGroup(ctx, id))
+}
+
+func (e engine) UpdateTemplate(ctx context.Context, id int64, input timetable.TemplateUpdate) (int64, error) {
+	rows, err := e.service.UpdateTemplate(ctx, id, templateFields(input))
+	return rows, mapError(err)
+}
+
+func (e engine) ArchiveTemplate(ctx context.Context, id int64) (int64, error) {
+	rows, err := e.service.ArchiveTemplate(ctx, id)
+	return rows, mapError(err)
+}
+
+func (e engine) UpdateGroupOfferingSource(ctx context.Context, id int64, input timetable.OfferingSourceInput) error {
+	return mapError(e.service.UpdateGroupOfferingSource(ctx, id, domain.OfferingSourceFields{
+		CareOfferingIDs: input.CareOfferingIDs, GradeLevels: input.GradeLevels, SchoolClasses: input.SchoolClasses,
+	}))
 }
 
 func (e engine) CreateCategory(ctx context.Context, input timetable.CreateCategory) (timetable.Category, error) {
@@ -315,6 +333,20 @@ func groupFields(value timetable.GroupInput) domain.GroupFields {
 		TargetGradeLevel: value.TargetGradeLevel, TargetSchoolClass: value.TargetSchoolClass,
 		SourceCareOfferingIDs: value.SourceCareOfferingIDs, SourceGradeLevels: value.SourceGradeLevels,
 		SourceSchoolClasses: value.SourceSchoolClasses, Notes: value.Notes,
+	}
+}
+
+func templateFields(value timetable.TemplateUpdate) domain.TemplateFields {
+	return domain.TemplateFields{
+		Name: value.Name, Type: value.Type, CategoryID: value.CategoryID,
+		PlanningTrackID: value.PlanningTrackID, PlanningTrackIDProvided: value.PlanningTrackIDProvided,
+		RoomID: value.RoomID, EducationGroupID: value.EducationGroupID,
+		MaxParticipants: value.MaxParticipants, MaxParticipantsProvided: value.MaxParticipantsProvided,
+		RequiredStaff: value.RequiredStaff, CalendarPeriodID: value.CalendarPeriodID,
+		TargetGroupType: value.TargetGroupType, TargetGradeLevel: value.TargetGradeLevel,
+		TargetSchoolClass: value.TargetSchoolClass, ListKind: value.ListKind, Notes: value.Notes,
+		SourceCareOfferingIDs: value.SourceCareOfferingIDs, SourceGradeLevels: value.SourceGradeLevels,
+		SourceSchoolClasses: value.SourceSchoolClasses,
 	}
 }
 

@@ -113,6 +113,79 @@ func (r timetableActivityGroupRepository) ListWithCategory(ctx context.Context, 
 	return legacyGroups(groups), nil
 }
 
+func (r timetableActivityGroupRepository) FindOpenGroups(ctx context.Context) ([]*activitiesModels.Group, error) {
+	open, system := true, false
+	return r.listLegacyGroups(ctx, timetable.GroupFilter{IsOpen: &open, IsSystem: &system, OrderByName: true}, "find open groups")
+}
+
+func (r timetableActivityGroupRepository) FindAllTemplates(ctx context.Context) ([]*activitiesModels.Group, error) {
+	isTemplate := true
+	return r.listLegacyGroups(ctx, timetable.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, OrderByName: true}, "find all templates")
+}
+
+func (r timetableActivityGroupRepository) FindTemplateSeries(ctx context.Context, groupID int64) ([]*activitiesModels.Group, error) {
+	isTemplate := true
+	return r.listLegacyGroups(ctx, timetable.GroupFilter{
+		IsTemplate: &isTemplate, ActiveOnly: true, SeriesForGroupID: &groupID, OrderByID: true,
+	}, "find template series")
+}
+
+func (r timetableActivityGroupRepository) FindTemplatesBySourceOffering(ctx context.Context, offeringID int64) ([]*activitiesModels.Group, error) {
+	isTemplate := true
+	return r.listLegacyGroups(ctx, timetable.GroupFilter{
+		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: []int64{offeringID}, OrderByID: true,
+	}, "find templates by source offering")
+}
+
+func (r timetableActivityGroupRepository) FindTemplatesBySourceOfferings(ctx context.Context, offeringIDs []int64) ([]*activitiesModels.Group, error) {
+	if len(offeringIDs) == 0 {
+		return []*activitiesModels.Group{}, nil
+	}
+	isTemplate := true
+	return r.listLegacyGroups(ctx, timetable.GroupFilter{
+		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: offeringIDs, OrderByID: true,
+	}, "find templates by source offerings")
+}
+
+func (r timetableActivityGroupRepository) FindTemplatesWithOfferingSource(ctx context.Context) ([]*activitiesModels.Group, error) {
+	isTemplate := true
+	return r.listLegacyGroups(ctx, timetable.GroupFilter{
+		IsTemplate: &isTemplate, ActiveOnly: true, HasOfferingSource: true, OrderByID: true,
+	}, "find templates with offering source")
+}
+
+func (r timetableActivityGroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fields activitiesModels.TemplateFieldsUpdate) (int64, error) {
+	return r.timetable.UpdateTemplate(ctx, id, timetable.TemplateUpdate{
+		Name: fields.Name, Type: fields.Type, CategoryID: fields.CategoryID,
+		PlanningTrackID: fields.PlanningTrackID, PlanningTrackIDProvided: fields.PlanningTrackIDProvided,
+		RoomID: fields.RoomID, EducationGroupID: fields.EducationGroupID,
+		MaxParticipants: fields.MaxParticipants, MaxParticipantsProvided: fields.MaxParticipantsProvided,
+		RequiredStaff: fields.RequiredStaff, CalendarPeriodID: fields.CalendarPeriodID,
+		TargetGroupType: fields.TargetGroupType, TargetGradeLevel: fields.TargetGradeLevel,
+		TargetSchoolClass: fields.TargetSchoolClass, ListKind: fields.ListKind, Notes: fields.Notes,
+		SourceCareOfferingIDs: fields.SourceCareOfferingIDs, SourceGradeLevels: fields.SourceGradeLevels,
+		SourceSchoolClasses: fields.SourceSchoolClasses,
+	})
+}
+
+func (r timetableActivityGroupRepository) ArchiveTemplate(ctx context.Context, id int64) (int64, error) {
+	return r.timetable.ArchiveTemplate(ctx, id)
+}
+
+func (r timetableActivityGroupRepository) UpdateTemplateOfferingSource(ctx context.Context, id int64, offeringIDs []int64, gradeLevels []int, schoolClasses []string) error {
+	return r.timetable.UpdateGroupOfferingSource(ctx, id, timetable.OfferingSourceInput{
+		CareOfferingIDs: offeringIDs, GradeLevels: gradeLevels, SchoolClasses: schoolClasses,
+	})
+}
+
+func (r timetableActivityGroupRepository) listLegacyGroups(ctx context.Context, filter timetable.GroupFilter, operation string) ([]*activitiesModels.Group, error) {
+	groups, err := r.timetable.ListGroups(ctx, filter)
+	if err != nil {
+		return nil, legacyGroupReadError(operation, err)
+	}
+	return legacyGroups(groups), nil
+}
+
 func (r timetableActivityGroupRepository) ReplaceTargets(ctx context.Context, groupID int64, targets []*activitiesModels.GroupTarget) error {
 	if groupID <= 0 {
 		return errors.New("replace group targets requires a positive activity group id")

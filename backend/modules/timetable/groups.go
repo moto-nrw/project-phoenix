@@ -55,11 +55,18 @@ type Group struct {
 
 // GroupFilter is the bounded compatibility filter used by activity listings.
 type GroupFilter struct {
-	Name        string
-	CategoryID  *int64
-	IsSystem    *bool
-	IDs         []int64
-	OrderByName bool
+	Name              string
+	CategoryID        *int64
+	IsOpen            *bool
+	IsSystem          *bool
+	IsTemplate        *bool
+	IDs               []int64
+	SeriesForGroupID  *int64
+	SourceOfferingIDs []int64
+	HasOfferingSource bool
+	ActiveOnly        bool
+	OrderByName       bool
+	OrderByID         bool
 }
 
 // GroupInput contains the writable scalar fields of an activities.groups row.
@@ -88,6 +95,34 @@ type GroupInput struct {
 	SourceGradeLevels     []int
 	SourceSchoolClasses   []string
 	Notes                 *string
+}
+
+type TemplateUpdate struct {
+	Name                    string
+	Type                    string
+	CategoryID              int64
+	PlanningTrackID         *int64
+	PlanningTrackIDProvided bool
+	RoomID                  int64
+	EducationGroupID        *int64
+	MaxParticipants         int
+	MaxParticipantsProvided bool
+	RequiredStaff           *int
+	CalendarPeriodID        *int64
+	TargetGroupType         string
+	TargetGradeLevel        *int16
+	TargetSchoolClass       *string
+	ListKind                *string
+	Notes                   *string
+	SourceCareOfferingIDs   []int64
+	SourceGradeLevels       []int
+	SourceSchoolClasses     []string
+}
+
+type OfferingSourceInput struct {
+	CareOfferingIDs []int64
+	GradeLevels     []int
+	SchoolClasses   []string
 }
 
 // GroupTarget is one dynamic cohort attached to a timetable template.

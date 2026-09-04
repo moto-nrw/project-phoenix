@@ -223,6 +223,34 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64) error {
 	})
 }
 
+func (s *Service) UpdateTemplate(ctx context.Context, id int64, fields domain.TemplateFields) (result int64, err error) {
+	err = s.runWrite(ctx, "update_template", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		rows, queryStats, updateErr := s.store.UpdateTemplate(txCtx, id, fields)
+		stats.Add(queryStats)
+		result = rows
+		return updateErr
+	})
+	return result, err
+}
+
+func (s *Service) ArchiveTemplate(ctx context.Context, id int64) (result int64, err error) {
+	err = s.runWrite(ctx, "archive_template", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		rows, queryStats, archiveErr := s.store.ArchiveTemplate(txCtx, id)
+		stats.Add(queryStats)
+		result = rows
+		return archiveErr
+	})
+	return result, err
+}
+
+func (s *Service) UpdateGroupOfferingSource(ctx context.Context, id int64, fields domain.OfferingSourceFields) error {
+	return s.runWrite(ctx, "update_group_offering_source", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := s.store.UpdateGroupOfferingSource(txCtx, id, fields)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
 func (s *Service) CreateCategory(ctx context.Context, fields domain.CategoryFields) (result domain.Category, err error) {
 	err = s.runWrite(ctx, "create_category", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		value, queryStats, createErr := s.store.CreateCategory(txCtx, fields)

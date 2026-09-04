@@ -15,6 +15,8 @@ type recordingEngine struct {
 	create     timetable.CreateCategory
 	update     timetable.UpdateCategory
 	group      timetable.GroupInput
+	template   timetable.TemplateUpdate
+	offering   timetable.OfferingSourceInput
 	targets    []timetable.GroupTargetInput
 	calls      int
 	rejections []string
@@ -95,6 +97,23 @@ func (e *recordingEngine) UpdateGroup(_ context.Context, _ int64, input timetabl
 
 func (e *recordingEngine) DeleteGroup(context.Context, int64) error {
 	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) UpdateTemplate(_ context.Context, _ int64, input timetable.TemplateUpdate) (int64, error) {
+	e.calls++
+	e.template = input
+	return 1, nil
+}
+
+func (e *recordingEngine) ArchiveTemplate(context.Context, int64) (int64, error) {
+	e.calls++
+	return 1, nil
+}
+
+func (e *recordingEngine) UpdateGroupOfferingSource(_ context.Context, _ int64, input timetable.OfferingSourceInput) error {
+	e.calls++
+	e.offering = input
 	return nil
 }
 
@@ -193,6 +212,35 @@ func TestModuleNormalizesAndValidatesGroupWrites(t *testing.T) {
 	assert.Contains(t, engine.rejections, "update_group")
 }
 
+func TestModuleNormalizesAndValidatesTemplateWrites(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+	class := " 2b "
+
+	_, err := module.UpdateTemplate(ctx, 9, timetable.TemplateUpdate{
+		Name: "Template", CategoryID: 7, TargetGroupType: timetable.TargetGroupTypeSchoolClass,
+		TargetSchoolClass: &class,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, timetable.GroupTypeActivity, engine.template.Type)
+	assert.Equal(t, "2b", *engine.template.TargetSchoolClass)
+	err = module.UpdateGroupOfferingSource(ctx, 9, timetable.OfferingSourceInput{
+		CareOfferingIDs: []int64{4}, SchoolClasses: []string{" 3A "},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"3A"}, engine.offering.SchoolClasses)
+
+	_, err = module.UpdateTemplate(ctx, 9, timetable.TemplateUpdate{Name: "", CategoryID: 7})
+	require.ErrorIs(t, err, timetable.ErrInvalidGroup)
+	err = module.UpdateGroupOfferingSource(ctx, 9, timetable.OfferingSourceInput{GradeLevels: []int{2}})
+	require.ErrorIs(t, err, timetable.ErrInvalidGroup)
+	_, err = module.ArchiveTemplate(ctx, 0)
+	require.ErrorIs(t, err, timetable.ErrInvalidGroup)
+	assert.Equal(t, 2, engine.calls, "invalid writes must not reach the engine")
+}
+
 func TestModuleRejectsInvalidAndReservedCategoryWrites(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
@@ -235,11 +283,16 @@ func TestModuleRejectsInvalidGroupQueries(t *testing.T) {
 	require.ErrorIs(t, err, timetable.ErrInvalidGroupQuery)
 	_, err = module.ListGroups(ctx, timetable.GroupFilter{IDs: []int64{1, 0}})
 	require.ErrorIs(t, err, timetable.ErrInvalidGroupQuery)
+	_, err = module.ListGroups(ctx, timetable.GroupFilter{SourceOfferingIDs: []int64{-1}})
+	require.ErrorIs(t, err, timetable.ErrInvalidGroupQuery)
+	invalidSeriesID := int64(0)
+	_, err = module.ListGroups(ctx, timetable.GroupFilter{SeriesForGroupID: &invalidSeriesID})
+	require.ErrorIs(t, err, timetable.ErrInvalidGroupQuery)
 	_, err = module.ListGroupTargets(ctx, []int64{-1})
 	require.ErrorIs(t, err, timetable.ErrInvalidGroupQuery)
 
 	assert.Zero(t, engine.calls)
-	assert.Equal(t, []string{"find_group", "list_groups", "list_group_targets"}, engine.rejections)
+	assert.Equal(t, []string{"find_group", "list_groups", "list_groups", "list_groups", "list_group_targets"}, engine.rejections)
 }
 
 func TestModuleNormalizesAndRejectsGroupTargets(t *testing.T) {
