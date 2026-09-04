@@ -346,6 +346,40 @@ func (e engine) CloseOpenStudentEnrollments(ctx context.Context, groupID int64, 
 	return mapError(e.service.CloseOpenStudentEnrollments(ctx, groupID, periodID, validUntil))
 }
 
+func (e engine) FindTimeframe(ctx context.Context, id int64) (timetable.Timeframe, error) {
+	value, err := e.service.FindTimeframe(ctx, id)
+	return timeframeToPublic(value), mapError(err)
+}
+
+func (e engine) ListTimeframes(ctx context.Context, filter timetable.TimeframeFilter) ([]timetable.Timeframe, error) {
+	values, err := e.service.ListTimeframes(ctx, domain.TimeframeFilter{
+		DescriptionContains: filter.DescriptionContains, ActiveOnly: filter.ActiveOnly,
+		OverlapsStart: filter.OverlapsStart, OverlapsEnd: filter.OverlapsEnd, Limit: filter.Limit, Offset: filter.Offset,
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.Timeframe, 0, len(values))
+	for _, value := range values {
+		result = append(result, timeframeToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) CreateTimeframe(ctx context.Context, input timetable.TimeframeInput) (timetable.Timeframe, error) {
+	value, err := e.service.CreateTimeframe(ctx, timeframeFields(input))
+	return timeframeToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateTimeframe(ctx context.Context, id int64, input timetable.TimeframeInput) (timetable.Timeframe, error) {
+	value, err := e.service.UpdateTimeframe(ctx, id, timeframeFields(input))
+	return timeframeToPublic(value), mapError(err)
+}
+
+func (e engine) DeleteTimeframe(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteTimeframe(ctx, id))
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -576,6 +610,16 @@ func studentEnrollmentFields(value timetable.StudentEnrollmentInput) domain.Stud
 		AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday}
 }
 
+func timeframeToPublic(value domain.Timeframe) timetable.Timeframe {
+	return timetable.Timeframe{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		StartTime: value.StartTime, EndTime: value.EndTime, IsActive: value.IsActive, Description: value.Description}
+}
+
+func timeframeFields(value timetable.TimeframeInput) domain.TimeframeFields {
+	return domain.TimeframeFields{StartTime: value.StartTime, EndTime: value.EndTime,
+		IsActive: value.IsActive, Description: value.Description}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -598,6 +642,8 @@ func mapError(err error) error {
 		return timetable.ErrPlannedSupervisorNotFound
 	case errors.Is(err, domain.ErrStudentEnrollmentNotFound):
 		return timetable.ErrStudentEnrollmentNotFound
+	case errors.Is(err, domain.ErrTimeframeNotFound):
+		return timetable.ErrTimeframeNotFound
 	default:
 		return err
 	}

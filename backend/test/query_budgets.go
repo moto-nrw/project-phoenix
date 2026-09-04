@@ -97,6 +97,7 @@ var queryBudgets = map[string]queryBudget{
 	"modules.timetable.groups.list":          {max: 1, exact: true},
 	"modules.timetable.group_targets.list":   {max: 1, exact: true},
 	"modules.timetable.enrollments.list":     {max: 1, exact: true},
+	"modules.timetable.timeframes.list":      {max: 1, exact: true},
 	"modules.timetable.schedules.list":       {max: 1, exact: true},
 	"modules.timetable.supervisors.list":     {max: 1, exact: true},
 	"modules.timetable.target_students.list": {max: 1, exact: true},

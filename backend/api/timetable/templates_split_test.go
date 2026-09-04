@@ -52,7 +52,7 @@ func attachSplitServiceWithValidator(
 		EnrollmentRepo:             s.enrollments,
 		SupervisorRepo:             s.supervisors,
 		InstanceRepo:               scheduleRepo.NewActivityInstanceRepository(s.db),
-		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(s.db),
+		TimeframeRepo:              ownedTimeframeRepository(panicTestTB{}, s.db),
 		Materialization:            mat,
 		InstanceService:            s.res.InstanceService,
 		ValidateCareOfferingSeries: validate,
@@ -287,7 +287,7 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	assert.Equal(t, "Tpl-GradeCap-Update-Unchanged", group.Name)
 	require.NotNil(t, group.TargetGradeLevel)
 	assert.EqualValues(t, 5, *group.TargetGradeLevel)
-	timeframes := listTimeframesByDescription(t, scheduleRepo.NewTimeframeRepository(s.db), s.ctx, rejectedName)
+	timeframes := listTimeframesByDescription(t, ownedTimeframeRepository(t, s.db), s.ctx, rejectedName)
 	assert.Empty(t, timeframes, "the handler-created timeframe must roll back with the rejected update")
 
 	s.res.SettingsService = templateGradeSettings(0, errors.New("settings unavailable"))
@@ -487,7 +487,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 
 	updateName := fmt.Sprintf("Tpl-Update-Rollback-%d", time.Now().UnixNano())
 	startTime, endTime := unusedTemplateClockWindow(t, s, created.TemplateID)
-	timeframeRepo := scheduleRepo.NewTimeframeRepository(s.db)
+	timeframeRepo := ownedTimeframeRepository(t, s.db)
 	existingTimeframes := listTimeframesByDescription(t, timeframeRepo, s.ctx, updateName)
 	require.Empty(t, existingTimeframes)
 

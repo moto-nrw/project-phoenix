@@ -97,4 +97,5 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 		enrollments = personStudentEnrollmentRepository{StudentEnrollmentRepository: enrollments, persons: f.students}
 	}
 	f.StudentEnrollment = enrollments
+	f.Timeframe = timetableTimeframeRepository{timetable: capability}
 }

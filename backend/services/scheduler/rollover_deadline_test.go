@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -47,6 +48,7 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
 	probe := &failingRolloverDeadlineProbe{
 		repo:        repos.Timeframe,
 		description: fmt.Sprintf("rollover-deadline-rollback-%d", time.Now().UnixNano()),

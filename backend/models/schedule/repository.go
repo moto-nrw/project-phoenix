@@ -33,6 +33,8 @@ type TimeframeRepository interface {
 	FindByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*Timeframe, error)
 }
 
+type TimeframeQueryOptions = base.QueryOptions
+
 // StaffShiftRepository is the data-access boundary for planned staff shifts
 // (Dienstplan). CRUD comes from the generic repository; the finders below
 // are the date-scoped lookups the Dienstplan grid and the auto-checkout job

@@ -22,10 +22,10 @@ import (
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	repoSchedule "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -222,7 +222,9 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	tfA := CreateTestTimeframeForTenant(t, db, tenantA, "TimeframeA")
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
 
-	repo := repoSchedule.NewTimeframeRepository(db)
+	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
+	repo := repos.Timeframe
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)

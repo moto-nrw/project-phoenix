@@ -114,7 +114,7 @@ func testTimetableDataWithOfferingCallbacks(
 		ActivityGroupRepo:          boundRepos.ActivityGroup,
 		ActivitySupervisorRepo:     boundRepos.ActivitySupervisor,
 		StudentEnrollmentRepo:      boundRepos.StudentEnrollment,
-		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(db),
+		TimeframeRepo:              boundRepos.Timeframe,
 		EducationGroupRepo:         educationRepo.NewGroupRepository(db),
 		ValidateCareOfferingSeries: validateCareOfferingSeries,
 		ValidateOfferingSource:     validateOfferingSource,

@@ -130,7 +130,7 @@ func (s *Store) DeleteStudentEnrollment(ctx context.Context, id int64) (domain.O
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	return execStudentEnrollmentWrite(ctx, db.NewDelete().Table("activities.student_enrollments").Where("tenant_id = ?", tenantID).Where("id = ?", id), "delete student enrollment")
+	return execMeasuredWrite(ctx, db.NewDelete().Table("activities.student_enrollments").Where("tenant_id = ?", tenantID).Where("id = ?", id), "delete student enrollment")
 }
 
 func (s *Store) BackfillStudentEnrollmentSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, domain.OperationStats, error) {
@@ -148,7 +148,7 @@ func (s *Store) BackfillStudentEnrollmentSource(ctx context.Context, studentID, 
 	if err != nil || len(ids) == 0 {
 		return 0, stats, err
 	}
-	writeStats, err := execStudentEnrollmentWrite(ctx, db.NewUpdate().Table("activities.student_enrollments").
+	writeStats, err := execMeasuredWrite(ctx, db.NewUpdate().Table("activities.student_enrollments").
 		Set("enrollment_request_child_id = ?", requestChildID).Set("updated_at = NOW()").
 		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(ids)), "backfill student enrollment source")
 	stats.Add(writeStats)
@@ -160,7 +160,7 @@ func (s *Store) DeleteStudentEnrollmentsBySource(ctx context.Context, studentID,
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	stats, err := execStudentEnrollmentWrite(ctx, db.NewDelete().Table("activities.student_enrollments").
+	stats, err := execMeasuredWrite(ctx, db.NewDelete().Table("activities.student_enrollments").
 		Where("tenant_id = ?", tenantID).Where("student_id = ?", studentID).
 		Where("enrollment_request_child_id = ?", requestChildID), "delete student enrollments by source")
 	return stats.Rows, stats, err
@@ -171,7 +171,7 @@ func (s *Store) SetStudentEnrollmentValidUntil(ctx context.Context, id int64, va
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	stats, err := execStudentEnrollmentWrite(ctx, db.NewUpdate().Table("activities.student_enrollments").Set("valid_until = ?", validUntil).
+	stats, err := execMeasuredWrite(ctx, db.NewUpdate().Table("activities.student_enrollments").Set("valid_until = ?", validUntil).
 		Where("tenant_id = ?", tenantID).Where("id = ?", id), "set student enrollment valid_until")
 	return stats.Rows == 1, stats, err
 }
@@ -188,7 +188,7 @@ func (s *Store) CloseOpenStudentEnrollments(ctx context.Context, groupID int64, 
 	} else {
 		query = query.Where("calendar_period_id = ?", *periodID)
 	}
-	return execStudentEnrollmentWrite(ctx, query, "close open student enrollments")
+	return execMeasuredWrite(ctx, query, "close open student enrollments")
 }
 
 func (s *Store) CapActiveStudentEnrollments(ctx context.Context, groupID int64, validUntil string) (int64, domain.OperationStats, error) {
@@ -196,13 +196,13 @@ func (s *Store) CapActiveStudentEnrollments(ctx context.Context, groupID int64, 
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	stats, err := execStudentEnrollmentWrite(ctx, db.NewDelete().Table("activities.student_enrollments").
+	stats, err := execMeasuredWrite(ctx, db.NewDelete().Table("activities.student_enrollments").
 		Where("tenant_id = ?", tenantID).Where("activity_group_id = ?", groupID).Where("valid_from >= ?", validUntil).
 		Where("valid_until IS NULL").Where("enrollment_request_child_id IS NULL").Where("COALESCE(jsonb_array_length(selected_weekdays), 0) = 0"), "delete future student enrollments")
 	if err != nil {
 		return stats.Rows, stats, err
 	}
-	updated, err := execStudentEnrollmentWrite(ctx, db.NewUpdate().Table("activities.student_enrollments").Set("valid_until = ?", validUntil).
+	updated, err := execMeasuredWrite(ctx, db.NewUpdate().Table("activities.student_enrollments").Set("valid_until = ?", validUntil).
 		Where("tenant_id = ?", tenantID).Where("activity_group_id = ?", groupID).Where("valid_from < ?", validUntil).
 		Where("valid_until IS NULL").Where("enrollment_request_child_id IS NULL").Where("COALESCE(jsonb_array_length(selected_weekdays), 0) = 0"), "cap active student enrollments")
 	total := stats.Rows + updated.Rows
@@ -210,7 +210,7 @@ func (s *Store) CapActiveStudentEnrollments(ctx context.Context, groupID int64, 
 	return total, stats, err
 }
 
-func execStudentEnrollmentWrite(ctx context.Context, query executableQuery, operation string) (domain.OperationStats, error) {
+func execMeasuredWrite(ctx context.Context, query executableQuery, operation string) (domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)

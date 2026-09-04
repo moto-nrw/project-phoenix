@@ -59,6 +59,11 @@ type Store interface {
 	CapActiveStudentEnrollments(context.Context, int64, string) (int64, domain.OperationStats, error)
 	SetStudentEnrollmentValidUntil(context.Context, int64, string) (bool, domain.OperationStats, error)
 	CloseOpenStudentEnrollments(context.Context, int64, *int64, string) (domain.OperationStats, error)
+	FindTimeframe(context.Context, int64) (domain.Timeframe, bool, domain.OperationStats, error)
+	ListTimeframes(context.Context, domain.TimeframeFilter) ([]domain.Timeframe, domain.OperationStats, error)
+	CreateTimeframe(context.Context, domain.TimeframeFields) (domain.Timeframe, domain.OperationStats, error)
+	UpdateTimeframe(context.Context, int64, domain.TimeframeFields) (domain.Timeframe, bool, domain.OperationStats, error)
+	DeleteTimeframe(context.Context, int64) (domain.OperationStats, error)
 }
 
 type Transaction interface {

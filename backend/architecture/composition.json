@@ -1259,8 +1259,8 @@
       "declaration": "TestTemplateList_IncludesShiftTypeBadge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1947,
-        1948
+        1954,
+        1955
       ],
       "tables": []
     },
@@ -1270,7 +1270,7 @@
       "declaration": "buildTemplateModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        122
+        129
       ],
       "tables": []
     },
@@ -1280,7 +1280,17 @@
       "declaration": "buildTemplateModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        132
+        139
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/timetable/templates_test.go",
+      "declaration": "ownedTimeframeRepository",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        70
       ],
       "tables": []
     },
@@ -6458,70 +6468,10 @@
     {
       "scope": "test",
       "file": "database/repositories/schedule/timeframe_repository_test.go",
-      "declaration": "TestTimeframeRepository_Create",
+      "declaration": "timeframeRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/timeframe_repository_test.go",
-      "declaration": "TestTimeframeRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        129
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/timeframe_repository_test.go",
-      "declaration": "TestTimeframeRepository_FindActive",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        183
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/timeframe_repository_test.go",
-      "declaration": "TestTimeframeRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        69
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/timeframe_repository_test.go",
-      "declaration": "TestTimeframeRepository_FindByTimeRange",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        229
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/timeframe_repository_test.go",
-      "declaration": "TestTimeframeRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        159
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/timeframe_repository_test.go",
-      "declaration": "TestTimeframeRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        99
+        20
       ],
       "tables": []
     },
@@ -13006,7 +12956,7 @@
       "declaration": "TestScheduleService_TimeframeCareOfferingGuard",
       "target": "database/repositories.NewFactory",
       "lines": [
-        530
+        532
       ],
       "tables": []
     },
@@ -13016,7 +12966,7 @@
       "declaration": "setupScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        24
+        25
       ],
       "tables": []
     },
@@ -13496,7 +13446,7 @@
       "declaration": "TestRolloverDeadlineWorkerErrorRollsBackTenantTick",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        50
       ],
       "tables": []
     },
@@ -14686,6 +14636,16 @@
       "target": "api/testutil.SetupAPITest",
       "lines": [
         62
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "test/isolation_test.go",
+      "declaration": "TestTenantIsolation_TimeframeVisibility",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        225
       ],
       "tables": []
     },

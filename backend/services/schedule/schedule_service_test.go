@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,7 @@ func setupScheduleService(t *testing.T, db *bun.DB) scheduleSvc.Service {
 	t.Helper()
 
 	repoFactory := repositories.NewFactory(db)
+	repoFactory.BindTimetable(timetabletest.New(t, db))
 
 	return scheduleSvc.NewServiceWithConfig(scheduleSvc.ServiceConfig{
 		DateframeRepo: repoFactory.Dateframe, TimeframeRepo: repoFactory.Timeframe, RecurrenceRuleRepo: repoFactory.RecurrenceRule,
@@ -528,6 +530,7 @@ func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.Ctx(t)
 	start := time.Now().Add(time.Hour)
 	end := start.Add(time.Hour)

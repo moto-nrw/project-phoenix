@@ -19,6 +19,7 @@ type recordingEngine struct {
 	offering   timetable.OfferingSourceInput
 	targets    []timetable.GroupTargetInput
 	supervisor timetable.PlannedSupervisorInput
+	timeframe  timetable.TimeframeInput
 	calls      int
 	rejections []string
 }
@@ -224,6 +225,32 @@ func (e *recordingEngine) CloseOpenStudentEnrollments(context.Context, int64, *i
 	return nil
 }
 
+func (e *recordingEngine) FindTimeframe(context.Context, int64) (timetable.Timeframe, error) {
+	e.calls++
+	return timetable.Timeframe{}, nil
+}
+
+func (e *recordingEngine) ListTimeframes(context.Context, timetable.TimeframeFilter) ([]timetable.Timeframe, error) {
+	e.calls++
+	return []timetable.Timeframe{}, nil
+}
+
+func (e *recordingEngine) CreateTimeframe(_ context.Context, input timetable.TimeframeInput) (timetable.Timeframe, error) {
+	e.calls++
+	e.timeframe = input
+	return timetable.Timeframe{StartTime: input.StartTime, EndTime: input.EndTime}, nil
+}
+
+func (e *recordingEngine) UpdateTimeframe(context.Context, int64, timetable.TimeframeInput) (timetable.Timeframe, error) {
+	e.calls++
+	return timetable.Timeframe{}, nil
+}
+
+func (e *recordingEngine) DeleteTimeframe(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
 	e.calls++
 	e.targets = targets
@@ -369,6 +396,28 @@ func TestModuleValidatesStudentEnrollmentBoundary(t *testing.T) {
 		"create_student_enrollment", "create_student_enrollment", "list_student_enrollments",
 	}, engine.rejections)
 }
+
+func TestModuleValidatesTimeframeBoundary(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+
+	_, err := module.CreateTimeframe(ctx, timetable.TimeframeInput{StartTime: "not-a-clock"})
+	require.ErrorIs(t, err, timetable.ErrInvalidTimeframe)
+	_, err = module.CreateTimeframe(ctx, timetable.TimeframeInput{StartTime: "12:00:00", EndTime: ptr("08:00:00")})
+	require.ErrorIs(t, err, timetable.ErrInvalidTimeframe)
+	_, err = module.ListTimeframes(ctx, timetable.TimeframeFilter{Limit: -1})
+	require.ErrorIs(t, err, timetable.ErrInvalidTimeframeQuery)
+	assert.Zero(t, engine.calls)
+
+	created, err := module.CreateTimeframe(ctx, timetable.TimeframeInput{StartTime: "08:00:00", EndTime: ptr("12:00:00")})
+	require.NoError(t, err)
+	assert.Equal(t, "08:00:00", created.StartTime)
+	assert.Equal(t, "08:00:00", engine.timeframe.StartTime)
+}
+
+func ptr[T any](value T) *T { return &value }
 
 func TestSystemActivityNamesAreExact(t *testing.T) {
 	t.Parallel()

@@ -43,6 +43,9 @@ var (
 	ErrStudentEnrollmentNotFound     = errors.New("student activity enrollment not found")
 	ErrInvalidStudentEnrollment      = errors.New("invalid student activity enrollment")
 	ErrInvalidStudentEnrollmentQuery = errors.New("invalid student activity enrollment query")
+	ErrTimeframeNotFound             = errors.New("timeframe not found")
+	ErrInvalidTimeframe              = errors.New("invalid timeframe")
+	ErrInvalidTimeframeQuery         = errors.New("invalid timeframe query")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -142,6 +145,7 @@ type Query interface {
 	ScheduleQuery
 	PlannedSupervisorQuery
 	StudentEnrollmentQuery
+	TimeframeQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
@@ -159,6 +163,7 @@ type Command interface {
 	ScheduleCommand
 	PlannedSupervisorCommand
 	StudentEnrollmentCommand
+	TimeframeCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -468,6 +473,43 @@ func (m *Module) CloseOpenStudentEnrollments(ctx context.Context, groupID int64,
 	return m.engine.CloseOpenStudentEnrollments(ctx, groupID, periodID, validUntil)
 }
 
+func (m *Module) FindTimeframe(ctx context.Context, id int64) (Timeframe, error) {
+	if id <= 0 {
+		return Timeframe{}, m.reject("find_timeframe", ErrInvalidTimeframeQuery)
+	}
+	return m.engine.FindTimeframe(ctx, id)
+}
+
+func (m *Module) ListTimeframes(ctx context.Context, filter TimeframeFilter) ([]Timeframe, error) {
+	if filter.Limit < 0 || filter.Offset < 0 ||
+		(filter.OverlapsStart != nil && !validClock(*filter.OverlapsStart)) ||
+		(filter.OverlapsEnd != nil && !validClock(*filter.OverlapsEnd)) {
+		return nil, m.reject("list_timeframes", ErrInvalidTimeframeQuery)
+	}
+	return m.engine.ListTimeframes(ctx, filter)
+}
+
+func (m *Module) CreateTimeframe(ctx context.Context, input TimeframeInput) (Timeframe, error) {
+	if !validTimeframe(input) {
+		return Timeframe{}, m.reject("create_timeframe", ErrInvalidTimeframe)
+	}
+	return m.engine.CreateTimeframe(ctx, input)
+}
+
+func (m *Module) UpdateTimeframe(ctx context.Context, id int64, input TimeframeInput) (Timeframe, error) {
+	if id <= 0 || !validTimeframe(input) {
+		return Timeframe{}, m.reject("update_timeframe", ErrInvalidTimeframe)
+	}
+	return m.engine.UpdateTimeframe(ctx, id, input)
+}
+
+func (m *Module) DeleteTimeframe(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_timeframe", ErrInvalidTimeframe)
+	}
+	return m.engine.DeleteTimeframe(ctx, id)
+}
+
 func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {
 	normalized, err := normalizeGroupTargets(groupID, targets)
 	if err != nil {
@@ -686,6 +728,23 @@ func validStudentEnrollment(input StudentEnrollmentInput) bool {
 
 func validAttendanceStatus(value string) bool {
 	return value == AttendancePresent || value == AttendanceAbsent || value == AttendanceExcused || value == AttendanceUnknown
+}
+
+func validTimeframe(input TimeframeInput) bool {
+	start, err := time.Parse("15:04:05", input.StartTime)
+	if err != nil {
+		return false
+	}
+	if input.EndTime == nil {
+		return true
+	}
+	end, err := time.Parse("15:04:05", *input.EndTime)
+	return err == nil && end.After(start)
+}
+
+func validClock(value string) bool {
+	_, err := time.Parse("15:04:05", value)
+	return err == nil
 }
 
 func invalidCareExitRemovals(removals []CareExitEnrollmentRemoval) bool {

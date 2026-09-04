@@ -65,6 +65,13 @@ func listTimeframesByDescription(
 	return timeframes
 }
 
+func ownedTimeframeRepository(tb timetabletest.TB, db *bun.DB) scheduleModel.TimeframeRepository {
+	tb.Helper()
+	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(tb, db))
+	return factory.Timeframe
+}
+
 type mockMaterializationService struct {
 	result *scheduleSvc.MaterializationResult
 	err    error
@@ -752,7 +759,7 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 			Count(s.ctx)
 		require.NoError(t, err)
 		assert.Zero(t, count)
-		timeframes := listTimeframesByDescription(t, scheduleRepo.NewTimeframeRepository(s.db), s.ctx, name)
+		timeframes := listTimeframesByDescription(t, ownedTimeframeRepository(t, s.db), s.ctx, name)
 		assert.Empty(t, timeframes, "grade validation must run before timeframe creation")
 	})
 
@@ -774,7 +781,7 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 			Count(s.ctx)
 		require.NoError(t, err)
 		assert.Zero(t, count)
-		timeframes := listTimeframesByDescription(t, scheduleRepo.NewTimeframeRepository(s.db), s.ctx, name)
+		timeframes := listTimeframesByDescription(t, ownedTimeframeRepository(t, s.db), s.ctx, name)
 		assert.Empty(t, timeframes)
 	})
 }
