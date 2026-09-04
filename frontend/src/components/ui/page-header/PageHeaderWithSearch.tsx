@@ -11,7 +11,7 @@ import React, {
 import { useScrollY } from "~/lib/hooks/use-scroll-y";
 import { useViewportAtLeast } from "~/lib/hooks/use-viewport-at-least";
 import { PageHeader } from "./PageHeader";
-import { SearchBar, SearchBarDraftProvider } from "./SearchBar";
+import { SearchBarDraftProvider, SharedSearchBar } from "./SearchBar";
 import { DesktopFilters } from "./DesktopFilters";
 import { FilterButton } from "./FilterButton";
 import { FilterPanel } from "./FilterPanel";
@@ -406,7 +406,7 @@ function MobileSearchSection({
           className={`mb-3 flex items-center gap-2 ${compactWrapper}`}
           style={{ transformOrigin: "top right" }}
         >
-          <SearchBar {...search} className="min-w-0 flex-1" size="sm" />
+          <SharedSearchBar {...search} className="min-w-0 flex-1" size="sm" />
 
           {hasFilters && (
             <div ref={filterButtonRef} className="flex-shrink-0">
@@ -609,7 +609,7 @@ function DesktopSearchSection({
       className="flex min-w-0 flex-1 items-center gap-3"
     >
       {search && (
-        <SearchBar {...search} className="min-w-48 flex-1" size="md" />
+        <SharedSearchBar {...search} className="min-w-48 flex-1" size="md" />
       )}
       {desktopFilterButton}
     </div>
@@ -631,7 +631,7 @@ function DesktopSearchSection({
             {showFilterPopover
               ? popoverSearchCluster
               : search && (
-                  <SearchBar
+                  <SharedSearchBar
                     {...search}
                     className="min-w-48 flex-1"
                     size="md"
@@ -707,7 +707,11 @@ function DesktopSearchSection({
           ) : (
             <>
               {search && (
-                <SearchBar {...search} className={searchBarClass} size="md" />
+                <SharedSearchBar
+                  {...search}
+                  className={searchBarClass}
+                  size="md"
+                />
               )}
               {inlineDesktopFilters}
             </>

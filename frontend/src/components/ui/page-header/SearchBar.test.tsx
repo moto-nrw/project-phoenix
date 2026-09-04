@@ -4,7 +4,11 @@
  */
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { SearchBar, SearchBarDraftProvider } from "./SearchBar";
+import {
+  SearchBar,
+  SearchBarDraftProvider,
+  SharedSearchBar,
+} from "./SearchBar";
 
 describe("SearchBar", () => {
   const mockOnChange = vi.fn();
@@ -236,8 +240,16 @@ describe("SearchBar", () => {
           debounceMs={300}
           resetKey={0}
         >
-          <SearchBar value="" onChange={mockOnChange} placeholder="Mobil" />
-          <SearchBar value="" onChange={mockOnChange} placeholder="Desktop" />
+          <SharedSearchBar
+            value=""
+            onChange={mockOnChange}
+            placeholder="Mobil"
+          />
+          <SharedSearchBar
+            value=""
+            onChange={mockOnChange}
+            placeholder="Desktop"
+          />
         </SearchBarDraftProvider>,
       );
 
@@ -253,6 +265,39 @@ describe("SearchBar", () => {
       });
       expect(mockOnChange).toHaveBeenCalledTimes(1);
       expect(mockOnChange).toHaveBeenCalledWith("Maxi");
+    });
+
+    it("keeps a nested SearchBar independent from the shared header draft", () => {
+      const headerOnChange = vi.fn();
+      const nestedOnChange = vi.fn();
+
+      render(
+        <SearchBarDraftProvider
+          value="Kopfbereich"
+          onChange={headerOnChange}
+          debounceMs={300}
+          resetKey={0}
+        >
+          <SharedSearchBar
+            value="Kopfbereich"
+            onChange={headerOnChange}
+            placeholder="Kopfbereich"
+          />
+          <SearchBar
+            value="Nebenfeld"
+            onChange={nestedOnChange}
+            placeholder="Nebenfeld"
+          />
+        </SearchBarDraftProvider>,
+      );
+
+      const nestedInput = screen.getByPlaceholderText("Nebenfeld");
+      expect(nestedInput).toHaveValue("Nebenfeld");
+
+      fireEvent.change(nestedInput, { target: { value: "Eigene Suche" } });
+
+      expect(nestedOnChange).toHaveBeenCalledWith("Eigene Suche");
+      expect(headerOnChange).not.toHaveBeenCalled();
     });
 
     it("clears immediately instead of after the debounce window", () => {

@@ -20,7 +20,7 @@ vi.mock("./PageHeader", () => ({
 vi.mock("./SearchBar", () => ({
   SearchBarDraftProvider: ({ children }: { children: React.ReactNode }) =>
     children,
-  SearchBar: ({
+  SharedSearchBar: ({
     value,
     onChange,
   }: {

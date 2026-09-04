@@ -79,7 +79,7 @@ interface SearchBarDraftProviderProps {
   readonly children: React.ReactNode;
 }
 
-/** Shares one typed draft between responsive copies of the same search field. */
+/** Shares one typed draft between explicit responsive copies of one search field. */
 export function SearchBarDraftProvider({
   value,
   onChange,
@@ -188,11 +188,22 @@ function SearchBarWithOwnDraft(props: Readonly<SearchBarProps>) {
 }
 
 export function SearchBar(props: Readonly<SearchBarProps>) {
+  return <SearchBarWithOwnDraft {...props} />;
+}
+
+/**
+ * Renders a responsive copy that uses the draft supplied by
+ * `SearchBarDraftProvider`. Kept separate from `SearchBar` so a search field
+ * inside a filter or action stays independent of the page header.
+ */
+export function SharedSearchBar(props: Readonly<SearchBarProps>) {
   const sharedDraftState = React.useContext(DebouncedSearchValueContext);
 
-  if (sharedDraftState) {
-    return <SearchBarContent {...props} draftState={sharedDraftState} />;
+  if (!sharedDraftState) {
+    throw new Error(
+      "SharedSearchBar must be rendered inside SearchBarDraftProvider",
+    );
   }
 
-  return <SearchBarWithOwnDraft {...props} />;
+  return <SearchBarContent {...props} draftState={sharedDraftState} />;
 }
