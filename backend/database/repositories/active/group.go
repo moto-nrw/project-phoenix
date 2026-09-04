@@ -16,6 +16,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -325,7 +326,6 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		RoomID         int64      `bun:"room_id"`
 		CreatedAt      time.Time  `bun:"created_at"`
 		UpdatedAt      time.Time  `bun:"updated_at"`
-		ActivityName   *string    `bun:"activity_name"`
 	}
 
 	var result sessionQueryResult
@@ -336,8 +336,6 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
-		ColumnExpr("actg.name AS activity_name"). // Use 'actg' not 'act' to avoid confusion
-		Join("LEFT JOIN activities.groups AS actg ON actg.id = ag.group_id").
 		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
@@ -372,14 +370,17 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		RoomID:         result.RoomID,
 	}
 
-	// Add activity info if available. The LEFT JOIN only yields an ActivityName
-	// when group_id is non-NULL and matches an activities.groups row, so a
-	// non-empty name implies result.GroupID is non-nil. We still guard the
-	// dereference explicitly to keep this robust against future query changes.
-	if result.GroupID != nil && result.ActivityName != nil && *result.ActivityName != "" {
+	activityNames := map[int64]string{}
+	if result.GroupID != nil {
+		activityNames, err = timetableprojection.GroupNames(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), []int64{*result.GroupID})
+		if err != nil {
+			return nil, &modelBase.DatabaseError{Op: "find active by device ID with names", Err: err}
+		}
+	}
+	if result.GroupID != nil && activityNames[*result.GroupID] != "" {
 		session.ActualGroup = &activities.Group{
 			Model: modelBase.Model{ID: *result.GroupID},
-			Name:  *result.ActivityName,
+			Name:  activityNames[*result.GroupID],
 		}
 	}
 
@@ -836,12 +837,8 @@ func (r *GroupRepository) loadAndAssignActivityGroups(ctx context.Context, group
 
 // queryActivityGroupsByIDs fetches activity groups by their IDs
 func (r *GroupRepository) queryActivityGroupsByIDs(ctx context.Context, ids []int64) ([]*activities.Group, error) {
-	var groups []*activities.Group
-	if err := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(`activities.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.List(ids)).
-		Scan(ctx); err != nil {
+	groups, err := timetableprojection.ActivityGroupsByID(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), ids)
+	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "batch load activity groups for unclaimed groups", Err: base.TranslateNotFound(err)}
 	}
 	return groups, nil
@@ -996,13 +993,12 @@ func (r *GroupRepository) AggregateRoomSessions(
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("active.groups AS ag").
 		ColumnExpr("ag.id AS session_id").
+		ColumnExpr("ag.group_id AS activity_group_id").
 		ColumnExpr("ag.start_time AS started_at").
 		ColumnExpr("ag.end_time AS ended_at").
 		ColumnExpr(`CASE WHEN ag.end_time IS NULL THEN NULL
 			ELSE CAST(EXTRACT(EPOCH FROM (ag.end_time - ag.start_time)) / 60 AS INTEGER)
 		END AS duration_minutes`).
-		ColumnExpr(`COALESCE(g.name, '') AS activity_name`).
-		Join("LEFT JOIN activities.groups g ON g.id = ag.group_id").
 		Where("ag.room_id = ?", roomID).
 		Where("ag.start_time <= ?", end).
 		Where("(ag.end_time IS NULL OR ag.end_time >= ?)", start).
@@ -1044,6 +1040,21 @@ func (r *GroupRepository) AggregateRoomSessions(
 		return nil, &modelBase.DatabaseError{
 			Op:  "aggregate room sessions",
 			Err: base.TranslateNotFound(err),
+		}
+	}
+	groupIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.ActivityGroupID != nil {
+			groupIDs = append(groupIDs, *row.ActivityGroupID)
+		}
+	}
+	names, err := timetableprojection.GroupNames(ctx, base.GetDB(ctx, r.db), tenantID, groupIDs)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "aggregate room sessions", Err: err}
+	}
+	for _, row := range rows {
+		if row.ActivityGroupID != nil {
+			row.ActivityName = names[*row.ActivityGroupID]
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	enrollmentprovenance "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -219,41 +220,16 @@ func (r *StudentEnrollmentRepository) BackfillEnrollmentRequestChildSource(ctx c
 	if len(groupIDs) == 0 {
 		return 0, nil
 	}
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*activities.StudentEnrollment)(nil)).
-		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+	db, tenantID := base.GetDB(ctx, r.db), tenant.FromContext(ctx)
+	ids, err := enrollmentprovenance.EligibleEnrollmentIDs(ctx, db, tenantID, studentID, requestChildID, groupIDs)
+	if err != nil || len(ids) == 0 {
+		return 0, err
+	}
+	result, err := db.NewUpdate().Table("activities.student_enrollments").
 		Set("enrollment_request_child_id = ?", requestChildID).
-		Where(`"student_enrollment".student_id = ?`, studentID).
-		Where(`"student_enrollment".enrollment_request_child_id IS NULL`).
-		Where(`EXISTS (
-			SELECT 1
-			FROM enrollment.request_children AS "request_child"
-			INNER JOIN enrollment.requests AS "request"
-				ON "request".tenant_id = "request_child".tenant_id
-				AND "request".id = "request_child".request_id
-			INNER JOIN enrollment.phases AS "phase"
-				ON "phase".tenant_id = "request_child".tenant_id
-				AND "phase".id = "request".phase_id
-			WHERE "request_child".id = ?
-				AND "request_child".tenant_id = "student_enrollment".tenant_id
-				AND "request_child".created_student_id = "student_enrollment".student_id
-				AND "request_child".status = 'approved'
-				AND "request_child".reviewed_at IS NOT NULL
-				AND "student_enrollment".created_at BETWEEN "request_child".reviewed_at - INTERVAL '5 minutes'
-					AND "request_child".reviewed_at + INTERVAL '5 minutes'
-				AND (
-					"student_enrollment".activity_group_id IN (?)
-					OR (
-						"student_enrollment".valid_from = "phase".service_start_date
-						AND (
-							"student_enrollment".valid_until IS NOT DISTINCT FROM "phase".service_end_date
-							OR "student_enrollment".valid_until IS NOT DISTINCT FROM ("phase".service_end_date + 1)
-						)
-					)
-				)
-		)`, requestChildID, bun.List(groupIDs))
-	query = base.WithTenantFilter(ctx, query, "student_enrollment")
-	result, err := query.Exec(ctx)
+		Set("updated_at = NOW()").
+		Where("tenant_id = ?", tenantID).
+		Where("id IN (?)", bun.List(ids)).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "backfill enrollment request child source", Err: base.TranslateNotFound(err)}
 	}
