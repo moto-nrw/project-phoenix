@@ -96,7 +96,7 @@ import {
   fetchStudentPartialAbsences,
   saveStudentPartialAbsence,
 } from "~/lib/student-partial-absences-api";
-import { StudentDetailSkeleton } from "./page-skeleton";
+import { StudentDetailLoadingPage } from "./page-skeleton";
 
 type TodayArrival = {
   time?: string;
@@ -345,7 +345,7 @@ function mergeStatusDays(
 
 export default function StudentDetailPage() {
   return (
-    <Suspense fallback={<StudentDetailSkeleton />}>
+    <Suspense fallback={<StudentDetailLoadingPage />}>
       <StudentDetailPageContent />
     </Suspense>
   );
@@ -740,7 +740,7 @@ function StudentDetailPageContent() {
   // split both depend on `hasFullAccess`, a field on the student object that
   // isn't known until this fetch resolves.
   if (loading) {
-    return <StudentDetailSkeleton referrer={referrer} />;
+    return <StudentDetailLoadingPage referrer={referrer} />;
   }
 
   // Show error state

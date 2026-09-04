@@ -633,6 +633,14 @@ describe("StudentDetailPage", () => {
 
       expect(screen.getByTestId("student-detail-skeleton")).toBeInTheDocument();
       expect(screen.getByLabelText("Kind wird geladen")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Kindakte" }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("back-button")).toHaveAttribute(
+        "data-referrer",
+        "/students/search",
+      );
+      expect(screen.getByRole("tablist")).toBeInTheDocument();
     });
   });
 
