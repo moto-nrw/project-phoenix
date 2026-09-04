@@ -49,7 +49,7 @@ export function StudentDetailLoadingPage({
 // Mirrors the checkout/checkin action-card row and a Stammdaten-shaped field
 // section. The header and tabs deliberately belong to StudentDetailLoadingPage
 // so loading and loaded states share TenantPage as their page root.
-export function StudentDetailSkeleton() {
+function StudentDetailSkeleton() {
   return (
     <output
       role="status"
