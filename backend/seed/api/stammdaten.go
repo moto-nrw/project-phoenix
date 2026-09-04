@@ -11,11 +11,12 @@ import (
 
 // StaffCredentials stores login credentials for a staff member
 type StaffCredentials struct {
-	Email    string
-	Password string
-	PIN      string
-	Name     string
-	Position string
+	AccountID int64
+	Email     string
+	Password  string
+	PIN       string
+	Name      string
+	Position  string
 }
 
 // FixedSeeder seeds fixed demo data via API calls
@@ -36,6 +37,7 @@ type FixedSeeder struct {
 	categoryIDs      map[string]int64   // category name -> id
 	deviceKeys       map[string]string  // device ID -> API key
 	roleIDs          map[string]int64   // role name -> id
+	accountIDs       map[string]int64   // "firstName lastName" -> account id
 	guardianIDs      map[string]int64   // guardian "firstName lastName" -> id
 	staffCredentials []StaffCredentials // created staff credentials for summary
 }
@@ -83,6 +85,7 @@ func NewFixedSeeder(client *Client, verbose bool, staffPassword string) *FixedSe
 		categoryIDs:      make(map[string]int64),
 		deviceKeys:       make(map[string]string),
 		roleIDs:          make(map[string]int64),
+		accountIDs:       make(map[string]int64),
 		guardianIDs:      make(map[string]int64),
 		staffCredentials: make([]StaffCredentials, 0),
 	}
@@ -1335,12 +1338,14 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 
 		// Store credentials for summary
 		s.staffCredentials = append(s.staffCredentials, StaffCredentials{
-			Email:    email,
-			Password: password,
-			PIN:      pin,
-			Name:     personKey,
-			Position: staff.Position,
+			AccountID: account.Data.ID,
+			Email:     email,
+			Password:  password,
+			PIN:       pin,
+			Name:      personKey,
+			Position:  staff.Position,
 		})
+		s.accountIDs[personKey] = account.Data.ID
 
 		result.AccountCount++
 	}

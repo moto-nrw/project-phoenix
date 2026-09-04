@@ -37,7 +37,7 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 		return fmt.Errorf("no admin accounts in seed state")
 	}
 	admin := state.Accounts.Admin[0]
-	if err := client.Login(admin.Email, admin.Password); err != nil {
+	if err := client.Login(admin.Email, admin.Password, state.Bootstrap.TenantSlug); err != nil {
 		return fmt.Errorf("admin login: %w", err)
 	}
 
