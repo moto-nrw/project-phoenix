@@ -35,6 +35,7 @@ func TestGoToolchainPinsRatchet(t *testing.T) {
 	}
 
 	packages := readDevboxPackages(t, filepath.Join(repoRoot, "devbox.json"))
+	assertDevboxUsesDefaultGoCache(t, filepath.Join(repoRoot, "devbox.json"))
 	requireDevboxPin(t, packages, "go", goVersion)
 	linterVersion := requireDevboxPackageVersion(t, packages, "golangci-lint")
 	airVersion := requireDevboxPackageVersion(t, packages, "air")
@@ -50,6 +51,21 @@ func TestGoToolchainPinsRatchet(t *testing.T) {
 	assertCIUsesMainGoMod(t, filepath.Join(repoRoot, ".github/workflows"))
 	assertLocalHooksUsePinnedRunner(t, repoRoot)
 	assertRunnerResolvesExactBinary(t, filepath.Join(repoRoot, "scripts/run-go-toolchain.sh"))
+}
+
+func assertDevboxUsesDefaultGoCache(t *testing.T, path string) {
+	t.Helper()
+	var config struct {
+		Env map[string]string `json:"env"`
+	}
+	if err := json.Unmarshal(readToolchainFile(t, path), &config); err != nil {
+		t.Fatalf("decode %s: %v", path, err)
+	}
+	for _, name := range []string{"GOPATH", "GOMODCACHE"} {
+		if value, ok := config.Env[name]; ok {
+			t.Errorf("devbox must not set %s=%q; use Go's shared default cache", name, value)
+		}
+	}
 }
 
 func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
