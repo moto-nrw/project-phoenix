@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestEveryOperationRejectsMissingTenantContext(t *testing.T) {
@@ -60,25 +61,28 @@ func TestEveryOperationRejectsMissingTenantContext(t *testing.T) {
 		}},
 		{name: "delete room", call: func(ctx context.Context, module *facilities.Module) error { return module.DeleteRoom(ctx, id) }},
 	}
-	contexts := []struct {
-		name string
-		ctx  context.Context
-	}{
-		{name: "shared connection", ctx: context.Background()},
-		{name: "ambient transaction", ctx: tenant.WithTransactionForTest(context.Background(), struct{}{})},
-	}
-
-	for _, contextCase := range contexts {
+	db := testpkg.SetupTestDB(t)
+	checkOperations := func(name string, ctx context.Context) {
 		for _, operation := range operations {
-			t.Run(contextCase.name+"/"+operation.name, func(t *testing.T) {
+			t.Run(name+"/"+operation.name, func(t *testing.T) {
 				observations := &observationLog{}
-				module := buildModule(t, testpkg.SetupTestDB(t), observations.record)
+				module := buildModule(t, db, observations.record)
 
-				err := operation.call(contextCase.ctx, module)
+				err := operation.call(ctx, module)
 
 				require.ErrorIs(t, err, tenant.ErrTenantRequired)
 				require.Len(t, observations.operations(), 1)
 			})
 		}
 	}
+	checkOperations("shared connection", context.Background())
+	checkOperations("unsupported transaction", tenant.WithTransactionForTest(context.Background(), struct{}{}))
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+		checkOperations("tenant transaction", tenant.ContextWithoutTenant(ctx))
+		return nil
+	}))
+	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+		checkOperations("admin transaction", ctx)
+		return nil
+	}))
 }
