@@ -167,6 +167,87 @@ func ExampleHistoryRange() { _ = GetHistory(tz.TodayDate(), tz.NewDate(2026, 8, 
 	)
 }
 
+const liveEffectiveBoundaryFixture = `package enrollment
+import (
+	"testing"
+	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+)
+type ResyncInput struct { EffectiveFrom tz.Date }
+type PositionalInput struct {
+	ID int
+	EffectiveFrom tz.Date
+}
+func fixtureInput() ResyncInput {
+	effectiveFrom := tz.TodayDate()
+	return ResyncInput{EffectiveFrom: effectiveFrom}
+}
+func acceptEffectiveFrom(effectiveFrom tz.Date) {
+	_ = ResyncInput{EffectiveFrom: effectiveFrom}
+}
+func resyncThroughHelper(boundary tz.Date) { ResyncTemplates(boundary) }
+func TestLiveEffectiveField(t *testing.T) {
+	t.Parallel()
+	today := tz.TodayDate()
+	_ = ResyncInput{EffectiveFrom: today}
+}
+func TestLiveEffectiveArgument(t *testing.T) {
+	t.Parallel()
+	acceptEffectiveFrom(tz.TodayDate())
+}
+func TestLiveUnkeyedEffectiveField(t *testing.T) {
+	t.Parallel()
+	_ = PositionalInput{1, tz.TodayDate()}
+}
+func TestLiveResyncBoundary(t *testing.T) {
+	t.Parallel()
+	today := tz.TodayDate()
+	_ = ResyncTemplates(today)
+}
+func TestLiveResyncThroughHelper(t *testing.T) {
+	t.Parallel()
+	resyncThroughHelper(tz.TodayDate())
+}
+func TestLiveDetachBoundary(t *testing.T) {
+	t.Parallel()
+	_ = DetachTemplates(tz.TodayDate())
+}
+func TestFixedEffectiveBoundaries(t *testing.T) {
+	t.Parallel()
+	fixed := tz.NewDate(2026, 8, 24)
+	_ = ResyncInput{EffectiveFrom: fixed}
+	acceptEffectiveFrom(fixed)
+	_ = PositionalInput{1, fixed}
+	_ = ResyncTemplates(fixed)
+	resyncThroughHelper(fixed)
+	_ = DetachTemplates(fixed)
+}
+`
+
+func TestCalendarFixtureRatchetDetectsLiveEffectiveBoundaries(t *testing.T) {
+	t.Parallel()
+
+	root := writeCalendarFixtureSource(t, "enrollment/resync_test.go", liveEffectiveBoundaryFixture)
+
+	findings, err := scanCalendarFixtureClockRisks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireCalendarFinding(t, findings,
+		"fixtureInput",
+		"TestLiveEffectiveField",
+		"TestLiveEffectiveArgument",
+		"TestLiveUnkeyedEffectiveField",
+		"TestLiveResyncBoundary",
+		"TestLiveResyncThroughHelper",
+		"TestLiveDetachBoundary",
+		"live calendar date used as an effective boundary",
+	)
+	joined := strings.Join(formatCalendarClockFindings(findings), "\n")
+	if strings.Contains(joined, "TestFixedEffectiveBoundaries") {
+		t.Errorf("fixed effective boundary triggered a finding: %q", joined)
+	}
+}
+
 func TestCalendarFixtureRatchetFollowsLiveDateHelperIntoAssertion(t *testing.T) {
 	t.Parallel()
 
