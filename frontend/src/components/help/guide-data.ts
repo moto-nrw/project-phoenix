@@ -595,7 +595,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Ganz oben steht Ihre Startseite: `Home` für Admins, `Tagesplan` für Betreuungskräfte.",
           "`Tagesbetrieb` ist beim ersten Besuch geöffnet. Dort stehen `Meine Gruppen`, `Aktuelle Aufsicht`, `Alle Kinder`, `Räume`, `Aktivitäten`, `Vertretungen` und `Anfragen`.",
           "Auf den Namen einer Gruppe tippen, um sie auf- oder zuzuklappen. moto merkt sich, welche Gruppen offen sind. Öffnen Sie eine Seite, klappt ihre Gruppe von selbst auf.",
-          "`Eltern` bündelt Nachrichten, Mitteilungen & Umfragen, Elternzugänge, Bankverbindungen, Essensplan und die Anmeldungen. `Team` enthält Zeiterfassung, Mein Kalender, Mitarbeiter, Team-Chat und Tagesinformationen.",
+          "`Eltern` bündelt Nachrichten, Mitteilungen, Elternzugänge, Bankverbindungen, Essensplan und die Anmeldungen. `Team` enthält Zeiterfassung, Mein Kalender, Mitarbeiter, Team-Chat und Tagesinformationen.",
           "`Planung` (nur Admins) enthält Betreuungsplan, Dienstplan, Vertretungsplan, Tageslisten, Schuljahr und Ferien sowie Abrechnung. `Verwaltung` enthält Datenverwaltung, Tagesauswertung, Statistik, Dateien und Info-Displays.",
           "Ganz unten stehen immer `Notfall`, `Hilfe` und `Einstellungen`. Mit dem Pfeil oben links wird die Leiste schmal; die Gruppen bleiben als Symbole erhalten.",
         ],
@@ -2134,7 +2134,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie in ihrer App unter `Elternbriefe`. Eine Mitteilung ist eine Einbahn-Information; wenn Sie eine Rückmeldung brauchen, nutzen Sie den Bereich `Umfragen` auf derselben Seite. Für individuelle Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
         steps: [
-          "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen & Umfragen` öffnen und auf `Mitteilung` tippen.",
+          "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen` öffnen und auf `Mitteilung` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail einer Mitteilung enthält nur den Titel und einen Link ins Elternportal – soll der vollständige Text mitgeschickt werden, nutzen Sie stattdessen einen `Elternbrief`.",
           "Noch im Schritt `Inhalt`: unter `Dateien anhängen` mit `Datei auswählen` bis zu fünf Dateien anhängen (PDF, DOCX, XLSX, PPTX, PNG, JPEG, je bis 25 MB). Die Dateien sehen genau die Eltern, die auch die Mitteilung bekommen. Sie liegen im Elternportal zum Herunterladen bereit und gehen nicht per E-Mail mit; die E-Mail weist nur darauf hin.",
           "Schritt `Empfänger`: Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
@@ -2157,7 +2157,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Ein Elternbrief geht gleichzeitig über beide Wege raus: vollständig im Elternportal und als E-Mail mit dem kompletten Text. Eltern bestätigen ihn ausdrücklich in moto, und Sie sehen pro Kind, wer bestätigt hat und bei wem Sie nachfassen müssen. Für reine Informationen ohne Rückmeldung nutzen Sie weiterhin eine `Mitteilung`.",
         steps: [
-          "In der Seitenleiste `Eltern` aufklappen, `Mitteilungen & Umfragen` öffnen, oben auf `Elternbriefe` wechseln und auf `Elternbrief` tippen.",
+          "In der Seitenleiste `Eltern` aufklappen, `Mitteilungen` öffnen, oben auf `Elternbriefe` wechseln und auf `Elternbrief` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Der Kasten `Beim Veröffentlichen passiert automatisch` zeigt, was fest zum Elternbrief gehört: Portal, E-Mail mit vollem Text und Bestätigung durch die Eltern. Diese drei Punkte lassen sich nicht abwählen.",
           "Unter `Wer erhält die E-Mail?` wählen: `Nur mit Portalzugang` (Standard) schickt die E-Mail ausschließlich an Bezugspersonen mit Elternportal-Zugang. `Alle Bezugspersonen` schickt sie zusätzlich an hinterlegte Bezugspersonen ohne Portalzugang – praktisch für allgemeine Informationen, aber ungeeignet für sensible Angaben.",
           "Dateien anhängen geht wie bei einer Mitteilung, im Schritt `Inhalt` unter `Dateien anhängen`. Auch beim Elternbrief bleibt die Datei im Elternportal: Der Brieftext geht per E-Mail mit, die Datei nicht. Das gilt besonders bei `Alle Bezugspersonen` – Personen ohne Portalzugang können die Datei nicht öffnen.",
@@ -2185,7 +2185,7 @@ export const appChapters: readonly GuideChapter[] = [
           {
             image: "/help/screens/elternbriefe.webp",
             caption:
-              "Der Bereich `Mitteilungen & Umfragen` mit dem Reiter `Elternbriefe`.",
+              "Der Bereich `Mitteilungen` mit dem Reiter `Elternbriefe`.",
           },
           {
             image: "/help/screens/elternbrief-anlegen.webp",
@@ -2206,7 +2206,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Eine kurze Frage an ausgewählte Elterngruppen, die pro Kind beantwortet wird – zum Beispiel „Kommt Ihr Kind zur Murmelparty?“. Die Antworten laufen aggregiert in der App zusammen, sodass Sie mit einer verlässlichen Zahl planen können.",
         steps: [
-          "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen & Umfragen` öffnen, oben auf `Umfragen` wechseln und auf `Umfrage` tippen.",
+          "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen` öffnen, oben auf `Umfragen` wechseln und auf `Umfrage` tippen.",
           "Schritt `Inhalt`: Unter `Frage` die Frage eingeben und im Text ergänzen, worum es geht. Die `Antwortmöglichkeiten` sind mit `Ja` und `Nein` vorbelegt; über `Antwort hinzufügen` kommen weitere dazu (bis zu zehn), das Papierkorb-Symbol entfernt eine. Zwei Antworten sind das Minimum.",
           "Sollen Eltern mehrere Antworten gleichzeitig auswählen dürfen (z. B. mehrere mögliche Termine), `Mehrfachauswahl erlauben` aktivieren.",
           "Optional eine `Antwortfrist` setzen. Nach Ablauf nimmt die Umfrage keine Antworten mehr an, bleibt für die Eltern aber lesbar.",

@@ -183,9 +183,7 @@ describe("breadcrumb-utils", () => {
       it("should return titles for recent staff navigation entries", () => {
         expect(getPageTitle("/messages")).toBe("Nachrichten");
         expect(getPageTitle("/messages/thread-1")).toBe("Nachrichten");
-        expect(getPageTitle("/parent-announcements")).toBe(
-          "Mitteilungen & Umfragen",
-        );
+        expect(getPageTitle("/parent-announcements")).toBe("Mitteilungen");
         expect(getPageTitle("/meal-plan")).toBe("Essensplan");
       });
 
@@ -451,7 +449,7 @@ describe("breadcrumb-utils", () => {
         // noch ein Redirect auf das Top-Level-Modul /anfragen (#2429).
         expect(getSectionBreadcrumb("/admin/change-requests")).toBeNull();
         expect(getSectionBreadcrumb("/parent-announcements")?.pageLabel).toBe(
-          "Mitteilungen & Umfragen",
+          "Mitteilungen",
         );
         expect(getSectionBreadcrumb("/meal-plan")?.pageLabel).toBe(
           "Essensplan",

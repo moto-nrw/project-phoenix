@@ -128,7 +128,20 @@ export function SidebarGroup({
         {/* inert: eine zugeklappte Gruppe bleibt im Baum, darf aber keinen
             Tastaturfokus fangen. */}
         <div className="overflow-hidden" inert={!isOpen}>
-          <div className={`${SIDEBAR_NAV_GAP} pt-1`}>{children}</div>
+          {/* Die Zeilen einer Gruppe stehen eingerückt hinter einer Linie,
+              die unter dem Gruppen-Icon beginnt: so liest sich die Gruppe
+              als Baum, nicht als flache Liste mit Zwischenüberschrift. Im
+              Streifen (64px) gibt es dafür keinen Platz; die Einrückung
+              gleitet dort mit derselben Bewegung auf null wie die Breite. */}
+          <div
+            className={`${SIDEBAR_NAV_GAP} pt-1 motion-safe:transition-[margin,padding] motion-safe:duration-200 motion-safe:ease-in-out ${
+              collapsed
+                ? "ml-0 border-l border-transparent"
+                : "ml-[15px] border-l border-gray-200"
+            }`}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>

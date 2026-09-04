@@ -143,7 +143,7 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
     // (#1371). Both are the same broadcast workflow, so a second nav item would
     // only make staff guess which one they need.
     href: "/parent-announcements",
-    label: "Mitteilungen & Umfragen",
+    label: "Mitteilungen",
     feature: "announcements",
   },
   // Die Elternanfragen sind in das Top-Level-Modul "Anfragen" umgezogen

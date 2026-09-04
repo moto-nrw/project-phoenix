@@ -31,7 +31,7 @@ Tagesplan), darunter angeheftet Notfall, Hilfe und Einstellungen.
 | Gruppe | Zeilen, in dieser Reihenfolge |
 |---|---|
 | **Tagesbetrieb** | Meine Gruppen (mit Weitere Gruppen), Aktuelle Aufsicht, Alle Kinder, Räume, Aktivitäten, Vertretungen, Anfragen |
-| **Eltern** | Nachrichten, Mitteilungen und Umfragen, Elternzugänge, Bankverbindungen, Essensplan, Anmeldungen |
+| **Eltern** | Nachrichten, Mitteilungen, Elternzugänge, Bankverbindungen, Essensplan, Anmeldungen |
 | **Team** | Zeiterfassung, Mein Kalender, Mitarbeiter, Team-Chat, Tagesinformationen |
 | **Planung** | Betreuungsplan, Dienstplan, Vertretungsplan, Tageslisten, Schuljahr und Ferien, Abrechnung |
 | **Verwaltung** | Datenverwaltung, Tagesauswertung, Statistik, Dateien, Info-Displays |
@@ -81,8 +81,11 @@ Regeln:
    Schuljahr, Halbjahre, Ferien und Schließtage; der Fachbegriff bleibt im
    Formularfeld, das einen Zeitraum auswählt), Eltern › Konto-Anfragen
    heißt **Elternzugänge** (neben dem Modul „Anfragen"), Datenverwaltung ›
-   Kinder heißt **Kinderdaten** (ADR 0008). Die Objektbegriffe auf den
-   Seiten selbst („Terminvertretungen" auf der Vertretungen-Tagesseite,
+   Kinder heißt **Kinderdaten** (ADR 0008), Eltern › Mitteilungen und
+   Umfragen heißt **Mitteilungen** (der lange Name passte eingerückt nicht
+   mehr in die Zeile; die Seite selbst zeigt Mitteilungen, Elternbriefe und
+   Umfragen als Reiter). Die Objektbegriffe auf den Seiten selbst
+   („Terminvertretungen" auf der Vertretungen-Tagesseite,
    „Kalenderzeitraum" im Formular) bleiben.
 9. **Die Hub-Seite /eltern ist entfallen.** Ihre Kacheln waren nur ein
    zweiter Weg zu Seiten, die jetzt direkt in der Gruppe stehen. Die Route
@@ -122,7 +125,11 @@ Regeln:
   `planning`/`eltern`/`kommunikation` werden ignoriert).
 - Die Gruppenzeile ist `SidebarGroup` (`sidebar-group.tsx`), 32 px hoch
   auf derselben Icon-Achse wie die Zeilen (`SIDEBAR_GROUP_HEADING_CLASSES`
-  in `sidebar-geometry.ts`).
+  in `sidebar-geometry.ts`). Die Zeilen einer Gruppe stehen ausgeklappt
+  16 px eingerückt hinter einer Linie unter dem Gruppen-Icon: ohne die
+  Einrückung las sich die Leiste weiter als flache Liste mit
+  Zwischenüberschriften. Im Streifen gleitet die Einrückung mit der Breite
+  auf null.
 - Die Breadcrumb-Sektion „Kommunikation" heißt „Team", damit Leiste und
   Kopfzeile dasselbe Wort zeigen.
 - Die Hilfe beschreibt die Seitenleiste in einem eigenen Schritt und nennt
