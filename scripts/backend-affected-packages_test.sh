@@ -256,6 +256,10 @@ assert_workflow_filter backend-test-infra 'scripts/backend-lint-packages.sh' pre
 assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
 assert_workflow_filter backend-test-infra '.claude/hooks/guard-absolute-rules.sh' present
 assert_workflow_filter backend-test-infra '.claude/hooks/guard-absolute-rules_test.sh' present
+for filter in backend-tests backend-lint backend-architecture; do
+  assert_workflow_filter "$filter" 'scripts/backend-architecture.sh' present
+  assert_workflow_filter "$filter" 'scripts/backend-architecture/**' present
+done
 for pattern in \
   'backend/go.mod' \
   'backend/go.sum' \
