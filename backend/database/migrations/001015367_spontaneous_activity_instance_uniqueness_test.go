@@ -10,6 +10,8 @@ import (
 )
 
 func TestSpontaneousActivityInstanceUniquenessDownRefusesDuplicateLinkedInstances(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
 
