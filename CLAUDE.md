@@ -101,17 +101,20 @@ Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicat
 
 Both backend (`models/platform/organization.go`) and frontend (`lib/reserved-slugs.ts`) maintain matching lists of reserved slugs (www, api, operator, parents, grafana, etc.) that cannot be used as tenant subdomains. **These must stay in sync** — nothing enforces it.
 
-## Core Architecture
+## Backend Architecture
 
-**Handler → Service → Repository → Database** (always, no exceptions)
+**ACTIVE MIGRATION — TEMPORARY UNTIL #2580 CLOSES:** Every change under
+`backend/` must follow the **Active Architecture Migration (#2580)** section in
+`backend/CLAUDE.md` before design, implementation, or review. The existing
+`api/` → `services/` → `database/repositories/` layout, central factories,
+scheduler setters, and broad test composition are migration state, not patterns
+for new code.
 
-- `api/{domain}/` — HTTP handlers (thin, no business logic)
-- `services/{domain}/` — Business logic, orchestration, transactions
-- `database/repositories/{domain}/` — Data access only (BUN ORM)
-- `models/{domain}/` — Domain entities, shared across layers
-- Factory pattern for DI: `repositories.NewFactory(db)` → `services.NewFactory(repos, db, logger)`
-
-Layer discipline, repository generics, model conventions, and the CI ratchet tests that enforce them: see `.claude/rules/backend-conventions.md`.
+The target is the capability-first modular monolith encoded in
+`backend/architecture/policy.json`. Its evaluator, migration rules, and commands
+are documented in `backend/architecture/README.md`. Legacy layer-safety rules
+remain in `.claude/rules/backend-conventions.md`, but the active migration rules
+take precedence when choosing or extending a boundary.
 
 ## Critical Patterns
 

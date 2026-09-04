@@ -2,6 +2,13 @@
 
 **RULE: Every new backend change must respect the conventions below.** They exist to block the per-entity copy-paste patterns that bloated the codebase. If a rule below conflicts with a reviewer's preference, the rule wins — the whole point is to remove the per-PR judgment call.
 
+> **Active #2580 override:** These rules protect code that has not yet moved out
+> of the legacy layer structure. They do not make that structure a target or a
+> precedent. For every backend change, first follow `backend/CLAUDE.md` §
+> **Active Architecture Migration (#2580)**. In particular, central factories,
+> scheduler setters, broad `SetupAPITest`, and legacy composition are
+> shrink-only until #2580 closes.
+
 > **Verification status (2026-06-12):** all structural claims re-verified against the codebase. Two rules are now CI-enforced by ratchet tests (see Rules 1 and 11); the boilerplate counts in Rules 3, 5, and 7 are point-in-time measurements — re-run the detection commands at the bottom before relying on a specific number.
 
 ---
@@ -309,7 +316,7 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 | `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
 | `auth.MFAService` / `auth.InvitationService` | `services/auth/authtest` |
 | `users.PersonService` | `services/users/userstest` |
-| API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |
+| API request/auth helpers | `api/testutil` (`ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`); use route/module-sized builders—`SetupAPITest` is legacy and shrink-only |
 
 Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages); mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not.
 

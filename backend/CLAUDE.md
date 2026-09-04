@@ -53,7 +53,56 @@ The HTTP server (`serve`) connects as the least-privilege **`phoenix_auth`** rol
 
 ## Architecture
 
-**Handler → Service → Repository → Database** — the root `CLAUDE.md` states the rule; `.claude/rules/backend-conventions.md` is the enforcement-level reference (layer discipline, `Repository[T]` generics, model conventions, and the CI ratchet tests `TestHandlerLayerRatchet` + `TestServiceRepositoryRatchet` that fail PRs on violations).
+### Active Architecture Migration (#2580) — TEMPORARY
+
+This section applies to every change under `backend/` until #2580 is closed. It
+overrides legacy architecture examples elsewhere in the agent documentation.
+The old Handler → Service → Repository layout remains safety guidance for
+unmigrated code; it is not the target design.
+
+Before writing or reviewing backend code:
+
+1. Read `architecture/README.md` and inspect the affected owners, packages,
+   data objects, projections, and rules in `architecture/policy.json`. For a new
+   or moved boundary, also read GitHub issue #2580.
+2. Put new behavior behind an existing target owner's public capability. Use a
+   consumer-owned port for a dependency, an application workflow for a
+   cross-module write, and a named tenant-safe projection for a cross-module
+   read.
+3. Treat `repositories.Factory`, `services.Factory`, `api.API`, scheduler
+   setters, `SetupAPITest`, and legacy composition as **shrink-only surfaces**.
+   A change may remove or redirect an existing use. It must not add a field,
+   setter, caller, or a narrow wrapper that still constructs the broad graph.
+4. Assign every new writable database object to an existing target owner in
+   the same change. A new domain owner requires an explicit architecture
+   decision linked from #2580 before implementation.
+5. Keep migration-only dependencies out of target-allowed policy rules. Remove
+   the temporary edge in the same cutover, or track the exact legacy edge with
+   an open #2580 subissue.
+
+Before declaring the change complete:
+
+1. Run `scripts/backend-architecture.sh check` from the repository root and
+   inspect every policy, baseline, and composition-inventory diff. A green
+   check proves only what the current evaluator detects; it is not proof that
+   the target architecture was preserved.
+2. Run `scripts/test-changed.sh origin/development` without `--fast` before the
+   push.
+3. Record the affected owner/capability and before/after counts for every
+   touched shrink-only surface in the PR description. Each count must stay
+   equal or decrease.
+
+If a requested feature cannot satisfy these rules, stop the structural change
+and create or link an urgent subissue of #2580 for explicit review. Remove this
+temporary section only after #2580's exit criteria are met.
+
+### Legacy Layer Safety
+
+`.claude/rules/backend-conventions.md` is the enforcement-level reference for
+unmigrated code (layer discipline, `Repository[T]` generics, model conventions,
+and the CI ratchet tests `TestHandlerLayerRatchet` +
+`TestServiceRepositoryRatchet`). These checks prevent additional damage inside
+the legacy layout; they do not define the target module boundary.
 
 **Query budgets (#2940)**: every list endpoint has a scenario in `test/query_budgets.go` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
 

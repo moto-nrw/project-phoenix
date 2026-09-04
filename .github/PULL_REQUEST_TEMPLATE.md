@@ -29,6 +29,14 @@
 - [ ] Manual testing performed
 - [ ] Testing documentation updated
 
+## Backend Architecture Migration (#2580)
+<!-- TEMPORARY until #2580 closes. Required for every change under backend/.
+     Follow backend/CLAUDE.md § "Active Architecture Migration (#2580)".
+     For non-backend PRs, write "Not applicable — no backend changes". -->
+- Target owner/capability:
+- Touched shrink-only surfaces and before → after counts:
+- [ ] `scripts/backend-architecture.sh check` passed and I inspected all policy, baseline, and composition-inventory changes
+
 ## Security Checklist
 <!-- This section is mandatory for all PRs -->
 - [ ] I have followed the [security guidelines](../docs/security.md)
