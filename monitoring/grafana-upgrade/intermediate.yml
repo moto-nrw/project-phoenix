@@ -1,0 +1,8 @@
+# Migration checkpoint before the React 19 / unified-storage upgrade.
+services:
+  grafana:
+    image: grafana/grafana:12.4.10@sha256:c132a683b2430fff9115a29b2a79c8ab97540cdcc90846e3c81878c778ca3596
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PLUGINS_PREINSTALL_SYNC: grafana-lokiexplore-app@2.5.2,grafana-pyroscope-app@2.3.0
