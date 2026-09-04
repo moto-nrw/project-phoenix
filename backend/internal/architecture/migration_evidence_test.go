@@ -2,6 +2,7 @@ package architecture
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,7 @@ import (
 func TestValidateMigrationTicketAcceptsExecutableTemplate(t *testing.T) {
 	t.Parallel()
 
-	output, err := runArchitecture(t, "validate-ticket", "--ticket", "backend/architecture/migration-ticket-template.json")
+	output, err := runArchitecture(t, "validate-ticket", "--ticket", "backend/architecture/checkpoint-ticket-template.json")
 	if err != nil {
 		t.Fatalf("validate-ticket failed: %v\n%s", err, output)
 	}
@@ -175,4 +176,136 @@ func writeTicketFixture(t *testing.T, document map[string]any) string {
 		t.Fatalf("write ticket fixture: %v", err)
 	}
 	return path
+}
+
+func TestValidateMigrationWaveRequiresAcceptedCheckpoint(t *testing.T) {
+	t.Parallel()
+	document := decodeTicketFixture(t)
+	document["ticket_kind"] = "migration"
+	delete(document, "checkpoint")
+	document["runtime_evidence"].(map[string]any)["failure"] = "Rollback verified."
+	document["runtime_evidence"].(map[string]any)["rollback"] = "Transaction rollback verified."
+	document["runtime_evidence"].(map[string]any)["smoke"] = "Smoke passed."
+	document["checkpoint_reference"] = "https://github.com/moto-nrw/project-phoenix/issues/3019"
+	registry := writeTicketFixture(t, map[string]any{"schema_version": 1, "accepted": []any{}})
+	output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document), "--checkpoints", registry)
+	if err == nil || !strings.Contains(output, "no accepted runtime checkpoint") {
+		t.Fatalf("unaccepted checkpoint must fail: %v\n%s", err, output)
+	}
+}
+
+func TestValidateMigrationWaveCheckpointReferences(t *testing.T) {
+	t.Parallel()
+	const first = "https://github.com/moto-nrw/project-phoenix/issues/3019"
+	const second = "https://github.com/moto-nrw/project-phoenix/issues/3020"
+	for _, tt := range []struct {
+		name, reference string
+		accepted        []any
+		want            string
+	}{
+		{name: "current", reference: first, accepted: []any{map[string]any{"issue": first, "acceptance": first + "#issuecomment-123"}}},
+		{name: "missing", want: "checkpoint_reference must be"},
+		{name: "malformed", reference: "#3019", want: "checkpoint_reference must be"},
+		{name: "foreign repository", reference: "https://github.com/other/repo/issues/3019", want: "checkpoint_reference must be"},
+		{name: "future", reference: second, accepted: []any{map[string]any{"issue": first, "acceptance": first + "#issuecomment-123"}}, want: "current accepted checkpoint"},
+		{name: "unaccepted", reference: first, accepted: []any{}, want: "no accepted runtime checkpoint"},
+		{name: "missing acceptance", reference: first, accepted: []any{map[string]any{"issue": first}}, want: "explicit acceptance comment"},
+		{name: "skipped gate", reference: second, accepted: []any{map[string]any{"issue": second, "acceptance": second + "#issuecomment-123"}}, want: "contiguous ordered prefix"},
+		{name: "superseded", reference: first, accepted: []any{map[string]any{"issue": first, "acceptance": first + "#issuecomment-123"}, map[string]any{"issue": second, "acceptance": second + "#issuecomment-456"}}, want: "current accepted checkpoint"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var document map[string]any
+			if err := json.Unmarshal([]byte(readFile(t, filepath.Join(architectureBackendRoot(t), "architecture/migration-ticket-template.json"))), &document); err != nil {
+				t.Fatal(err)
+			}
+			document["checkpoint_reference"] = tt.reference
+			registry := writeTicketFixture(t, map[string]any{"schema_version": 1, "accepted": tt.accepted})
+			output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document), "--checkpoints", registry)
+			if tt.want == "" {
+				if err != nil {
+					t.Fatalf("valid wave rejected: %v\n%s", err, output)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(output, tt.want) {
+				t.Fatalf("want %q: %v\n%s", tt.want, err, output)
+			}
+		})
+	}
+}
+
+func TestValidateMigrationWaveRejectsEmptyFlowEvidence(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{"source", "workload", "thresholds", "query_count", "errors", "failure", "rollback", "smoke"} {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+			document := decodeTicketFixture(t)
+			document["ticket_kind"] = "migration"
+			delete(document, "checkpoint")
+			document["checkpoint_reference"] = "https://github.com/moto-nrw/project-phoenix/issues/3019"
+			evidence := document["runtime_evidence"].(map[string]any)
+			evidence["failure"], evidence["smoke"] = "Rollback verified.", "Smoke passed."
+			evidence["rollback"] = "Transaction rollback verified."
+			delete(evidence, field)
+			output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document))
+			if err == nil || !strings.Contains(output, "runtime_evidence."+field+" is required") {
+				t.Fatalf("missing flow evidence accepted: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+func TestValidateCheckpointRequiresReproducibleThreeRuns(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{"issue", "commit", "environment", "toolchain", "workload_version", "data_volume", "concurrency", "warm_up", "runs", "median", "worst", "comparison", "workload_bridge", "regression_issues", "decision"} {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+			document := decodeTicketFixture(t)
+			delete(document["checkpoint"].(map[string]any), field)
+			output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document))
+			if err == nil || !strings.Contains(output, "checkpoint."+field) {
+				t.Fatalf("missing checkpoint field accepted: %v\n%s", err, output)
+			}
+		})
+	}
+	for _, count := range []int{0, 1, 2, 4} {
+		t.Run(fmt.Sprintf("runs-%d", count), func(t *testing.T) {
+			t.Parallel()
+			document := decodeTicketFixture(t)
+			runs := make([]any, count)
+			for i := range runs {
+				runs[i] = document["runtime_evidence"]
+			}
+			document["checkpoint"].(map[string]any)["runs"] = runs
+			output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document))
+			if err == nil || !strings.Contains(output, "exactly three") {
+				t.Fatalf("wrong run count accepted: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+func TestValidateCheckpointRequiresEveryMetricInRunsAndSummaries(t *testing.T) {
+	t.Parallel()
+	for _, section := range []string{"run", "median", "worst"} {
+		for _, metric := range []string{"source", "workload", "thresholds", "query_count", "latency_p50", "latency_p95", "errors", "pool_wait", "lock_wait", "deadlocks", "job_duration", "job_retries", "job_backlog", "affected_rows"} {
+			t.Run(section+"/"+metric, func(t *testing.T) {
+				t.Parallel()
+				document := decodeTicketFixture(t)
+				checkpoint := document["checkpoint"].(map[string]any)
+				var report map[string]any
+				if section == "run" {
+					report = checkpoint["runs"].([]any)[1].(map[string]any)
+				} else {
+					report = checkpoint[section].(map[string]any)
+				}
+				delete(report, metric)
+				output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document))
+				if err == nil || !strings.Contains(output, "runtime_evidence."+metric+" is required") {
+					t.Fatalf("missing metric accepted: %v\n%s", err, output)
+				}
+			})
+		}
+	}
 }

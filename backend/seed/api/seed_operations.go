@@ -63,6 +63,9 @@ func seedClosingDay(rt *Runtime, today seedDate) error {
 }
 
 func seedMealPlan(rt *Runtime, today seedDate) error {
+	for today.Weekday() == time.Saturday || today.Weekday() == time.Sunday {
+		today = today.AddDays(1)
+	}
 	if _, err := rt.Client.Put("/api/meal-plan/"+today.String(), map[string]any{
 		"dishes": []map[string]any{
 			{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich"},
